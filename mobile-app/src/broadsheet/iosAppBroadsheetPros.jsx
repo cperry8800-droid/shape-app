@@ -1,120 +1,12 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
-// Phase 2 — "Needs you today." Two coach surfaces share ONE engine
-// (bsRowSeverity — prefers the live getTriageFeed `_sig`, else the local status
-// scorer) reading ONE roster (useBSProRoster). They are never two ranked lists:
-//   • TODAY shows only the urgent-TODAY subset — red no-shows + anyone with a
-//     session / review / due item on the selected day's schedule — a tight 2-3
-//     row glance. It NEVER reproduces the full book; "See all →" deep-links to
-//     the Clients roster (the canonical, ranked, filterable source).
-//   • CLIENTS (BSProRosterView) IS that book: every client, grouped
-//     red → amber → green, with search + phase filters.
-// Same verdict logic on both; they differ in SCOPE (today-urgent vs whole book)
-// and companion content (schedule vs filters). Reuse the engine — don't fork it.
-function BSProTriageFeed({ role = 'trainer', schedule = [], isToday = true, onSeeAll = () => {} }) {
-  const t = useBS();
-  const roster = useBSProRoster(role); // demo first paint → live roster when signed in
-  const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: t.isLight ? '#0a8f87' : '#34d6c5', green: '#7bbf5a', past: t.INK50 };
-  // A flagged client is today-urgent when they're red (a missed / no-show —
-  // urgent regardless of the clock) OR they have a session / review / due item
-  // on the selected day's schedule. Match by client id (live session events
-  // carry `clientId`) or by name (the `client`/`with` field, or the demo title
-  // which IS the client's name) — word-set, not a raw substring, so a short
-  // name like "Drew" can't match "Andrew Park".
-  const schedRows = schedule || [];
-  const schedIds = new Set(schedRows.map((it) => it.clientId).filter(Boolean));
-  const nameTokens = (s) => String(s || '').toLowerCase().replace(/^new:\s*/, '').split(/[^a-z0-9]+/i).filter(Boolean);
-  const schedTokenSets = schedRows.map((it) => new Set(nameTokens(it.client || it.title)));
-  const onSchedule = (c) => {
-    if (c && c.userId && schedIds.has(c.userId)) return true;
-    const want = nameTokens(c && c.n);
-    return want.length > 0 && schedTokenSets.some((have) => want.every((w) => have.has(w)));
-  };
-  const flaggedAll = roster
-    .filter((c) => c.active !== false)
-    .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
-    .filter((x) => x.sig.rank <= 1)
-    .sort((a, b) => a.sig.rank - b.sig.rank);
-  const urgent = flaggedAll.filter((x) => x.sig.sev === 'red' || onSchedule(x.c));
-  const shown = urgent.slice(0, 3);
-  const moreOnRoster = flaggedAll.length - shown.length; // the rest live on the roster
-  const message = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId, n: c.n } } })); } catch (e) {} };
-  return (
-    <div style={{ padding: `4px ${t.padX}px 8px` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <BSEyebrow color={t.ACCENT}>{isToday ? 'Needs you today' : 'Needs you'}</BSEyebrow>
-        {flaggedAll.length ? (
-          <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flaggedAll.length} →</button>
-        ) : <BSEyebrow>All clear</BSEyebrow>}
-      </div>
-      <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
-        {urgent.length === 0 && (
-          <BSPlate c={SEVCOL.green} pad="13px 15px" onClick={flaggedAll.length ? onSeeAll : undefined} role={flaggedAll.length ? 'button' : undefined} style={{ cursor: flaggedAll.length ? 'pointer' : 'default', textAlign: 'left' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.02em' }}>{flaggedAll.length ? 'Nothing urgent today.' : "Everyone's on track."}</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{flaggedAll.length ? `${flaggedAll.length} on your roster · See all →` : 'No clients flagged'}</div>
-          </BSPlate>
-        )}
-        {shown.map(({ c, sig }) => {
-          const col = SEVCOL[sig.sev] || t.AMBER;
-          return (
-            <BSPlate key={c.n} c={col} tick={sig.sev === 'red'} pad="12px 14px">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{c.n}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '3px 7px' }}>{sig.label}</span>
-                  </div>
-                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{sig.directive}</div>
-                  {sig.routed && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.05em', color: t.INK50, opacity: 0.75, lineHeight: 1.3 }}>→ {sig.routed.to} · read-only: {sig.routed.reason}</div>}
-                </div>
-                <button type="button" onClick={() => message(c)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
-              </div>
-            </BSPlate>
-          );
-        })}
-        {urgent.length > 0 && moreOnRoster > 0 && (
-          <button type="button" onClick={onSeeAll} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>+{moreOnRoster} more on your roster</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>See all →</span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-// Instrument schedule — each session as a clipped plate with a type-colored
-// accent spine (LIVE rust · ASYN blue · INTK green · PRGM amber), the next/live
-// one ticked. Matches the triage feed's design language (replaces the flat
-// divider rows). Shared by the trainer + nutritionist Today.
-function BSProScheduleRows({ items = [], onOpen = () => {}, emptyText = 'Nothing booked' }) {
-  const t = useBS();
-  if (!items.length) return (
-    <div style={{ padding: `18px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>— {emptyText} —</div>
-  );
-  return (
-    <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
-      {items.map((r, i) => {
-        const c = r.tagColor || t.AMBER;
-        const isNext = r.state === 'next' || r.state === 'live';
-        const isDone = r.state === 'done';
-        return (
-          <BSPlate key={i} c={c} spine={3} tick={isNext} pad="10px 12px" onClick={onOpen} style={{ opacity: isDone ? 0.55 : 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.01em', color: isNext ? c : t.INK, fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 38 }}>{r.time}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, border: `1px solid ${c}66`, borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>{r.tag}</span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isDone ? 'line-through' : 'none' }}>{r.title}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.sub}</div>
-              </div>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
-            </div>
-          </BSPlate>
-        );
-      })}
-    </div>
-  );
-}
+import { bsProMin, bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
+// Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
+// live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
+// (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
+// 3 rows via bsProAttentionBudget) and BSProRosterView (the full ranked book,
+// every client grouped red -> amber -> green with search + phase filters).
 // iosAppBroadsheetPros.jsx — Trainer & Nutritionist roles in Broadsheet style.
 // Lighter pass: 4 tabs each — Today, Clients, Plans/Pubs, Me.
 
@@ -234,39 +126,6 @@ function demoWorkoutReviewSessions(role = 'trainer') {
       coach_workout_review_notes: [],
     },
   ];
-}
-
-function BSReviewQueueCard({ role = 'trainer', onOpen }) {
-  const t = useBS();
-  const isNutri = role === 'nutritionist';
-  const accent = isNutri ? t.RUST : t.AMBER;
-  return (
-    <div style={{ padding: `0 ${t.padX}px 14px` }}>
-      <button onClick={onOpen} style={{
-        width: '100%',
-        textAlign: 'left',
-        border: `1px solid ${t.RULE}`,
-        borderTop: `2px solid ${t.INK}`,
-        borderRadius: 14,
-        padding: 14,
-        background: t.PAPER2,
-        color: t.INK,
-        cursor: 'pointer',
-        boxShadow: '0 8px 18px rgba(10,13,12,0.035)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <BSEyebrow color={accent}>{isNutri ? 'Client review desk' : 'Workout review desk'}</BSEyebrow>
-          <BSEyebrow>{isNutri ? '2 pending' : '3 pending'} -&gt;</BSEyebrow>
-        </div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontWeight: 750, letterSpacing: '-0.025em' }}>
-          {isNutri ? 'Review adherence notes and send client feedback.' : 'Review set timing, rest windows, and watch data.'}
-        </div>
-        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>
-          {isNutri ? 'Use this for nutrition check-ins tied to logged training days.' : 'Session logs show each set, rest before the set, and sensor samples when available.'}
-        </div>
-      </button>
-    </div>
-  );
 }
 
 // ─── Reusable week strip for trainer / nutritionist home ─────
@@ -846,7 +705,7 @@ function bsProWeek(now = new Date()) {
 }
 
 // `dots` is an array indexed by weekday (0=Mon..6=Sun).
-function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayProp, onSelectDay }) {
+function BSProWeekStrip({ goCalendar, dots, heat, label = 'This week', selDay: selDayProp, onSelectDay }) {
   const t = useBS();
   const { todayIdx, dates } = bsProWeek();
   const [internalSel, setInternalSel] = useStateBSP(dates[todayIdx].getDate());
@@ -857,6 +716,7 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
   const range = dates[0].getMonth() === dates[6].getMonth()
     ? `${_BS_MON[dates[0].getMonth()]} ${dates[0].getDate()}–${dates[6].getDate()}`
     : `${_BS_MON[dates[0].getMonth()]} ${dates[0].getDate()} – ${_BS_MON[dates[6].getMonth()]} ${dates[6].getDate()}`;
+  const heatC = heat || t.ACCENT;
   return (
     <>
       <BSSection
@@ -865,26 +725,29 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
-        {/* Day boxes — identical styling to the client home week strip. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
+        {/* Day boxes — mono day letters, ink-alpha ticks (not colored dots); the
+            selected day carries a drawn heat underline instead of an ink fill. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `1px solid ${t.RULE}`, paddingTop: 8 }}>
           {days.map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
             const dd    = (dots && dots[day.idx]) || [];
+            const nTicks = Math.min(3, dd.length);
             return (
               <button key={day.d} onClick={() => setSelDay(day.d)} style={{
-                borderRadius: t.RADIUS_SM,
-                border: `1px solid ${on ? t.INK : t.HAIR}`,
-                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
-                color: on ? t.PAPER : t.INK,
-                padding: '5px 0 4px', cursor: 'pointer',
+                position: 'relative',
+                border: 0,
+                background: today && !on ? t.PAPER2 : 'transparent',
+                color: on ? t.INK : t.INK70,
+                padding: '5px 0 6px', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', opacity: today || on ? 1 : 0.6 }}>{day.l}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
                 <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
-                  {dd.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: on ? t.PAPER : c }} />)}
+                  {Array.from({ length: nTicks }).map((_, k) => <span key={k} style={{ width: 3, height: 3, borderRadius: 1, background: `${t.INK}59` }} />)}
                 </span>
+                {on && <span aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: 0, height: 2, background: heatC }} />}
               </button>
             );
           })}
@@ -1100,21 +963,43 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   );
 }
 
-function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, onWatchLive = () => {}, tweaks = {}, setTweak = () => {} }) {
+// ═══════════════════════════════════════════════════════════
+// BSProToday — the Assignment Rail (both editions, one component)
+// §A.1–A.9 of docs/superpowers/specs/2026-07-04-coach-ledger-redesign-design.md:
+// masthead → dateline → bulletins (live/review) → THE LEAD (verdict) → week
+// strip → THE RAIL (booking ledger + NOW tick + gaps) → THE WIRE (attention
+// budget) → INSIDE. (doors) → radio + footer. ONE breathing tick per page
+// (the LIVE bulletin dot, else the NOW tick); attention budget caps the WIRE
+// at 3 rows (bsProAttentionBudget); the LEAD block keeps `data-tour="hero-today"`
+// (the coach onboarding tour anchors to it).
+// ═══════════════════════════════════════════════════════════
+function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, onWatchLive = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const isNutri = role === 'nutritionist';
+  const heat = bsProHeat(t, role);
   const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
   const [ticker, setTicker] = useStateBSP(null);
 
-  // Live ticker — pulled from /api/trainer/analytics so the masthead matches
-  // the coach's actual roster, programs, and today's bookings.
+  // Window-kit consumption (Task 1's Open Ledger kit, exposed on window by the
+  // client bundle). Null-guarded — the client bundle may not have loaded yet.
+  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  const LedgerStat = typeof window !== 'undefined' ? window.BSTLedgerStat : null;
+  const useSdInView = typeof window !== 'undefined' ? window.useBSSdInView : null;
+  const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
+  React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
+
+  // Live ticker — pulled from /api/{trainer|nutritionist}/analytics so the
+  // masthead matches the coach's actual roster, programs, and today's bookings.
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/trainer/analytics', { credentials: 'same-origin' })
+    const endpoint = isNutri ? '/api/nutritionist/analytics' : '/api/trainer/analytics';
+    fetch(endpoint, { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && d.isTrainer && d.ticker) setTicker(d.ticker); })
+      .then(d => { if (!cancelled && d && (isNutri ? d.isNutritionist : d.isTrainer) && d.ticker) setTicker(d.ticker); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [isNutri]);
 
   // Real schedule — the coach's own calendar events for the visible week
   // (ShapeCalendar). Keyed by YYYY-MM-DD; used when signed in + has events, else demo.
@@ -1127,6 +1012,13 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     const wk = bsProWeek().dates;
     const tagFor = (kind) => {
       const k = String(kind || '').toUpperCase();
+      if (isNutri) {
+        if (k === 'CHECKIN' || k === 'CHK') return ['CHK', t.GREEN];
+        if (k === 'REVIEW') return ['F/U', t.BLUE];
+        if (k === 'PLAN' || k === 'PROGRAM' || k === 'PRGM') return ['PLAN', t.AMBER];
+        if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
+        return ['CONS', t.RUST];
+      }
       if (k === 'CONSULT' || k === 'CON') return ['CONS', t.RUST];
       if (k === 'CHECKIN' || k === 'CHK') return ['CHK', t.GREEN];
       if (k === 'REVIEW') return ['ASYN', t.BLUE];
@@ -1143,7 +1035,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         const [tg, tc] = tagFor(ev.kind);
         (byDate[ev.date] = byDate[ev.date] || []).push({
           time: ev.time || '—', tag: tg, tagColor: tc,
-          title: ev.title || 'Session',
+          title: ev.title || (isNutri ? 'Consult' : 'Session'),
           sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
           state: ev.status === 'done' ? 'done' : undefined,
           client: ev.with || '', clientId: ev.clientId || null,
@@ -1153,8 +1045,9 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       setRealByDate(byDate);
     }).catch(() => {});
     return () => { on = false; };
-  }, []);
-  // Per-day bookings dataset. May 14 (today) is the full roster; other days lighter.
+  }, [isNutri]);
+  // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
+  // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
   const TRAINER_BOOKINGS = {
     20: [
       { time: '08:00', tag: 'LIVE', tagColor: t.RUST, title: 'Alex Rivera',    sub: 'Lower Pull · 60m', state: 'done' },
@@ -1188,10 +1081,41 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
     ],
   };
-  // Map each weekday to a demo dataset by its offset from today, so "today" is
-  // always the busy roster (21) regardless of the real weekday.
+  const NUTRI_SCHEDULE = {
+    20: [
+      { time: '10:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Macro check · 30m', state: 'done' },
+      { time: '14:00', tag: 'INTK', tagColor: t.GREEN, title: 'Drew Park',   sub: 'Initial · 60m', state: 'done', last: true },
+    ],
+    21: [
+      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Casey Lee',   sub: 'Initial · 60m', state: 'done' },
+      { time: '11:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sara Mendez', sub: 'Cut adjustment · 30m', state: 'done' },
+      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m', state: 'next' },
+      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'Morgan Liu',  sub: 'Initial · 60m', last: true },
+    ],
+    22: [
+      { time: '11:00', tag: 'INTK', tagColor: t.GREEN, title: 'Sara Mendez', sub: 'Initial · 60m' },
+      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Jamie Wong',  sub: 'Cut adjustment · 30m' },
+      { time: '15:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m', state: 'next' },
+      { time: '16:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m' },
+      { time: '17:30', tag: 'INTK', tagColor: t.GREEN, title: 'Pat Doan',    sub: 'Initial · 60m', last: true },
+    ],
+    23: [
+      { time: '10:00', tag: 'INTK', tagColor: t.GREEN, title: 'Quinn Choi', sub: 'Initial · 60m' },
+      { time: '14:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Tasha Yeo',  sub: 'Macro check · 30m', last: true },
+    ],
+    24: [
+      { time: '09:30', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m' },
+      { time: '12:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Cut adjustment · 30m', last: true },
+    ],
+    25: [],
+    26: [
+      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
+    ],
+  };
   const { todayIdx, dates } = bsProWeek();
-  const dataFor = (off) => off === 0 ? 21 : off > 0 ? [22, 23, 24][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
+  const dataFor = isNutri
+    ? (off) => off === 0 ? 22 : off > 0 ? [23, 24, 21][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)]
+    : (off) => off === 0 ? 21 : off > 0 ? [22, 23, 24][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
   const dataByIdx = dates.map((_, i) => dataFor(i - todayIdx));
   const selIdx = Math.max(0, dates.findIndex(d => d.getDate() === selDay));
   const selDate = dates[selIdx];
@@ -1200,34 +1124,80 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   // Live when the coach has any real calendar events this week (empty days show
   // empty); demo roster in preview / before any sessions are booked.
   const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
-  const bookings = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (bsProSignedIn() ? [] : (TRAINER_BOOKINGS[dataDay] || []));
+  const demoDataset = isNutri ? NUTRI_SCHEDULE : TRAINER_BOOKINGS;
+  const bookings = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (bsProSignedIn() ? [] : (demoDataset[dataDay] || []));
 
-  // Per-day lead. selDay 14 = today's narrative.
+  // Per-day lead narrative (demo).
   const TRAINER_LEAD = {
-    20: { count: '3', kicker: 'Mon · May 11',  copy: 'Light Monday — catch-up day for async reviews.' },
-    21: { count: '8', kicker: "Today", copy: "First at 7am. Two free hours at noon to write Sofia's program." },
-    22: { count: '2', kicker: 'Fri · May 15',  copy: 'Quiet day. Block out the morning for Sofia.' },
-    23: { count: '2', kicker: 'Sat · May 16',  copy: 'One live, one async. Easy build-up to Friday.' },
-    24: { count: '2', kicker: 'Sun · May 17',  copy: 'Two heavy sessions — Casey & Quinn back-to-back area.' },
-    25: { count: '0', kicker: 'Mon · May 18',  copy: 'Off day. Programming refresh on the docket.' },
-    26: { count: '1', kicker: 'Tue · May 19',  copy: 'Open hours — drop-in consults only.' },
+    20: { count: '3', copy: 'Light Monday — catch-up day for async reviews.' },
+    21: { count: '8', copy: "First at 7am. Two free hours at noon to write Sofia's program." },
+    22: { count: '2', copy: 'Quiet day. Block out the morning for Sofia.' },
+    23: { count: '2', copy: 'One live, one async. Easy build-up to Friday.' },
+    24: { count: '2', copy: 'Two heavy sessions — Casey & Quinn back-to-back area.' },
+    25: { count: '0', copy: 'Off day. Programming refresh on the docket.' },
+    26: { count: '1', copy: 'Open hours — drop-in consults only.' },
   };
+  const NUTRI_LEAD = {
+    20: { count: '2', copy: 'Quiet Monday — one intake, one follow-up.' },
+    21: { count: '4', copy: 'One intake, three follow-ups. First at 9am.' },
+    22: { count: '5', copy: 'Two intakes, three follow-ups. First at 11am.' },
+    23: { count: '2', copy: 'Light Friday — one intake, one macro check.' },
+    24: { count: '2', copy: 'Two follow-ups. Easy weekend cadence.' },
+    25: { count: '0', copy: 'Off day. No sessions scheduled.' },
+    26: { count: '1', copy: 'Open hours — drop-in consults only.' },
+  };
+  const LEAD_SET = isNutri ? NUTRI_LEAD : TRAINER_LEAD;
+  const defaultDay = isNutri ? 22 : 21;
   // Live-now banner: REAL presence only. A roster client (with a real userId)
-  // currently in a 'workout' surfaces the banner; signed-out keeps the demo
-  // banner as a preview. Re-renders on presence change.
+  // currently in a matching activity surfaces the banner; signed-out keeps the
+  // demo banner as a preview. Re-renders on presence change.
   useProPresenceTick();
-  const trainerRoster = useBSProRoster('trainer');
-  const coachSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
-  const activeCount = trainerRoster.filter(c => c.active !== false).length;
+  const roster = useBSProRoster(role);
+  const coachSignedIn = bsProSignedIn();
   // Day-shape hero lead. Signed-out keeps the rich demo narrative; signed-in is
   // honest off the day's real bookings (no demo session counts/copy).
-  const demoLead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
-  const lead = coachSignedIn
-    ? { count: String(bookings.length), copy: bookings.length ? `${bookings.length} ${bookings.length === 1 ? 'session' : 'sessions'} ${isToday ? 'today' : 'scheduled'}.` : (isToday ? 'No sessions scheduled today.' : 'Nothing scheduled.') }
-    : demoLead;
-  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
-  const liveClients = isToday ? trainerRoster.filter((c) => c.active !== false && c.userId && window.ShapePresence && window.ShapePresence.activityOf && window.ShapePresence.activityOf(c.userId) === 'workout') : [];
+  const demoLead = LEAD_SET[dataDay] || LEAD_SET[defaultDay];
+  const first = bookings.length ? bookings[0] : null;
+  const bookingsWithDuration = bookings.map((b) => ({ ...b, durationMin: bsProDurationFromSub(b.sub) || undefined }));
+  const dayShape = bsProDayShape(bookingsWithDuration, isToday ? { h: new Date().getHours(), m: new Date().getMinutes() } : null);
+  // THE WIRE / rail attention budget — the VERIFIED severity model (sev values
+  // are red/amber/new/green/past; green/past never enter the budget). Demo rows
+  // carry no `_sig` and derive severity from their `s` status via bsRowSeverity —
+  // the single live-or-demo path — so signed-out demo flags flow through here too.
+  const FLAG_WORDS = { red: 'FLAG', amber: 'WATCH', new: 'NEW' };
+  const triageRows = roster
+    .filter((c) => c.active !== false)
+    .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
+    .filter(({ sig }) => sig && FLAG_WORDS[sig.sev])
+    .sort((a, b) => (a.sig.rank ?? 9) - (b.sig.rank ?? 9))
+    .map(({ c, sig }) => ({ clientId: c.userId || null, name: c.n, severity: sig.sev, directive: sig.directive || sig.label || '' }));
+  const budget = bsProAttentionBudget(triageRows, bookingsWithDuration);
+  const leadVerdict = coachSignedIn
+    ? bsProLeadVerdict({ signedIn: true, sessions: bookings.length, firstLabel: bsProHourLabel(first && first.time), top: budget.lead })
+    : demoLead.copy;
+  const flaggedTotal = roster.filter((c) => c.active !== false && FLAG_WORDS[(bsRowSeverity(c, role) || {}).sev]).length;
+  const openHoursKnown = dayShape.openHours != null;
+  const liveClients = isToday ? roster.filter((c) => c.active !== false && c.userId && window.ShapePresence && window.ShapePresence.activityOf && window.ShapePresence.activityOf(c.userId) === (isNutri ? 'cooking' : 'workout')) : [];
   const liveClient = liveClients[0] || null;
+  const liveBulletinShown = isToday && (liveClient || !coachSignedIn);
+  const openLiveMessage = (lc) => {
+    if (isNutri) { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: lc.userId, n: lc.n } } })); } catch (e) {} return; }
+    onWatchLive({ client: lc.n, clientId: lc.userId, workout: 'Live session' });
+  };
+
+  // Wire-row local state — SCHEDULE opens BSProScheduleSession for a client row;
+  // OPEN THE FILE routes to the roster (onWidgetOpen('clients')) exactly like
+  // the client page's local schedFor pattern.
+  const [schedFor, setSchedFor] = useStateBSP(null);
+
+  // ── Motion sections: one useBSSdInView pair per station (lead/rail/wire/inside) ──
+  const [leadRef, leadSeen] = useSdInView ? useSdInView() : [null, true];
+  const [railRef, railSeen] = useSdInView ? useSdInView() : [null, true];
+  const [wireRef, wireSeen] = useSdInView ? useSdInView() : [null, true];
+  const [insideRef, insideSeen] = useSdInView ? useSdInView() : [null, true];
+
+  if (schedFor) return <BSProScheduleSession client={schedFor} role={role} clientUid={schedFor.userId} onBack={() => setSchedFor(null)} />;
+
   return (
     <BSPage>
       <BSMasthead
@@ -1240,41 +1210,80 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         showDotTexture={false}
       />
 
-      {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div data-tour="hero-today" style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-          <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
-        </div>
-        <BSHeadlineNumber value={lead.count} unit="SESSIONS" size={Math.round(t.headlineHero * 0.62)} />
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
-          {lead.copy}
-        </div>
-      </div>
-
-      {/* Edition strip — coaches edition, at the top (mirrors the client home) */}
-      <div style={{
-        padding: `7px ${t.padX}px 10px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
+      {/* §A.2 DATELINE — one row, edition label in heat + day/date, ink-50; right = live clock or selected date. */}
+      <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <span style={{ color: heat }}>{isNutri ? 'NUTRI EDITION' : 'COACHES EDITION'}</span>
+          <span style={{ color: `${t.INK}80` }}> · {_BS_DOW[selIdx]} · {_BS_MON[selDate.getMonth()]} {selDate.getDate()}</span>
         </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
+          {isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`}
         </span>
       </div>
 
-      {/* THIS WEEK — trainer view, dots = booking density (selects the day) */}
+      {/* §A.3 BULLETINS — LIVE (teal spine + breathing dot) then REVIEW (heat spine, no dot). */}
+      {liveBulletinShown && (() => {
+        const lc = liveClient || { n: 'Alex Rivera', i: 'A', c: t.RUST };
+        const more = Math.max(0, liveClients.length - 1);
+        const verb = isNutri ? 'cooking' : 'training';
+        const actionLabel = isNutri ? 'OPEN →' : 'WATCH →';
+        const title = liveClient ? (more ? `${lc.n} · +${more} more` : lc.n) : (isNutri ? 'Alex Rivera · Meal prep' : 'Alex Rivera · Upper Pull');
+        return (
+          <div style={{ padding: `4px ${t.padX}px 0` }}>
+            <div style={{ borderLeft: `3px solid ${t.isLight ? '#0a8f87' : '#34d6c5'}`, padding: '8px 0 8px 11px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <BSFacetAvatar size={28} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5', fontWeight: 800 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', boxShadow: '0 0 8px currentColor', animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> Live · {verb}
+                  </div>
+                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+                </div>
+                <button type="button" onClick={() => (liveClient ? openLiveMessage(lc) : onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' }))} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>{actionLabel}</button>
+              </div>
+            </div>
+            <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+          </div>
+        );
+      })()}
+      {!coachSignedIn && (
+        <div style={{ padding: `4px ${t.padX}px 0` }}>
+          <button type="button" onClick={onOpenReviews} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, minHeight: 44 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{isNutri ? '2 CLIENT LOGS WAITING' : '4 FORM CLIPS WAITING'} · REVIEW →</span>
+          </button>
+        </div>
+      )}
+
+      {/* §A.4 THE LEAD — verdict lead (data-tour anchor for the coach onboarding tour). */}
+      <div ref={leadRef} data-tour="hero-today" style={{ padding: `14px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}` }}>
+        {StationHead && <StationHead heat={heat} INK={t.INK} label="THE LEAD" />}
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.28, color: t.INK }}>
+          {leadVerdict}<span style={{ color: heat }}>.</span>
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', gap: 22 }}>
+          {LedgerStat && <LedgerStat INK={t.INK} label={isNutri ? 'CONSULTS' : 'SESSIONS'} value={String(bookings.length)} seen={leadSeen} figSize={26} />}
+          {LedgerStat && <LedgerStat INK={t.INK} label="NEED YOU" value={String(flaggedTotal)} seen={leadSeen} figSize={26} delay={60} />}
+          {openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label="OPEN HRS" value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
+        </div>
+      </div>
+
+      {/* §A.5 WEEK STRIP */}
       <BSProWeekStrip
         goCalendar={goCalendar}
+        heat={heat}
         selDay={selDay}
         onSelectDay={setSelDay}
         dots={hasReal
           ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => ({
+          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => (isNutri ? {
+          20: [t.BLUE, t.BLUE],
+          21: [t.GREEN, t.BLUE, t.BLUE],
+          22: [t.BLUE],
+          23: [t.GREEN, t.BLUE],
+          24: [t.BLUE, t.BLUE],
+          25: [],
+          26: [t.AMBER],
+        } : {
           20: [t.RUST, t.RUST, t.BLUE],
           21: [t.RUST, t.RUST, t.RUST],
           22: [t.AMBER, t.GREEN],
@@ -1282,79 +1291,146 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           24: [t.RUST, t.RUST],
           25: [],
           26: [t.GREEN],
-        }[dd] || []))}
+        })[dd] || [])}
       />
 
-      {isToday && (liveClient || !coachSignedIn) && (() => {
-        const lc = liveClient || { n: 'Alex Rivera', i: 'A', c: t.RUST };
-        const more = Math.max(0, liveClients.length - 1);
-        const title = liveClient ? (more ? `${lc.n} · +${more} more` : lc.n) : 'Alex Rivera · Upper Pull';
-        return (
-        <div style={{ padding: `4px ${t.padX}px 0` }}>
-          <BSPlate
-            c={t.RUST}
-            spine={3}
-            bracket
-            pad="10px 13px"
-            role="button"
-            ariaLabel={`Watch ${lc.n} live`}
-            onClick={() => onWatchLive(liveClient ? { client: lc.n, clientId: lc.userId, workout: 'Live session' } : { client: 'Alex Rivera', workout: 'Upper Pull — Peak' })}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BSFacetAvatar size={30} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 999, background: t.RUST, display: 'inline-block', boxShadow: `0 0 8px ${t.RUST}`, animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> Live · training
-                </div>
-                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-              </div>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
+      {/* §A.6 THE RAIL — the booking ledger, time-ordered, NOW tick + gaps. */}
+      <div ref={railRef} style={{ padding: `4px ${t.padX}px 0` }}>
+        {StationHead && (
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}><StationHead heat={heat} INK={t.INK} label={`${_BS_DOW[selIdx]} · THE RAIL`} /></div>
+            <button type="button" onClick={goCalendar} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', marginBottom: 13, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, padding: '0 2px' }}>CALENDAR →</button>
+          </div>
+        )}
+        <div
+          onClick={(e) => { if (e.target && e.target.closest && e.target.closest('button')) return; goCalendar(); }}
+          style={{ position: 'relative', paddingLeft: 44, cursor: 'pointer' }}
+        >
+          <span aria-hidden style={{ position: 'absolute', left: 30, top: 0, bottom: 0, width: 2, background: heat, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
+          {bookings.length >= 10 && bookings.filter((b) => b.state === 'done').length > 0 && (
+            <div style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}80` }}>{bookings.filter((b) => b.state === 'done').length} DONE ✓</div>
             </div>
-            <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
-          </BSPlate>
+          )}
+          {(bookings.length >= 10 ? bookings.filter((b) => b.state !== 'done') : bookings).map((b, i) => {
+            const done = b.state === 'done';
+            const isNext = b.state === 'next' || b.state === 'live';
+            const typeWord = b.tag || 'SESSION';
+            const inlineFlag = budget.inline.find((x) => x.bookingIdx === i);
+            const sevWord = inlineFlag ? FLAG_WORDS[inlineFlag.severity] : null;
+            const sevColor = inlineFlag ? { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[inlineFlag.severity] : null;
+            const gap = dayShape.gaps.find((g) => g.afterIdx === i);
+            return (
+              <React.Fragment key={i}>
+                <div style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
+                  <span style={{ position: 'absolute', left: -44, top: 8, width: 26, textAlign: 'right', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: done ? `${t.INK}4d` : `${t.INK}b3`, textDecoration: done ? 'line-through' : 'none' }}>{bsProHourLabel(b.time)}</span>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: done ? t.INK50 : t.INK, textDecoration: done ? 'line-through' : 'none' }}>{b.title}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                    {isNext ? <span style={{ color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{typeWord}</span> : typeWord}
+                    {' · '}{b.sub}{done ? ' · DONE' : ''}{isNext && <span style={{ color: heat }}> · ↑ NEXT</span>}
+                    {sevWord && <span style={{ color: sevColor }}> · ⚑ {sevWord}</span>}
+                  </div>
+                </div>
+                {dayShape.nowSlot === i && isToday && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
+                    <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
+                  </div>
+                )}
+                {gap && (
+                  <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '8px 0', margin: '2px 0' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{bsProGapLabel(gap.startMin, gap.endMin)}</span>
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+          {bookings.length === 0 && coachSignedIn && (
+            Redact ? <Redact INK={t.INK} label="NOTHING BOOKED — OPEN HOURS" /> : (
+              <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '10px 0' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${t.INK}4d` }}>NOTHING BOOKED — OPEN HOURS</span>
+              </div>
+            )
+          )}
+          {bookings.length === 0 && !coachSignedIn && (
+            <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? 'Off day · nothing scheduled' : 'Off day · nothing booked'}</div>
+          )}
         </div>
-        );
-      })()}
-
-      {/* Today's schedule (live-now above). */}
-      <BSSection
-        title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
-        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
-      />
-      <BSProScheduleRows items={bookings} onOpen={goCalendar} emptyText="Off day · nothing booked" />
-      {/* The urgent-TODAY subset only (red + today's sessions/reviews); the full
-          ranked book lives on Clients ("See all →"). */}
-      <div style={{ marginTop: 10 }}>
-        <BSProTriageFeed role="trainer" schedule={bookings} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
       </div>
 
-      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row
-          style. Demo-only: there's no live ops feed, so hide it when signed in. */}
-      {!coachSignedIn && (<>
-      <BSSection title="Queue" meta="3 to clear" />
-      <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
-        {[
-          { label: '4 form clips · Review', onClick: () => onOpenReviews() },
-          { label: 'Publish Block 3 edits', onClick: () => onWidgetOpen('programs') },
-          { label: 'Send Pull Day Tempo playlist', onClick: () => onWidgetOpen('playlists') },
-        ].map((q) => (
-          <button key={q.label} type="button" onClick={q.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{q.label}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>→</span>
+      {/* §A.7 THE WIRE — attention-budget wires (overflow past the rail's inline capacity), then the roster leader row (always). */}
+      <div ref={wireRef} style={{ marginTop: 10, ...(sdReduced ? null : wireSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
+        {budget.wires.length > 0 && (
+          <>
+            {StationHead && <div style={{ padding: `0 ${t.padX}px` }}><StationHead heat="#c0533b" INK={t.INK} label={`THE WIRE · ${bookings.length === 0 ? 'NO SESSION BOOKED' : 'NEEDS YOU'}`} /></div>}
+            <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gap: 10 }}>
+              {budget.wires.map((w, i) => {
+                const sevColor = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[w.severity] || t.AMBER;
+                const sevWord = FLAG_WORDS[w.severity] || 'FLAG';
+                return (
+                  <div key={w.clientId || w.name || i} style={{ borderLeft: `3px solid ${sevColor}`, padding: '8px 0 9px 11px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{w.name}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>· {sevWord}</span>
+                    </div>
+                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.4 }}>{w.directive}</div>
+                    <button
+                      type="button"
+                      onClick={() => (w.clientId ? setSchedFor({ n: w.name, userId: w.clientId }) : onWidgetOpen('clients'))}
+                      style={{ marginTop: 5, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0 0', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK }}
+                    >
+                      <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{w.clientId ? 'SCHEDULE →' : 'OPEN THE FILE →'}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+        <div style={{ padding: `10px ${t.padX}px 0` }}>
+          <button type="button" onClick={() => onWidgetOpen('clients')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>SEE THE FULL ROSTER</span>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{roster.filter((c) => c.active !== false).length} CLIENTS{flaggedTotal ? ` · ${flaggedTotal} FLAGGED` : ''} ›</span>
           </button>
-        ))}
+        </div>
       </div>
-      </>)}
+
+      {/* §A.8 INSIDE. — doors, per role. */}
+      <div ref={insideRef} style={{ padding: `18px ${t.padX}px 0`, ...(sdReduced ? null : insideSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>INSIDE.</div>
+        <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
+          {(isNutri
+            ? [
+                { label: 'PLANS', figure: null, onOpen: () => onWidgetOpen('plans') },
+                { label: 'CLIENT LOGS', figure: null, onOpen: () => onOpenReviews() },
+                { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
+              ]
+            : [
+                { label: 'PROGRAMS', figure: null, onOpen: () => onWidgetOpen('programs') },
+                { label: 'FORM CLIPS', figure: null, onOpen: () => onOpenReviews() },
+                { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
+              ]
+          ).map((door) => (
+            <button key={door.label} type="button" onClick={door.onOpen} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{door.label}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>{door.figure != null ? door.figure : '›'}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 14 }}>
         <BSNowPlaying onOpen={goRadio} />
       </div>
 
-      <BSFooter left="The Coach Edition" right="Pg 1 of 4" />
+      <BSFooter left={isNutri ? 'The Nutri Edition' : 'The Coach Edition'} right="Pg 1 of 4" />
     </BSPage>
   );
 }
+function BSTrainerToday(props) { return <BSProToday role="trainer" {...props} />; }
 
 
 
@@ -1539,63 +1615,6 @@ function bsProMeInit() {
   return custom || (nm ? nm.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() : 'S') || 'S';
 }
 // The coach's own avatar — opens Settings (the shells listen for the event).
-// Coach home Habits section — same numbered format as the client home page
-// (DO/AVOID pill, name, points, check box, "View →" to the full habits page).
-// Reads the coach's own habits from tweaks via the window-exposed decoder.
-// Coach habits — the SAME "Daily habits." plate the client home page renders
-// (green spine + tick + bracket, mono eyebrow, serif title, numbered DO/AVOID
-// rows, footer + View →). Reads the coach's own habits from tweaks; tapping
-// opens the full habits page.
-function BSProHabits({ tweaks = {}, onOpen = () => {} }) {
-  const t = useBS();
-  const habits = (() => {
-    const dec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
-    return Array.isArray(dec) ? dec : [];
-  })();
-  const doneN = habits.filter(h => h.done).length;
-  const pts = habits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts || 0), 0);
-  const possible = habits.reduce((a, h) => a + Math.round(h.pts || 0), 0);
-  const open = habits.filter(h => !h.done);
-  return (
-    <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" role="button" ariaLabel="Open daily habits" onClick={onOpen} style={{ margin: `0 ${t.padX}px`, textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {doneN}/{habits.length} done</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
-      </div>
-      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-        Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
-      </div>
-      {habits.length === 0 ? (
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>No habits yet — tap to add your first one.</div>
-      ) : open.length === 0 ? (
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today. ✓</div>
-      ) : (
-        <div style={{ marginTop: 12 }}>
-          {open.map((h, i, arr) => {
-            const avoid = h.type === 'avoid';
-            const pillC = avoid ? t.RUST : t.GREEN;
-            return (
-              <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts || 0)} pts`}</div>
-                </div>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts || 0)}</span>
-                <span style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10` }} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap a box to check off · card opens habits</span>
-        <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
-      </div>
-    </BSPlate>
-  );
-}
 function BSProAvatarButton({ size = 38 }) {
   // Match the Today/Me headers: the coach's real photo (custom or signed-in),
   // tier-colored ring, falling back to initials — not a flat initial badge.
@@ -1806,6 +1825,10 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
 
 // ── Shared chrome for the coach action pages (Adjust program / Schedule) ──────
 function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.isLight ? '#0a8f87' : '#34d6c5'); }
+// ROLE heat for the coach ledger surfaces (spec: trainer rust is ONE literal
+// on all papers; nutritionist gold is a light/dark pair). bsProAccent (teal)
+// stays the ACTION accent for the action pages — heat ≠ accent.
+function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b'; }
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
 function bsProMastRow(withCorners = true) {
@@ -4143,219 +4166,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   );
 }
 
-function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, tweaks = {}, setTweak = () => {} }) {
-  const t = useBS();
-  const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
-  const [ticker, setTicker] = useStateBSP(null);
-
-  // Live ticker — pulled from /api/nutritionist/analytics so the masthead
-  // reflects today's consults, active roster, protein adherence, and new
-  // clients this week.
-  React.useEffect(() => {
-    let cancelled = false;
-    fetch('/api/nutritionist/analytics', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && d.isNutritionist && d.ticker) setTicker(d.ticker); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  // Per-day schedule for the nutritionist. May 14 (today) is the full
-  // roster; other days are lighter so the strip actually changes content
-  // when the user taps a different day.
-  const NUTRI_SCHEDULE = {
-    20: [
-      { time: '10:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Macro check · 30m', state: 'done' },
-      { time: '14:00', tag: 'INTK', tagColor: t.GREEN, title: 'Drew Park',   sub: 'Initial · 60m', state: 'done', last: true },
-    ],
-    21: [
-      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Casey Lee',   sub: 'Initial · 60m', state: 'done' },
-      { time: '11:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sara Mendez', sub: 'Cut adjustment · 30m', state: 'done' },
-      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m', state: 'next' },
-      { time: '16:00', tag: 'INTK', tagColor: t.GREEN, title: 'Morgan Liu',  sub: 'Initial · 60m', last: true },
-    ],
-    22: [
-      { time: '11:00', tag: 'INTK', tagColor: t.GREEN, title: 'Sara Mendez', sub: 'Initial · 60m' },
-      { time: '13:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Jamie Wong',  sub: 'Cut adjustment · 30m' },
-      { time: '15:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m', state: 'next' },
-      { time: '16:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Riley Kim',   sub: 'Refeed plan · 30m' },
-      { time: '17:30', tag: 'INTK', tagColor: t.GREEN, title: 'Pat Doan',    sub: 'Initial · 60m', last: true },
-    ],
-    23: [
-      { time: '10:00', tag: 'INTK', tagColor: t.GREEN, title: 'Quinn Choi', sub: 'Initial · 60m' },
-      { time: '14:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Tasha Yeo',  sub: 'Macro check · 30m', last: true },
-    ],
-    24: [
-      { time: '09:30', tag: 'F/U',  tagColor: t.BLUE,  title: 'Alex Rivera', sub: 'Macro check · 30m' },
-      { time: '12:00', tag: 'F/U',  tagColor: t.BLUE,  title: 'Sam Patel',   sub: 'Cut adjustment · 30m', last: true },
-    ],
-    25: [],
-    26: [
-      { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
-    ],
-  };
-  // Real schedule from the nutritionist's own calendar (ShapeCalendar).
-  const _pad2 = (n) => String(n).padStart(2, '0');
-  const _ds = (d) => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
-  const [realByDate, setRealByDate] = useStateBSP(null);
-  React.useEffect(() => {
-    if (!window.ShapeCalendar?.list) return undefined;
-    let on = true;
-    const wk = bsProWeek().dates;
-    const tagFor = (kind) => {
-      const k = String(kind || '').toUpperCase();
-      if (k === 'CHECKIN' || k === 'CHK') return ['CHK', t.GREEN];
-      if (k === 'REVIEW') return ['F/U', t.BLUE];
-      if (k === 'PLAN' || k === 'PROGRAM' || k === 'PRGM') return ['PLAN', t.AMBER];
-      if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
-      return ['CONS', t.RUST];
-    };
-    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]) }).then((r) => {
-      if (!on) return;
-      const evs = (r && Array.isArray(r.events)) ? r.events : [];
-      const byDate = {};
-      evs.slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).forEach((ev) => {
-        if (!ev.date) return;
-        const [tg, tc] = tagFor(ev.kind);
-        (byDate[ev.date] = byDate[ev.date] || []).push({
-          time: ev.time || '—', tag: tg, tagColor: tc,
-          title: ev.title || 'Consult',
-          sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
-          state: ev.status === 'done' ? 'done' : undefined,
-          client: ev.with || '', clientId: ev.clientId || null,
-        });
-      });
-      Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
-      setRealByDate(byDate);
-    }).catch(() => {});
-    return () => { on = false; };
-  }, []);
-  const { todayIdx, dates } = bsProWeek();
-  const dataFor = (off) => off === 0 ? 22 : off > 0 ? [23, 24, 21][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
-  const dataByIdx = dates.map((_, i) => dataFor(i - todayIdx));
-  const selIdx = Math.max(0, dates.findIndex(d => d.getDate() === selDay));
-  const selDate = dates[selIdx];
-  const isToday = selIdx === todayIdx;
-  const dataDay = dataByIdx[selIdx];
-  const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
-  const schedule = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (bsProSignedIn() ? [] : (NUTRI_SCHEDULE[dataDay] || []));
-
-  // Per-day lead narrative.
-  const NUTRI_LEAD = {
-    20: { count: '2', kicker: 'Mon · May 11', copy: 'Quiet Monday — one intake, one follow-up.' },
-    21: { count: '4', kicker: 'Tue · May 12', copy: 'One intake, three follow-ups. First at 9am.' },
-    22: { count: '5', kicker: "Today", copy: 'Two intakes, three follow-ups. First at 11am.' },
-    23: { count: '2', kicker: 'Fri · May 15', copy: 'Light Friday — one intake, one macro check.' },
-    24: { count: '2', kicker: 'Sat · May 16', copy: 'Two follow-ups. Easy weekend cadence.' },
-    25: { count: '0', kicker: 'Sun · May 17', copy: 'Off day. No sessions scheduled.' },
-    26: { count: '1', kicker: 'Mon · May 18', copy: 'Open hours — drop-in consults only.' },
-  };
-  const nutriRoster = useBSProRoster('nutritionist');
-  const coachSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
-  const activeCount = nutriRoster.filter(c => c.active !== false).length;
-  // Day-shape hero lead. Signed-out keeps the demo narrative; signed-in is
-  // honest off the day's real schedule (no demo session counts/copy).
-  const demoLead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
-  const lead = coachSignedIn
-    ? { count: String(schedule.length), copy: schedule.length ? `${schedule.length} ${schedule.length === 1 ? 'session' : 'sessions'} ${isToday ? 'today' : 'scheduled'}.` : (isToday ? 'No sessions scheduled today.' : 'Nothing scheduled.') }
-    : demoLead;
-  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
-
-  return (
-    <BSPage>
-      <BSMasthead
-        compact
-        thinRule
-        noTopRule
-        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
-        showDotTexture={false}
-      />
-
-      {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div data-tour="hero-today" style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={t.RUST}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
-        </div>
-        <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
-          {lead.copy}
-        </div>
-      </div>
-
-      {/* Edition strip — coaches edition, at the top (mirrors the client home) */}
-      <div style={{
-        padding: `7px ${t.padX}px 10px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
-      </div>
-
-      {/* THIS WEEK — nutritionist view, dots = consult density (selects the day) */}
-      <BSProWeekStrip
-        goCalendar={goCalendar}
-        selDay={selDay}
-        onSelectDay={setSelDay}
-        dots={hasReal
-          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => ({
-          20: [t.BLUE, t.BLUE],
-          21: [t.GREEN, t.BLUE, t.BLUE],
-          22: [t.BLUE],
-          23: [t.GREEN, t.BLUE],
-          24: [t.BLUE, t.BLUE],
-          25: [],
-          26: [t.AMBER],
-        }[dd] || []))}
-      />
-
-      {/* Today's schedule. */}
-      <BSSection
-        title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
-        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
-      />
-      <BSProScheduleRows items={schedule} onOpen={goCalendar} emptyText="Off day · nothing scheduled" />
-      {/* The urgent-TODAY subset only; the full ranked book lives on Clients. */}
-      <div style={{ marginTop: 10 }}>
-        <BSProTriageFeed role="nutritionist" schedule={schedule} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
-      </div>
-
-      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row
-          style. Demo-only: there's no live ops feed, so hide it when signed in. */}
-      {!coachSignedIn && (<>
-      <BSSection title="Queue" meta="3 to clear" />
-      <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
-        {[
-          { label: '2 client reviews', onClick: () => onOpenReviews() },
-          { label: 'Send grocery swap', onClick: () => onWidgetOpen('grocery') },
-          { label: 'Publish carb-load template', onClick: () => onWidgetOpen('plans') },
-        ].map((q) => (
-          <button key={q.label} type="button" onClick={q.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{q.label}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>→</span>
-          </button>
-        ))}
-      </div>
-      </>)}
-
-      {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
-      <div style={{ marginTop: 8 }}>
-        <BSNowPlaying onOpen={goRadio} />
-      </div>
-
-      <BSFooter left="The Nutri Edition" right="Pg 1 of 4" />
-    </BSPage>
-  );
-}
+function BSNutriToday(props) { return <BSProToday role="nutritionist" {...props} />; }
 
 function BSNutriClients() {
   const t = useBS();
