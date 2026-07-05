@@ -2952,17 +2952,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
   };
-  const phaseRow = (key, label, opts) => (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 }}>{label}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {opts.map(o => {
-          const on = phase[key] === o;
-          return <button key={o} onClick={() => setPhaseKey(key, o)} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{o}</button>;
-        })}
-      </div>
-    </div>
-  );
+  // ---- motion: one useBSSdInView pair per station (Open Ledger kit off window;
+  // a stable no-op fallback so hook count never changes across renders). These
+  // hooks MUST run before the early returns below — showAdjust/Schedule/Assign/
+  // Reconcile are useStateBSP flags that toggle while the component stays mounted,
+  // so a hook placed AFTER a conditional return would change the hook count on
+  // toggle and crash React (same pattern as BSProToday / BSProRosterView). ----
+  const useSdInView = (typeof window !== 'undefined' && window.useBSSdInView) || bsUseSdInViewFallback;
+  const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
+  React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
+  const [moveRef, moveSeen] = useSdInView();
+  const [statsRef, statsSeen] = useSdInView();
+  const [bodyRef, bodySeen] = useSdInView();
+  const bodyStatsSeen = bodySeen;
   if (!client) return null;
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
@@ -3160,16 +3162,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
     : 'Strong block — attendance up, lifts trending, weight on plan.';
 
-  // ---- motion: one useBSSdInView pair per station (Open Ledger kit off
-  // window; a stable no-op fallback so hook count never changes across
-  // renders — same pattern as BSProToday / BSProRosterView). ----------------
-  const useSdInView = (typeof window !== 'undefined' && window.useBSSdInView) || bsUseSdInViewFallback;
-  const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
-  React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
-  const [moveRef, moveSeen] = useSdInView();
-  const [statsRef, statsSeen] = useSdInView();
-  const [bodyRef, bodySeen] = useSdInView();
-  const bodyStatsSeen = bodySeen;
+  // (motion hooks — useSdInView / sdReduced / moveRef / statsRef / bodyRef —
+  // are hoisted ABOVE the early returns near the top of the component, so the
+  // hook count stays constant when the show*Page flags toggle.)
 
   // ---- YOUR MOVE · FROM THE ENGINE (station #1, spec §C.1) ----------------
   // Reuses the page's EXISTING directive-lead computation VERBATIM — `_sig`
