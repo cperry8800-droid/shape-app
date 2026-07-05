@@ -10383,12 +10383,13 @@ function BSUniversalSearch({ onClose }) {
   const needle = q.trim().replace(/^[@#]/, '').toLowerCase();
   const recipesAll = React.useMemo(() => (Array.isArray(SHAPE_KITCHEN_RECIPES) ? SHAPE_KITCHEN_RECIPES : []), []);
   const workoutsAll = React.useMemo(() => Object.entries(BS_CLIENT_WORKOUTS || {}).map(([title, detail]) => ({ title, detail })), []);
-  // Channels/Recipes have their own chips: with no query the chip browses the
-  // full list; typing filters it. On All they appear as 4-row sections.
+  // Channels have their own chip (no query browses the full list; typing
+  // filters it). Recipes/workouts/coach plans surface only as 4-row sections
+  // on the All filter — searchable there, but with no dedicated chip.
   const chMatch = needle ? chAll.filter(c => (c.name + ' ' + c.blurb).toLowerCase().includes(needle)) : chAll;
   const recMatch = needle ? recipesAll.filter(r => String(r.title || '').toLowerCase().includes(needle)) : recipesAll;
   const chHits = filter === 'channels' ? chMatch.slice(0, 24) : (filter === 'all' && needle ? chMatch.slice(0, 4) : []);
-  const recHits = filter === 'recipes' ? recMatch.slice(0, 24) : (filter === 'all' && needle ? recMatch.slice(0, 4) : []);
+  const recHits = (filter === 'all' && needle) ? recMatch.slice(0, 4) : [];
   const wkHits = (filter === 'all' && needle) ? workoutsAll.filter(w => (w.title + ' ' + ((w.detail && w.detail.meta) || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
   const planHits = (filter === 'all' && needle) ? plansAll.filter(p => (p.name + ' ' + (p.meta || '') + ' ' + (p.coachName || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
   // Nora (Shape's concierge) is staff, not a profiles row — searchable anyway.
@@ -10486,12 +10487,12 @@ function BSUniversalSearch({ onClose }) {
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, padding: '12px 0 10px', overflowX: 'auto' }}>
-          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels'], ['recipes', 'Recipes']].map(([k, label]) => (
+          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels']].map(([k, label]) => (
             <button key={k} onClick={() => setFilter(k)} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: `2px ${t.padX}px 40px` }}>
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: `2px ${t.padX}px 40px` }}>
         {filter === 'channels' ? (
           chHits.length ? (
             <>
@@ -10500,15 +10501,6 @@ function BSUniversalSearch({ onClose }) {
             </>
           ) : (
             <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? `No channels match “${q.trim()}”.` : (signedIn ? 'No channels yet — start one from Chat → Channels.' : 'Sign in to browse the community channels.')}</div>
-          )
-        ) : filter === 'recipes' ? (
-          recHits.length ? (
-            <>
-              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{recHits.length} {recHits.length === 1 ? 'recipe' : 'recipes'} · Shape Kitchen</div>
-              {recHits.map((r, i) => <TileRow key={'rc' + (r.id || r.title)} first={i === 0} glyph="◇" color={teal} title={r.title} sub={`${r.kcal ? r.kcal + ' kcal' : 'Recipe'}${r.macros && r.macros.p ? ' · ' + r.macros.p + 'P' : ''}${r.time ? ' · ' + r.time : ''}`} onClick={() => setViewRecipe(r)} />)}
-            </>
-          ) : (
-            <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No recipes match “{q.trim()}”.</div>
           )
         ) : q.trim() ? (
           busy && !rows ? (
