@@ -7067,15 +7067,16 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         )}
       </div>
     );
+    // Line-only layout: identity title (if any) → the mono stat line →
+    // Follow/Message actions BELOW the counts, so they read as a footer of the
+    // block rather than a float pinned up beside the name.
     return (
       <div>
-        {title ? (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ flex: '1 1 0', minWidth: 0, overflowWrap: 'break-word' }}>{title}</div>
-            {(followAction || msgAction) && <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>{followAction}{msgAction}</div>}
-          </div>
-        ) : ((followAction || msgAction) && <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: center ? 'center' : 'flex-start', marginBottom: 8 }}>{followAction}{msgAction}</div>)}
-        <div style={{ marginTop: title ? 10 : 0 }}>{statLine}</div>
+        {title ? <div style={{ overflowWrap: 'break-word' }}>{title}</div> : null}
+        {statLine}
+        {(followAction || msgAction) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: center ? 'center' : 'flex-start', marginTop: 4 }}>{followAction}{msgAction}</div>
+        )}
         {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
       </div>
     );
@@ -7177,8 +7178,7 @@ function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, p
       <h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '7px 0 5px' }}>{name}<span style={{ color: c }}>.</span></h1>
       {(handle || sub) && <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{[handle, sub].filter(Boolean).join(' · ')}</div>}
       <div style={{ marginTop: 12 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} variant="ledger" ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage}
-          title={<span style={{ display: 'none' }} />} />
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} variant="ledger" ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
       </div>
       <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
     </div>
@@ -22554,9 +22554,9 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       <BSWeekendsCard isSelf={signedIn} />
       {station('The trend', activeTrend.unit ? activeTrend.unit.toUpperCase() : null, (
         <>
-          <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', marginBottom: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginBottom: 4 }}>
             {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return (
-              <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, position: 'relative', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
+              <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, position: 'relative', minHeight: 36, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
                 {x.label}
                 {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 9, height: 2, background: heat, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
               </button>
