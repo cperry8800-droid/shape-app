@@ -239,6 +239,28 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-05 — Client broadsheet polish: trend tabs wrap · profile Follow/Message below counts (#1547)
+
+- Two owner-screenshot layout fixes in `iosAppBroadsheetClient.jsx` (no data/
+  handlers touched):
+  - **Progress → Overall "trend" strip no longer scrolls sideways.** The 9
+    metric tabs (Weight · Body fat · Strength · Resting HR · Sleep · HRV ·
+    Volume · Protein · Hydration) sat on a horizontal `overflowX:auto` strip, so
+    everything past HRV scrolled off the right edge. Now the strip **wraps**
+    (`flexWrap`, no horizontal scroll) so every metric is on one screen — no tab
+    dropped. Each tab keeps the 44pt tap-target height (per this file's
+    convention, per CodeRabbit); the wrap is the whole fix.
+  - **Terrain profile identity head: Follow/Message moved below the counts.**
+    `BSProfileIdentityHead` was passing a hidden dummy `title` into
+    `BSFollowBlock`, which forced the "actions pinned right of the (empty) name
+    row" layout — the buttons floated in the gap above the followers/following/
+    posts counts. Dropped the dummy title and reordered `BSFollowBlock`'s
+    `ledger` variant so Follow/Message render **below** the counts, as a footer
+    of the block. The `chips` variant (coach Signal profile) + the follow-list
+    sheets are unchanged.
+- Verified: JSX parse · PowerShell mobile build exit 0 · full `npm test`
+  (392/392) · LF normalized.
+
 ### 2026-07-05 — Coach Ledger wave: Today "Assignment Rail" · roster "Client Index" · Case File (#1544 · #1545 · #1546)
 
 - **The coach surfaces — the app's last pre-redesign pages — serialized into the
