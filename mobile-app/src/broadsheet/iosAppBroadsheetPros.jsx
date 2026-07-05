@@ -1658,6 +1658,10 @@ function BSProAvatarButton({ size = 38 }) {
 // original state/logic (query/filter/needsYou/roster/counts/onOpen) is kept
 // verbatim — only the markup changed. Rows stagger in one-shot (30ms);
 // roster carries ZERO infinite loops (the spec's loop rule).
+// Stable no-op fallback for the in-view hook, so BSProRosterView can call it
+// UNCONDITIONALLY (rules of hooks) even if the client-bundle kit isn't present.
+function bsUseSdInViewFallback() { return [null, true]; }
+
 function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBS();
   const heat = bsProHeat(t, role);
@@ -1668,11 +1672,14 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   // same null-guarded read-off-window pattern as BSProToday.
   const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
   const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
-  const useSdInView = typeof window !== 'undefined' ? window.useBSSdInView : null;
+  // Rules of hooks: window.useBSSdInView is exposed by the client bundle (loaded
+  // before the pros bundle), but fall back to a stable no-op hook and call it
+  // UNCONDITIONALLY so the hook count never changes across renders.
+  const useSdInView = (typeof window !== 'undefined' && window.useBSSdInView) || bsUseSdInViewFallback;
   const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
   React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
-  const [needsRef, needsSeen] = useSdInView ? useSdInView() : [null, true];
-  const [trackRef, trackSeen] = useSdInView ? useSdInView() : [null, true];
+  const [needsRef, needsSeen] = useSdInView();
+  const [trackRef, trackSeen] = useSdInView();
 
   const [expanded, setExpanded] = useStateBSP(false);
 
@@ -1680,8 +1687,13 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
 
   const SEVCOL = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' };
   const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
-  const needsRows = rows.filter((r) => r.sig.rank <= 1);
-  const onTrackRows = rows.filter((r) => r.sig.rank > 1 && r.sig.sev !== 'past');
+  // In PAST mode `clients` holds past records (all sev 'past') — they'd be dropped by
+  // both the needs (rank<=1) and on-track (excludes 'past') filters, so route them to
+  // their own station instead of leaving the PAST view empty.
+  const pastMode = roster === 'past';
+  const needsRows = pastMode ? [] : rows.filter((r) => r.sig.rank <= 1);
+  const onTrackRows = pastMode ? [] : rows.filter((r) => r.sig.rank > 1 && r.sig.sev !== 'past');
+  const pastRows = pastMode ? rows : [];
   const k = needsRows.length;
   const m = onTrackRows.length;
   const trackShown = expanded ? onTrackRows : onTrackRows.slice(0, 5);
@@ -1707,7 +1719,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
       {/* §B.2 Underline search */}
       <div style={{ margin: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1.5px solid ${t.INK}4d`, paddingBottom: 8 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>⌕</span>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search clients" placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
       </div>
 
       {/* §B.3 Typographic filter index — role phase filters + ⚑ NEEDS YOU last;
@@ -1725,13 +1737,15 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
 
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
         {/* §B.4 Verdict — serif 16/600 + heat period; k = flagged, m = on-track. */}
-        {rows.length > 0 && (
+        {!pastMode && rows.length > 0 && (
           <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, lineHeight: 1.35, color: t.INK }}>
             {k > 0 ? `${k} need you — the other ${m} are holding` : `All ${m} holding — nobody needs you today`}
             <span style={{ color: heat }}>.</span>
           </div>
         )}
-        {rows.length === 0 && (
+        {/* Filtered-to-empty (an active roster with no matches) — NOT the zero-roster
+            case (§B.8 owns that) and not PAST mode (its own station below). */}
+        {!pastMode && rows.length === 0 && totalCount > 0 && (
           <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>NO MATCHING CLIENTS</span>
@@ -1802,6 +1816,38 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                 <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK }}>SHOW ›</span>
               </button>
+            )}
+          </div>
+        )}
+
+        {/* PAST station — compact rows of the coach's past clients (rendered only in
+            PAST mode, where the active NEEDS YOU / ON TRACK stations are empty). */}
+        {pastMode && (
+          <div style={{ marginTop: 20 }}>
+            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`PAST CLIENTS · ${pastRows.length}`} />}
+            {pastRows.length > 0 ? (
+              <div style={{ display: 'grid', gap: 1 }}>
+                {pastRows.map(({ c }, i) => (
+                  <button
+                    key={`past-${c.n}-${i}`}
+                    type="button"
+                    onClick={() => onOpen(c)}
+                    style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '4px 1fr auto', gap: 11, alignItems: 'center', border: 0, background: 'transparent', minHeight: 44, padding: '9px 4px' }}
+                  >
+                    <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{c.r || 'PAST'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              Redact ? <Redact INK={t.INK} label="NO PAST CLIENTS" /> : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>NO PAST CLIENTS</span>
+                  <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+                </div>
+              )
             )}
           </div>
         )}
