@@ -2832,6 +2832,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // Real per-client store when the row carries a user id (uuid); otherwise the
   // selector is local (demo roster has mock clients).
   const clientUid = client && (client.userId || client.user_id || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null));
+  // Case File heat = the CLIENT's member tier (spec §C) — resolved from their
+  // all-time points; role heat until known / for demo rows (no clientUid).
+  const [clientTier, setClientTier] = useStateBSP(null);
+  useEffectBSP(() => {
+    setClientTier(null);
+    if (!clientUid || !window.ShapeProfiles?.getUserPoints) return undefined;
+    let on = true;
+    window.ShapeProfiles.getUserPoints([clientUid])
+      .then((map) => {
+        const pts = map && map[clientUid];
+        if (on && pts != null && window.bsTierForPoints) setClientTier(window.bsTierForPoints(pts));
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [clientUid]);
   useEffectBSP(() => {
     if (clientUid && window.ShapeProgramApi?.get) {
       window.ShapeProgramApi.get(clientUid).then(p => { if (p && (p.trainingPhase || p.nutritionPhase)) setPhase(prev => ({ ...prev, ...p })); }).catch(() => {});
@@ -2953,13 +2968,28 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
   const gold = '#d8b25a';
   const rust = t.RUST;
+  // Case File heat (spec §C) — the client's member tier when known, else the
+  // role-heat fallback (bsProHeat, Task 2). `accent` (teal/gold) stays the
+  // ACTION accent on the action-line cells; `heat` is for the header period,
+  // the avatar ring, the status tick, and the tab underline (Tasks 5–6 read
+  // this same const for their register rules / underlines).
+  const heat = clientTier && window.bsTierColor ? window.bsTierColor(clientTier) : bsProHeat(t, role);
   const nm = (client.n || '').trim().split(/\s+/);
   const first = nm[0] || client.n || 'Client';
   const last = nm.slice(1).join(' ');
   const isPast = client.s === 'past' || client.active === false;
   const statusLabel = isPast ? 'PAST' : client.warn ? 'WATCH' : isNutri ? 'STRONG' : 'ON TRACK';
   const phaseUp = (isNutri ? (phase.nutritionPhase || 'Cut') : (phase.trainingPhase || 'Build')).toUpperCase();
-  const headEyebrow = isNutri ? `${phaseUp} · 2100 KCAL` : `${phaseUp} · WEEK 6 OF 12`;
+  // Eyebrow: CASE FILE · {PHASE}[ · WK N REMAINING | · {KCAL} KCAL] — the week/
+  // kcal fragment only when the live program `detail` actually carries it
+  // (no fabricated "week X of Y" numerator — the store only tracks weeks
+  // REMAINING, never an elapsed count); demo rows keep the authored literal.
+  const liveWeeksRemaining = phase.detail && phase.detail.training && phase.detail.training.weeks != null ? Number(phase.detail.training.weeks) : null;
+  const liveKcalTarget = phase.detail && phase.detail.nutrition && phase.detail.nutrition.calories != null ? Number(phase.detail.nutrition.calories) : null;
+  const headFrag = clientUid
+    ? (isNutri ? (liveKcalTarget != null ? ` · ${liveKcalTarget.toLocaleString()} KCAL` : '') : (liveWeeksRemaining != null ? ` · WK ${liveWeeksRemaining} REMAINING` : ''))
+    : (isNutri ? ' · 2100 KCAL' : ' · WEEK 6 OF 12');
+  const headEyebrow = `CASE FILE · ${phaseUp}${headFrag}`;
   // Real clients show '—' (no live since/streak source) — never the demo literal;
   // demo rows (no clientUid · signed-out preview) keep the example label.
   const sinceLabel = clientUid ? '—' : (isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak');
@@ -3052,34 +3082,52 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>
   );
 
-  // ---- header (shared across tabs) ----
+  // ---- header (shared across tabs) — the Case File masthead (spec §C):
+  // typographic eyebrow + ← BACK, serif name w/ a heat period, the existing
+  // avatar with the tier ring, a mono id line, status as mono text + a heat
+  // tick, a 4-cell typographic action line (heat-underlined labels), and a
+  // typographic PROFILE/MANAGE index with a drawn heat underline. Every
+  // handler below is unchanged from the prior pill row — restyle only.
   const fireEvt = (name) => { try { window.dispatchEvent(new CustomEvent(name, { detail: { client } })); } catch (e) {} };
+  const actionCell = (label, onClick) => (
+    <button key={label} type="button" onClick={onClick} style={{ flex: 1, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, textAlign: 'center' }}>
+      <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
+    </button>
+  );
   const headerBlock = (
     <div style={{ paddingTop: 46 }}>
       {bsProMastRow()}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
-        <BSBackButton onClick={onBack} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
+        <button type="button" onClick={onBack} aria-label="Back" style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '0 2px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK }}>← BACK</button>
       </div>
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
-        {first} <span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
+        {first} <span style={{ fontStyle: 'italic', color: heat }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
-        <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{sinceLabel}</div>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: isPast ? t.INK50 : teal, border: `1px solid ${isPast ? t.RULE : teal}`, borderRadius: 999, padding: '6px 11px' }}>{statusLabel}</span>
+        <BSFacetAvatar size={56} c={heat} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
+        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>CLIENT {sinceLabel}</div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.INK70 }}>
+          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: isPast ? t.INK50 : heat, display: 'inline-block' }} />
+          {statusLabel}
+        </span>
       </div>
-      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}1f`, color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>MESSAGE</button>
-        <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>ADJUST</button>
-        <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>SCHEDULE</button>
+      {/* §C action line — MESSAGE / ADJUST / SCHEDULE / ✦ DRAFT, one row of 4
+          typographic cells, each ≥44px, label underlined in heat. */}
+      <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${t.INK}12`, borderBottom: `1px solid ${t.INK}12` }}>
+        {actionCell('MESSAGE', () => fireEvt('shape:proMessageClient'))}
+        {actionCell('ADJUST', () => setShowAdjustPage(true))}
+        {actionCell('SCHEDULE', () => setShowSchedulePage(true))}
+        {actionCell('✦ DRAFT', () => setShowDraft(true))}
       </div>
-      <button onClick={() => setShowDraft(true)} style={{ marginTop: 8, width: '100%', borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}14`, color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>✦ DRAFT CHECK-IN</button>
       {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
-      <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {[['profile', isNutri ? 'Plan' : 'Profile'], ['manage', 'Manage']].map(([k, label]) => {
+      {/* §C tabs — PROFILE / MANAGE typographic index, drawn heat underline. */}
+      <div style={{ marginTop: 4, display: 'flex' }}>
+        {[['profile', isNutri ? 'PLAN' : 'PROFILE'], ['manage', 'MANAGE']].map(([k, label]) => {
           const on = view === k;
-          return <button key={k} onClick={() => setView(k)} style={{ borderRadius: 999, padding: '9px 4px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>{label}</button>;
+          return (
+            <button key={k} type="button" onClick={() => setView(k)} style={{ flex: 1, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 2px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: on ? t.INK : t.INK50, textAlign: 'center', borderBottom: `2px solid ${on ? heat : 'transparent'}` }}>{label}</button>
+          );
         })}
       </div>
     </div>
