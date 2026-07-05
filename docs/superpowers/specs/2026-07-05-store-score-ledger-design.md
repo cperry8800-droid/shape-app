@@ -135,7 +135,10 @@ blurb (the verdict carries the voice now).
 
 ### New pure module
 
-`mobile-app/src/services/scoreStanding.mjs` (+ `tests/score-standing.test.mjs`):
+`mobile-app/src/services/scoreStanding.mjs` (+ `tests/score-standing.test.mjs`,
+**registered in the root `package.json` `test` script in the same commit that adds the
+file** — the runner enumerates test files explicitly, so an unlisted test silently never
+runs):
 `bsScoreStanding(tiers, tierName, total)` → `{ laneIndex, frac, pct, toNext, topTier,
 atRisk }` — the one derivation both chart views and the verdict sub-line read, mirroring
 the existing hero math (threshold parse from the tiers list, clamped frac, top-tier and
@@ -234,7 +237,8 @@ everywhere.
 ### Verification
 
 Per commit: JSX parse-check · PowerShell mobile build (`$env:VITE_BASE='/m/'`) exit 0 ·
-full `npm test` (existing suite + new `score-standing` tests) · LF normalize. On-device
+full `npm test` (existing suite + the new `score-standing` tests, enumerated in the
+`package.json` test script) · LF normalize. On-device
 pass (owner, recommended): Black/Sage/Cream papers × client (Raw + Tempo + Legend/at-risk
 states) + coach role (coach ladder + Coach Tools) · both chart views + the toggle ·
 signed-out demo + preview taps · non-member CTAs · reduced motion.
