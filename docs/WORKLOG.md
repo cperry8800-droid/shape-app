@@ -239,6 +239,18 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-05 — Search page: hide results scrollbar · remove the Recipes tab (#1550)
+
+- **Hid the visible scrollbar on the universal-search results list**
+  (`BSUniversalSearch`) — added the existing `.bs-hide-scroll` utility to the
+  `overflowY:auto` results container, matching the scrollbar-free filter row
+  right above it.
+- **Removed the dedicated RECIPES filter chip.** Recipes stay searchable — they
+  still surface as a "Recipes · Shape Kitchen" section under the **All** filter
+  (recipe detail via `viewRecipe` unchanged); the now-unreachable
+  `filter === 'recipes'` render branch was removed so no dead code is left.
+- Verified: JSX parse · PowerShell mobile build exit 0 · `npm test` (392/392) · LF.
+
 ### 2026-07-05 — Text size → its own Settings section + text-scale formatting review (#1548)
 
 - **Made the app-wide "Text size" control its own Settings section** (shared
