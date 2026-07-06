@@ -18646,9 +18646,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               const on = standScale === k;
               return (
                 <button key={k} role="tab" aria-selected={on} onClick={() => setStandScale(k)}
-                  style={{ minHeight: 44, padding: '13px 12px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.28)}` : 0, cursor: 'pointer',
+                  style={{ minHeight: 38, padding: '8px 9px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.28)}` : 0, cursor: 'pointer',
                     background: on ? t.INK : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.5),
-                    fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                    fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                   {label}
                 </button>
               );
@@ -18702,7 +18702,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       <BSCommitmentCard />
 
       {/* Tabs — typographic index (active = ink + heat underline); bodies render inline. */}
-      <div style={{ display: 'flex', gap: 14, padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-evenly', padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
         {[['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']].map(([k, label]) => {
           const on = scoreTab === k;
           return (
