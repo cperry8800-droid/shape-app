@@ -30,6 +30,13 @@ as $$
 declare v_uid uuid := auth.uid(); v_day date := coalesce(p_day, current_date); v_ins integer;
 begin
   if v_uid is null then return jsonb_build_object('awarded', false); end if;
+  -- Only the current day (±1 for the caller's timezone) can earn — p_day is
+  -- caller-supplied and daily_health_snapshot is owner-writable, so without this
+  -- clamp a caller could backfill arbitrary historical/future dates and mint +10
+  -- each (Codex P1). One legit +10/day stands; the farm window is closed.
+  if v_day < current_date - 1 or v_day > current_date + 1 then
+    return jsonb_build_object('awarded', false, 'reason', 'stale_day');
+  end if;
   -- Gate on a REAL nutrition log that day (food macros; hydration alone doesn't count).
   if not exists (
     select 1 from public.daily_health_snapshot d

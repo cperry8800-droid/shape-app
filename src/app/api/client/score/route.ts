@@ -70,6 +70,7 @@ function computeComposite(rows: SnapRow[], now: Date) {
 
 const CATEGORY_LABELS: Record<string, string> = {
   workouts: 'Workouts logged',
+  nutrition: 'Meals logged',
   adherence: 'Plan adherence',
   habits: 'Habits',
   prs: 'PRs hit',
