@@ -9216,13 +9216,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {meMode ? (
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
            then eyebrow + serif title. Settings gear + edit pencil top-right; no
            back button (it's a root tab). */
-        <div style={{ padding: '46px 18px 0' }}>
+        <div style={{ padding: '46px 8px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9242,7 +9242,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       ) : (
         /* Others' public profile (pushed): the standard masthead (logo + Vol·No
            + search/avatar corners — same chrome as every page), then a back row. */
-        <div style={{ padding: '44px 18px 0' }}>
+        <div style={{ padding: '44px 8px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9263,12 +9263,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         </div>
       )}
-      {/* ── Route Card — identity head + ascent hero + coach credit + score,
-          threaded on the tier-heat rail. The rail terminates at the tab index
-          below (the feed's role-heat rails are the only rails past it). ── */}
+      {/* ── Route Card — identity head + ascent hero + coach credit + score.
+          The tier-heat rail was removed; a small 8px side gutter keeps the block
+          just off the screen edge (owner request — near-edge-to-edge). ── */}
       <div style={{ position: 'relative' }}>
-        <div aria-hidden style={{ position: 'absolute', left: 8, top: meMode ? 8 : 18, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${c}, ${bsTHexA(c, 0.35)} 40%, ${bsTHexA(INK, 0.12)} 75%, transparent)`, ...(bsSdReduced() ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1000ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
-        <div style={{ position: 'relative', padding: meMode ? '10px 20px 0' : '14px 20px 0' }}>
+        <div style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
           <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
@@ -9317,13 +9316,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             );
           })()}
         </div>
-        {/* coach press credit + Shape Score register — at the gutter, on the rail */}
-        <div style={{ padding: '0 20px' }}>
+        {/* coach press credit + Shape Score register — small 8px gutter */}
+        <div style={{ padding: '0 8px' }}>
           {showCoachBand && (
             <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
               {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
               {showCoachLink && (
-                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, borderLeft: `3px solid ${(coachReal && coachReal.role) === 'nutritionist' ? '#a07a2e' : '#c0533b'}`, padding: '2px 0 2px 10px', cursor: 'pointer', textAlign: 'left' }}>
+                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
                   <span style={{ color: c, fontFamily: MONO, fontWeight: 900, fontSize: 11 }}>✓</span>
                   <span style={{ minWidth: 0, flex: 1 }}>
@@ -9369,7 +9368,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
           the profile stays identity + climb + activity. */}
 
-      <div style={{ flex: 1, padding: '12px 20px 24px' }}>
+      <div style={{ flex: 1, padding: '12px 8px 24px' }}>
         {isPrivate ? (
           <div style={{ margin: '4px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
@@ -9382,7 +9381,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         ) : (
           <>
             <div ref={activityRef} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={20} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
@@ -9390,7 +9389,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={20} ledger />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={8} ledger />
               </div>
             )}
             {tab === 'climb' && (<>
@@ -9530,18 +9529,19 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
                   <BSTRedact INK={INK} label={isSelf ? 'Nothing logged yet' : 'No activity on record'} />
                 )}
                 {feedEff.map((a, i) => (
-                  /* Full-BLEED card — breaks out of the tab body's 20px side
-                     padding to span the whole screen (side borders + radius
-                     dropped at the edges). The card's own age chip carries the
-                     timing; author header hidden (the profile owns the identity). */
-                  <div key={a.key || i} style={{ margin: '0 -20px' }}>
+                  /* Card breaks out of the tab body's 8px gutter (margin '0 -8px')
+                     so it aligns with the card's own 8px content gutter — one
+                     consistent small edge everywhere. The card's own age chip
+                     carries the timing; author header hidden (the profile owns
+                     the identity). */
+                  <div key={a.key || i} style={{ margin: '0 -8px' }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
@@ -9928,7 +9928,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Tap a reviewer → open who wrote the review (their public profile).
   if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       <div style={{ flex: 1, padding: meMode ? '46px 22px 112px' : '46px 22px 28px', position: 'relative' }}>
         {custom && custom.cover && custom.cover.image && (
@@ -11606,15 +11606,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     });
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
-        <div style={{ paddingLeft: 15 }}>
-          {/* per-post 2px heat rail — absolute, gradient fades down the card's
-              height (spec §1: top 4 → bottom 0 so the rail spans title → action
-              strip; 42% gradient stop), grows in on first view (bsSdGrowY, one
-              useBSSdInView per card from Step 2; pre-seen it holds scaleY(0) so
-              it never animates at mount while offscreen). aria-hidden:
-              decorative, carries no content. */}
-          <div aria-hidden style={{ position: 'absolute', left: 0, top: 4, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 42%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
-          <div style={{ padding: '10px 13px 11px 0' }}>
+        <div style={{ paddingLeft: 0 }}>
+          {/* Heat rail removed; a small 8px side gutter keeps content just off the
+              screen edge (owner request — near-edge-to-edge, eased back a touch). */}
+          <div style={{ padding: '10px 8px 11px' }}>
             {/* author + activity type — or, when hideAuthor (profile feed), a slim
                 header: the type tag on the right + the relative time on the left
                 (the profile's own card chrome already owns the author identity).
@@ -11697,11 +11692,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             </button>
           )}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
-              NOT modified; it runs full-bleed edge-to-edge: the outer
-              wrapper's negative margins cancel the rail gutter (15 left / 13
-              right, Task 1's shell) PLUS the page gutter (pagePad — t.padX on
-              the community feed; 0 on the profiles, whose row wrappers already
-              went full-bleed), and the wrapper's overflow:hidden clip + the
+              NOT modified; it runs full-bleed edge-to-edge: the card content has
+              a small 8px side gutter, so the outer wrapper's negative margins
+              cancel that gutter (plus pagePad — 0 on the community feed +
+              profiles) to bleed the route to the card edge, and the wrapper's overflow:hidden clip + the
               inner shim push the component's own marginTop:12 and 1px solid-
               INK border outside the clip box — so the wrapper's 1px ink-alpha
               hairlines top/bottom are the ONLY visible rules, with no side
@@ -11713,7 +11707,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(8 + pagePad), marginRight: -(8 + pagePad), cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
               </div>
@@ -11736,16 +11730,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat }}>›</span>
           </button>
           {/* coach co-sign → PRESS CREDIT (graft, binding over the base concept's
-              heat-text pill): no background fill at all — a 3px role-colored left
-              spine + a heat check glyph + the name in t.INK + the "co-signed ·
-              role" label in an ink-alpha (never a fill; the role color rides on
-              the spine + nowhere else). Renders only on a real coach↔client link
+              heat-text pill): no background fill, no left spine (edge-to-edge) —
+              a heat check glyph + the name in t.INK + the "co-signed · role"
+              label in an ink-alpha. Renders only on a real coach↔client link
               (my own, or one stamped on the post); honest-absent otherwise.
               Handler + eligibility (coSignIsMine / coSign.byId / setOpenProfile
               payload shape) carried verbatim from the prior pill. */}
           {coSign && (
             <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderLeft: `3px solid ${coSignColor}`, borderRadius: 0, padding: '2px 0 2px 10px', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderRadius: 0, padding: '2px 0', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
