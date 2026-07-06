@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Mağaza",
+  "verdict.top": "Merdivenin zirvesi",
+  "verdict.climbing": "{tier}, ve yükseliyor",
+  "verdict.atRisk": "{tier} seviyesinin {points, number} altında — korumak için geri kazan",
+  "verdict.topSub": "Shape'in sunduğu en yüksek seviye.",
+  "verdict.intoTier": "Seviyede {into, number} — {next} için {toNext, number}.",
+  "reg.score": "Puan",
+  "reg.thisWeek": "Bu hafta",
+  "reg.streak": "Seri",
+  "head.standing": "Sıralama",
+  "head.momentum": "İvme",
+  "scale.ladder": "Merdiven",
+  "scale.tier": "Bu seviye"
+}

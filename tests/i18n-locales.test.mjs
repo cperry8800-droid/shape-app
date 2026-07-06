@@ -30,8 +30,8 @@ test('localeMeta returns the row or null', () => {
   assert.equal(localeMeta('nope'), null);
 });
 
-test('resolveLocale: stored wins when supported', () => {
-  assert.equal(resolveLocale('ja', ['en-US', 'en']), 'ja');
+test('resolveLocale: stored wins when it is an active locale', () => {
+  assert.equal(resolveLocale('fr', ['en-US', 'en']), 'fr');
 });
 test('resolveLocale: falls back to first matching device language', () => {
   assert.equal(resolveLocale(null, ['fr-FR', 'en']), 'fr');
@@ -41,6 +41,10 @@ test('resolveLocale: falls back to first matching device language', () => {
 test('resolveLocale: unknown stored + unknown device → en', () => {
   assert.equal(resolveLocale('zzz', ['xx-YY']), 'en');
 });
+test('resolveLocale: supported-but-unwired locale is ignored → en', () => {
+  assert.equal(resolveLocale('ja', ['ar-EG']), 'en'); // both in the registry, neither wired
+  assert.equal(resolveLocale(null, ['ja']), 'en');    // device Japanese, not wired this wave
+});
 
 test('intlLocaleOf maps arz→ar (not an Intl locale), passes others through', () => {
   assert.equal(intlLocaleOf('arz'), 'ar');
@@ -48,9 +52,11 @@ test('intlLocaleOf maps arz→ar (not an Intl locale), passes others through', (
   assert.equal(intlLocaleOf('en'), 'en');
 });
 
-test('ACTIVE_LOCALES is the wired pilot set; isActive/activeLocales agree', () => {
-  assert.deepEqual(ACTIVE_LOCALES, ['en', 'ar', 'ja']);
-  assert.ok(isActive('ar'));
-  assert.ok(!isActive('ur')); // in the registry but not wired this release
-  assert.deepEqual(activeLocales().map((l) => l.code), ['en', 'ar', 'ja']);
+test('ACTIVE_LOCALES is the Latin+Cyrillic wave; all LTR; isActive/activeLocales agree', () => {
+  assert.deepEqual(ACTIVE_LOCALES, ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 'pcm', 'ru', 'uk']);
+  assert.ok(isActive('es') && isActive('ru') && isActive('uk'));
+  assert.ok(!isActive('ar') && !isActive('ja') && !isActive('ur')); // in the registry, later waves
+  assert.deepEqual(activeLocales().map((l) => l.code), ACTIVE_LOCALES);
+  // every wired locale is LTR (this wave ships no RTL), so no dir-flip needed
+  for (const c of ACTIVE_LOCALES) assert.equal(dirOf(c), 'ltr', c);
 });

@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Store",
+  "verdict.top": "Di top of di ladder",
+  "verdict.climbing": "{tier}, and e dey climb",
+  "verdict.atRisk": "{points, number} below {tier} — earn am back make you hold your place",
+  "verdict.topSub": "Di highest rank wey Shape get.",
+  "verdict.intoTier": "{into, number} inside di tier — {toNext, number} reach {next}.",
+  "reg.score": "Score",
+  "reg.thisWeek": "Dis week",
+  "reg.streak": "Streak",
+  "head.standing": "Di standing",
+  "head.momentum": "Momentum",
+  "scale.ladder": "Di ladder",
+  "scale.tier": "Dis tier"
+}

@@ -1,4 +1,15 @@
 {
-  "standing.verdictLead": "{tier}, and climbing",
-  "standing.toNext": "{points, plural, one {# point to {next}} other {# points to {next}}}"
+  "storeBtn": "Store",
+  "verdict.top": "The top of the ladder",
+  "verdict.climbing": "{tier}, and climbing",
+  "verdict.atRisk": "{points, number} below {tier} — earn it back to hold",
+  "verdict.topSub": "The highest rank Shape offers.",
+  "verdict.intoTier": "{into, number} into the tier — {toNext, number} from {next}.",
+  "reg.score": "Score",
+  "reg.thisWeek": "This wk",
+  "reg.streak": "Streak",
+  "head.standing": "The standing",
+  "head.momentum": "Momentum",
+  "scale.ladder": "The ladder",
+  "scale.tier": "This tier"
 }

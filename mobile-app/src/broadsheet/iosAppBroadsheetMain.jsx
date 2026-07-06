@@ -1,6 +1,12 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
+import { I18nextProvider } from 'react-i18next';
+import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
+import BSLanguagePicker from './BSLanguagePicker.jsx';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
+
+initI18n(); // idempotent — sets the initial locale + text direction from the stored
+            // preference / device language before the first render.
 
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
@@ -1386,9 +1392,12 @@ function BSPreviewBannerGated({ t, onJoin }) {
 
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
-  // Always open on the splash so the intro is seen on every launch; onDone
-  // routes to the app (demo) or login as before.
-  const [stage, setStage] = useStateBSM('splash');
+  // First launch with no stored locale opens on the language picker; otherwise the
+  // splash. (A returning signed-in user on a fresh device is advanced past the picker
+  // by the account-locale hydration effect below.)
+  const [stage, setStage] = useStateBSM(() => {
+    try { return localStorage.getItem('shape.locale') ? 'splash' : 'lang'; } catch (e) { return 'splash'; }
+  });
   // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
   // on their own app, not the client one) before the persisted/demo role.
   const [role, setRole] = useStateBSM(() => {
@@ -1435,6 +1444,30 @@ function BSAppShell({ tweaks, setTweak }) {
     const cachedRole = window.ShapeAuth?.getCachedState?.()?.profile?.role;
     setRole(tweaks.role || cachedRole || 'client');
   }, [tweaks.role]);
+
+  // i18n: keep i18next + text direction in sync with the locale preference (the
+  // Settings switcher and the first-launch picker both write through ShapeLocale).
+  useEffectBSM(() => window.ShapeLocale?.subscribe?.((code) => {
+    try { bsI18n.changeLanguage(code); } catch (e) {}
+    applyDir(code);
+  }), []);
+
+  // i18n: on login, the account's stored locale wins (and back-fills this device).
+  // If we're still on the first-launch picker, the account already answered — skip it.
+  useEffectBSM(() => {
+    const uid = authState?.user?.id;
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const goals = await window.shapeDb?.getUserGoals?.('app_locale');
+        const accountLocale = goals?.locale || null;
+        const resolved = await window.ShapeLocale?._hydrateFromAccount?.(accountLocale);
+        if (!cancelled && accountLocale && resolved) setStage((s) => (s === 'lang' ? 'splash' : s));
+      } catch (e) {}
+    })();
+    return () => { cancelled = true; };
+  }, [authState?.user?.id]);
 
   // Follow the signed-in account's role whenever a session resolves (login OR
   // restore). The account's role wins so a trainer/nutritionist lands in their
@@ -1639,6 +1672,7 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
+        {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('splash')} />}
         {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('gate')} />}
         {stage === 'gate' && (
           // Membership wall — shown BEFORE the "Shape Daily" editorial splash.
@@ -1989,12 +2023,14 @@ function BSApp() {
   }, []);
 
   return (
-    <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
-      <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
-        <BSAppShell tweaks={tweaks} setTweak={setTweak} />
-        {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
-      </div>
-    </BSProvider>
+    <I18nextProvider i18n={bsI18n}>
+      <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
+        <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
+          <BSAppShell tweaks={tweaks} setTweak={setTweak} />
+          {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
+        </div>
+      </BSProvider>
+    </I18nextProvider>
   );
 }
 

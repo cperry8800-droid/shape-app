@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Tienda",
+  "verdict.top": "La cima de la escalera",
+  "verdict.climbing": "{tier}, y subiendo",
+  "verdict.atRisk": "{points, number} por debajo de {tier} — recupéralos para mantenerte",
+  "verdict.topSub": "El rango más alto que ofrece Shape.",
+  "verdict.intoTier": "{into, number} dentro del nivel — {toNext, number} para {next}.",
+  "reg.score": "Puntos",
+  "reg.thisWeek": "Esta sem.",
+  "reg.streak": "Racha",
+  "head.standing": "La clasificación",
+  "head.momentum": "Impulso",
+  "scale.ladder": "La escalera",
+  "scale.tier": "Este nivel"
+}

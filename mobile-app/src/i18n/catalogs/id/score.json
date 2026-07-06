@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Toko",
+  "verdict.top": "Puncak tangga",
+  "verdict.climbing": "{tier}, dan terus naik",
+  "verdict.atRisk": "{points, number} di bawah {tier} — raih kembali untuk bertahan",
+  "verdict.topSub": "Peringkat tertinggi yang ditawarkan Shape.",
+  "verdict.intoTier": "{into, number} dalam tingkat — {toNext, number} menuju {next}.",
+  "reg.score": "Skor",
+  "reg.thisWeek": "Mgg ini",
+  "reg.streak": "Rentetan",
+  "head.standing": "Peringkat",
+  "head.momentum": "Momentum",
+  "scale.ladder": "Tangga",
+  "scale.tier": "Tingkat ini"
+}

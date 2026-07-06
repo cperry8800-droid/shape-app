@@ -18771,6 +18771,7 @@ function BSScoreRecordPage({ onBack, tier }) {
 
 function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
+  const tr = useShapeTr(); // i18n — the Score "The Standing" screen is the localization pilot
   profile = _bsUseLiveScore(profile);
   const scoreTotal = profile.total;
   const scoreGoal = profile.goal;
@@ -18819,7 +18820,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         trailing={<button onClick={onOpenStore} style={{ borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer',
-        }}>Store</button>}
+        }}>{tr('score:storeBtn', { defaultValue: 'Store' })}</button>}
       />
 
       {/* Verdict lead — the plate hero dies; the serif verdict + its sub-line
@@ -18827,27 +18828,27 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.12 }}>
           {st.topTier
-            ? <>{tier}. <span style={{ color: t.INK70 }}>The top of the ladder</span><span style={{ color: heat }}>.</span></>
-            : <>{tier}, and climbing<span style={{ color: heat }}>.</span></>}
+            ? <>{tier}. <span style={{ color: t.INK70 }}>{tr('score:verdict.top', { defaultValue: 'The top of the ladder' })}</span><span style={{ color: heat }}>.</span></>
+            : <>{tr('score:verdict.climbing', { tier })}<span style={{ color: heat }}>.</span></>}
         </div>
         {atRisk ? (
           <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: riskRed }}>
-            ⚠ {Math.max(0, st.curThr - scoreTotal).toLocaleString()} below {tier} — earn it back to hold
+            ⚠ {tr('score:verdict.atRisk', { points: Math.max(0, st.curThr - scoreTotal), tier })}
           </div>
         ) : (
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>
             {st.topTier
-              ? 'The highest rank Shape offers.'
-              : `${Math.max(0, scoreTotal - st.curThr).toLocaleString()} into the tier — ${st.toNext.toLocaleString()} from ${st.nextName}.`}
+              ? tr('score:verdict.topSub', { defaultValue: 'The highest rank Shape offers.' })
+              : tr('score:verdict.intoTier', { into: Math.max(0, scoreTotal - st.curThr), toNext: st.toNext, next: st.nextName })}
           </div>
         )}
       </div>
 
       {/* Register row — SCORE · THIS WK (heat) · STREAK, eyebrow-above-figure */}
       <div style={{ display: 'flex', padding: `13px ${t.padX}px 0` }}>
-        {[['Score', scoreTotal.toLocaleString(), t.INK], ['This wk', weekTxt, heat], ['Streak', `${streak}d`, t.INK]].map(([label, value, col], i) => (
-          <div key={label} style={{ flex: 1, paddingLeft: i ? 12 : 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{label}</div>
+        {[['reg.score', scoreTotal.toLocaleString(), t.INK], ['reg.thisWeek', weekTxt, heat], ['reg.streak', `${streak}d`, t.INK]].map(([labelKey, value, col], i) => (
+          <div key={labelKey} style={{ flex: 1, paddingLeft: i ? 12 : 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{tr('score:' + labelKey)}</div>
             <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: col, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
               <BSSdCountUp text={value} duration={780} delay={i * 60} />
             </div>
@@ -18859,17 +18860,17 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       <div ref={stationRef} style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>The standing</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('score:head.standing', { defaultValue: 'The standing' })}</span>
           <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 6px' }} />
           <div role="tablist" aria-label="Standing scale" style={{ display: 'inline-flex', flex: 'none', border: `1px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 4, overflow: 'hidden' }}>
-            {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label], i) => {
+            {[['ladder', 'scale.ladder'], ['tier', 'scale.tier']].map(([k, labelKey], i) => {
               const on = standScale === k;
               return (
                 <button key={k} role="tab" aria-selected={on} onClick={() => setStandScale(k)}
                   style={{ minHeight: 38, padding: '8px 9px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.28)}` : 0, cursor: 'pointer',
                     background: on ? t.INK : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.5),
                     fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                  {label}
+                  {tr('score:' + labelKey)}
                 </button>
               );
             })}
@@ -18896,7 +18897,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             aria-label={preview ? 'Sign in to build your momentum' : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
               <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Momentum · {val}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('score:head.momentum', { defaultValue: 'Momentum' })} · {val}</span>
               <span aria-hidden style={{ flex: 1, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 4px' }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: bsTHexA(t.INK, 0.45) }}>/100</span>
             </div>
@@ -20996,6 +20997,48 @@ const BS_TIMEZONES = (() => {
 const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
 function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (key || 'medium')) || BS_TEXT_SIZE_OPTS[1])[1]; }
 
+// i18n bridge for this (separately-bundled) client module: read translations off
+// window.ShapeI18n and re-render when the locale changes (ShapeLocale is the signal).
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+
+// Settings → Language: pick from the wired locales; ShapeLocale.set drives the live
+// switch (the app-shell subscriber calls i18next.changeLanguage + flips direction).
+function BSLanguageSetting({ t }) {
+  const tr = useShapeTr();
+  const cur = (window.ShapeLocale?.get?.()) || 'en';
+  const langs = window.ShapeI18n?.activeLocales?.() || [];
+  const curMeta = window.ShapeI18n?.localeMeta?.(cur);
+  return (
+    <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <BSEyebrow color={t.ACCENT}>{tr('settings:language.row', { defaultValue: 'Language' })}</BSEyebrow>
+      <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{curMeta?.nativeName || 'English'}</div>
+      <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{langs.length} languages</div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+        {langs.map((l) => {
+          const on = l.code === cur;
+          return (
+            <button key={l.code} onClick={() => window.ShapeLocale?.set?.(l.code)} aria-pressed={on}
+              style={{ textAlign: 'start', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', minHeight: 44,
+                border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
+                color: t.INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span><span lang={l.code} style={{ fontSize: 14.5, fontWeight: 600 }}>{l.nativeName}</span>
+                <span style={{ opacity: 0.5, fontSize: 11, marginInlineStart: 8 }}>{l.englishName}</span></span>
+              {on && <span style={{ color: t.ACCENT, fontWeight: 800 }}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const r = useBSRadio();
@@ -22335,6 +22378,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ))}
         </div>
       </div>
+
+      {/* LANGUAGE — app-wide UI locale (i18n) */}
+      <BSLanguageSetting t={t} />
 
       {/* SHAPE RADIO */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

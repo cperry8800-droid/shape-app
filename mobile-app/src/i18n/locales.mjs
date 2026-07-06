@@ -39,23 +39,29 @@ export function dirOf(code) { return BY_CODE.get(code)?.dir === 'rtl' ? 'rtl' : 
 // keeping the catalog code distinct. Falls through to the code itself otherwise.
 export function intlLocaleOf(code) { return BY_CODE.get(code)?.intlLocale || code; }
 
-// The subset actually wired end-to-end (catalog + fonts + RTL) this release. The
-// picker / Settings / runtime consume this so a user can never select a locale
-// that would silently fall back to English. Rollout expands it toward the full
-// registry (eventually the whole set).
-export const ACTIVE_LOCALES = ['en', 'ar', 'ja'];
+// The subset actually wired end-to-end (catalogs authored, fonts covered) this
+// release. The picker / Settings / runtime consume this so a user can never select
+// a locale that would silently fall back to English. Rollout expands it toward the
+// full registry. This cohort = the Latin + Cyrillic set (all LTR, and the editorial
+// fonts + system fallback cover their scripts — no font binaries needed); the RTL
+// (ar/ur/arz), Indic (hi/bn/te), and CJK (zh-Hans/ja/ko) locales land in later waves.
+export const ACTIVE_LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 'pcm', 'ru', 'uk'];
 export function isActive(code) { return ACTIVE_LOCALES.includes(code); }
 export function activeLocales() { return LOCALES.filter((l) => ACTIVE_LOCALES.includes(l.code)); }
 
-// stored (user pref) wins if supported; else first device language matching by
-// exact code then by base; else English. deviceLangs = navigator.languages-style array.
+// Resolve to a WIRED (active) locale: the stored pref if it's active, else the first
+// device language that maps to an active locale (by exact code then by base), else
+// English. A supported-but-unwired locale (e.g. 'ar'/'ja' before their wave) is never
+// returned — it isn't loaded/rendered, so selecting or persisting it would silently
+// fall back to English (and mis-apply direction). deviceLangs = navigator.languages.
 export function resolveLocale(stored, deviceLangs = []) {
-  if (stored && SUPPORTED.has(stored)) return stored;
+  const active = (c) => !!c && ACTIVE_LOCALES.includes(c);
+  if (active(stored)) return stored;
   for (const raw of deviceLangs || []) {
     if (!raw) continue;
-    if (SUPPORTED.has(raw)) return raw;
-    const base = String(raw).split('-')[0].toLowerCase();
-    if (BY_BASE.has(base)) return BY_BASE.get(base);
+    if (active(raw)) return raw;
+    const cand = BY_BASE.get(String(raw).split('-')[0].toLowerCase());
+    if (active(cand)) return cand;
   }
   return 'en';
 }

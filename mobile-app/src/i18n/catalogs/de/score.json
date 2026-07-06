@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Shop",
+  "verdict.top": "Die Spitze der Leiter",
+  "verdict.climbing": "{tier}, und es geht aufwärts",
+  "verdict.atRisk": "{points, number} unter {tier} — hol sie zurück, um zu halten",
+  "verdict.topSub": "Der höchste Rang, den Shape bietet.",
+  "verdict.intoTier": "{into, number} in der Stufe — {toNext, number} bis {next}.",
+  "reg.score": "Punkte",
+  "reg.thisWeek": "Diese Wo.",
+  "reg.streak": "Serie",
+  "head.standing": "Die Rangliste",
+  "head.momentum": "Schwung",
+  "scale.ladder": "Die Leiter",
+  "scale.tier": "Diese Stufe"
+}

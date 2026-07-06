@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Магазин",
+  "verdict.top": "Вершина лестницы",
+  "verdict.climbing": "{tier}, и растёт",
+  "verdict.atRisk": "{points, number} ниже уровня {tier} — верните их, чтобы удержаться",
+  "verdict.topSub": "Высший ранг, который предлагает Shape.",
+  "verdict.intoTier": "{into, number} в уровне — {toNext, number} до {next}.",
+  "reg.score": "Очки",
+  "reg.thisWeek": "Эта нед.",
+  "reg.streak": "Серия",
+  "head.standing": "Позиция",
+  "head.momentum": "Импульс",
+  "scale.ladder": "Лестница",
+  "scale.tier": "Этот уровень"
+}
