@@ -159,7 +159,17 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-04.md`](HANDOFF-2026-07-04.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-07-06.md`](HANDOFF-2026-07-06.md)** —
+> **The July Open Ledger sweep is complete — the last two plate-era pages shipped**: Shape
+> Score **"The Standing"** (verdict lead + the ladder/tier standing chart with a LADDER/TIER
+> scale toggle, breathing you-dot; momentum + commitment → stations; typographic ledger tabs)
+> and Shape Store **"The Shop, opened by The Drop" (S8)** (drop hero → product grid + glyph/
+> photo fallback → SHAPE DISCOUNTS/COACH TOOLS department → LOCKER → squared teal cart).
+> Spec #1549 + build #1552 (`6c9ba588`); new `scoreStanding.mjs` + tests; presentation-only.
+> CodeRabbit caught 2 real bugs pre-merge (top-tier standing clamp · ladder-chart marker
+> drift → `preserveAspectRatio="none"`). Open: the on-device pass + product photography.
+>
+> (Prior: [`docs/HANDOFF-2026-07-04.md`](HANDOFF-2026-07-04.md) —
 > **The redesign wave, all shipped live**: Session Details "Open Ledger" (#1523 + #1525 gutter),
 > the Home **"Front Page" hybrid** (#1527), the feed **"Wire Dispatch"** rebuild (#1528, spec
 > #1526), and a four-fix **polish batch** from owner screenshots (#1529 — aligned ledger stat
