@@ -18557,22 +18557,36 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
 }
 
 // Demo ledger for the signed-out Record preview (a labelled example, never shown
-// to a signed-in member). The website bakes the SAME rows into a static fixture.
+// to a signed-in member). Dates are RELATIVE to now (daysAgo) so the 1W/1M/3M/All
+// spread never decays — the mobile demo recomputes against the real current date,
+// so absolute dates would eventually age every row out of the shorter windows
+// (CodeRabbit). Spread across ~5 months so the range toggle visibly changes totals.
+const _bsRecDaysAgo = (n, h = 12) => { const d = new Date(Date.now() - n * 86400000); d.setUTCHours(h, 0, 0, 0); return d.toISOString(); };
 const BS_RECORD_DEMO_ROWS = [
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-07-06T15:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-07-06T12:00:00Z' },
-  { category: 'habits', source_kind: 'habit', delta: 3, note: 'Habit completed', earned_at: '2026-07-05T18:00:00Z' },
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-07-04T15:00:00Z' },
-  { category: 'adherence', source_kind: 'checkin', delta: 15, note: 'Weekly check-in', earned_at: '2026-07-01T09:00:00Z' },
-  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Back squat PR', earned_at: '2026-06-28T17:00:00Z' },
-  { category: 'adherence', source_kind: 'checkin', delta: -7, note: 'Missed check-in', earned_at: '2026-06-22T09:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-06-15T12:00:00Z' },
+  // last 7 days (1W)
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(0, 15) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(0, 12) },
+  { category: 'habits', source_kind: 'habit', delta: 3, note: 'Habit completed', earned_at: _bsRecDaysAgo(1, 18) },
+  { category: 'adherence', source_kind: 'checkin', delta: 15, note: 'Weekly check-in', earned_at: _bsRecDaysAgo(4, 9) },
+  // 8–30 days (adds for 1M)
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(9, 15) },
+  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Back squat PR', earned_at: _bsRecDaysAgo(13, 17) },
+  { category: 'adherence', source_kind: 'checkin', delta: -7, note: 'Missed check-in', earned_at: _bsRecDaysAgo(17, 9) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(25, 12) },
+  // 31–90 days (adds for 3M)
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(43, 15) },
+  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Deadlift PR', earned_at: _bsRecDaysAgo(57, 17) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(75, 12) },
+  // 90+ days (adds for All)
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(120, 15) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(144, 12) },
 ];
 
-// Self-drawing cumulative line. preserveAspectRatio="none" + %-positioned end dot
-// (the ladder-chart lesson) so the HTML overlay tracks the drawn geometry at any width.
+// Cumulative line. preserveAspectRatio="none" + %-positioned end dot (the
+// ladder-chart lesson) so the HTML overlay tracks the drawn geometry at any width.
+// Plain continuous stroke — a strokeDasharray/pathLength self-draw leaves a GAP in
+// its resting state under non-scaling-stroke (renders broken, not drawn).
 function BSRecordTrace({ series, heat, t }) {
-  const reduced = bsSdReduced();
   if (!series || series.length < 2) {
     return <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>Not enough history in this range yet.</div>;
   }
@@ -18590,9 +18604,7 @@ function BSRecordTrace({ series, heat, t }) {
   return (
     <div style={{ position: 'relative', marginTop: 8, height: 118 }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
-        <path d={d} fill="none" stroke={heat} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
-          pathLength={1} strokeDasharray="1 1"
-          style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : { animation: 'bsSdDrawLine 900ms ease forwards' }) }} />
+        <path d={d} fill="none" stroke={heat} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <span aria-hidden style={{ position: 'absolute', left: `${end[0]}%`, top: `${end[1]}%`, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: '50%', background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.25)}` }} />
     </div>
@@ -18715,11 +18727,11 @@ function BSScoreRecordPage({ onBack, tier }) {
       {/* 4 · The full history */}
       <div style={{ ...sect, paddingBottom: 8 }}>
         <div style={eyebrow}>The full history</div>
-        <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '8px 0 4px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, margin: '8px 0 4px' }}>
           {filters.map(([k, label]) => {
             const on = filter === k;
             return (
-              <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: 'none', minHeight: 30, padding: '5px 11px', border: `1px solid ${on ? heat : t.HAIR}`, borderRadius: 999, background: on ? bsTHexA(heat, 0.12) : 'transparent', color: on ? heat : bsTHexA(t.INK, 0.6), cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+              <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: 'none', minHeight: 28, padding: '4px 8px', border: `1px solid ${on ? heat : t.HAIR}`, borderRadius: 999, background: on ? bsTHexA(heat, 0.12) : 'transparent', color: on ? heat : bsTHexA(t.INK, 0.6), cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
             );
           })}
         </div>
