@@ -11729,10 +11729,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat }}>›</span>
           </button>
           {/* coach co-sign → PRESS CREDIT (graft, binding over the base concept's
-              heat-text pill): no background fill at all — a 3px role-colored left
-              spine + a heat check glyph + the name in t.INK + the "co-signed ·
-              role" label in an ink-alpha (never a fill; the role color rides on
-              the spine + nowhere else). Renders only on a real coach↔client link
+              heat-text pill): no background fill, no left spine (edge-to-edge) —
+              a heat check glyph + the name in t.INK + the "co-signed · role"
+              label in an ink-alpha. Renders only on a real coach↔client link
               (my own, or one stamped on the post); honest-absent otherwise.
               Handler + eligibility (coSignIsMine / coSign.byId / setOpenProfile
               payload shape) carried verbatim from the prior pill. */}
