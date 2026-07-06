@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Cửa hàng",
+  "verdict.top": "Đỉnh của bậc thang",
+  "verdict.climbing": "{tier}, và đang lên",
+  "verdict.atRisk": "{points, number} dưới {tier} — giành lại để giữ hạng",
+  "verdict.topSub": "Thứ hạng cao nhất mà Shape cung cấp.",
+  "verdict.intoTier": "{into, number} trong bậc — còn {toNext, number} đến {next}.",
+  "reg.score": "Điểm",
+  "reg.thisWeek": "Tuần này",
+  "reg.streak": "Chuỗi",
+  "head.standing": "Bảng xếp hạng",
+  "head.momentum": "Đà",
+  "scale.ladder": "Bậc thang",
+  "scale.tier": "Bậc này"
+}

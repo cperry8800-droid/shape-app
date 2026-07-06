@@ -39,6 +39,7 @@ export function initI18n() {
     ns: NS,
     defaultNS: 'common',
     resources: resources(),
+    keySeparator: false, // catalogs use flat dotted keys ("verdict.top"), not nesting
     interpolation: { escapeValue: false }, // React escapes
     returnNull: false,
     returnEmptyString: false,

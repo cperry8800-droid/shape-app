@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Boutique",
+  "verdict.top": "Le sommet de l'échelle",
+  "verdict.climbing": "{tier}, en progression",
+  "verdict.atRisk": "{points, number} en dessous de {tier} — regagnez-les pour vous maintenir",
+  "verdict.topSub": "Le rang le plus élevé proposé par Shape.",
+  "verdict.intoTier": "{into, number} dans le palier — {toNext, number} pour {next}.",
+  "reg.score": "Score",
+  "reg.thisWeek": "Cette sem.",
+  "reg.streak": "Série",
+  "head.standing": "Le classement",
+  "head.momentum": "Élan",
+  "scale.ladder": "L'échelle",
+  "scale.tier": "Ce palier"
+}

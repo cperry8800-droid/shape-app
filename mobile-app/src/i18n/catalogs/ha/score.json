@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Kanti",
+  "verdict.top": "Kololuwar matakala",
+  "verdict.climbing": "{tier}, kana hawa",
+  "verdict.atRisk": "{points, number} ƙasa da {tier} — sake samu don riƙewa",
+  "verdict.topSub": "Matsayi mafi girma da Shape ke bayarwa.",
+  "verdict.intoTier": "{into, number} cikin matakin — {toNext, number} zuwa {next}.",
+  "reg.score": "Maki",
+  "reg.thisWeek": "Wannan mako",
+  "reg.streak": "Jeri",
+  "head.standing": "Matsayi",
+  "head.momentum": "Ƙarfi",
+  "scale.ladder": "Matakala",
+  "scale.tier": "Wannan mataki"
+}

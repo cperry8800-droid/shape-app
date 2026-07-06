@@ -1,0 +1,15 @@
+{
+  "storeBtn": "Магазин",
+  "verdict.top": "Вершина драбини",
+  "verdict.climbing": "{tier}, і зростає",
+  "verdict.atRisk": "{points, number} нижче рівня {tier} — поверніть їх, щоб утриматися",
+  "verdict.topSub": "Найвищий ранг, який пропонує Shape.",
+  "verdict.intoTier": "{into, number} на рівні — {toNext, number} до {next}.",
+  "reg.score": "Очки",
+  "reg.thisWeek": "Цей тижд.",
+  "reg.streak": "Серія",
+  "head.standing": "Позиція",
+  "head.momentum": "Імпульс",
+  "scale.ladder": "Драбина",
+  "scale.tier": "Цей рівень"
+}
