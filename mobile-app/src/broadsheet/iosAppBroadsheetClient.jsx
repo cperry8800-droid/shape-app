@@ -9222,7 +9222,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
            then eyebrow + serif title. Settings gear + edit pencil top-right; no
            back button (it's a root tab). */
-        <div style={{ padding: '46px 18px 0' }}>
+        <div style={{ padding: '46px 0 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9242,7 +9242,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       ) : (
         /* Others' public profile (pushed): the standard masthead (logo + Vol·No
            + search/avatar corners — same chrome as every page), then a back row. */
-        <div style={{ padding: '44px 18px 0' }}>
+        <div style={{ padding: '44px 0 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9263,12 +9263,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         </div>
       )}
-      {/* ── Route Card — identity head + ascent hero + coach credit + score,
-          threaded on the tier-heat rail. The rail terminates at the tab index
-          below (the feed's role-heat rails are the only rails past it). ── */}
+      {/* ── Route Card — identity head + ascent hero + coach credit + score.
+          Edge-to-edge: the tier-heat rail + side gutters were removed so the
+          block spans the full screen width (owner request). ── */}
       <div style={{ position: 'relative' }}>
-        <div aria-hidden style={{ position: 'absolute', left: 8, top: meMode ? 8 : 18, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${c}, ${bsTHexA(c, 0.35)} 40%, ${bsTHexA(INK, 0.12)} 75%, transparent)`, ...(bsSdReduced() ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1000ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
-        <div style={{ position: 'relative', padding: meMode ? '10px 20px 0' : '14px 20px 0' }}>
+        <div style={{ position: 'relative', padding: meMode ? '10px 0 0' : '14px 0 0' }}>
           <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
@@ -9317,13 +9316,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             );
           })()}
         </div>
-        {/* coach press credit + Shape Score register — at the gutter, on the rail */}
-        <div style={{ padding: '0 20px' }}>
+        {/* coach press credit + Shape Score register — edge-to-edge */}
+        <div style={{ padding: 0 }}>
           {showCoachBand && (
             <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
               {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
               {showCoachLink && (
-                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, borderLeft: `3px solid ${(coachReal && coachReal.role) === 'nutritionist' ? '#a07a2e' : '#c0533b'}`, padding: '2px 0 2px 10px', cursor: 'pointer', textAlign: 'left' }}>
+                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
                   <span style={{ color: c, fontFamily: MONO, fontWeight: 900, fontSize: 11 }}>✓</span>
                   <span style={{ minWidth: 0, flex: 1 }}>
@@ -9369,7 +9368,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
           the profile stays identity + climb + activity. */}
 
-      <div style={{ flex: 1, padding: '12px 20px 24px' }}>
+      <div style={{ flex: 1, padding: '12px 0 24px' }}>
         {isPrivate ? (
           <div style={{ margin: '4px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
@@ -9382,7 +9381,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         ) : (
           <>
             <div ref={activityRef} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={20} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={0} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
@@ -9390,7 +9389,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={20} ledger />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={0} ledger />
               </div>
             )}
             {tab === 'climb' && (<>
@@ -9530,18 +9529,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={0} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
                   <BSTRedact INK={INK} label={isSelf ? 'Nothing logged yet' : 'No activity on record'} />
                 )}
                 {feedEff.map((a, i) => (
-                  /* Full-BLEED card — breaks out of the tab body's 20px side
-                     padding to span the whole screen (side borders + radius
-                     dropped at the edges). The card's own age chip carries the
-                     timing; author header hidden (the profile owns the identity). */
-                  <div key={a.key || i} style={{ margin: '0 -20px' }}>
+                  /* Edge-to-edge card — the tab body is now zero-padding, so the
+                     card spans the whole screen with no break-out margin. The
+                     card's own age chip carries the timing; author header hidden
+                     (the profile owns the identity). */
+                  <div key={a.key || i} style={{ margin: 0 }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
@@ -11606,15 +11605,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     });
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
-        <div style={{ paddingLeft: 15 }}>
-          {/* per-post 2px heat rail — absolute, gradient fades down the card's
-              height (spec §1: top 4 → bottom 0 so the rail spans title → action
-              strip; 42% gradient stop), grows in on first view (bsSdGrowY, one
-              useBSSdInView per card from Step 2; pre-seen it holds scaleY(0) so
-              it never animates at mount while offscreen). aria-hidden:
-              decorative, carries no content. */}
-          <div aria-hidden style={{ position: 'absolute', left: 0, top: 4, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 42%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
-          <div style={{ padding: '10px 13px 11px 0' }}>
+        <div style={{ paddingLeft: 0 }}>
+          {/* Edge-to-edge: the per-post heat rail + side insets were removed so
+              the card spans the full screen width (owner request). */}
+          <div style={{ padding: '10px 0 11px' }}>
             {/* author + activity type — or, when hideAuthor (profile feed), a slim
                 header: the type tag on the right + the relative time on the left
                 (the profile's own card chrome already owns the author identity).
@@ -11697,11 +11691,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             </button>
           )}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
-              NOT modified; it runs full-bleed edge-to-edge: the outer
-              wrapper's negative margins cancel the rail gutter (15 left / 13
-              right, Task 1's shell) PLUS the page gutter (pagePad — t.padX on
-              the community feed; 0 on the profiles, whose row wrappers already
-              went full-bleed), and the wrapper's overflow:hidden clip + the
+              NOT modified; it runs full-bleed edge-to-edge: the card content is
+              now edge-to-edge (no rail/side insets), so the outer wrapper's
+              negative margins only cancel the page gutter (pagePad — 0 on the
+              community feed + profiles), and the wrapper's overflow:hidden clip + the
               inner shim push the component's own marginTop:12 and 1px solid-
               INK border outside the clip box — so the wrapper's 1px ink-alpha
               hairlines top/bottom are the ONLY visible rules, with no side
@@ -11713,7 +11706,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -pagePad, marginRight: -pagePad, cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
               </div>
