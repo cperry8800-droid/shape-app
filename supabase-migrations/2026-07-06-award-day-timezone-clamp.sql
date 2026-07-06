@@ -18,11 +18,16 @@
 -- ── shape_user_tz(uid) — the member's validated IANA timezone, or NULL ──────────
 -- Joining pg_timezone_names guarantees we only ever return a name Postgres accepts,
 -- so `now() at time zone <name>` can never raise on a malformed stored value.
+-- SECURITY INVOKER (not definer) + PUBLIC execute revoked below: it's an internal
+-- helper, not an RPC — the SECURITY DEFINER award functions call it as the owner,
+-- and it only ever reads the CALLER's own row (v_uid = auth.uid()). This closes the
+-- leak CodeRabbit/Codex flagged (a definer + PUBLIC helper would let any signed-in
+-- caller pass another member's UUID and read their client_profiles.timezone).
 create or replace function public.shape_user_tz(p_uid uuid)
 returns text
 language sql
 stable
-security definer
+security invoker
 set search_path = public
 as $$
   select tz.name
@@ -31,6 +36,8 @@ as $$
    where cp.user_id = p_uid
    limit 1;
 $$;
+
+revoke execute on function public.shape_user_tz(uuid) from public;
 
 -- ── award_workout_session — +10 once for a real workout on the caller's today ──
 create or replace function public.award_workout_session(p_day date default null)
