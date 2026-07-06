@@ -2,7 +2,7 @@
 // is localStorage['shape.locale'] (what the i18n runtime reads at boot);
 // user_goals('app_locale') + client_profiles.locale are best-effort mirrors so the
 // choice survives login + cross-device and is server-readable for later sub-projects.
-import { resolveLocale, isSupported } from '../i18n/locales.mjs';
+import { resolveLocale, isActive } from '../i18n/locales.mjs';
 import { reconcileLocale } from '../i18n/reconcile.mjs';
 
 const LS_KEY = 'shape.locale';
@@ -23,7 +23,7 @@ export const ShapeLocale = {
   // Boot value before any account resolves: stored pref else device match.
   get() { return current || resolveLocale(readLocal(), deviceLangs()); },
   async set(code) {
-    if (!isSupported(code)) return;
+    if (!isActive(code)) return; // never persist an unwired locale (would fall back to English)
     writeLocalStore(code);
     notify(code);
     await mirrorToAccount(code);

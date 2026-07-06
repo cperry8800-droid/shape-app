@@ -49,15 +49,19 @@ export const ACTIVE_LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi'
 export function isActive(code) { return ACTIVE_LOCALES.includes(code); }
 export function activeLocales() { return LOCALES.filter((l) => ACTIVE_LOCALES.includes(l.code)); }
 
-// stored (user pref) wins if supported; else first device language matching by
-// exact code then by base; else English. deviceLangs = navigator.languages-style array.
+// Resolve to a WIRED (active) locale: the stored pref if it's active, else the first
+// device language that maps to an active locale (by exact code then by base), else
+// English. A supported-but-unwired locale (e.g. 'ar'/'ja' before their wave) is never
+// returned — it isn't loaded/rendered, so selecting or persisting it would silently
+// fall back to English (and mis-apply direction). deviceLangs = navigator.languages.
 export function resolveLocale(stored, deviceLangs = []) {
-  if (stored && SUPPORTED.has(stored)) return stored;
+  const active = (c) => !!c && ACTIVE_LOCALES.includes(c);
+  if (active(stored)) return stored;
   for (const raw of deviceLangs || []) {
     if (!raw) continue;
-    if (SUPPORTED.has(raw)) return raw;
-    const base = String(raw).split('-')[0].toLowerCase();
-    if (BY_BASE.has(base)) return BY_BASE.get(base);
+    if (active(raw)) return raw;
+    const cand = BY_BASE.get(String(raw).split('-')[0].toLowerCase());
+    if (active(cand)) return cand;
   }
   return 'en';
 }
