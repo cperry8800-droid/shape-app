@@ -239,6 +239,54 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-05 — Shape Score "The Standing" + Shape Store "The Shop/Drop" — Open Ledger redesign (#1552)
+- **The last two June-era client surfaces serialized into the Open Ledger
+  language** (`BSShapeScorePage` + `BSShapeStorePage`, `iosAppBroadsheetClient.jsx`).
+  Presentation-only rebuild — catalogue, RPCs, cart/checkout/shipping/confirm
+  flows, membership gates, and coach-role variants are all invariant. Spec
+  `docs/superpowers/specs/2026-07-05-store-score-ledger-design.md`, plan
+  `docs/superpowers/plans/2026-07-05-store-score-ledger-redesign.md`. Direction
+  owner-picked from a concept-board round (Score = "The Standing + the standing
+  chart"; Store = S8, "a legit e-commerce / Nike-style page incl. Shape discounts
+  on coaches + memberships").
+- **Score — "The Standing."** The composite plate hero (ring + climb SVG + stats
+  grid) dies for a serif **verdict lead** + honest sub-line (at-risk swaps to a
+  rust line, top tier degrades), an eyebrow-above-figure **register row** (SCORE ·
+  THIS WK heat · STREAK, count-up), and the owner's **THE STANDING chart** — a
+  tappable **THE LADDER / THIS TIER** scale toggle. LADDER = the whole hierarchy
+  as an equal-lane rising line (tier-colored threshold nodes, a self-drawing heat
+  progress path, an **HTML breathing you-dot** = the page's ONE loop); TIER = the
+  current lane zoomed (heat fill to `frac`). New pure
+  `mobile-app/src/services/scoreStanding.mjs` (`bsScoreStanding` → placement
+  facts, 8 vectors incl. the top-tier-below-floor clamp) registered in `npm test`.
+  Momentum plate → a zero-box station (heat fill, 80 tick, same copy/gates, teal
+  kept only on the signed-out sign-in line); `BSCommitmentCard` card → a station
+  (heat-underlined actions, its sheet stays a quiet form but the steppers come up
+  to 44px — closes the coach-wave note); the 4 solid-fill tabs → a typographic
+  index (active = ink + heat underline), the `maxHeight:320` scroll box dies, all
+  four bodies re-set as dot-leader rows (penalties named + waivable in rust).
+- **Store — "The Shop, opened by The Drop" (S8).** Title "Gear & perks."; the dark
+  plate hero → a **balance register chip** (count-up + teal ≈$); the boxed pill
+  grid → a **typographic category index** (+ LOCKER + a Within-balance toggle);
+  **THE DROP hero** (a full-bleed framed featured product, teal ADD, picked from
+  the affordability-filtered set); a **2-col product grid** over `gridMerch` (hero
+  excluded, no dupes); a **SHAPE DISCOUNTS / COACH TOOLS** big-dollar department
+  (non-merch → the existing confirm-redeem flow); an **ON DEPOSIT** wallet line;
+  a **LOCKER** view (lifetime/redeemed registers + code rows / redaction); an
+  amber-spined notice; and a squared teal cart bar. New `BSStoreGlyph` (line-art
+  product stand-ins) + `BSStoreImg` (loads `/m/store/<id>.png` with an `onError`
+  glyph fallback — **real product photos drop in with zero code change**, tracked
+  as an owner follow-up). **Teal = commerce action only; heat = viewer tier,
+  line-only.**
+- **Review stack:** the plan PR drew a CodeRabbit Major (top-tier standing clamp —
+  a real `scoreStanding.mjs` bug: a below-floor last-rung member rendered full
+  instead of empty; fixed + tested) + 2 Codex P2s (drop hero must honor
+  Within-balance; product images must be reachable via a deterministic path — both
+  built in). Per commit: JSX parse · PowerShell mobile build exit 0 · full
+  `npm test` (400) · LF. **On-device pass recommended** (Black/Sage/Cream ×
+  client Raw/Tempo/Legend+at-risk + coach ladder/Coach Tools · both chart views +
+  toggle · signed-out demo/preview · non-member CTAs · reduced motion).
+
 ### 2026-07-05 — Search page: hide results scrollbar · remove the Recipes tab (#1550)
 
 - **Hid the visible scrollbar on the universal-search results list**
