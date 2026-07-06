@@ -1,0 +1,4 @@
+{
+  "standing.verdictLead": "{tier}, and climbing",
+  "standing.toNext": "{points, plural, one {# point to {next}} other {# points to {next}}}"
+}

@@ -4227,7 +4227,21 @@ async function setTimezone(tz) {
     return res.ok ? { ok: true } : { ok: false };
   } catch { return { ok: false }; }
 }
-window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone };
+// Opportunistic UI-locale mirror to client_profiles.locale (same auth pattern as
+// setTimezone). Best-effort + non-throwing; no-ops signed-out / pre-migration.
+async function setLocale(code) {
+  if (!code || typeof code !== 'string') return { ok: false };
+  if (!state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/locale`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ locale: code }),
+    });
+    return res.ok ? { ok: true } : { ok: false };
+  } catch { return { ok: false }; }
+}
+window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone, setLocale };
 
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
