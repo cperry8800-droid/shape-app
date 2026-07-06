@@ -20996,6 +20996,48 @@ const BS_TIMEZONES = (() => {
 const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
 function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (key || 'medium')) || BS_TEXT_SIZE_OPTS[1])[1]; }
 
+// i18n bridge for this (separately-bundled) client module: read translations off
+// window.ShapeI18n and re-render when the locale changes (ShapeLocale is the signal).
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+
+// Settings → Language: pick from the wired locales; ShapeLocale.set drives the live
+// switch (the app-shell subscriber calls i18next.changeLanguage + flips direction).
+function BSLanguageSetting({ t }) {
+  const tr = useShapeTr();
+  const cur = (window.ShapeLocale?.get?.()) || 'en';
+  const langs = window.ShapeI18n?.activeLocales?.() || [];
+  const curMeta = window.ShapeI18n?.localeMeta?.(cur);
+  return (
+    <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <BSEyebrow color={t.ACCENT}>{tr('settings:language.row', { defaultValue: 'Language' })}</BSEyebrow>
+      <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{curMeta?.nativeName || 'English'}</div>
+      <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{langs.length} languages</div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+        {langs.map((l) => {
+          const on = l.code === cur;
+          return (
+            <button key={l.code} onClick={() => window.ShapeLocale?.set?.(l.code)} aria-pressed={on}
+              style={{ textAlign: 'start', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', minHeight: 44,
+                border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
+                color: t.INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span><span style={{ fontSize: 14.5, fontWeight: 600 }}>{l.nativeName}</span>
+                <span style={{ opacity: 0.5, fontSize: 11, marginInlineStart: 8 }}>{l.englishName}</span></span>
+              {on && <span style={{ color: t.ACCENT, fontWeight: 800 }}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const r = useBSRadio();
@@ -22335,6 +22377,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ))}
         </div>
       </div>
+
+      {/* LANGUAGE — app-wide UI locale (i18n) */}
+      <BSLanguageSetting t={t} />
 
       {/* SHAPE RADIO */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

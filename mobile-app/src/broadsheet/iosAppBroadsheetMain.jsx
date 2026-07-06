@@ -2,6 +2,7 @@ import React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
+import BSLanguagePicker from './BSLanguagePicker.jsx';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1391,9 +1392,12 @@ function BSPreviewBannerGated({ t, onJoin }) {
 
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
-  // Always open on the splash so the intro is seen on every launch; onDone
-  // routes to the app (demo) or login as before.
-  const [stage, setStage] = useStateBSM('splash');
+  // First launch with no stored locale opens on the language picker; otherwise the
+  // splash. (A returning signed-in user on a fresh device is advanced past the picker
+  // by the account-locale hydration effect below.)
+  const [stage, setStage] = useStateBSM(() => {
+    try { return localStorage.getItem('shape.locale') ? 'splash' : 'lang'; } catch (e) { return 'splash'; }
+  });
   // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
   // on their own app, not the client one) before the persisted/demo role.
   const [role, setRole] = useStateBSM(() => {
@@ -1668,6 +1672,7 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
+        {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('splash')} />}
         {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('gate')} />}
         {stage === 'gate' && (
           // Membership wall — shown BEFORE the "Shape Daily" editorial splash.

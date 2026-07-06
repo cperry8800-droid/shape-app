@@ -1,7 +1,7 @@
 import i18next from 'i18next';
 import { initReactI18next, useTranslation } from 'react-i18next';
 import ICU from 'i18next-icu';
-import { resolveLocale, dirOf, localeMeta, ACTIVE_LOCALES, intlLocaleOf } from './locales.mjs';
+import { resolveLocale, dirOf, localeMeta, activeLocales, ACTIVE_LOCALES, intlLocaleOf } from './locales.mjs';
 
 // Eagerly bundle the pilot namespaces; a lazy backend is added in the rollout.
 import enCommon from './catalogs/en/common.json';
@@ -73,6 +73,18 @@ export function intlLocale(code) { return intlLocaleOf(code); }
 export function useTr(ns) {
   const { t: translate, i18n } = useTranslation(ns);
   return { tr: translate, locale: i18n.language, dir: dirOf(i18n.language) };
+}
+
+// Window bridge for the separately-bundled broadsheet modules (client/pros load via
+// window globals, not ESM, so they can't import this singleton without duplicating
+// i18next). They read translations + the wired-locale list through this.
+if (typeof window !== 'undefined') {
+  window.ShapeI18n = {
+    t: (key, opts) => i18next.t(key, opts),
+    current: () => i18next.language,
+    activeLocales,
+    localeMeta,
+  };
 }
 
 export { i18next as i18n };
