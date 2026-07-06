@@ -8,6 +8,7 @@ import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
+import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -10886,6 +10887,55 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
           {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} mi</span>; })}
         </div>
       )}
+    </div>
+  );
+}
+// avg bar-height fraction (for the hairline) — mean of the split hFracs.
+function bsAvgHFrac(splits) { return splits.reduce((a, s) => a + s.hFrac, 0) / splits.length; }
+// Per-split PACE as vertical bars — taller = faster, each bar filled by its pace
+// zone (BS_SD_ZONES). Avg-pace hairline across; fastest bar outlined. Tappable
+// (onOpen) → the full Splits page. `big` renders per-bar index labels + taller.
+function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  if (!data || !Array.isArray(data.splits) || data.splits.length === 0) return null;
+  const { splits, bestIdx } = data;
+  const H = big ? 150 : 116;
+  const gap = splits.length > 16 ? 2 : 4;
+  const interactive = typeof onOpen === 'function';
+  return (
+    <div ref={ref}>
+      <div
+        role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
+        onClick={interactive ? onOpen : undefined}
+        onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+        aria-label={interactive ? 'Open full splits breakdown' : undefined}
+        style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap, height: H, cursor: interactive ? 'pointer' : 'default', minHeight: interactive ? 44 : undefined }}>
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: `${bsAvgHFrac(splits) * 100}%`, height: 1, background: bsTHexA(t.INK, 0.18) }} />
+        {splits.map((s, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', height: '100%' }}>
+            <div aria-hidden style={{
+              width: '100%', height: seen ? `${s.hFrac * 100}%` : '0%',
+              background: BS_SD_ZONES[(s.zone - 1) % 5], borderRadius: 2,
+              transition: reduced ? 'none' : `height 620ms cubic-bezier(.3,.6,.2,1) ${40 * i}ms`,
+              outline: i === bestIdx ? `1px solid ${bsTHexA(t.INK, 0.45)}` : 0,
+            }} />
+            {big && <span style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 700, color: muted, whiteSpace: 'nowrap' }}>{i + 1}</span>}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Vs this session&apos;s avg</span>
+        {[1, 2, 3, 4, 5].map((z) => {
+          const n = splits.filter((s) => s.zone === z).length;
+          if (!n) return null;
+          return (
+            <span key={z} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, background: BS_SD_ZONES[z - 1] }} />Z{z} · {n}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
