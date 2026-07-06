@@ -18557,27 +18557,29 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
 }
 
 // Demo ledger for the signed-out Record preview (a labelled example, never shown
-// to a signed-in member). Spans ~5 months so 1W / 1M / 3M / All show DIFFERENT
-// totals (the range toggle visibly changes the numbers). The website bakes the
-// SAME rows into a static fixture.
+// to a signed-in member). Dates are RELATIVE to now (daysAgo) so the 1W/1M/3M/All
+// spread never decays — the mobile demo recomputes against the real current date,
+// so absolute dates would eventually age every row out of the shorter windows
+// (CodeRabbit). Spread across ~5 months so the range toggle visibly changes totals.
+const _bsRecDaysAgo = (n, h = 12) => { const d = new Date(Date.now() - n * 86400000); d.setUTCHours(h, 0, 0, 0); return d.toISOString(); };
 const BS_RECORD_DEMO_ROWS = [
   // last 7 days (1W)
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-07-06T15:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-07-06T12:00:00Z' },
-  { category: 'habits', source_kind: 'habit', delta: 3, note: 'Habit completed', earned_at: '2026-07-05T18:00:00Z' },
-  { category: 'adherence', source_kind: 'checkin', delta: 15, note: 'Weekly check-in', earned_at: '2026-07-02T09:00:00Z' },
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(0, 15) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(0, 12) },
+  { category: 'habits', source_kind: 'habit', delta: 3, note: 'Habit completed', earned_at: _bsRecDaysAgo(1, 18) },
+  { category: 'adherence', source_kind: 'checkin', delta: 15, note: 'Weekly check-in', earned_at: _bsRecDaysAgo(4, 9) },
   // 8–30 days (adds for 1M)
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-06-27T15:00:00Z' },
-  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Back squat PR', earned_at: '2026-06-23T17:00:00Z' },
-  { category: 'adherence', source_kind: 'checkin', delta: -7, note: 'Missed check-in', earned_at: '2026-06-19T09:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-06-11T12:00:00Z' },
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(9, 15) },
+  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Back squat PR', earned_at: _bsRecDaysAgo(13, 17) },
+  { category: 'adherence', source_kind: 'checkin', delta: -7, note: 'Missed check-in', earned_at: _bsRecDaysAgo(17, 9) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(25, 12) },
   // 31–90 days (adds for 3M)
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-05-24T15:00:00Z' },
-  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Deadlift PR', earned_at: '2026-05-10T17:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-04-22T12:00:00Z' },
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(43, 15) },
+  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Deadlift PR', earned_at: _bsRecDaysAgo(57, 17) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(75, 12) },
   // 90+ days (adds for All)
-  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-03-08T15:00:00Z' },
-  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-02-12T12:00:00Z' },
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: _bsRecDaysAgo(120, 15) },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: _bsRecDaysAgo(144, 12) },
 ];
 
 // Cumulative line. preserveAspectRatio="none" + %-positioned end dot (the
