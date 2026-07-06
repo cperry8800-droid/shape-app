@@ -9216,7 +9216,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {meMode ? (
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
@@ -9927,7 +9927,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Tap a reviewer → open who wrote the review (their public profile).
   if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       <div style={{ flex: 1, padding: meMode ? '46px 22px 112px' : '46px 22px 28px', position: 'relative' }}>
         {custom && custom.cover && custom.cover.image && (
@@ -11738,7 +11738,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               payload shape) carried verbatim from the prior pill. */}
           {coSign && (
             <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderLeft: `3px solid ${coSignColor}`, borderRadius: 0, padding: '2px 0 2px 10px', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderRadius: 0, padding: '2px 0', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
