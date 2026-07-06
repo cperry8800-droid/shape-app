@@ -29,6 +29,11 @@ const LEDGER = [
   { d: "Apr 14", t: "Tough session · RPE 8+", p: 4, k: "workout" },
 ];
 
+// "The Record" signed-out demo — BAKED from bsScoreRecord(BS_RECORD_DEMO_ROWS)
+// (the website can't run the ESM aggregation in-browser; the server owns the live
+// path). Same demo rows the mobile Record computes at runtime, so the two match.
+const RECORD_DEMO = {"ranges":{"1w":{"series":[{"date":"2026-07-01","cumulative":30,"dayDelta":15},{"date":"2026-07-04","cumulative":40,"dayDelta":10},{"date":"2026-07-05","cumulative":43,"dayDelta":3},{"date":"2026-07-06","cumulative":63,"dayDelta":20}],"byCategory":[{"key":"workouts","label":"Workouts","earned":20},{"key":"adherence","label":"Check-ins","earned":15},{"key":"nutrition","label":"Nutrition","earned":10},{"key":"habits","label":"Habits","earned":3}],"earned":48,"lost":0,"net":48,"penalties":[]},"1m":{"series":[{"date":"2026-06-15","cumulative":10,"dayDelta":10},{"date":"2026-06-22","cumulative":3,"dayDelta":-7},{"date":"2026-06-28","cumulative":15,"dayDelta":12},{"date":"2026-07-01","cumulative":30,"dayDelta":15},{"date":"2026-07-04","cumulative":40,"dayDelta":10},{"date":"2026-07-05","cumulative":43,"dayDelta":3},{"date":"2026-07-06","cumulative":63,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":20},{"key":"workouts","label":"Workouts","earned":20},{"key":"adherence","label":"Check-ins","earned":15},{"key":"prs","label":"PRs","earned":12},{"key":"habits","label":"Habits","earned":3}],"earned":70,"lost":7,"net":63,"penalties":[{"note":"Missed check-in","total":-7}]},"3m":{"series":[{"date":"2026-06-15","cumulative":10,"dayDelta":10},{"date":"2026-06-22","cumulative":15,"dayDelta":5},{"date":"2026-06-29","cumulative":43,"dayDelta":28},{"date":"2026-07-06","cumulative":63,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":20},{"key":"workouts","label":"Workouts","earned":20},{"key":"adherence","label":"Check-ins","earned":15},{"key":"prs","label":"PRs","earned":12},{"key":"habits","label":"Habits","earned":3}],"earned":70,"lost":7,"net":63,"penalties":[{"note":"Missed check-in","total":-7}]},"all":{"series":[{"date":"2026-06-15","cumulative":10,"dayDelta":10},{"date":"2026-06-22","cumulative":15,"dayDelta":5},{"date":"2026-06-29","cumulative":43,"dayDelta":28},{"date":"2026-07-06","cumulative":63,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":20},{"key":"workouts","label":"Workouts","earned":20},{"key":"adherence","label":"Check-ins","earned":15},{"key":"prs","label":"PRs","earned":12},{"key":"habits","label":"Habits","earned":3}],"earned":70,"lost":7,"net":63,"penalties":[{"note":"Missed check-in","total":-7}]}},"history":[{"date":"2026-07-06","subtotal":20,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-07-06T15:00:00Z","bucket":"workouts","isPenalty":false},{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-07-06T12:00:00Z","bucket":"nutrition","isPenalty":false}]},{"date":"2026-07-05","subtotal":3,"rows":[{"note":"Habit completed","category":"habits","label":"Habits","delta":3,"earned_at":"2026-07-05T18:00:00Z","bucket":"habits","isPenalty":false}]},{"date":"2026-07-04","subtotal":10,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-07-04T15:00:00Z","bucket":"workouts","isPenalty":false}]},{"date":"2026-07-01","subtotal":15,"rows":[{"note":"Weekly check-in","category":"adherence","label":"Check-ins","delta":15,"earned_at":"2026-07-01T09:00:00Z","bucket":"checkins","isPenalty":false}]},{"date":"2026-06-28","subtotal":12,"rows":[{"note":"Back squat PR","category":"prs","label":"PRs","delta":12,"earned_at":"2026-06-28T17:00:00Z","bucket":"prs","isPenalty":false}]},{"date":"2026-06-22","subtotal":-7,"rows":[{"note":"Missed check-in","category":"adherence","label":"Check-ins","delta":-7,"earned_at":"2026-06-22T09:00:00Z","bucket":"penalty","isPenalty":true}]},{"date":"2026-06-15","subtotal":10,"rows":[{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-06-15T12:00:00Z","bucket":"nutrition","isPenalty":false}]}],"lifetime":63};
+
 const REWARDS = [
   { title: "$25 session credit", sub: "Use with any coach", cost: 500, img: "credit" },
   { title: "Coach intro · 2nd opinion", sub: "Free 30-min with any trainer", cost: 900, img: "coach" },
@@ -351,7 +356,7 @@ function ScoreActivity() {
 const LEDGER_TABS = [["All", "all"], ["Sessions", "sessions"], ["Habits", "habits"], ["Nutrition", "nutrition"], ["Workouts", "workouts"]];
 const LEDGER_SLUG_K = { sessions: "session", habits: "habit", nutrition: "nutrition", workouts: "workout" };
 
-function ScoreLedger() {
+function ScoreLedger(props) {
   const slugs = LEDGER_TABS.map(function (x) { return x[1]; });
   const readHash = function () {
     var h = (typeof location !== "undefined" ? location.hash || "" : "").replace(/^#/, "");
@@ -423,6 +428,7 @@ function ScoreLedger() {
               );
             })}
           </div>
+          <div onClick={props.onOpenRecord} role="button" tabIndex={0} style={{ marginTop: 22, fontFamily: mono, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, cursor: "pointer", borderBottom: "2px solid " + TEAL, width: "fit-content", paddingBottom: 4 }}>See the full record →</div>
         </div>
       </ScReveal>
     </section>
@@ -482,18 +488,183 @@ function ScoreRewards() {
   );
 }
 
+// "The Record" — the full Shape Score history + report, reached from the Ledger
+// leader. Signed-in members fetch /api/client/score-record (live); signed-out
+// shows the baked RECORD_DEMO preview. Same four blocks as the mobile page.
+function ScoreRecordView({ onBack }) {
+  const [record, setRecord] = React.useState(RECORD_DEMO);
+  const [live, setLive] = React.useState(false);
+  const [range, setRange] = React.useState("1w");
+  const [filter, setFilter] = React.useState("all");
+  React.useEffect(function () {
+    var alive = true;
+    fetch("/api/client/score-record", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (alive && d && d.ranges) { setRecord(d); setLive(true); } })
+      .catch(function () {});
+    return function () { alive = false; };
+  }, []);
+
+  var win = record.ranges[range] || record.ranges["1w"];
+  var filters = [["all", "All"], ["workouts", "Workouts"], ["habits", "Habits"], ["nutrition", "Nutrition"], ["checkins", "Check-ins"], ["prs", "PRs"], ["penalty", "Penalties"]];
+  var days = filter === "all" ? record.history
+    : record.history.map(function (d) {
+        var rows = d.rows.filter(function (r) { return r.bucket === filter; });
+        return Object.assign({}, d, { rows: rows, subtotal: rows.reduce(function (s, r) { return s + r.delta; }, 0) });
+      }).filter(function (d) { return d.rows.length; });
+  var fmtD = function (iso) { try { return new Date(iso + "T00:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return iso; } };
+  var maxBar = Math.max.apply(null, [1].concat(win.byCategory.map(function (c) { return c.earned; })));
+  var register = [["This week", record.ranges["1w"].net], ["This month", record.ranges["1m"].net], ["Earned · " + range.toUpperCase(), win.earned], ["Lost · " + range.toUpperCase(), -win.lost]];
+
+  // Cumulative line — preserveAspectRatio="none" + %-positioned end dot (the same
+  // idiom the hero trace uses), scaled between the series min/max.
+  var series = win.series, chart;
+  if (series.length >= 2) {
+    var vals = series.map(function (p) { return p.cumulative; });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), span = (max - min) || 1, n = series.length;
+    var pts = series.map(function (p, i) { return [n === 1 ? 100 : (i / (n - 1)) * 100, 100 - ((p.cumulative - min) / span) * 100]; });
+    var dPath = pts.map(function (xy, i) { return (i ? "L" : "M") + xy[0].toFixed(2) + " " + xy[1].toFixed(2); }).join(" ");
+    var endPt = pts[pts.length - 1];
+    chart = (
+      <div style={{ position: "relative", height: 150 }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
+          <path d={dPath} fill="none" stroke={TEAL} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <span style={{ position: "absolute", left: endPt[0] + "%", top: endPt[1] + "%", width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: "50%", background: TEAL, boxShadow: "0 0 0 4px rgba(10,197,168,0.25)" }} />
+      </div>
+    );
+  } else {
+    chart = <div style={{ padding: "24px 0", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>Not enough history in this range yet.</div>;
+  }
+
+  var card = { background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6 };
+  var eyebrow = { fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL };
+  var rangeBtn = function (k) {
+    var on = range === k;
+    return <button key={k} type="button" onClick={function () { setRange(k); }} style={{ padding: "8px 15px", borderRadius: 2, border: "1px solid rgba(242,237,228,0.16)", background: on ? TEAL : "transparent", color: on ? PAPER : INK, fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{k}</button>;
+  };
+
+  return (
+    <section style={{ padding: "70px 72px 120px" }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+        <div onClick={onBack} role="button" tabIndex={0} style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, cursor: "pointer", marginBottom: 26 }}>← Back to Shape Score</div>
+        {!live && (
+          <div style={{ padding: "12px 16px", border: "1px solid rgba(10,197,168,0.4)", borderRadius: 6, marginBottom: 26, fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: TEAL }}>
+            Preview · demo record — an example of a live account · <a href="/newdesign/login.html" style={{ color: TEAL, borderBottom: "1px solid " + TEAL }}>Sign in →</a>
+          </div>
+        )}
+
+        {/* 1 · Header register */}
+        <div style={eyebrow}>Shape Score · The Record</div>
+        <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "12px 0 0", lineHeight: 1 }}>
+          {record.lifetime.toLocaleString()} <span style={{ fontSize: "0.34em", color: "rgba(242,237,228,0.5)", letterSpacing: "0.02em" }}>lifetime</span>
+        </h2>
+        <div style={{ display: "flex", gap: 44, marginTop: 24, flexWrap: "wrap" }}>
+          {register.map(function (pair) {
+            var neg = Number(pair[1]) < 0;
+            return (
+              <div key={pair[0]}>
+                <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{pair[0]}</div>
+                <div style={{ fontFamily: serif, fontSize: 30, marginTop: 6, color: neg ? "#e0644b" : INK }}>{Number(pair[1]) >= 0 ? "+" : ""}{pair[1]}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 2 · Score over time */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 16, margin: "56px 0 0" }}>
+          <div style={eyebrow}>Score over time</div>
+          <div style={{ display: "flex", gap: 8 }}>{["1w", "1m", "3m", "all"].map(rangeBtn)}</div>
+        </div>
+        <div style={Object.assign({}, card, { padding: "26px 28px", marginTop: 16 })}>{chart}</div>
+
+        {/* 3 · By source + penalties */}
+        <div style={Object.assign({}, eyebrow, { marginTop: 56 })}>By source · {range.toUpperCase()}</div>
+        <div style={Object.assign({}, card, { padding: "26px 28px", marginTop: 16 })}>
+          {win.byCategory.length === 0
+            ? <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>No points earned in this range yet.</div>
+            : win.byCategory.map(function (c) {
+              return (
+                <div key={c.key} style={{ display: "grid", gridTemplateColumns: "120px 1fr 70px", gap: 16, alignItems: "center", padding: "10px 0" }}>
+                  <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.65)" }}>{c.label}</div>
+                  <div style={{ height: 10, background: "rgba(242,237,228,0.08)", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: Math.max(3, (c.earned / maxBar) * 100) + "%", background: TEAL, borderRadius: 3 }} />
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: 14, color: TEAL, textAlign: "right" }}>+{c.earned}</div>
+                </div>
+              );
+            })}
+          {win.lost > 0 && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+              <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#e0644b" }}>− Penalties · {win.lost} lost</div>
+              {win.penalties.slice(0, 3).map(function (p, i) {
+                return (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.7)" }}>
+                    <span>{p.note}</span>
+                    <span style={{ fontFamily: mono, color: "#e0644b" }}>{p.total}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 4 · The full history */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 16, margin: "56px 0 0" }}>
+          <div style={eyebrow}>The full history</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {filters.map(function (f) {
+              var on = filter === f[0];
+              return <button key={f[0]} type="button" onClick={function () { setFilter(f[0]); }} style={{ padding: "8px 14px", borderRadius: 999, border: "1px solid " + (on ? TEAL : "rgba(242,237,228,0.16)"), background: on ? "rgba(10,197,168,0.12)" : "transparent", color: on ? TEAL : "rgba(242,237,228,0.7)", fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{f[1]}</button>;
+            })}
+          </div>
+        </div>
+        <div className="sc-scroll" style={Object.assign({}, card, { marginTop: 16, maxHeight: 560, overflowY: "auto" })}>
+          {days.length === 0 ? (
+            <div style={{ padding: "28px 26px", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>No entries in this filter yet.</div>
+          ) : days.map(function (d, di) {
+            return (
+              <div key={d.date} style={{ padding: "20px 26px", borderTop: di ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{fmtD(d.date)}</div>
+                  <div style={{ fontFamily: mono, fontSize: 13, color: d.subtotal < 0 ? "#e0644b" : TEAL }}>{d.subtotal >= 0 ? "+" : ""}{d.subtotal}</div>
+                </div>
+                {d.rows.map(function (r, i) {
+                  return (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "8px 0", alignItems: "baseline" }}>
+                      <div style={{ fontFamily: serif, fontSize: 17, color: INK }}>{r.note}</div>
+                      <div style={{ fontFamily: mono, fontSize: 13, color: r.isPenalty ? "#e0644b" : TEAL }}>{r.delta >= 0 ? "+" : ""}{r.delta}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ScorePage() {
+  const [recordOpen, setRecordOpen] = React.useState(false);
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9 }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 6%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.52) 55%, rgba(11,14,12,0.74) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Shape Score" />
-        <ScoreHero />
-        <ScoreTiers />
-        <ScoreActivity />
-        <ScoreLedger />
-        <ScoreRewards />
+        {recordOpen ? (
+          <ScoreRecordView onBack={function () { setRecordOpen(false); }} />
+        ) : (
+          <React.Fragment>
+            <ScoreHero />
+            <ScoreTiers />
+            <ScoreActivity />
+            <ScoreLedger onOpenRecord={function () { setRecordOpen(true); }} />
+            <ScoreRewards />
+          </React.Fragment>
+        )}
         <Footer />
       </div>
       <style>{`
