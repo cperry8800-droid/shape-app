@@ -294,6 +294,8 @@ function ScoreActivity() {
             {[
               ["Consistency", "Weekly check-in", "submit your check-in", "15"],
               ["Consistency", "Workout logged", "any real session", "10"],
+              ["Consistency", "Meal logged", "any real logged meal", "10"],
+              ["Consistency", "Habit completed", "each one you check off", "3"],
               ["Consistency", "Daily steps", "+3 at your goal", "1 / 5k"],
               ["Coaching", "Coach session kept", "marked complete", "12"],
               ["Progress", "New PR", "a personal best", "12"],
