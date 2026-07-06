@@ -6632,7 +6632,7 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
             </div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
           </div>
-          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
+          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
         </div>
         {/* pulse rule — draws in under the header, in the activity's accent */}
         <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${accent}, ${bsTHexA(accent, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
@@ -7413,16 +7413,25 @@ const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
   { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
+  { key: 'x', label: 'X', pre: 'x.com/' },
   { key: 'tiktok', label: 'TikTok', pre: 'tiktok.com/@' },
   { key: 'youtube', label: 'YouTube', pre: 'youtube.com/@' },
+  { key: 'substack', label: 'Substack', pre: 'substack.com/@' },
   { key: 'website', label: 'Website', pre: '' },
 ];
 function bsLinkHref(key, val) {
-  const v = String(val || '').trim(); if (!v) return null;
-  if (/^https?:\/\//i.test(v)) return v;
+  const raw = String(val || '').trim(); if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
   const def = BS_PROFILE_LINKS.find((l) => l.key === key);
   const pre = def ? def.pre : '';
-  return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
+  const host = pre ? pre.split('/')[0].toLowerCase() : '';
+  const v = raw.replace(/^@/, '');
+  // If the value already includes the platform host (e.g. a member pastes the
+  // placeholder form "x.com/alice"), use it as-is — don't double the prefix into
+  // https://x.com/x.com/alice. A bare handle still gets the full prefix.
+  const low = v.toLowerCase();
+  if (host && (low === host || low.startsWith(host + '/'))) return 'https://' + v;
+  return 'https://' + (pre ? pre + v : v);
 }
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false }) {
