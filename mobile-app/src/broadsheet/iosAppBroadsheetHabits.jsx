@@ -194,11 +194,11 @@ function _bsHabitInsightStats(habits) {
 }
 
 function _bsHabitPts(h) {
+  // Every habit completion awards a flat +3 to the Shape Score ledger
+  // (2026-06-18-score-ledger-lockdown.sql). The old per-habit 4–8 fallback was a
+  // fabricated display value that didn't match the award — reconciled to +3.
   if (h && Number.isFinite(h.pts)) return h.pts;
-  const s = String((h && (h.id || h.name)) || '');
-  let n = 0;
-  for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
-  return 4 + (n % 5); // stable 4–8
+  return 3;
 }
 
 // One habit as a card — check, title, status line, points, remove (×).

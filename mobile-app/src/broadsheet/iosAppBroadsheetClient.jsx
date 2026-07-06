@@ -8,6 +8,7 @@ import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
+import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -7888,6 +7889,11 @@ function bsActivityFromPost(p) {
     elevTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.elevTrace) && p.rawMetrics.elevTrace.length > 1) ? p.rawMetrics.elevTrace : null,
     paceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.paceTrace) && p.rawMetrics.paceTrace.length > 1) ? p.rawMetrics.paceTrace : null,
     powerTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.powerTrace) && p.rawMetrics.powerTrace.length > 1) ? p.rawMetrics.powerTrace : null,
+    // Raw provider splits/laps (uncapped, full columns) for the Splits page — the
+    // flattened `breakdown` above is capped at 14 + one note column; this keeps the
+    // original {label,pace,hr,elevation} objects. Null when the post carries none.
+    rawSplits: (p.rawMetrics && Array.isArray(p.rawMetrics.splits) && p.rawMetrics.splits.length) ? p.rawMetrics.splits
+      : ((p.rawMetrics && Array.isArray(p.rawMetrics.laps) && p.rawMetrics.laps.length) ? p.rawMetrics.laps : null),
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -10889,6 +10895,55 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
     </div>
   );
 }
+// avg bar-height fraction (for the hairline) — mean of the split hFracs.
+function bsAvgHFrac(splits) { return splits.reduce((a, s) => a + s.hFrac, 0) / splits.length; }
+// Per-split PACE as vertical bars — taller = faster, each bar filled by its pace
+// zone (BS_SD_ZONES). Avg-pace hairline across; fastest bar outlined. Tappable
+// (onOpen) → the full Splits page. `big` renders per-bar index labels + taller.
+function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  if (!data || !Array.isArray(data.splits) || data.splits.length === 0) return null;
+  const { splits, bestIdx } = data;
+  const H = big ? 150 : 116;
+  const gap = splits.length > 16 ? 2 : 4;
+  const interactive = typeof onOpen === 'function';
+  return (
+    <div ref={ref}>
+      <div
+        role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
+        onClick={interactive ? onOpen : undefined}
+        onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+        aria-label={interactive ? 'Open full splits breakdown' : undefined}
+        style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap, height: H, cursor: interactive ? 'pointer' : 'default', minHeight: interactive ? 44 : undefined }}>
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: `${bsAvgHFrac(splits) * 100}%`, height: 1, background: bsTHexA(t.INK, 0.18) }} />
+        {splits.map((s, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', height: '100%' }}>
+            <div aria-hidden style={{
+              width: '100%', height: seen ? `${s.hFrac * 100}%` : '0%',
+              background: BS_SD_ZONES[(s.zone - 1) % 5], borderRadius: 2,
+              transition: reduced ? 'none' : `height 620ms cubic-bezier(.3,.6,.2,1) ${40 * i}ms`,
+              outline: i === bestIdx ? `1px solid ${bsTHexA(t.INK, 0.45)}` : 0,
+            }} />
+            {big && <span style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 700, color: muted, whiteSpace: 'nowrap' }}>{i + 1}</span>}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Vs this session&apos;s avg</span>
+        {[1, 2, 3, 4, 5].map((z) => {
+          const n = splits.filter((s) => s.zone === z).length;
+          if (!n) return null;
+          return (
+            <span key={z} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, background: BS_SD_ZONES[z - 1] }} />Z{z} · {n}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // Time-in-zone as CHARGING FUEL CELLS — each zone row fills sequentially with a
 // one-shot shimmer, cut into segments; the % counts up alongside.
 function BSSdZoneCells({ zones, t, muted }) {
@@ -11102,6 +11157,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const isComments = d.focus === 'comments';
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
+  const [splitsOpen, setSplitsOpen] = React.useState(false); // → the full Splits page
   // Comments present when the page OPENED cascade in; ones sent while it's open
   // (yours, or a live append) show instantly — no boot delay on fresh replies.
   const commentsAtOpen = React.useRef(comments.length);
@@ -11184,6 +11240,19 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     : { label: 'Pace', invert: true, fmt: fmtPaceSec, chip: 'Fastest', chipRe: null };
   const paceChipStat = paceCfg.chipRe ? allStats.find(([k]) => paceCfg.chipRe.test(k)) : bestPaceStat;
   const powerStat = allStats.find(([k]) => /power|watt/i.test(k)) || null;
+  // Per-split model (provider splits preferred, trace fallback) for the pace bar
+  // chart + the Splits page. Runs/swims/rides; null when there's no pace signal.
+  const paceData = bsPaceSplits({
+    providerSplits: (Array.isArray(d.rawSplits) && d.rawSplits.length)
+      ? d.rawSplits // raw {label,pace,hr,elevation} — uncapped, full columns
+      : (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
+        ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? r[2] : undefined }))
+        : null,
+    paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
+    hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
+    distanceMi, sport,
+  });
+  const hasSplitsPage = !!(paceData && paceData.splits.length > 1);
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
@@ -11279,10 +11348,16 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         </div>
         {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
-        {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
+        {!isComments && paceData && paceData.splits.length > 0 && (
           <>
             {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
-            <BSSdTrace vals={d.paceTrace} color={neu} invert={paceCfg.invert} fmt={paceCfg.fmt} idKey="pace" height={116} t={t} muted={muted} distanceMi={distanceMi} markMax />
+            <BSSdPaceBars data={paceData} t={t} muted={muted} heat={heat} onOpen={hasSplitsPage ? () => setSplitsOpen(true) : undefined} />
+            {hasSplitsPage && (
+              <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
+                <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Splits · Full breakdown ›</span>
+              </button>
+            )}
           </>
         )}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
@@ -11304,18 +11379,16 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* SPLITS — horizontal ledger bars (Strava-style rows): each bar draws
             rightward tracking speed (faster = longer), the fastest in accent,
             label left + pace on the right edge. Falls back to load for strength. */}
-        {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (() => {
+        {/* Working-sets breakdown (strength) stays on the main page; splits/laps
+            moved to the Splits page (opened from the pace chart above). */}
+        {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0
+          && !/split|mile|lap/i.test(String(d.breakdown.label || '')) && (() => {
           const rows = d.breakdown.rows;
-          const paceVals = rows.map((r) => { const m = String(r[1]).match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : null; });
-          const isPace = paceVals.every((v) => v != null);
-          let perf;
-          if (isPace) { const mx = Math.max(...paceVals); perf = paceVals.map((v) => mx - v + (mx * 0.18)); } // faster = bigger; keep a baseline so all bars show
-          else { perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; }); }
-          const pmax = Math.max(...perf, 1);
-          const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
+          const perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; });
+          const bestIdx = perf.indexOf(Math.max(...perf));
           return (
             <>
-              {secHead(d.breakdown.label || 'Splits', bestPaceStat ? headChip(`Best ${bestPaceStat[1]}`, true) : null)}
+              {secHead(d.breakdown.label || 'Working sets')}
               <BSSdBars rows={rows} perf={perf} bestIdx={bestIdx} heat={heat} t={t} muted={muted} />
             </>
           );
@@ -11390,9 +11463,62 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>Send</button>
       </div>
       )}
+      {splitsOpen && <BSSplitsPage d={d} paceData={paceData} heat={heat} t={t} onClose={() => setSplitsOpen(false)} />}
     </div>
   );
   return surface ? createPortal(view, surface) : view;
+}
+
+// The Splits — max-depth per-lap breakdown. Portals over the session-details
+// overlay; ← BACK returns. Columns render only when the stream exists.
+function BSSplitsPage({ d, paceData, heat, t, onClose }) {
+  const muted = bsTHexA(t.INK, 0.55), hair = bsTHexA(t.INK, 0.1);
+  const accent = heat || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  if (!surface || !paceData || !paceData.splits.length) return null;
+  const s = paceData.splits;
+  const anyHr = s.some((x) => x.hr != null), anyCad = s.some((x) => x.cadence != null), anyElev = s.some((x) => x.elevDelta != null);
+  const fmtPace = (x) => x.paceLabel || '—'; // paceLabel is always set by bsPaceSplits
+  const col = { fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: muted, textAlign: 'right' };
+  const cell = { fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const gridCols = `minmax(52px,1fr) auto${anyHr ? ' auto' : ''}${anyCad ? ' auto' : ''}${anyElev ? ' auto' : ''}`;
+  const view = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>The splits</span>
+        {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Estimated · from trace</span>}
+      </div>
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || 'Session'}<span style={{ color: accent }}>.</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${d.ago} ago` : ''}</div>
+        <BSSdPaceBars data={paceData} t={t} muted={muted} heat={accent} big />
+        <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
+          <span style={{ ...col, textAlign: 'left' }}>Split</span>
+          <span style={col}>Pace</span>
+          {anyHr && <span style={col}>HR</span>}
+          {anyCad && <span style={col}>Cad</span>}
+          {anyElev && <span style={col}>Elev</span>}
+          {s.map((x, i) => {
+            const best = i === paceData.bestIdx;
+            return (
+              <React.Fragment key={i}>
+                <span style={{ gridColumn: '1 / -1', height: 1, background: hair, margin: '9px 0' }} aria-hidden />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK }}>
+                  <span aria-hidden style={{ width: 6, height: 6, borderRadius: 1.5, background: BS_SD_ZONES[(x.zone - 1) % 5], flexShrink: 0 }} />{x.label}
+                </span>
+                <span style={{ ...cell, color: best ? accent : t.INK, fontWeight: best ? 800 : 700 }}>{fmtPace(x)}</span>
+                {anyHr && <span style={cell}>{x.hr != null ? x.hr : '—'}</span>}
+                {anyCad && <span style={cell}>{x.cadence != null ? x.cadence : '—'}</span>}
+                {anyElev && <span style={cell}>{x.elevDelta != null ? `${x.elevDelta > 0 ? '+' : ''}${x.elevDelta}` : '—'}</span>}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+  return createPortal(view, surface);
 }
 
 // Shared host for the three deep-interaction surfaces an activity card opens — the
@@ -11604,7 +11730,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
       routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (
@@ -13843,6 +13969,7 @@ const SHAPE_SCORE_PROFILES = {
     activities: [
       { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
       { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { name: 'Complete a habit', pts: '+3', cap: 'Per habit', note: 'Each one you check off' },
       { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
       { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
       { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
@@ -18341,24 +18468,43 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
   if (!Array.isArray(tiers) || tiers.length < 2) return null;
   const s = bsScoreStanding(tiers, tier, total);
   if (scale === 'tier') {
+    // Zoomed ladder — the LADDER's own SVG grammar narrowed to one segment: the
+    // current tier node bottom-left, the next tier node top-right, a dashed ink
+    // baseline, a self-drawing heat path, and the breathing you-dot at `frac`.
     const riskRed = t.isLight ? '#c0392b' : '#e0463c';
     const nextColor = s.topTier ? heat : bsTierColor(s.nextName || tier);
+    const frac = s.topTier ? 1 : s.frac;
+    const W = 300, H = 100, x0 = 6, x1 = W - 6, y0 = H - 12, y1 = 12;
+    const dotFrac = s.atRisk ? 0 : frac;
+    const youX = x0 + (x1 - x0) * dotFrac;
+    const youY = y0 + (y1 - y0) * dotFrac;
+    const base = `M${x0} ${y0} L${x1} ${y1}`;
+    const prog = `M${x0} ${y0} L${youX.toFixed(1)} ${youY.toFixed(1)}`;
+    const youLeftPct = (youX / W) * 100;
+    const dotCol = s.atRisk ? riskRed : heat;
     const caption = s.atRisk
       ? `⚠ ${fmt(Math.max(0, s.curThr - total))} below ${tier} — earn it back to hold`
       : s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
     return (
       <div aria-label={s.atRisk ? `${fmt(total)} points — ${fmt(Math.max(0, s.curThr - total))} below ${tier}, earn it back to hold` : `${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 22 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{tier} · {fmt(s.curThr)}</span>
           {!s.topTier && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: nextColor }}>{s.nextName} · {fmt(s.nextThr)}</span>}
         </div>
-        <div style={{ position: 'relative', height: 3, background: t.HAIR }}>
-          <div style={{ position: 'absolute', inset: 0, width: `${s.pct}%`, background: heat, transformOrigin: 'left', ...(reduced ? null : seen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.2,.7,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
-          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -3.5, width: 10, height: 10, borderRadius: 999, background: heat, transform: 'translateX(-50%)', ['--sd-glow']: bsTHexA(heat, 0.55), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
-          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: heat, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
+        <div style={{ position: 'relative' }}>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+            {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" y1={H * g} x2={W} y2={H * g} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+            <path d={base} fill="none" stroke={bsTHexA(INK, 0.18)} strokeWidth="2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+            <path d={prog} fill="none" stroke={heat} strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray="1"
+              style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
+            <circle cx={x0} cy={y0} r="3" fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            <circle cx={x1} cy={y1} r="3" fill={s.topTier ? heat : bsTHexA(INK, 0.35)} stroke={nextColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 999, background: dotCol, ['--sd-glow']: bsTHexA(dotCol, 0.5), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
+          <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY - 20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: dotCol, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
         </div>
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: s.atRisk ? riskRed : bsTHexA(INK, 0.5), fontWeight: 800 }}>{caption}</div>
-        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this bar only moves right</div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this line only moves right</div>
       </div>
     );
   }
@@ -18496,16 +18642,19 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
           <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>The standing</span>
           <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 6px' }} />
-          {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label]) => {
-            const on = standScale === k;
-            return (
-              <button key={k} onClick={() => setStandScale(k)} aria-pressed={on}
-                style={{ flex: 'none', position: 'relative', minHeight: 44, padding: '14px 2px 3px', margin: '-14px 0 -3px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
-                {label}
-                {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 1, height: 2, background: heat }} />}
-              </button>
-            );
-          })}
+          <div role="tablist" aria-label="Standing scale" style={{ display: 'inline-flex', flex: 'none', border: `1px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 4, overflow: 'hidden' }}>
+            {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label], i) => {
+              const on = standScale === k;
+              return (
+                <button key={k} role="tab" aria-selected={on} onClick={() => setStandScale(k)}
+                  style={{ minHeight: 38, padding: '8px 9px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.28)}` : 0, cursor: 'pointer',
+                    background: on ? t.INK : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.5),
+                    fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <BSScoreStandingChart tiers={tiers} tier={tier} total={scoreTotal} heat={heat} t={t} seen={stationSeen} scale={standScale} />
       </div>
@@ -18554,7 +18703,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       <BSCommitmentCard />
 
       {/* Tabs — typographic index (active = ink + heat underline); bodies render inline. */}
-      <div style={{ display: 'flex', gap: 14, padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-evenly', padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
         {[['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']].map(([k, label]) => {
           const on = scoreTab === k;
           return (
