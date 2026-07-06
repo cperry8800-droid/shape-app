@@ -749,8 +749,10 @@ function dkStatsFor(d) {
 }
 const DK_LINKS = [
   { key: "instagram", label: "Instagram", pre: "instagram.com/" },
+  { key: "x", label: "X", pre: "x.com/" },
   { key: "tiktok", label: "TikTok", pre: "tiktok.com/@" },
   { key: "youtube", label: "YouTube", pre: "youtube.com/@" },
+  { key: "substack", label: "Substack", pre: "substack.com/@" },
   { key: "website", label: "Website", pre: "" },
 ];
 // Climb background atmospheres — same keys/gradients as the mobile customizer

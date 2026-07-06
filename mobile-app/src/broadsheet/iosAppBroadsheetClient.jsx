@@ -6632,7 +6632,7 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
             </div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
           </div>
-          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
+          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
         </div>
         {/* pulse rule — draws in under the header, in the activity's accent */}
         <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${accent}, ${bsTHexA(accent, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
@@ -7413,8 +7413,10 @@ const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
   { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
+  { key: 'x', label: 'X', pre: 'x.com/' },
   { key: 'tiktok', label: 'TikTok', pre: 'tiktok.com/@' },
   { key: 'youtube', label: 'YouTube', pre: 'youtube.com/@' },
+  { key: 'substack', label: 'Substack', pre: 'substack.com/@' },
   { key: 'website', label: 'Website', pre: '' },
 ];
 function bsLinkHref(key, val) {
