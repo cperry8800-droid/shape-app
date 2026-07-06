@@ -258,6 +258,22 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-06 — Profile social handles: X + Substack + host-prefix normalization · bolder boost-sheet Profile button (#1565)
+- **Two platforms added to the profile social-links picker on BOTH surfaces** — **X**
+  (`x.com/`) and **Substack** (`substack.com/@`) join Instagram / TikTok / YouTube / Website
+  in the mobile `BS_PROFILE_LINKS` (`iosAppBroadsheetClient.jsx`) and the website `DK_LINKS`
+  (`livingDesktop.jsx`), so a member or coach can add either handle to their living profile.
+- **Host-prefix normalization** (`bsLinkHref` / `dkLinkHref`): a value that already carries
+  the platform host (e.g. a member pastes the placeholder form `x.com/alice`) is now used
+  as-is instead of being doubled into `https://x.com/x.com/alice`; a bare handle still gets
+  the full prefix, a leading `@` is stripped, and a full `http(s)://` URL passes through
+  untouched. (Codex P2, fixed in-PR.)
+- **Boldened the live-boost sheet "Profile →" button** (`BSLiveBoostSheet`): color INK50→INK,
+  size 8.5→9.5 — it read too faint beside the sheet header.
+- Presentation-only; no migration, no new route. `livingDesktop.jsx?v=20260706` bumped across
+  the 7 consumer pages (ClientApp · ClientMe · MemberProfile · Trainer/Nutritionist App +
+  Profile). Squash-merged (`1cb323fd`); CI green.
+
 ### 2026-07-06 — The Record chart fixes: trend gap · wrapping history filters · demo spans months (#1563)
 - Three owner-reported fixes on **The Record** (Shape Score → points ledger → detailed view):
   - **Trend "gap" fixed.** The "Score over time" line rendered a blank break. Root cause
