@@ -121,20 +121,20 @@ function _bsEncodeHabits(arr) {
 // Small chrome-less time picker — opens native time input on tap
 const _BS_HABIT_GRID_DAYS = ['THU', 'FRI', 'SAT', 'SUN', 'MON', 'TUE', 'WED'];
 const _BS_HABIT_DEMO_ROWS = [
-  { id: 'demo_sleep', type: 'do', name: 'Sleep 7+ hours', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 22 },
-  { id: 'demo_steps', type: 'do', name: '10,000 steps', pattern: [1, 1, 1, 1, 0, 1, 2], pts: 20 },
-  { id: 'demo_water', type: 'do', name: '3 L water', pattern: [1, 0, 1, 1, 1, 0, 0], pts: 14 },
-  { id: 'demo_protein', type: 'do', name: 'Protein at every meal', pattern: [1, 1, 1, 0, 1, 1, 2], pts: 22 },
-  { id: 'demo_mobility', type: 'do', name: '10 min mobility', pattern: [0, 1, 0, 1, 0, 1, 0], pts: 12 },
-  { id: 'demo_vitamins', type: 'do', name: 'Take vitamins', pattern: [1, 1, 1, 1, 1, 0, 2], pts: 13 },
-  { id: 'demo_sunlight', type: 'do', name: 'Morning sunlight', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 11 },
-  { id: 'demo_journal', type: 'do', name: '5 min journal', pattern: [0, 1, 1, 0, 1, 0, 0], pts: 10 },
-  { id: 'demo_alcohol', type: 'avoid', name: 'No alcohol', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 21 },
-  { id: 'demo_screen', type: 'avoid', name: 'No screen after 10', pattern: [0, 1, 1, 0, 1, 1, 0], pts: 15 },
-  { id: 'demo_soda', type: 'avoid', name: 'No soda or snacks', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 21 },
-  { id: 'demo_meals', type: 'avoid', name: 'No skipped meals', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 19 },
-  { id: 'demo_smoking', type: 'avoid', name: 'No smoking', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 24 },
-  { id: 'demo_sugar', type: 'avoid', name: 'No added sugar', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 16 },
+  { id: 'demo_sleep', type: 'do', name: 'Sleep 7+ hours', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 3 },
+  { id: 'demo_steps', type: 'do', name: '10,000 steps', pattern: [1, 1, 1, 1, 0, 1, 2], pts: 3 },
+  { id: 'demo_water', type: 'do', name: '3 L water', pattern: [1, 0, 1, 1, 1, 0, 0], pts: 3 },
+  { id: 'demo_protein', type: 'do', name: 'Protein at every meal', pattern: [1, 1, 1, 0, 1, 1, 2], pts: 3 },
+  { id: 'demo_mobility', type: 'do', name: '10 min mobility', pattern: [0, 1, 0, 1, 0, 1, 0], pts: 3 },
+  { id: 'demo_vitamins', type: 'do', name: 'Take vitamins', pattern: [1, 1, 1, 1, 1, 0, 2], pts: 3 },
+  { id: 'demo_sunlight', type: 'do', name: 'Morning sunlight', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 3 },
+  { id: 'demo_journal', type: 'do', name: '5 min journal', pattern: [0, 1, 1, 0, 1, 0, 0], pts: 3 },
+  { id: 'demo_alcohol', type: 'avoid', name: 'No alcohol', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 3 },
+  { id: 'demo_screen', type: 'avoid', name: 'No screen after 10', pattern: [0, 1, 1, 0, 1, 1, 0], pts: 3 },
+  { id: 'demo_soda', type: 'avoid', name: 'No soda or snacks', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 3 },
+  { id: 'demo_meals', type: 'avoid', name: 'No skipped meals', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 3 },
+  { id: 'demo_smoking', type: 'avoid', name: 'No smoking', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 3 },
+  { id: 'demo_sugar', type: 'avoid', name: 'No added sugar', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 3 },
 ];
 
 function _bsHabitGridModel(habits) {

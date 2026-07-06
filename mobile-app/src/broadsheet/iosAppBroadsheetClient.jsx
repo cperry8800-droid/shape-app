@@ -13969,6 +13969,7 @@ const SHAPE_SCORE_PROFILES = {
     activities: [
       { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
       { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { name: 'Log a meal', pts: '+10', cap: 'Daily', note: 'Any real logged meal' },
       { name: 'Complete a habit', pts: '+3', cap: 'Per habit', note: 'Each one you check off' },
       { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
       { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },

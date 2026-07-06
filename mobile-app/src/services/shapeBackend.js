@@ -4129,6 +4129,9 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
     });
     if (!res.ok) return null;
     invalidateClientMetrics();
+    // Shape Score: +10 once/day for logging a meal (server-gated + deduped;
+    // mirrors award_workout_session). Fire-and-forget — never blocks the log.
+    try { if (state.user?.id) supabase.rpc('award_meal_log', { p_day: _localDate() }).then(() => {}, () => {}); } catch (e) {}
     return res.json();
   } catch (e) { return null; }
 }
