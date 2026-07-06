@@ -7,6 +7,7 @@ import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
+import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -18330,6 +18331,80 @@ function BSCommitmentCard() {
   );
 }
 
+// THE STANDING — two scales of the same fact. LADDER: the whole tier hierarchy
+// as an equal-lane rising line (ordinal x, so Raw→Form don't crush to the left);
+// tier-colored threshold nodes; a heat progress path draws to the you-point; an
+// HTML you-dot breathes (the page's ONE loop — SVG box-shadow won't render, so
+// the dot + figure are an HTML overlay, the BSSdTrace pattern). THIS TIER: the
+// current lane zoomed — {tier}→{next} with a heat fill to `frac`.
+function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
+  const INK = t.INK;
+  const reduced = bsSdReduced();
+  const fmt = (n) => Number(n).toLocaleString();
+  if (!Array.isArray(tiers) || tiers.length < 2) return null;
+  const s = bsScoreStanding(tiers, tier, total);
+  if (scale === 'tier') {
+    const nextColor = s.topTier ? heat : bsTierColor(s.nextName || tier);
+    const caption = s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
+    return (
+      <div aria-label={`${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 22 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{tier} · {fmt(s.curThr)}</span>
+          {!s.topTier && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: nextColor }}>{s.nextName} · {fmt(s.nextThr)}</span>}
+        </div>
+        <div style={{ position: 'relative', height: 3, background: t.HAIR }}>
+          <div style={{ position: 'absolute', inset: 0, width: `${s.pct}%`, background: heat, transformOrigin: 'left', ...(reduced ? null : seen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.2,.7,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -3.5, width: 10, height: 10, borderRadius: 999, background: heat, transform: 'translateX(-50%)', ['--sd-glow']: bsTHexA(heat, 0.55), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
+          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: heat, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
+        </div>
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{caption}</div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this bar only moves right</div>
+      </div>
+    );
+  }
+  // LADDER view — ordinal lanes.
+  const N = tiers.length, W = 300, H = 100, padY = 12;
+  const nodeX = (i) => 2 + (i / (N - 1)) * (W - 4);
+  const nodeY = (i) => (H - padY) - (i / (N - 1)) * (H - padY - 8); // rises left(low)→right(high)
+  const youX = 2 + ((s.laneIndex + (s.topTier ? 0 : s.frac)) / (N - 1)) * (W - 4);
+  const segLo = Math.min(N - 1, s.laneIndex), segHi = Math.min(N - 1, s.laneIndex + 1);
+  const youY = nodeY(segLo) + (nodeY(segHi) - nodeY(segLo)) * (s.topTier ? 0 : s.frac);
+  const poly = tiers.map((_, i) => `${i ? 'L' : 'M'}${nodeX(i).toFixed(1)} ${nodeY(i).toFixed(1)}`).join(' ');
+  const prog = [`M${nodeX(0).toFixed(1)} ${nodeY(0).toFixed(1)}`]
+    .concat(tiers.slice(1, s.laneIndex + 1).map((_, k) => `L${nodeX(k + 1).toFixed(1)} ${nodeY(k + 1).toFixed(1)}`))
+    .concat(s.topTier ? [] : [`L${youX.toFixed(1)} ${youY.toFixed(1)}`])
+    .join(' ');
+  const youLeftPct = (youX / W) * 100;
+  return (
+    <div aria-label={`${fmt(total)} points — ${tier}, tier ${s.laneIndex + 1} of ${N}, ${s.pct}% through the tier`}>
+      <div style={{ position: 'relative' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+          <path d={poly} fill="none" stroke={bsTHexA(INK, 0.18)} strokeWidth="2" />
+          <path d={prog} fill="none" stroke={heat} strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray="1"
+            style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
+          <line x1={youX} y1={youY + 5} x2={youX} y2={H - 4} stroke={bsTHexA(INK, 0.3)} strokeWidth="1" strokeDasharray="2 3" />
+          {tiers.map((tt, i) => <circle key={i} cx={nodeX(i)} cy={nodeY(i)} r="2.5" fill={bsTierColor(tt.name)} />)}
+        </svg>
+        {/* HTML you-dot + figure (SVG box-shadow won't render the breath) */}
+        <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 999, background: heat, ['--sd-glow']: bsTHexA(heat, 0.5), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
+        <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY - 20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: heat, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${N}, 1fr)`, marginTop: 7 }}>
+        {tiers.map((tt, i) => {
+          const cur = i === s.laneIndex;
+          return (
+            <div key={tt.name} style={{ textAlign: i === 0 ? 'left' : i === N - 1 ? 'right' : 'center' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: cur ? 800 : 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTierColor(tt.name) }}>{tt.name}{cur ? ' ·you' : ''}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7, color: bsTHexA(INK, 0.3) }}>{fmt(parseInt(String(tt.range).replace(/[^0-9]/g, ''), 10) || 0)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Equal lane per tier — the dot's place in its lane is your progress through it</div>
+    </div>
+  );
+}
+
 function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
   profile = _bsUseLiveScore(profile);
@@ -18355,6 +18430,14 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     .filter(Boolean);
   // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
   const [scoreTab, setScoreTab] = useStateBSC('tiers');
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
+  const [standScale, setStandScale] = useStateBSC('ladder'); // 'ladder' | 'tier'
+  const [stationRef, stationSeen] = useBSSdInView();
+  const heat = bsTierColor(tier);
+  const st = bsScoreStanding(tiers, tier, scoreTotal);
+  const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
+  const atRisk = !!profile.atRisk || st.atRisk;
+  const riskRed = t.isLight ? '#c0392b' : '#e0463c';
 
   return (
     <BSPage>
@@ -18368,95 +18451,58 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         }}>Store</button>}
       />
 
-      {/* Composite hero — ring + tier + climb + this-week. The ring %, the climb
-          "now" dot, and "to {nextTier}" all derive from the SAME tier thresholds
-          (current-tier range → next-tier range) so every number agrees. */}
-      {(() => {
-        const tc = bsTierColor(tier);
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
-        const topTier = profile.nextTier === 'Top tier';
-        const parseNum = (s) => Number(String(s).replace(/[^0-9]/g, '')) || 0;
-        const ti = tiers.findIndex(x => String(x.name).toLowerCase() === String(tier).toLowerCase());
-        const curThr = ti >= 0 ? parseNum(tiers[ti].range) : 0;
-        const nextThr = (ti >= 0 && tiers[ti + 1]) ? parseNum(tiers[ti + 1].range) : (scoreTotal + (pointsToNext || 0));
-        const span = nextThr - curThr;
-        const frac = topTier ? 1 : (span > 0 ? Math.max(0, Math.min(1, (scoreTotal - curThr) / span)) : 1);
-        const pct = Math.round(frac * 100);
-        const toNext = topTier ? 0 : Math.max(0, nextThr - scoreTotal);  // matches the climb (nextThr − now)
-        const stats = [
-          ['This week', weekTxt],
-          ['Streak', `${streak}d`],
-          topTier ? ['Tier', 'Top'] : [`To ${nextTier}`, toNext.toLocaleString()],
-        ];
-        // Climb geometry (current tier → now → next tier), shares frac with the ring.
-        const W = 320, H = 72, gp = Math.max(0.05, Math.min(0.95, frac));
-        const ys = [H - 11, (H - 11) + (15 - (H - 11)) * gp, 15];
-        const xs = [22, W / 2, W - 22];
-        const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 11}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
-        const arc = [[tier, `${curThr.toLocaleString()} pts`, 'start'], ['Now', `${scoreTotal.toLocaleString()} pts`, 'now'], [topTier ? 'Top' : nextTier, topTier ? '' : `${nextThr.toLocaleString()} pts`, 'target']];
-        return (
-          <div style={{ padding: `8px ${t.padX}px 0` }}>
-            <BSPlate c={tc} tick bracket pad="12px 12px 12px 18px">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 74, height: 74, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
-                  <div style={{ width: 58, height: 58, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 1 }}>
-                        <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{pct}</span>
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>%</span>
-                      </div>
-                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 6, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{topTier ? 'top tier' : `to ${nextTier}`}</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, fontStyle: 'italic', color: tc, letterSpacing: '-0.02em', lineHeight: 1 }}>{tier}.</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal }}>{scoreTotal.toLocaleString()} pts · {weekTxt} this week</div>
-                  {/* At-risk: the rank has slipped below this (high-water) tier's line.
-                      The tier itself never demotes — earn the gap back to be clear of it. */}
-                  {profile.atRisk ? (
-                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.isLight ? '#c0392b' : '#e0463c' }}>
-                      ⚠ {Math.max(0, curThr - scoreTotal).toLocaleString()} below {tier} — earn it back to hold
-                    </div>
-                  ) : null}
-                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12, color: t.INK70, lineHeight: 1.3 }}>Your composite of training, nutrition, recovery, and consistency.</div>
-                </div>
-              </div>
-              {/* The climb — current tier → now → next tier (moved here from the Me page) */}
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
-                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
-                  <defs><linearGradient id="bsScoreClimb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={`${tc}4d`} /><stop offset="100%" stopColor={`${tc}00`} /></linearGradient></defs>
-                  <path d={`${rg} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`} fill="url(#bsScoreClimb)" />
-                  <path d={rg} fill="none" stroke={bsTHexA(t.INK, 0.25)} strokeWidth="1.5" strokeDasharray="3 4" />
-                  {arc.map((a, i) => { const liveDot = a[2] === 'now', target = a[2] === 'target'; return (
-                    <g key={i}>
-                      <circle cx={xs[i]} cy={ys[i]} r={liveDot ? 5.5 : 4} fill={liveDot ? teal : target ? 'none' : tc} stroke={target ? tc : 'none'} strokeWidth={target ? 2 : 0} />
-                      {liveDot && <circle cx={xs[i]} cy={ys[i]} r={10} fill="none" stroke={teal} strokeWidth="1" opacity="0.5" />}
-                    </g>
-                  ); })}
-                </svg>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                  {arc.map((a, i) => (
-                    <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: a[2] === 'now' ? teal : t.INK50, fontWeight: 700 }}>{a[0]}</div>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, marginTop: 2 }}>{a[1]}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 9, paddingTop: 9, borderTop: `1px solid ${t.HAIR}` }}>
-                {stats.map(([label, value], i) => (
-                  <div key={label} style={{ textAlign: 'center', borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{label}</div>
-                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-            </BSPlate>
+      {/* Verdict lead — the plate hero dies; the serif verdict + its sub-line
+          carry the standing (at-risk swaps to a rust line; top tier degrades). */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.12 }}>
+          {st.topTier
+            ? <>{tier}. <span style={{ color: t.INK70 }}>The top of the ladder</span><span style={{ color: heat }}>.</span></>
+            : <>{tier}, and climbing<span style={{ color: heat }}>.</span></>}
+        </div>
+        {atRisk ? (
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: riskRed }}>
+            ⚠ {Math.max(0, st.curThr - scoreTotal).toLocaleString()} below {tier} — earn it back to hold
           </div>
-        );
-      })()}
+        ) : (
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>
+            {st.topTier
+              ? 'The highest rank Shape offers.'
+              : `${Math.max(0, scoreTotal - st.curThr).toLocaleString()} into the tier — ${st.toNext.toLocaleString()} from ${st.nextName}.`}
+          </div>
+        )}
+      </div>
+
+      {/* Register row — SCORE · THIS WK (heat) · STREAK, eyebrow-above-figure */}
+      <div style={{ display: 'flex', padding: `13px ${t.padX}px 0` }}>
+        {[['Score', scoreTotal.toLocaleString(), t.INK], ['This wk', weekTxt, heat], ['Streak', `${streak}d`, t.INK]].map(([label, value, col], i) => (
+          <div key={label} style={{ flex: 1, paddingLeft: i ? 12 : 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{label}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: col, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+              <BSSdCountUp text={value} duration={780} delay={i * 60} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* THE STANDING — the ladder/tier chart (owner's centerpiece) */}
+      <div ref={stationRef} style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>The standing</span>
+          <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 6px' }} />
+          {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label]) => {
+            const on = standScale === k;
+            return (
+              <button key={k} onClick={() => setStandScale(k)} aria-pressed={on}
+                style={{ flex: 'none', position: 'relative', minHeight: 44, padding: '14px 2px 3px', margin: '-14px 0 -3px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
+                {label}
+                {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 1, height: 2, background: heat }} />}
+              </button>
+            );
+          })}
+        </div>
+        <BSScoreStandingChart tiers={tiers} tier={tier} total={scoreTotal} heat={heat} t={t} seen={stationSeen} scale={standScale} />
+      </div>
 
       {/* Momentum meter — the consistency carrot. 0–100, +7 per active day / −12 per
           missed (a notch, not a reset); ≥80 banks a weekly +25. Hidden when signed-in
