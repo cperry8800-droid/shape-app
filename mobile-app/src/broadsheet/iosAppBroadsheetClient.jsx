@@ -18382,7 +18382,10 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
   return (
     <div aria-label={`${fmt(total)} points — ${tier}, tier ${s.laneIndex + 1} of ${N}, ${s.pct}% through the tier`}>
       <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+        {/* preserveAspectRatio="none" so the 300-wide viewBox stretches to the full
+            container width — the HTML you-dot/figure overlay is positioned by % of
+            that width, so a letterboxed (default meet) SVG would drift it off the line. */}
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
           <path d={poly} fill="none" stroke={bsTHexA(INK, 0.18)} strokeWidth="2" />
           <path d={prog} fill="none" stroke={heat} strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray="1"
             style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
