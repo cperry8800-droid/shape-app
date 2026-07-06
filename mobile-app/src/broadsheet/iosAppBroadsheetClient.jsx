@@ -9222,7 +9222,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
            then eyebrow + serif title. Settings gear + edit pencil top-right; no
            back button (it's a root tab). */
-        <div style={{ padding: '46px 0 0' }}>
+        <div style={{ padding: '46px 8px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9242,7 +9242,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       ) : (
         /* Others' public profile (pushed): the standard masthead (logo + Vol·No
            + search/avatar corners — same chrome as every page), then a back row. */
-        <div style={{ padding: '44px 0 0' }}>
+        <div style={{ padding: '44px 8px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9264,10 +9264,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         </div>
       )}
       {/* ── Route Card — identity head + ascent hero + coach credit + score.
-          Edge-to-edge: the tier-heat rail + side gutters were removed so the
-          block spans the full screen width (owner request). ── */}
+          The tier-heat rail was removed; a small 8px side gutter keeps the block
+          just off the screen edge (owner request — near-edge-to-edge). ── */}
       <div style={{ position: 'relative' }}>
-        <div style={{ position: 'relative', padding: meMode ? '10px 0 0' : '14px 0 0' }}>
+        <div style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
           <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
@@ -9316,8 +9316,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             );
           })()}
         </div>
-        {/* coach press credit + Shape Score register — edge-to-edge */}
-        <div style={{ padding: 0 }}>
+        {/* coach press credit + Shape Score register — small 8px gutter */}
+        <div style={{ padding: '0 8px' }}>
           {showCoachBand && (
             <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
               {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
@@ -9368,7 +9368,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
           the profile stays identity + climb + activity. */}
 
-      <div style={{ flex: 1, padding: '12px 0 24px' }}>
+      <div style={{ flex: 1, padding: '12px 8px 24px' }}>
         {isPrivate ? (
           <div style={{ margin: '4px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
@@ -9381,7 +9381,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         ) : (
           <>
             <div ref={activityRef} />
-            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={0} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
@@ -9389,7 +9389,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={0} ledger />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={8} ledger />
               </div>
             )}
             {tab === 'climb' && (<>
@@ -9529,18 +9529,19 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={0} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
                   <BSTRedact INK={INK} label={isSelf ? 'Nothing logged yet' : 'No activity on record'} />
                 )}
                 {feedEff.map((a, i) => (
-                  /* Edge-to-edge card — the tab body is now zero-padding, so the
-                     card spans the whole screen with no break-out margin. The
-                     card's own age chip carries the timing; author header hidden
-                     (the profile owns the identity). */
-                  <div key={a.key || i} style={{ margin: 0 }}>
+                  /* Card breaks out of the tab body's 8px gutter (margin '0 -8px')
+                     so it aligns with the card's own 8px content gutter — one
+                     consistent small edge everywhere. The card's own age chip
+                     carries the timing; author header hidden (the profile owns
+                     the identity). */
+                  <div key={a.key || i} style={{ margin: '0 -8px' }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
@@ -11606,9 +11607,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
         <div style={{ paddingLeft: 0 }}>
-          {/* Edge-to-edge: the per-post heat rail + side insets were removed so
-              the card spans the full screen width (owner request). */}
-          <div style={{ padding: '10px 0 11px' }}>
+          {/* Heat rail removed; a small 8px side gutter keeps content just off the
+              screen edge (owner request — near-edge-to-edge, eased back a touch). */}
+          <div style={{ padding: '10px 8px 11px' }}>
             {/* author + activity type — or, when hideAuthor (profile feed), a slim
                 header: the type tag on the right + the relative time on the left
                 (the profile's own card chrome already owns the author identity).
@@ -11691,10 +11692,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             </button>
           )}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
-              NOT modified; it runs full-bleed edge-to-edge: the card content is
-              now edge-to-edge (no rail/side insets), so the outer wrapper's
-              negative margins only cancel the page gutter (pagePad — 0 on the
-              community feed + profiles), and the wrapper's overflow:hidden clip + the
+              NOT modified; it runs full-bleed edge-to-edge: the card content has
+              a small 8px side gutter, so the outer wrapper's negative margins
+              cancel that gutter (plus pagePad — 0 on the community feed +
+              profiles) to bleed the route to the card edge, and the wrapper's overflow:hidden clip + the
               inner shim push the component's own marginTop:12 and 1px solid-
               INK border outside the clip box — so the wrapper's 1px ink-alpha
               hairlines top/bottom are the ONLY visible rules, with no side
@@ -11706,7 +11707,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -pagePad, marginRight: -pagePad, cursor: 'pointer' }}>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(8 + pagePad), marginRight: -(8 + pagePad), cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
               </div>
