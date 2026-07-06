@@ -11456,10 +11456,62 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>Send</button>
       </div>
       )}
-      {splitsOpen && <BSSplitsPage d={d} paceData={paceData} t={t} onClose={() => setSplitsOpen(false)} />}
+      {splitsOpen && <BSSplitsPage d={d} paceData={paceData} heat={heat} t={t} onClose={() => setSplitsOpen(false)} />}
     </div>
   );
   return surface ? createPortal(view, surface) : view;
+}
+
+// The Splits — max-depth per-lap breakdown. Portals over the session-details
+// overlay; ← BACK returns. Columns render only when the stream exists.
+function BSSplitsPage({ d, paceData, heat, t, onClose }) {
+  const muted = bsTHexA(t.INK, 0.55), hair = bsTHexA(t.INK, 0.1);
+  const accent = heat || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  if (!surface || !paceData || !paceData.splits.length) return null;
+  const s = paceData.splits;
+  const anyHr = s.some((x) => x.hr != null), anyCad = s.some((x) => x.cadence != null), anyElev = s.some((x) => x.elevDelta != null);
+  const fmtPace = (x) => x.paceLabel || `${Math.floor(x.paceSec / 60)}:${String(Math.round(x.paceSec % 60)).padStart(2, '0')}`;
+  const col = { fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: muted, textAlign: 'right' };
+  const cell = { fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const gridCols = `minmax(52px,1fr) auto${anyHr ? ' auto' : ''}${anyCad ? ' auto' : ''}${anyElev ? ' auto' : ''}`;
+  const view = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>The splits</span>
+        {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Estimated · from trace</span>}
+      </div>
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || 'Session'}<span style={{ color: accent }}>.</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${d.ago} ago` : ''}</div>
+        <BSSdPaceBars data={paceData} t={t} muted={muted} heat={accent} big />
+        <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
+          <span style={{ ...col, textAlign: 'left' }}>Split</span>
+          <span style={col}>Pace</span>
+          {anyHr && <span style={col}>HR</span>}
+          {anyCad && <span style={col}>Cad</span>}
+          {anyElev && <span style={col}>Elev</span>}
+          {s.map((x, i) => {
+            const best = i === paceData.bestIdx;
+            return (
+              <React.Fragment key={i}>
+                <span style={{ gridColumn: '1 / -1', height: 1, background: hair, margin: '9px 0' }} aria-hidden />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK }}>
+                  <span aria-hidden style={{ width: 6, height: 6, borderRadius: 1.5, background: BS_SD_ZONES[(x.zone - 1) % 5], flexShrink: 0 }} />{x.label}
+                </span>
+                <span style={{ ...cell, color: best ? accent : t.INK, fontWeight: best ? 800 : 700 }}>{fmtPace(x)}</span>
+                {anyHr && <span style={cell}>{x.hr != null ? x.hr : '—'}</span>}
+                {anyCad && <span style={cell}>{x.cadence != null ? x.cadence : '—'}</span>}
+                {anyElev && <span style={cell}>{x.elevDelta != null ? `${x.elevDelta > 0 ? '+' : ''}${x.elevDelta}` : '—'}</span>}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+  return createPortal(view, surface);
 }
 
 // Shared host for the three deep-interaction surfaces an activity card opens — the
