@@ -18634,16 +18634,19 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
           <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>The standing</span>
           <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 6px' }} />
-          {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label]) => {
-            const on = standScale === k;
-            return (
-              <button key={k} onClick={() => setStandScale(k)} aria-pressed={on}
-                style={{ flex: 'none', position: 'relative', minHeight: 44, padding: '14px 2px 3px', margin: '-14px 0 -3px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
-                {label}
-                {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 1, height: 2, background: heat }} />}
-              </button>
-            );
-          })}
+          <div role="tablist" aria-label="Standing scale" style={{ display: 'inline-flex', flex: 'none', border: `1px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 4, overflow: 'hidden' }}>
+            {[['ladder', 'The ladder'], ['tier', 'This tier']].map(([k, label], i) => {
+              const on = standScale === k;
+              return (
+                <button key={k} role="tab" aria-selected={on} onClick={() => setStandScale(k)}
+                  style={{ minHeight: 44, padding: '13px 12px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(t.INK, 0.28)}` : 0, cursor: 'pointer',
+                    background: on ? t.INK : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.5),
+                    fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <BSScoreStandingChart tiers={tiers} tier={tier} total={scoreTotal} heat={heat} t={t} seen={stationSeen} scale={standScale} />
       </div>
