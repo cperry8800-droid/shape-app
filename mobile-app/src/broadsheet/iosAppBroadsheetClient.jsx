@@ -7040,13 +7040,16 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
   // ── Ledger variant (Terrain) — one mono stat line + line-only Follow/Message.
   if (ledger) {
-    const seg = (n, label, onTap) => (
-      <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, background: 'transparent', border: 0, padding: '13px 0', margin: 0, minHeight: 44, cursor: 'pointer' }}>
-        <span style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 800, color: INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
-        <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), lineHeight: 1 }}>{label}</span>
+    // Numbers read at register weight (19px, up from 13) so the social line owns
+    // its block; `italic` sets the POSTS figure apart in the house accent style
+    // (serif italic) since it navigates (→ activity) rather than opening a sheet.
+    const seg = (n, label, onTap, italic = false) => (
+      <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: '13px 0', margin: 0, minHeight: 44, cursor: 'pointer' }}>
+        <span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 800, color: INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', lineHeight: 1, ...(italic ? { fontStyle: 'italic', fontWeight: 700 } : null) }}>{Math.max(0, Number(n) || 0)}</span>
+        <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), lineHeight: 1 }}>{label}</span>
       </button>
     );
-    const dot = <span aria-hidden style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.3), padding: '0 8px' }}>·</span>;
+    const dot = <span aria-hidden style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.3), padding: '0 10px' }}>·</span>;
     const followAction = !isSelf ? (
       <button onClick={onToggle} disabled={busy} style={{
         flex: 'none', minHeight: 44, padding: fs === 'follow' ? '9px 12px' : '11px 2px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
@@ -7062,7 +7065,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, justifyContent: center ? 'center' : 'flex-start' }}>
         {seg(stats.followers, 'Followers', () => openList('followers'))}{dot}
         {seg(stats.following, 'Following', () => openList('following'))}{dot}
-        {seg(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
+        {seg(postsShown, 'Posts', () => onOpenPosts && onOpenPosts(), true)}
         {isSelf && reqCount > 0 && (
           <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{reqCount} request{reqCount === 1 ? '' : 's'} <span style={{ color: c }}>›</span></span></button>
         )}
