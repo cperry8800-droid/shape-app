@@ -9,6 +9,7 @@ import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLed
 import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
+import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -2753,12 +2754,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // Plain element factory (called, not mounted as a component type) so its
         // per-render identity can't remount the tick subtree.
         const mealTick = (m, logged) => logged ? (
-          <span aria-hidden style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
+          <span aria-hidden style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
         ) : (
           <button
             onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
             aria-label={`Log ${m.title}`}
-            style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
+            style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
           />
         );
         // Untimed rows come after all timed rows (bsHomeSlateSort's contract);
@@ -2872,7 +2873,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <button
                 onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
                 aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'}
-                style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}
+                style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
               >{h.live ? '' : '🔒'}</button>
             ),
             onOpen: () => setHabitsPage(true),
@@ -16350,11 +16351,11 @@ function BSProgressDoor({ onOpen, door = false }) {
 // Do not add a plate. If it can't be a row, it lives on a tab and gets at most a row-door.
 
 // BSSlateRow — one time-ordered run-sheet row inside TODAY'S SLATE. min-height 48px,
-// grid 50px time / 58px domain-tag / 1fr title / auto status / auto control-or-chevron,
+// grid 44px time / 50px domain-tag / 1fr title / auto status / auto control-or-chevron,
 // 1px t.HAIR bottom rule. Whole row is a button ≥48px tall, Enter/Space-activatable,
 // press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
 // non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
-// a custom control cell (36px meal ghost-tick / 26px habit checkbox) rendered as-is.
+// a custom control cell (24px meal ghost-tick / 24px habit checkbox, uniform) rendered as-is.
 function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
   const isLead = right === 'lead';
@@ -16395,10 +16396,10 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       tabIndex={interactive ? 0 : undefined}
       aria-label={ariaLabel}
       style={{
-        // Last track is auto, NOT fixed — the meal/habit ticks are 36px wide and
-        // a fixed track can't shrink below content, so 20px overflowed the row's
-        // right gutter and clipped the ticks at the screen edge.
-        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto auto', alignItems: 'center', gap: 8,
+        // Last track is auto, NOT fixed — the meal/habit ticks (24px, uniform) can't
+        // shrink below content, so a fixed track would overflow the row's right gutter
+        // and clip at the screen edge. Tight left columns keep the meta from clipping.
+        display: 'grid', gridTemplateColumns: '44px 50px 1fr auto auto', alignItems: 'center', gap: 7,
         width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
@@ -16406,15 +16407,15 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
       }}
     >
-      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span aria-hidden style={{ width: 16, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
+        <span aria-hidden style={{ width: 13, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
       </span>
       <span style={{ minWidth: 0, overflow: 'hidden' }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
       </span>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 138, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         {isLead ? (
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
@@ -18555,6 +18556,198 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
   );
 }
 
+// Demo ledger for the signed-out Record preview (a labelled example, never shown
+// to a signed-in member). The website bakes the SAME rows into a static fixture.
+const BS_RECORD_DEMO_ROWS = [
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-07-06T15:00:00Z' },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-07-06T12:00:00Z' },
+  { category: 'habits', source_kind: 'habit', delta: 3, note: 'Habit completed', earned_at: '2026-07-05T18:00:00Z' },
+  { category: 'workouts', source_kind: 'workout_session', delta: 10, note: 'Workout logged', earned_at: '2026-07-04T15:00:00Z' },
+  { category: 'adherence', source_kind: 'checkin', delta: 15, note: 'Weekly check-in', earned_at: '2026-07-01T09:00:00Z' },
+  { category: 'prs', source_kind: 'pr_wall', delta: 12, note: 'Back squat PR', earned_at: '2026-06-28T17:00:00Z' },
+  { category: 'adherence', source_kind: 'checkin', delta: -7, note: 'Missed check-in', earned_at: '2026-06-22T09:00:00Z' },
+  { category: 'nutrition', source_kind: 'meal_log', delta: 10, note: 'Meal logged', earned_at: '2026-06-15T12:00:00Z' },
+];
+
+// Self-drawing cumulative line. preserveAspectRatio="none" + %-positioned end dot
+// (the ladder-chart lesson) so the HTML overlay tracks the drawn geometry at any width.
+function BSRecordTrace({ series, heat, t }) {
+  const reduced = bsSdReduced();
+  if (!series || series.length < 2) {
+    return <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>Not enough history in this range yet.</div>;
+  }
+  const vals = series.map((p) => p.cumulative);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const n = series.length;
+  const pts = series.map((p, i) => {
+    const x = n === 1 ? 100 : (i / (n - 1)) * 100;
+    const y = 100 - ((p.cumulative - min) / span) * 100;
+    return [x, y];
+  });
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+  const end = pts[pts.length - 1];
+  return (
+    <div style={{ position: 'relative', marginTop: 8, height: 118 }}>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+        <path d={d} fill="none" stroke={heat} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
+          pathLength={1} strokeDasharray="1 1"
+          style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : { animation: 'bsSdDrawLine 900ms ease forwards' }) }} />
+      </svg>
+      <span aria-hidden style={{ position: 'absolute', left: `${end[0]}%`, top: `${end[1]}%`, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: '50%', background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.25)}` }} />
+    </div>
+  );
+}
+
+// "The Record" — full Shape Score history + report. Live members fetch
+// /api/client/score-record; signed-out shows a labelled demo computed from
+// BS_RECORD_DEMO_ROWS via the same aggregation module (rank basis: redemptions
+// excluded, so the totals reconcile with the Standing).
+function BSScoreRecordPage({ onBack, tier }) {
+  const t = useBS();
+  const heat = bsTierColor(tier || 'Base');
+  const rustCol = t.RUST || '#c0533b';
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const [record, setRecord] = useStateBSC(loggedIn ? null : bsScoreRecord(BS_RECORD_DEMO_ROWS, {}));
+  const [range, setRange] = useStateBSC('1w');
+  const [filter, setFilter] = useStateBSC('all');
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let cancelled = false;
+    // Native-safe fetch (apiBaseUrl + Bearer) — a relative fetch would hit the
+    // WebView origin on the native build and leave a signed-in member on the empty report.
+    const p = (window.ShapeScoreRecord && window.ShapeScoreRecord.get)
+      ? window.ShapeScoreRecord.get()
+      : fetch('/api/client/score-record', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
+    Promise.resolve(p).then((d) => { if (!cancelled && d && d.ranges) setRecord(d); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [loggedIn]);
+
+  const preview = !loggedIn;
+  const rec = record || bsScoreRecord([], {});
+  const win = rec.ranges[range] || rec.ranges['1w'];
+  const filters = [['all', 'All'], ['workouts', 'Workouts'], ['habits', 'Habits'], ['nutrition', 'Nutrition'], ['checkins', 'Check-ins'], ['prs', 'PRs'], ['penalty', 'Penalties']];
+  const days = filter === 'all'
+    ? rec.history
+    : rec.history.map((d) => {
+        const rows = d.rows.filter((r) => r.bucket === filter);
+        return { ...d, rows, subtotal: rows.reduce((s, r) => s + r.delta, 0) };
+      }).filter((d) => d.rows.length);
+  const maxBar = Math.max(1, ...win.byCategory.map((c) => c.earned));
+  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) };
+  const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };
+  const sect = { padding: `${t.sectGap}px ${t.padX}px 0` };
+  const register = [['This week', rec.ranges['1w'].net], ['This month', rec.ranges['1m'].net], [`Earned · ${range.toUpperCase()}`, win.earned], [`Lost · ${range.toUpperCase()}`, -win.lost]];
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Shape Score" kicker="The Record" title="The Record" />
+
+      {preview && (
+        <div style={{ margin: `0 ${t.padX}px 4px`, padding: '8px 10px', border: `1px solid ${bsTHexA(heat, 0.4)}`, borderRadius: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: heat }}>
+          Preview · demo record — an example of a live account · Sign in →
+        </div>
+      )}
+
+      {/* 1 · Header register */}
+      <div style={sect}>
+        <div style={eyebrow}>Lifetime score</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>
+          <BSSdCountUp text={rec.lifetime} />
+        </div>
+        <div style={{ display: 'flex', gap: 20, marginTop: 12, flexWrap: 'wrap' }}>
+          {register.map(([label, val]) => (
+            <div key={label}>
+              <div style={eyebrow}>{label}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 15, fontWeight: 800, color: Number(val) < 0 ? rustCol : t.INK }}>{Number(val) >= 0 ? '+' : ''}{val}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat})` }} />
+      </div>
+
+      {/* 2 · Score over time + range toggle */}
+      <div style={sect}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={eyebrow}>Score over time</div>
+          <div style={{ display: 'flex', gap: 2, border: `1px solid ${t.HAIR}`, borderRadius: 8, padding: 2 }}>
+            {RANGE_KEYS.map((k) => {
+              const on = range === k;
+              return (
+                <button key={k} onClick={() => setRange(k)} aria-pressed={on} style={{ minWidth: 40, minHeight: 30, padding: '4px 8px', border: 0, borderRadius: 6, cursor: 'pointer', background: on ? heat : 'transparent', color: on ? t.PAPER : bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{k}</button>
+              );
+            })}
+          </div>
+        </div>
+        <BSRecordTrace series={win.series} heat={heat} t={t} />
+      </div>
+
+      {/* 3 · By source + penalties */}
+      <div style={sect}>
+        <div style={eyebrow}>By source · {range.toUpperCase()}</div>
+        <div style={{ marginTop: 8 }}>
+          {win.byCategory.length === 0
+            ? <div style={{ padding: '8px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>No points earned in this range yet.</div>
+            : win.byCategory.map((c) => (
+              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0' }}>
+                <div style={{ width: 76, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</div>
+                <div aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(3, (c.earned / maxBar) * 100)}%`, background: heat, borderRadius: '0 2px 2px 0' }} />
+                </div>
+                <div style={{ width: 44, flexShrink: 0, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK }}>+{c.earned}</div>
+              </div>
+            ))}
+        </div>
+        {win.lost > 0 && (
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: rustCol }}>− Penalties · {win.lost} lost</div>
+            {win.penalties.slice(0, 3).map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', marginTop: 6 }}>
+                <span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{p.note}</span>
+                <span aria-hidden style={dotLead} />
+                <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: rustCol }}>{p.total}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 4 · The full history */}
+      <div style={{ ...sect, paddingBottom: 8 }}>
+        <div style={eyebrow}>The full history</div>
+        <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '8px 0 4px' }}>
+          {filters.map(([k, label]) => {
+            const on = filter === k;
+            return (
+              <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: 'none', minHeight: 30, padding: '5px 11px', border: `1px solid ${on ? heat : t.HAIR}`, borderRadius: 999, background: on ? bsTHexA(heat, 0.12) : 'transparent', color: on ? heat : bsTHexA(t.INK, 0.6), cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+            );
+          })}
+        </div>
+        {days.length === 0 ? (
+          <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>No entries in this filter yet.</div>
+        ) : days.map((d) => (
+          <div key={d.date} style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{_bsFormatScoreDate(d.date)}</span>
+              <span aria-hidden style={dotLead} />
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: d.subtotal < 0 ? rustCol : heat }}>{d.subtotal >= 0 ? '+' : ''}{d.subtotal}</span>
+            </div>
+            {d.rows.map((r, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', padding: '9px 0', borderBottom: i === d.rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.note}</span>
+                <span aria-hidden style={dotLead} />
+                <span style={{ fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, color: r.isPenalty ? rustCol : heat }}>{r.delta >= 0 ? '+' : ''}{r.delta}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <BSFooter right="Record" />
+    </BSPage>
+  );
+}
+
 function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
   profile = _bsUseLiveScore(profile);
@@ -18580,6 +18773,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     .filter(Boolean);
   // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
   const [scoreTab, setScoreTab] = useStateBSC('tiers');
+  const [showRecord, setShowRecord] = useStateBSC(false);
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const [standScale, setStandScale] = useStateBSC('ladder'); // 'ladder' | 'tier'
   const [stationRef, stationSeen] = useBSSdInView();
@@ -18591,6 +18785,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const riskRed = t.isLight ? '#c0392b' : '#e0463c';
   const rustCol = t.RUST || '#c0533b';
   const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };
+
+  // "The Record" full-history overlay (reached from the Ledger tab's leader).
+  if (showRecord) return <BSScoreRecordPage onBack={() => setShowRecord(false)} tier={tier} />;
 
   return (
     <BSPage>
@@ -18799,6 +18996,13 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
+        {scoreTab === 'ledger' && (
+          <div onClick={() => setShowRecord(true)} role="button" tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowRecord(true); } }}
+            style={{ marginTop: 14, minHeight: 44, display: 'flex', alignItems: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>
+            See the full record →
+          </div>
+        )}
       </div>
 
       <BSFooter right="Rewards" />

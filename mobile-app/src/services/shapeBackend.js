@@ -3245,6 +3245,13 @@ function cachedClientJson(path) {
 }
 function invalidateClientMetrics() { _metricsCache.clear(); }
 window.ShapeMetrics = { invalidate: invalidateClientMetrics };
+// The Record — full Shape Score history + report. Native-safe (apiBaseUrl + Bearer
+// via getJsonOrDefault); the raw relative fetch would target the WebView origin on
+// the native build. Returns null on no-session / non-OK / error (page → empty).
+async function getScoreRecord() {
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/score-record`, null);
+}
+window.ShapeScoreRecord = { get: getScoreRecord };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }

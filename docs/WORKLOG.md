@@ -269,6 +269,41 @@ changelog whenever something ships.
   prod (every column + the `now() at time zone` math + both award signatures resolve; the
   `create or replace` matches the existing `(p_day date)` signature). Standalone PR.
 
+### 2026-07-06 — "The Record": detailed Shape Score history + report (mobile + website)
+- **A dedicated full-screen "Record" page** off the LEDGER tab (was capped at ~12
+  recent rows): a header register (lifetime total · THIS WEEK / THIS MONTH / EARNED /
+  LOST for the visible range), a **cumulative score-over-time line** with a
+  **1W (default) / 1M / 3M / All** range toggle, a **by-source** breakdown (points per
+  category as bars + a rust `− penalties` line with the top reasons), and the **full
+  day-grouped, filterable history** (every ledger entry, per-day subtotals, newest
+  first; All / Workouts / Habits / Nutrition / Check-ins / PRs / Penalties chips).
+  Spec `docs/superpowers/specs/2026-07-06-score-record-history-report-design.md`,
+  plan `docs/superpowers/plans/2026-07-06-score-record-the-record.md`.
+- **One algorithm, two twins** (the `weekendSplit` pattern): pure
+  `mobile-app/src/services/scoreHistory.mjs` (`bsScoreRecord(rows,{now})` →
+  `{ ranges, history, lifetime }`, unit-tested in `tests/score-record.test.mjs`, 8
+  vectors) + `src/lib/scoreHistory.ts` (the server twin). **Rank basis:** store
+  redemptions are excluded everywhere (mirrors `deriveScore`), so the Record totals
+  reconcile with the Standing; penalties = negative non-redeem deltas. Windows are UTC
+  (1w/1m by day, 3m/all by ISO-week buckets).
+- **New route `GET /api/client/score-record`** (membership-gated `/api/client` prefix;
+  reads the caller's `score_ledger` newest-first, capped 1000, runs the TS twin). **No
+  migration.** Registered in the War Room.
+- **Mobile** (`iosAppBroadsheetClient.jsx`): `BSScoreRecordPage` (`BSPage` +
+  `BSDetailHeader`, self-drawing `BSRecordTrace` line with `preserveAspectRatio="none"`
+  plus a %-positioned end dot per the ladder-chart lesson), reached from a **SEE THE FULL
+  RECORD →** leader at the end of the LEDGER tab. Live members fetch the endpoint;
+  signed-out computes a labelled demo from `BS_RECORD_DEMO_ROWS` via the same module.
+- **Website** (`public/newdesign/score.jsx`, `Score.html ?v=20`): a `ScoreRecordView`
+  reached from the Ledger's SEE-THE-FULL-RECORD leader (swaps in over the page), same
+  four blocks off the endpoint; signed-out reads a **baked `RECORD_DEMO`** fixture
+  (generated from the same demo rows the mobile Record computes, so the two match —
+  the browser can't run the ESM aggregation).
+- Verified: `tests/score-record.test.mjs` (419/419 total) · `tsc --noEmit` clean ·
+  mobile + website JSX parse-checks · `VITE_BASE=/m/ npm run build` exit 0 · LF.
+  **On-device pass recommended** (Black/Sage/Cream papers × client tiers/at-risk × the
+  four range windows × the history filters × reduced-motion) before the on-device sign-off.
+
 ### 2026-07-05 — Shape Score "The Standing" + Shape Store "The Shop/Drop" — Open Ledger redesign (#1552)
 - **The last two June-era client surfaces serialized into the Open Ledger
   language** (`BSShapeScorePage` + `BSShapeStorePage`, `iosAppBroadsheetClient.jsx`).
