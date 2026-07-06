@@ -48,6 +48,16 @@ test('at-risk: rank below the current (high-water) tier floor -> frac clamps to 
   assert.equal(s.frac, 0);
 });
 
+test('top tier but below floor (high-water Legend, penalised) -> empty, at-risk', () => {
+  const s = bsScoreStanding(TIERS, 'Legend', 12000);
+  assert.equal(s.laneIndex, 4);
+  assert.equal(s.topTier, true);
+  assert.equal(s.atRisk, true);
+  assert.equal(s.frac, 0);
+  assert.equal(s.pct, 0);
+  assert.equal(s.toNext, 0);
+});
+
 test('coach ladder names resolve the same way', () => {
   const COACH = [
     { name: 'Certified', range: '0+' },

@@ -122,6 +122,14 @@ test('at-risk: rank below the current (high-water) tier floor → frac clamps to
   assert.equal(s.frac, 0);
 });
 
+test('top tier but below floor (high-water Legend, penalised) → empty, at-risk', () => {
+  const s = bsScoreStanding(TIERS, 'Legend', 12000);
+  assert.equal(s.topTier, true);
+  assert.equal(s.atRisk, true);
+  assert.equal(s.frac, 0); // NOT 1 — a below-floor top-tier member reads empty
+  assert.equal(s.pct, 0);
+});
+
 test('coach ladder names resolve the same way', () => {
   const COACH = [
     { name: 'Certified', range: '0+' },
@@ -177,10 +185,12 @@ export function bsScoreStanding(tiers, tierName, total) {
   const nextThr = (!topTier && list[laneIndex + 1]) ? parseNum(list[laneIndex + 1].range) : (score + 0);
   const nextName = (!topTier && list[laneIndex + 1]) ? String(list[laneIndex + 1].name) : '';
   const span = nextThr - curThr;
-  const frac = topTier ? 1 : (span > 0 ? Math.max(0, Math.min(1, (score - curThr) / span)) : 1);
+  // At-risk first, so the top-tier branch clamps to empty (not a forced full bar)
+  // when a last-rung member's rank slipped below the floor.
+  const atRisk = laneCount > 0 && score < curThr;
+  const frac = topTier ? (atRisk ? 0 : 1) : (span > 0 ? Math.max(0, Math.min(1, (score - curThr) / span)) : 1);
   const pct = Math.round(frac * 100);
   const toNext = topTier ? 0 : Math.max(0, nextThr - score);
-  const atRisk = laneCount > 0 && score < curThr;
   return { laneIndex, laneCount, frac, pct, toNext, curThr, nextThr, topTier, atRisk, nextName };
 }
 ```
@@ -451,15 +461,18 @@ Replace the boxed category pill grid + "Within balance" button with a typographi
 
 - [ ] **Step 3: THE DROP hero + product grid** (ALL + MERCH views only)
 
-Add a hero-selection helper at page scope:
+Add a hero-selection helper at page scope. **The hero is picked from the SAME `visible`-filtered merch set** (so "Within balance" hides an unaffordable/locked drop from the hero too — CodeRabbit/Codex finding), preferring a live limited drop, then a new item, then the first affordable merch:
 ```javascript
-const merchItems = products.filter((p) => p.cat === 'Shape Merch' && roleCats.includes(p.cat));
-const heroItem = merchItems.find((p) => p.tag === 'Limited drop') || merchItems.find((p) => p.tag === 'New') || merchItems[0] || null;
+const merchVisible = visible.filter((p) => p.cat === 'Shape Merch');
+const heroItem = merchVisible.find((p) => p.tag === 'Limited drop') || merchVisible.find((p) => p.tag === 'New') || merchVisible[0] || null;
+const gridMerch = merchVisible.filter((p) => !heroItem || p.id !== heroItem.id); // grid EXCLUDES the hero (no dupes — pinned)
 ```
-Render the hero only when `cat === 'All' || cat === 'Shape Merch'` and `heroItem`:
-- Full-bleed framed tile (duotone gradient ground, hairline border): `BSStoreGlyph` (or `<img src={`/m/store/${heroItem.id}.png`>` when `heroItem.img`) large; eyebrow `DROP · {tag or 'Featured'}` top-left in heat; stock fact (`heroItem.stock`) top-right ink50; footer bar inside the frame: serif name + heat period · mono `{cost} pts · ${retail}` + affordability · **teal solid REDEEM/ADD** button (merch → ADD to cart via `addToCart`/`handleRedeem` per the existing merch/non-merch split; non-member → `MEMBERS →` amber → `bsStartPlatformCheckout`).
+Render the hero only when `(cat === 'All' || cat === 'Shape Merch')` and `heroItem`:
+- Full-bleed framed tile (duotone gradient ground, hairline border): the product image via a shared **`BSStoreImg`** helper that loads the deterministic `/m/store/${id}.png` with an `onError` that swaps to `BSStoreGlyph` (so simply dropping a file into `mobile-app/public/store/` lights it up with zero code change — Codex finding); eyebrow `DROP · {tag or 'Featured'}` top-left in heat; stock fact (`heroItem.stock`) top-right ink50; footer bar inside the frame: serif name + heat period · mono `{cost} pts · ${retail}` + affordability · **teal solid REDEEM/ADD** button (merch → ADD to cart via `addToCart`/`handleRedeem` per the existing merch/non-merch split; non-member → `MEMBERS →` amber → `bsStartPlatformCheckout`).
 
-Product grid (2-col) for the MERCH items excluding the hero (or including — decide: exclude the hero to avoid dupes, matching the board): each tile = framed glyph/img area (`PAPER2` ground, hairline) with tag chips (`LIMITED · 30` etc.), name (display 600), mono price line with affordability (`{cost} pts ✓` heat / `{cost} · +{gap}` ink50, tile `opacity:0.6` when unaffordable/locked), and the existing cart mechanics squared (first tap ADD; in-cart → inline `−` qty `+` stepper, squared not pill; tier-locked dim + "Unlocks at {tier}", non-tappable). Reuse the exact handlers already in scope.
+Product grid (2-col) over **`gridMerch`** (excludes the hero — pinned, no duplicate featured item): each tile = framed `BSStoreImg` area (`PAPER2` ground, hairline) with tag chips (`LIMITED · 30` etc.), name (display 600), mono price line with affordability (`{cost} pts ✓` heat / `{cost} · +{gap}` ink50, tile `opacity:0.6` when unaffordable/locked), and the existing cart mechanics squared (first tap ADD; in-cart → inline `−` qty `+` stepper, squared not pill; tier-locked dim + "Unlocks at {tier}", non-tappable). Reuse the exact handlers already in scope.
+
+**`BSStoreImg` (module scope, near `BSStoreGlyph`):** renders `<img src={`/m/store/${id}.png`}>` and, on the image's `error` event, unmounts the img and renders `<BSStoreGlyph id cat color>` instead — so a real photo wins per item the moment it exists, and every product without one shows the honest line-art glyph.
 
 - [ ] **Step 4: Parse + build + test** (same commands).
 

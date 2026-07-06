@@ -16,9 +16,12 @@ export function bsScoreStanding(tiers, tierName, total) {
   const nextThr = (!topTier && list[laneIndex + 1]) ? parseNum(list[laneIndex + 1].range) : score;
   const nextName = (!topTier && list[laneIndex + 1]) ? String(list[laneIndex + 1].name) : '';
   const span = nextThr - curThr;
-  const frac = topTier ? 1 : (span > 0 ? Math.max(0, Math.min(1, (score - curThr) / span)) : 1);
+  // At-risk = the rank slipped below the current (high-water) tier floor. Compute
+  // it first so the top-tier branch can clamp to empty instead of forcing a full
+  // bar — a last-rung member below the floor must read as 0%, not complete.
+  const atRisk = laneCount > 0 && score < curThr;
+  const frac = topTier ? (atRisk ? 0 : 1) : (span > 0 ? Math.max(0, Math.min(1, (score - curThr) / span)) : 1);
   const pct = Math.round(frac * 100);
   const toNext = topTier ? 0 : Math.max(0, nextThr - score);
-  const atRisk = laneCount > 0 && score < curThr;
   return { laneIndex, laneCount, frac, pct, toNext, curThr, nextThr, topTier, atRisk, nextName };
 }

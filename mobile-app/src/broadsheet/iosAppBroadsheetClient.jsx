@@ -18345,10 +18345,13 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
   if (!Array.isArray(tiers) || tiers.length < 2) return null;
   const s = bsScoreStanding(tiers, tier, total);
   if (scale === 'tier') {
+    const riskRed = t.isLight ? '#c0392b' : '#e0463c';
     const nextColor = s.topTier ? heat : bsTierColor(s.nextName || tier);
-    const caption = s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
+    const caption = s.atRisk
+      ? `⚠ ${fmt(Math.max(0, s.curThr - total))} below ${tier} — earn it back to hold`
+      : s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
     return (
-      <div aria-label={`${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
+      <div aria-label={s.atRisk ? `${fmt(total)} points — ${fmt(Math.max(0, s.curThr - total))} below ${tier}, earn it back to hold` : `${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 22 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{tier} · {fmt(s.curThr)}</span>
           {!s.topTier && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: nextColor }}>{s.nextName} · {fmt(s.nextThr)}</span>}
@@ -18358,7 +18361,7 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
           <div style={{ position: 'absolute', left: `${s.pct}%`, top: -3.5, width: 10, height: 10, borderRadius: 999, background: heat, transform: 'translateX(-50%)', ['--sd-glow']: bsTHexA(heat, 0.55), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
           <div style={{ position: 'absolute', left: `${s.pct}%`, top: -20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: heat, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
         </div>
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{caption}</div>
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: s.atRisk ? riskRed : bsTHexA(INK, 0.5), fontWeight: 800 }}>{caption}</div>
         <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this bar only moves right</div>
       </div>
     );
