@@ -11478,7 +11478,7 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
   if (!surface || !paceData || !paceData.splits.length) return null;
   const s = paceData.splits;
   const anyHr = s.some((x) => x.hr != null), anyCad = s.some((x) => x.cadence != null), anyElev = s.some((x) => x.elevDelta != null);
-  const fmtPace = (x) => x.paceLabel || `${Math.floor(x.paceSec / 60)}:${String(Math.round(x.paceSec % 60)).padStart(2, '0')}`;
+  const fmtPace = (x) => x.paceLabel || '—'; // paceLabel is always set by bsPaceSplits
   const col = { fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: muted, textAlign: 'right' };
   const cell = { fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
   const gridCols = `minmax(52px,1fr) auto${anyHr ? ' auto' : ''}${anyCad ? ' auto' : ''}${anyElev ? ' auto' : ''}`;

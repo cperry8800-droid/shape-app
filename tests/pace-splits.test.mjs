@@ -25,8 +25,9 @@ test('bsPaceSplits: provider splits preferred, uncapped, zones rise on a negativ
   const r = bsPaceSplits({ providerSplits, sport: 'run' });
   assert.equal(r.source, 'provider');
   assert.equal(r.splits.length, 3);
-  assert.equal(r.splits[0].paceSec, 540);
-  assert.equal(r.splits[2].paceSec, 480);
+  assert.equal(r.splits[0].paceVal, 540);
+  assert.equal(r.splits[2].paceVal, 480);
+  assert.equal(r.splits[0].paceLabel, '9:00/mi'); // display label always set
   assert.equal(r.bestIdx, 2);           // fastest = mile 3
   assert.equal(r.worstIdx, 0);
   assert.ok(r.splits[2].zone >= r.splits[0].zone); // later miles no slower → zone rises
@@ -41,7 +42,7 @@ test('bsPaceSplits: trace fallback buckets by distance when no provider splits',
   const r = bsPaceSplits({ paceTrace, distanceMi: 3, sport: 'run' });
   assert.equal(r.source, 'trace');
   assert.equal(r.splits.length, 3);           // 3 miles
-  assert.ok(r.splits.every((s) => Number.isFinite(s.paceSec)));
+  assert.ok(r.splits.every((s) => Number.isFinite(s.paceVal)));
 });
 
 test('bsPaceSplits: no provider splits and no trace → source null, empty splits', () => {
@@ -65,6 +66,27 @@ test('bsPaceSplits: ride speed (mph) — faster = higher number, best = max', ()
   const r = bsPaceSplits({ providerSplits, sport: 'ride' });
   assert.equal(r.bestIdx, 1);                 // 22 mph fastest
   assert.equal(r.splits[1].hFrac, 1);
+  assert.equal(r.splits[1].paceLabel, '22.0 mph');
+});
+
+test('bsPaceSplits: ride provider splits given as time/mile parse (not dropped) — lower time = faster', () => {
+  const providerSplits = [
+    { label: 'Mile 1', pace: '3:00/mi' },
+    { label: 'Mile 2', pace: '2:40/mi' },
+  ];
+  const r = bsPaceSplits({ providerSplits, sport: 'ride' });
+  assert.equal(r.source, 'provider');
+  assert.equal(r.splits.length, 2);           // both parsed, none dropped
+  assert.equal(r.bestIdx, 1);                 // 2:40 faster than 3:00
+  assert.equal(r.splits[1].paceLabel, '2:40/mi');
+});
+
+test('bsPaceSplits: trace buckets never exceed the sample count (long ride, sparse stream)', () => {
+  const paceTrace = Array.from({ length: 30 }, (_, i) => 18 + (i % 5)); // 30 mph samples
+  const r = bsPaceSplits({ paceTrace, distanceMi: 62, sport: 'ride' });
+  assert.equal(r.source, 'trace');
+  assert.ok(r.splits.length <= 30);           // capped to samples, no empty buckets
+  assert.ok(r.splits.every((s) => Number.isFinite(s.paceVal) && s.paceLabel.includes('mph')));
 });
 
 test('bsPaceSplits: provider splits are uncapped (26-mile marathon keeps all rows)', () => {

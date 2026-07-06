@@ -314,8 +314,9 @@ async function fetchActivitySplits(
     const out: { label: string; pace: string; hr?: string; elevation?: string }[] = [];
     arr.forEach((s, i) => {
       const secs = (typeof s.moving_time === 'number' ? s.moving_time : s.elapsed_time) ?? null;
-      const meters = typeof s.distance === 'number' ? s.distance : 1609.344;
-      if (secs == null || secs <= 0 || meters <= 0) return;
+      // Never fabricate a mile — skip a split without a real distance (honest-data rule).
+      const meters = typeof s.distance === 'number' ? s.distance : null;
+      if (secs == null || secs <= 0 || meters == null || meters <= 0) return;
       const perMile = secs / (meters / 1609.344);
       const mm = Math.floor(perMile / 60), ss = Math.round(perMile % 60);
       const row: { label: string; pace: string; hr?: string; elevation?: string } = {
@@ -463,9 +464,12 @@ git commit -m "feat(pace): BSSdPaceBars — zone-colored per-split bar chart pri
   // Per-split model (provider splits preferred, trace fallback) for the bar chart
   // + the Splits page. Runs/swims/rides; null when there's no pace signal at all.
   const paceData = bsPaceSplits({
-    providerSplits: (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
-      ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|m\b/.test(String(r[2])) ? r[2] : undefined }))
-      : null,
+    // Raw uncapped provider splits FIRST (rawMetrics.splits/laps threaded via the 'a'
+    // mapper), then the flattened breakdown, then trace — never suppress the raw path.
+    providerSplits: (Array.isArray(d.rawSplits) && d.rawSplits.length) ? d.rawSplits
+      : (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
+        ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|m\b/.test(String(r[2])) ? r[2] : undefined }))
+        : null,
     paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
     hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
     distanceMi, sport,

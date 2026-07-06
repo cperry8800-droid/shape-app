@@ -401,8 +401,9 @@ async function fetchActivitySplits(
     const out: { label: string; pace: string; hr?: string; elevation?: string }[] = [];
     arr.forEach((s, i) => {
       const secs = (typeof s.moving_time === 'number' ? s.moving_time : s.elapsed_time) ?? null;
-      const meters = typeof s.distance === 'number' ? s.distance : 1609.344;
-      if (secs == null || secs <= 0 || meters <= 0) return;
+      // Never fabricate a mile — skip a split that lacks a real distance (honest-data rule).
+      const meters = typeof s.distance === 'number' ? s.distance : null;
+      if (secs == null || secs <= 0 || meters == null || meters <= 0) return;
       const perMile = secs / (meters / 1609.344);
       const mm = Math.floor(perMile / 60), ss = Math.round(perMile % 60);
       const row: { label: string; pace: string; hr?: string; elevation?: string } = {
