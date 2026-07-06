@@ -37,7 +37,11 @@ as $$
    limit 1;
 $$;
 
-revoke execute on function public.shape_user_tz(uuid) from public;
+-- Supabase's default privileges GRANT EXECUTE on new public functions to anon +
+-- authenticated DIRECTLY (not via PUBLIC), so `from public` alone leaves those role
+-- grants in place — revoke all three. The award RPCs (owned by the same role) can
+-- still call it internally as the owner.
+revoke execute on function public.shape_user_tz(uuid) from public, anon, authenticated;
 
 -- ── award_workout_session — +10 once for a real workout on the caller's today ──
 create or replace function public.award_workout_session(p_day date default null)
