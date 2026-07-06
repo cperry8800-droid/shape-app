@@ -39,11 +39,13 @@ export function dirOf(code) { return BY_CODE.get(code)?.dir === 'rtl' ? 'rtl' : 
 // keeping the catalog code distinct. Falls through to the code itself otherwise.
 export function intlLocaleOf(code) { return BY_CODE.get(code)?.intlLocale || code; }
 
-// The subset actually wired end-to-end (catalog + fonts + RTL) this release. The
-// picker / Settings / runtime consume this so a user can never select a locale
-// that would silently fall back to English. Rollout expands it toward the full
-// registry (eventually the whole set).
-export const ACTIVE_LOCALES = ['en', 'ar', 'ja'];
+// The subset actually wired end-to-end (catalogs authored, fonts covered) this
+// release. The picker / Settings / runtime consume this so a user can never select
+// a locale that would silently fall back to English. Rollout expands it toward the
+// full registry. This cohort = the Latin + Cyrillic set (all LTR, and the editorial
+// fonts + system fallback cover their scripts — no font binaries needed); the RTL
+// (ar/ur/arz), Indic (hi/bn/te), and CJK (zh-Hans/ja/ko) locales land in later waves.
+export const ACTIVE_LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 'pcm', 'ru', 'uk'];
 export function isActive(code) { return ACTIVE_LOCALES.includes(code); }
 export function activeLocales() { return LOCALES.filter((l) => ACTIVE_LOCALES.includes(l.code)); }
 
