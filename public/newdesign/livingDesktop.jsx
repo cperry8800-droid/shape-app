@@ -772,10 +772,16 @@ function dkSpotifyEmbed(url) {
   return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
 }
 function dkLinkHref(key, val) {
-  const v = String(val || "").trim(); if (!v) return null;
-  if (/^https?:\/\//i.test(v)) return v;
+  const raw = String(val || "").trim(); if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
   const def = DK_LINKS.find((l) => l.key === key); const pre = def ? def.pre : "";
-  return "https://" + (pre ? pre + v.replace(/^@/, "") : v);
+  const host = pre ? pre.split("/")[0].toLowerCase() : "";
+  const v = raw.replace(/^@/, "");
+  // Already includes the host (e.g. pasted "x.com/alice")? Use as-is — don't double
+  // into https://x.com/x.com/alice. A bare handle still gets the full prefix.
+  const low = v.toLowerCase();
+  if (host && (low === host || low.startsWith(host + "/"))) return "https://" + v;
+  return "https://" + (pre ? pre + v : v);
 }
 function ProfileExtras({ d, owner }) {
   const [cust, setCust] = React.useState(d.custom || null);
