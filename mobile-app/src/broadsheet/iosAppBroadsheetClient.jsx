@@ -18460,24 +18460,43 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
   if (!Array.isArray(tiers) || tiers.length < 2) return null;
   const s = bsScoreStanding(tiers, tier, total);
   if (scale === 'tier') {
+    // Zoomed ladder — the LADDER's own SVG grammar narrowed to one segment: the
+    // current tier node bottom-left, the next tier node top-right, a dashed ink
+    // baseline, a self-drawing heat path, and the breathing you-dot at `frac`.
     const riskRed = t.isLight ? '#c0392b' : '#e0463c';
     const nextColor = s.topTier ? heat : bsTierColor(s.nextName || tier);
+    const frac = s.topTier ? 1 : s.frac;
+    const W = 300, H = 100, x0 = 6, x1 = W - 6, y0 = H - 12, y1 = 12;
+    const dotFrac = s.atRisk ? 0 : frac;
+    const youX = x0 + (x1 - x0) * dotFrac;
+    const youY = y0 + (y1 - y0) * dotFrac;
+    const base = `M${x0} ${y0} L${x1} ${y1}`;
+    const prog = `M${x0} ${y0} L${youX.toFixed(1)} ${youY.toFixed(1)}`;
+    const youLeftPct = (youX / W) * 100;
+    const dotCol = s.atRisk ? riskRed : heat;
     const caption = s.atRisk
       ? `⚠ ${fmt(Math.max(0, s.curThr - total))} below ${tier} — earn it back to hold`
       : s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
     return (
       <div aria-label={s.atRisk ? `${fmt(total)} points — ${fmt(Math.max(0, s.curThr - total))} below ${tier}, earn it back to hold` : `${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 22 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{tier} · {fmt(s.curThr)}</span>
           {!s.topTier && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: nextColor }}>{s.nextName} · {fmt(s.nextThr)}</span>}
         </div>
-        <div style={{ position: 'relative', height: 3, background: t.HAIR }}>
-          <div style={{ position: 'absolute', inset: 0, width: `${s.pct}%`, background: heat, transformOrigin: 'left', ...(reduced ? null : seen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.2,.7,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
-          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -3.5, width: 10, height: 10, borderRadius: 999, background: heat, transform: 'translateX(-50%)', ['--sd-glow']: bsTHexA(heat, 0.55), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
-          <div style={{ position: 'absolute', left: `${s.pct}%`, top: -20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: heat, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
+        <div style={{ position: 'relative' }}>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+            {[0.25, 0.5, 0.75].map((g, i) => <line key={i} x1="0" y1={H * g} x2={W} y2={H * g} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+            <path d={base} fill="none" stroke={bsTHexA(INK, 0.18)} strokeWidth="2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+            <path d={prog} fill="none" stroke={heat} strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray="1"
+              style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
+            <circle cx={x0} cy={y0} r="3" fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            <circle cx={x1} cy={y1} r="3" fill={s.topTier ? heat : bsTHexA(INK, 0.35)} stroke={nextColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 999, background: dotCol, ['--sd-glow']: bsTHexA(dotCol, 0.5), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
+          <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY - 20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: dotCol, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
         </div>
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: s.atRisk ? riskRed : bsTHexA(INK, 0.5), fontWeight: 800 }}>{caption}</div>
-        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this bar only moves right</div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.3) }}>Tiers never demote — this line only moves right</div>
       </div>
     );
   }
