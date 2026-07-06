@@ -159,15 +159,24 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-06.md`](HANDOFF-2026-07-06.md)** —
-> **The July Open Ledger sweep is complete — the last two plate-era pages shipped**: Shape
-> Score **"The Standing"** (verdict lead + the ladder/tier standing chart with a LADDER/TIER
-> scale toggle, breathing you-dot; momentum + commitment → stations; typographic ledger tabs)
-> and Shape Store **"The Shop, opened by The Drop" (S8)** (drop hero → product grid + glyph/
-> photo fallback → SHAPE DISCOUNTS/COACH TOOLS department → LOCKER → squared teal cart).
-> Spec #1549 + build #1552 (`6c9ba588`); new `scoreStanding.mjs` + tests; presentation-only.
-> CodeRabbit caught 2 real bugs pre-merge (top-tier standing clamp · ladder-chart marker
-> drift → `preserveAspectRatio="none"`). Open: the on-device pass + product photography.
+> **Latest session handoff: [`docs/HANDOFF-2026-07-06b.md`](HANDOFF-2026-07-06b.md)** —
+> **The Shape Score wave** (7 PRs, all on `main`): session-details **pace bars + "The
+> Splits" page + zoomed THIS-TIER ladder** (#1557); **meal logging → +10/day** + habit
+> points reconciled to **+3** (#1558, migration); **"THE RECORD"** — a full Shape Score
+> **history + report** page (mobile + website): header register, cumulative trend with a
+> **1W/1M/3M/All** toggle, by-source bars + penalties, day-grouped filterable history —
+> new `scoreHistory.mjs`+`.ts` twin + `GET /api/client/score-record`, no migration (#1560);
+> a **day + timezone award clamp** pinning `award_workout_session`/`award_meal_log` to
+> *today in the member's own IANA zone* — closes the backfill farm, and **closed a live
+> `shape_user_tz` timezone-leak** (revoke from public+anon+authenticated, verified live)
+> (#1561, migration); uniform **24px home slate boxes** (#1562); and **Record chart fixes**
+> (trend-gap → plain line, wrapping history filters, demo spans months) (#1563). Open: the
+> on-device pass + product photography.
+>
+> (Prior: [`docs/HANDOFF-2026-07-06.md`](HANDOFF-2026-07-06.md) —
+> **The July Open Ledger sweep completed**: Shape Score **"The Standing"** + Shape Store
+> **"The Shop/Drop" (S8)**; spec #1549 + build #1552 (`6c9ba588`), new `scoreStanding.mjs`
+> + tests, presentation-only; CodeRabbit caught 2 real bugs pre-merge.)
 >
 > (Prior: [`docs/HANDOFF-2026-07-04.md`](HANDOFF-2026-07-04.md) —
 > **The redesign wave, all shipped live**: Session Details "Open Ledger" (#1523 + #1525 gutter),
@@ -249,6 +258,33 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-06 — The Record chart fixes: trend gap · wrapping history filters · demo spans months (#1563)
+- Three owner-reported fixes on **The Record** (Shape Score → points ledger → detailed view):
+  - **Trend "gap" fixed.** The "Score over time" line rendered a blank break. Root cause
+    (reproduced in a real browser): the self-draw `strokeDasharray="1 1"` + `pathLength` under
+    `vector-effect="non-scaling-stroke"` renders the line with a gap **even in its resting
+    state** — never fully drawn. `BSRecordTrace` is now a plain continuous stroke. Data was
+    never missing; it was a rendering bug.
+  - **History filter chips no longer clip.** `ALL / WORKOUTS / HABITS / NUTRITION / CHECK-INS /
+    PRS / PENALTIES` were on a horizontal scroll strip → `PRS`/`PENALTIES` cut off at the edge.
+    They now **wrap** (no horizontal scroll), with slightly more compact chips.
+  - **Range toggle visibly changes the numbers.** The by-source/register/trend wiring was
+    always per-range (`win = ranges[selected]`), but the signed-out demo ledger all sat within
+    30 days, so 1M/3M/All were identical and it *looked* static. `BS_RECORD_DEMO_ROWS` now spans
+    ~5 months via **relative `daysAgo()`** dates (self-correcting — the mobile demo recomputes
+    against the real current date, so hardcoded dates would age out of the shorter windows).
+    Website `RECORD_DEMO` regenerated (`score.jsx?v=21`) — stays baked/frozen (the browser can't
+    import the ESM aggregator; it never recomputes so its windows can't go empty).
+- Verified: mobile + website JSX parse · `VITE_BASE=/m/ npm run build` · `npm test` 419/419 ·
+  in-browser repro of the gap + the plain-line fix. CI green; merged on green.
+
+### 2026-07-06 — Home slate boxes: uniform 24px + tighter rows (#1562)
+- Home **TODAY'S SLATE** polish from owner screenshots (`BSSlateRow` + the meal/habit controls):
+  the meal ghost-tick (was **36px**) and habit checkbox (was **26px**) unify to one **24px** box
+  so every row's right-edge control matches; the time column (50→44px, font 9.5→8.5) + tag column
+  (58→50px, font 8→7.5) + grid gap (8→7) tighten so the kcal/duration meta stops clipping at the
+  phone's right edge. Behavior/handlers unchanged — pure layout/size. JSX parse · mobile build exit 0.
+
 ### 2026-07-06 — Shape Score awards locked to the member's own calendar day (timezone-correct, anti-farm)
 - **Closed the day-backfill farm on the two day-based awards.** `award_workout_session`
   and `award_meal_log` take a caller-supplied `p_day`, and `daily_health_snapshot` is
@@ -303,6 +339,33 @@ changelog whenever something ships.
   mobile + website JSX parse-checks · `VITE_BASE=/m/ npm run build` exit 0 · LF.
   **On-device pass recommended** (Black/Sage/Cream papers × client tiers/at-risk × the
   four range windows × the history filters × reduced-motion) before the on-device sign-off.
+
+### 2026-07-06 — Meal logging earns +10/day (real award) + habit points reconciled to +3 (#1558)
+- **Logging a meal now grants a real +10 Shape Score.** New `award_meal_log(p_day)` SECURITY
+  DEFINER RPC (+10 once/day, gated on a real `daily_health_snapshot` food-macros row — hydration
+  alone doesn't count, dedup on `md5('meal_log:uid:day')`, category `nutrition` added to the
+  `score_ledger` CHECK); the meal-log POST fires `supabase.rpc('award_meal_log')` fire-and-forget.
+  `nutrition: 'Meals logged'` added to `CATEGORY_LABELS` (`/api/client/score`) so the breakdown
+  reconciles. Migration `2026-07-06-meal-log-points.sql`.
+- **Habit points reconciled to a real flat +3** (was a fabricated 4–8 in `_bsHabitPts`) across
+  mobile (Home slate, Habits demo rows, score profiles) + website `score.jsx`/`Score.html` (`?v=19`);
+  earn lists advertise "Log a meal +10" / "Complete a habit +3".
+- **Codex P1 (backfill farm)** caught in-PR: `p_day` was caller-supplied + `daily_health_snapshot`
+  is owner-writable → clamped to `current_date ± 1` (later superseded by the tz clamp, #1561).
+  Codex P2: nutrition missing from the breakdown map (fixed). CodeRabbit APPROVED. Owner ran the migration.
+
+### 2026-07-06 — Session-details pace bars · "The Splits" page · split zones · Score THIS-TIER zoomed ladder (#1556 spec · #1557 build `a7a04e8e`)
+- **Session details**: per-split **zone-colored pace bar chart** (`BSSdPaceBars`, taller = faster)
+  + a max-depth **"The Splits"** page (`BSSplitsPage` — raw uncapped provider splits + trace
+  fallback, honest columns). **Score THIS TIER** redrawn as a **zoomed ladder** with a segmented
+  **LADDER / THIS TIER** toggle. Session-relative pace zones in pure
+  `mobile-app/src/services/paceSplits.mjs` (`bsPaceSplits`, format detected from the STRING not
+  the sport; `cmp` = universal comparable, lower = faster) + `tests/pace-splits.test.mjs`. Strava
+  sync `fetchActivitySplits` → `rawMetrics.splits`. Spec
+  `docs/superpowers/specs/2026-07-06-pace-splits-tier-chart-design.md` +
+  `docs/superpowers/plans/2026-07-06-pace-splits-tier-chart.md`.
+- CodeRabbit/Codex fixes: ride mph parser (splits were dropped for rides), no fabricated-mile
+  default, bucket cap. Also #1555 (profile stat line) merged in the same wave.
 
 ### 2026-07-05 — Shape Score "The Standing" + Shape Store "The Shop/Drop" — Open Ledger redesign (#1552)
 - **The last two June-era client surfaces serialized into the Open Ledger
