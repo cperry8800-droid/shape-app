@@ -1,10 +1,15 @@
 # Pace bars · "The Splits" detail page · split zones · THIS TIER zoomed ladder — design
 
 **Date:** 2026-07-06 · **Status:** owner-approved (chat), spec for the implementation plan
-**Surfaces:** mobile broadsheet only (`mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx` + a new
-`mobile-app/src/services/paceSplits.mjs`). No backend, no migrations, no website changes.
+**Surfaces:** mobile broadsheet (`mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx` + a new
+`mobile-app/src/services/paceSplits.mjs`) **plus one backend touch** — the Strava sync
+(`src/app/api/integrations/strava/sync/route.ts`) starts capturing provider splits/laps (§6;
+Codex review P2 — nothing writes `rawMetrics.splits`/`laps` today, so without ingestion the
+provider-first path could never fire). No migrations (metrics is already a JSON payload), no
+website changes.
 
 Owner directives, verbatim anchors:
+
 - "i want pace to displayed as a bar graph"
 - "create another page where when you click on pace, it gives a more detailed breakdown on
   splits/laps … either put splits right under pace or in the new detailed pace/splits page"
@@ -51,9 +56,10 @@ Content, top to bottom — every station renders only when its source data exist
    labels (MI 1 … MI N).
 3. **Per-split ledger table** — one row per lap/mile:
    `SPLIT · PACE · HR · CADENCE · ELEV Δ · ELAPSED` + a zone tick (■ Z3) per row.
-   - **Provider splits/laps preferred** (`rawMetrics.splits` / `rawMetrics.laps` — pace, hr,
-     elevation fields already arrive; today they're flattened to 3 text columns and capped at 14
-     rows by `bsBuildBreakdown`). The detail page reads the **raw uncapped** array.
+   - **Provider splits/laps preferred** (`rawMetrics.splits` / `rawMetrics.laps`). The reader
+     for this shape exists (`bsBuildBreakdown` — today flattening to 3 text columns, capped at
+     14 rows) but **no writer does yet** — §6 adds the Strava-sync ingestion that populates it.
+     The detail page reads the **raw uncapped** array.
    - **Trace-derived fallback**: when no provider splits, bucket `paceTrace` (+ parallel
      `trace`/`cadenceTrace`/`elevTrace` samples) by distance into per-mile splits.
    - A column renders only when that stream exists on this post.
@@ -114,6 +120,26 @@ active cell **inverted** (INK fill, PAPER text), inactive cell plain mono ink-al
 tall; `aria-pressed` on each. Monochrome (no heat fill — heat stays line-only), unmistakably a
 control. Scope: this toggle only (the pattern is reusable but nothing else changes now).
 
+## 6 · Provider-splits ingestion (Strava sync) — the data path §2 depends on
+
+Today the sync makes **one capped, new-posts-only streams call per activity**
+(`/activities/{id}/streams?keys=…`, `STREAM_CAP`); nothing writes `rawMetrics.splits`/`laps`
+(Codex P2 on this spec's PR — without this section, §2's provider-first path would never fire
+and every Strava run would silently fall back to trace buckets).
+
+- Under the **same gating** (new-posts-only, counted against the same per-run cap), the sync adds
+  one `GET /activities/{id}` detail fetch. Strava's detailed activity carries `splits_standard`
+  (per-mile), `splits_metric`, and device `laps`.
+- Normalize into the shape `bsBuildBreakdown` already reads:
+  `rawMetrics.splits = [{ label, pace, time, hr, elevation }]` (per-mile from `splits_standard`:
+  moving-time-derived pace, `average_heartrate` when present, `elevation_difference`), and
+  `rawMetrics.laps` (device laps, same fields + lap label) when the activity has real laps.
+  Honest rules: absent fields stay absent; no splits on the detail response → nothing written.
+- **No backfill.** Existing posts keep trace-derived splits (§3's fallback — already designed);
+  new syncs get provider depth going forward.
+- Failure isolation: a failed detail fetch must not fail the sync of that activity — streams and
+  the post itself proceed, splits just stay absent (trace fallback covers it).
+
 ## Invariants (verbatim carry-overs)
 
 - All data plumbing: `setActivityDetail` payload fields, `bsBuildBreakdown` (still feeds the
@@ -130,4 +156,6 @@ control. Scope: this toggle only (the pattern is reusable but nothing else chang
 ## Out of scope
 
 Website session pages; a user threshold-pace setting (noted as the future re-anchor for zones);
-power-zone classification for rides; coach-side surfaces.
+power-zone classification for rides; coach-side surfaces; backfilling provider splits onto
+existing posts; Strava `best_efforts` capture; splits ingestion for providers other than Strava
+(WHOOP/Garmin posts keep the trace fallback until their syncs grow the same capture).
