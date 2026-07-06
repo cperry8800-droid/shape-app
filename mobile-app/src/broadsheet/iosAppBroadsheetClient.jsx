@@ -11152,6 +11152,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const isComments = d.focus === 'comments';
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
+  const [splitsOpen, setSplitsOpen] = React.useState(false); // → the full Splits page
   // Comments present when the page OPENED cascade in; ones sent while it's open
   // (yours, or a live append) show instantly — no boot delay on fresh replies.
   const commentsAtOpen = React.useRef(comments.length);
@@ -11234,6 +11235,17 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     : { label: 'Pace', invert: true, fmt: fmtPaceSec, chip: 'Fastest', chipRe: null };
   const paceChipStat = paceCfg.chipRe ? allStats.find(([k]) => paceCfg.chipRe.test(k)) : bestPaceStat;
   const powerStat = allStats.find(([k]) => /power|watt/i.test(k)) || null;
+  // Per-split model (provider splits preferred, trace fallback) for the pace bar
+  // chart + the Splits page. Runs/swims/rides; null when there's no pace signal.
+  const paceData = bsPaceSplits({
+    providerSplits: (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
+      ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? r[2] : undefined }))
+      : null,
+    paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
+    hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
+    distanceMi, sport,
+  });
+  const hasSplitsPage = !!(paceData && paceData.splits.length > 1);
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
@@ -11329,10 +11341,16 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         </div>
         {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
-        {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
+        {!isComments && paceData && paceData.splits.length > 0 && (
           <>
             {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
-            <BSSdTrace vals={d.paceTrace} color={neu} invert={paceCfg.invert} fmt={paceCfg.fmt} idKey="pace" height={116} t={t} muted={muted} distanceMi={distanceMi} markMax />
+            <BSSdPaceBars data={paceData} t={t} muted={muted} heat={heat} onOpen={hasSplitsPage ? () => setSplitsOpen(true) : undefined} />
+            {hasSplitsPage && (
+              <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
+                <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Splits · Full breakdown ›</span>
+              </button>
+            )}
           </>
         )}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
@@ -11354,18 +11372,16 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* SPLITS — horizontal ledger bars (Strava-style rows): each bar draws
             rightward tracking speed (faster = longer), the fastest in accent,
             label left + pace on the right edge. Falls back to load for strength. */}
-        {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (() => {
+        {/* Working-sets breakdown (strength) stays on the main page; splits/laps
+            moved to the Splits page (opened from the pace chart above). */}
+        {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0
+          && !/split|mile|lap/i.test(String(d.breakdown.label || '')) && (() => {
           const rows = d.breakdown.rows;
-          const paceVals = rows.map((r) => { const m = String(r[1]).match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : null; });
-          const isPace = paceVals.every((v) => v != null);
-          let perf;
-          if (isPace) { const mx = Math.max(...paceVals); perf = paceVals.map((v) => mx - v + (mx * 0.18)); } // faster = bigger; keep a baseline so all bars show
-          else { perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; }); }
-          const pmax = Math.max(...perf, 1);
-          const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
+          const perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; });
+          const bestIdx = perf.indexOf(Math.max(...perf));
           return (
             <>
-              {secHead(d.breakdown.label || 'Splits', bestPaceStat ? headChip(`Best ${bestPaceStat[1]}`, true) : null)}
+              {secHead(d.breakdown.label || 'Working sets')}
               <BSSdBars rows={rows} perf={perf} bestIdx={bestIdx} heat={heat} t={t} muted={muted} />
             </>
           );
@@ -11440,6 +11456,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>Send</button>
       </div>
       )}
+      {splitsOpen && <BSSplitsPage d={d} paceData={paceData} t={t} onClose={() => setSplitsOpen(false)} />}
     </div>
   );
   return surface ? createPortal(view, surface) : view;
