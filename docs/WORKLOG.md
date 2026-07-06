@@ -249,6 +249,26 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-06 — Shape Score awards locked to the member's own calendar day (timezone-correct, anti-farm)
+- **Closed the day-backfill farm on the two day-based awards.** `award_workout_session`
+  and `award_meal_log` take a caller-supplied `p_day`, and `daily_health_snapshot` is
+  owner-writable — so a caller could write a snapshot for any past/future date and call
+  the RPC once per date to mint **+10 each** (the per-day dedup only caps ONE +10 *per*
+  day, not *which* days). Codex flagged the meal twin as **P1**; the workout award shared
+  the identical vector and was unclamped (its meal sibling had only a blunt UTC ±1 clamp).
+- **Migration `2026-07-06-award-day-timezone-clamp.sql`** (**owner runs it**; idempotent):
+  new `shape_user_tz(uid)` helper (joins `pg_timezone_names` so it can only ever return a
+  name Postgres accepts → `now() at time zone …` can't raise on a bad stored value), and
+  both awards now require `p_day` to be **TODAY in the member's own IANA timezone**
+  (`client_profiles.timezone`, captured on app open) — no future, no history, no cross-tz
+  slack. Until a member's zone is captured, a tz-agnostic **±1 UTC** window is the fallback
+  (still un-farmable: the dedup + the real-workout/real-macro gate cap it to a single +10
+  for a genuinely recent day). Fails **closed** (a wrong-day call earns nothing).
+- **No client change** — the app already sends the device `_localDate()` and captures the
+  device tz on open; the awards just validate against it now. Validated read-only against
+  prod (every column + the `now() at time zone` math + both award signatures resolve; the
+  `create or replace` matches the existing `(p_day date)` signature). Standalone PR.
+
 ### 2026-07-05 — Shape Score "The Standing" + Shape Store "The Shop/Drop" — Open Ledger redesign (#1552)
 - **The last two June-era client surfaces serialized into the Open Ledger
   language** (`BSShapeScorePage` + `BSShapeStorePage`, `iosAppBroadsheetClient.jsx`).
