@@ -18219,6 +18219,7 @@ function BSCommitmentCard() {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const red = t.isLight ? '#c0392b' : '#e0463c';
+  const heat = bsMyTierColor(); // Score page = heat is the viewer's tier
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [commit, setCommit] = useStateBSC(undefined); // undefined=loading, null=none, 'demo', or row
   const [prog, setProg] = useStateBSC({ workouts: 0, checkin: false, habits: 0 });
@@ -18269,34 +18270,34 @@ function BSCommitmentCard() {
 
   return (
     <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
-      <BSPlate c={teal} tick bracket pad="12px 14px">
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>This week&apos;s commitment</div>
-          {c && c.stake ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: teal }}>{c.stake} pts staked</div> : null}
-        </div>
-        {!c ? (
-          <React.Fragment>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
-            <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount('set a weekly commitment'); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
-          </React.Fragment>
-        ) : (
-          <React.Fragment>
-            <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{targetLine() || '—'}</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: c.status === 'met' ? teal : c.status === 'missed' ? red : t.INK50 }}>
-              {c.status === 'met' ? `✓ Kept · +${c.stake} earned`
-                : c.status === 'missed' ? `Missed · −${c.stake}`
-                : c.status === 'proposed' ? 'Proposed by your coach'
-                : 'Active · settles at week’s end'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
+        <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>This week&apos;s commitment</span>
+        <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 4px' }} />
+        {c && c.stake ? <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: bsTHexA(t.INK, 0.55) }}>{c.stake} PTS STAKED</span> : null}
+      </div>
+      {!c ? (
+        <React.Fragment>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
+          <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount('set a weekly commitment'); }} style={{ marginTop: 10, minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment →' : 'Sign in to commit →'}</button>
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{targetLine() || '—'}</div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: c.status === 'met' ? heat : c.status === 'missed' ? red : bsTHexA(t.INK, 0.5) }}>
+            {c.status === 'met' ? `✓ Kept · +${c.stake} earned`
+              : c.status === 'missed' ? `Missed · −${c.stake}`
+              : c.status === 'proposed' ? 'Proposed by your coach'
+              : 'Active · settles at week’s end'}
+          </div>
+          {c.status === 'proposed' && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
+              <button onClick={accept} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, borderBottom: `2px solid ${heat}`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept →</button>
+              <button onClick={() => setSheet(true)} style={{ minHeight: 44, padding: '13px 2px 11px', background: 'transparent', border: 0, color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Change</button>
             </div>
-            {c.status === 'proposed' && (
-              <div style={{ marginTop: 9, display: 'flex', gap: 8 }}>
-                <button onClick={accept} style={{ flex: 1, padding: '9px', borderRadius: 8, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
-                <button onClick={() => setSheet(true)} style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Change</button>
-              </div>
-            )}
-          </React.Fragment>
-        )}
-      </BSPlate>
+          )}
+        </React.Fragment>
+      )}
       {sheet && signedIn && createPortal(
         <div onClick={() => setSheet(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90, display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: `16px ${t.padX}px 22px`, maxHeight: '82%', overflowY: 'auto' }}>
@@ -18306,9 +18307,9 @@ function BSCommitmentCard() {
               <div key={label} style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{label}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={() => set(Math.max(lo, val - 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 16, cursor: 'pointer' }}>−</button>
+                  <button onClick={() => set(Math.max(lo, val - 1))} aria-label={`Decrease ${label}`} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>−</button>
                   <span style={{ minWidth: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{val}</span>
-                  <button onClick={() => set(Math.min(hi, val + 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 16, cursor: 'pointer' }}>+</button>
+                  <button onClick={() => set(Math.min(hi, val + 1))} aria-label={`Increase ${label}`} style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 18, cursor: 'pointer' }}>+</button>
                 </div>
               </div>
             ))}
@@ -18433,11 +18434,14 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const [standScale, setStandScale] = useStateBSC('ladder'); // 'ladder' | 'tier'
   const [stationRef, stationSeen] = useBSSdInView();
+  const [momRef, momSeen] = useBSSdInView();
   const heat = bsTierColor(tier);
   const st = bsScoreStanding(tiers, tier, scoreTotal);
   const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
   const atRisk = !!profile.atRisk || st.atRisk;
   const riskRed = t.isLight ? '#c0392b' : '#e0463c';
+  const rustCol = t.RUST || '#c0533b';
+  const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };
 
   return (
     <BSPage>
@@ -18513,30 +18517,33 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         const hit = val >= 80;
         const preview = !profile.live; // signed-out → demo bar; tapping prompts sign-in
         const reqAuth = () => { try { window.bsRequireAccount && window.bsRequireAccount('build your momentum'); } catch (e) {} };
+        const reduced = bsSdReduced();
         return (
-          <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
-            <BSPlate c={teal} tick bracket pad="12px 14px" onClick={preview ? reqAuth : undefined} onKeyDown={preview ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reqAuth(); } }) : undefined} role={preview ? 'button' : undefined} tabIndex={preview ? 0 : undefined} ariaLabel={preview ? 'Sign in to build your momentum' : undefined}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Momentum</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: teal, letterSpacing: '-0.03em', lineHeight: 1 }}>{val}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>/100</span>
-                </div>
-              </div>
-              <div style={{ marginTop: 8, height: 7, borderRadius: 4, background: t.HAIR, overflow: 'hidden' }}>
-                <div style={{ width: `${val}%`, height: '100%', background: teal, borderRadius: 4 }} />
-              </div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700, color: momentum.bonusThisWeek ? teal : t.INK70 }}>
-                {momentum.bonusThisWeek
-                  ? ((momentum.streakWeeks || 1) > 1
-                      ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
-                      : `✓ +${momentum.points || 25} banked this week`)
-                  : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
-              </div>
-              {preview
-                ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>Sign in to start building your momentum →</div>
-                : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>}
-            </BSPlate>
+          <div ref={momRef} style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}
+            onClick={preview ? reqAuth : undefined}
+            onKeyDown={preview ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reqAuth(); } }) : undefined}
+            role={preview ? 'button' : undefined} tabIndex={preview ? 0 : undefined}
+            aria-label={preview ? 'Sign in to build your momentum' : undefined}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
+              <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Momentum · {val}</span>
+              <span aria-hidden style={{ flex: 1, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 4px' }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: bsTHexA(t.INK, 0.45) }}>/100</span>
+            </div>
+            <div style={{ position: 'relative', height: 2, background: t.HAIR }}>
+              <div style={{ position: 'absolute', inset: 0, width: `${val}%`, background: heat, transformOrigin: 'left', ...(reduced ? null : momSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.2,.7,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+              <div aria-hidden style={{ position: 'absolute', left: '80%', top: -2.5, width: 1.5, height: 7, background: bsTHexA(t.INK, 0.5) }} />
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700, color: momentum.bonusThisWeek ? heat : t.INK70 }}>
+              {momentum.bonusThisWeek
+                ? ((momentum.streakWeeks || 1) > 1
+                    ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
+                    : `✓ +${momentum.points || 25} banked this week`)
+                : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
+            </div>
+            {preview
+              ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>Sign in to start building your momentum →</div>
+              : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>}
           </div>
         );
       })()}
@@ -18544,111 +18551,102 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
       {/* Weekly commitment + stake (E4) */}
       <BSCommitmentCard />
 
-      {/* Tabs: Tiers (first) / Rewards / Points / Ledger — each renders in the box below. */}
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 0`, display: 'flex', gap: 6 }}>
+      {/* Tabs — typographic index (active = ink + heat underline); bodies render inline. */}
+      <div style={{ display: 'flex', gap: 14, padding: `${t.sectGap}px ${t.padX}px 0`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, margin: `0 0 4px` }}>
         {[['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']].map(([k, label]) => {
           const on = scoreTab === k;
           return (
-            <button key={k} onClick={() => setScoreTab(k)} style={{ flex: 1, padding: '9px 4px', borderRadius: 6, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+            <button key={k} onClick={() => setScoreTab(k)} aria-pressed={on} style={{ position: 'relative', minHeight: 44, padding: '13px 0 11px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
+              {label}
+              {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
+            </button>
           );
         })}
       </div>
-      <div style={{ padding: `10px ${t.padX}px 8px` }}>
-        <div className="bs-hide-scroll" style={{ maxHeight: 320, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {scoreTab === 'tiers' && tiers.map((tier, i) => {
-            const tc = bsTierColor(tier.name);
-            const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
-            return (
-              <div key={tier.name} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12, padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: tc, flexShrink: 0 }} />
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
-                    {current ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
-                  </div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
-                </div>
+      <div style={{ padding: `8px ${t.padX}px 8px` }}>
+        {scoreTab === 'tiers' && tiers.map((tier, i) => {
+          const tc = bsTierColor(tier.name);
+          const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
+          return (
+            <div key={tier.name} style={{ padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: current ? 800 : 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
+                {current ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
+                <span aria-hidden style={dotLead} />
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: t.INK }}>{tier.range}</span>
               </div>
-            );
-          })}
-          {scoreTab === 'rewards' && (
-            <React.Fragment>
-              {rewards.map((r, i) => {
-                // Affordability is the SPENDABLE balance (earns − penalties − redemptions),
-                // not the rank — redeeming draws down what you can spend, never the rank.
-                const affordable = Number(available) >= r.cost;
-                return (
-                  <div key={r.id} onClick={onOpenStore} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 86px', gap: 12,
-                    padding: '13px 0', borderBottom: `1px solid ${t.HAIR}`,
-                    cursor: 'pointer',
-                  }}>
-                    <div>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
-                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.brand}</div>
-                    </div>
-                    <div style={{ alignSelf: 'center', textAlign: 'right' }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: affordable ? t.ACCENT : t.INK50 }}>{r.cost.toLocaleString()} pts</div>
-                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: affordable ? t.ACCENT : t.INK50 }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(available || 0)).toLocaleString()} to go`}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Redeem in the Shape Store →</div>
-            </React.Fragment>
-          )}
-          {scoreTab === 'points' && (() => {
-            const rust = t.RUST || '#c0533b';
-            const row = (a, i, arr, ptsColor) => (
-              <div key={a.name} style={{
-                display: 'grid', gridTemplateColumns: '1fr 60px', gap: 12,
-                padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              }}>
-                <div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
-                  <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-                    <span>{a.cap}</span><span>·</span><span>{a.note}</span>
-                  </div>
-                </div>
-                <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: ptsColor }}>{a.pts}</div>
-              </div>
-            );
-            return (
-              <React.Fragment>
-                {activities.map((a, i) => row(a, i, activities, t.ACCENT))}
-                {penalties.length > 0 && (
-                  <React.Fragment>
-                    <div style={{ marginTop: 18 }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Protect your points</div>
-                      <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${rust})` }} />
-                      <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
-                    </div>
-                    {penalties.map((a, i) => row(a, i, penalties, rust))}
-                  </React.Fragment>
-                )}
-                <div style={{ marginTop: 16, padding: '12px 13px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: bsTHexA(t.INK, 0.03) }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 }}>Good to know</div>
-                  <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
-                </div>
-                <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Spend points in the Shape Store →</div>
-              </React.Fragment>
-            );
-          })()}
-          {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => (
-            <div key={`${day}-${label}`} style={{
-              display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
-              padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <BSEyebrow>{day}</BSEyebrow>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{tier.perk}</div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+        {scoreTab === 'rewards' && (
+          <React.Fragment>
+            {rewards.map((r) => {
+              // Affordability is the SPENDABLE balance (earns − penalties − redemptions),
+              // not the rank — redeeming draws down what you can spend, never the rank.
+              const affordable = Number(available) >= r.cost;
+              return (
+                <div key={r.id} onClick={onOpenStore} style={{ padding: '13px 0', borderBottom: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</span>
+                    <span aria-hidden style={dotLead} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{r.cost.toLocaleString()} pts</span>
+                  </div>
+                  <div style={{ marginTop: 3, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                    <span style={{ color: bsTHexA(t.INK, 0.5) }}>{r.brand}</span>
+                    <span style={{ fontWeight: 700, color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(available || 0)).toLocaleString()} to go`}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>Redeem in the Shape Store →</div>
+          </React.Fragment>
+        )}
+        {scoreTab === 'points' && (() => {
+          const row = (a, i, arr, ptsColor) => (
+            <div key={a.name} style={{ padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</span>
+                <span aria-hidden style={dotLead} />
+                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: ptsColor }}>{a.pts}</span>
+              </div>
+              <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>
+                <span>{a.cap}</span><span>·</span><span>{a.note}</span>
+              </div>
+            </div>
+          );
+          return (
+            <React.Fragment>
+              {activities.map((a, i) => row(a, i, activities, heat))}
+              {penalties.length > 0 && (
+                <React.Fragment>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rustCol }}>Protect your points</div>
+                    <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${rustCol})` }} />
+                    <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
+                  </div>
+                  {penalties.map((a, i) => row(a, i, penalties, rustCol))}
+                </React.Fragment>
+              )}
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 5 }}>Good to know</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
+              </div>
+              <div onClick={onOpenStore} style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>Spend points in the Shape Store →</div>
+            </React.Fragment>
+          );
+        })()}
+        {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => {
+          const neg = String(pts).trim().startsWith('-') || String(pts).trim().startsWith('−');
+          return (
+            <div key={`${day}-${label}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <span style={{ flex: 'none', minWidth: 52, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{day}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· waivable</span> : null}</span>
+              <span aria-hidden style={dotLead} />
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: neg ? rustCol : heat }}>{pts}</span>
+            </div>
+          );
+        })}
       </div>
 
       <BSFooter right="Rewards" />
