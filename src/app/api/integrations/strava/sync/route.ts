@@ -382,6 +382,46 @@ async function fetchStreams(
   }
 }
 
+// Per-mile splits from the DETAILED activity (splits_standard) — one extra call per
+// new post, same cap as the streams fetch. Honest: absent fields stay absent; no
+// splits on the response → returns null (the app falls back to trace-derived splits).
+async function fetchActivitySplits(
+  accessToken: string,
+  activityId: number
+): Promise<{ label: string; pace: string; hr?: string; elevation?: string }[] | null> {
+  try {
+    const detail = await stravaGet<{
+      splits_standard?: Array<{
+        distance?: number; elapsed_time?: number; moving_time?: number;
+        average_heartrate?: number; elevation_difference?: number; split?: number;
+      }>;
+    }>(accessToken, `/activities/${activityId}`);
+    const arr = detail?.splits_standard;
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const out: { label: string; pace: string; hr?: string; elevation?: string }[] = [];
+    arr.forEach((s, i) => {
+      const secs = (typeof s.moving_time === 'number' ? s.moving_time : s.elapsed_time) ?? null;
+      const meters = typeof s.distance === 'number' ? s.distance : 1609.344;
+      if (secs == null || secs <= 0 || meters <= 0) return;
+      const perMile = secs / (meters / 1609.344);
+      const mm = Math.floor(perMile / 60), ss = Math.round(perMile % 60);
+      const row: { label: string; pace: string; hr?: string; elevation?: string } = {
+        label: `Mile ${s.split ?? i + 1}`,
+        pace: `${mm}:${String(ss).padStart(2, '0')}/mi`,
+      };
+      if (typeof s.average_heartrate === 'number') row.hr = `${Math.round(s.average_heartrate)} bpm`;
+      if (typeof s.elevation_difference === 'number') {
+        const ft = Math.round(s.elevation_difference * 3.28084);
+        row.elevation = `${ft >= 0 ? '+' : ''}${ft} ft`;
+      }
+      out.push(row);
+    });
+    return out.length ? out : null;
+  } catch {
+    return null; // failure-isolated: never fails the activity's sync
+  }
+}
+
 async function importStravaActivities(
   client: SupabaseClient,
   userId: string,
@@ -439,6 +479,9 @@ async function importStravaActivities(
       if (elev) m.elevTrace = elev;
       if (pace) m.paceTrace = pace;
       if (power) m.powerTrace = power;
+      // Provider per-mile splits for the Splits page (same new-post/cap gating).
+      const splits = await fetchActivitySplits(accessToken, activity.id);
+      if (splits) m.splits = splits;
     }
 
     const result = existing?.id
