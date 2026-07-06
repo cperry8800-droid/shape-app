@@ -7889,6 +7889,11 @@ function bsActivityFromPost(p) {
     elevTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.elevTrace) && p.rawMetrics.elevTrace.length > 1) ? p.rawMetrics.elevTrace : null,
     paceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.paceTrace) && p.rawMetrics.paceTrace.length > 1) ? p.rawMetrics.paceTrace : null,
     powerTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.powerTrace) && p.rawMetrics.powerTrace.length > 1) ? p.rawMetrics.powerTrace : null,
+    // Raw provider splits/laps (uncapped, full columns) for the Splits page — the
+    // flattened `breakdown` above is capped at 14 + one note column; this keeps the
+    // original {label,pace,hr,elevation} objects. Null when the post carries none.
+    rawSplits: (p.rawMetrics && Array.isArray(p.rawMetrics.splits) && p.rawMetrics.splits.length) ? p.rawMetrics.splits
+      : ((p.rawMetrics && Array.isArray(p.rawMetrics.laps) && p.rawMetrics.laps.length) ? p.rawMetrics.laps : null),
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -11238,9 +11243,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // Per-split model (provider splits preferred, trace fallback) for the pace bar
   // chart + the Splits page. Runs/swims/rides; null when there's no pace signal.
   const paceData = bsPaceSplits({
-    providerSplits: (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
-      ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? r[2] : undefined }))
-      : null,
+    providerSplits: (Array.isArray(d.rawSplits) && d.rawSplits.length)
+      ? d.rawSplits // raw {label,pace,hr,elevation} — uncapped, full columns
+      : (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
+        ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? r[2] : undefined }))
+        : null,
     paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
     hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
     distanceMi, sport,
@@ -11723,7 +11730,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
       routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (

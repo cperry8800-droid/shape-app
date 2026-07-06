@@ -67,6 +67,12 @@ test('bsPaceSplits: ride speed (mph) — faster = higher number, best = max', ()
   assert.equal(r.splits[1].hFrac, 1);
 });
 
+test('bsPaceSplits: provider splits are uncapped (26-mile marathon keeps all rows)', () => {
+  const providerSplits = Array.from({ length: 26 }, (_, i) => ({ label: `Mile ${i + 1}`, pace: '8:30/mi' }));
+  const r = bsPaceSplits({ providerSplits, sport: 'run' });
+  assert.equal(r.splits.length, 26);
+});
+
 test('bsPaceSplits: absent columns stay absent (no fabricated hr/cadence)', () => {
   const r = bsPaceSplits({ providerSplits: [{ label: 'Mile 1', pace: '8:00/mi' }], sport: 'run' });
   assert.equal(r.splits[0].hr, null);
