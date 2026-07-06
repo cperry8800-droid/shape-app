@@ -23,7 +23,8 @@ export const ShapeLocale = {
   // Boot value before any account resolves: stored pref else device match.
   get() { return current || resolveLocale(readLocal(), deviceLangs()); },
   async set(code) {
-    if (!isActive(code)) return; // never persist an unwired locale (would fall back to English)
+    // Never persist an unwired locale (it would fall back to English + mis-apply dir).
+    if (!isActive(code)) { try { console.warn('[shape] ignoring unwired locale:', code); } catch {} return; }
     writeLocalStore(code);
     notify(code);
     await mirrorToAccount(code);

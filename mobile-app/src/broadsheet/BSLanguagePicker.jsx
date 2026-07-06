@@ -30,7 +30,7 @@ export default function BSLanguagePicker({ onDone }) {
               background: sel === l.code ? 'rgba(46,224,196,0.12)' : 'transparent', color: '#f4efe6',
             }}
           >
-            <span style={{ fontSize: 16, fontWeight: 600 }}>{l.nativeName}</span>
+            <span lang={l.code} style={{ fontSize: 16, fontWeight: 600 }}>{l.nativeName}</span>
             <span style={{ opacity: 0.5, fontSize: 12, marginInlineStart: 8 }}>{l.englishName}</span>
           </button>
         ))}

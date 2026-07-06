@@ -43,11 +43,13 @@ test('every translation preserves the en ICU placeholders exactly', () => {
   }
 });
 
-test('every score message parses as valid ICU in its locale', () => {
+test('every message parses as valid ICU in its locale (all namespaces)', () => {
   for (const loc of ACTIVE_LOCALES) {
-    const cat = load(loc, 'score');
-    for (const [k, v] of Object.entries(cat)) {
-      assert.doesNotThrow(() => new IntlMessageFormat(v, loc), `${loc}/score:${k} invalid ICU`);
+    for (const ns of NS) {
+      const cat = load(loc, ns);
+      for (const [k, v] of Object.entries(cat)) {
+        assert.doesNotThrow(() => new IntlMessageFormat(v, loc), `${loc}/${ns}:${k} invalid ICU`);
+      }
     }
   }
 });

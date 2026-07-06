@@ -21028,7 +21028,7 @@ function BSLanguageSetting({ t }) {
               style={{ textAlign: 'start', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', minHeight: 44,
                 border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
                 color: t.INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span><span style={{ fontSize: 14.5, fontWeight: 600 }}>{l.nativeName}</span>
+              <span><span lang={l.code} style={{ fontSize: 14.5, fontWeight: 600 }}>{l.nativeName}</span>
                 <span style={{ opacity: 0.5, fontSize: 11, marginInlineStart: 8 }}>{l.englishName}</span></span>
               {on && <span style={{ color: t.ACCENT, fontWeight: 800 }}>✓</span>}
             </button>
