@@ -2754,12 +2754,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // Plain element factory (called, not mounted as a component type) so its
         // per-render identity can't remount the tick subtree.
         const mealTick = (m, logged) => logged ? (
-          <span aria-hidden style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
+          <span aria-hidden style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
         ) : (
           <button
             onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
             aria-label={`Log ${m.title}`}
-            style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
+            style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
           />
         );
         // Untimed rows come after all timed rows (bsHomeSlateSort's contract);
@@ -2873,7 +2873,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <button
                 onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
                 aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'}
-                style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}
+                style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
               >{h.live ? '' : '🔒'}</button>
             ),
             onOpen: () => setHabitsPage(true),
@@ -16351,11 +16351,11 @@ function BSProgressDoor({ onOpen, door = false }) {
 // Do not add a plate. If it can't be a row, it lives on a tab and gets at most a row-door.
 
 // BSSlateRow — one time-ordered run-sheet row inside TODAY'S SLATE. min-height 48px,
-// grid 50px time / 58px domain-tag / 1fr title / auto status / auto control-or-chevron,
+// grid 44px time / 50px domain-tag / 1fr title / auto status / auto control-or-chevron,
 // 1px t.HAIR bottom rule. Whole row is a button ≥48px tall, Enter/Space-activatable,
 // press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
 // non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
-// a custom control cell (36px meal ghost-tick / 26px habit checkbox) rendered as-is.
+// a custom control cell (24px meal ghost-tick / 24px habit checkbox, uniform) rendered as-is.
 function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
   const isLead = right === 'lead';
@@ -16396,10 +16396,10 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       tabIndex={interactive ? 0 : undefined}
       aria-label={ariaLabel}
       style={{
-        // Last track is auto, NOT fixed — the meal/habit ticks are 36px wide and
-        // a fixed track can't shrink below content, so 20px overflowed the row's
-        // right gutter and clipped the ticks at the screen edge.
-        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto auto', alignItems: 'center', gap: 8,
+        // Last track is auto, NOT fixed — the meal/habit ticks (24px, uniform) can't
+        // shrink below content, so a fixed track would overflow the row's right gutter
+        // and clip at the screen edge. Tight left columns keep the meta from clipping.
+        display: 'grid', gridTemplateColumns: '44px 50px 1fr auto auto', alignItems: 'center', gap: 7,
         width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
@@ -16407,15 +16407,15 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
       }}
     >
-      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span aria-hidden style={{ width: 16, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
+        <span aria-hidden style={{ width: 13, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
       </span>
       <span style={{ minWidth: 0, overflow: 'hidden' }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
       </span>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 138, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         {isLead ? (
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
