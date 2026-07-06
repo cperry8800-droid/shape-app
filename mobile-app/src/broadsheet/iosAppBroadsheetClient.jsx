@@ -18614,10 +18614,12 @@ function BSScoreRecordPage({ onBack, tier }) {
   React.useEffect(() => {
     if (!loggedIn) return undefined;
     let cancelled = false;
-    fetch('/api/client/score-record', { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d && d.ranges) setRecord(d); })
-      .catch(() => {});
+    // Native-safe fetch (apiBaseUrl + Bearer) — a relative fetch would hit the
+    // WebView origin on the native build and leave a signed-in member on the empty report.
+    const p = (window.ShapeScoreRecord && window.ShapeScoreRecord.get)
+      ? window.ShapeScoreRecord.get()
+      : fetch('/api/client/score-record', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
+    Promise.resolve(p).then((d) => { if (!cancelled && d && d.ranges) setRecord(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [loggedIn]);
 
@@ -18627,7 +18629,10 @@ function BSScoreRecordPage({ onBack, tier }) {
   const filters = [['all', 'All'], ['workouts', 'Workouts'], ['habits', 'Habits'], ['nutrition', 'Nutrition'], ['checkins', 'Check-ins'], ['prs', 'PRs'], ['penalty', 'Penalties']];
   const days = filter === 'all'
     ? rec.history
-    : rec.history.map((d) => ({ ...d, rows: d.rows.filter((r) => r.bucket === filter) })).filter((d) => d.rows.length);
+    : rec.history.map((d) => {
+        const rows = d.rows.filter((r) => r.bucket === filter);
+        return { ...d, rows, subtotal: rows.reduce((s, r) => s + r.delta, 0) };
+      }).filter((d) => d.rows.length);
   const maxBar = Math.max(1, ...win.byCategory.map((c) => c.earned));
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) };
   const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };

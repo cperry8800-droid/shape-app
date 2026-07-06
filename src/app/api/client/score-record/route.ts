@@ -15,14 +15,14 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  // Full ledger, newest first, capped — the report windows + groups in the shared
-  // aggregation twin. 1000 rows is far beyond a real member's history.
+  // The FULL ledger — no cap. `/api/client/score` computes the Standing from every
+  // row; the Record must aggregate the same set or lifetime/all-range/history would
+  // diverge from the Standing for a member with a long history (Codex). The twin
+  // windows + groups client-side; a display cap belongs there, not on the fetch.
   const { data: rows, error } = await supabase
     .from('score_ledger')
     .select('category, delta, note, earned_at, source_kind')
-    .eq('user_id', user.id)
-    .order('earned_at', { ascending: false })
-    .limit(1000);
+    .eq('user_id', user.id);
 
   if (error) return dbError(error, 'score record read', 500);
 

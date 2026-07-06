@@ -508,7 +508,10 @@ function ScoreRecordView({ onBack }) {
   var win = record.ranges[range] || record.ranges["1w"];
   var filters = [["all", "All"], ["workouts", "Workouts"], ["habits", "Habits"], ["nutrition", "Nutrition"], ["checkins", "Check-ins"], ["prs", "PRs"], ["penalty", "Penalties"]];
   var days = filter === "all" ? record.history
-    : record.history.map(function (d) { return Object.assign({}, d, { rows: d.rows.filter(function (r) { return r.bucket === filter; }) }); }).filter(function (d) { return d.rows.length; });
+    : record.history.map(function (d) {
+        var rows = d.rows.filter(function (r) { return r.bucket === filter; });
+        return Object.assign({}, d, { rows: rows, subtotal: rows.reduce(function (s, r) { return s + r.delta; }, 0) });
+      }).filter(function (d) { return d.rows.length; });
   var fmtD = function (iso) { try { return new Date(iso + "T00:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return iso; } };
   var maxBar = Math.max.apply(null, [1].concat(win.byCategory.map(function (c) { return c.earned; })));
   var register = [["This week", record.ranges["1w"].net], ["This month", record.ranges["1m"].net], ["Earned · " + range.toUpperCase(), win.earned], ["Lost · " + range.toUpperCase(), -win.lost]];
