@@ -557,6 +557,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Shape Score — The Record, awards & anti-farm (2026-07-06)',
+      items: [
+        { label: '"The Record" — full Shape Score history + report page (mobile BSScoreRecordPage + website ScoreRecordView): header register, cumulative trend with a 1W/1M/3M/All toggle, by-source bars + penalties, day-grouped filterable history. One algorithm, two twins — scoreHistory.mjs (tested) + src/lib/scoreHistory.ts — feeding GET /api/client/score-record. Rank basis (store redemptions excluded) so the Record reconciles with the Standing. No migration. (#1559 spec, #1560 build; chart fixes #1563)', status: 'done' },
+        { label: 'Meal logging earns a real +10/day: award_meal_log(p_day) SECURITY DEFINER RPC (gated on real daily_health_snapshot macros, dedup md5(meal_log:uid:day), category nutrition); habit points reconciled to a flat +3 across mobile + website. Migration 2026-07-06-meal-log-points.sql APPLIED (#1558)', status: 'done' },
+        { label: 'Day + timezone award clamp (anti-farm): award_workout_session + award_meal_log require p_day = TODAY in the member’s IANA timezone (client_profiles.timezone), UTC ±1 fallback until captured — closes the historical/future backfill farm. Migration 2026-07-06-award-day-timezone-clamp.sql APPLIED (#1561)', status: 'done' },
+        { label: 'shape_user_tz(uid) helper hardened: SECURITY INVOKER + EXECUTE revoked from public, anon AND authenticated (Supabase default-grants the two roles directly — from public alone is insufficient). Closed a live timezone-disclosure leak; verified live read-only (authed/anon execute = false, awards still callable)', status: 'done' },
+        { label: 'Session-details pace bars + "The Splits" page + split zones + Score THIS-TIER zoomed ladder with a LADDER/THIS-TIER toggle; pure paceSplits.mjs + tests; Strava fetchActivitySplits → rawMetrics.splits (#1556 spec, #1557 build)', status: 'done' },
+        { label: 'On-device pass (owner): Black/Sage/Cream papers × client tiers/at-risk × the Splits page × Score THIS TIER + toggle × The Record (the 4 range windows × history filters × reduced-motion) × the uniform 24px home slate boxes (#1562)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Database & Auth',
       items: [
         { label: 'Supabase env wired (URL + anon + service role)', status: auto(supabaseReady) },
