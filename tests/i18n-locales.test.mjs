@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LOCALES, localeMeta, isSupported, dirOf, resolveLocale } from '../mobile-app/src/i18n/locales.mjs';
+import { LOCALES, localeMeta, isSupported, dirOf, resolveLocale, intlLocaleOf, ACTIVE_LOCALES, isActive, activeLocales } from '../mobile-app/src/i18n/locales.mjs';
 
 test('registry has 22 locales incl. en/ar/ja and three RTL', () => {
   assert.equal(LOCALES.length, 22);
@@ -40,4 +40,17 @@ test('resolveLocale: falls back to first matching device language', () => {
 });
 test('resolveLocale: unknown stored + unknown device → en', () => {
   assert.equal(resolveLocale('zzz', ['xx-YY']), 'en');
+});
+
+test('intlLocaleOf maps arz→ar (not an Intl locale), passes others through', () => {
+  assert.equal(intlLocaleOf('arz'), 'ar');
+  assert.equal(intlLocaleOf('ja'), 'ja');
+  assert.equal(intlLocaleOf('en'), 'en');
+});
+
+test('ACTIVE_LOCALES is the wired pilot set; isActive/activeLocales agree', () => {
+  assert.deepEqual(ACTIVE_LOCALES, ['en', 'ar', 'ja']);
+  assert.ok(isActive('ar'));
+  assert.ok(!isActive('ur')); // in the registry but not wired this release
+  assert.deepEqual(activeLocales().map((l) => l.code), ['en', 'ar', 'ja']);
 });

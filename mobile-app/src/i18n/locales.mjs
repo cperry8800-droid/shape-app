@@ -18,7 +18,7 @@ export const LOCALES = [
   { code: 'bn',      englishName: 'Bengali',             nativeName: 'বাংলা',       dir: 'ltr', script: 'beng',     font: 'beng' },
   { code: 'te',      englishName: 'Telugu',              nativeName: 'తెలుగు',      dir: 'ltr', script: 'telu',     font: 'telu' },
   { code: 'ar',      englishName: 'Arabic',              nativeName: 'العربية',     dir: 'rtl', script: 'arab',     font: 'arab' },
-  { code: 'arz',     englishName: 'Egyptian Arabic',     nativeName: 'مصرى',        dir: 'rtl', script: 'arab',     font: 'arab' },
+  { code: 'arz',     englishName: 'Egyptian Arabic',     nativeName: 'مصرى',        dir: 'rtl', script: 'arab',     font: 'arab', intlLocale: 'ar' },
   { code: 'ur',      englishName: 'Urdu',                nativeName: 'اردو',        dir: 'rtl', script: 'arab',     font: 'urdu' },
   { code: 'zh-Hans', englishName: 'Chinese (Simplified)',nativeName: '简体中文',    dir: 'ltr', script: 'hans',     font: 'cjk-sc' },
   { code: 'ja',      englishName: 'Japanese',            nativeName: '日本語',      dir: 'ltr', script: 'jpan',     font: 'cjk-jp' },
@@ -33,6 +33,19 @@ for (const l of LOCALES) { const base = l.code.split('-')[0]; if (!BY_BASE.has(b
 export function localeMeta(code) { return BY_CODE.get(code) || null; }
 export function isSupported(code) { return SUPPORTED.has(code); }
 export function dirOf(code) { return BY_CODE.get(code)?.dir === 'rtl' ? 'rtl' : 'ltr'; }
+
+// Some catalog codes aren't valid Intl/CLDR locales (e.g. 'arz' Egyptian Arabic);
+// map them to the nearest Intl-supported locale for plurals/dates/numbers while
+// keeping the catalog code distinct. Falls through to the code itself otherwise.
+export function intlLocaleOf(code) { return BY_CODE.get(code)?.intlLocale || code; }
+
+// The subset actually wired end-to-end (catalog + fonts + RTL) this release. The
+// picker / Settings / runtime consume this so a user can never select a locale
+// that would silently fall back to English. Rollout expands it toward the full
+// registry (eventually the whole set).
+export const ACTIVE_LOCALES = ['en', 'ar', 'ja'];
+export function isActive(code) { return ACTIVE_LOCALES.includes(code); }
+export function activeLocales() { return LOCALES.filter((l) => ACTIVE_LOCALES.includes(l.code)); }
 
 // stored (user pref) wins if supported; else first device language matching by
 // exact code then by base; else English. deviceLangs = navigator.languages-style array.
