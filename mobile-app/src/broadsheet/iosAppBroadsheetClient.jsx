@@ -18689,6 +18689,41 @@ const BS_STORE_PRODUCTS = [
 const BS_SHAPE_PTS_PER_USD = 20;
 BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * BS_SHAPE_PTS_PER_USD); });
 
+// Product stand-in glyph (stroke line-art) — shown until real product photos are
+// dropped into mobile-app/public/store/<id>.png. Keyed by id first, then category.
+function BSStoreGlyph({ id = '', cat = '', size = 40, color = 'currentColor' }) {
+  const key = /cap/.test(id) ? 'cap'
+    : /crew/.test(id) ? 'crewneck'
+    : /bottle/.test(id) ? 'bottle'
+    : /towel/.test(id) ? 'towel'
+    : /duffel/.test(id) ? 'duffel'
+    : /tee/.test(id) ? 'tee'
+    : cat === 'Shape Merch' ? 'tee' : 'tag';
+  const paths = {
+    cap: <React.Fragment><path d="M10 23 a10 10 0 0 1 20 0" /><path d="M6 23 h30" /><path d="M20 13 v-2.5" /></React.Fragment>,
+    tee: <path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" />,
+    crewneck: <React.Fragment><path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" /><path d="M15 32 v2 M25 32 v2" /></React.Fragment>,
+    bottle: <React.Fragment><rect x="15" y="13" width="10" height="20" rx="4" /><path d="M17 13 v-3 h6 v3" /></React.Fragment>,
+    towel: <React.Fragment><rect x="9" y="12" width="22" height="16" rx="2" /><path d="M9 24 h22" /></React.Fragment>,
+    duffel: <React.Fragment><rect x="7" y="17" width="26" height="14" rx="7" /><path d="M15 17 a5 5 0 0 1 10 0" /></React.Fragment>,
+    tag: <React.Fragment><path d="M11 11 h9 l9 9 -9 9 -9 -9 Z" /><circle cx="15.5" cy="15.5" r="1.4" /></React.Fragment>,
+  };
+  return (
+    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden style={{ display: 'block', stroke: color, fill: 'none', strokeWidth: 1.4, strokeLinejoin: 'round', strokeLinecap: 'round' }}>
+      {paths[key] || paths.tag}
+    </svg>
+  );
+}
+// Product image: loads the deterministic /m/store/<id>.png; on load error it
+// falls back to the line-art glyph — so a real photo wins per item the moment
+// the file exists, with zero code/catalogue change.
+function BSStoreImg({ id, cat, size = 40, glyphColor }) {
+  const [broken, setBroken] = useStateBSC(false);
+  if (broken) return <BSStoreGlyph id={id} cat={cat} size={size} color={glyphColor} />;
+  const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/m/';
+  return <img src={`${base}store/${id}.png`} alt="" aria-hidden onError={() => setBroken(true)} style={{ display: 'block', maxWidth: '100%', maxHeight: size, objectFit: 'contain' }} />;
+}
+
 function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
   // Live points + tier for ALL profiles (client + coach) — was only wired for client.
@@ -18752,16 +18787,28 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     if (affordable && (p.locked || p.cost > balance)) return false;
     return true;
   });
-  const storeHeroMuted = t.isLight ? 'rgba(242,237,228,0.74)' : 'rgba(15,14,12,0.72)';
-  const storeHeroFaint = t.isLight ? 'rgba(242,237,228,0.55)' : 'rgba(15,14,12,0.58)';
-  const storeHeroRule = t.isLight ? 'rgba(242,237,228,0.16)' : 'rgba(15,14,12,0.16)';
-  const storeHeroHair = t.isLight ? 'rgba(242,237,228,0.12)' : 'rgba(15,14,12,0.12)';
 
   // Anyone can browse the catalogue; only redeeming is members-only. Coaches +
   // active members can redeem; free / signed-out users see a "join to redeem" CTA.
   const purchasesLocked = !memberGate.allowed && !memberGate.loading;
 
   React.useEffect(() => { if (memberGate.allowed) reloadStore(); }, [memberGate.allowed, reloadStore]);
+
+  // Open Ledger chrome: heat = the viewer's tier (line-only); teal = commerce
+  // actions only; the balance + registers count up on first view.
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
+  const [storeRef, storeSeen] = useBSSdInView();
+  const heat = bsTierColor(profile.tier);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };
+  // THE DROP hero — picked from the SAME affordability-filtered visible set (so
+  // "Within balance" hides an unaffordable drop from the hero too); the grid then
+  // EXCLUDES the hero so the featured item never appears twice.
+  const merchVisible = visible.filter((p) => p.cat === 'Shape Merch');
+  const heroItem = merchVisible.find((p) => p.tag === 'Limited drop') || merchVisible.find((p) => p.tag === 'New') || merchVisible[0] || null;
+  const gridMerch = merchVisible.filter((p) => !heroItem || p.id !== heroItem.id);
+  const showMerch = cat === 'All' || cat === 'Shape Merch';
+  const nonMerchVisible = visible.filter((p) => p.cat !== 'Shape Merch');
 
   // Merch items in the catalogue carry cat 'Shape Merch'; those need a shipping
   // address before they can be redeemed (opens the shipping sheet first).
@@ -18836,146 +18883,190 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         onBack={onBack}
         eyebrow="Store"
         kicker="Shape Store"
-        title={<>Spend<br/>points.</>}
+        title={<>Gear &amp; <span style={{ color: heat }}>perks.</span></>}
         trailing={<button onClick={onOpenScore} style={{ borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
         }}>Score</button>}
       />
 
-      {/* Balance hero — instrument plate (clipped corner + accent spine) on the dark stock */}
-      <div style={{ margin: `10px ${t.padX}px`, position: 'relative' }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)', background: `${t.ACCENT}66` }} />
-        <div style={{ position: 'relative', margin: 1.25, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', background: t.INK, color: t.PAPER, padding: '11px 14px', borderLeft: `3px solid ${t.ACCENT}` }}>
-        <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
-        <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', color: t.ACCENT, marginLeft: 4 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</div>
-        </div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 11.5, lineHeight: 1.28, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
-          <b>20 points = $1.</b> Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
-        </div>
-        <div style={{ marginTop: 9, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
-          {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (
-            <div key={label} style={{ padding: '0 8px', borderLeft: i ? `1px solid ${storeHeroHair}` : 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.PAPER, letterSpacing: '-0.035em' }}>{value}</div>
-              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: storeHeroFaint }}>{label}</div>
-            </div>
-          ))}
-        </div>
-        </div>
+      {/* Balance chip — the dark plate hero dies; balance is one register on a hairline */}
+      <div ref={storeRef} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `12px ${t.padX}px 0` }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>Available</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={balance.toLocaleString()} run={storeSeen} duration={780} /></span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: bsTHexA(t.INK, 0.5) }}>pts</span>
+        <span aria-hidden style={dotLead} />
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color: teal, whiteSpace: 'nowrap' }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</span>
       </div>
 
-      {(credit.session > 0 || credit.nutrition > 0) && (
-        <div style={{ margin: `0 ${t.padX}px 4px`, padding: '11px 14px', borderRadius: 6, border: `1px solid ${bsTHexA(t.ACCENT, 0.4)}`, borderLeft: `3px solid ${t.ACCENT}`, background: bsTHexA(t.ACCENT, 0.08) }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BSEyebrow color={t.ACCENT}>Coach credit wallet</BSEyebrow>
-          </div>
-          <div style={{ marginTop: 6, display: 'flex', gap: 18 }}>
-            {credit.session > 0 && (<div><div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>${(credit.session / 100).toFixed(0)}</div><div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Session</div></div>)}
-            {credit.nutrition > 0 && (<div><div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>${(credit.nutrition / 100).toFixed(0)}</div><div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Nutrition</div></div>)}
-          </div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 11, lineHeight: 1.3, color: t.INK50 }}>Applies automatically the next time you book a coach or buy a meal plan.</div>
-        </div>
-      )}
-
-      {!!notice && (
-        <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 6, border: `1px solid ${t.ACCENT}55`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
-        </div>
-      )}
-
-      <div style={{
-        padding: `10px ${t.padX}px 4px`,
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 6,
-      }}>
-        {categories.map(c => (
-          <button key={c} onClick={() => setCat(c)} style={{ borderRadius: 4,
-            minWidth: 0,
-            padding: '8px 6px',
-            border: `1px solid ${cat === c ? `${t.ACCENT}66` : t.RULE}`,
-            borderLeft: cat === c ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-            background: cat === c ? `${t.ACCENT}1f` : 'transparent',
-            color: cat === c ? t.INK : t.INK70,
-            fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
-            whiteSpace: 'normal',
-            lineHeight: 1.15,
-          }}>{c}</button>
-        ))}
-        <button onClick={() => setAffordable(!affordable)} style={{ borderRadius: 4,
-          minWidth: 0,
-          padding: '8px 6px',
-          border: `1px solid ${affordable ? `${t.ACCENT}66` : t.RULE}`,
-          borderLeft: affordable ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-          background: affordable ? `${t.ACCENT}1f` : 'transparent',
-          color: affordable ? t.INK : t.INK70,
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
-          whiteSpace: 'normal',
-          lineHeight: 1.15,
-        }}>Within balance</button>
-      </div>
-
-      <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {visible.map((p, i) => {
-          const merch = isMerch(p);
-          const inCart = cart[p.id] || 0;
-          const canAfford = !p.locked && p.cost <= balance;
-          const busy = busyId === p.id;
-          // Non-merch redeems on tap (→ confirm). Merch uses the Add / qty control.
-          const rowTap = !merch && !p.locked && (purchasesLocked || canAfford) && !busy;
+      {/* Category index (typographic) + Within-balance toggle */}
+      <div className="bs-hide-scroll" style={{ display: 'flex', gap: 14, padding: `12px ${t.padX}px 0`, overflowX: 'auto', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+        {[...categories.map((c) => ({ key: c, label: c === 'Shape Merch' ? 'Merch' : c === 'Shape Perks' ? 'Perks' : c })), { key: 'Locker', label: 'Locker' }].map(({ key, label }) => {
+          const on = cat === key;
           return (
-            <div key={`${p.cat}-${p.name}`}
-              onClick={rowTap ? () => handleRedeem(p) : undefined}
-              style={{
-                padding: '13px 0', borderBottom: i === visible.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center',
-                opacity: p.locked ? 0.62 : 1,
-                cursor: rowTap ? 'pointer' : 'default',
-              }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
-                  {p.tag && <BSTag color={p.locked ? t.RUST : t.ACCENT}>{p.tag}</BSTag>}
-                </div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: canAfford ? t.ACCENT : t.INK50, fontWeight: 700 }}>
-                  {p.cost.toLocaleString()} pts <span style={{ color: t.INK50, fontWeight: 600 }}>· ~${p.retail}</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                {p.locked ? (
-                  <span style={{ fontFamily: t.BODY, fontSize: 11.5, fontWeight: 600, color: t.INK50 }}>Tier locked</span>
-                ) : purchasesLocked ? (
-                  <button onClick={(e) => { e.stopPropagation(); bsStartPlatformCheckout(); }} style={{ fontFamily: t.BODY, fontSize: 11.5, fontWeight: 700, color: t.AMBER, background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>Members →</button>
-                ) : merch ? (
-                  inCart > 0 ? (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${t.ACCENT}`, borderRadius: 999, overflow: 'hidden' }}>
-                      <button onClick={(e) => { e.stopPropagation(); setQty(p.id, inCart - 1); }} aria-label={`Remove one ${p.name}`} style={{ width: 30, height: 30, border: 0, background: 'transparent', color: t.ACCENT, fontSize: 17, fontWeight: 700, cursor: 'pointer', lineHeight: 1, padding: 0 }}>−</button>
-                      <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.BODY, fontSize: 13.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{inCart}</span>
-                      <button onClick={(e) => { e.stopPropagation(); addToCart(p); }} aria-label={`Add one ${p.name}`} disabled={inCart >= 9} style={{ width: 30, height: 30, border: 0, background: 'transparent', color: inCart >= 9 ? t.INK50 : t.ACCENT, fontSize: 17, fontWeight: 700, cursor: inCart >= 9 ? 'default' : 'pointer', lineHeight: 1, padding: 0 }}>+</button>
-                    </div>
-                  ) : (
-                    <button onClick={(e) => { e.stopPropagation(); if (canAfford) addToCart(p); else setNotice('Not enough points for that yet — keep earning!'); }} style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700, color: canAfford ? t.ACCENT : t.INK50, background: canAfford ? `${t.ACCENT}14` : 'transparent', border: `1px solid ${canAfford ? t.ACCENT : t.RULE}`, borderRadius: 999, padding: '7px 15px', cursor: 'pointer' }}>{canAfford ? '+ Add' : `+${(p.cost - balance).toLocaleString()}`}</button>
-                  )
-                ) : (
-                  <span style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700, color: busy ? t.ACCENT : canAfford ? t.GREEN : t.INK50 }}>{busy ? 'Redeeming…' : canAfford ? 'Redeem →' : `+${(p.cost - balance).toLocaleString()}`}</span>
-                )}
-              </div>
-            </div>
+            <button key={key} onClick={() => setCat(key)} aria-pressed={on} style={{ flex: 'none', position: 'relative', minHeight: 44, padding: '13px 0 11px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
+              {label}
+              {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: heat }} />}
+            </button>
           );
         })}
+        <button onClick={() => setAffordable(!affordable)} aria-pressed={affordable} style={{ flex: 'none', position: 'relative', minHeight: 44, marginLeft: 'auto', padding: '13px 0 11px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: affordable ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
+          Within balance
+          {affordable && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: heat }} />}
+        </button>
       </div>
 
+      {/* Notice — amber-spined zero-box line */}
+      {!!notice && (
+        <div style={{ padding: `12px ${t.padX}px 0` }}>
+          <div style={{ borderLeft: `3px solid ${t.AMBER}`, padding: '9px 0 9px 12px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
+        </div>
+      )}
+
+      {cat === 'Locker' ? (
+        <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px` }}>
+          <BSTStationHead heat={heat} INK={t.INK} label="Your locker" />
+          <div style={{ display: 'flex', marginBottom: 8 }}>
+            {[['Lifetime earned', lifetime.toLocaleString()], ['Items redeemed', String(redeemedCount)]].map(([label, value], i) => (
+              <div key={label} style={{ flex: 1, paddingLeft: i ? 12 : 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
+                <BSTLedgerStat INK={t.INK} label={label} value={value} seen={storeSeen} figSize={24} delay={i * 60} />
+              </div>
+            ))}
+          </div>
+          {unlocked.length ? unlocked.map(([code, name, date, cost], i) => (
+            <div key={`${code}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '11px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: heat }}>{code}</span>
+              <span style={{ marginLeft: 10, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, fontWeight: 600 }}>{name}</span>
+              <span aria-hidden style={dotLead} />
+              {date ? <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{date}</span> : null}
+              {cost ? <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: bsTHexA(t.INK, 0.55) }}>−{Number(cost).toLocaleString()}</span> : null}
+            </div>
+          )) : <BSTRedact INK={t.INK} label="Nothing redeemed yet" />}
+        </div>
+      ) : (
+        <React.Fragment>
+          {/* THE DROP hero — one featured product, full-bleed framed */}
+          {showMerch && heroItem && (() => {
+            const inCart = cart[heroItem.id] || 0;
+            const canAfford = !heroItem.locked && heroItem.cost <= balance;
+            const gap = Math.max(0, heroItem.cost - balance);
+            return (
+              <div style={{ margin: `12px ${t.padX}px 0`, position: 'relative', border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: `linear-gradient(160deg, ${bsTHexA(heat, 0.12)}, ${bsTHexA(t.INK, 0.02)})` }}>
+                <div style={{ position: 'absolute', top: 10, left: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>{heroItem.tag === 'Limited drop' ? 'Drop 001' : heroItem.tag === 'New' ? 'New drop' : 'Featured'}</div>
+                {heroItem.stock ? <div style={{ position: 'absolute', top: 10, right: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{heroItem.stock}</div> : null}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 116, paddingTop: 14 }}>
+                  <BSStoreImg id={heroItem.id} cat={heroItem.cat} size={90} glyphColor={t.INK} />
+                </div>
+                <div style={{ padding: '11px 13px', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{heroItem.name}<span style={{ color: heat }}>.</span></div>
+                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: canAfford ? heat : bsTHexA(t.INK, 0.5) }}>{heroItem.cost.toLocaleString()} pts · ${heroItem.retail}{canAfford ? ' · ✓ within balance' : ` · ${gap.toLocaleString()} to go`}</div>
+                  </div>
+                  {purchasesLocked ? (
+                    <button onClick={() => bsStartPlatformCheckout()} style={{ flex: 'none', minHeight: 44, padding: '0 15px', background: 'transparent', border: 0, color: t.AMBER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Members →</button>
+                  ) : heroItem.locked ? (
+                    <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>Tier locked</span>
+                  ) : inCart > 0 ? (
+                    <div style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', border: `1px solid ${teal}` }}>
+                      <button onClick={() => setQty(heroItem.id, inCart - 1)} aria-label={`Remove one ${heroItem.name}`} style={{ width: 44, height: 44, border: 0, background: 'transparent', color: teal, fontSize: 18, fontWeight: 700, cursor: 'pointer', padding: 0 }}>−</button>
+                      <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.INK }}>{inCart}</span>
+                      <button onClick={() => addToCart(heroItem)} aria-label={`Add one ${heroItem.name}`} disabled={inCart >= 9} style={{ width: 44, height: 44, border: 0, background: 'transparent', color: inCart >= 9 ? bsTHexA(t.INK, 0.4) : teal, fontSize: 18, fontWeight: 700, cursor: inCart >= 9 ? 'default' : 'pointer', padding: 0 }}>+</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { if (canAfford) addToCart(heroItem); else setNotice('Not enough points for that yet — keep earning!'); }} style={{ flex: 'none', minHeight: 44, padding: '0 18px', background: teal, border: 0, color: t.isLight ? '#fff' : '#0f0e0c', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{canAfford ? 'Add' : `+${gap.toLocaleString()}`}</button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Product grid — 2-col, over gridMerch (hero excluded) */}
+          {showMerch && gridMerch.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: `10px ${t.padX}px 0` }}>
+              {gridMerch.map((p) => {
+                const inCart = cart[p.id] || 0;
+                const canAfford = !p.locked && p.cost <= balance;
+                const gap = Math.max(0, p.cost - balance);
+                return (
+                  <div key={p.id} style={{ border: `1px solid ${bsTHexA(t.INK, 0.12)}`, opacity: p.locked ? 0.6 : 1 }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', height: 72, background: bsTHexA(t.INK, 0.04) }}>
+                      {p.tag ? <div style={{ position: 'absolute', top: 6, left: 7, fontFamily: t.MONO, fontSize: 6, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: p.locked ? bsTHexA(t.INK, 0.5) : heat }}>{p.tag}</div> : null}
+                      <BSStoreImg id={p.id} cat={p.cat} size={44} glyphColor={t.INK} />
+                    </div>
+                    <div style={{ padding: '7px 8px', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 11, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>{p.name}</div>
+                        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: canAfford ? heat : bsTHexA(t.INK, 0.5) }}>{p.locked ? `Unlocks · ${p.tag || 'tier'}` : canAfford ? `${p.cost.toLocaleString()} ✓` : `${p.cost.toLocaleString()} · +${gap.toLocaleString()}`}</div>
+                      </div>
+                      {!p.locked && (purchasesLocked ? (
+                        <button onClick={() => bsStartPlatformCheckout()} style={{ flex: 'none', minHeight: 34, padding: '0 8px', background: 'transparent', border: 0, color: t.AMBER, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>→</button>
+                      ) : inCart > 0 ? (
+                        <div style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', border: `1px solid ${teal}` }}>
+                          <button onClick={() => setQty(p.id, inCart - 1)} aria-label={`Remove one ${p.name}`} style={{ width: 34, height: 34, border: 0, background: 'transparent', color: teal, fontSize: 15, fontWeight: 700, cursor: 'pointer', padding: 0 }}>−</button>
+                          <span style={{ minWidth: 16, textAlign: 'center', fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK }}>{inCart}</span>
+                          <button onClick={() => addToCart(p)} aria-label={`Add one ${p.name}`} disabled={inCart >= 9} style={{ width: 34, height: 34, border: 0, background: 'transparent', color: inCart >= 9 ? bsTHexA(t.INK, 0.4) : teal, fontSize: 15, fontWeight: 700, cursor: inCart >= 9 ? 'default' : 'pointer', padding: 0 }}>+</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { if (canAfford) addToCart(p); else setNotice('Not enough points for that yet — keep earning!'); }} style={{ flex: 'none', minHeight: 34, padding: '0 12px', background: canAfford ? teal : 'transparent', border: canAfford ? 0 : `1px solid ${t.RULE}`, color: canAfford ? (t.isLight ? '#fff' : '#0f0e0c') : bsTHexA(t.INK, 0.5), fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Add</button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* SHAPE DISCOUNTS / COACH TOOLS — big-dollar rows (non-merch) */}
+          {nonMerchVisible.length > 0 && (
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
+              <BSTStationHead heat={heat} INK={t.INK} label={isCoach ? 'Coach tools' : 'Shape discounts'} />
+              {nonMerchVisible.map((p, i) => {
+                const canAfford = !p.locked && p.cost <= balance;
+                const busy = busyId === p.id;
+                const gap = Math.max(0, p.cost - balance);
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: i === nonMerchVisible.length - 1 ? 0 : `1px solid ${t.HAIR}`, opacity: p.locked ? 0.6 : 1 }}>
+                    <div style={{ flex: 'none', minWidth: 42, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>${p.retail}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, lineHeight: 1.2 }}>{p.name}</div>
+                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{p.brand}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: canAfford ? heat : bsTHexA(t.INK, 0.5) }}>{p.cost.toLocaleString()} pts{canAfford ? ' · ✓' : ` · +${gap.toLocaleString()} to go`}</div>
+                    </div>
+                    {purchasesLocked ? (
+                      <button onClick={() => bsStartPlatformCheckout()} style={{ flex: 'none', minHeight: 44, padding: '0 12px', background: 'transparent', border: 0, color: t.AMBER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Members →</button>
+                    ) : p.locked ? (
+                      <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>Tier locked</span>
+                    ) : (
+                      <button onClick={() => handleRedeem(p)} disabled={busy} style={{ flex: 'none', minHeight: 44, padding: '0 14px', background: 'transparent', border: `1px solid ${canAfford ? teal : t.RULE}`, color: canAfford ? teal : bsTHexA(t.INK, 0.5), fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{busy ? '…' : canAfford ? 'Redeem →' : `+${gap.toLocaleString()}`}</button>
+                    )}
+                  </div>
+                );
+              })}
+              {(credit.session > 0 || credit.nutrition > 0) && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>On deposit</span>
+                    <span aria-hidden style={dotLead} />
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: t.INK }}>{[credit.session > 0 ? `$${(credit.session / 100).toFixed(0)} session` : null, credit.nutrition > 0 ? `$${(credit.nutrition / 100).toFixed(0)} nutrition` : null].filter(Boolean).join(' / ')}</span>
+                  </div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 11, lineHeight: 1.3, color: bsTHexA(t.INK, 0.5) }}>Applies automatically the next time you book a coach or buy a meal plan.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>Everything ships on points · 20 pts = $1 · no expiry</div>
+        </React.Fragment>
+      )}
+
       <BSFooter right="Store" />
-      {/* Sticky cart bar — bundles all merch into one shipment at checkout */}
+      {/* Sticky cart bar — squared teal; bundles all merch into one shipment */}
       {cartCount > 0 && (
         <div style={{ position: 'sticky', bottom: 0, zIndex: 20, padding: `10px ${t.padX}px calc(10px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
-          <button onClick={() => { setNotice(''); setCheckoutOpen(true); }} style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontFamily: t.BODY, fontWeight: 700, fontSize: 14 }}>
-            <span>Cart · {cartCount} item{cartCount !== 1 ? 's' : ''}</span>
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cartTotal.toLocaleString()} pts · Review →</span>
+          <button onClick={() => { setNotice(''); setCheckoutOpen(true); }} style={{ width: '100%', minHeight: 50, border: 0, background: teal, color: t.isLight ? '#fff' : '#0f0e0c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', fontFamily: t.MONO, fontWeight: 800, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <span>Cart · {cartCount}</span>
+            <span aria-hidden style={{ flex: 1, minWidth: 12, borderBottom: `1px dotted ${t.isLight ? 'rgba(255,255,255,0.5)' : 'rgba(15,14,12,0.4)'}`, transform: 'translateY(-3px)', margin: '0 4px' }} />
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cartTotal.toLocaleString()} pts · Checkout →</span>
           </button>
         </div>
       )}
