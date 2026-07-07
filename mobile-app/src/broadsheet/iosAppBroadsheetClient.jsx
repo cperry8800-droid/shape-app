@@ -11,7 +11,7 @@ import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
-import { bsLiveEffort, BS_EFFORT_RAMP } from '../services/liveEffort.mjs';
+import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -19637,7 +19637,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       {hrmOn && hrNow ? (
         <div style={{ padding: `10px ${t.padX}px 0` }} aria-label={`${hrNow} beats per minute, zone ${effort?.zone || 1} effort`}>
           <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
-            <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: t.INK, left: `${Math.min(97, Math.max(1, (hrNow / 190) * 100))}%`, transition: 'left 1.2s ease' }} />
+            <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: t.INK, left: `${Math.min(97, Math.max(1, (hrNow / BS_EFFORT_HRMAX) * 100))}%`, transition: 'left 1.2s ease' }} />
           </div>
           <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
             <span style={{ color: t.INK50 }}>Z1</span>
