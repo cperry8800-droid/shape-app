@@ -1339,7 +1339,16 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                   // (the sheet labels the preview honestly). Previously this fell
                   // through to the trainer's workout watch payload on the nutri
                   // shell (which never wires onWatchLive) — a dead link.
-                  if (isNutri) { setBoostFor(liveClient ? { name: lc.n, userId: lc.userId || null, activity: 'cooking', photoUrl: lc.avatarUrl || lc.avatar || null } : { name: 'Alex Rivera', userId: null, activity: 'cooking' }); return; }
+                  if (isNutri) {
+                    // lc already resolves the demo fallback (name/avatar), so one
+                    // payload covers both. The sheet lives in the CLIENT bundle,
+                    // which a cold pros-only session hasn't loaded — pull it in
+                    // on demand before opening (no-op when already loaded).
+                    const payload = { name: lc.n, userId: lc.userId || null, activity: 'cooking', photoUrl: lc.avatarUrl || lc.avatar || null };
+                    if (typeof window !== 'undefined' && window.BSLiveBoostSheet) setBoostFor(payload);
+                    else import('./iosAppBroadsheetClient.jsx').then(() => setBoostFor(payload)).catch(() => {});
+                    return;
+                  }
                   if (liveClient) openLiveMessage(lc); else onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' });
                 }} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>{actionLabel}</button>
               </div>

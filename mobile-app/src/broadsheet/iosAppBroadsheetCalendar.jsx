@@ -698,6 +698,25 @@ function secondaryBtn(t) {
   return { padding: '15px 18px', borderRadius: 5, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 
+// Shared bare stat register (Open Ledger) — the workout stats + meal macros
+// rows render identically: eyebrow-above-figure columns + an ink→accent rule.
+function BSEventStatRegister({ t, items, accent }) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <div style={{ padding: `18px ${t.padX}px 6px` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {items.map(([l, v], i) => (
+          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 10 : 0, paddingRight: 6 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: v === '—' ? t.INK50 : t.INK, marginTop: 5, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent || teal} 62%, transparent)` }} />
+    </div>
+  );
+}
+
 function BSEventWorkoutBody({ event, role }) {
   const t = useBSCal();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -726,17 +745,7 @@ function BSEventWorkoutBody({ event, role }) {
   return (
     <>
       {/* Register — bare eyebrow-above-figure columns + an ink→accent rule (Open Ledger) */}
-      <div style={{ padding: `18px ${t.padX}px 6px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {stats.map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 10 : 0, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: v === '—' ? t.INK50 : t.INK, marginTop: 5, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${event.accent || teal} 62%, transparent)` }} />
-      </div>
+      <BSEventStatRegister t={t} items={stats} accent={event.accent} />
 
       {/* Coach's cue — accent-spine block, no box */}
       {detail && detail.note && (
@@ -809,17 +818,7 @@ function BSEventMealBody({ event }) {
   return (
     <>
       {/* Macro register — bare eyebrow-above-figure columns + ink→accent rule */}
-      <div style={{ padding: `18px ${t.padX}px 6px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {macros.map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 10 : 0, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: v === '—' ? t.INK50 : t.INK, marginTop: 5, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${event.accent || teal} 62%, transparent)` }} />
-      </div>
+      <BSEventStatRegister t={t} items={macros} accent={event.accent} />
 
       {/* Macro split bar (by calories) */}
       {splitOk && (
