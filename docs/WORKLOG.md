@@ -258,6 +258,40 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Meal logger → "Correct the Record": Open Ledger restructure (#1597 spec · #1601 build)
+- **The last plate-era client sheet, rebuilt.** `BSLogMealFlow` (mobile) restructured
+  from a 4-way mode-tab sheet into the Open Ledger language, fixing four real defects:
+  the stale top-only log CTA, the mixed taxonomy (meal edits vs coach messages in one
+  control), hardcoded "Dr. Maya" + fabricated 2100/165 goals for signed-in users, and
+  the discarded +10 award result.
+- **Sticky ledger bar** (portaled into `#bs-phone-surface`) is now the always-reachable
+  log action; its label is derived from state and **can never claim "as planned" over an
+  adjusted meal** — `Log as planned →` when pristine, `Log · 210 kcal · 0.75× →` once
+  anything diverges. The one-tap plate shows only for a pristine planned meal and
+  **collapses to a `↺ Adjusted — reset to plan` row** when adjusted; a free log (no
+  planned meal) shows neither and the CTA disables at 0 kcal. The pure dirty-predicate +
+  CTA-label logic lives in `mobile-app/src/services/mealLoggerState.mjs` (+ `tests/
+  meal-logger-state.test.mjs`, 6 cases).
+- **Two honest registers:** CORRECT THE RECORD (portion · ingredients · one ADD action
+  that opens a search/manual sheet — the SEARCH tab retired) and DISPATCH TO {coach}
+  (note + photo/voice **disclosure chips**), which **hides entirely** when a signed-in
+  member has no linked coach. THE TALLY reads **real day targets** from the home ticker
+  (`cal_target`/`protein_target`) or `/ —` when absent; the real linked nutritionist name
+  (nutritionist-gold accent) replaces "Dr. Maya" — demo 2100/165 + Maya are signed-out-only.
+- **+10 Score moment:** `logMealMacros` now surfaces the `award_meal_log` result instead
+  of discarding it; the confirmation shows `+10 · NUTRITION · SHAPE SCORE` **only when
+  actually granted** (first log of the day). "Undo" (which never reversed the POST) →
+  `← Back`.
+- **Review round (all addressed before merge):** Codex P2 — home call site now passes
+  `dayTargets` (was missed, so signed-in totals showed `/ —`); CodeRabbit 🟠 blocking
+  (honest-data) — the demo FOODS catalog no longer renders as "Recents" for signed-in
+  members (they get "search coming — enter manually"); CodeRabbit 🟡 — ingredients carry
+  a stable `bsIngId()` so the React key can't collide on duplicate names. Staging
+  click-through verified the pristine → adjust → reset → add-food flows end-to-end.
+- **Open:** on-device pass across papers (Black/Sage/Cream, both chart toggles,
+  reduced-motion); real food-database search (add sheet labels recents honestly today);
+  real undo / macro reversal (deferred — flagged in the spec).
+
 ### 2026-07-07 — i18n rollout begun: the language switch works; Settings + Home localized ×13 (#1589 · #1590 · #1592 · #1595)
 - **Diagnosed the "nothing changes when I change the language" report.** The
   language **switch itself works** (verified three ways: a headless `changeLanguage`
