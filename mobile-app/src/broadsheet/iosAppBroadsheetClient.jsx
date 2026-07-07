@@ -20663,8 +20663,9 @@ function BSLanguageSetting({ t }) {
   // — pick English → "Spanish/Italian…", pick Spanish → "Inglés/Italiano…". One instance
   // for the active locale; falls back to each language's own endonym if the platform
   // has no display name for a code/locale pair.
-  let bsLangNames = null;
-  try { bsLangNames = new Intl.DisplayNames([cur], { type: 'language' }); } catch (e) {}
+  const bsLangNames = React.useMemo(() => {
+    try { return new Intl.DisplayNames([cur], { type: 'language' }); } catch (e) { return null; }
+  }, [cur]);
   const bsLangLabel = (l) => {
     try {
       const n = bsLangNames && bsLangNames.of(l.code);
