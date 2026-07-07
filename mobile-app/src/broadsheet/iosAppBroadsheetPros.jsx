@@ -450,14 +450,14 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
     <BSPage>
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ Close</button>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.RUST }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live · {fmt(elapsed)}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> Live · {fmt(elapsed)}
         </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sets {doneSets}/{totalSets}</span>
       </div>
 
       <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>Watching live</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Watching live</div>
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{client}</div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{workout} · {Math.round(pct * 100)}% · set {cur.done + 1} of {cur.sets}</div>
         <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
@@ -470,7 +470,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{cur.scheme}</span>
       </div>
       <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{cur.name}<span style={{ color: t.RUST }}>.</span></div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{cur.name}<span style={{ color: teal }}>.</span></div>
         {cur.cue && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK50 }}>“{cur.cue}”</div>}
       </div>
 
@@ -478,12 +478,14 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
         <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span />
         </div>
+        {/* Read-only set ledger — this is a MIRROR of the client's live inputs, so no
+            box-fields: bare tabular figures; the live set carries a teal underline. */}
         {Array.from({ length: cur.sets }).map((_, i) => {
           const done = i < cur.done;
           const active = i === cur.done;
-          const cell = (val) => <div style={{ borderRadius: 10, border: `1px solid ${active ? teal : t.HAIR}`, background: done ? 'transparent' : (active ? `${teal}12` : t.PAPER2), color: val === '—' ? t.INK50 : t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.7 : 1 }}>{val}</div>;
+          const cell = (val) => <div style={{ color: val === '—' ? t.INK50 : t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderBottom: `2px solid ${active ? teal : 'transparent'}`, opacity: done ? 0.6 : 1 }}>{val}</div>;
           return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
               {cell(cur.load.replace(/\s*lb/i, '') + ' lb')}
               {cell(done ? '8' : '—')}
@@ -495,40 +497,42 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <BSEyebrow color={t.RUST}>Send a cue</BSEyebrow>
-        {sentCue && <div style={{ marginTop: 8, borderRadius: 14, border: `1px solid ${t.RUST}55`, background: `${t.RUST}12`, padding: '10px 12px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>Sent to {client}: “{sentCue}”</div>}
+        {/* Rust retired from chrome — station-head eyebrow (accent tick + ink), teal action. */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> Send a cue</div>
+        {sentCue && <div style={{ marginTop: 8, borderLeft: `3px solid ${teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>Sent to {client}: “{sentCue}”</div>}
         <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder="Type a quick cue…" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-          <button onClick={() => sendCue()} style={{ borderRadius: 999, border: 0, background: t.RUST, color: t.PAPER, cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Send</button>
+          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder="Type a quick cue…" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 8, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+          <button onClick={() => sendCue()} style={{ borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Send</button>
         </div>
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {quickCues.map(q => <button key={q} onClick={() => sendCue(q)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: '7px 12px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{q}</button>)}
+          {quickCues.map(q => <button key={q} onClick={() => sendCue(q)} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: '8px 12px', minHeight: 32, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{q}</button>)}
         </div>
       </div>
 
       <div style={{ padding: `24px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>Up next</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> Up next</div>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue<span style={{ color: teal }}>.</span></div>
       </div>
       <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {/* NOW spine on the current move — no fill/box (the client session queue grammar). */}
         {moves.map((m, i) => {
           const mDone = m.done >= m.sets;
           const isCur = i === curIdx;
           return (
-            <div key={i} style={{ background: isCur ? t.PAPER2 : 'transparent', borderRadius: 12, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : t.INK50 }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
+            <div key={i} style={{ borderLeft: `3px solid ${isCur ? teal : 'transparent'}`, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 0 12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : (isCur ? teal : t.INK50) }}>{mDone ? '✓' : isCur ? 'NOW' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{m.scheme} · {m.rest} rest · {m.done}/{m.sets} sets</div>
               </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{m.load}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{m.load}</span>
             </div>
           );
         })}
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 24px` }}>
-        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Stop watching</button>
+        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Stop watching</button>
       </div>
       <BSFooter right="Live" />
     </BSPage>
