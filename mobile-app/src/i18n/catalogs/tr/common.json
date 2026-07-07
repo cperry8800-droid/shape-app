@@ -1,5 +1,10 @@
 {
   "action.continue": "Devam",
   "action.back": "Geri",
-  "action.done": "Bitti"
+  "action.done": "Bitti",
+  "nav.home": "Ana sayfa",
+  "nav.train": "Antrenman",
+  "nav.eat": "Yemek",
+  "nav.chat": "Sohbet",
+  "nav.me": "Ben"
 }

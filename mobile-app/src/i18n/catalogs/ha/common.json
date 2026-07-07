@@ -1,5 +1,10 @@
 {
   "action.continue": "Ci gaba",
   "action.back": "Koma baya",
-  "action.done": "An gama"
+  "action.done": "An gama",
+  "nav.home": "Gida",
+  "nav.train": "Motsa",
+  "nav.eat": "Ci",
+  "nav.chat": "Hira",
+  "nav.me": "Ni"
 }

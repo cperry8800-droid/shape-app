@@ -1,5 +1,10 @@
 {
   "action.continue": "Tiếp tục",
   "action.back": "Quay lại",
-  "action.done": "Xong"
+  "action.done": "Xong",
+  "nav.home": "Trang chủ",
+  "nav.train": "Tập",
+  "nav.eat": "Ăn",
+  "nav.chat": "Chat",
+  "nav.me": "Tôi"
 }
