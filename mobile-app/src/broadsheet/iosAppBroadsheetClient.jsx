@@ -20667,6 +20667,7 @@ function BSLanguageSetting({ t }) {
 
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
+  const tr = useShapeTr();
   const r = useBSRadio();
   const [showContact, setShowContact] = useStateBSC(false);
   const [showTerms, setShowTerms] = useStateBSC(false);
@@ -20731,7 +20732,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }, []);
   const persistPref = async (store, next) => {
     const kind = store === 'nutrition' ? 'client_nutrition_prefs' : 'client_training_prefs';
-    try { await window.shapeDb?.saveUserGoals?.(kind, next); window.__bsToast?.('Saved', 'ok'); } catch (e) { window.__bsToast?.('Save failed', 'err'); }
+    try { await window.shapeDb?.saveUserGoals?.(kind, next); window.__bsToast?.(tr('settings:toast.saved', { defaultValue: 'Saved' }), 'ok'); } catch (e) { window.__bsToast?.(tr('settings:toast.saveFailed', { defaultValue: 'Save failed' }), 'err'); }
     if (store === 'nutrition') setNutritionPrefs(next); else setTrainingPrefs(next);
   };
 
@@ -20850,7 +20851,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // clear prompt instead of the raw "Authentication required" error when
     // browsing logged-out (e.g. the demo /m/ preview).
     const loggedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-    if (!loggedIn) { window.__bsToast?.('Sign in to manage your membership', 'info'); return; }
+    if (!loggedIn) { window.__bsToast?.(tr('settings:toast.signInBilling', { defaultValue: 'Sign in to manage your membership' }), 'info'); return; }
     try {
       const res = await fetch('/api/stripe/billing-portal', {
         method: 'POST', credentials: 'same-origin',
@@ -20859,10 +20860,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) window.location.href = data.url;
-      else if (res.status === 401) window.__bsToast?.('Sign in to manage your membership', 'info');
-      else window.__bsToast?.(data?.error || 'Billing portal unavailable', 'err');
+      else if (res.status === 401) window.__bsToast?.(tr('settings:toast.signInBilling', { defaultValue: 'Sign in to manage your membership' }), 'info');
+      else window.__bsToast?.(data?.error || tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');
     } catch (e) {
-      window.__bsToast?.('Billing portal unavailable', 'err');
+      window.__bsToast?.(tr('settings:toast.billingUnavailable', { defaultValue: 'Billing portal unavailable' }), 'err');
     }
   };
 
@@ -20879,10 +20880,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) bsOpenCheckout(data.url);
-      else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
-      else window.__bsToast?.(data?.error || 'Upgrade unavailable right now', 'err');
+      else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.(tr('settings:toast.createAccountMember', { defaultValue: 'Create an account to become a Shape member' }), 'info'); }
+      else window.__bsToast?.(data?.error || tr('settings:toast.upgradeUnavailable', { defaultValue: 'Upgrade unavailable right now' }), 'err');
     } catch (e) {
-      window.__bsToast?.('Upgrade unavailable right now', 'err');
+      window.__bsToast?.(tr('settings:toast.upgradeUnavailable', { defaultValue: 'Upgrade unavailable right now' }), 'err');
     }
   };
 
@@ -20890,11 +20891,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // Export is now a real, self-serve download of the user's own data.
     if (action === 'Export') {
       const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-      if (!signedIn) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
-      if (!window.confirm('Download a copy of all the data Shape holds about you?')) return;
+      if (!signedIn) { window.__bsToast?.(tr('settings:toast.signInExport', { defaultValue: 'Sign in to export your data.' }), 'err'); return; }
+      if (!window.confirm(tr('settings:confirm.exportData', { defaultValue: 'Download a copy of all the data Shape holds about you?' }))) return;
       try {
         const res = await fetch('/api/account/export', { credentials: 'same-origin' });
-        if (res.status === 401) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
+        if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInExport', { defaultValue: 'Sign in to export your data.' }), 'err'); return; }
         if (!res.ok) throw new Error('export failed');
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -20902,42 +20903,42 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 4000);
-        window.__bsToast?.('Your data export is downloading.', 'ok');
+        window.__bsToast?.(tr('settings:toast.exportDownloading', { defaultValue: 'Your data export is downloading.' }), 'ok');
       } catch (err) {
-        window.__bsToast?.('Could not export — email privacy@theshapecommunity.com', 'err');
+        window.__bsToast?.(tr('settings:toast.exportError', { defaultValue: 'Could not export — email privacy@theshapecommunity.com' }), 'err');
       }
       return;
     }
     // Delete is now a real, irreversible erasure — guard it with a typed confirm.
     if (action === 'Delete') {
-      if (!(window.ShapeAuth?.getCachedState?.()?.user?.id)) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+      if (!(window.ShapeAuth?.getCachedState?.()?.user?.id)) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
       if (!(await window.bsAskConfirm({
-        title: 'Delete your account?',
-        message: 'This permanently erases your health data, history, photos, and account. Stripe billing records are kept for tax/legal reasons. This can’t be undone.',
+        title: tr('settings:confirm.deleteTitle', { defaultValue: 'Delete your account?' }),
+        message: tr('settings:confirm.deleteMessage', { defaultValue: 'This permanently erases your health data, history, photos, and account. Stripe billing records are kept for tax/legal reasons. This can’t be undone.' }),
         requireType: 'DELETE',
-        confirmLabel: 'Delete account',
+        confirmLabel: tr('settings:confirm.deleteConfirm', { defaultValue: 'Delete account' }),
       }))) return;
       try {
         const res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
-        if (res.status === 401) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+        if (res.status === 401) { window.__bsToast?.(tr('settings:toast.signInDelete', { defaultValue: 'Sign in to delete your account.' }), 'err'); return; }
         if (!res.ok) throw new Error('delete failed');
-        window.__bsToast?.('Your account and data have been deleted.', 'ok');
+        window.__bsToast?.(tr('settings:toast.deleteDone', { defaultValue: 'Your account and data have been deleted.' }), 'ok');
         setTimeout(onLogout, 1500);
       } catch (err) {
-        window.__bsToast?.('Could not delete — email privacy@theshapecommunity.com', 'err');
+        window.__bsToast?.(tr('settings:toast.deleteError', { defaultValue: 'Could not delete — email privacy@theshapecommunity.com' }), 'err');
       }
       return;
     }
-    if (!window.confirm('Pause your membership? You keep your data and can resume anytime.')) return;
+    if (!window.confirm(tr('settings:confirm.pauseMembership', { defaultValue: 'Pause your membership? You keep your data and can resume anytime.' }))) return;
     try {
       await fetch('/api/me/account-action', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       }).catch(() => null);
-      window.__bsToast?.(`${action} request submitted — we’ll email a confirmation.`, 'ok');
+      window.__bsToast?.(tr('settings:toast.actionSubmitted', { action, defaultValue: '{action} request submitted — we’ll email a confirmation.' }), 'ok');
     } catch (err) {
-      window.__bsToast?.(`${action} failed`, 'err');
+      window.__bsToast?.(tr('settings:toast.actionFailed', { action, defaultValue: '{action} failed' }), 'err');
     }
   };
 
@@ -21020,10 +21021,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     try {
       const res = await window.ShapeBookings.setCapacity({ atCapacity: next });
       setCapacityState(c => ({ ...c, atCapacity: res.atCapacity, resumeAt: res.resumeAt }));
-      window.__bsToast?.(next ? 'Paused — new bookings are off' : 'Open for bookings again', 'ok');
+      window.__bsToast?.(next ? tr('settings:capacity.toastPaused', { defaultValue: 'Paused — new bookings are off' }) : tr('settings:capacity.toastOpen', { defaultValue: 'Open for bookings again' }), 'ok');
     } catch (e) {
       setCapacityState(c => ({ ...c, atCapacity: !next })); // revert
-      window.__bsToast?.(e?.message || 'Could not update bookings', 'err');
+      window.__bsToast?.(e?.message || tr('settings:capacity.toastError', { defaultValue: 'Could not update bookings' }), 'err');
     } finally {
       setCapacityBusy(false);
     }
@@ -21048,9 +21049,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     try {
       await window.ShapeWaitlist.invite(entryId);
       await reloadWaitRoom();
-      window.__bsToast?.('Invited — they have a window to book.', 'ok');
+      window.__bsToast?.(tr('settings:waitroom.toastInvited', { defaultValue: 'Invited — they have a window to book.' }), 'ok');
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not send the invite', 'err');
+      window.__bsToast?.(e?.message || tr('settings:waitroom.toastError', { defaultValue: 'Could not send the invite' }), 'err');
     } finally {
       setWaitInviteBusy('');
     }
@@ -21147,16 +21148,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
     if (!v) { setEditField(null); return; }
     if (editField.key === 'password') {
-      window.__bsToast?.('Password updated', 'ok');
+      window.__bsToast?.(tr('settings:toast.passwordUpdated', { defaultValue: 'Password updated' }), 'ok');
     } else {
       setAccount(a => ({ ...a, [editField.key]: v }));
-      window.__bsToast?.(`${editField.label} updated`, 'ok');
+      window.__bsToast?.(tr('settings:toast.fieldUpdated', { label: editField.label, defaultValue: '{label} updated' }), 'ok');
     }
     setEditField(null);
   };
   const toggleTwoFactor = () => setAccount(a => {
     const twoFactor = !a.twoFactor;
-    window.__bsToast?.(`Two-factor ${twoFactor ? 'enabled' : 'disabled'}`, 'ok');
+    window.__bsToast?.(twoFactor ? tr('settings:toast.twoFactorEnabled', { defaultValue: 'Two-factor enabled' }) : tr('settings:toast.twoFactorDisabled', { defaultValue: 'Two-factor disabled' }), 'ok');
     return { ...a, twoFactor };
   });
 
@@ -21224,7 +21225,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const DetailBack = ({ title }) => (
     <>
       <div style={{ padding: `62px ${t.padX}px 2px` }}>
-        <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Settings</button>
+        <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.title', { defaultValue: 'Settings' })}</button>
       </div>
       <div style={{ padding: `12px ${t.padX}px 6px` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{title}</div>
@@ -21381,116 +21382,116 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
 
   const nutritionRows = [
-    { k: 'dietary_style', l: 'Dietary style', options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Keto', 'Paleo', 'Mediterranean'] },
-    { k: 'allergies', l: 'Allergies', placeholder: 'Shellfish, tree nuts…' },
-    { k: 'dislikes', l: 'Dislikes', placeholder: 'Cilantro, blue cheese…' },
-    { k: 'protein_target_g', l: 'Protein target (g/day)', type: 'number', placeholder: '168' },
-    { k: 'calorie_range', l: 'Calorie range', options: ['By feel', 'Strict', 'Loose tracking', '1600–1800', '1800–2000', '2000–2200', '2200–2400', '2400+'] },
-    { k: 'meal_cadence', l: 'Meal cadence', placeholder: '3 meals + 1 snack' },
-    { k: 'supplements', l: 'Supplements', placeholder: 'Creatine, D, omega-3' },
-    { k: 'alcohol', l: 'Alcohol', options: ['None', 'Rare', 'Social', 'Weekly', 'Daily'] },
-    { k: 'hydration_target_l', l: 'Hydration target (L/day)', type: 'number', placeholder: '3.0' },
-  ].map((r) => ({ l: r.l, r: nutritionPrefs[r.k] || 'Not set', action: () => openPrefEdit('nutrition', r.k, r.l, { type: r.type, placeholder: r.placeholder, options: r.options }) }));
+    { k: 'dietary_style', l: tr('settings:nutrition.dietaryStyle', { defaultValue: 'Dietary style' }), options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Keto', 'Paleo', 'Mediterranean'] },
+    { k: 'allergies', l: tr('settings:nutrition.allergies', { defaultValue: 'Allergies' }), placeholder: tr('settings:nutrition.allergiesPh', { defaultValue: 'Shellfish, tree nuts…' }) },
+    { k: 'dislikes', l: tr('settings:nutrition.dislikes', { defaultValue: 'Dislikes' }), placeholder: tr('settings:nutrition.dislikesPh', { defaultValue: 'Cilantro, blue cheese…' }) },
+    { k: 'protein_target_g', l: tr('settings:nutrition.proteinTarget', { defaultValue: 'Protein target (g/day)' }), type: 'number', placeholder: '168' },
+    { k: 'calorie_range', l: tr('settings:nutrition.calorieRange', { defaultValue: 'Calorie range' }), options: ['By feel', 'Strict', 'Loose tracking', '1600–1800', '1800–2000', '2000–2200', '2200–2400', '2400+'] },
+    { k: 'meal_cadence', l: tr('settings:nutrition.mealCadence', { defaultValue: 'Meal cadence' }), placeholder: tr('settings:nutrition.mealCadencePh', { defaultValue: '3 meals + 1 snack' }) },
+    { k: 'supplements', l: tr('settings:nutrition.supplements', { defaultValue: 'Supplements' }), placeholder: tr('settings:nutrition.supplementsPh', { defaultValue: 'Creatine, D, omega-3' }) },
+    { k: 'alcohol', l: tr('settings:nutrition.alcohol', { defaultValue: 'Alcohol' }), options: ['None', 'Rare', 'Social', 'Weekly', 'Daily'] },
+    { k: 'hydration_target_l', l: tr('settings:nutrition.hydrationTarget', { defaultValue: 'Hydration target (L/day)' }), type: 'number', placeholder: '3.0' },
+  ].map((row) => ({ l: row.l, r: nutritionPrefs[row.k] || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('nutrition', row.k, row.l, { type: row.type, placeholder: row.placeholder, options: row.options }) }));
   const trainingRows = [
-    { k: 'primary_goal', l: 'Primary goal', options: ['Strength', 'Hypertrophy', 'Strength + hypertrophy', 'Endurance', 'Fat loss', 'General health'] },
-    { k: 'experience', l: 'Experience', options: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'] },
-    { k: 'sessions_per_week', l: 'Sessions / week', options: ['2', '3', '4', '5', '6'] },
-    { k: 'equipment', l: 'Equipment access', options: ['Full gym', 'Home gym', 'Bodyweight only', 'Limited (bands + DBs)', 'Full gym + home DBs'] },
-    { k: 'injuries', l: 'Injuries & notes', placeholder: 'Left shoulder, knee tracking…' },
-    { k: 'preferred_times', l: 'Preferred times', options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
-  ].map((r) => ({ l: r.l, r: trainingPrefs[r.k] || 'Not set', action: () => openPrefEdit('training', r.k, r.l, { placeholder: r.placeholder, options: r.options }) }));
+    { k: 'primary_goal', l: tr('settings:training.primaryGoal', { defaultValue: 'Primary goal' }), options: ['Strength', 'Hypertrophy', 'Strength + hypertrophy', 'Endurance', 'Fat loss', 'General health'] },
+    { k: 'experience', l: tr('settings:training.experience', { defaultValue: 'Experience' }), options: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'] },
+    { k: 'sessions_per_week', l: tr('settings:training.sessionsPerWeek', { defaultValue: 'Sessions / week' }), options: ['2', '3', '4', '5', '6'] },
+    { k: 'equipment', l: tr('settings:training.equipment', { defaultValue: 'Equipment access' }), options: ['Full gym', 'Home gym', 'Bodyweight only', 'Limited (bands + DBs)', 'Full gym + home DBs'] },
+    { k: 'injuries', l: tr('settings:training.injuries', { defaultValue: 'Injuries & notes' }), placeholder: tr('settings:training.injuriesPh', { defaultValue: 'Left shoulder, knee tracking…' }) },
+    { k: 'preferred_times', l: tr('settings:training.preferredTimes', { defaultValue: 'Preferred times' }), options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
+  ].map((row) => ({ l: row.l, r: trainingPrefs[row.k] || tr('settings:common.notSet', { defaultValue: 'Not set' }), action: () => openPrefEdit('training', row.k, row.l, { placeholder: row.placeholder, options: row.options }) }));
   // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
   // are hosted by the coach shell (it owns those screens) via window events; Payouts
   // calls Stripe Connect directly; the rest open the coach's own public profile.
   const practiceRows = [
-    { l: 'Public profile & rates', r: 'Edit', action: () => setShowPublicProfile(true) },
-    { l: 'Marketplace listing', r: 'View', action: () => setShowPublicProfile(true) },
-    { l: 'Availability', r: 'Set', action: () => { try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} } },
-    { l: 'Payouts', r: 'Stripe', action: () => { try { window.ShapeConnect && window.ShapeConnect.startOnboarding && window.ShapeConnect.startOnboarding({ role: tweaks.role }); } catch (e) {} } },
-    { l: 'Soundtracks', r: 'Manage', action: () => { try { window.dispatchEvent(new Event('shape:proSoundtracks')); } catch (e) {} } },
-    { l: 'Certifications', r: 'Edit', action: () => setShowPublicProfile(true) },
+    { l: tr('settings:practice.profileRates', { defaultValue: 'Public profile & rates' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowPublicProfile(true) },
+    { l: tr('settings:practice.listing', { defaultValue: 'Marketplace listing' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
+    { l: tr('settings:practice.availability', { defaultValue: 'Availability' }), r: tr('settings:action.set', { defaultValue: 'Set' }), action: () => { try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} } },
+    { l: tr('settings:practice.payouts', { defaultValue: 'Payouts' }), r: tr('settings:practice.payoutsMeta', { defaultValue: 'Stripe' }), action: () => { try { window.ShapeConnect && window.ShapeConnect.startOnboarding && window.ShapeConnect.startOnboarding({ role: tweaks.role }); } catch (e) {} } },
+    { l: tr('settings:practice.soundtracks', { defaultValue: 'Soundtracks' }), r: tr('settings:action.manage', { defaultValue: 'Manage' }), action: () => { try { window.dispatchEvent(new Event('shape:proSoundtracks')); } catch (e) {} } },
+    { l: tr('settings:practice.certifications', { defaultValue: 'Certifications' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowPublicProfile(true) },
   ];
   const moreRows = isCoachRole ? [
-    { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
-    { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
-    { l: 'Shape Store', r: 'Redeem', action: () => setShowStore(true) },
-    { l: 'Shape Radio', r: 'Listen', action: () => setShowRadio(true) },
+    { l: tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
+    { l: 'Shape Score', r: tr('settings:more.standing', { defaultValue: 'Standing' }), action: () => setShowScore(true) },
+    { l: 'Shape Store', r: tr('settings:more.redeem', { defaultValue: 'Redeem' }), action: () => setShowStore(true) },
+    { l: 'Shape Radio', r: tr('settings:more.listen', { defaultValue: 'Listen' }), action: () => setShowRadio(true) },
   ] : [
-    { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
-    { l: 'Goals', r: 'Track', action: () => setShowGoals(true) },
-    { l: 'Habits', r: 'Daily', action: () => setShowHabits(true) },
-    { l: 'Weekly check-in', r: 'Ritual', action: () => setShowCheckin(true) },
-    { l: 'Health profile', r: 'Screening', action: () => setShowHealth(true) },
-    { l: 'Library', r: 'Saved', action: () => setShowLibrary(true) },
-    { l: 'Progress & stats', r: 'View', action: () => setShowProgress(true) },
-    { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
-    { l: 'Shape Store', r: 'Redeem', action: () => setShowStore(true) },
-    { l: 'Shape Radio', r: 'Listen', action: () => setShowRadio(true) },
-    { l: 'Leaderboard', r: 'Rank', action: () => setShowLeaderboard(true) },
-    { l: 'Sessions', r: 'Booked', action: () => setShowSessions(true) },
+    { l: tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
+    { l: tr('settings:more.goals', { defaultValue: 'Goals' }), r: tr('settings:more.goalsMeta', { defaultValue: 'Track' }), action: () => setShowGoals(true) },
+    { l: tr('settings:more.habits', { defaultValue: 'Habits' }), r: tr('settings:more.habitsMeta', { defaultValue: 'Daily' }), action: () => setShowHabits(true) },
+    { l: tr('settings:more.checkin', { defaultValue: 'Weekly check-in' }), r: tr('settings:more.checkinMeta', { defaultValue: 'Ritual' }), action: () => setShowCheckin(true) },
+    { l: tr('settings:more.healthProfile', { defaultValue: 'Health profile' }), r: tr('settings:more.healthProfileMeta', { defaultValue: 'Screening' }), action: () => setShowHealth(true) },
+    { l: tr('settings:more.library', { defaultValue: 'Library' }), r: tr('settings:more.libraryMeta', { defaultValue: 'Saved' }), action: () => setShowLibrary(true) },
+    { l: tr('settings:more.progress', { defaultValue: 'Progress & stats' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowProgress(true) },
+    { l: 'Shape Score', r: tr('settings:more.standing', { defaultValue: 'Standing' }), action: () => setShowScore(true) },
+    { l: 'Shape Store', r: tr('settings:more.redeem', { defaultValue: 'Redeem' }), action: () => setShowStore(true) },
+    { l: 'Shape Radio', r: tr('settings:more.listen', { defaultValue: 'Listen' }), action: () => setShowRadio(true) },
+    { l: tr('settings:more.leaderboard', { defaultValue: 'Leaderboard' }), r: tr('settings:more.leaderboardMeta', { defaultValue: 'Rank' }), action: () => setShowLeaderboard(true) },
+    { l: tr('settings:more.sessions', { defaultValue: 'Sessions' }), r: tr('settings:more.sessionsMeta', { defaultValue: 'Booked' }), action: () => setShowSessions(true) },
   ];
   const billingRows = [
-    { l: 'Manage subscription', r: 'Stripe portal', action: openBillingPortal },
-    { l: 'Update payment method', r: 'Stripe portal', action: openBillingPortal },
-    { l: 'View invoices & receipts', r: 'Stripe portal', action: openBillingPortal },
+    { l: tr('settings:billing.manageSub', { defaultValue: 'Manage subscription' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
+    { l: tr('settings:billing.updatePayment', { defaultValue: 'Update payment method' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
+    { l: tr('settings:billing.invoices', { defaultValue: 'View invoices & receipts' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
   ];
   const sections = [
     {
       title: 'Account',
       meta: 'Pro · annual',
       rows: [
-        { l: 'Email',           r: account.email, action: () => openAccountEdit('email', 'Email', { type: 'email' }) },
-        { l: 'Phone',           r: account.phone, action: () => openAccountEdit('phone', 'Phone', { type: 'tel' }) },
-        { l: 'Password',        r: 'Change', action: () => openAccountEdit('password', 'Password', { type: 'password', value: '', placeholder: 'New password' }) },
-        { l: 'Two-factor auth', r: account.twoFactor ? 'On' : 'Off', action: toggleTwoFactor },
+        { l: tr('settings:account.email', { defaultValue: 'Email' }),           r: account.email, action: () => openAccountEdit('email', tr('settings:account.email', { defaultValue: 'Email' }), { type: 'email' }) },
+        { l: tr('settings:account.phone', { defaultValue: 'Phone' }),           r: account.phone, action: () => openAccountEdit('phone', tr('settings:account.phone', { defaultValue: 'Phone' }), { type: 'tel' }) },
+        { l: tr('settings:account.password', { defaultValue: 'Password' }),        r: tr('settings:account.change', { defaultValue: 'Change' }), action: () => openAccountEdit('password', tr('settings:account.password', { defaultValue: 'Password' }), { type: 'password', value: '', placeholder: tr('settings:account.newPasswordPh', { defaultValue: 'New password' }) }) },
+        { l: tr('settings:account.twoFactor', { defaultValue: 'Two-factor auth' }), r: account.twoFactor ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' }), action: toggleTwoFactor },
       ],
     },
     {
       title: 'Health integrations',
       meta: '2 connected',
       rows: [
-        { l: 'Manage integrations', r: 'Open', action: () => setShowIntegrations(true) },
-        { l: 'Apple Health',    r: 'iOS app' },
-        { l: 'WHOOP',           r: 'Connected' },
-        { l: 'Garmin',          r: 'Connect' },
-        { l: 'Strava',          r: 'Connect' },
-        { l: 'Spotify',         r: 'Connect' },
+        { l: tr('settings:health.manage', { defaultValue: 'Manage integrations' }), r: tr('settings:health.open', { defaultValue: 'Open' }), action: () => setShowIntegrations(true) },
+        { l: 'Apple Health',    r: tr('settings:health.iosApp', { defaultValue: 'iOS app' }) },
+        { l: 'WHOOP',           r: tr('settings:health.connected', { defaultValue: 'Connected' }) },
+        { l: 'Garmin',          r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
+        { l: 'Strava',          r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
+        { l: 'Spotify',         r: tr('settings:health.connect', { defaultValue: 'Connect' }) },
       ],
     },
     {
       title: 'Notifications',
       meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
-        { l: 'Notification center', r: 'All types · channels', action: () => setShowNotifyPrefs(true) },
-        { l: 'Workout reminders', key: 'workoutReminders' },
-        { l: 'Coach replies',     key: 'coachReplies' },
-        { l: 'Weekly digest',     key: 'weeklyDigest' },
-        { l: 'Community',         key: 'community' },
+        { l: tr('settings:notif.center', { defaultValue: 'Notification center' }), r: tr('settings:notif.centerMeta', { defaultValue: 'All types · channels' }), action: () => setShowNotifyPrefs(true) },
+        { l: tr('settings:notif.workoutReminders', { defaultValue: 'Workout reminders' }), key: 'workoutReminders' },
+        { l: tr('settings:notif.coachReplies', { defaultValue: 'Coach replies' }),     key: 'coachReplies' },
+        { l: tr('settings:notif.weeklyDigest', { defaultValue: 'Weekly digest' }),     key: 'weeklyDigest' },
+        { l: tr('settings:notif.community', { defaultValue: 'Community' }),         key: 'community' },
       ],
     },
     {
       title: 'Preferences',
       meta: '',
       rows: [
-        { l: 'Units',           key: 'units', segmented: PREF_OPTIONS.units, segLabels: ['Imperial', 'Metric'] },
-        { l: 'Week starts',     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
-        { l: 'Time zone',       key: 'timeZone', dropdown: BS_TIMEZONES },
-        { l: 'Language',        key: 'language', dropdown: PREF_OPTIONS.language },
-        { l: 'Breakfast time',  key: 'mealBreakfast', dropdown: PREF_OPTIONS.mealBreakfast },
-        { l: 'Lunch time',      key: 'mealLunch',     dropdown: PREF_OPTIONS.mealLunch },
-        { l: 'Snack time',      key: 'mealSnack',     dropdown: PREF_OPTIONS.mealSnack },
-        { l: 'Dinner time',     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
-        { l: 'Training phase',  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
-        { l: 'Nutrition phase', key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
+        { l: tr('settings:pref.units', { defaultValue: 'Units' }),           key: 'units', segmented: PREF_OPTIONS.units, segLabels: [tr('settings:pref.unitsImperial', { defaultValue: 'Imperial' }), tr('settings:pref.unitsMetric', { defaultValue: 'Metric' })] },
+        { l: tr('settings:pref.weekStarts', { defaultValue: 'Week starts' }),     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
+        { l: tr('settings:pref.timeZone', { defaultValue: 'Time zone' }),       key: 'timeZone', dropdown: BS_TIMEZONES },
+        { l: tr('settings:language.row', { defaultValue: 'Language' }),        key: 'language', dropdown: PREF_OPTIONS.language },
+        { l: tr('settings:pref.breakfast', { defaultValue: 'Breakfast time' }),  key: 'mealBreakfast', dropdown: PREF_OPTIONS.mealBreakfast },
+        { l: tr('settings:pref.lunch', { defaultValue: 'Lunch time' }),      key: 'mealLunch',     dropdown: PREF_OPTIONS.mealLunch },
+        { l: tr('settings:pref.snack', { defaultValue: 'Snack time' }),      key: 'mealSnack',     dropdown: PREF_OPTIONS.mealSnack },
+        { l: tr('settings:pref.dinner', { defaultValue: 'Dinner time' }),     key: 'mealDinner',    dropdown: PREF_OPTIONS.mealDinner },
+        { l: tr('settings:pref.trainingPhase', { defaultValue: 'Training phase' }),  key: 'trainingPhase', dropdown: PREF_OPTIONS.trainingPhase },
+        { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
       ],
     },
     {
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' },
-        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' },
-        { l: 'Share workout data', key: 'shareWorkoutData', desc: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' },
+        { l: tr('settings:privacy.visibility', { defaultValue: 'Profile visibility' }), key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: tr('settings:privacy.visibilityDesc', { defaultValue: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' }) },
+        { l: tr('settings:privacy.online', { defaultValue: 'Show when I’m online' }), key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: tr('settings:privacy.onlineDesc', { defaultValue: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' }) },
+        { l: tr('settings:privacy.shareWorkout', { defaultValue: 'Share workout data' }), key: 'shareWorkoutData', desc: tr('settings:privacy.shareWorkoutDesc', { defaultValue: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' }) },
       ],
     },
     {
@@ -21507,16 +21508,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'About',
       meta: 'v6.38.2',
       rows: [
-        { l: 'About Shape',     r: 'Our story', action: () => setShowAbout(true) },
-        { l: 'Pricing',         r: '$5 / mo', action: () => setShowPricing(true) },
-        { l: 'Help center',     r: 'Visit', action: () => setShowHelp(true) },
-        { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
-        { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
-        { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
-        { l: 'Data & compliance', r: 'Legal', action: () => setShowDataCompliance(true) },
-        { l: 'Code of conduct', r: 'Legal', action: () => setShowCodeOfConduct(true) },
-        { l: 'Consumer health data', r: 'Legal', action: () => setShowConsumerHealth(true) },
-        { l: 'Subprocessors', r: 'Legal', action: () => setShowSubprocessors(true) },
+        { l: tr('settings:about.aboutShape', { defaultValue: 'About Shape' }),     r: tr('settings:about.aboutShapeMeta', { defaultValue: 'Our story' }), action: () => setShowAbout(true) },
+        { l: tr('settings:about.pricing', { defaultValue: 'Pricing' }),         r: tr('settings:about.pricingMeta', { defaultValue: '$5 / mo' }), action: () => setShowPricing(true) },
+        { l: tr('settings:about.help', { defaultValue: 'Help center' }),     r: tr('settings:about.helpMeta', { defaultValue: 'Visit' }), action: () => setShowHelp(true) },
+        { l: tr('settings:about.contact', { defaultValue: 'Contact support' }), r: tr('settings:about.contactMeta', { defaultValue: '24h reply' }), action: () => setShowContact(true) },
+        { l: tr('settings:about.terms', { defaultValue: 'Terms of service' }),r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowTerms(true) },
+        { l: tr('settings:about.privacy', { defaultValue: 'Privacy policy' }),  r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowPrivacy(true) },
+        { l: tr('settings:about.dataCompliance', { defaultValue: 'Data & compliance' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowDataCompliance(true) },
+        { l: tr('settings:about.codeOfConduct', { defaultValue: 'Code of conduct' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowCodeOfConduct(true) },
+        { l: tr('settings:about.consumerHealth', { defaultValue: 'Consumer health data' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowConsumerHealth(true) },
+        { l: tr('settings:about.subprocessors', { defaultValue: 'Subprocessors' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowSubprocessors(true) },
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -21528,32 +21529,39 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
   const notifOn = ['workoutReminders', 'coachReplies', 'weeklyDigest', 'community'].filter(k => prefs[k] !== 'Off').length;
   const accountActionRows = [
-    { l: 'Export all my data', r: 'Download', act: 'Export' },
-    { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
-    { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
+    { l: tr('settings:accountActions.export', { defaultValue: 'Export all my data' }), r: tr('settings:accountActions.exportMeta', { defaultValue: 'Download' }), act: 'Export' },
+    { l: tr('settings:accountActions.pause', { defaultValue: 'Pause membership' }), r: tr('settings:accountActions.pauseMeta', { defaultValue: 'Keep account' }), act: 'Pause' },
+    { l: tr('settings:accountActions.delete', { defaultValue: 'Delete account' }), r: tr('settings:accountActions.deleteMeta', { defaultValue: 'Permanent' }), act: 'Delete', alert: true },
   ];
+  const cardPrefsSummary = `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`;
+  const cardNotifSummary = tr('settings:card.notifSummary', { n: notifOn, defaultValue: '{n} of 4 active' });
+  const cardPrivacySummary = tr('settings:card.privacySummary', { visibility: prefs.profileVisibility, defaultValue: 'Profile · {visibility}' });
+  const cardAccountSummary = tr('settings:card.accountSummary', { defaultValue: 'Email · password · 2FA' });
+  const cardHealthSummary = tr('settings:card.healthSummary', { defaultValue: 'Apple Health · WHOOP · Strava' });
+  const cardAboutSummary = tr('settings:card.aboutSummary', { defaultValue: 'Help · contact · legal' });
+  const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
   const settingCards = isCoachRole ? [
-    { title: 'Account',             summary: 'Email · password · 2FA',                                            detail: 'account' },
-    { title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
-    { title: 'Your practice',       summary: 'Listing · profile · availability · payouts · soundtracks',          detail: 'practice' },
-    { title: 'Health integrations', summary: 'Apple Health · WHOOP · Strava',                                     detail: 'health' },
-    { title: 'Notifications',       summary: `${notifOn} of 4 active`,                                             detail: 'notifications' },
-    { title: 'Privacy & data',      summary: `Profile · ${prefs.profileVisibility}`,                              detail: 'privacy' },
-    { title: 'More',                summary: 'Public profile · Score · Store · Radio',                            detail: 'more' },
-    { title: 'About',               summary: 'Help · contact · legal',                                           detail: 'about' },
-    { title: 'Account actions',     summary: 'Export · pause · delete',                                          detail: 'accountactions', accent: t.RUST },
+    { title: tr('settings:section.account', { defaultValue: 'Account' }),             summary: cardAccountSummary,                                            detail: 'account' },
+    { title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
+    { title: tr('settings:section.practice', { defaultValue: 'Your practice' }),       summary: tr('settings:card.practiceSummary', { defaultValue: 'Listing · profile · availability · payouts · soundtracks' }),          detail: 'practice' },
+    { title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
+    { title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                             detail: 'notifications' },
+    { title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                              detail: 'privacy' },
+    { title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }),                            detail: 'more' },
+    { title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
+    { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
   ] : [
-    { icon: 'user',    title: 'Account',            summary: 'Email · password · 2FA',                                            detail: 'account' },
-    { icon: 'sliders', title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
-    { icon: 'leaf',    title: 'Nutrition',           summary: nutritionPrefs.dietary_style ? `${nutritionPrefs.dietary_style} · prefs` : 'Diet · allergies · macros', detail: 'nutrition' },
-    { icon: 'dumbbell',title: 'Training',            summary: trainingPrefs.experience ? `${trainingPrefs.experience} · prefs` : 'Goal · experience · equipment', detail: 'training' },
-    { icon: 'link',    title: 'Health integrations', summary: 'Apple Health · WHOOP · Strava',                                     detail: 'health' },
-    { icon: 'bell',    title: 'Notifications',       summary: `${notifOn} of 4 active`,                                            detail: 'notifications' },
-    { icon: 'lock',    title: 'Privacy & data',      summary: `Profile · ${prefs.profileVisibility}`,                             detail: 'privacy' },
-    { icon: 'card',    title: 'Membership & billing', summary: plan && plan.active ? 'Active · manage' : 'Manage · invoices',      detail: 'billing' },
-    { icon: 'compass', title: 'More',                summary: 'Goals · Habits · Library · Score · Store',                          detail: 'more' },
-    { icon: 'life',    title: 'About',               summary: 'Help · contact · legal',                                           detail: 'about' },
-    { icon: 'shield',  title: 'Account actions',     summary: 'Export · pause · delete',                                          detail: 'accountactions', accent: t.RUST },
+    { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
+    { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
+    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: nutritionPrefs.dietary_style, defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
+    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: trainingPrefs.experience, defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
+    { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
+    { icon: 'bell',    title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                            detail: 'notifications' },
+    { icon: 'lock',    title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                             detail: 'privacy' },
+    { icon: 'card',    title: tr('settings:section.billing', { defaultValue: 'Membership & billing' }), summary: plan && plan.active ? tr('settings:card.billingActive', { defaultValue: 'Active · manage' }) : tr('settings:card.billingInactive', { defaultValue: 'Manage · invoices' }),      detail: 'billing' },
+    { icon: 'compass', title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }),                          detail: 'more' },
+    { icon: 'life',    title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
+    { icon: 'shield',  title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
   ];
 
   return (
@@ -21561,19 +21569,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
       {/* ── DRILL-IN CARD PANES ── */}
-      {detail === 'account' && (<><DetailBack title="Account" />{renderRows(findSec('Account').rows)}</>)}
-      {detail === 'health' && (<><DetailBack title="Health integrations" />{renderRows(findSec('Health integrations').rows)}</>)}
-      {detail === 'notifications' && (<><DetailBack title="Notifications" />{renderRows(findSec('Notifications').rows)}</>)}
-      {detail === 'preferences' && (<><DetailBack title="Preferences" />{renderRows(findSec('Preferences').rows)}</>)}
-      {detail === 'privacy' && (<><DetailBack title="Privacy & data" />{renderRows(findSec('Privacy & data').rows)}</>)}
-      {detail === 'practice' && (<><DetailBack title="Your practice" />{renderRows(practiceRows)}</>)}
-      {detail === 'nutrition' && (<><DetailBack title="Nutrition" />{renderRows(findSec('Nutrition').rows)}</>)}
-      {detail === 'training' && (<><DetailBack title="Training" />{renderRows(findSec('Training').rows)}</>)}
-      {detail === 'billing' && (<><DetailBack title="Membership & billing" />{renderRows(findSec('Membership & billing').rows)}</>)}
-      {detail === 'more' && (<><DetailBack title="More" />{renderRows(findSec('More').rows)}</>)}
-      {detail === 'about' && (<><DetailBack title="About" />{renderRows(findSec('About').rows)}</>)}
+      {detail === 'account' && (<><DetailBack title={tr('settings:section.account', { defaultValue: 'Account' })} />{renderRows(findSec('Account').rows)}</>)}
+      {detail === 'health' && (<><DetailBack title={tr('settings:section.health', { defaultValue: 'Health integrations' })} />{renderRows(findSec('Health integrations').rows)}</>)}
+      {detail === 'notifications' && (<><DetailBack title={tr('settings:section.notifications', { defaultValue: 'Notifications' })} />{renderRows(findSec('Notifications').rows)}</>)}
+      {detail === 'preferences' && (<><DetailBack title={tr('settings:section.preferences', { defaultValue: 'Preferences' })} />{renderRows(findSec('Preferences').rows)}</>)}
+      {detail === 'privacy' && (<><DetailBack title={tr('settings:section.privacy', { defaultValue: 'Privacy & data' })} />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {detail === 'practice' && (<><DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />{renderRows(practiceRows)}</>)}
+      {detail === 'nutrition' && (<><DetailBack title={tr('settings:section.nutrition', { defaultValue: 'Nutrition' })} />{renderRows(findSec('Nutrition').rows)}</>)}
+      {detail === 'training' && (<><DetailBack title={tr('settings:section.training', { defaultValue: 'Training' })} />{renderRows(findSec('Training').rows)}</>)}
+      {detail === 'billing' && (<><DetailBack title={tr('settings:section.billing', { defaultValue: 'Membership & billing' })} />{renderRows(findSec('Membership & billing').rows)}</>)}
+      {detail === 'more' && (<><DetailBack title={tr('settings:section.more', { defaultValue: 'More' })} />{renderRows(findSec('More').rows)}</>)}
+      {detail === 'about' && (<><DetailBack title={tr('settings:section.about', { defaultValue: 'About' })} />{renderRows(findSec('About').rows)}</>)}
       {detail === 'accountactions' && (<>
-        <DetailBack title="Account actions" />
+        <DetailBack title={tr('settings:section.accountActions', { defaultValue: 'Account actions' })} />
         <div style={{ padding: `4px ${t.padX}px` }}>
           {accountActionRows.map((s, i, arr) => (
             <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 12}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
@@ -21587,16 +21595,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* ── SETTINGS PAGE ── */}
       {!detail && (<>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
+          <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('settings:action.edit', { defaultValue: 'Edit' })}</button>
           <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={startEdit} />
         </div>
       </div>
       {/* Page heading */}
       <div style={{ padding: `10px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>Account</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>Settings<span style={{ color: t.ACCENT }}>.</span></h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{tr('settings:section.account', { defaultValue: 'Account' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>{tr('settings:head.title', { defaultValue: 'Settings' })}<span style={{ color: t.ACCENT }}>.</span></h1>
       </div>
 
       {/* Coach-only — pause new bookings (at capacity) */}
@@ -21604,10 +21612,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
-              <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? 'At capacity' : 'Open for bookings'}</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>Pause new bookings</div>
+              <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Open for bookings' })}</BSEyebrow>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new bookings' })}</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
-                {capacity.atCapacity ? 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' : 'Turn on to stop new subscriptions, bookings and purchases.'}
+                {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on to stop new subscriptions, bookings and purchases.' })}
               </div>
             </div>
             <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
@@ -21621,20 +21629,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const activeEntries = (waitRoom.entries || []).filter(e => e.position);
         return (
           <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-            <BSEyebrow color={t.INK50}>Waiting room ({activeEntries.length})</BSEyebrow>
+            <BSEyebrow color={t.INK50}>{tr('settings:waitroom.title', { n: activeEntries.length, defaultValue: 'Waiting room ({n})' })}</BSEyebrow>
             {activeEntries.length === 0 ? (
-              <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>No one waiting yet — when you're at capacity, clients can join here.</div>
+              <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('settings:waitroom.empty', { defaultValue: "No one waiting yet — when you're at capacity, clients can join here." })}</div>
             ) : (
               <div style={{ marginTop: 4 }}>
                 {activeEntries.map((e) => (
                   <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>
-                        {`#${e.position} · ${e.clientName || 'Member'}`}
+                        {tr('settings:waitroom.entry', { position: e.position, name: e.clientName || tr('settings:waitroom.member', { defaultValue: 'Member' }), defaultValue: '#{position} · {name}' })}
                       </div>
                       {e.note ? <div style={{ marginTop: 1, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{e.note}</div> : null}
                       <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                        {e.status === 'invited' ? 'Invited' : e.status === 'waiting' ? 'Waiting' : e.status}
+                        {e.status === 'invited' ? tr('settings:waitroom.invited', { defaultValue: 'Invited' }) : e.status === 'waiting' ? tr('settings:waitroom.waiting', { defaultValue: 'Waiting' }) : e.status}
                       </div>
                     </div>
                     {e.status === 'waiting' && (
@@ -21643,7 +21651,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                         disabled={waitInviteBusy === e.id}
                         style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
                       >
-                        {waitInviteBusy === e.id ? 'Inviting…' : 'Invite'}
+                        {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
                       </button>
                     )}
                   </div>
@@ -21660,7 +21668,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
+              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], [tr('settings:shortcut.about', { defaultValue: 'About' }), () => setShowAbout(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -21675,22 +21683,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
             return (
             <div>
-              {sectionHead('Photo & avatar')}
+              {sectionHead(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }))}
               {/* Avatar (tap ✎ to change the photo — no separate button) + the
                   tier-color note. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                 <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
                 <div style={{ minWidth: 0, fontFamily: t.BODY, fontSize: 12, fontWeight: 500, color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
-                  {bsMyTier()} tier color
+                  {tr('settings:edit.tierColor', { tier: bsMyTier(), defaultValue: '{tier} tier color' })}
                 </div>
               </div>
 
               {/* Avatar source — show the photo or the initials gem (app-wide) */}
               <div style={{ marginBottom: 14 }}>
-                <span style={lbl}>Show in avatar</span>
+                <span style={lbl}>{tr('settings:edit.showInAvatar', { defaultValue: 'Show in avatar' })}</span>
                 <div style={{ display: 'inline-flex', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden', background: t.PAPER2 }}>
-                  {[['photo', 'Photo'], ['initials', 'Initials']].map(([val, label]) => {
+                  {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
                     const on = (draft.avatarMode || 'photo') === val;
                     return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, letterSpacing: 0 }}>{label}</button>;
                   })}
@@ -21699,19 +21707,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
               {/* Custom avatar initials — optional override, max 2 characters */}
               <label style={{ display: 'block', marginBottom: 13 }}>
-                <span style={lbl}>Avatar initials <span style={{ textTransform: 'none', letterSpacing: 0, color: t.INK50, fontWeight: 600 }}>· max 2</span></span>
+                <span style={lbl}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ textTransform: 'none', letterSpacing: 0, color: t.INK50, fontWeight: 600 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
                 <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
                   onChange={(e) => setDraft({ ...draft, initials: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2) })}
                   onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
                   style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
               </label>
 
-              {sectionHead('Identity')}
+              {sectionHead(tr('settings:edit.identity', { defaultValue: 'Identity' }))}
               {[
-                { k: 'name',     label: 'Display name', ph: 'Your name' },
-                { k: 'handle',   label: 'Handle',       ph: '@handle' },
-                { k: 'location', label: 'Location',     ph: 'City, State' },
-                { k: 'link',     label: 'Website / link', ph: 'instagram.com/you' },
+                { k: 'name',     label: tr('settings:edit.displayName', { defaultValue: 'Display name' }), ph: tr('settings:edit.displayNamePh', { defaultValue: 'Your name' }) },
+                { k: 'handle',   label: tr('settings:edit.handle', { defaultValue: 'Handle' }),       ph: '@handle' },
+                { k: 'location', label: tr('settings:edit.location', { defaultValue: 'Location' }),     ph: tr('settings:edit.locationPh', { defaultValue: 'City, State' }) },
+                { k: 'link',     label: tr('settings:edit.link', { defaultValue: 'Website / link' }), ph: tr('settings:edit.linkPh', { defaultValue: 'instagram.com/you' }) },
               ].map(f => (
                 <label key={f.k} style={{ display: 'block', marginBottom: 13 }}>
                   <span style={lbl}>{f.label}</span>
@@ -21721,10 +21729,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 </label>
               ))}
 
-              {sectionHead('About you')}
+              {sectionHead(tr('settings:edit.aboutYou', { defaultValue: 'About you' }))}
               {/* Pronouns — quick chips + free text */}
               <div style={{ marginBottom: 13 }}>
-                <span style={lbl}>Pronouns</span>
+                <span style={lbl}>{tr('settings:edit.pronouns', { defaultValue: 'Pronouns' })}</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
@@ -21735,7 +21743,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
               {/* Bio + counter */}
               <label style={{ display: 'block', marginBottom: 16 }}>
-                <span style={{ ...lbl, display: 'flex', justifyContent: 'space-between' }}><span>Bio</span><span style={{ color: (draft.bio || '').length > 160 ? t.RUST : t.INK50 }}>{(draft.bio || '').length}/160</span></span>
+                <span style={{ ...lbl, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: (draft.bio || '').length > 160 ? t.RUST : t.INK50 }}>{(draft.bio || '').length}/160</span></span>
                 <textarea value={draft.bio} maxLength={180} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} rows={3}
                   onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
                   style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
@@ -21745,11 +21753,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <button onClick={cancelEdit} style={{ borderRadius: 999,
                   flex: '0 0 auto', padding: '14px 24px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer',
                   fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 600,
-                }}>Cancel</button>
+                }}>{tr('settings:action.cancel', { defaultValue: 'Cancel' })}</button>
                 <button onClick={saveEdit} style={{ borderRadius: 999,
                   flex: 1, padding: '14px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
                   fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 700,
-                }}>Save changes</button>
+                }}>{tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })}</button>
               </div>
             </div>
             );
@@ -21769,21 +21777,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
         const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
         const renewsLabel = renews && !isNaN(renews.getTime())
-          ? `Renews ${renews.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-          : 'Renews monthly';
-        const cornerLabel = hasSub ? renewsLabel : (signedIn ? 'Membership inactive' : 'Not a member');
-        const btnLabel = hasSub ? 'Manage →' : (signedIn ? 'Activate membership →' : 'Join now →');
+          ? tr('settings:plan.renews', { date: renews.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+          : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
+        const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
+        const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
         return (
           <div style={{ padding: `4px ${t.padX}px 14px` }}>
             <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 14, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
+                <BSEyebrow color={t.AMBER}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSEyebrow>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 3 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? 'Member.' : 'Membership.'}</span></div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? `${priceLabel} · Radio · Community · Marketplace` : 'Become a member to join the community'}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</span></div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
                 </div>
                 <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{btnLabel}</button>
               </div>
@@ -21797,13 +21805,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           accounts use Profile mode below.) */}
       {!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) && (
         <>
-          <SectionHead title="Preview as" meta="Demo data" />
+          <SectionHead title={tr('settings:preview.title', { defaultValue: 'Preview as' })} meta={tr('settings:preview.demoData', { defaultValue: 'Demo data' })} />
           <div style={{ padding: `14px ${t.padX}px 18px` }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-              Profile type
+              {tr('settings:preview.profileType', { defaultValue: 'Profile type' })}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
+              {[['client', tr('settings:preview.roleClient', { defaultValue: 'Client' })], ['trainer', tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' })], ['nutritionist', tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' })]].map(([key, label]) => {
                 const on = (tweaks.role || 'client') === key;
                 return (
                   <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
@@ -21817,7 +21825,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               })}
             </div>
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
-              Browse each account type's demo data — no sign-up needed.
+              {tr('settings:preview.hint', { defaultValue: "Browse each account type's demo data — no sign-up needed." })}
             </div>
           </div>
         </>
@@ -21826,17 +21834,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* PROFILE MODE — only for people with more than one account; lists just
           the roles they actually created so they can switch between them. */}
       {hasMultipleAccounts && (() => {
-        const ROLE_LABELS = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutrition' };
+        const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
         const activeRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
         return (
           <>
             <SectionHead
-              title="Profile mode"
-              meta={`${ROLE_LABELS[activeRole] || 'Client'} view`}
+              title={tr('settings:profileMode.title', { defaultValue: 'Profile mode' })}
+              meta={tr('settings:profileMode.viewMeta', { role: ROLE_LABELS[activeRole] || ROLE_LABELS.client, defaultValue: '{role} view' })}
             />
             <div style={{ padding: `14px ${t.padX}px 18px` }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-                Active profile
+                {tr('settings:profileMode.active', { defaultValue: 'Active profile' })}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {accountRoles.map(key => {
@@ -21864,12 +21872,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
-          <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Theme &amp; texture</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',white:'White',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood',sage:'Sage',forest:'Forest',slate:'Slate',plum:'Plum'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</div>
+          <BSEyebrow color={t.ACCENT}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
+          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: ({ light: 'Cream', white: 'White', dark: 'Black', teal: 'Teal', manila: 'Manila', blueprint: 'Blueprint', carbon: 'Carbon', steel: 'Steel', bone: 'Bone', oxblood: 'Oxblood', sage: 'Sage', forest: 'Forest', slate: 'Slate', plum: 'Plum' })[tweaks.paperMode] || 'Cream' }), accent: tweaks.accentKey || 'blue', defaultValue: '{paper} · {accent}' })}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Customize ▸'}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
         </span>
       </button>
       {showAppearance && (
@@ -21878,7 +21886,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             distinct from the bordered option chips/swatches below so it reads
             as section navigation (not another row of choices). */}
         <div style={{ display: 'flex', gap: 22, marginBottom: 16, borderBottom: `1px solid ${t.RULE}` }}>
-          {[['paper','Paper'],['texture','Texture'],['accent','Accent'],['ink','Ink']].map(([k, l]) => {
+          {[['paper', tr('settings:appearance.tabPaper', { defaultValue: 'Paper' })], ['texture', tr('settings:appearance.tabTexture', { defaultValue: 'Texture' })], ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' })], ['ink', tr('settings:appearance.tabInk', { defaultValue: 'Ink' })]].map(([k, l]) => {
             const on = appearTab === k;
             return (
               <button key={k} onClick={() => setAppearTab(k)} style={{
@@ -21896,7 +21904,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {appearTab === 'paper' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']].map(([k,l]) => (
-            <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
+            <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{tr('settings:paper.' + k, { defaultValue: l })}</Pill>
           ))}
         </div>
         )}
@@ -21913,41 +21921,42 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             ['concrete','Concrete'],['risograph','Risograph'],['parchment','Parchment'],
             ['dotmap','Dot map'],
           ].map(([k,l]) => (
-            <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{l}</Pill>
+            <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{tr('settings:texture.' + k, { defaultValue: l })}</Pill>
           ))}
         </div>
         )}
 
         {appearTab === 'accent' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <Swatch k="blue"  color="#1e7ad6" label="Blue" />
-          <Swatch k="amber" color="#d99033" label="Amber" />
-          <Swatch k="rust"  color="#b83d2c" label="Rust" />
-          <Swatch k="green" color="#2f7d4f" label="Green" />
-          <Swatch k="teal"  color="#0a8f87" label="Teal" />
-          <Swatch k="white" color="#ffffff" label="White" />
-          <Swatch k="black" color="#000000" label="Black" />
+          <Swatch k="blue"  color="#1e7ad6" label={tr('settings:accent.blue', { defaultValue: 'Blue' })} />
+          <Swatch k="amber" color="#d99033" label={tr('settings:accent.amber', { defaultValue: 'Amber' })} />
+          <Swatch k="rust"  color="#b83d2c" label={tr('settings:accent.rust', { defaultValue: 'Rust' })} />
+          <Swatch k="green" color="#2f7d4f" label={tr('settings:accent.green', { defaultValue: 'Green' })} />
+          <Swatch k="teal"  color="#0a8f87" label={tr('settings:accent.teal', { defaultValue: 'Teal' })} />
+          <Swatch k="white" color="#ffffff" label={tr('settings:accent.white', { defaultValue: 'White' })} />
+          <Swatch k="black" color="#000000" label={tr('settings:accent.black', { defaultValue: 'Black' })} />
         </div>
         )}
 
         {appearTab === 'ink' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {[
-            ['default', null,        'Default'],
-            ['#0f0e0c', '#0f0e0c',   'Charcoal'],
-            ['#f5f0e6', '#f5f0e6',   'Cream'],
-            ['#1c4ed8', '#1c4ed8',   'Blue'],
-            ['#a8331b', '#a8331b',   'Rust'],
-            ['#2f6b3a', '#2f6b3a',   'Green'],
-            ['#c8881a', '#c8881a',   'Amber'],
-            ['#5a2b8a', '#5a2b8a',   'Plum'],
-          ].map(([k, sw, lbl]) => {
+            ['default', null,        'Default',  'ink.default'],
+            ['#0f0e0c', '#0f0e0c',   'Charcoal', 'ink.charcoal'],
+            ['#f5f0e6', '#f5f0e6',   'Cream',    'ink.cream'],
+            ['#1c4ed8', '#1c4ed8',   'Blue',     'ink.blue'],
+            ['#a8331b', '#a8331b',   'Rust',     'ink.rust'],
+            ['#2f6b3a', '#2f6b3a',   'Green',    'ink.green'],
+            ['#c8881a', '#c8881a',   'Amber',    'ink.amber'],
+            ['#5a2b8a', '#5a2b8a',   'Plum',     'ink.plum'],
+          ].map(([k, sw, lbl, ik]) => {
             const on = (tweaks.inkOverride || 'default') === k;
+            const inkLabel = tr('settings:' + ik, { defaultValue: lbl });
             return (
               <button
                 key={k}
                 onClick={() => setTweak('inkOverride', k)}
-                title={lbl}
+                title={inkLabel}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '6px 10px', borderRadius: t.RADIUS_SM,
@@ -21959,7 +21968,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 }}
               >
                 {sw ? <span style={{ width: 10, height: 10, borderRadius: '50%', background: sw, border: `1px solid ${on ? t.PAPER : t.RULE}` }} /> : null}
-                {lbl}
+                {inkLabel}
               </button>
             );
           })}
@@ -21976,15 +21985,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               onChange={(e) => setTweak('inkOverride', e.target.value)}
               style={{ width: 22, height: 22, border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
             />
-            Custom
+            {tr('settings:ink.custom', { defaultValue: 'Custom' })}
           </label>
         </div>
         )}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>Display weight</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>{tr('settings:appearance.displayWeight', { defaultValue: 'Display weight' })}</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['regular','bold'].map(k => (
-            <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
+            <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{tr('settings:weight.' + k, { defaultValue: k })}</Pill>
           ))}
         </div>
 
@@ -21995,12 +22004,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           collapsed Appearance block for discoverability; scales the whole UI via the
           surface `zoom`, so layout stays proportional at every size). */}
       <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Accessibility</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Text size</div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Scales the whole app · {bsTextSizeLabel(tweaks.textScaleKey)}</div>
+        <BSEyebrow color={t.ACCENT}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:a11y.textSize', { defaultValue: 'Text size' })}</div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:a11y.textSizeSub', { size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }), defaultValue: 'Scales the whole app · {size}' })}</div>
         <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
           {BS_TEXT_SIZE_OPTS.map(([k, l]) => (
-            <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{l}</Pill>
+            <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{tr('settings:textsize.' + k, { defaultValue: l })}</Pill>
           ))}
         </div>
       </div>
@@ -22011,11 +22020,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* SHAPE RADIO */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Shape Radio</div>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? 'Paused' : 'Playing while browsing') : 'Listen while using the app'}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? (r.paused ? tr('settings:radio.paused', { defaultValue: 'Paused' }) : tr('settings:radio.playing', { defaultValue: 'Playing while browsing' })) : tr('settings:radio.listen', { defaultValue: 'Listen while using the app' })}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? 'On' : 'Off'}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.radioOn ? t.ACCENT : t.INK50 }}>{r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}</span>
           <Toggle on={r.radioOn} onClick={() => r.setRadioPreference(!r.radioOn)} />
         </div>
       </div>
@@ -22027,27 +22036,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
       }}>
         <div>
-          <BSEyebrow color={t.ACCENT}>Light effects</BSEyebrow>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Reactive overlay</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}</div>
+          <BSEyebrow color={t.ACCENT}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
+          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? tr('settings:fx.active', { mode: r.fxMode, defaultValue: 'Active · {mode}' }) : tr('settings:fx.previewOnly', { defaultValue: 'Radio off — preview only' })}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? 'Close ▾' : 'Customize ▸'}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
         </span>
       </button>
       {showLightFx && (
       <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
-          Syncs to BPM
+          {tr('settings:fx.syncsToBpm', { defaultValue: 'Syncs to BPM' })}
         </div>
 
         {/* 2×2 grid of mode cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {[
-            { k: 'off',       glyph: '○',  title: 'Off',       sub: 'Clean · no animation' },
-            { k: 'subtle',    glyph: '◐',  title: 'Subtle',    sub: 'Edge glow · island EQ' },
-            { k: 'immersive', glyph: '◉',  title: 'Immersive', sub: 'Bg bloom · button halos' },
-            { k: 'hologram',  glyph: '⟠',  title: 'Hologram',  sub: 'DJ overlay · scanlines' },
+            { k: 'off',       glyph: '○',  title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
+            { k: 'subtle',    glyph: '◐',  title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
+            { k: 'immersive', glyph: '◉',  title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Bg bloom · button halos' }) },
+            { k: 'hologram',  glyph: '⟠',  title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
           ].map(m => {
             const active = r.fxMode === m.k;
             return (
@@ -22066,7 +22075,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK }}>{m.glyph}</span>
                   {active && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>● ON</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>
                   )}
                 </div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>
@@ -22082,14 +22091,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, lineHeight: 1.5 }}>
           {r.radioOn
-            ? '— effects render on top of every screen while radio plays'
-            : '— turn on Shape Radio from Home to see the effect'}
+            ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
+            : tr('settings:fx.footRadioOff', { defaultValue: '— turn on Shape Radio from Home to see the effect' })}
         </div>
       </div>
       )}
 
       {/* Home ticker — choose which stats show on the home strip + reorder. */}
-      <SectionHead title="Home ticker" meta={`${BS_TICKER_METRICS.length - tickerPrefs.hidden.length} of ${BS_TICKER_METRICS.length} shown`} />
+      <SectionHead title={tr('settings:ticker.title', { defaultValue: 'Home ticker' })} meta={tr('settings:ticker.shownMeta', { shown: BS_TICKER_METRICS.length - tickerPrefs.hidden.length, total: BS_TICKER_METRICS.length, defaultValue: '{shown} of {total} shown' })} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
           const m = BS_TICKER_METRICS.find(x => x.key === key);
@@ -22101,9 +22110,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: shown ? t.INK : t.INK50 }}>{m.name}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', marginTop: 2 }}>{m.key}</div>
               </div>
-              <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title="Move up" style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
-              <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title="Move down" style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
-              <button onClick={() => tickerToggle(key)} title={shown ? 'Hide' : 'Show'} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
+              <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title={tr('settings:ticker.moveUp', { defaultValue: 'Move up' })} style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
+              <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title={tr('settings:ticker.moveDown', { defaultValue: 'Move down' })} style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
+              <button onClick={() => tickerToggle(key)} title={shown ? tr('settings:ticker.hide', { defaultValue: 'Hide' }) : tr('settings:ticker.show', { defaultValue: 'Show' })} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? t.ACCENT : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
                 <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
               </button>
             </div>
@@ -22112,7 +22121,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
 
       {/* SECTION CARDS — drill into a focused pane */}
-      <SectionHead title="More" meta={`${settingCards.length} sections`} />
+      <SectionHead title={tr('settings:section.more', { defaultValue: 'More' })} meta={tr('settings:more.sectionsMeta', { n: settingCards.length, defaultValue: '{n} sections' })} />
       <div style={{ padding: `4px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
         {settingCards.map((c, i) => (
           <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} accent={c.accent} last={i === settingCards.length - 1} onClick={() => setDetail(c.detail)} />
@@ -22124,7 +22133,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <button onClick={onLogout} style={{ borderRadius: 5, borderLeft: `3px solid ${t.RUST}`,
           width: '100%', padding: '14px', background: `${t.RUST}10`, color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-        }}>Sign out</button>
+        }}>{tr('settings:action.signOut', { defaultValue: 'Sign out' })}</button>
       </div>
       </>)}
 
@@ -22159,7 +22168,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {editField && createPortal((
         <div onClick={() => setEditField(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>Edit {editField.label}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</div>
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {editField.options.map((opt) => { const on = String(editField.value) === String(opt); return (
@@ -22177,8 +22186,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' }}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button onClick={() => setEditField(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Cancel</button>
-              <button onClick={saveEditField} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Save</button>
+              <button onClick={() => setEditField(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('settings:action.cancel', { defaultValue: 'Cancel' })}</button>
+              <button onClick={saveEditField} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('settings:action.save', { defaultValue: 'Save' })}</button>
             </div>
           </div>
         </div>
