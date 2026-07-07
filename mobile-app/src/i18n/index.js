@@ -83,6 +83,9 @@ if (typeof window !== 'undefined') {
   window.ShapeI18n = {
     t: (key, opts) => i18next.t(key, opts),
     current: () => i18next.language,
+    // Intl-safe locale for date/number formatting (maps catalog codes Intl doesn't
+    // know — e.g. 'arz' → 'ar' — falling through to the code itself otherwise).
+    intlLocale: (code) => intlLocaleOf(code || i18next.language),
     activeLocales,
     localeMeta,
   };

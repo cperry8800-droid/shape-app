@@ -1430,7 +1430,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
   // tokens follow the selected UI language (i18n date-locale rule).
   const _wd = new Date();
-  const _dateLoc = (typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined;
+  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
   const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
   const wkTimeLabel = (() => {
@@ -2084,7 +2084,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
   // Weekday/month tokens follow the selected UI language (i18n date-locale rule);
   // the composed dateline layout is preserved.
-  const _dateLoc = (typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined;
+  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
   const _dowShort = (d) => d.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _monShort = (d) => d.toLocaleDateString(_dateLoc, { month: 'short' });
   const _now = new Date();
