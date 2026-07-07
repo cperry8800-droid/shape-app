@@ -137,6 +137,7 @@ function ensureSkyStyles() {
   .bs-field:focus, .bs-field:focus-visible { border-color: var(--bs-accent, #34d6c5); box-shadow: inset 0 0 0 1px var(--bs-accent, #34d6c5); }
   .bs-uline { border: 0; border-bottom: 1px solid var(--bs-uline-ink, rgba(127,127,127,0.35)); background: transparent; border-radius: 0; }
   .bs-uline:focus, .bs-uline:focus-visible { outline: none; border-bottom-color: var(--bs-accent, #34d6c5); box-shadow: 0 1px 0 var(--bs-accent, #34d6c5); }
+  .bs-uline-row:focus-within { border-bottom-color: var(--bs-accent, #34d6c5); box-shadow: 0 1px 0 var(--bs-accent, #34d6c5); }
   `;
   const el = document.createElement('style');
   el.textContent = css;

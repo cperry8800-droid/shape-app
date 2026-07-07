@@ -15134,6 +15134,18 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   // a show-more expander so the page never reads as a pile of competing goals.
   const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false });
   const TGT_CAP = 3;
+  // Shared station furniture (Training + Nutrition render the same anatomy).
+  const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
+    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
+  ) : null;
+  const tgtEyebrow = () => (
+    <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+  );
+  const tgtExpander = (kind, goals) => {
+    const hidden = goals.length - TGT_CAP;
+    if (hidden <= 0 || showAllTargets[kind]) return null;
+    return <BSOLRow t={t} text={`${hidden} more target${hidden === 1 ? '' : 's'}`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, [kind]: true }))} />;
+  };
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
@@ -15257,21 +15269,17 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
         <BSOLHead heat={heat} label="Training" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('training')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
           {/* Station motto — a byline, not another goal (the one goal lives up top). */}
-          {(trainingMeta.title || trainingMeta.subtitle) ? (
-            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[trainingMeta.title, trainingMeta.subtitle].filter(Boolean).join(' — ')}”</div>
-          ) : null}
+          {stationMotto(trainingMeta)}
           {trainPlan
             ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />}
-          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+          {tgtEyebrow()}
           {(showAllTargets.training ? trainGoals : trainGoals.slice(0, TGT_CAP)).map((g, i) => (
             <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
           ))}
-          {trainGoals.length > TGT_CAP && !showAllTargets.training && (
-            <BSOLRow t={t} text={`${trainGoals.length - TGT_CAP} more targets`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, training: true }))} />
-          )}
+          {tgtExpander('training', trainGoals)}
           {liftRows.map((l, i) => (
             <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
           ))}
@@ -15285,21 +15293,17 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
         <BSOLHead heat={heat} label="Nutrition" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('nutrition')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
           {/* Station motto — a byline, not another goal. */}
-          {(nutritionMeta.title || nutritionMeta.subtitle) ? (
-            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[nutritionMeta.title, nutritionMeta.subtitle].filter(Boolean).join(' — ')}”</div>
-          ) : null}
+          {stationMotto(nutritionMeta)}
           {nutrPlan
             ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />}
-          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+          {tgtEyebrow()}
           {(showAllTargets.nutrition ? nutrGoals : nutrGoals.slice(0, TGT_CAP)).map((g, i) => (
             <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
           ))}
-          {nutrGoals.length > TGT_CAP && !showAllTargets.nutrition && (
-            <BSOLRow t={t} text={`${nutrGoals.length - TGT_CAP} more targets`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, nutrition: true }))} />
-          )}
+          {tgtExpander('nutrition', nutrGoals)}
           <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition target</button>
           <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
@@ -15417,17 +15421,18 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
-        {/* Weight register — bare underline figure (Open Ledger form grammar) */}
-        <div style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: `1px solid ${bsTHexA(t.INK, 0.28)}` }}>
+        {/* Weight register — bare underline figure (Open Ledger form grammar);
+            .bs-uline-row lights the shared underline on focus-within. */}
+        <div className="bs-uline bs-uline-row" style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 10, '--bs-uline-ink': bsTHexA(t.INK, 0.28) }}>
           <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val, Number.isFinite(bfVal) ? bfVal : null); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', padding: '2px 0 9px' }} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{unit}</span>
         </div>
         {/* Body fat — quiet underline row */}
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: `1px solid ${bsTHexA(t.INK, 0.12)}` }}>
+        <div className="bs-uline bs-uline-row" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 10, '--bs-uline-ink': bsTHexA(t.INK, 0.12) }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, flexShrink: 0 }}>Body fat · optional</span>
           <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right', fontVariantNumeric: 'tabular-nums', padding: '2px 0 8px' }} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50 }}>%</span>
