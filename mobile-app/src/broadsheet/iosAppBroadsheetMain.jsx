@@ -1392,12 +1392,10 @@ function BSPreviewBannerGated({ t, onJoin }) {
 
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
-  // First launch with no stored locale opens on the language picker; otherwise the
-  // splash. (A returning signed-in user on a fresh device is advanced past the picker
-  // by the account-locale hydration effect below.)
-  const [stage, setStage] = useStateBSM(() => {
-    try { return localStorage.getItem('shape.locale') ? 'splash' : 'lang'; } catch (e) { return 'splash'; }
-  });
+  // Always open on the cosmos splash. Its onDone routes into the language picker
+  // (when there's no stored locale) before the membership gate; a returning signed-in
+  // user with an account locale is advanced past the picker by the hydration effect.
+  const [stage, setStage] = useStateBSM('splash');
   // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
   // on their own app, not the client one) before the persisted/demo role.
   const [role, setRole] = useStateBSM(() => {
@@ -1463,7 +1461,7 @@ function BSAppShell({ tweaks, setTweak }) {
         const goals = await window.shapeDb?.getUserGoals?.('app_locale');
         const accountLocale = goals?.locale || null;
         const resolved = await window.ShapeLocale?._hydrateFromAccount?.(accountLocale);
-        if (!cancelled && accountLocale && resolved) setStage((s) => (s === 'lang' ? 'splash' : s));
+        if (!cancelled && accountLocale && resolved) setStage((s) => (s === 'lang' ? 'gate' : s));
       } catch (e) {}
     })();
     return () => { cancelled = true; };
@@ -1672,8 +1670,8 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('splash')} />}
-        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('gate')} />}
+        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => { let has = false; try { has = !!localStorage.getItem('shape.locale'); } catch (e) {} setStage(has ? 'gate' : 'lang'); }} />}
+        {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('gate')} />}
         {stage === 'gate' && (
           // Membership wall — shown BEFORE the "Shape Daily" editorial splash.
           // Members auto-advance (effect above); non-members see the paywall and
