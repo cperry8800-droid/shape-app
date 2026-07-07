@@ -258,6 +258,29 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Goal add/edit sheet → full-page title-page panel + hidden scrollbar (#1582)
+- **`BSGoalEditSheet`** (the per-goal add/edit sheet with the categorized template
+  picker, mounted from the Goals "Contract" page) was the last goal sheet still on
+  the old bottom-sheet look — #1423 converted `BSOverallEditSheet` + the
+  primary-goal picker to full-page title-page panels but left this one behind
+  (owner screenshots flagged the mismatch + the visible scrollbar). Rebuilt on the
+  `BSOverallEditSheet` pattern: full-page panel (masthead + ✕, `NEW/EDIT · GOAL`
+  eyebrow, serif hero w/ the teal italic, ink→teal gradient rule, pinned footer),
+  a `.bs-hide-scroll` scroll body (**scrollbar gone**), squared `.bs-field`
+  fields + squared template chips/rows, squared footer CTAs w/ the clipped teal
+  SAVE GOAL.
+- **DELETE now renders only when editing an existing goal** (it was shown — and a
+  no-op — on the New sheet). Numeric fields keep the raw string while typing and
+  coerce on save; blanks normalize to the sheet defaults (0/100) so `goalMeta()`
+  never renders an empty ratio (CodeRabbit's one finding, fixed in-PR). Behavior
+  otherwise verbatim (templates + category chips, timeline line, percent toggle,
+  `#bs-phone-surface` portal).
+- Squash-merged `1b080431` (#1582); CI green (Web · Mobile · gitleaks). Built in
+  a separate worktree off `origin/main` so the in-flight coach-actions WIP stayed
+  untouched. Local mobile build remains blocked on this machine (App Control /
+  oxide) — CI was the build gate; suggested on-device click-through: Goals →
+  ＋ADD (templates render, pick prefills) + edit an existing goal.
+
 ### 2026-07-07 — Coach Plans "The Catalogue" both roles + exercise videos (#1577) · owner-tweaks batch (#1578 · #1579)
 - **The plate-era coach Plans pages serialized into the Open Ledger language**
   (spec `docs/superpowers/specs/2026-07-07-coach-plans-actions-review-open-ledger.md`,
