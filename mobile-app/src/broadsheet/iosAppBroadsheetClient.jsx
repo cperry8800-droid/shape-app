@@ -20184,7 +20184,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   const savedLib = useBSLibrary();
   const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${total} items · ${list.aisles.length} aisles` };
   const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
-  const rust = teal; // grocery (food list) page uses the nutrition teal accent
+  const rust = teal; // grocery (food list) page leads with the client teal accent
+  const gold = t.isLight ? '#a07a2e' : '#d8b25a'; // nutritionist role tag (the plan came from your nutritionist)
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
   const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
   const shareList = async () => {
@@ -20279,7 +20280,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       {/* Which list is showing — a slim name selector; tap to switch lists */}
       {(() => {
-        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: rust };
+        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: gold };
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
             <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}` }}>
@@ -20301,12 +20302,12 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
             {(() => {
               const isPlan = !list.kind || list.kind === 'plan';
               const rows = [
-                { key: '__plan__', name: (planList && planList.name) || "This week's plan", label: 'Nutri plan', c: rust, on: isPlan, pick: () => onPickList && onPickList(null) },
+                { key: '__plan__', name: (planList && planList.name) || "This week's plan", label: 'Nutri plan', c: gold, on: isPlan, pick: () => onPickList && onPickList(null) },
                 ...recipeLists.map((l) => ({
                   key: l.id,
                   name: l.name,
                   label: l.kind === 'recipe' ? 'Recipe' : l.kind === 'mealplan' ? 'Meal plan' : 'Custom',
-                  c: l.kind === 'recipe' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : '#8a5cf6',
+                  c: l.kind === 'recipe' ? t.AMBER : l.kind === 'mealplan' ? gold : '#8a5cf6',
                   sub: `${l.count != null ? l.count + ' items' : ''}`,
                   on: list.id === l.id,
                   pick: () => onPickList && onPickList(l),
@@ -20497,6 +20498,9 @@ function bsNormalizeGroceryList(list) {
 function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  // Client surface: teal leads; nutritionist-sent plans tag gold, recipes amber, custom purple.
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = t.isLight ? '#a07a2e' : '#d8b25a';
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
   const [query, setQuery] = useStateBSC('');
   const [openList, setOpenList] = useStateBSC(null);
@@ -20538,40 +20542,39 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         </div>
       </div>
 
-      {/* Filter chips — rounded pills */}
-      <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', gap: 7, flexWrap: 'wrap', rowGap: 8 }}>
+      {/* Filter index — typographic, active = ink + teal underline */}
+      <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', gap: 20, flexWrap: 'wrap', rowGap: 4, borderBottom: `1px solid ${t.HAIR}` }}>
         {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => {
           const on = filter === k;
           return (
             <button key={k} onClick={() => setFilter(k)} style={{
-              flex: '0 0 auto', padding: '8px 14px', borderRadius: 4,
-              border: `1px solid ${on ? `${t.ACCENT}66` : t.RULE}`,
-              borderLeft: on ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-              background: on ? `${t.ACCENT}1f` : 'transparent', color: on ? t.INK : t.INK70, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-            }}>{l}</button>
+              flex: '0 0 auto', minHeight: 40, padding: '2px 0 8px', position: 'relative',
+              background: 'transparent', border: 0, cursor: 'pointer',
+              color: on ? t.INK : t.INK50,
+              fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+            }}>{l}{on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: teal }} />}</button>
           );
         })}
       </div>
 
-      <div style={{ padding: `4px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: `2px ${t.padX}px`, display: 'flex', flexDirection: 'column' }}>
         {filtered.length === 0 && (
-          <div style={{ padding: '22px 16px', borderRadius: 6, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
-            {query.trim() ? 'No lists match your search.' : 'No saved lists yet.'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.RULE}` }} />
+            {query.trim() ? 'No lists match your search' : 'No saved lists yet'}
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.RULE}` }} />
           </div>
         )}
-        {filtered.map((l) => {
-          const color = l.kind === 'template' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : l.kind === 'recipe' ? t.RUST : t.ACCENT;
+        {filtered.map((l, idx) => {
+          const color = l.kind === 'mealplan' ? gold : l.kind === 'custom' ? '#8a5cf6' : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
-          const btn = {
-            borderRadius: 5, padding: '9px 14px', cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
-          };
+          const textAction = (c) => ({ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, borderBottom: `2px solid ${c}66` });
           return (
-            <div key={l.id} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${color}`, background: t.PAPER2, padding: 14 }}>
+            <div key={l.id} style={{ position: 'relative', borderTop: idx ? `1px solid ${t.HAIR}` : 0, paddingTop: idx ? 16 : 8, paddingBottom: 16, paddingLeft: 13 }}>
+              <span aria-hidden style={{ position: 'absolute', left: 0, top: idx ? 16 : 8, bottom: 16, width: 3, background: color }} />
               <div onClick={() => setOpenList(open ? null : l.id)} style={{ cursor: 'pointer' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5, gap: 10 }}>
                   <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
                   <BSEyebrow>{l.usedCount} uses</BSEyebrow>
                 </div>
@@ -20582,11 +20585,11 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                 <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{l.count} items · {l.preview}</div>
               </div>
               {open && previewItems && previewItems.length > 0 && (
-                <div style={{ borderRadius: 6, border: `1px solid ${t.HAIR}`, background: t.PAPER, margin: '12px 0 2px', overflow: 'hidden' }}>
-                  {previewItems.map((it, idx) => (
-                    <div key={it.id || idx} style={{
-                      display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, padding: '10px 12px',
-                      borderBottom: idx === previewItems.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                <div style={{ margin: '12px 0 2px' }}>
+                  {previewItems.map((it, i2) => (
+                    <div key={it.id || i2} style={{
+                      display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, padding: '9px 0',
+                      borderTop: i2 ? `1px solid ${t.HAIR}` : 0,
                     }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700, letterSpacing: '0.06em' }}>{it.q}</span>
                       <span>
@@ -20597,14 +20600,14 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
-                <button onClick={() => onLoad(l)} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>Load →</button>
-                <button onClick={() => onEdit(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Edit</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', rowGap: 10, marginTop: 12 }}>
+                <button onClick={() => onLoad(l)} style={{ borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', background: t.INK, color: t.PAPER, border: 0, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>Load →</button>
+                <button onClick={() => onEdit(l)} style={textAction(t.INK)}>Edit</button>
                 {l.kind === 'mealplan' && (
-                  <button onClick={() => onDuplicate(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Duplicate</button>
+                  <button onClick={() => onDuplicate(l)} style={textAction(t.INK)}>Duplicate</button>
                 )}
                 {l.kind === 'custom' && (
-                  <button onClick={() => onDelete(l)} style={{ ...btn, background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}66` }}>Delete</button>
+                  <button onClick={() => onDelete(l)} style={{ ...textAction(t.RUST), marginLeft: 'auto' }}>Delete</button>
                 )}
               </div>
             </div>

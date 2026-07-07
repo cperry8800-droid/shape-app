@@ -575,7 +575,10 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
   const mine = all.filter(g => !g.client_name && !g.client_id);
   const clients = all.filter(g => g.client_name || g.client_id);
   const shown = tab === 'mine' ? mine : clients;
-  const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70], sent: ['Sent', accent] };
+  // Role-true heat (trainer rust / nutritionist gold), line-only; teal = the one action.
+  const heat = isNutri ? (t.isLight ? '#a07a2e' : '#d8b25a') : (t.RUST || '#c0533b');
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70], sent: ['Sent', heat] };
   const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m).map(a => [a, m[a]]); };
   const create = async () => {
     const name = draft.name.trim();
@@ -617,60 +620,107 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
   };
   const backBtn = <BSBackButton onClick={onBack} />;
-  const pill = (k, label, count) => { const on = tab === k; return <button onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label} · {count}</button>; };
-  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+  const heatInk = t.isLight ? '#fff' : '#04201d';       // text on the teal action CTA
+  const uline = { width: '100%', boxSizing: 'border-box', padding: '7px 0 9px', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, outline: 'none', background: 'transparent', '--bs-uline-ink': `${t.INK}40`, '--bs-accent': heat };
+  const tabItem = (k, label, count) => {
+    const on = tab === k;
+    return (
+      <button key={k} onClick={() => setTab(k)} style={{ background: 'transparent', border: 0, padding: '2px 0 8px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{label}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: on ? heat : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+        {on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}
+      </button>
+    );
+  };
+  const tealCta = { borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', border: 0, background: teal, color: heatInk, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  const textAction = (color) => ({ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color, borderBottom: `2px solid ${color}66` });
+  const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
       <BSMasthead title="Grocery Lists" leftKicker={isNutri ? 'Nutrition delivery' : 'Meal support'} rightKicker={`${all.length} lists`} trailing={backBtn} />
-      <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
-        {pill('clients', 'Clients', clients.length)}
-        {pill('mine', 'Mine', mine.length)}
+
+      {/* Verdict lead — the whole queue on one line, heat = role */}
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: heat, flexShrink: 0 }} />
+          The lists · {isNutri ? 'nutrition delivery' : 'meal support'}
+        </div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.02 }}>
+          {clients.length} client {clients.length === 1 ? 'list' : 'lists'}<span style={{ color: heat }}>.</span>
+        </div>
+        <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 60%, transparent)` }} />
       </div>
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
+
+      {/* Typographic index — Clients / Mine */}
+      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 20, borderBottom: `1px solid ${t.HAIR}` }}>
+        {tabItem('clients', 'Clients', clients.length)}
+        {tabItem('mine', 'Mine', mine.length)}
+      </div>
+
+      {/* New list — dashed add box, or the quiet create form */}
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
         {!creating ? (
-          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '11px', borderRadius: 12, border: `1px dashed ${accent}`, background: 'transparent', color: accent, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ New grocery list</button>
+          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '13px', borderRadius: 6, border: `1.5px dashed ${t.INK}40`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ New grocery list</button>
         ) : (
-          <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 16, background: t.SURFACE || t.PAPER2, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="List name — e.g. Big-plate day" style={inputStyle} />
-            <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={'One item per line\nChicken breast\nJasmine rice\nBroccoli'} style={{ ...inputStyle, resize: 'vertical', fontSize: 13.5 }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[['Mine', false], ['For a client', true]].map(([l, v]) => { const on = draft.forClient === v; return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>; })}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="List name — e.g. Big-plate day" className="bs-uline" style={uline} />
+            <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={'One item per line\nChicken breast\nJasmine rice\nBroccoli'} className="bs-uline" style={{ ...uline, resize: 'vertical', fontSize: 14 }} />
+            <div style={{ display: 'flex', gap: 20 }}>
+              {[['Mine', false], ['For a client', true]].map(([l, v]) => {
+                const on = draft.forClient === v;
+                return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
+              })}
             </div>
-            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder="Client name" style={inputStyle} />}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={{ flex: 'none', padding: '11px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
-              <button disabled={busy} onClick={create} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Create list'}</button>
+            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder="Client name" className="bs-uline" style={uline} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
+              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={textAction(t.INK70)}>Cancel</button>
+              <button disabled={busy} onClick={create} style={{ ...tealCta, marginLeft: 'auto', padding: '11px 18px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Create list'}</button>
             </div>
           </div>
         )}
       </div>
-      <div style={{ padding: `14px ${t.padX}px 22px`, display: 'grid', gap: 12 }}>
-        {shown.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>{tab === 'mine' ? 'No personal lists yet — start one.' : 'No client lists yet.'}</div>}
+
+      {/* The lists — zero-box, heat-spine blocks */}
+      <div style={{ padding: `16px ${t.padX}px 22px`, display: 'flex', flexDirection: 'column' }}>
+        {shown.length === 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
+            {tab === 'mine' ? 'No personal lists yet' : 'No client lists yet'}
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
+          </div>
+        )}
         {shown.map((g, i) => {
           const [sl, sc] = STAT[g.status] || STAT.ready;
           const first = String(g.client_name || '').split(' ')[0];
           const ais = aislesOf(g.items);
           const preview = (g.items || []).slice(0, 4).map(it => it.name);
+          const more = (g.items || []).length - preview.length;
           return (
-            <div key={g.id || i} style={{ border: `1px solid ${t.RULE}`, borderRadius: 18, background: t.SURFACE || t.PAPER2, overflow: 'hidden', boxShadow: t.ELEVATION_SOFT || '0 8px 18px rgba(10,13,12,0.035)' }}>
-              <div style={{ height: 3, background: accent }} />
-              <div style={{ padding: '13px 15px 15px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 900 }}>{g.client_name || 'Personal'}</div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}66`, borderRadius: 999, padding: '3px 8px' }}>{sl}</span>
+            <div key={g.id || i} style={{ position: 'relative', borderTop: i ? `1px solid ${t.HAIR}` : 0, paddingTop: i ? 16 : 0, paddingBottom: 16, paddingLeft: 13 }}>
+              <span aria-hidden style={{ position: 'absolute', left: 0, top: i ? 16 : 0, bottom: 16, width: 3, background: heat }} />
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 900 }}>{g.client_name || 'Personal'}</div>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc }}>{sl}</span>
+              </div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{(g.items || []).length} items · {ais.length} {ais.length === 1 ? 'aisle' : 'aisles'}</div>
+              {ais.length > 0 && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {ais.map(([a, n]) => (
+                    <div key={a} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK70 }}>{a}</span>
+                      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}40`, transform: 'translateY(-3px)' }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, textTransform: 'uppercase' }}>{(g.items || []).length} items · {ais.length} aisles</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
-                  {ais.map(([a, n]) => <span key={a} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, background: t.PAPER, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{a} · {n}</span>)}
-                </div>
-                <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{(g.items || []).length > preview.length ? ` +${(g.items || []).length - preview.length} more` : ''}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 13 }}>
-                  {g.client_name
-                    ? <button type="button" onClick={() => send(g)} style={{ flex: 1, padding: '11px', borderRadius: 999, border: 0, background: accent, color: '#fff', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to {first || 'client'} →</button>
-                    : <span style={{ flex: 1, padding: '11px', borderRadius: 999, border: `1px solid ${t.RULE}`, color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center' }}>Your list</span>}
-                  <button type="button" onClick={() => del(g)} aria-label="Delete" style={{ flex: 'none', padding: '11px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>✕</button>
-                </div>
+              )}
+              {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{more > 0 ? ` +${more} more` : ''}</div>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 13 }}>
+                {g.client_name
+                  ? <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px' }}>Send to {first || 'client'} →</button>
+                  : <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>Your list</span>}
+                <button type="button" onClick={() => del(g)} aria-label="Delete list" style={{ ...textAction(rust), marginLeft: 'auto' }}>Delete</button>
               </div>
             </div>
           );
@@ -1541,6 +1591,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                   { label: 'CLIENTS', figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
                   { label: 'PROGRAMS', figure: null, onOpen: () => onWidgetOpen('programs') },
                   { label: 'REVIEW QUEUE', figure: null, onOpen: () => onOpenReviews() },
+                  { label: 'GROCERY LISTS', figure: null, onOpen: () => onWidgetOpen('grocery') },
                   { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
                 ];
           })().map((door) => (
