@@ -804,6 +804,7 @@ function _bsBuildCard(type, ctx) {
 }
 
 function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, draggable, dragHandlers, dragging, dragOver }) {
+  const tr = useShapeTr();
   const acc = model.accent;
   const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
@@ -823,12 +824,12 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
       <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0 14px' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
-          {model.kicker}{pinned ? ' · pinned' : ''}
+          {draggable && <span title={tr('home:cards.dragToReorder', { defaultValue: 'Drag to reorder' })} style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
+          {model.kicker}{pinned ? ` · ${tr('home:cards.pinned', { defaultValue: 'pinned' })}` : ''}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to top'} style={_bsCardBtn(t, pinned ? model.accent : t.INK50)}>⌃</button>
-          <button onClick={onRemove} title="Hide" style={_bsCardBtn(t, t.INK50)}>×</button>
+          <button onClick={onPin} title={pinned ? tr('home:cards.unpin', { defaultValue: 'Unpin' }) : tr('home:cards.pinToTop', { defaultValue: 'Pin to top' })} style={_bsCardBtn(t, pinned ? model.accent : t.INK50)}>⌃</button>
+          <button onClick={onRemove} title={tr('home:cards.hide', { defaultValue: 'Hide' })} style={_bsCardBtn(t, t.INK50)}>×</button>
         </div>
       </div>
       <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: '1px 12px 9px' }}>
@@ -859,6 +860,9 @@ function _bsCardBtn(t, color) {
 // The stack: header, ordered cards, + Add, footer note. Layout {order[], pinned[]}
 // persists to client_ui_prefs. onOpenEnergy etc. let cards deep-link.
 function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
+  const tr = useShapeTr();
+  // Localized card label — the registry (BS_CARD_LABEL) is the English default.
+  const cardLabel = (type) => tr(`home:card.${type}`, { defaultValue: BS_CARD_LABEL[type] || type });
   // manual: once the user drags, we respect their explicit order (and stop
   // auto-sorting by aliveness) so a deliberate arrangement sticks.
   const defaultLayout = { order: BS_CARD_DEFAULTS.slice(), pinned: [], manual: false, hidden: false };
@@ -987,7 +991,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '7px 13px', borderRadius: 4, border: `1px dashed ${t.RULE}`, background: 'transparent',
           color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
-        }}>▸ Show home cards</button>
+        }}>▸ {tr('home:cards.showHomeCards', { defaultValue: 'Show home cards' })}</button>
       </div>
     );
   }
@@ -997,14 +1001,14 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       <div style={{ padding: `2px ${t.padX}px 8px`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 24, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{todayLabel}.</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Your stack · pin or choose cards</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:cards.stackSub', { defaultValue: 'Your stack · pin or choose cards' })}</div>
         </div>
         {/* Compact dropdown to choose which cards are visible */}
         <div>
           <button ref={cardsBtnRef} onClick={() => (menuOpen ? setMenuOpen(false) : openCardsMenu())} style={{
             padding: '8px 12px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: menuOpen ? `${t.ACCENT}33` : `${t.ACCENT}14`,
             color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
-          }}>Cards ▾</button>
+          }}>{tr('home:cards.cardsMenu', { defaultValue: 'Cards ▾' })}</button>
           {menuOpen && menuPos && createPortal(
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 9998 }} />
@@ -1014,7 +1018,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
                 background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12,
                 boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
               }}>
-                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Show on home</div>
+                <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('home:cards.showOnHome', { defaultValue: 'Show on home' })}</div>
                 {BS_CARD_TYPES.map((type) => {
                   const on = layout.order.includes(type);
                   const m = models[type] || _bsBuildCard(type, ctx);
@@ -1025,7 +1029,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
                     }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent }} />
-                        <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{BS_CARD_LABEL[type]}</span>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{cardLabel(type)}</span>
                       </span>
                       <span style={{
                         width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0,
@@ -1040,7 +1044,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
                 <button onClick={() => setSectionHidden(true)} style={{
                   width: '100%', padding: '11px 12px', border: 0, borderTop: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', textAlign: 'left',
                   fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50,
-                }}>✕ Hide section from home</button>
+                }}>✕ {tr('home:cards.hideSection', { defaultValue: 'Hide section from home' })}</button>
               </div>
             </>,
             document.getElementById('bs-phone-surface') || document.body
@@ -1050,7 +1054,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
 
       {ordered.length === 0 && (
         <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 5, border: `1px dashed ${t.RULE}`, borderLeft: `3px solid ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
-          No cards on your home. Tap <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span> to choose what to show.
+          {tr('home:cards.emptyPre', { defaultValue: 'No cards on your home. Tap' })} <span style={{ fontWeight: 700, color: t.INK70 }}>{tr('home:cards.cardsMenu', { defaultValue: 'Cards ▾' })}</span> {tr('home:cards.emptyPost', { defaultValue: 'to choose what to show.' })}
         </div>
       )}
 
@@ -1408,6 +1412,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
 
 function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const rust = t.RUST;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const detail = workout && workout.detail;
@@ -1422,10 +1427,12 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
     { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
     { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
   ];
-  // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session.
+  // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
+  // tokens follow the selected UI language (i18n date-locale rule).
   const _wd = new Date();
-  const _dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_wd.getDay()];
-  const _mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_wd.getMonth()];
+  const _dateLoc = (typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined;
+  const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
+  const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
   const wkTimeLabel = (() => {
     const [h, m] = String((workout && workout.time) || '09:00').split(':').map(Number);
     if (Number.isNaN(h)) return '9:00 AM';
@@ -1442,12 +1449,12 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
       <div style={{ padding: `12px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <BSBackButton onClick={onBack} />
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
-        <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>{tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })}</span>
+        <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>{tr('home:action.message', { defaultValue: 'Message' })}</button>
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Today · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:when.today', { defaultValue: 'Today' })} · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
@@ -1461,7 +1468,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
 
       {/* Moves — the plan ledger */}
-      <BSOLHead heat={t.ACCENT} label="Plan" t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{moves.length} moves</span>} />
+      <BSOLHead heat={t.ACCENT} label={tr('home:workoutPreview.plan', { defaultValue: 'Plan' })} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:workoutPreview.moves', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: moves.length })}</span>} />
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {moves.map((m, i) => (
           <div key={m.name} style={{ padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
@@ -1480,14 +1487,14 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       {/* Quick actions — above the soundtrack */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', gap: 10 }}>
         <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
-        <button onClick={onMove} style={footBtn}>Move session</button>
-        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: teal } : {}) }}>{reminded ? '✓ Reminder set' : 'Remind me'}</button>
+        <button onClick={onMove} style={footBtn}>{tr('home:workoutPreview.moveSession', { defaultValue: 'Move session' })}</button>
+        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: teal } : {}) }}>{reminded ? tr('home:workoutPreview.reminderSet', { defaultValue: '✓ Reminder set' }) : tr('home:workoutPreview.remindMe', { defaultValue: 'Remind me' })}</button>
       </div>
 
       {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>Soundtrack</BSEyebrow>
-        <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Pre-workout</div>
+        <BSEyebrow color={teal}>{tr('home:workoutPreview.soundtrack', { defaultValue: 'Soundtrack' })}</BSEyebrow>
+        <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('home:workoutPreview.preWorkout', { defaultValue: 'Pre-workout' })}</div>
         <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" tracks={[
           { a: 'Iron Count', b: 'Tariq Osei', len: '3:38' },
           { a: 'Chalk & Steel', b: 'Sable', len: '4:02' },
@@ -1499,9 +1506,9 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 14px` }}>
-        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Begin session →</button>
+        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('home:workoutPreview.begin', { defaultValue: 'Begin session →' })}</button>
       </div>
-      <BSFooter right="Preview" />
+      <BSFooter right={tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })} />
     </BSPage>
   );
 }
@@ -2071,11 +2078,15 @@ function bsHomeLiveWeek(plan, t) {
 
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const bsHomeProgram = useBSProgram();
   // Real current week, computed live so the home reflects today (not demo dates).
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
-  const _BS_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const _BS_DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  // Weekday/month tokens follow the selected UI language (i18n date-locale rule);
+  // the composed dateline layout is preserved.
+  const _dateLoc = (typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined;
+  const _dowShort = (d) => d.toLocaleDateString(_dateLoc, { weekday: 'short' });
+  const _monShort = (d) => d.toLocaleDateString(_dateLoc, { month: 'short' });
   const _now = new Date();
   const todayIdx = (_now.getDay() + 6) % 7;
   const weekDates = (() => {
@@ -2090,7 +2101,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
   })();
   const nowTime = `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`;
-  const fmtDate = (idx) => `${_BS_MON[weekDates[idx].getMonth()]} ${weekDates[idx].getDate()}`;
+  const fmtDate = (idx) => `${_monShort(weekDates[idx])} ${weekDates[idx].getDate()}`;
 
   // The REAL assigned plan (same /api/client/plan the Train + Eat tabs read).
   // When any plan exists the day log / dots / up-next cards build from it;
@@ -2121,8 +2132,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // live day log would claim a session that isn't assigned.
   const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
   const _selDelta = selIdx - todayIdx;
-  const upNextLabel = _selDelta === 0 ? 'Today' : _selDelta === 1 ? 'Tomorrow' : _selDelta === -1 ? 'Yesterday'
-    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
+  const upNextLabel = _selDelta === 0 ? tr('home:when.today', { defaultValue: 'Today' }) : _selDelta === 1 ? tr('home:when.tomorrow', { defaultValue: 'Tomorrow' }) : _selDelta === -1 ? tr('home:when.yesterday', { defaultValue: 'Yesterday' })
+    : weekDates[selIdx].toLocaleDateString(_dateLoc, { weekday: 'long' });
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
@@ -2462,11 +2473,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // the day's next move feels like making a pledge you then keep (commitment &
     // consistency). The head stays the directive; the button is the promise.
     const engineMove = engineFlag ? ({
-      checkin:   { head: 'Send your weekly check-in.', cta: ["I'll check in →", () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
-      training:  { head: 'Keep the streak alive.', cta: ["I'll keep my streak →", () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
-      nutrition: { head: 'Log a meal today.', cta: ["I'll log a meal →", () => goEat()], c: _teal, stakes: 'keep your momentum going' },
-      goal:      { head: 'Your goal pace slipped.', cta: ["I'll weigh in →", () => setGoalsPage(true)], c: t.AMBER },
-      score:     { head: 'Grab a win today.', cta: ["I'll grab a win →", () => setHabitsPage(true)], c: t.AMBER },
+      checkin:   { head: tr('home:lead.checkin.head', { defaultValue: 'Send your weekly check-in.' }), cta: [tr('home:lead.checkin.cta', { defaultValue: "I'll check in →" }), () => setCheckinPage(true)], c: t.ACCENT, stakes: tr('home:lead.checkin.stakes', { defaultValue: 'keep your momentum + protect 15 pts' }) },
+      training:  { head: tr('home:lead.training.head', { defaultValue: 'Keep the streak alive.' }), cta: [tr('home:lead.training.cta', { defaultValue: "I'll keep my streak →" }), () => setHabitsPage(true)], c: t.GREEN, stakes: tr('home:lead.training.stakes', { defaultValue: 'hold your streak + momentum' }) },
+      nutrition: { head: tr('home:lead.nutrition.head', { defaultValue: 'Log a meal today.' }), cta: [tr('home:lead.nutrition.cta', { defaultValue: "I'll log a meal →" }), () => goEat()], c: _teal, stakes: tr('home:lead.nutrition.stakes', { defaultValue: 'keep your momentum going' }) },
+      goal:      { head: tr('home:lead.goal.head', { defaultValue: 'Your goal pace slipped.' }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: tr('home:lead.score.head', { defaultValue: 'Grab a win today.' }), cta: [tr('home:lead.score.cta', { defaultValue: "I'll grab a win →" }), () => setHabitsPage(true)], c: t.AMBER },
       // `sleep` deliberately omitted — logging last night's sleep is consolidated
       // into the "Today · how are you" check-in page (opened from the nudge below;
       // Sleep · last night row + recovery readiness), so it never spawns a
@@ -2474,16 +2485,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
-    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id, meal: m }));
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: [tr('home:lead.workout.cta', { defaultValue: "I'll train today →" }), () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title }), cta: [tr('home:lead.meal.cta', { defaultValue: "I'll log it →" }), () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id, meal: m }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
-    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ["I'll finish my habits →", () => setHabitsPage(true)], c: t.GREEN });
+    if (habitsLeft > 0) todo.push({ label: tr('home:lead.habitsToFinish', { defaultValue: '{count, plural, one {# habit to finish} other {# habits to finish}}', count: habitsLeft }), cta: [tr('home:lead.habits.cta', { defaultValue: "I'll finish my habits →" }), () => setHabitsPage(true)], c: t.GREEN });
     // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
-    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN, leadIsWorkout: false, leadMeal: null };
+    if (!todo.length) return { done: true, head: tr('home:lead.done.head', { defaultValue: 'You kept your word today.' }), sub: tr('home:lead.done.sub', { defaultValue: "Everything you said you'd do — done." }), c: t.GREEN, leadIsWorkout: false, leadMeal: null };
     const lead = todo[0];
     return {
       head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
-      sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null),
+      sub: lead.engine ? lead.sub : (todo.length > 1 ? tr('home:lead.moreOnPlan', { defaultValue: '{count, plural, one {# more on today’s plan} other {# more on today’s plan}}', count: todo.length - 1 }) : null),
       heroMealId: lead.mealId || null,
       // Lead-identity flags (Task 4 reads these to suppress the slate's echo row's
       // second interactive surface — the double-feature fix).
@@ -2512,8 +2523,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSMasthead
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
-        rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
+        leftKicker={`${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()} · ${_now.getFullYear()}`}
+        rightKicker={`${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`}
         trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
@@ -2547,11 +2558,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         })();
         const all = [
           { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
-          { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? 'ON PACE' : 'BUILD UP', color: proColor },
+          { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? tr('home:ticker.onPace', { defaultValue: 'ON PACE' }) : tr('home:ticker.buildUp', { defaultValue: 'BUILD UP' }), color: proColor },
           { label: 'HAB',  value: tkHab ? `${tkHab.done}/${tkHab.total}` : '3/5', note: tkHab ? `+${tkHab.pts} PTS` : '+12 PTS', color: tkHab && tkHab.total > 0 && tkHab.done >= tkHab.total ? '#a3e09a' : undefined },
           { label: 'SLP',  value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
-          { label: 'HRV',  value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? 'GOOD' : 'LOW', color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
-          { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? 'ELEV' : 'STEADY', color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
+          { label: 'HRV',  value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? tr('home:ticker.good', { defaultValue: 'GOOD' }) : tr('home:ticker.low', { defaultValue: 'LOW' }), color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
+          { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? tr('home:ticker.elev', { defaultValue: 'ELEV' }) : tr('home:ticker.steady', { defaultValue: 'STEADY' }), color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
           { label: 'WGT',  value: tk.weight_lb != null ? `${t.convWeight(tk.weight_lb).toFixed(1)}${t.weightUnit.toUpperCase()}` : (t.isMetric ? '80.8KG' : '178.2LB'), note: tk.weight_delta_7d != null ? fmtDelta(Math.round(t.convWeight(tk.weight_delta_7d) * 10) / 10, ' 7D') : (t.isMetric ? '-0.2 7D' : '-0.4 7D') },
         ];
         const order = (tickerPrefs.order && tickerPrefs.order.length) ? tickerPrefs.order : all.map(i => i.label);
@@ -2574,10 +2585,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         background: t.PAPER2,
       }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.GREEN }}>
-          Clients Edition · No. 14
+          {tr('home:edition.clients', { defaultValue: 'Clients Edition · No. {n}', n: 14 })}
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
+          {tr('home:edition.vol', { defaultValue: 'Vol. I' })}
         </span>
       </div>
 
@@ -2587,10 +2598,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* THIS WEEK — calendar preview (directly below the Clients Edition band) */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
         </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
       </div>
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 8 }} />
@@ -2609,7 +2620,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               }}>
                 {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{_BS_DOWL[idx]}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{date.toLocaleDateString(_dateLoc, { weekday: 'narrow' }).toUpperCase()}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
                 <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
                   {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 3, borderRadius: 1, background: c }} />)}
@@ -2638,7 +2649,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
       )}
       {checkinDue && !(engineFlag && engineFlag.lever === 'checkin') && (
-        <BSHomeBulletin label="Weekly check-in due" detail="2 min" onOpen={() => setCheckinPage(true)} />
+        <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
 
       {/* ★ THE LEAD — the single elevated hero, the ONLY BSPlate on the page.
@@ -2651,8 +2662,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {todayDirective && (
         <BSPlate c={todayDirective.c} tick bracket pad="13px 18px 13px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' })}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_dowShort(_now)} {_now.getDate()}</span>
           </div>
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
           {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
@@ -2665,7 +2676,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
                   role="button"
                   tabIndex={0}
-                  aria-label={`${name} — open workout preview`}
+                  aria-label={tr('home:lead.openWorkoutPreview', { defaultValue: '{name} — open workout preview', name })}
                   style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
                   <div style={{ minWidth: 0 }}>
@@ -2686,7 +2697,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
               <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
               {todayDirective.leadIsWorkout && (
-                <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Preview →</button>
+                <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
               )}
             </div>
           )}
@@ -2728,12 +2739,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         };
         const slotLabel = (m) => {
           const tag = String(m.tag || '').toUpperCase();
-          if (tag.startsWith('BFAST') || tag.startsWith('BREAK')) return 'Breakfast';
-          if (tag.startsWith('LUNCH')) return 'Lunch';
-          if (tag.startsWith('SNACK')) return 'Snack';
-          if (tag.startsWith('DIN')) return 'Dinner';
+          const bfast = tr('home:slot.breakfast', { defaultValue: 'Breakfast' });
+          const lunch = tr('home:slot.lunch', { defaultValue: 'Lunch' });
+          const snack = tr('home:slot.snack', { defaultValue: 'Snack' });
+          const dinner = tr('home:slot.dinner', { defaultValue: 'Dinner' });
+          if (tag.startsWith('BFAST') || tag.startsWith('BREAK')) return bfast;
+          if (tag.startsWith('LUNCH')) return lunch;
+          if (tag.startsWith('SNACK')) return snack;
+          if (tag.startsWith('DIN')) return dinner;
           const h = Math.floor(mealMinutes(m) / 60);
-          return h < 11 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 17 ? 'Snack' : 'Dinner';
+          return h < 11 ? bfast : h < 15 ? lunch : h < 17 ? snack : dinner;
         };
         // Ghost log-tick — the 36px inline control cell for a MEAL row's `right`
         // slot. Carries the exact tap targets the old mealsCard glance used
@@ -2745,7 +2760,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         ) : (
           <button
             onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
-            aria-label={`Log ${m.title}`}
+            aria-label={tr('home:lead.logMeal', { defaultValue: 'Log {title}', title: m.title })}
             style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
           />
         );
@@ -2762,12 +2777,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             key: `meal-${m.id}`,
             time: fmtAt(mealMinutes(m)),
             _sortAt: mealMinutes(m),
-            tag: 'MEAL', tagColor: teal,
+            tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
             title: m.title,
-            status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} kcal` : ''}`.replace(/ · $/, ''),
+            status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : ''}`.replace(/ · $/, ''),
             right: isLead ? 'lead' : mealTick(m, logged),
             onOpen: () => setPreviewMeal(m),
-            ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? 'logged' : 'not logged'}`,
+            ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
           });
         });
         // TRAINING row — real duration status; lead echo when the lead IS the
@@ -2785,29 +2800,29 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             key: 'slate-training',
             time: fmtAt(WORKOUT_AT),
             _sortAt: WORKOUT_AT,
-            tag: 'TRAINING', tagColor: rust,
+            tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: rust,
             title: selWorkout.title,
             status: _wkShortMeta,
             right: workoutIsLead ? 'lead' : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>Start →</button>
+                <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
                 <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
               </div>
             ),
             onOpen: () => setShowWorkoutPreview(true),
-            ariaLabel: `${selWorkout.title}, training, ${_wkShortMeta}`,
+            ariaLabel: `${selWorkout.title}, ${tr('home:aria.training', { defaultValue: 'training' })}, ${_wkShortMeta}`,
           });
         } else {
           rows.push({
             key: 'slate-training',
             time: '',
             _sortAt: undefined,
-            tag: 'TRAINING', tagColor: t.GREEN,
-            title: 'Active recovery',
-            status: 'Rest day · walk + mobility',
+            tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
+            title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
+            status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
             right: undefined,
             onOpen: undefined,
-            ariaLabel: 'Active recovery, rest day',
+            ariaLabel: tr('home:slate.activeRecoveryAria', { defaultValue: 'Active recovery, rest day' }),
           });
         }
         // COACH rows — pushed items from coach_pushed_items (payload taps carried
@@ -2816,19 +2831,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const p = it.payload || {};
           const isMeal = it.kind === 'meal';
           const meta = isMeal
-            ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
-            : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
+            ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
+            : [p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
           const atMins = bsHomeTimeMinutes(p.time);
           rows.push({
             key: `coach-${it.id}`,
             time: p.time || '',
             _sortAt: atMins == null ? undefined : atMins,
-            tag: 'COACH', tagColor: isMeal ? teal : rust,
-            title: p.name || (isMeal ? 'Meal from your coach' : 'Workout from your coach'),
+            tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? teal : rust,
+            title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
             status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
             right: undefined,
             onOpen: undefined,
-            ariaLabel: `Coach-pushed ${isMeal ? 'meal' : 'workout'}: ${p.name || ''}`,
+            ariaLabel: isMeal ? tr('home:coach.ariaMeal', { defaultValue: 'Coach-pushed meal: {name}', name: p.name || '' }) : tr('home:coach.ariaWorkout', { defaultValue: 'Coach-pushed workout: {name}', name: p.name || '' }),
           });
         });
         // OPEN habit rows — up to 3, carried verbatim from the deleted HABITS
@@ -2850,21 +2865,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         openHabits.slice(0, 3).forEach((h) => {
           const avoid = h.type === 'avoid';
           const pillC = avoid ? t.RUST : t.GREEN;
+          const avoidWord = tr('home:tag.avoid', { defaultValue: 'Avoid' });
+          const doWord = tr('home:tag.do', { defaultValue: 'Do' });
           rows.push({
             key: `habit-${h.id || h.name}`,
             time: '', _sortAt: undefined,
-            tag: avoid ? 'AVOID' : 'DO', tagColor: pillC,
+            tag: avoid ? avoidWord : doWord, tagColor: pillC,
             title: h.name,
-            status: `+${Math.round(h.pts)} pts`,
+            status: tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: Math.round(h.pts) }),
             right: (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
-                aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'}
+                aria-label={h.live ? tr('home:habit.markDone', { defaultValue: 'Mark {name} done', name: h.name }) : tr('home:habit.demoAria', { defaultValue: 'Demo habits — open the habits page' })}
                 style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
               >{h.live ? '' : '🔒'}</button>
             ),
             onOpen: () => setHabitsPage(true),
-            ariaLabel: `${avoid ? 'Avoid' : 'Do'}: ${h.name}, worth ${Math.round(h.pts)} points, ${h.done ? 'done' : 'open'}`,
+            ariaLabel: tr('home:habit.rowAria', { defaultValue: '{kind}: {name}, worth {pts, plural, one {# point} other {# points}}, {state}', kind: avoid ? avoidWord : doWord, name: h.name, pts: Math.round(h.pts), state: h.done ? tr('home:aria.done', { defaultValue: 'done' }) : tr('home:aria.open', { defaultValue: 'open' }) }),
           });
         });
         const timedRows = rows.filter((r) => r._sortAt !== undefined).sort((a, b) => a._sortAt - b._sortAt);
@@ -2874,38 +2891,38 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ Today's slate</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ {tr('home:section.slate', { defaultValue: "Today's slate" })}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{upNextLabel}</span>
               </span>
-              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Eat →</button>
+              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('common:nav.eat', { defaultValue: 'Eat' })} →</button>
             </div>
             <div style={{ padding: `0 ${t.padX}px 4px` }}>
               <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
             </div>
             <div data-tour="hero-habits">
               {sortedRows.length === 0 ? (
-                <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>Nothing scheduled for today.</div>
+                <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
               ) : sortedRows.map((r, i) => (
                 <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
               ))}
               {openHabits.length > 3 && (
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more habit{openHabits.length - 3 > 1 ? 's' : ''}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 800 }}>View all →</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:slate.moreHabits', { defaultValue: '{count, plural, one {+# more habit} other {+# more habits}}', count: openHabits.length - 3 })}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 800 }}>{tr('home:action.viewAll', { defaultValue: 'View all →' })}</span>
                 </button>
               )}
               {selDayHabits.length === 0 && (
                 <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
-                  <button onClick={() => setHabitsPage(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add your first habit →</button>
+                  <button onClick={() => setHabitsPage(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('home:slate.addFirstHabit', { defaultValue: '+ Add your first habit →' })}</button>
                 </div>
               )}
               {selDayHabits.length > 0 && openHabits.length === 0 && (
                 <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
-                  All habits done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{habitsPts} pts</span> banked today.
+                  {tr('home:slate.allDonePre', { defaultValue: 'All habits done —' })} <span style={{ color: t.GREEN, fontWeight: 700 }}>{tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: habitsPts })}</span> {tr('home:slate.allDonePost', { defaultValue: 'banked today.' })}
                 </div>
               )}
               {habitFlash && (
-                <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
+                <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>{tr('home:slate.habitFlash', { defaultValue: '✓ +{pts} pts → Shape Score', pts: habitFlash.pts })}</div>
               )}
             </div>
             {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
@@ -2935,7 +2952,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                     <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
                       &ldquo;{n.text}&rdquo;
                       <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                        — {n.who} · {n.role === 'nutritionist' ? 'Nutritionist' : 'Trainer'}
+                        — {n.who} · {n.role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' })}
                       </span>
                     </div>
                   ))}
@@ -2954,7 +2971,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         return (
           <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
             <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', color: t.INK }}>
-              Inside<span style={{ color: teal, fontStyle: 'italic' }}>.</span>
+              {tr('home:section.inside', { defaultValue: 'Inside' })}<span style={{ color: teal, fontStyle: 'italic' }}>.</span>
             </span>
             <div aria-hidden style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal} 58%, transparent)` }} />
           </div>
@@ -2971,10 +2988,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           // These are hardcoded demo figures (not wired to real rollups yet) — show
           // them only in the signed-out preview, never as fake stats to a real user.
           if (bsHomeSignedIn) return null;
+          const _tagDone = tr('home:weekStat.tagDone', { defaultValue: 'Done' });
+          const _tagSched = tr('home:weekStat.tagScheduled', { defaultValue: 'Scheduled' });
           const weekTotals = [
-            { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
-              history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
-            { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
+            { l: tr('home:weekStat.sessions', { defaultValue: 'Sessions' }), v: 4, max: 5, c: t.RUST, unit: 'sessions',
+              history: [['Mon', 'Upper Push — Peak', _tagDone], ['Tue', 'Lower Pull — Vol.', _tagDone], ['Thu', 'Upper Pull — Peak', _tagDone], ['Sat', 'Z2 run · 45m', _tagDone], ['Sun', 'Lower Push — Peak', _tagSched]] },
+            { l: tr('home:weekStat.avgKcal', { defaultValue: 'Avg kcal' }), v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: tr('home:weekStat.goalFrameDeficit', { defaultValue: 'In your deficit · on track' }),
               series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
           ];
           return (
@@ -2984,8 +3003,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                   affordance copy ("View history →" in its footer) rather than
                   leaving status undefined (a blank status reads as a rendering
                   bug, not a deliberate omission). */}
-              <BSIndexRow label="Sessions" figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status="View history ›" onOpen={() => setWeekStat(weekTotals[0])} />
-              <BSIndexRow label="Avg kcal" figure={`${weekTotals[1].v.toLocaleString()}/${weekTotals[1].max.toLocaleString()}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
+              <BSIndexRow label={weekTotals[0].l} figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status={tr('home:action.viewHistory', { defaultValue: 'View history ›' })} onOpen={() => setWeekStat(weekTotals[0])} />
+              <BSIndexRow label={weekTotals[1].l} figure={`${weekTotals[1].v.toLocaleString(_dateLoc)}/${weekTotals[1].max.toLocaleString(_dateLoc)}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
             </>
           );
         })()}
@@ -3009,21 +3028,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           if (stepsToday.hasData) { setStepsHistory(true); return; }
           try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
         };
-        const stepsFigure = stepsToday.todayKnown ? stepsToday.val.toLocaleString() : '—';
+        const stepsFigure = stepsToday.todayKnown ? stepsToday.val.toLocaleString(_dateLoc) : '—';
         const stepsStatus = !stepsToday.hasData
-          ? 'Connect a watch'
+          ? tr('home:steps.connectWatch', { defaultValue: 'Connect a watch' })
           : !stepsToday.todayKnown
-            ? 'No steps yet today'
+            ? tr('home:steps.noneToday', { defaultValue: 'No steps yet today' })
             : stepsToday.hit
-              ? 'Goal hit ✓'
-              : `${Math.max(0, stepsToday.goal - stepsToday.val).toLocaleString()} to go`;
+              ? tr('home:steps.goalHit', { defaultValue: 'Goal hit ✓' })
+              : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
         return (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px` }}>
-              <BSShelfDoor c={teal} eyebrow="Steps" figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
+              <BSShelfDoor c={teal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
               <BSMeGoalCard c={teal} onOpen={() => setGoalsPage(true)} door />
               <BSProgressDoor onOpen={() => setHomeProgressPage(true)} door />
-              <BSShelfDoor c={teal} eyebrow="Shop list" figure="→" status="By aisle" onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
+              <BSShelfDoor c={teal} eyebrow={tr('home:door.shopList', { defaultValue: 'Shop list' })} figure="→" status={tr('home:door.byAisle', { defaultValue: 'By aisle' })} onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
             </div>
             {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
           </>
@@ -3036,8 +3055,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: weekStat.c, fontWeight: 700 }}>{weekStat.l} · this week</div>
-                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{weekStat.v.toLocaleString()}<span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginLeft: 6 }}>/ {weekStat.max.toLocaleString()}</span></div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: weekStat.c, fontWeight: 700 }}>{tr('home:weekStat.thisWeek', { defaultValue: '{label} · this week', label: weekStat.l })}</div>
+                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{weekStat.v.toLocaleString(_dateLoc)}<span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK50, marginLeft: 6 }}>/ {weekStat.max.toLocaleString(_dateLoc)}</span></div>
               </div>
             </div>
 
@@ -3049,14 +3068,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                     const h = Math.max(4, Math.round((val / peak) * 110));
                     return (
                       <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val.toLocaleString()}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val.toLocaleString(_dateLoc)}</span>
                         <div style={{ width: '100%', maxWidth: 26, height: h, borderRadius: 6, background: weekStat.c }} />
                         <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{d}</span>
                       </div>
                     );
                   })}
                 </div>
-                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>7-day average · target {weekStat.max.toLocaleString()} kcal</div>
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:weekStat.chartFoot', { defaultValue: '7-day average · target {target, number} kcal', target: weekStat.max })}</div>
               </div>
             ) : (
               <div style={{ marginTop: 14 }}>
@@ -3070,7 +3089,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               </div>
             )}
 
-            <button onClick={() => setWeekStat(null)} style={{ width: '100%', marginTop: 18, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
+            <button onClick={() => setWeekStat(null)} style={{ width: '100%', marginTop: 18, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('home:action.close', { defaultValue: 'Close' })}</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -3090,7 +3109,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <>
             {added.length > 0 && (
               <>
-                <BSSection title="Your widgets" meta={`${added.length} active`} />
+                <BSSection title={tr('home:widgets.title', { defaultValue: 'Your widgets' })} meta={tr('home:widgets.active', { defaultValue: '{count, plural, one {# active} other {# active}}', count: added.length })} />
                 <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
                   {added.map(w => (
                     <div key={w.key} style={{ minWidth: 0, gridColumn: w.span === 1 ? 'span 2' : 'span 1' }}>
@@ -3104,7 +3123,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      <BSFooter right="Pg 1 of 1" />
+      <BSFooter right={tr('home:footer.page', { defaultValue: 'Pg 1 of 1' })} />
       {showLogActivity && <BSLogActivity onClose={() => setShowLogActivity(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
       {showMood && <BSMoodSheet onClose={() => setShowMood(false)} onSaved={() => { refreshAnalytics(); setTimeout(refreshAnalytics, 700); }} />}
     </BSPage>
@@ -16041,10 +16060,11 @@ function BSSleepHistory({ onClose }) {
 // nutrition gold). Compresses on press via the shared chip CSS.
 function BSProgressDoor({ onOpen, door = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
   const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
-  const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', t.RUST || '#c0533b'], ['Nutrition', t.AMBER || '#d8b25a']];
+  const segs = [[tr('home:progress.streak', { defaultValue: 'Streak' }), teal], [tr('home:progress.trends', { defaultValue: 'Trends' }), t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], [tr('home:progress.training', { defaultValue: 'Training' }), t.RUST || '#c0533b'], [tr('home:progress.nutrition', { defaultValue: 'Nutrition' }), t.AMBER || '#d8b25a']];
   if (door) {
     const ticks = (
       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -16053,18 +16073,18 @@ function BSProgressDoor({ onOpen, door = false }) {
         ))}
       </span>
     );
-    return <BSShelfDoor c={teal} eyebrow="Progress" figure={ticks} status="4 sections" onOpen={onOpen} />;
+    return <BSShelfDoor c={teal} eyebrow={tr('home:door.progress', { defaultValue: 'Progress' })} figure={ticks} status={tr('home:progress.sections', { defaultValue: '{count, plural, one {# section} other {# sections}}', count: 4 })} onOpen={onOpen} />;
   }
   return (
     <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
-      <button onClick={onOpen} aria-label="Open your progress" style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
+      <button onClick={onOpen} aria-label={tr('home:progress.openAria', { defaultValue: 'Open your progress' })} style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
         <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clipN(11), background: bsTHexA(t.INK, 0.1) }} />
         <span aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clipN(10), background: bsTHexA(t.INK, 0.025) }} />
         <span aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: teal }} />
         <span aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${teal}`, borderBottom: `1.5px solid ${teal}`, opacity: 0.55 }} />
         <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 15px 12px 19px' }}>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Progress<span style={{ color: teal }}>.</span></span>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('home:door.progress', { defaultValue: 'Progress' })}<span style={{ color: teal }}>.</span></span>
             <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '3px 10px', marginTop: 6 }}>
               {segs.map(([lab, c]) => (
                 <span key={lab} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
@@ -16091,6 +16111,7 @@ function BSProgressDoor({ onOpen, door = false }) {
 // a custom control cell (24px meal ghost-tick / 24px habit checkbox, uniform) rendered as-is.
 function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isLead = right === 'lead';
   const isNode = right && typeof right === 'object';
   const interactive = !isLead && typeof onOpen === 'function';
@@ -16151,7 +16172,7 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 138, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         {isLead ? (
-          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ {tr('home:slate.lead', { defaultValue: 'LEAD' })}</span>
         ) : isNode ? right : (
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.INK50 }}>›</span>
         )}
@@ -16349,27 +16370,29 @@ function useBSStepsToday() {
 // logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
 // → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
 function BSTodayNudge({ onOpen, variant }) {
+  const tr = useShapeTr();
   const logged = useBSCheckinLogged();
   if (variant === 'bulletin') {
     if (logged) return null;
-    return <BSHomeBulletin label="Check-in due" detail="Energy · sleep · 30 sec" onOpen={onOpen} />;
+    return <BSHomeBulletin label={tr('home:bulletin.checkin', { defaultValue: 'Check-in due' })} detail={tr('home:bulletin.checkinDetail', { defaultValue: 'Energy · sleep · 30 sec' })} onOpen={onOpen} />;
   }
   // Explicit contract: only 'row' renders the residue — an omitted or mistyped
   // variant renders nothing rather than silently picking a surface.
   if (variant !== 'row') return null;
   if (!logged) return null;
-  return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
+  return <BSIndexRow label={tr('home:today.checkinLabel', { defaultValue: 'Check-in' })} figure={tr('home:today.loggedFigure', { defaultValue: 'Logged ✓' })} status={tr('home:today.addWater', { defaultValue: 'add water' })} done onOpen={onOpen} />;
 }
 
 // TODAY page — the full daily check-in + hydration box on its own page,
 // opened from the Home nudge above.
 function BSTodayPage({ onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Check-in" title={<>How are <span style={{ fontStyle: 'italic', color: teal }}>you.</span></>} />
+      <BSDetailHeader onBack={onBack} eyebrow={tr('home:today.eyebrow', { defaultValue: 'Section · Check-in' })} title={<>{tr('home:today.titlePre', { defaultValue: 'How are' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('home:today.titleYou', { defaultValue: 'you.' })}</span></>} />
       <div style={{ paddingTop: 4 }}>
         <BSTodayCard />
       </div>
@@ -16380,6 +16403,7 @@ function BSTodayPage({ onBack }) {
 
 function BSTodayCard() {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
@@ -16459,7 +16483,7 @@ function BSTodayCard() {
     if (hydBusy) return;
     // Signed-in but the live writer is missing → fail closed: never show an optimistic
     // value that can't persist (honest data). Signed-out preview stays local-only below.
-    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.('Hydration is unavailable — try again', 'err'); return; }
+    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.(tr('home:today.hydrationUnavailable', { defaultValue: 'Hydration is unavailable — try again' }), 'err'); return; }
     const prev = Number(hyd) || 0;
     const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
     setHyd(optimistic); setLastDelta(deltaL);
@@ -16471,7 +16495,7 @@ function BSTodayCard() {
       if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0);   // reconcile, ignore stale
     } catch (e) {
       if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); }                 // roll back the failed add
-      window.__bsToast?.('Could not log water — try again', 'err');
+      window.__bsToast?.(tr('home:today.waterFailed', { defaultValue: 'Could not log water — try again' }), 'err');
     } finally {
       if (seq === hydSeq.current) setHydBusy(false);
     }
@@ -16485,15 +16509,15 @@ function BSTodayCard() {
   const doLog = async () => {
     if (nothingSet || saving) return;
     // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
-    if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
+    if (!signedIn) { window.__bsToast?.(tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' }), 'ok'); return; }
     // Live writer missing → fail closed: don't await an undefined call as "success".
-    if (!window.ShapeCheckin?.log) { window.__bsToast?.('Check-in is unavailable — try again', 'err'); return; }
+    if (!window.ShapeCheckin?.log) { window.__bsToast?.(tr('home:today.checkinUnavailable', { defaultValue: 'Check-in is unavailable — try again' }), 'err'); return; }
     setSaving(true);
     try {
       await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
       setLogged(true); setEditing(false);   // only after the write succeeds
     } catch (e) {
-      window.__bsToast?.('Could not save check-in — try again', 'err');
+      window.__bsToast?.(tr('home:today.checkinFailed', { defaultValue: 'Could not save check-in — try again' }), 'err');
     } finally { setSaving(false); }
   };
 
@@ -16518,7 +16542,7 @@ function BSTodayCard() {
           {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
           <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
             {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
-              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 34, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
+              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={tr('home:today.gaugeAria', { defaultValue: '{label} {v} of 10', label, v })} style={{ height: '100%', minHeight: 34, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
             ); })}
           </div>
         </div>
@@ -16554,13 +16578,13 @@ function BSTodayCard() {
     <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
       {showForm ? (
         <>
-          {plate('energy', teal, 0, <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />, '10px 14px 5px 18px')}
-          {plate('hunger', amber, 1, <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />, '10px 14px 5px 18px')}
+          {plate('energy', teal, 0, <Gauge label={tr('home:today.energy', { defaultValue: 'Energy' })} val={energy} set={setEnergy} c={teal} />, '10px 14px 5px 18px')}
+          {plate('hunger', amber, 1, <Gauge label={tr('home:today.hunger', { defaultValue: 'Hunger' })} val={hunger} set={setHunger} c={amber} />, '10px 14px 5px 18px')}
           {/* SLEEP — device-first hours (read-only snapshot when a wearable synced) */}
           {plate('sleep', blue, 2, (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{tr('home:today.sleepLastNight', { defaultValue: 'Sleep · last night' })}</span>
                 {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
               </div>
               {sleepSynced ? (
@@ -16570,26 +16594,26 @@ function BSTodayCard() {
                     sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
                     sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
                     sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
-                  ].filter(Boolean).join(' · ') || 'Synced from your device'}
+                  ].filter(Boolean).join(' · ') || tr('home:today.syncedFromDevice', { defaultValue: 'Synced from your device' })}
                 </div>
               ) : (
                 // not synced → manual hours chips: stay visible, selectable, tap-again to clear
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={`${h} hours of sleep`} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={tr('home:today.hoursOfSleep', { defaultValue: '{h} hours of sleep', h })} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
                   ); })}
                 </div>
               )}
             </>
           ))}
-          {plate('rested', blue, 3, <Gauge label="Rested" val={rested} set={setRested} c={blue} />, '10px 14px 5px 18px')}
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginBottom: 10, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? 'Saving…' : 'Log today'}</button>
+          {plate('rested', blue, 3, <Gauge label={tr('home:today.rested', { defaultValue: 'Rested' })} val={rested} set={setRested} c={blue} />, '10px 14px 5px 18px')}
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginBottom: 10, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? tr('home:today.saving', { defaultValue: 'Saving…' }) : tr('home:today.logToday', { defaultValue: 'Log today' })}</button>
         </>
       ) : (
         plate('summary', teal, 0, (
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5, minWidth: 0 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
-            <button onClick={() => setEditing(true)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>
+            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5, minWidth: 0 }}>{tr('home:today.energy', { defaultValue: 'Energy' })} <b style={{ color: teal }}>{energy ?? '—'}</b> · {tr('home:today.hunger', { defaultValue: 'Hunger' })} <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · {tr('home:today.sleep', { defaultValue: 'Sleep' })} <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · {tr('home:today.rested', { defaultValue: 'Rested' })} <b style={{ color: blue }}>{rested}</b></> : null} · {tr('home:today.loggedInline', { defaultValue: 'logged ✓' })}</div>
+            <button onClick={() => setEditing(true)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
           </div>
         ))
       )}
@@ -16598,7 +16622,7 @@ function BSTodayCard() {
       {plate('hydration', teal, showForm ? 5 : 1, (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Hydration</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{tr('home:today.hydration', { defaultValue: 'Hydration' })}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
           </div>
           {/* dot progress — one dot ≈ one quick-add glass */}
@@ -16612,7 +16636,7 @@ function BSTodayCard() {
             {chips.map(([lab, d]) => (
               <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)', border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
             ))}
-            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label={tr('home:today.undoWater', { defaultValue: 'Undo last water' })} style={{ width: 44, borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
           </div>
         </>
       ))}
@@ -16621,9 +16645,9 @@ function BSTodayCard() {
       {signedIn && (
         <div style={{ padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${showForm ? 595 : 250}ms both` }) }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
-            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
+            {readiness != null ? <>{tr('home:today.recovery', { defaultValue: 'Recovery' })} <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : tr('home:today.sleepRecovery', { defaultValue: 'Sleep & recovery' })}
           </span>
-          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>{tr('home:today.sleepDetail', { defaultValue: 'Sleep detail →' })}</button>
         </div>
       )}
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
@@ -17052,6 +17076,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
 // from user_goals('client_goals'). Personal numbers stay off the public profile.
 function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   // Follow the paper theme so the goal text reads on light papers too.
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
@@ -17073,7 +17098,7 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
   const byD = ov.by ? new Date(ov.by) : null;
-  const dateLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : null;
+  const dateLabel = byD && !isNaN(byD) ? byD.toLocaleDateString((typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined, { month: 'short', day: 'numeric' }).toUpperCase() : null;
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
@@ -17085,21 +17110,21 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   // reads as HIT — an over-achieved goal must never show a false "to go".
   const hasRange = range > 0 && isFinite(toGo) && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
-  const goalStatus = goalHit ? 'goal hit ✓' : hasRange ? `${+Math.max(0, toGo).toFixed(1)} ${unit} to go` : '—';
+  const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, toGo).toFixed(1), unit }) : '—';
   if (door) {
     return (
-      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
+      <BSShelfDoor c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
     );
   }
   return (
-    <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
+    <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel={tr('home:goal.openAria', { defaultValue: 'Open your goal' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
+        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}{dateLabel ? ` · ${tr('home:goal.by', { defaultValue: 'by {date}', date: dateLabel })}` : ''}{onOpen ? ' ›' : ''}</span>
+        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{tr('home:goal.pctThere', { defaultValue: '{pct}% there', pct: Math.round(pct * 100) })}</span>
       </div>
       <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {goalStatus}</div>
+      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{tr('home:goal.soFar', { defaultValue: '{sign}{amount} {unit} so far · {status}', sign: down > 0 ? '+' : '−', amount: Math.abs(down), unit, status: goalStatus })}</div>
     </BSPlate>
   );
 }
