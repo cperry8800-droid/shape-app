@@ -19173,6 +19173,7 @@ Object.assign(window, {
   bsMyActivity,
   // Open Ledger kit — consumed by the pros bundle off window (coach-ledger wave, Task 1)
   BSTStationHead,
+  BSOLHead, BSOLAct, BSOLRow, BSOLCredit,
   BSTRedact,
   BSTLedgerStat,
   BSTerrainTabs,

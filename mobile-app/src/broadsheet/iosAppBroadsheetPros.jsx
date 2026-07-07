@@ -1987,6 +1987,99 @@ function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.
 // on all papers; nutritionist gold is a light/dark pair). bsProAccent (teal)
 // stays the ACTION accent for the action pages — heat ≠ accent.
 function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b'; }
+// ── Open Ledger catalogue primitives (Plans tab, both roles — spec §1) ──
+// Typographic index: mono 9.5/800 items, active = ink + 2px page-teal
+// underline (the roster's filter-index grammar, BSProRosterView §B.3).
+function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } = {}) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <div role="tablist" aria-label={ariaLabel} className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 16, borderBottom: `1px solid ${t.INK}12`, overflowX: 'auto' }}>
+      {items.map(([k, l]) => {
+        const on = activeKey === k;
+        return (
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{l}</button>
+        );
+      })}
+    </div>
+  );
+}
+// Dot-leader catalogue row: mono index · serif name · leader · mono price ·
+// ASSIGN heat-underlined action; meta subline. Row tap = onOpen.
+function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', minHeight: 52, padding: '13px 0', borderTop: `1px solid ${t.INK}12` }}>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(index + 1).padStart(2, '0')}</span>
+      <button type="button" onClick={onOpen} aria-label={`Open ${name}`} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+          <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+          {price && <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{String(price).toUpperCase()}</span>}
+        </span>
+        {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{meta}</span>}
+      </button>
+      {onAssign && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={`Assign ${name} to a client`} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: '0 2px' }}>
+          <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>ASSIGN</span>
+        </button>
+      )}
+    </div>
+  );
+}
+// Text action: ink + heat underline (mono:false) or plain mono (mono:true).
+function BSProTextAction({ label, onClick, heat, t, mono = false }) {
+  return (
+    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: mono ? t.INK50 : t.INK }}>
+      <span style={mono ? undefined : { borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
+    </button>
+  );
+}
+// ── Shared catalogue ledger furniture (Plans tab, both roles — extracted so the
+// trainer + nutrition copies can't drift). Deps (t, heat, flash) come in as args.
+// Station head (heat tick + eyebrow) with an optional trailing mono control.
+function bsProStationHead(t, heat, label, trailing) {
+  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  return (
+    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {StationHead ? <StationHead heat={heat} INK={t.INK} label={label} /> : <span />}
+      {trailing || null}
+    </div>
+  );
+}
+// Trailing mono control (SORT · POPULAR → / NEW →) — plain mono button, 44px target.
+function bsProMonoTrail(t, label, onClick) {
+  return (
+    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', padding: '0 2px' }}>{label}</button>
+  );
+}
+// Verdict lead for a TOP feature (unboxed): mono eyebrow · serif headline w/
+// heat-italic last word · mono meta · EDIT · DUPLICATE · SHARE → actions.
+function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div>
+      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
+    </div>
+  );
+}
+// Enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
+function bsProEnrolledRow(t, flash, e, i) {
+  return (
+    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
+        <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
+      </span>
+      <span style={{ display: 'flex', marginTop: 7 }}>
+        {e.who.map(([ini, col], j) => (
+          <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
+        ))}
+      </span>
+    </button>
+  );
+}
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
 function bsProMastRow(withCorners = true) {
@@ -3753,6 +3846,25 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     setUploading(false);
   };
   const rmMedia = (i) => setMedia(list => list.filter((_, j) => j !== i));
+  // Per-exercise clip attach — one hidden input, target block tracked by ref.
+  // Reuses the media section's ShapeCoachMedia upload + signed-out guard.
+  const clipInputRef = React.useRef(null);
+  const clipTargetRef = React.useRef(null);
+  const openClip = (i) => { clipTargetRef.current = i; if (clipInputRef.current) clipInputRef.current.click(); };
+  const pickClip = async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    const i = clipTargetRef.current;
+    clipTargetRef.current = null;
+    if (!file || i == null) return;
+    if (!window.ShapeCoachMedia?.upload) { setStatus('Sign in to upload media.'); setTimeout(() => setStatus(''), 1800); return; }
+    setUploading(true);
+    try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
+    catch (err) { setStatus(String(err?.message || 'Upload failed')); setTimeout(() => setStatus(''), 2200); }
+    setUploading(false);
+  };
+  const clearClip = (i) => setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
+  const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
   const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
   const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
   const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
@@ -3775,12 +3887,21 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
             {lbl(blockLabel)}
             <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>+ ADD</button>
           </div>
+          <input ref={clipInputRef} type="file" accept="video/*" onChange={pickClip} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {blocks.map((b, i) => (
               <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
                 <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
-                <button onClick={() => rmBlock(i)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {b.video ? (<>
+                    <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={`Play clip for ${b.text || 'exercise'}`} style={clipBtnStyle}>▶ CLIP</button>
+                    <button type="button" onClick={() => clearClip(i)} aria-label={`Remove clip from ${b.text || 'exercise'}`} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
+                  </>) : (
+                    <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={`Attach a video clip to ${b.text || 'exercise'}`} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>＋ CLIP</button>
+                  )}
+                  <button type="button" onClick={() => rmBlock(i)} aria-label="Remove" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                </span>
               </div>
             ))}
             {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>None yet — add one.</div>}
@@ -3824,7 +3945,8 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
 function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const purple = '#8a5cf6';
+  const heat = bsProHeat(t, 'trainer');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   const [desc, setDesc] = useStateBSP('');
@@ -3847,16 +3969,65 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   };
   const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
+  // ── Add a clip to a published workout (WORKOUT VIDEOS station) ──
+  const [clipSheet, setClipSheet] = useStateBSP(false);
+  const [clipPlanId, setClipPlanId] = useStateBSP(null);
+  const [clipUploading, setClipUploading] = useStateBSP(false);
+  const clipVideoRef = React.useRef(null);
+  const openClipAdder = () => {
+    if (!serverPlans || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Sign in and publish a plan to add workout clips'); return; }
+    if (!serverPlans.length) { flash('Publish a plan first, then add a clip'); return; }
+    setClipSheet(true);
+  };
+  const pickPlanForClip = (id) => { setClipPlanId(id); if (clipVideoRef.current) clipVideoRef.current.click(); };
+  const uploadClipToPlan = async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    const planId = clipPlanId;
+    const plan = (serverPlans || []).find(p => p.id === planId);
+    if (!file || !plan || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Could not add clip'); return; }
+    setClipUploading(true);
+    try {
+      const m = await window.ShapeCoachMedia.upload(file);
+      if (m && m.url) {
+        const nextDetail = { ...(plan.detail || {}), media: [...((plan.detail && plan.detail.media) || []), m] };
+        const row = await window.ShapeCoachPlans.update({ id: plan.id, detail: nextDetail });
+        const merged = (row && row.detail) ? row : { ...plan, detail: nextDetail };
+        setServerPlans(list => (list || []).map(p => (p.id === plan.id ? merged : p)));
+        flash('Clip added to ' + plan.name);
+      }
+    } catch (err) { flash(String(err?.message || 'Upload failed')); }
+    setClipUploading(false);
+    setClipPlanId(null);
+    setClipSheet(false);
+  };
+  const closeClipSheet = () => { setClipSheet(false); setClipPlanId(null); };
+  // §3 (CodeRabbit a11y) — keyboard close: Escape dismisses the clip sheet while open.
+  useEffectBSP(() => {
+    if (!clipSheet || typeof window === 'undefined') return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') closeClipSheet(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clipSheet]);
+
   const basePrograms = [
     { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
     { n: 'Starting Strength', meta: '8 wk · 31 on it · 4.8 ★', price: '$95' },
     { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
     { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
+  // §4 (CodeRabbit) — the PAID PLANS list only wants paid plans. Filter the
+  // server-derived rows to buildType 'plan' (legacy rows w/o detail stay); local
+  // dupes (no .id) always pass. Workout/program templates no longer leak in here.
+  const customCards = (serverPlans || dupes)
+    .filter(p => !p.id || !p.detail || p.detail.buildType === 'plan')
+    .map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
-    const list = [...customCards, ...basePrograms];
+    // §5 (CodeRabbit) — the demo social-proof rows (48 on it · 4.9 ★) are a
+    // signed-OUT preview only; a signed-in coach sees only their real
+    // serverPlans-derived rows (customCards), with the empty-state redaction.
+    const list = signedIn ? [...customCards] : [...customCards, ...basePrograms];
     if (sort === 'Price') return [...list].sort((a, b) => numFrom(b.price, /(\d+)/) - numFrom(a.price, /(\d+)/));
     if (sort === 'Rating') return [...list].sort((a, b) => numFrom(b.meta, /([\d.]+) ★/) - numFrom(a.meta, /([\d.]+) ★/));
     return [...list].sort((a, b) => numFrom(b.meta, /(\d+) on it/) - numFrom(a.meta, /(\d+) on it/));
@@ -3885,23 +4056,28 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
     setEditDraft(null); setDrafting(false);
   };
-  // Single day workouts
-  const workouts = [
+  // Single day workouts — demo catalogue (signed-OUT preview only; §5 CodeRabbit).
+  const workouts = signedIn ? [] : [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
     { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
     { n: 'Tempo Run · Zone 2', meta: '45 min · cardio · Z2' },
     { n: 'Full-body Conditioning', meta: '5 rounds · 35 min · RPE 8' },
     { n: 'Deload Circuit', meta: '4 lifts · 40 min · RPE 6' },
+    { n: 'Upper Body — Hypertrophy', meta: '7 lifts · 55 min · RPE 7.5' },
+    { n: 'Lower Body — Strength', meta: '5 lifts · 60 min · RPE 8' },
+    { n: 'Push Day', meta: '6 lifts · 50 min · RPE 8' },
+    { n: 'Pull Day', meta: '6 lifts · 50 min · RPE 7.5' },
   ];
-  // Reusable weekly routines / templates (the "Programs" sub-tab)
-  const routines = [
+  // Reusable weekly routines / templates (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const routines = signedIn ? [] : [
     { n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' },
     { n: '3-day Full Body', meta: '3 days/wk · beginner' },
     { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
     { n: 'Bro split · 5-day', meta: '5 days/wk · hypertrophy' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab)
-  const enrolled = [
+  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
+  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
+  const enrolled = signedIn ? [] : [
     { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
     { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
     { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
@@ -3975,146 +4151,187 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     );
   }
 
-  const numRow = (it, i, trailing) => (
-    <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{it.n}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{it.meta}</div>
-      </div>
-      <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap' }}>{trailing}</span>
-    </div>
-  );
-  const secHead = (eyebrow, title, trailing, onTrailing) => (
-    <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
-      </div>
-      {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
-    </div>
-  );
-  // Per-row trailing: price (when any) + an ASSIGN pill → the assign-to-client page.
-  const assignTrail = (it) => (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-      {it.price && <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50 }}>{it.price}</span>}
-      <button onClick={(e) => { e.stopPropagation(); setAssignPlan({ id: it.id || null, name: it.n, meta: it.meta, detail: it.detail || null }); }} style={{ borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em' }}>ASSIGN</button>
-    </span>
-  );
+  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
+  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
+  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
+  const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
+  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
+  const enrolledRow = (e, i) => bsProEnrolledRow(t, flash, e, i);
+
+  // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
+  // shows the live PUBLISHED count once loaded, else "—" (no fabricated drafts).
+  const catalogueStat = !signedIn
+    ? '· 4 PUBLISHED · 1 DRAFT'
+    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
 
   return (
     <BSPage>
-      {/* Standard page header — matches the chat/home page formatting. */}
-      <BSPageHeader
-        kicker="4 Published · 1 Draft"
-        title="Your programs."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
-
-        {/* Top tabs — Library / Soundtracks */}
-        <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
-          {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? teal : t.RULE}`, background: tab === k ? `${teal}1c` : 'transparent', color: tab === k ? teal : t.INK, padding: '9px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
-          ))}
+      {/* §1.1 Header — mast row (46px inset, #1574 rule) + THE CATALOGUE eyebrow
+          + serif "Your programs." (heat italic). */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
+        <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+          Your <i style={{ color: heat, fontStyle: 'italic' }}>programs.</i>
+        </div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+
+        <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
+        {clipSheet && createPortal(
+          <div onClick={closeClipSheet} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a clip to a workout" style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>＋ Add a clip</div>
+                <button type="button" onClick={closeClipSheet} aria-label="Close" style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginTop: -8, marginRight: -6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Pick a <span style={{ fontStyle: 'italic', color: heat }}>workout.</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{clipUploading ? 'Uploading…' : 'Choose which plan this clip belongs to, then pick a video.'}</div>
+              <div style={{ marginTop: 12 }}>
+                {(serverPlans || []).map((p, i) => (
+                  <button key={p.id || i} type="button" disabled={clipUploading} onClick={() => pickPlanForClip(p.id)} aria-label={`Add a clip to ${p.name}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minHeight: 52, textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: clipUploading ? 'default' : 'pointer', padding: '13px 0', opacity: clipUploading ? 0.5 : 1 }}>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                      {p.meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{p.meta}</span>}
+                    </span>
+                    <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: heat }}>＋</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
+        )}
+
+        {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
+        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
 
         {tab === 'library' && (<>
-        {/* Generate with AI — builds the active library type */}
-        <button type="button" data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
-          <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a {libBuild} in seconds</div>
-          </div>
-          <span style={{ color: teal, fontSize: 15 }}>→</span>
-        </button>
-        <button onClick={() => openDraft(libBuild, true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: '11px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>+ Build from scratch</button>
-
-        {/* Library sub-tabs — Plans / Workouts / Programs */}
-        <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
-          {LIB_TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setLibTab(k)} style={{ flex: 1, borderRadius: 999, border: `1px solid ${libTab === k ? teal : t.RULE}`, background: libTab === k ? `${teal}1c` : 'transparent', color: libTab === k ? teal : t.INK50, padding: '8px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
-          ))}
+        {/* §1.3 Create actions — draft with AI · build from scratch */}
+        <div style={{ marginTop: 6 }}>
+          <BSProTextAction heat={heat} t={t} label={`✦ Draft a ${BUILD_LABEL[libBuild]} in seconds →`} onClick={() => openDraft(libBuild)} />
+          <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft(libBuild, true)} />
         </div>
+
+        {/* §1.4 Kind sub-tabs — Plans / Workouts / Programs */}
+        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: 'Catalogue kind' })}</div>
 
         {libTab === 'plans' && (<>
-        {secHead('PAID PLANS', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
-        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => openDraft('plan') }, i, assignTrail(p)))}</div>
-        {secHead('ENROLLED', 'Clients on plans')}
-        <div style={{ marginTop: 6 }}>
-          {enrolled.map((e, i) => (
-            <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{e.prog}</div>
-                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{ display: 'flex' }}>
-                    {e.who.map(([ini, col], j) => (
-                      <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>{e.n} on it</span>
-                </div>
-              </div>
-              <span style={{ color: t.INK50, fontSize: 16 }}>›</span>
-            </div>
-          ))}
-        </div>
+        {/* §1.5 THE CATALOGUE — paid plans as dot-leader rows */}
+        {stationHead('PAID PLANS', monoTrail(`SORT · ${sort.toUpperCase()} →`, cycleSort))}
+        {programs.length === 0 ? (
+          <div style={{ marginTop: 2 }}>
+            {Redact ? <Redact INK={t.INK} label="NO PUBLISHED PLANS" /> : null}
+            <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft('plan', true)} />
+          </div>
+        ) : (
+          <div style={{ marginTop: 2 }}>
+            {programs.map((p, i) => (
+              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
+                onOpen={() => openDraft('plan')}
+                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
+            ))}
+          </div>
+        )}
+        {/* §1.6 ENROLLED — clients on plans */}
+        {stationHead('ENROLLED')}
+        {enrolled.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO ENROLLED CLIENTS" /> : null
+        ) : (
+          <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
+        )}
         </>)}
 
         {libTab === 'workouts' && (<>
-        {/* Top workout */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP WORKOUT</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>62 MIN</span>
-          </div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Lower Push — <span style={{ fontStyle: 'italic', color: teal }}>Peak.</span></div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>6 lifts · used by 34 · RPE 8 · 4.9 ★</div>
-          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('workout')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Lower Push Peak')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top workout — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "used by 34 · 4.9 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP WORKOUT · 62 MIN', 'Lower Push —', 'Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('workout')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Lower Push Peak')} /></span>
+        </>)}
+        {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
+        {stationHead('SESSIONS', monoTrail('NEW →', () => openDraft('workout')))}
+        {workouts.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO WORKOUTS YET" /> : null
+        ) : (
+        <div style={{ marginTop: 2 }}>
+          {workouts.map((w, i) => (
+            <BSProCatRow key={w.n} index={i} name={w.n} meta={w.meta} heat={heat} t={t}
+              onOpen={() => openDraft('workout')}
+              onAssign={() => setAssignPlan({ id: w.id || null, name: w.n, meta: w.meta, detail: w.detail || null })} />
+          ))}
         </div>
-        {/* Single day workouts */}
-        {secHead('SESSIONS', 'Workouts', 'NEW →', () => openDraft('workout'))}
-        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => openDraft('workout') }, i, assignTrail(w)))}</div>
+        )}
 
-        {/* Video library — upload videos of the workouts in your plans */}
-        {secHead('WORKOUT VIDEOS', 'Video library', 'UPLOAD →', () => flash('Upload a workout video — record or add from camera roll'))}
-        <button onClick={() => flash('Upload a workout video — record or add from camera roll')} style={{ width: '100%', marginTop: 10, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px dashed ${purple}66`, background: `linear-gradient(150deg, ${purple}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 14 }}>
-          <span style={{ width: 50, height: 50, borderRadius: 12, background: `linear-gradient(150deg, ${purple}, ${purple}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffffe0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Upload a workout video</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>Record or add from camera roll · link it to a plan</div>
-          </div>
-          <span style={{ color: purple, fontSize: 18, fontWeight: 700 }}>＋</span>
-        </button>
-        <div style={{ marginTop: 4 }}>{cues.map((c, i) => numRow({ ...c, onClick: () => flash('Open video set') }, i, '→'))}</div>
+        {/* Video library — real clips flattened from published plans (plan
+            media + per-block clips); demo cues are the signed-out fallback. */}
+        {stationHead('WORKOUT VIDEOS')}
+        <BSProTextAction heat={heat} t={t} label="＋ Add a clip to a workout →" onClick={openClipAdder} />
+        {serverPlans === null ? (
+          !signedIn ? (
+            // Signed-out preview → demo cues are fine.
+            <div style={{ marginTop: 2 }}>
+              {cues.map((c, i) => (
+                <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
+              ))}
+            </div>
+          ) : (
+            // Signed-in but still loading → redaction line, never fabricated counts.
+            <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="CLIPS · LOADING" /> : null}</div>
+          )
+        ) : (() => {
+          const clips = [];
+          (serverPlans || []).forEach((p) => {
+            const d = p && p.detail;
+            const from = 'FROM ' + String((p && p.name) || 'PLAN').toUpperCase();
+            (d && Array.isArray(d.media) ? d.media : []).forEach((m) => {
+              if (m && m.type === 'video' && m.url) clips.push({ url: m.url, name: (m.name && m.name.trim()) || 'Clip', meta: from });
+            });
+            (d && Array.isArray(d.blocks) ? d.blocks : []).forEach((b) => {
+              if (b && b.video) {
+                const words = String((b.text) || '').trim().split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+                clips.push({ url: b.video, name: words || 'Clip', meta: from });
+              }
+            });
+          });
+          if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="NO CLIPS YET" /> : null}</div>;
+          return (
+            <div style={{ marginTop: 2 }}>
+              {clips.map((c, i) => (
+                <BSProCatRow key={i} index={i} name={c.name} meta={c.meta} heat={heat} t={t} onOpen={() => window.open(c.url, '_blank', 'noopener,noreferrer')} />
+              ))}
+            </div>
+          );
+        })()}
         </>)}
 
         {libTab === 'programs' && (<>
-        {/* Top program */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP PROGRAM</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>8 WK</span>
-          </div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>5-day Upper / <span style={{ fontStyle: 'italic', color: teal }}>Lower.</span></div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>5 days/wk · 8-week block · used by 22 · 4.8 ★</div>
-          <div style={{ marginTop: 11, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('program')} style={{ borderRadius: 999, border: 0, background: teal, color: '#04201d', padding: '8px 15px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('5-day Upper Lower')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 13px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "used by 22 · 4.8 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP PROGRAM · 8 WK', '5-day Upper /', 'Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('5-day Upper Lower')} /></span>
+        </>)}
+        {/* Reusable weekly routines / templates — demo signed-out, redaction signed-in-with-none. */}
+        {stationHead('TEMPLATES', monoTrail('NEW →', () => openDraft('program')))}
+        {routines.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+        ) : (
+        <div style={{ marginTop: 2 }}>
+          {routines.map((r, i) => (
+            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openDraft('program')}
+              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+          ))}
         </div>
-        {/* Reusable weekly routines / templates */}
-        {secHead('TEMPLATES', 'Programs', 'NEW →', () => openDraft('program'))}
-        <div style={{ marginTop: 6 }}>{routines.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, assignTrail(r)))}</div>
+        )}
         </>)}
         </>)}
 
@@ -4575,7 +4792,8 @@ function BSProPlansTabBar({ active, onChange }) {
 
 function BSNutriPlans() {
   const t = useBS();
-  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', heat = bsProHeat(t, 'nutritionist');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   // AI draft form
@@ -4597,15 +4815,23 @@ function BSNutriPlans() {
     setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Plan duplicated');
   };
 
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
-  const plans = [...customCards,
+  // §4 (CodeRabbit) — the PAID PLANS list only wants paid meal plans. Filter the
+  // server-derived rows to buildType 'mealplan' (legacy rows w/o detail stay); local
+  // dupes (no .id) always pass. Program/diet templates no longer leak in here.
+  const customCards = (serverPlans || dupes)
+    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')
+    .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
+  // §5 (CodeRabbit) — the demo social-proof rows (12 on it · 4.9 ★) are a
+  // signed-OUT preview only; a signed-in coach sees only their real
+  // serverPlans-derived rows (customCards), with the empty-state redaction.
+  const plans = signedIn ? [...customCards] : [...customCards,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
     { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
     { n: 'Maintenance', meta: '2,700 kcal · 14 on it · 4.9 ★', price: '$120' },
   ];
-  // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab)
-  const nutriPrograms = [
+  // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const nutriPrograms = signedIn ? [] : [
     { n: 'Busy professional', meta: '4 wks · fast & balanced · $130' },
     { n: 'New-parent reset', meta: '6 wks · simple batch meals · $120' },
     { n: 'Athlete fuel', meta: '8 wks · performance · $160' },
@@ -4631,16 +4857,25 @@ function BSNutriPlans() {
     setEditDraft(null); setDrafting(false);
   };
   const libBuild = ({ plans: 'mealplan', programs: 'program', diet: 'diet' })[libTab] || 'mealplan';
-  // Diet-specific meals / plans (the "Diet" sub-tab)
-  const diets = [
+  // Diet-specific meals / plans (the "Diet" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const diets = signedIn ? [] : [
     { n: 'Keto · 7-day', meta: '20g net carbs · high fat · $90' },
     { n: 'Mediterranean', meta: 'whole-food · heart-healthy · $90' },
     { n: 'High-protein cut', meta: '180g+ protein · lean · $100' },
     { n: 'Plant-based week', meta: 'vegan · balanced macros · $90' },
     { n: 'Low-FODMAP', meta: 'gut-friendly · gentle · $110' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab)
-  const enrolled = [
+  // Owner directive — individual dishes shown under a MEALS station on the Diet
+  // sub-tab (no ASSIGN, no price; open = the same openDraft the diet rows use).
+  const singleMeals = signedIn ? [] : [
+    { n: 'Salmon dinner plate', meta: '630 kcal · 42P · dinner' },
+    { n: 'High-protein breakfast bowl', meta: '420 kcal · 32P · breakfast' },
+    { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
+    { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
+  ];
+  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
+  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
+  const enrolled = signedIn ? [] : [
     { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
     { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
     { prog: 'Vegetarian Base', n: 6, who: [['S', '#2f7d4f'], ['P', '#8a5cf6']] },
@@ -4718,130 +4953,132 @@ function BSNutriPlans() {
     );
   }
 
-  const numRow = (it, i, trailing) => (
-    <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{it.n}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{it.meta}</div>
-      </div>
-      <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap' }}>{trailing}</span>
-    </div>
-  );
-  const secHead = (eyebrow, title, trailing, onTrailing) => (
-    <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
-      </div>
-      {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
-    </div>
-  );
-  // Per-row trailing: price (when any) + an ASSIGN pill → the assign-to-client page.
-  const assignTrail = (it) => (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-      {it.price && <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50 }}>{it.price}</span>}
-      <button onClick={(e) => { e.stopPropagation(); setAssignPlan({ id: it.id || null, name: it.n, meta: it.meta, detail: it.detail || null }); }} style={{ borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em' }}>ASSIGN</button>
-    </span>
-  );
+  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
+  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
+  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
+  const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
+  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
+  const enrolledRow = (e, i) => bsProEnrolledRow(t, flash, e, i);
+
+  // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
+  // shows the live PUBLISHED count once loaded, else "—" (no fabricated on-it count).
+  const catalogueStat = !signedIn
+    ? '· 4 PUBLISHED · 40 ON IT'
+    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
 
   return (
     <BSPage>
-      {/* Standard page header — matches the chat/home page formatting. */}
-      <BSPageHeader
-        kicker="4 Published · 40 on it"
-        title="Your plans."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
-
-        {/* Top tabs — Library / Soundtracks */}
-        <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
-          {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '9px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
-          ))}
+      {/* §1.1 Header — mast row (46px inset) + THE CATALOGUE eyebrow
+          + serif "Your plans." (heat italic). */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
+        <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+          Your <i style={{ color: heat, fontStyle: 'italic' }}>plans.</i>
+        </div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+
+        {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
+        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
 
         {tab === 'library' && (<>
-        {/* Generate with AI — builds the active library type */}
-        <button type="button" data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
-          <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a {BUILD_LABEL[libBuild]} in seconds</div>
-          </div>
-          <span style={{ color: gold, fontSize: 15 }}>→</span>
-        </button>
-        <button onClick={() => openDraft(libBuild, true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: '11px', borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: gold }}>+ Build from scratch</button>
-
-        {/* Library sub-tabs — Plans / Recipes / Templates */}
-        <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
-          {LIB_TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setLibTab(k)} style={{ flex: 1, borderRadius: 999, border: `1px solid ${libTab === k ? gold : t.RULE}`, background: libTab === k ? `${gold}1c` : 'transparent', color: libTab === k ? gold : t.INK50, padding: '8px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
-          ))}
+        {/* §1.3 Create actions — draft with AI · build from scratch */}
+        <div style={{ marginTop: 6 }}>
+          <BSProTextAction heat={heat} t={t} label={`✦ Draft a ${BUILD_LABEL[libBuild]} in seconds →`} onClick={() => openDraft(libBuild)} />
+          <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft(libBuild, true)} />
         </div>
+
+        {/* §1.4 Kind sub-tabs — Plans / Programs / Diet */}
+        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: 'Catalogue kind' })}</div>
 
         {libTab === 'plans' && (<>
-        {secHead('PAID PLANS', 'Catalogue')}
-        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, assignTrail(p)))}</div>
-        {secHead('ENROLLED', 'Clients on plans')}
-        <div style={{ marginTop: 6 }}>
-          {enrolled.map((e, i) => (
-            <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{e.prog}</div>
-                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{ display: 'flex' }}>
-                    {e.who.map(([ini, col], j) => (
-                      <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>{e.n} on it</span>
-                </div>
-              </div>
-              <span style={{ color: t.INK50, fontSize: 16 }}>›</span>
-            </div>
-          ))}
-        </div>
+        {/* §1.5 THE CATALOGUE — paid meal plans as dot-leader rows */}
+        {stationHead('PAID PLANS')}
+        {plans.length === 0 ? (
+          <div style={{ marginTop: 2 }}>
+            {Redact ? <Redact INK={t.INK} label="NO PUBLISHED PLANS" /> : null}
+            <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft('mealplan', true)} />
+          </div>
+        ) : (
+          <div style={{ marginTop: 2 }}>
+            {plans.map((p, i) => (
+              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
+                onOpen={() => openDraft('mealplan')}
+                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
+            ))}
+          </div>
+        )}
+        {/* §1.6 ENROLLED — clients on plans */}
+        {stationHead('ENROLLED')}
+        {enrolled.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO ENROLLED CLIENTS" /> : null
+        ) : (
+          <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
+        )}
         </>)}
 
         {libTab === 'programs' && (<>
-        {/* Top program (lifestyle meal program for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PROGRAM</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$130</span>
-          </div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Busy <span style={{ fontStyle: 'italic', color: gold }}>professional.</span></div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>4 wks · fast & balanced · 24 on it · 4.8 ★</div>
-          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('program')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Busy professional')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "24 on it · 4.8 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Busy professional')} /></span>
+        </>)}
+        {/* Lifestyle meal programs for sale — demo signed-out, redaction signed-in-with-none. */}
+        {stationHead('LIFESTYLE', monoTrail('NEW →', () => openDraft('program')))}
+        {nutriPrograms.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+        ) : (
+        <div style={{ marginTop: 2 }}>
+          {nutriPrograms.map((r, i) => (
+            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openDraft('program')}
+              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+          ))}
         </div>
-        {secHead('LIFESTYLE', 'Programs', 'NEW →', () => openDraft('program'))}
-        <div style={{ marginTop: 6 }}>{nutriPrograms.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, assignTrail(r)))}</div>
+        )}
         </>)}
 
         {libTab === 'diet' && (<>
-        {/* Top diet (diet-specific plan for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP DIET</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$90</span>
-          </div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Keto · <span style={{ fontStyle: 'italic', color: gold }}>7-day.</span></div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>20g net carbs · high fat · 31 on it · 4.7 ★</div>
-          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('diet')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Keto 7-day')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top diet — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "31 on it · 4.7 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('diet')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Keto 7-day')} /></span>
+        </>)}
+        {/* Diet-specific meals / plans — demo signed-out, redaction signed-in-with-none. */}
+        {stationHead('DIET-SPECIFIC', monoTrail('NEW →', () => openDraft('diet')))}
+        {diets.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO DIETS YET" /> : null
+        ) : (
+        <div style={{ marginTop: 2 }}>
+          {diets.map((r, i) => (
+            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openDraft('diet')}
+              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+          ))}
         </div>
-        {secHead('DIET-SPECIFIC', 'Diet', 'NEW →', () => openDraft('diet'))}
-        <div style={{ marginTop: 6 }}>{diets.map((r, i) => numRow({ ...r, onClick: () => openDraft('diet') }, i, assignTrail(r)))}</div>
+        )}
+
+        {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no
+            ASSIGN) — demo signed-out, redaction signed-in-with-none. */}
+        {stationHead('MEALS · SINGLE DISHES')}
+        {singleMeals.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO MEALS YET" /> : null
+        ) : (
+        <div style={{ marginTop: 2 }}>
+          {singleMeals.map((m, i) => (
+            <BSProCatRow key={m.n} index={i} name={m.n} meta={m.meta} heat={heat} t={t} onOpen={() => openDraft(libBuild)} />
+          ))}
+        </div>
+        )}
         </>)}
         </>)}
 
