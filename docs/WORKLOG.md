@@ -337,6 +337,51 @@ changelog whenever something ships.
   (`6637c918`). Squash-merged `a44e50e6` (#1591); CI green ×2 rounds; built in
   a fresh worktree; CI was the build gate.
 
+### 2026-07-07 — Chat left-rail: Friends/Team ledger parity (#1596) + presence rail live-vs-demo (#1599)
+- **The Channels ledger language (#1593) extended to the rest of the chat
+  left-rail** (owner: after the Channels tab, "how would you match the
+  Friends/Team/Coaches" lists). Key call: those are *conversations*, not a
+  *directory* — so match the LANGUAGE (color/type/motion/head), NOT the row
+  shape (the tier-avatar + last-message + time + teal-badge row is the right
+  DM archetype and was kept). Presentation only — every handler/predicate/
+  signature intact. **#1596** (`8110c199`):
+  - **One tab grammar across the whole chat.** `bsSubTab` (shared by the Team
+    Coaches/Friends toggle AND the top-level feed role chips) drops the
+    decorative bracket-frame chip for the **typographic underline index**
+    (active = the tab's own color + a drawn underline). The off-palette pink
+    `#ff5a5f` unread pill dies → a bare colored count. Owner chose the unify
+    option (touches the feed chips too — the bracket-frame was the last analog
+    holdout).
+  - **The DM rows breathe.** The off-palette green `#3ddc97` online dot → a
+    **breathing teal dot** (`bsSdPrBreath`, reduced-motion gated) — the same
+    live signal Channels' LIVE rooms carry.
+  - **`ThreadHead`** gains a section label (Friends / Coaches) + a register
+    (`N threads · N new`, new in teal) over the ink→teal gradient rule; `＋ New`
+    kept. `BSFollowSuggestions` cards + Follow pill squared to house radii.
+  - CodeRabbit Trivial (teal ternary dup) addressed by aliasing the component's
+    `tealSig` to the `teal` const declared above it (one source in this
+    component; the literal is a documented repo-wide convention). Owner
+    previewed the branch deploy; squash-merged after CI green ×2.
+- **Presence rail is LIVE when signed in, demo only in preview (#1599,
+  `1098f070`).** Owner: "Training now should be demo when previewing but live
+  when logged in." The live source was **already wired** (`ShapePresence.activeNow`
+  → `realActive` with real tier/avatar/name); only the fallback was wrong —
+  `realActive.length ? realActive : TRAINING_NOW` showed the demo cast to a
+  signed-in member with nobody active (fabricated people to a real user).
+  - Fixed to auth-gate FIRST: **`railPeople = loggedIn ? realActive : TRAINING_NOW`**
+    — signed-in shows only real active members (or none), signed-out preview
+    shows only the demo. Codex P2 + CodeRabbit **Major** caught the first cut
+    (`realActive.length ?…` still prioritized `realActive`, which `activeNow`
+    can populate on mount regardless of auth → a preview could leak real
+    people); the auth-first gate closes it. Both fixed + replied (`d61398ff`).
+  - The rail now **hides entirely** when nobody's active (a signed-in member
+    with an empty roster sees no rail, not an empty strip); `liftingNow` uses
+    the real online count, the `2104` demo number is signed-out only.
+- Open follow-up (unchanged): the presence rail's per-person set still depends
+  on `activeNow` returning members mid-activity (the War Room v2 "see the
+  workout in progress live" spine) — the gating is honest now; the density is
+  data-dependent. Plus the standing on-device pass across the papers.
+
 ### 2026-07-07 — Chat Channels directory → "The Channels" Open Ledger index (#1593)
 - **The Channels tab loses its plate-era chrome** (owner: "analog, out of
   date, static" — pill search, rounded ＋ box, pink LIVE/NEW capsules, per-row
