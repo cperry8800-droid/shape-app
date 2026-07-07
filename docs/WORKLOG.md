@@ -258,6 +258,69 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Grocery wave: Open Ledger surfaces · role-true coach heat · trainer nav door (#1591)
+- **Trainer coach-home nav gains a GROCERY LISTS door** (INSIDE. index) — the
+  coach grocery page (`BSProGroceryLists`) was already fully trainer-aware
+  ("Meal support" / "Coach Queue" copy, notify-only delivery) but only the
+  nutritionist nav exposed it. Codex P2 caught the second half: the trainer
+  `openHomeWidget` never routed `'grocery'` (a silent no-op door) — wired to
+  `setQueueView('grocery')` like the nutri shell.
+- **Coach Grocery Lists page → Open Ledger** (owner screenshots — it was the
+  plate-era look: pill tabs, rounded cards, pill chips, rounded CTAs). Now:
+  **role-true heat** via `bsProHeat` (trainer rust / nutritionist gold — the
+  old accent was INVERTED: nutri=rust, trainer=green), a serif verdict lead +
+  ink→heat rule, a typographic Clients/Mine index, a quiet underline create
+  form (`.bs-uline`), zero-box heat-spine list blocks with dot-leader aisle
+  rows, honest dashed-rule empty states; **teal = the one action** (Create /
+  Send to client); Delete demoted to a rust text-action.
+- **Client grocery color decision (owner-ratified): client surfaces lead
+  TEAL; the nutritionist shows up as a GOLD tag** on what she sent — the
+  "Nutri plan" source chip + list-picker rows tag gold (was teal/green), and
+  the confusing `const rust = teal` alias in `BSGrocery` is renamed `accent`
+  (CodeRabbit Major; `t.RUST` semantic uses untouched). New shared
+  `bsGroceryHues(t)` helper = one teal/gold source for both grocery components.
+- **"Saved carts" (`BSGroceryLibrary`) finished into the ledger grammar**: the
+  filter pills → a typographic index (active = ink + teal underline,
+  `aria-pressed`), the boxed PAPER2 list cards → zero-box kind-spine rows
+  (mealplan gold · recipe amber · custom purple) with inline dot-rule item
+  previews, and Edit/Duplicate/Delete → text-actions (Load keeps the clipped
+  INK CTA).
+- Presentation + wiring only; list/create/send/delete handlers verbatim. All
+  4 review findings (1 Codex P2 + 3 CodeRabbit) fixed + replied in-PR
+  (`6637c918`). Squash-merged `a44e50e6` (#1591); CI green ×2 rounds; built in
+  a fresh worktree; CI was the build gate.
+
+### 2026-07-07 — Chat Channels directory → "The Channels" Open Ledger index (#1593)
+- **The Channels tab loses its plate-era chrome** (owner: "analog, out of
+  date, static" — pill search, rounded ＋ box, pink LIVE/NEW capsules, per-row
+  icon soup). Rebuilt as a ledger index, owner-previewed on the branch deploy
+  before merge:
+  - **Ledger head**: `THE CHANNELS` eyebrow + an honest register (`N channels
+    · N live · N new`, live/new in teal) over the ink→teal gradient rule.
+  - **Underline search** (`.bs-uline`, teal focus, CLEAR text-action) + a
+    **＋ NEW text-action**; the boxed create form goes quiet zero-box —
+    underline name field, typographic Public/Private toggle (`aria-pressed`),
+    Cancel text-action + the clipped teal CREATE CTA.
+  - **Rows → a dot-leader index**: serif `#name` · **LIVE = teal text + a
+    breathing teal dot** (`bsSdPrBreath`, reduced-motion gated — the page's
+    life signal; the pink `#e0518a` capsules die), unread = bare teal
+    `N NEW` text (the red `#ff5a5f` pill dies), mono member/online meta with
+    the online count in teal, pin STATE kept, joined rows open on tap (quiet
+    chevron), unjoined get the one clipped teal JOIN CTA. Rows fade up once
+    (`bsSdFadeUp`, staggered, reduced-motion gated).
+  - **Send/share move OFF every row into the channel THREAD header** (new
+    `onSendChannel` prop on `BSChatThread` + the send sheet rendered in the
+    open-thread branch; share is self-contained) — the index keeps only the
+    pin. Codex P2 caught the demo hole: the header send is **gated off
+    sample channels** (mirrors the old row gate) so the send sheet can never
+    target a channel that doesn't exist.
+- **Dead code swept**: `_chPalette` (never referenced) + `unreadBadge` (the
+  red pill — its only caller was the old channels row). CodeRabbit Minor:
+  `openChannelNow` derives one `mc = memberCount || 0` for both the label and
+  the field. Handlers (list/create/join/pin/send/unread) verbatim.
+- Squash-merged `4ddafab0` (#1593) after the owner previewed + called it done;
+  CI green ×2 rounds; both review findings fixed + replied (`fb1ca06b`).
+
 ### 2026-07-07 — Coach pass: live-bulletin OPEN fix · honest ledgered event sheets · live-watch console (#1587)
 - **Dead OPEN → on the nutritionist Today live bulletin fixed.** Root cause: the
   demo path fired `onWatchLive` with a trainer workout payload at a handler the
