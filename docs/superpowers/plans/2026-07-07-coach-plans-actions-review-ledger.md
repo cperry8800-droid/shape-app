@@ -217,6 +217,20 @@ const singleMeals = [
 
 - [ ] **Step 4: LF normalize + commit** (`feat(pros): nutritionist Plans tab → The Catalogue (Open Ledger)`).
 
+### Task 3b: Exercise videos — real library + per-exercise clips (owner directive)
+
+**Files:**
+- Modify: `mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx` — `BSCoachDraftEditor` (block-row render; the component already uploads via `window.ShapeCoachMedia.upload` with a sign-in guard in its media section — reuse that exact pattern) and `BSTrainerPrograms`'s WORKOUT VIDEOS station.
+
+**Interfaces:**
+- Consumes: `window.ShapeCoachMedia.upload(file)` → `{url,type,name}`; `window.ShapeCoachPlans.update(id, patch)` (PATCH `/api/coach/plans`); `serverPlans` rows (`{id,name,detail}`); Task-1 `BSProCatRow`/`BSProTextAction`; `window.BSTRedact`.
+- Produces: `blocks[i].video` (string url, optional) on draft blocks — persisted untouched through both roles' `publishDraft` → `coach_plans.detail.blocks`.
+
+- [ ] **Step 1: Per-exercise clip attach in the editor.** Each block row in `BSCoachDraftEditor` gains a trailing mono affordance: no video → `＋ CLIP` (opens a hidden `<input type="file" accept="video/*">`; on pick, upload via the component's existing ShapeCoachMedia pattern incl. the signed-out guard message; store `setBlocks(list => list.map((b,j) => j===i ? {...b, video: m.url} : b))`); has video → `▶ CLIP` (opens `b.video` in a new tab) + a small `×` clearing it. ≥44px targets, aria-labels naming the exercise. Both roles inherit (shared editor).
+- [ ] **Step 2: Real WORKOUT VIDEOS station (trainer Plans, workouts sub-tab).** Signed-in (`serverPlans` non-null): rows = flattened real clips — every video-typed entry in each plan's `detail.media` plus every `detail.blocks[i].video` — rendered as `BSProCatRow` (name = media name or the block text's first words; meta = `FROM {plan.name}`; no price; `onOpen` opens the url; no ASSIGN). Zero clips → `BSTRedact` label `NO CLIPS YET` + the upload action. Signed-out keeps the demo `cues` rows. The station's action `＋ ADD A CLIP TO A WORKOUT →` = pick a plan (quiet bottom-sheet list of `serverPlans` names — portal into `#bs-phone-surface` like other sheets) → file input → `ShapeCoachMedia.upload` → `ShapeCoachPlans.update(plan.id, { detail: {...plan.detail, media:[...(plan.detail?.media||[]), m]} })` → update local `serverPlans` state + flash. Signed-out → the existing explanatory flash.
+- [ ] **Step 3: Verify** — parse-check · PowerShell build exit 0 · browser-drive: editor block rows show ＋ CLIP (guard message signed-out), workouts sub-tab shows demo cues signed-out; code-review the aggregation path for null-safety (`detail` may be null).
+- [ ] **Step 4: LF normalize + commit** (`feat(pros): real exercise clips — per-block attach + aggregated video library`).
+
 ### Task 4: PR A gate
 
 - [ ] **Step 1:** Full `npm test` at repo root — expected 458 pass, 0 fail.

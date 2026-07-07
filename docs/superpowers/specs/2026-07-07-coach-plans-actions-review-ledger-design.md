@@ -28,9 +28,11 @@ Send / Apply & Notify note delivery, `ShapeCalendar.create`, and
 - No Chat/Me tab changes (Chat is shared with the client redesign already;
   the coach Me tab is the Signal profile + settings hub — separate surfaces).
 - No new intelligence — no verdict engines, no new rollups.
-- No changes to the plan/workout/meal-plan **builders** (`BSCoachDraftEditor`)
-  or the AI-draft sheet's fields/persistence — they are forms and stay quiet
-  (two-tier rule); only their entry points restyle.
+- The plan/workout/meal-plan **builders** (`BSCoachDraftEditor`) and the
+  AI-draft sheet stay quiet forms (two-tier rule) and keep their fields/
+  persistence — with ONE additive exception (owner directive 2026-07-07):
+  a per-exercise **clip attach** on each block row (see the video item under
+  the Plans composition).
 - No live-data changes to the Review page's session-log fetch or note writes;
   the content fix is demo-shape only (§3).
 
@@ -99,7 +101,18 @@ config (heat, copy, sub-tab keys), like `BSProToday`/`BSProRosterView`.
    dot-leader row grammar, demo data, no new tab keys or handlers.
 7. **ENROLLED station** ("Clients on plans") — dot-leader rows (client ·
    leader · plan/meta), tap-through kept.
-8. **Empty cases** (no published plans · no enrolled clients · signed-out) →
+8. **Exercise videos are real (owner directive 2026-07-07).** The trainer
+   WORKOUT VIDEOS station stops being a stub: signed-in it aggregates the
+   coach's actual clips from `coach_plans.detail` (plan-level `media` video
+   entries + per-block `blocks[i].video`), each row `label · from {plan} ·
+   ▶` (opens the clip); the upload action uploads via the existing
+   `window.ShapeCoachMedia.upload` and attaches to a chosen plan's
+   `detail.media` through `ShapeCoachPlans.update` (quiet picker sheet).
+   Demo `cues` stay the signed-out fallback; signed-in with zero clips →
+   redaction. In `BSCoachDraftEditor`, every block row gains a `＋ CLIP` /
+   `▶ CLIP` affordance storing `blocks[i].video` (rides the existing
+   `detail.blocks` persistence — no migration, no new routes).
+9. **Empty cases** (no published plans · no enrolled clients · signed-out) →
    redaction lines + a `＋ BUILD FROM SCRATCH` action.
 
 ### Kills (Plans)
