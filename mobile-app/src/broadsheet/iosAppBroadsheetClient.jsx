@@ -11733,9 +11733,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
         <div style={{ paddingLeft: 0 }}>
-          {/* Heat rail removed; a small 8px side gutter keeps content just off the
+          {/* Heat rail removed; a small 12px side gutter keeps content just off the
               screen edge (owner request — near-edge-to-edge, eased back a touch). */}
-          <div style={{ padding: '10px 8px 11px' }}>
+          <div style={{ padding: '10px 12px 11px' }}>
             {/* author + activity type — or, when hideAuthor (profile feed), a slim
                 header: the type tag on the right + the relative time on the left
                 (the profile's own card chrome already owns the author identity).
@@ -11833,7 +11833,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(8 + pagePad), marginRight: -(8 + pagePad), cursor: 'pointer' }}>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(12 + pagePad), marginRight: -(12 + pagePad), cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
               </div>
