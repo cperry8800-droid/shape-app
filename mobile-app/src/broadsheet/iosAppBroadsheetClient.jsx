@@ -1743,8 +1743,17 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     sendMealNote();
     // Persist the logged macros onto today's health snapshot so the Nutrition
     // stats (today vs target, adherence) reflect real logging — server-side
-    // accumulating write; no-ops when signed out.
-    try { window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F }); } catch (e) {}
+    // accumulating write; no-ops when signed out. The +10 Shape Score award
+    // ({awarded, points}) rides back on the resolved value; show it only when
+    // actually granted (first meal-log of the day), never on an already-earned day.
+    try {
+      const r = window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F });
+      if (r && typeof r.then === 'function') {
+        r.then((d) => (d && d.awardPromise) || null)
+         .then((a) => { if (a && a.awarded) setAward(a); })
+         .catch(() => {});
+      }
+    } catch (e) {}
     onLogged();
     setLogged(true);
   };
@@ -1784,6 +1793,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           </div>
           <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · {logTime}</div>
+          {award && award.awarded && (
+            <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 999, border: `1px solid ${teal}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, animation: 'bsAwardIn 180ms ease-out' }}>
+              +{award.points != null ? award.points : 10} · Nutrition · Shape Score
+            </div>
+          )}
+          <style>{`@keyframes bsAwardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { [style*="bsAwardIn"] { animation: none !important; } }`}</style>
         </div>
         <div style={{ padding: `26px ${t.padX}px 0` }}>
           <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px"><DayTotals compact /></BSPlate>
@@ -1792,7 +1807,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           <button onClick={onClose} style={{ ...primaryBtn, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '0', textTransform: 'none' }}>Done →</button>
         </div>
         <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-          <button onClick={() => setLogged(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, letterSpacing: '0' }}>Undo</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, letterSpacing: '0' }}>← Back</button>
         </div>
       </BSPage>
     );
