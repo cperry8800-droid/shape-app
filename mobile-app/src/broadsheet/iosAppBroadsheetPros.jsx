@@ -88,7 +88,7 @@ function demoWorkoutReviewSessions(role = 'trainer') {
   // `nutrition: true`.
   if (isNutri) return [
     { id: 'demo-nutritionist-day-1', nutrition: true, title: 'Tue · 4 meals logged', status: 'complete day',
-      kcal: 1980, target: 2100, protein_g: 168, protein_target_g: 170, logged: 4, planned: 4, flag: null,
+      kcal: 1980, target: 2100, protein_g: 152, protein_target_g: 170, logged: 4, planned: 4, flag: null,
       meals: [
         { slot: 'Breakfast', name: 'Greek yogurt bowl', kcal: 420, macros: '32P · 44C · 12F' },
         { slot: 'Lunch', name: 'Chicken + rice plate', kcal: 620, macros: '48P · 62C · 16F' },
@@ -96,8 +96,8 @@ function demoWorkoutReviewSessions(role = 'trainer') {
         { slot: 'Dinner', name: 'Salmon, potatoes, greens', kcal: 630, macros: '42P · 48C · 24F' },
       ], coach_workout_review_notes: [] },
     { id: 'demo-nutritionist-day-2', nutrition: true, title: 'Mon · 3 of 4 meals logged', status: 'gap flagged',
-      kcal: 1610, target: 2100, protein_g: 128, protein_target_g: 170, logged: 3, planned: 4,
-      flag: 'PROTEIN 42G UNDER · DINNER UNLOGGED',
+      kcal: 1210, target: 2100, protein_g: 82, protein_target_g: 170, logged: 3, planned: 4,
+      flag: 'PROTEIN 88G UNDER · DINNER UNLOGGED',
       meals: [
         { slot: 'Breakfast', name: 'Oats + berries', kcal: 390, macros: '18P · 62C · 9F' },
         { slot: 'Lunch', name: 'Turkey wrap', kcal: 540, macros: '38P · 48C · 18F' },
@@ -303,7 +303,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 {stat('Logged', `${selected.logged}/${selected.planned}`)}
               </div>
               {selected.flag ? (
-                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c0533b' }}>{selected.flag}</div>
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
               ) : null}
               <div style={{ marginTop: 16 }}>
                 {(selected.meals || []).map((meal, index) => (
@@ -2206,7 +2206,7 @@ function BSProClientMini({ client, heat }) {
       <BSFacetAvatar size={38} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog} · Week 6 of 12</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog}{client.week != null && client.weeks != null ? ` · Week ${client.week} of ${client.weeks}` : ''}</div>
       </div>
     </div>
   );
