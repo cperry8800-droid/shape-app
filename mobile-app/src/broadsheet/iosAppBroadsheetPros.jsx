@@ -1221,12 +1221,17 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {/* §A.2 DATELINE — one row, edition label in heat + day/date, ink-50; right = live clock or selected date. */}
       <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          <span style={{ color: heat }}>{isNutri ? 'NUTRI EDITION' : 'COACHES EDITION'}</span>
+          <span style={{ color: heat }}>{isNutri ? 'NUTRI EDITION' : 'TRAINERS EDITION'}</span>
           <span style={{ color: `${t.INK}80` }}> · {_BS_DOW[selIdx]} · {_BS_MON[selDate.getMonth()]} {selDate.getDate()}</span>
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
           {isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`}
         </span>
+      </div>
+
+      {/* NOW PLAYING — Shape Radio, pinned to the top under the edition band */}
+      <div style={{ marginTop: 12 }}>
+        <BSNowPlaying onOpen={goRadio} />
       </div>
 
       {/* §A.3 BULLETINS — LIVE (teal spine + breathing dot) then REVIEW (heat spine, no dot). */}
@@ -1445,11 +1450,6 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             </button>
           ))}
         </div>
-      </div>
-
-      {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
-      <div style={{ marginTop: 14 }}>
-        <BSNowPlaying onOpen={goRadio} />
       </div>
 
       <BSFooter left={isNutri ? 'The Nutri Edition' : 'The Coach Edition'} right="Pg 1 of 4" />
