@@ -135,11 +135,11 @@ function demoWorkoutReviewSessions(role = 'trainer') {
 function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
-  const accent = isNutri ? t.RUST : t.AMBER;
+  const heat = bsProHeat(t, role);
   const [sessions, setSessions] = useStateBSP([]);
   const [selectedId, setSelectedId] = useStateBSP(null);
   const [note, setNote] = useStateBSP('');
-  const [status, setStatus] = useStateBSP('Loading session logs...');
+  const [status, setStatus] = useStateBSP('LOADING…');
 
   useEffectBSP(() => {
     let cancelled = false;
@@ -151,13 +151,13 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         const nextRows = rows.length ? rows : demoWorkoutReviewSessions(role);
         setSessions(nextRows);
         setSelectedId((current) => current || nextRows[0]?.id || null);
-        setStatus(rows.length ? 'Live Supabase session logs' : 'Demo queue until assigned client sessions appear');
+        setStatus(rows.length ? 'LIVE · SUPABASE SESSION LOGS' : 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR');
       } catch (error) {
         if (cancelled) return;
         const fallback = demoWorkoutReviewSessions(role);
         setSessions(fallback);
         setSelectedId(fallback[0]?.id || null);
-        setStatus(error?.message || 'Showing demo review queue');
+        setStatus('DEMO QUEUE · OFFLINE');
       }
     }
     load();
@@ -200,47 +200,62 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
     }
   };
 
+  // Eyebrow-ABOVE-figure register (the Open Ledger hero-stat pattern); bare — no
+  // rule/box/fill.
   const stat = (label, value) => (
-    <div style={{ borderLeft: `1px solid ${t.RULE}`, paddingLeft: 10, minWidth: 0 }}>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );
 
   return (
     <BSPage>
-      <BSMasthead
-        title={isNutri ? 'Client Review' : 'Workout Review'}
-        thinRule
-        showDoubleRule={false}
-        leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
-        rightKicker={status}
-        trailing={<BSBackButton onClick={onBack} />}
-      />
+      {/* ── Ledger header — mast row (46px inset, no corner cluster) + THE QUEUE
+          eyebrow + ← BACK, serif "Workout review." (heat italic), status meta. ── */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+            THE QUEUE <span style={{ color: `${t.INK}80` }}>· {sessions.length} ITEMS</span>
+          </div>
+          <BSBackButton onClick={onBack} />
+        </div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+          {isNutri ? 'Client' : 'Workout'} <i style={{ color: heat, fontStyle: 'italic' }}>review.</i>
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{status}</div>
+      </div>
 
-      <BSSection title={isNutri ? 'Client sessions' : 'Logged workouts'} meta={`${sessions.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px 14px`, display: 'grid', gap: 8 }}>
+      {/* ── The queue — dot-leader rows; the selected row carries a heat spine +
+          aria-current (never color-only). No fill, no radius. ── */}
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
         {sessions.map((session) => {
           const active = session.id === selected?.id;
           const count = session.summary?.completedSets || (session.workout_set_logs || []).length || 0;
+          const title = session.workout_name || session.title || 'Workout session';
           return (
-            <button key={session.id} onClick={() => setSelectedId(session.id)} style={{
-              width: '100%',
-              border: `1px solid ${active ? accent : t.RULE}`,
-              borderRadius: 14,
-              padding: 12,
-              background: active ? `${accent}16` : t.PAPER2,
-              color: t.INK,
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em' }}>{session.workout_name || session.title || 'Workout session'}</div>
-                <BSEyebrow color={active ? accent : t.INK50}>{count} sets</BSEyebrow>
-              </div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                {session.status || 'completed'} - {formatReviewSeconds(session.duration_seconds)}
-              </div>
+            <button
+              key={session.id}
+              type="button"
+              onClick={() => setSelectedId(session.id)}
+              aria-current={active ? 'true' : undefined}
+              aria-label={`${title}, ${count} sets, ${session.status || 'completed'}`}
+              style={{
+                width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0,
+                borderTop: `1px solid ${t.INK}12`,
+                borderLeft: active ? `3px solid ${heat}` : '3px solid transparent',
+                minHeight: 52, padding: '11px 0 11px 11px',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+                <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} SETS</span>
+              </span>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                {(session.status || 'completed')} · {formatReviewSeconds(session.duration_seconds)}
+              </span>
             </button>
           );
         })}
@@ -248,93 +263,94 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
       {selected ? (
         <>
-          <BSSection title="Session detail" meta={selected.status || 'completed'} />
-          <div style={{ margin: `0 ${t.padX}px 14px`, border: `1px solid ${t.RULE}`, borderRadius: 16, background: t.PAPER2, overflow: 'hidden' }}>
-            <div style={{ padding: 14 }}>
-              <BSEyebrow color={accent}>{selected.title || selected.workout_name || 'Workout session'}</BSEyebrow>
-              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 24, color: t.INK, fontWeight: 800, letterSpacing: '-0.04em' }}>
-                {selected.workout_name || selected.title || 'Session log'}
-              </div>
-              <div style={{ marginTop: 11, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 9 }}>
-                {stat('Sets', completedSets)}
-                {stat('Avg set', formatReviewSeconds(avgSet))}
-                {stat('Avg rest', formatReviewSeconds(avgRest))}
-                {stat('Elapsed', formatReviewSeconds(selected.duration_seconds))}
-              </div>
+          {/* ── Session detail — station head + bare 4-up registers (eyebrow above
+              figure) + dot-leader set rows. The bordered card is gone. ── */}
+          <div style={{ padding: `22px ${t.padX}px 0` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`SESSION DETAIL · ${selected.status || 'completed'}`} />}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {stat('Sets', completedSets)}
+              {stat('Avg set', formatReviewSeconds(avgSet))}
+              {stat('Avg rest', formatReviewSeconds(avgRest))}
+              {stat('Elapsed', formatReviewSeconds(selected.duration_seconds))}
             </div>
+            <div style={{ marginTop: 16 }}>
+              {setLogs.length ? setLogs.map((entry, index) => {
+                const name = `${entry.movement_name || entry.moveName || 'Movement'} #${entry.set_number || entry.setNumber || index + 1}`;
+                const target = `${entry.target_reps || entry.targetReps || 'target'} · ${entry.target_load || entry.targetLoad || 'load'}`;
+                return (
+                  <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>SET {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · REST {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
+                    </span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{target}</span>
+                  </div>
+                );
+              }) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO SETS LOGGED" /> : null)}
+            </div>
+          </div>
 
-            <div style={{ borderTop: `1px solid ${t.HAIR}` }}>
-              {setLogs.map((entry, index) => (
-                <div key={entry.id || index} style={{ padding: '11px 14px', borderTop: index ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '1.25fr 0.7fr 0.7fr', gap: 9, alignItems: 'center' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 750, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.movement_name || entry.moveName || 'Movement'} #{entry.set_number || entry.setNumber || index + 1}
+          {/* ── Watch samples — bare registers (eyebrow above figure); a pending
+              sample renders — in t.INK50. ── */}
+          <div style={{ padding: `22px ${t.padX}px 0` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="WATCH SAMPLES" meta={`${sensorSamples.length} samples`} />}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, rowGap: 16 }}>
+              {(sensorSamples.length ? sensorSamples : [{ metric: 'watch data', value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => {
+                const pending = sample.value === 'pending' || sample.value == null;
+                return (
+                  <div key={sample.id || index} style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || 'metric').replace(/_/g, ' ')}</div>
+                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                      {pending ? '—' : sample.value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{sample.unit}</span> : null}
                     </div>
-                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                      {(entry.target_reps || entry.targetReps || 'target')} - {(entry.target_load || entry.targetLoad || 'load')}
-                    </div>
                   </div>
-                  <div>
-                    <BSEyebrow>Set</BSEyebrow>
-                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)}</div>
-                  </div>
-                  <div>
-                    <BSEyebrow>Rest</BSEyebrow>
-                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</div>
-                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Coach notes — heat-spine note rows over a quiet composer form (the
+              textarea + save button stay a quiet form; button keeps its t.INK
+              fill — this page's primary action). ── */}
+          <div style={{ padding: `22px ${t.padX}px 22px` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="COACH NOTES" meta={`${reviewNotes.length} notes`} />}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {reviewNotes.map((item) => (
+                <div key={item.id} style={{ borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
+                  {item.body}
                 </div>
               ))}
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write feedback for the client..." style={{
+                width: '100%',
+                minHeight: 94,
+                resize: 'vertical',
+                border: `1px solid ${t.RULE}`,
+                borderRadius: 12,
+                background: t.PAPER2,
+                color: t.INK,
+                padding: 12,
+                fontFamily: t.DISPLAY,
+                fontSize: 15,
+                lineHeight: 1.35,
+                outline: 'none',
+              }} />
+              <button onClick={saveNote} style={{
+                border: 0,
+                borderRadius: 12,
+                background: t.INK,
+                color: t.PAPER,
+                minHeight: 48,
+                fontFamily: t.MONO,
+                fontSize: 10,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}>
+                Save review note
+              </button>
             </div>
-          </div>
-
-          <BSSection title="Watch samples" meta={`${sensorSamples.length} samples`} />
-          <div style={{ padding: `0 ${t.padX}px 14px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(sensorSamples.length ? sensorSamples : [{ metric: 'watch data', value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => (
-              <div key={sample.id || index} style={{ border: `1px solid ${t.RULE}`, borderRadius: 14, padding: 12, background: sample.value === 'pending' ? 'transparent' : `${accent}12` }}>
-                <BSEyebrow color={sample.value === 'pending' ? t.INK50 : accent}>{String(sample.metric || sample.type || 'metric').replace(/_/g, ' ')}</BSEyebrow>
-                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 26, color: t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>
-                  {sample.value ?? '--'} <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{sample.unit || ''}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <BSSection title="Coach notes" meta={`${reviewNotes.length} notes`} />
-          <div style={{ padding: `0 ${t.padX}px 22px`, display: 'grid', gap: 10 }}>
-            {reviewNotes.map((item) => (
-              <div key={item.id} style={{ borderLeft: `3px solid ${accent}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
-                {item.body}
-              </div>
-            ))}
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write feedback for the client..." style={{
-              width: '100%',
-              minHeight: 94,
-              resize: 'vertical',
-              border: `1px solid ${t.RULE}`,
-              borderRadius: 12,
-              background: t.PAPER2,
-              color: t.INK,
-              padding: 12,
-              fontFamily: t.DISPLAY,
-              fontSize: 15,
-              lineHeight: 1.35,
-              outline: 'none',
-            }} />
-            <button onClick={saveNote} style={{
-              border: 0,
-              borderRadius: 12,
-              background: t.INK,
-              color: t.PAPER,
-              minHeight: 48,
-              fontFamily: t.MONO,
-              fontSize: 10,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}>
-              Save review note
-            </button>
           </div>
         </>
       ) : null}
