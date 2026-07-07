@@ -2033,6 +2033,53 @@ function BSProTextAction({ label, onClick, heat, t, mono = false }) {
     </button>
   );
 }
+// ── Shared catalogue ledger furniture (Plans tab, both roles — extracted so the
+// trainer + nutrition copies can't drift). Deps (t, heat, flash) come in as args.
+// Station head (heat tick + eyebrow) with an optional trailing mono control.
+function bsProStationHead(t, heat, label, trailing) {
+  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  return (
+    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {StationHead ? <StationHead heat={heat} INK={t.INK} label={label} /> : <span />}
+      {trailing || null}
+    </div>
+  );
+}
+// Trailing mono control (SORT · POPULAR → / NEW →) — plain mono button, 44px target.
+function bsProMonoTrail(t, label, onClick) {
+  return (
+    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', padding: '0 2px' }}>{label}</button>
+  );
+}
+// Verdict lead for a TOP feature (unboxed): mono eyebrow · serif headline w/
+// heat-italic last word · mono meta · EDIT · DUPLICATE · SHARE → actions.
+function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div>
+      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
+    </div>
+  );
+}
+// Enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
+function bsProEnrolledRow(t, flash, e, i) {
+  return (
+    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
+        <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
+      </span>
+      <span style={{ display: 'flex', marginTop: 7 }}>
+        {e.who.map(([ini, col], j) => (
+          <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
+        ))}
+      </span>
+    </button>
+  );
+}
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
 function bsProMastRow(withCorners = true) {
@@ -3848,7 +3895,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
                 <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   {b.video ? (<>
-                    <button type="button" onClick={() => window.open(b.video, '_blank')} aria-label={`Play clip for ${b.text || 'exercise'}`} style={clipBtnStyle}>▶ CLIP</button>
+                    <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={`Play clip for ${b.text || 'exercise'}`} style={clipBtnStyle}>▶ CLIP</button>
                     <button type="button" onClick={() => clearClip(i)} aria-label={`Remove clip from ${b.text || 'exercise'}`} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
                   </>) : (
                     <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={`Attach a video clip to ${b.text || 'exercise'}`} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>＋ CLIP</button>
@@ -3899,6 +3946,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const heat = bsProHeat(t, 'trainer');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   const [desc, setDesc] = useStateBSP('');
@@ -3953,6 +4001,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     setClipPlanId(null);
     setClipSheet(false);
   };
+  const closeClipSheet = () => { setClipSheet(false); setClipPlanId(null); };
+  // §3 (CodeRabbit a11y) — keyboard close: Escape dismisses the clip sheet while open.
+  useEffectBSP(() => {
+    if (!clipSheet || typeof window === 'undefined') return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') closeClipSheet(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clipSheet]);
 
   const basePrograms = [
     { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
@@ -3960,7 +4016,12 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
     { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
+  // §4 (CodeRabbit) — the PAID PLANS list only wants paid plans. Filter the
+  // server-derived rows to buildType 'plan' (legacy rows w/o detail stay); local
+  // dupes (no .id) always pass. Workout/program templates no longer leak in here.
+  const customCards = (serverPlans || dupes)
+    .filter(p => !p.id || !p.detail || p.detail.buildType === 'plan')
+    .map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
     const list = [...customCards, ...basePrograms];
@@ -4086,45 +4147,19 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     );
   }
 
-  // ── Ledger furniture (spec §1) — station heads over dot-leader catalogue rows.
-  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
+  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
   const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
-  // Station head (heat tick + eyebrow) with an optional trailing mono control
-  // (SORT · POPULAR → / NEW →) — plain mono button, no underline (44px target).
-  const stationHead = (label, trailing) => (
-    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      {StationHead ? <StationHead heat={heat} INK={t.INK} label={label} /> : <span />}
-      {trailing || null}
-    </div>
-  );
-  const monoTrail = (label, onClick) => (
-    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', padding: '0 2px' }}>{label}</button>
-  );
-  // §1.5 verdict lead for a TOP feature (unboxed): mono eyebrow · serif headline
-  // w/ heat-italic last word · mono meta · EDIT · DUPLICATE · SHARE → actions.
-  const featureLead = (eyebrow, headA, headB, meta, actions) => (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</div>
-      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
-      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div>
-      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
-    </div>
-  );
-  // §1.6 enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
-  const enrolledRow = (e, i) => (
-    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
-      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
-        <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
-      </span>
-      <span style={{ display: 'flex', marginTop: 7 }}>
-        {e.who.map(([ini, col], j) => (
-          <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
-        ))}
-      </span>
-    </button>
-  );
+  const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
+  const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
+  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
+  const enrolledRow = (e, i) => bsProEnrolledRow(t, flash, e, i);
+
+  // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
+  // shows the live PUBLISHED count once loaded, else "—" (no fabricated drafts).
+  const catalogueStat = !signedIn
+    ? '· 4 PUBLISHED · 1 DRAFT'
+    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
 
   return (
     <BSPage>
@@ -4133,7 +4168,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>· 4 PUBLISHED · 1 DRAFT</span>
+          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
         <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
           Your <i style={{ color: heat, fontStyle: 'italic' }}>programs.</i>
@@ -4144,10 +4179,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
         {clipSheet && createPortal(
-          <div onClick={() => { setClipSheet(false); setClipPlanId(null); }} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={closeClipSheet} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a clip to a workout" style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
               <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>＋ Add a clip</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>＋ Add a clip</div>
+                <button type="button" onClick={closeClipSheet} aria-label="Close" style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginTop: -8, marginRight: -6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
               <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Pick a <span style={{ fontStyle: 'italic', color: heat }}>workout.</span></div>
               <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{clipUploading ? 'Uploading…' : 'Choose which plan this clip belongs to, then pick a video.'}</div>
               <div style={{ marginTop: 12 }}>
@@ -4225,13 +4263,19 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Video library — real clips flattened from published plans (plan
             media + per-block clips); demo cues are the signed-out fallback. */}
         {stationHead('WORKOUT VIDEOS')}
-        <BSProTextAction heat={teal} t={t} label="＋ Add a clip to a workout →" onClick={openClipAdder} />
+        <BSProTextAction heat={heat} t={t} label="＋ Add a clip to a workout →" onClick={openClipAdder} />
         {serverPlans === null ? (
-          <div style={{ marginTop: 2 }}>
-            {cues.map((c, i) => (
-              <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
-            ))}
-          </div>
+          !signedIn ? (
+            // Signed-out preview → demo cues are fine.
+            <div style={{ marginTop: 2 }}>
+              {cues.map((c, i) => (
+                <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
+              ))}
+            </div>
+          ) : (
+            // Signed-in but still loading → redaction line, never fabricated counts.
+            <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="CLIPS · LOADING" /> : null}</div>
+          )
         ) : (() => {
           const clips = [];
           (serverPlans || []).forEach((p) => {
@@ -4251,7 +4295,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           return (
             <div style={{ marginTop: 2 }}>
               {clips.map((c, i) => (
-                <BSProCatRow key={i} index={i} name={c.name} meta={c.meta} heat={heat} t={t} onOpen={() => window.open(c.url, '_blank')} />
+                <BSProCatRow key={i} index={i} name={c.name} meta={c.meta} heat={heat} t={t} onOpen={() => window.open(c.url, '_blank', 'noopener,noreferrer')} />
               ))}
             </div>
           );
@@ -4735,6 +4779,7 @@ function BSProPlansTabBar({ active, onChange }) {
 function BSNutriPlans() {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', heat = bsProHeat(t, 'nutritionist');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   // AI draft form
@@ -4756,7 +4801,12 @@ function BSNutriPlans() {
     setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Plan duplicated');
   };
 
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
+  // §4 (CodeRabbit) — the PAID PLANS list only wants paid meal plans. Filter the
+  // server-derived rows to buildType 'mealplan' (legacy rows w/o detail stay); local
+  // dupes (no .id) always pass. Program/diet templates no longer leak in here.
+  const customCards = (serverPlans || dupes)
+    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')
+    .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const plans = [...customCards,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
@@ -4885,45 +4935,19 @@ function BSNutriPlans() {
     );
   }
 
-  // ── Ledger furniture (spec §1) — station heads over dot-leader catalogue rows. ──
-  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
+  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
   const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
-  // Station head (heat tick + eyebrow) with an optional trailing mono control
-  // (NEW → etc.) — plain mono button, no underline (44px target).
-  const stationHead = (label, trailing) => (
-    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      {StationHead ? <StationHead heat={heat} INK={t.INK} label={label} /> : <span />}
-      {trailing || null}
-    </div>
-  );
-  const monoTrail = (label, onClick) => (
-    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', padding: '0 2px' }}>{label}</button>
-  );
-  // §1.5 verdict lead for a TOP feature (unboxed): mono eyebrow · serif headline
-  // w/ heat-italic last word · mono meta · EDIT · DUPLICATE · SHARE → actions.
-  const featureLead = (eyebrow, headA, headB, meta, actions) => (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</div>
-      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
-      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div>
-      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
-    </div>
-  );
-  // §1.6 enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
-  const enrolledRow = (e, i) => (
-    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
-      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
-        <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
-      </span>
-      <span style={{ display: 'flex', marginTop: 7 }}>
-        {e.who.map(([ini, col], j) => (
-          <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
-        ))}
-      </span>
-    </button>
-  );
+  const stationHead = (label, trailing) => bsProStationHead(t, heat, label, trailing);
+  const monoTrail = (label, onClick) => bsProMonoTrail(t, label, onClick);
+  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions);
+  const enrolledRow = (e, i) => bsProEnrolledRow(t, flash, e, i);
+
+  // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
+  // shows the live PUBLISHED count once loaded, else "—" (no fabricated on-it count).
+  const catalogueStat = !signedIn
+    ? '· 4 PUBLISHED · 40 ON IT'
+    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
 
   return (
     <BSPage>
@@ -4932,7 +4956,7 @@ function BSNutriPlans() {
       <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>· 4 PUBLISHED · 40 ON IT</span>
+          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
         <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
           Your <i style={{ color: heat, fontStyle: 'italic' }}>plans.</i>
