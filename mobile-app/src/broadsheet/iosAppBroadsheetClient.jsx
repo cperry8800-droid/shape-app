@@ -21015,14 +21015,13 @@ function BSLanguageSetting({ t }) {
   const tr = useShapeTr();
   const cur = (window.ShapeLocale?.get?.()) || 'en';
   const langs = window.ShapeI18n?.activeLocales?.() || [];
-  const curMeta = window.ShapeI18n?.localeMeta?.(cur);
   // Compact row (matches the Shape Radio row): label + a native dropdown — the full
   // language list lives in the <select> popup instead of taking a screen of space.
+  // The dropdown itself shows the current selection, so no redundant subtitle.
   return (
-    <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+    <div style={{ padding: `14px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:language.row', { defaultValue: 'Language' })}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{curMeta?.englishName || 'English'}</div>
       </div>
       <select value={cur} onChange={(e) => window.ShapeLocale?.set?.(e.target.value)} aria-label={tr('settings:language.row', { defaultValue: 'Language' })}
         style={{ flexShrink: 0, maxWidth: 170, padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${bsTHexA(t.INK, 0.3)}`, background: bsTHexA(t.INK, 0.05), color: t.INK, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
