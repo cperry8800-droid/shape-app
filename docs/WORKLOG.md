@@ -281,6 +281,48 @@ changelog whenever something ships.
   oxide) — CI was the build gate; suggested on-device click-through: Goals →
   ＋ADD (templates render, pick prefills) + edit an existing goal.
 
+### 2026-07-07 — Coach Adjust/Schedule ledger heads · Review "The Queue" · honest nutrition review (#1581)
+- **PR B of the coach "Open Ledger" wave** (spec `docs/superpowers/specs/2026-07-07-coach-plans-actions-review-open-ledger.md`,
+  plan `docs/superpowers/plans/2026-07-07-coach-plans-actions-review-ledger.md`).
+  The last coach action + review surfaces serialized into the ledger grammar.
+  Presentation-only; built subagent-driven on Opus. Three commits.
+- **Adjust + Schedule — ledger heads over quiet forms.** New `useBSProClientHeat`
+  hook: the two action pages now take **the client's own member tier** as their
+  heat (same `getUserPoints → bsTierForPoints → bsTierColor` resolution the Case
+  File uses, role-heat fallback). `BSProClientMini` → a press-credit spine row;
+  `BSProActionSec` → a station head (heat tick + `eyebrow · title` + ink→heat
+  rule); the Schedule booking summary → a bare **DAY · TIME · LENGTH** register.
+  The one primary action per page stays **solid teal** (Apply & Send / Apply &
+  Notify / Add to calendar — now teal on the nutritionist side too, was gold);
+  every quiet form control (steppers, chips, day picker, slot grid, duration
+  segment, split editor) is untouched.
+- **Client/Workout Review — "The Queue".** `BSWorkoutReviewPage` loses its tinted
+  cards: a ledger header (`THE QUEUE · N ITEMS`, serif "Workout review." /
+  "Client review." heat-italic, honest uppercase status line), a **dot-leader
+  queue** whose selected row carries a heat spine + `aria-current` (never
+  color-only), `BSTStationHead` section heads, bare eyebrow-above-figure
+  registers, dot-leader set rows, and honest-absent redaction. The coach-notes
+  composer stays a quiet form (ink Save button — this page's primary action).
+- **Nutritionist review demo — honest nutrition shape.** The nutritionist Review
+  demo had been **relabeled workout sets** (245-LB "meal prep" loads); it's now
+  real meal-log days (`nutrition: true` with kcal/target/protein/meals). The
+  detail body branches on `selected.nutrition`: a **KCAL · TARGET · PROTEIN ·
+  LOGGED** register, a rust `t.RUST` flag line when a day is off-target (the text
+  is the severity name), and per-meal dot-leader rows; queue rows read
+  `{logged}/{planned} MEALS`. The workout body + both roles' live fetch are
+  unchanged. Demo figures reconciled to sum from their meal rows.
+- **CodeRabbit (authoritative gate) caught 3, all fixed before merge:** a
+  **blocking honest-data** issue — `BSProClientMini` hardcoded "Week 6 of 12" for
+  every *real* linked client (the plan's own sample code mandated it) → now shown
+  only when the client record carries the week, else just the program name;
+  demo-data internal consistency (day-2 kcal/protein didn't sum from its meals);
+  and a raw `#c0533b` → the `t.RUST` token. Re-review returned **APPROVED**.
+- Per commit: JSX parse-check · PowerShell `/m/` build exit 0 · full `npm test`
+  (458) · LF. **Open follow-up (owner):** on-device pass across Black/Sage/Cream
+  × both roles (tier-heat Adjust/Schedule, The Queue, nutrition detail) × reduced
+  motion. *(This closes the coach Open Ledger redesign — every plate-era coach
+  surface is now serialized.)*
+
 ### 2026-07-07 — Coach Plans "The Catalogue" both roles + exercise videos (#1577) · owner-tweaks batch (#1578 · #1579)
 - **The plate-era coach Plans pages serialized into the Open Ledger language**
   (spec `docs/superpowers/specs/2026-07-07-coach-plans-actions-review-open-ledger.md`,
