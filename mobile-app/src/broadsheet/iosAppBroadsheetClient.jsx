@@ -14945,7 +14945,9 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
   const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
   // Keep the raw string while editing (decimals type cleanly); coerce on save.
-  const save = () => { if (!g.t) return; const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, cur: n(g.cur), tgt: n(g.tgt) }); };
+  // Blank/invalid numbers normalize to the sheet's defaults (0 / 100) so a saved
+  // row never renders an empty ratio downstream (goalMeta only null-checks).
+  const save = () => { if (!g.t) return; const n = (v, d) => { if (v === '' || v == null) return d; const x = Number(v); return Number.isFinite(x) ? x : d; }; onSave({ ...g, cur: n(g.cur, 0), tgt: n(g.tgt, 100) }); };
   const num = (key, label) => (
     <label style={{ display: 'block' }}><span style={lbl}>{label}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[key] ?? ''} onChange={(e) => setG({ ...g, [key]: e.target.value })} style={field} /></label>
   );
