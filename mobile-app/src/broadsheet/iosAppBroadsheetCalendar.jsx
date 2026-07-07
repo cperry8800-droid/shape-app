@@ -698,6 +698,25 @@ function secondaryBtn(t) {
   return { padding: '15px 18px', borderRadius: 5, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 
+// Shared bare stat register (Open Ledger) — the workout stats + meal macros
+// rows render identically: eyebrow-above-figure columns + an ink→accent rule.
+function BSEventStatRegister({ t, items, accent }) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <div style={{ padding: `18px ${t.padX}px 6px` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {items.map(([l, v], i) => (
+          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: i > 0 ? 10 : 0, paddingRight: 6 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: v === '—' ? t.INK50 : t.INK, marginTop: 5, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div aria-hidden style={{ marginTop: 12, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent || teal} 62%, transparent)` }} />
+    </div>
+  );
+}
+
 function BSEventWorkoutBody({ event, role }) {
   const t = useBSCal();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -716,60 +735,49 @@ function BSEventWorkoutBody({ event, role }) {
     ? detail.moves.map((m, j) => ({ n: String(j + 1).padStart(2, '0'), m: m.name, s: m.scheme || '—', l: cardio ? '' : (m.load || '—') }))
     : null;
   const durLabel = event.dur ? `${event.dur}m` : (metaParts[0] || '—');
+  // Honest register — never a fabricated figure (RPE was defaulting to '8' on
+  // events with no authored detail, e.g. a coach's live booking).
   const stats = cardio
-    ? [['DUR', durLabel], ['DIST', dist || '—'], ['ZONE', zone || 'Z2'], ['KCAL', kcal || '—']]
-    : [['DUR', durLabel], ['MOVES', moves ? String(moves.length) : '—'], ['RPE', rpe || '8'], ['KCAL', kcal || '—']];
+    ? [['DUR', durLabel], ['DIST', dist || '—'], ['ZONE', zone || '—'], ['KCAL', kcal || '—']]
+    : [['DUR', durLabel], ['MOVES', moves ? String(moves.length) : '—'], ['RPE', rpe || '—'], ['KCAL', kcal || '—']];
+  const isCoach = role === 'trainer' || role === 'nutritionist';
 
   return (
     <>
-      {/* Stat row — squared instrument plate w/ event-accent spine */}
-      <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${event.accent || teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {stats.map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 19, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Register — bare eyebrow-above-figure columns + an ink→accent rule (Open Ledger) */}
+      <BSEventStatRegister t={t} items={stats} accent={event.accent} />
 
-      {/* Coach's cue */}
+      {/* Coach's cue — accent-spine block, no box */}
       {detail && detail.note && (
         <div style={{ padding: `10px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: `${event.accent}10`, borderLeft: `3px solid ${event.accent}`, padding: '11px 13px' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 5 }}>Coach’s cue</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.005em' }}>{detail.note}</div>
+          <div style={{ borderLeft: `3px solid ${event.accent || teal}`, padding: '2px 0 2px 11px' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>Coach’s cue</div>
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.005em' }}>{detail.note}</div>
           </div>
         </div>
       )}
 
-      {/* The card / the session */}
+      {/* The card / the session — dot-leader ledger rows */}
       {moves ? (
         <>
-          <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> {cardio ? 'The session' : 'The card'}</div>
+          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {cardio ? 'The session' : 'The card'}</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-              {moves.map((r, i) => (
-                <div key={i} style={{
-                  display: 'grid', gridTemplateColumns: cardio ? '24px 1fr' : '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
-                  borderBottom: i === moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                  <div>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
-                  </div>
-                  {!cardio && <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{r.l}</div>}
+            {moves.map((r, i) => (
+              <div key={i} style={{ borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: `${t.rowY + 2}px 0` }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.m}</span>
+                  {!cardio && <><span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} /><span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11.5, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span></>}
                 </div>
-              ))}
-            </div>
+                <div style={{ marginTop: 2, paddingLeft: 18, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{r.s}</div>
+              </div>
+            ))}
           </div>
         </>
       ) : (
         <div style={{ padding: `14px ${t.padX}px 4px` }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
-            {event.sub ? `${event.sub} — ` : ''}open the Train tab for the full session card.
+            {event.sub ? `${event.sub} — ` : ''}{isCoach ? 'the full log lands here once the session is done; manage the client from Clients → their Case File.' : 'open the Train tab for the full session card.'}
           </div>
         </div>
       )}
@@ -809,17 +817,8 @@ function BSEventMealBody({ event }) {
 
   return (
     <>
-      {/* Macro card — squared instrument plate w/ event-accent spine */}
-      <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${event.accent || teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {macros.map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 19, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Macro register — bare eyebrow-above-figure columns + ink→accent rule */}
+      <BSEventStatRegister t={t} items={macros} accent={event.accent} />
 
       {/* Macro split bar (by calories) */}
       {splitOk && (
@@ -840,16 +839,14 @@ function BSEventMealBody({ event }) {
       {/* On the plate */}
       {plate.length > 0 && (
         <>
-          <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> On the plate</div>
+          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> On the plate</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-              {plate.map((p, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center', padding: `${t.rowY + 2}px 0`, borderBottom: i === plate.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', textTransform: 'capitalize' }}>{p}</div>
-                </div>
-              ))}
-            </div>
+            {plate.map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: `${t.rowY + 2}px 0` }}>
+                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', textTransform: 'capitalize' }}>{p}</span>
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -860,22 +857,34 @@ function BSEventMealBody({ event }) {
 
 function BSEventConsultBody({ event, role }) {
   const t = useBSCal();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // The agenda + last-consult notes are authored DEMO content — never show them
+  // on a real (server) event, where they'd read as fabricated client data.
+  const isDemo = event.source !== 'event';
+  const agenda = isDemo ? ['Macro update for cut phase', 'Sleep review · last 7 nights', 'Restaurant strategy for weekend'] : [];
   return (
     <>
       <div style={{ padding: `18px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>Agenda</div>
-        <ul style={{ margin: 0, paddingLeft: 18, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, lineHeight: 1.6, letterSpacing: '-0.005em' }}>
-          <li>Macro update for cut phase</li>
-          <li>Sleep review · last 7 nights</li>
-          <li>Restaurant strategy for weekend</li>
-        </ul>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800, marginBottom: 4 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> Agenda</div>
+        {agenda.length ? agenda.map((a, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: '9px 0' }}>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{a}</span>
+          </div>
+        )) : (
+          <div style={{ padding: '9px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>No agenda attached · set one when booking</div>
+        )}
       </div>
-      <div style={{ padding: `18px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>▍ Notes from last consult</div>
-      <div style={{ padding: `0 ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
-          Cut went well into week 5. Energy held. Add 200 kcal to refeed Saturdays — avoid mid-cut plateau.
-        </div>
-      </div>
+      {isDemo && (
+        <>
+          <div style={{ padding: `18px ${t.padX}px 8px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> Notes from last consult</div>
+          <div style={{ padding: `0 ${t.padX}px 18px` }}>
+            <div style={{ borderLeft: `3px solid ${event.accent || teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
+              “Cut went well into week 5. Energy held. Add 200 kcal to refeed Saturdays — avoid mid-cut plateau.”
+            </div>
+          </div>
+        </>
+      )}
       <div style={{ height: 6 }} />
     </>
   );

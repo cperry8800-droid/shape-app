@@ -19238,6 +19238,7 @@ Object.assign(window, {
   BSTRedact,
   BSTLedgerStat,
   BSTerrainTabs,
+  BSLiveBoostSheet,
   BSSdBars,
   BSSdCountUp,
   useBSSdInView,
