@@ -6713,7 +6713,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
           const label = st === 'following' ? 'Following' : st === 'requested' ? 'Requested' : st === 'busy' ? '…' : 'Follow';
           const solid = st === '' ;
           return (
-            <div key={p.userId} style={{ flex: '0 0 auto', width: 132, borderRadius: 14, border: `1px solid ${t.HAIR}`, background: t.PAPER2, padding: '14px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
+            <div key={p.userId} style={{ flex: '0 0 auto', width: 132, borderRadius: 8, border: `1px solid ${t.HAIR}`, background: t.PAPER2, padding: '14px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
               <button onClick={() => onOpenProfile && onOpenProfile({ who: p.name, userId: p.userId, kind: (p.role || 'client').toUpperCase(), tier, init: bsInitials(p.name), public: true })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
                 <BSFacetAvatar size={48} c={bsTierColor(tier)} initial={bsInitials(p.name) || '?'} photo={(p.userId && (typeof window !== 'undefined' && window.ShapeProfiles)) ? undefined : undefined} showRank={false} />
               </button>
@@ -6721,7 +6721,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{reason(p)}</div>
               </div>
-              <button onClick={() => follow(p)} disabled={st === 'busy'} style={{ width: '100%', borderRadius: 999, padding: '7px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', background: solid ? teal : 'transparent', color: solid ? '#06110e' : t.INK, border: `1px solid ${solid ? teal : t.RULE}` }}>{label}</button>
+              <button onClick={() => follow(p)} disabled={st === 'busy'} style={{ width: '100%', borderRadius: 5, padding: '7px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', background: solid ? teal : 'transparent', color: solid ? '#06110e' : t.INK, border: `1px solid ${solid ? teal : t.RULE}` }}>{label}</button>
             </div>
           );
         })}
@@ -12338,13 +12338,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
   // doesn't remount the chips on the parent's frequent re-renders. Shared by the
   // Feed role chips and the Team Coaches/Friends selector so both match.
+  // Typographic underline index — one tab grammar across the whole chat (the feed
+  // role chips + the Team Coaches/Friends selector). Active = the tab's own color +
+  // a drawn underline; unread badge is a bare colored count (no pink pill).
   const bsSubTab = ({ key, on, color, onClick, label, badge }) => (
-    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 16px', minWidth: 96, boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {on && <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, width: 9, height: 9, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}` }} />}
-      {on && <span aria-hidden style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}` }} />}
-      <span style={{ width: 5, height: 5, borderRadius: 1.5, background: on ? color : muted, opacity: on ? 1 : 0.6, flexShrink: 0 }} />
+    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, padding: '9px 6px 10px', boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {label}
-      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1, marginLeft: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+      {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
+      {on && <span aria-hidden style={{ position: 'absolute', left: 6, right: 6, bottom: 0, height: 2, background: color }} />}
     </button>
   );
   const ROLE = {
@@ -12899,6 +12900,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // A chat list row — no card box; divider-separated (matches the
           // attached design): avatar + online dot, name, role eyebrow, message
           // preview, time, and a teal unread badge.
+          const teal = t.isLight ? '#0a8f87' : '#34d6c5';
           const Row = (f, i, arr) => {
             const count = (unread && unread['dm:' + (f.conversation_id || '')]) || 0;
             const last = f.last || (f.messages && f.messages.length ? (f.messages[f.messages.length - 1].t || '') : '');
@@ -12909,7 +12911,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 11, alignItems: 'center', padding: '10px 2px', borderBottom: isLast ? 0 : `1px solid ${t.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)'}`, background: 'transparent', border: 0, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
                   <BSFacetAvatar size={46} c={bsTierColor(bsPostTier({ who: f.n }))} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} />
-                  {online && <span style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: '#3ddc97', border: `2px solid ${t.PAPER}` }} />}
+                  {online && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderRadius: 999, background: teal, border: `2px solid ${t.PAPER}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(teal, 0.5), animation: 'bsSdPrBreath 2.4s ease-in-out infinite' }) }} />}
                 </span>
                 <span style={{ minWidth: 0, display: 'block' }}>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
@@ -12924,13 +12926,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           };
           // List header — "X unread · Y threads" + New.
-          const ThreadHead = (rows) => {
+          const ThreadHead = (rows, label) => {
             const tot = (rows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
             const n = (rows || []).length;
             return (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 8px' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tot > 0 ? `${tot} unread · ` : ''}{n} thread{n === 1 ? '' : 's'}</span>
-                <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title="Start a conversation" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEALB, padding: 0 }}>+ New</button>
+              <div style={{ padding: '2px 2px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || 'Threads'}</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{n} thread{n === 1 ? '' : 's'}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tot} new</span></span> : null}</span>
+                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title="Start a conversation" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>＋ New</button>
+                  </span>
+                </div>
+                <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
               </div>
             );
           };
@@ -13147,12 +13155,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />
-                  {ThreadHead(friends)}
+                  {ThreadHead(friends, 'Friends')}
                   {friends.map(Row)}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {ThreadHead(coaches)}
+                  {ThreadHead(coaches, 'Coaches')}
                   {coaches.map(Row)}
                 </div>
               )}
