@@ -83,20 +83,41 @@ function useProPresenceTick() {
 
 function demoWorkoutReviewSessions(role = 'trainer') {
   const isNutri = role === 'nutritionist';
+  // Nutritionist review = meal-log days (kcal/protein/meals) — NOT relabeled
+  // workout sets. Honest nutrition shape; the detail body branches on
+  // `nutrition: true`.
+  if (isNutri) return [
+    { id: 'demo-nutritionist-day-1', nutrition: true, title: 'Tue · 4 meals logged', status: 'complete day',
+      kcal: 1980, target: 2100, protein_g: 168, protein_target_g: 170, logged: 4, planned: 4, flag: null,
+      meals: [
+        { slot: 'Breakfast', name: 'Greek yogurt bowl', kcal: 420, macros: '32P · 44C · 12F' },
+        { slot: 'Lunch', name: 'Chicken + rice plate', kcal: 620, macros: '48P · 62C · 16F' },
+        { slot: 'Snack', name: 'Protein shake + banana', kcal: 310, macros: '30P · 38C · 4F' },
+        { slot: 'Dinner', name: 'Salmon, potatoes, greens', kcal: 630, macros: '42P · 48C · 24F' },
+      ], coach_workout_review_notes: [] },
+    { id: 'demo-nutritionist-day-2', nutrition: true, title: 'Mon · 3 of 4 meals logged', status: 'gap flagged',
+      kcal: 1610, target: 2100, protein_g: 128, protein_target_g: 170, logged: 3, planned: 4,
+      flag: 'PROTEIN 42G UNDER · DINNER UNLOGGED',
+      meals: [
+        { slot: 'Breakfast', name: 'Oats + berries', kcal: 390, macros: '18P · 62C · 9F' },
+        { slot: 'Lunch', name: 'Turkey wrap', kcal: 540, macros: '38P · 48C · 18F' },
+        { slot: 'Snack', name: 'Cottage cheese + fruit', kcal: 280, macros: '26P · 30C · 6F' },
+      ], coach_workout_review_notes: [] },
+  ];
   return [
     {
       id: `demo-${role}-session-1`,
-      title: isNutri ? 'Macro compliance session' : 'Lower pull session',
-      workout_name: isNutri ? 'Big plate day' : 'Lower Pull - Peak',
+      title: 'Lower pull session',
+      workout_name: 'Lower Pull - Peak',
       status: 'completed',
       started_at: '2026-05-14T13:05:00Z',
       ended_at: '2026-05-14T13:57:00Z',
       duration_seconds: 3120,
       summary: { completedSets: 10, avgSetSeconds: 48, avgRestSeconds: 94 },
       workout_set_logs: [
-        { id: 'd1', movement_name: isNutri ? 'Meal prep check' : 'Trap bar deadlift', set_number: 1, target_reps: '5', target_load: '245 lb', completed: true, set_duration_seconds: 42, rest_before_seconds: 0 },
-        { id: 'd2', movement_name: isNutri ? 'Protein target' : 'Trap bar deadlift', set_number: 2, target_reps: '5', target_load: '265 lb', completed: true, set_duration_seconds: 47, rest_before_seconds: 118 },
-        { id: 'd3', movement_name: isNutri ? 'Carb timing' : 'Bulgarian split squat', set_number: 1, target_reps: '8/side', target_load: '45 lb', completed: true, set_duration_seconds: 62, rest_before_seconds: 96 },
+        { id: 'd1', movement_name: 'Trap bar deadlift', set_number: 1, target_reps: '5', target_load: '245 lb', completed: true, set_duration_seconds: 42, rest_before_seconds: 0 },
+        { id: 'd2', movement_name: 'Trap bar deadlift', set_number: 2, target_reps: '5', target_load: '265 lb', completed: true, set_duration_seconds: 47, rest_before_seconds: 118 },
+        { id: 'd3', movement_name: 'Bulgarian split squat', set_number: 1, target_reps: '8/side', target_load: '45 lb', completed: true, set_duration_seconds: 62, rest_before_seconds: 96 },
       ],
       workout_sensor_samples: [
         { id: 's1', source: 'watch', metric: 'avg_hr', value: 132, unit: 'bpm' },
@@ -104,21 +125,21 @@ function demoWorkoutReviewSessions(role = 'trainer') {
         { id: 's3', source: 'watch', metric: 'calories', value: 418, unit: 'kcal' },
       ],
       coach_workout_review_notes: [
-        { id: 'n1', body: isNutri ? 'Good adherence. Ask about late-day hunger before changing macros.' : 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-05-14T16:05:00Z' },
+        { id: 'n1', body: 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-05-14T16:05:00Z' },
       ],
     },
     {
       id: `demo-${role}-session-2`,
-      title: isNutri ? 'Refeed follow-up' : 'Upper push session',
-      workout_name: isNutri ? 'Refeed template' : 'Upper Push - Tempo',
+      title: 'Upper push session',
+      workout_name: 'Upper Push - Tempo',
       status: 'completed',
       started_at: '2026-04-20T18:30:00Z',
       ended_at: '2026-04-20T19:18:00Z',
       duration_seconds: 2880,
       summary: { completedSets: 8, avgSetSeconds: 41, avgRestSeconds: 86 },
       workout_set_logs: [
-        { id: 'd4', movement_name: isNutri ? 'Dinner log' : 'Incline DB press', set_number: 1, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 39, rest_before_seconds: 0 },
-        { id: 'd5', movement_name: isNutri ? 'Fiber target' : 'Incline DB press', set_number: 2, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 43, rest_before_seconds: 82 },
+        { id: 'd4', movement_name: 'Incline DB press', set_number: 1, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 39, rest_before_seconds: 0 },
+        { id: 'd5', movement_name: 'Incline DB press', set_number: 2, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 43, rest_before_seconds: 82 },
       ],
       workout_sensor_samples: [
         { id: 's4', source: 'watch', metric: 'avg_hr', value: 119, unit: 'bpm' },
@@ -232,7 +253,9 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {sessions.map((session) => {
           const active = session.id === selected?.id;
-          const count = session.summary?.completedSets || (session.workout_set_logs || []).length || 0;
+          const isNut = session.nutrition === true;
+          const count = isNut ? `${session.logged}/${session.planned}` : (session.summary?.completedSets || (session.workout_set_logs || []).length || 0);
+          const unit = isNut ? 'MEALS' : 'SETS';
           const title = session.workout_name || session.title || 'Workout session';
           return (
             <button
@@ -240,7 +263,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               type="button"
               onClick={() => setSelectedId(session.id)}
               aria-current={active ? 'true' : undefined}
-              aria-label={`${title}, ${count} sets, ${session.status || 'completed'}`}
+              aria-label={`${title}, ${count} ${unit.toLowerCase()}, ${session.status || 'completed'}`}
               style={{
                 width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0,
                 borderTop: `1px solid ${t.INK}12`,
@@ -251,10 +274,10 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
                 <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} SETS</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} {unit}</span>
               </span>
               <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                {(session.status || 'completed')} · {formatReviewSeconds(session.duration_seconds)}
+                {(session.status || 'completed')}{isNut ? '' : ` · ${formatReviewSeconds(session.duration_seconds)}`}
               </span>
             </button>
           );
@@ -263,6 +286,40 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
       {selected ? (
         <>
+          {/* Nutrition day (meal-log register + flag + per-meal rows) vs. the
+              workout body (sets + watch samples); COACH NOTES is shared below. */}
+          {selected.nutrition ? (
+            <div style={{ padding: `22px ${t.padX}px 0` }}>
+              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`MEAL LOG · ${selected.status || 'logged'}`} />}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                {stat('Kcal', selected.kcal)}
+                {stat('Target', selected.target)}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>Protein</div>
+                  <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>
+                    {selected.protein_g}<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.protein_target_g}G</span>
+                  </div>
+                </div>
+                {stat('Logged', `${selected.logged}/${selected.planned}`)}
+              </div>
+              {selected.flag ? (
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c0533b' }}>{selected.flag}</div>
+              ) : null}
+              <div style={{ marginTop: 16 }}>
+                {(selected.meals || []).map((meal, index) => (
+                  <div key={index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meal.slot} · {meal.name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{meal.kcal} KCAL</span>
+                    </span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{meal.macros}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
           {/* ── Session detail — station head + bare 4-up registers (eyebrow above
               figure) + dot-leader set rows. The bordered card is gone. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
@@ -309,6 +366,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               })}
             </div>
           </div>
+            </>
+          )}
 
           {/* ── Coach notes — heat-spine note rows over a quiet composer form (the
               textarea + save button stay a quiet form; button keeps its t.INK
