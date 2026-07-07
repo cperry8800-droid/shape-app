@@ -258,6 +258,53 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — i18n rollout begun: the language switch works; Settings + Home localized ×13 (#1589 · #1590 · #1592 · #1595)
+- **Diagnosed the "nothing changes when I change the language" report.** The
+  language **switch itself works** (verified three ways: a headless `changeLanguage`
+  repro flips `t()` synchronously with the eager-bundled catalogs; there's a **single**
+  i18next instance shared via `window.ShapeI18n`, so no dual-instance bug; the only
+  `changeLanguage` call lives in `BSAppShell`, which is mounted whenever the app —
+  incl. Settings — is on screen). The real problem was **coverage**: only ~25 strings
+  were ever wired (bottom nav + the Score page + a few labels), so ~99% of the app —
+  including the Settings screen the user was testing on — is hardcoded English literals.
+  The i18n foundation shipped a tiny pilot; the rollout was never done. **Not a bug —
+  a ~2%-built feature.**
+- **Rollout approach (owner-chosen):** full app, **LLM machine translations** (flagged
+  for later human review), staged **one PR per surface**, all 13 active locales
+  (`en es pt-BR fr de it id vi tr ha pcm ru uk`). Each surface: route its hardcoded
+  strings through the existing `useShapeTr()` bridge (`const tr = useShapeTr(); tr('<ns>:<key>',
+  {defaultValue})` — never shadow the theme `t`), register a new namespace in the i18n
+  runtime's `NS` array, author the 13 catalogs (flat dotted keys, ICU-validated, brand
+  nouns literal), verify (parse · catalog parity · `/m/` build · `npm test` 458 · LF).
+  Built subagent-driven on **Opus**, CodeRabbit as the authoritative gate.
+- **Settings — fully localized (#1589 + #1590).** `BSSettings` + every sub-component
+  wired through `tr('settings:…')`; **325 keys × 13 locales**. CodeRabbit caught (all
+  fixed): 11 brand-noun inconsistencies (Score/Store now literal everywhere), a
+  device-locale renewal date (→ selected UI language), an untranslated "Pause" toast
+  (→ dedicated translated sentences), a duplicated paper-mode list, and a raw accent
+  key in the appearance subtitle (→ routed through `settings:accent.*`).
+- **Language dropdown lists names in the selected language (#1592).** The Settings
+  dropdown listed each language by its own endonym (English/Español/Italiano); now it
+  lists them **in the currently selected language** — pick Spanish → Inglés/Español/…,
+  pick Italian → Inglese/Spagnolo/…. Uses the built-in **`Intl.DisplayNames`** (CLDR)
+  so there's no 13×13 name table to maintain; verified correct for all 13 incl. Hausa
+  (Turanci/Faransanci) and Nigerian Pidgin, with an endonym fallback. *(UX note: this
+  means a user who lands on a language they can't read sees every option in that
+  language — the owner chose names-in-selected-language over each-in-its-own-name.)*
+- **Home / "Front Page" — fully localized (#1595).** New `home` namespace registered;
+  `BSClientHome` + `BSTodayNudge/Page/Card`, `BSSlateRow`, `BSProgressDoor`,
+  `BSMeGoalCard`, `BSHomeWorkoutPreview` wired through `tr('home:…')`; **176 keys × 13**.
+  Dates/numbers now follow the selected UI language via a new
+  **`window.ShapeI18n.intlLocale()`** (maps catalog codes Intl doesn't know, e.g.
+  `arz`→`ar`). CodeRabbit fixes: Hausa `one` plural forms added to 7 count strings,
+  a casing typo, and the intl-locale routing.
+- **PAUSED here at the owner's call** — the two highest-traffic surfaces (Settings,
+  Home) plus the dropdown are live. **Remaining (each its own PR):** Profile → Session
+  details → nav chrome → Feed → Marketplace → Radio → Calendar → Habits → Store → then
+  the **coach app** (`iosAppBroadsheetPros.jsx` has zero i18n calls; needs its own
+  `useShapeTr` bridge wired first). Carried-over CodeRabbit nit: extract a shared
+  `bsDateLocale()` helper (fold into the next surface PR). State tracked in the SDD ledger.
+
 ### 2026-07-07 — Grocery wave: Open Ledger surfaces · role-true coach heat · trainer nav door (#1591)
 - **Trainer coach-home nav gains a GROCERY LISTS door** (INSIDE. index) — the
   coach grocery page (`BSProGroceryLists`) was already fully trainer-aware
