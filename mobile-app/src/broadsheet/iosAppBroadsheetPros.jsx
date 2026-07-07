@@ -4623,7 +4623,7 @@ function BSProPlansTabBar({ active, onChange }) {
 
 function BSNutriPlans() {
   const t = useBS();
-  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', heat = bsProHeat(t, 'nutritionist');
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   // AI draft form
@@ -4686,6 +4686,14 @@ function BSNutriPlans() {
     { n: 'High-protein cut', meta: '180g+ protein · lean · $100' },
     { n: 'Plant-based week', meta: 'vegan · balanced macros · $90' },
     { n: 'Low-FODMAP', meta: 'gut-friendly · gentle · $110' },
+  ];
+  // Owner directive — individual dishes shown under a MEALS station on the Diet
+  // sub-tab (no ASSIGN, no price; open = the same openDraft the diet rows use).
+  const singleMeals = [
+    { n: 'Salmon dinner plate', meta: '630 kcal · 42P · dinner' },
+    { n: 'High-protein breakfast bowl', meta: '420 kcal · 32P · breakfast' },
+    { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
+    { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
   ];
   // Clients enrolled per paid plan (shown under the Plans sub-tab)
   const enrolled = [
@@ -4766,130 +4774,143 @@ function BSNutriPlans() {
     );
   }
 
-  const numRow = (it, i, trailing) => (
-    <div key={i} onClick={it.onClick} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: it.onClick ? 'pointer' : 'default' }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{it.n}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{it.meta}</div>
-      </div>
-      <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap' }}>{trailing}</span>
+  // ── Ledger furniture (spec §1) — station heads over dot-leader catalogue rows. ──
+  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  // Station head (heat tick + eyebrow) with an optional trailing mono control
+  // (NEW → etc.) — plain mono button, no underline (44px target).
+  const stationHead = (label, trailing) => (
+    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {StationHead ? <StationHead heat={heat} INK={t.INK} label={label} /> : <span />}
+      {trailing || null}
     </div>
   );
-  const secHead = (eyebrow, title, trailing, onTrailing) => (
-    <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
-      </div>
-      {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
+  const monoTrail = (label, onClick) => (
+    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', padding: '0 2px' }}>{label}</button>
+  );
+  // §1.5 verdict lead for a TOP feature (unboxed): mono eyebrow · serif headline
+  // w/ heat-italic last word · mono meta · EDIT · DUPLICATE · SHARE → actions.
+  const featureLead = (eyebrow, headA, headB, meta, actions) => (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{headA} <span style={{ fontStyle: 'italic', color: heat }}>{headB}</span></div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div>
+      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
     </div>
   );
-  // Per-row trailing: price (when any) + an ASSIGN pill → the assign-to-client page.
-  const assignTrail = (it) => (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-      {it.price && <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50 }}>{it.price}</span>}
-      <button onClick={(e) => { e.stopPropagation(); setAssignPlan({ id: it.id || null, name: it.n, meta: it.meta, detail: it.detail || null }); }} style={{ borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em' }}>ASSIGN</button>
-    </span>
+  // §1.6 enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
+  const enrolledRow = (e, i) => (
+    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
+        <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
+      </span>
+      <span style={{ display: 'flex', marginTop: 7 }}>
+        {e.who.map(([ini, col], j) => (
+          <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
+        ))}
+      </span>
+    </button>
   );
 
   return (
     <BSPage>
-      {/* Standard page header — matches the chat/home page formatting. */}
-      <BSPageHeader
-        kicker="4 Published · 40 on it"
-        title="Your plans."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
-
-        {/* Top tabs — Library / Soundtracks */}
-        <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
-          {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, borderRadius: 999, border: `1px solid ${tab === k ? gold : t.RULE}`, background: tab === k ? `${gold}1c` : 'transparent', color: tab === k ? gold : t.INK, padding: '9px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
-          ))}
+      {/* §1.1 Header — mast row (46px inset) + THE CATALOGUE eyebrow
+          + serif "Your plans." (heat italic). */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>· 4 PUBLISHED · 40 ON IT</span>
         </div>
+        <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+          Your <i style={{ color: heat, fontStyle: 'italic' }}>plans.</i>
+        </div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+
+        {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
+        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
 
         {tab === 'library' && (<>
-        {/* Generate with AI — builds the active library type */}
-        <button type="button" data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
-          <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
-            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, lineHeight: 1.15 }}>Draft a {BUILD_LABEL[libBuild]} in seconds</div>
-          </div>
-          <span style={{ color: gold, fontSize: 15 }}>→</span>
-        </button>
-        <button onClick={() => openDraft(libBuild, true)} style={{ display: 'block', width: '100%', marginTop: 8, padding: '11px', borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: gold }}>+ Build from scratch</button>
-
-        {/* Library sub-tabs — Plans / Recipes / Templates */}
-        <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
-          {LIB_TABS.map(([k, l]) => (
-            <button key={k} onClick={() => setLibTab(k)} style={{ flex: 1, borderRadius: 999, border: `1px solid ${libTab === k ? gold : t.RULE}`, background: libTab === k ? `${gold}1c` : 'transparent', color: libTab === k ? gold : t.INK50, padding: '8px 6px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
-          ))}
+        {/* §1.3 Create actions — draft with AI · build from scratch */}
+        <div style={{ marginTop: 6 }}>
+          <BSProTextAction heat={heat} t={t} label={`✦ Draft a ${BUILD_LABEL[libBuild]} in seconds →`} onClick={() => openDraft(libBuild)} />
+          <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft(libBuild, true)} />
         </div>
+
+        {/* §1.4 Kind sub-tabs — Plans / Programs / Diet */}
+        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: 'Catalogue kind' })}</div>
 
         {libTab === 'plans' && (<>
-        {secHead('PAID PLANS', 'Catalogue')}
-        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, assignTrail(p)))}</div>
-        {secHead('ENROLLED', 'Clients on plans')}
-        <div style={{ marginTop: 6 }}>
-          {enrolled.map((e, i) => (
-            <div key={i} onClick={() => flash(`${e.n} clients on ${e.prog}`)} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '15px 0', borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{e.prog}</div>
-                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{ display: 'flex' }}>
-                    {e.who.map(([ini, col], j) => (
-                      <span key={j} style={{ marginLeft: j ? -7 : 0, width: 22, height: 22, borderRadius: 999, background: col, color: '#fff', border: `1.5px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800 }}>{ini}</span>
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.04em' }}>{e.n} on it</span>
-                </div>
-              </div>
-              <span style={{ color: t.INK50, fontSize: 16 }}>›</span>
-            </div>
-          ))}
-        </div>
+        {/* §1.5 THE CATALOGUE — paid meal plans as dot-leader rows */}
+        {stationHead('PAID PLANS')}
+        {plans.length === 0 ? (
+          <div style={{ marginTop: 2 }}>
+            {Redact ? <Redact INK={t.INK} label="NO PUBLISHED PLANS" /> : null}
+            <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft('mealplan', true)} />
+          </div>
+        ) : (
+          <div style={{ marginTop: 2 }}>
+            {plans.map((p, i) => (
+              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
+                onOpen={() => openDraft('mealplan')}
+                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
+            ))}
+          </div>
+        )}
+        {/* §1.6 ENROLLED — clients on plans */}
+        {stationHead('ENROLLED')}
+        {enrolled.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO ENROLLED CLIENTS" /> : null
+        ) : (
+          <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
+        )}
         </>)}
 
         {libTab === 'programs' && (<>
-        {/* Top program (lifestyle meal program for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PROGRAM</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$130</span>
-          </div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Busy <span style={{ fontStyle: 'italic', color: gold }}>professional.</span></div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>4 wks · fast & balanced · 24 on it · 4.8 ★</div>
-          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('program')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Busy professional')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top program — unboxed verdict lead */}
+        {featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Busy professional')} /></span>
+        </>)}
+        {/* Lifestyle meal programs for sale */}
+        {stationHead('LIFESTYLE', monoTrail('NEW →', () => openDraft('program')))}
+        <div style={{ marginTop: 2 }}>
+          {nutriPrograms.map((r, i) => (
+            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openDraft('program')}
+              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+          ))}
         </div>
-        {secHead('LIFESTYLE', 'Programs', 'NEW →', () => openDraft('program'))}
-        <div style={{ marginTop: 6 }}>{nutriPrograms.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, assignTrail(r)))}</div>
         </>)}
 
         {libTab === 'diet' && (<>
-        {/* Top diet (diet-specific plan for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP DIET</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$90</span>
-          </div>
-          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Keto · <span style={{ fontStyle: 'italic', color: gold }}>7-day.</span></div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>20g net carbs · high fat · 31 on it · 4.7 ★</div>
-          <div style={{ marginTop: 9, display: 'flex', gap: 7 }}>
-            <button onClick={() => openDraft('diet')} style={{ borderRadius: 999, border: 0, background: gold, color: '#241c08', padding: '7px 13px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>EDIT</button>
-            <button onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>DUPLICATE</button>
-            <button onClick={() => share('Keto 7-day')} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer' }}>SHARE →</button>
-          </div>
+        {/* Top diet — unboxed verdict lead */}
+        {featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('diet')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Keto 7-day')} /></span>
+        </>)}
+        {/* Diet-specific meals / plans */}
+        {stationHead('DIET-SPECIFIC', monoTrail('NEW →', () => openDraft('diet')))}
+        <div style={{ marginTop: 2 }}>
+          {diets.map((r, i) => (
+            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openDraft('diet')}
+              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+          ))}
         </div>
-        {secHead('DIET-SPECIFIC', 'Diet', 'NEW →', () => openDraft('diet'))}
-        <div style={{ marginTop: 6 }}>{diets.map((r, i) => numRow({ ...r, onClick: () => openDraft('diet') }, i, assignTrail(r)))}</div>
+
+        {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no ASSIGN) */}
+        {stationHead('MEALS · SINGLE DISHES')}
+        <div style={{ marginTop: 2 }}>
+          {singleMeals.map((m, i) => (
+            <BSProCatRow key={m.n} index={i} name={m.n} meta={m.meta} heat={heat} t={t} onOpen={() => openDraft(libBuild)} />
+          ))}
+        </div>
         </>)}
         </>)}
 
