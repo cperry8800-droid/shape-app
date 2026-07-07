@@ -4517,7 +4517,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {pills.map(([k, label, count]) => {
             const on = filter === k;
-            return <button key={k} onClick={() => setFilter(k)} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+            return <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
           })}
           <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 999, border: `1px solid ${(filtersOpen || advCount) ? t.INK : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Filters{advCount > 0 ? ` · ${advCount}` : ''}
@@ -10495,7 +10495,7 @@ function BSUniversalSearch({ onClose }) {
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, padding: '12px 0 10px', overflowX: 'auto' }}>
           {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels']].map(([k, label]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
+            <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
           ))}
         </div>
       </div>
@@ -20127,6 +20127,10 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
   );
 }
 
+
+// One palette for the grocery surfaces (the list + Saved carts) so the client
+// teal lead + the nutritionist gold tag can't drift between the two components.
+const bsGroceryHues = (t) => ({ teal: t.isLight ? '#0a8f87' : '#34d6c5', gold: t.isLight ? '#a07a2e' : '#d8b25a' });
 function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -20180,12 +20184,11 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   const pct = Math.round((done / total) * 100);
   const estCost = 48;
   const estLeft = Math.round(estCost * (1 - done / total));
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const { teal, gold } = bsGroceryHues(t);
   const savedLib = useBSLibrary();
   const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${total} items · ${list.aisles.length} aisles` };
   const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
-  const rust = teal; // grocery (food list) page leads with the client teal accent
-  const gold = t.isLight ? '#a07a2e' : '#d8b25a'; // nutritionist role tag (the plan came from your nutritionist)
+  const accent = teal; // grocery (food list) page leads with the client teal accent
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
   const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
   const shareList = async () => {
@@ -20271,8 +20274,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       {/* Header — title + a small ＋ box (new custom list) */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
-          <button onClick={onCreate} aria-label="New custom grocery list" style={{ flexShrink: 0, width: 34, height: 34, marginTop: 4, borderRadius: 5, border: `1px solid ${rust}66`, borderLeft: `3px solid ${rust}`, background: `${rust}14`, color: rust, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>＋</button>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: accent }}>list.</span></div>
+          <button onClick={onCreate} aria-label="New custom grocery list" style={{ flexShrink: 0, width: 34, height: 34, marginTop: 4, borderRadius: 5, border: `1px solid ${accent}66`, borderLeft: `3px solid ${accent}`, background: `${accent}14`, color: accent, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>＋</button>
         </div>
       </div>
 
@@ -20297,8 +20300,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       {pickerOpen && createPortal(
         <div onClick={() => setPickerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '74%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Grocery · Switch list</div>
-            <div style={{ marginTop: 5, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Choose a <span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Grocery · Switch list</div>
+            <div style={{ marginTop: 5, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Choose a <span style={{ fontStyle: 'italic', color: accent }}>list.</span></div>
             {(() => {
               const isPlan = !list.kind || list.kind === 'plan';
               const rows = [
@@ -20324,7 +20327,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
                 </button>
               ));
             })()}
-            <button onClick={() => { setPickerOpen(false); onChangeView('library'); }} style={{ width: '100%', marginTop: 4, padding: '12px', borderRadius: 5, border: `1px solid ${rust}`, background: 'transparent', color: rust, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open the library →</button>
+            <button onClick={() => { setPickerOpen(false); onChangeView('library'); }} style={{ width: '100%', marginTop: 4, padding: '12px', borderRadius: 5, border: `1px solid ${accent}`, background: 'transparent', color: accent, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open the library →</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -20343,17 +20346,17 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         {total > 0 && (
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{done}/{total} got · <span style={{ color: rust }}>{done < total ? <>~${estLeft} to go</> : 'all set'}</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: rust }}>{pct}%</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{done}/{total} got · <span style={{ color: accent }}>{done < total ? <>~${estLeft} to go</> : 'all set'}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: accent }}>{pct}%</span>
             </div>
-            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: rust, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
+            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
           </div>
         )}
 
         {/* Expand / collapse every aisle at once */}
         {total > 0 && filledAisleNames.length > 1 && (
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={toggleAllAisles} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rust, padding: '4px 0' }}>{allAislesOpen ? 'Collapse all ▴' : 'Expand all ▾'}</button>
+            <button onClick={toggleAllAisles} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent, padding: '4px 0' }}>{allAislesOpen ? 'Collapse all ▴' : 'Expand all ▾'}</button>
           </div>
         )}
 
@@ -20366,22 +20369,22 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
             <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
               <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? rust : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
+                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? accent : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
                 </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? rust : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? accent : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
               </button>
               {open && aisle.items.map((it, ii) => {
                 const k = `${ai}-${ii}`; const on = checked.has(k);
                 return (
                   <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '13px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                    <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? accent : t.RULE}`, background: on ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
                       {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
                     </div>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: accent, fontWeight: 700 }}>{it.q}</span>
                       {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
                     </span>
                   </div>
@@ -20396,22 +20399,22 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         {editable && (
           <div style={{ marginTop: 22 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Add item</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>Add item</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: vState === 'rec' ? t.RUST : t.INK50, fontWeight: 700 }}>
                 {vState === 'rec' ? '● Listening — tap Stop when done' : vState === 'busy' ? 'Transcribing…' : 'Or speak the whole list'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={{ flex: 1, minWidth: 0, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${rust}66`, background: t.PAPER2, color: t.INK, padding: '0 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={{ flex: 1, minWidth: 0, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}66`, background: t.PAPER2, color: t.INK, padding: '0 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
               <input value={newQty} onChange={(e) => setNewQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Qty" style={{ width: 64, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '0 11px', fontFamily: t.MONO, fontSize: 12, outline: 'none', textAlign: 'center' }} />
-              <button onClick={addItem} style={{ height: 42, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', padding: '0 16px', background: rust, color: '#fff', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Add</button>
+              <button onClick={addItem} style={{ height: 42, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', padding: '0 16px', background: accent, color: '#fff', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Add</button>
             </div>
             <button onClick={voiceTap} disabled={vState === 'busy'} style={{
               marginTop: 8, width: '100%', height: 42, borderRadius: 5, cursor: vState === 'busy' ? 'wait' : 'pointer',
-              border: `1px solid ${vState === 'rec' ? t.RUST : `${rust}66`}`,
-              borderLeft: `3px solid ${vState === 'rec' ? t.RUST : rust}`,
-              background: vState === 'rec' ? `${t.RUST}1f` : `${rust}10`,
-              color: vState === 'rec' ? t.RUST : rust,
+              border: `1px solid ${vState === 'rec' ? t.RUST : `${accent}66`}`,
+              borderLeft: `3px solid ${vState === 'rec' ? t.RUST : accent}`,
+              background: vState === 'rec' ? `${t.RUST}1f` : `${accent}10`,
+              color: vState === 'rec' ? t.RUST : accent,
               fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
@@ -20425,10 +20428,10 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         {/* Actions — one bar: Instacart primary, Save + Share secondary */}
         {total > 0 && (
           <div style={{ marginTop: 24 }}>
-            <button onClick={sendInstacart} style={{ width: '100%', borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '12px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
+            <button onClick={sendInstacart} style={{ width: '100%', borderRadius: 8, border: 0, background: accent, color: '#fff', padding: '12px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
             <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: grocerySaved ? `${rust}14` : 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? '✓ Saved' : '+ Save to library'}</button>
-              <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
+              <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: grocerySaved ? `${accent}14` : 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? '✓ Saved' : '+ Save to library'}</button>
+              <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
             </div>
           </div>
         )}
@@ -20499,8 +20502,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
   const t = useBS();
   _bsScrollTopOnMount();
   // Client surface: teal leads; nutritionist-sent plans tag gold, recipes amber, custom purple.
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const gold = t.isLight ? '#a07a2e' : '#d8b25a';
+  const { teal, gold } = bsGroceryHues(t);
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
   const [query, setQuery] = useStateBSC('');
   const [openList, setOpenList] = useStateBSC(null);
@@ -20547,7 +20549,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         {[['all','All'],['recipe','Recipes'],['custom','Custom'],['mealplan','Meal Plans']].map(([k, l]) => {
           const on = filter === k;
           return (
-            <button key={k} onClick={() => setFilter(k)} style={{
+            <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{
               flex: '0 0 auto', minHeight: 40, padding: '2px 0 8px', position: 'relative',
               background: 'transparent', border: 0, cursor: 'pointer',
               color: on ? t.INK : t.INK50,

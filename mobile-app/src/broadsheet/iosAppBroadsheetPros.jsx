@@ -554,7 +554,7 @@ function bsGroAisle(name) {
   for (const [re, a] of _BS_GRO_AISLES) if (re.test(n)) return a;
   return 'Other';
 }
-function BSProGroceryLists({ t, accent, isNutri, onBack }) {
+function BSProGroceryLists({ t, isNutri, onBack }) {
   const DEMO = [
     { id: 'd0', name: 'My weekly prep', client_id: null, client_name: null, status: 'ready', items: [{ name: 'Chicken breast' }, { name: 'Jasmine rice' }, { name: 'Broccoli' }, { name: 'Greek yogurt' }, { name: 'Olive oil' }, { name: 'Eggs' }].map(x => ({ name: x.name, aisle: bsGroAisle(x.name) })) },
     { id: 'd1', name: 'Big-plate day list', client_id: null, client_name: 'Riley Kim', status: 'ready', items: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base', 'Greek yogurt'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
@@ -576,7 +576,7 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
   const clients = all.filter(g => g.client_name || g.client_id);
   const shown = tab === 'mine' ? mine : clients;
   // Role-true heat (trainer rust / nutritionist gold), line-only; teal = the one action.
-  const heat = isNutri ? (t.isLight ? '#a07a2e' : '#d8b25a') : (t.RUST || '#c0533b');
+  const heat = bsProHeat(t, isNutri ? 'nutritionist' : 'trainer');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70], sent: ['Sent', heat] };
   const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m).map(a => [a, m[a]]); };
@@ -625,7 +625,7 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
   const tabItem = (k, label, count) => {
     const on = tab === k;
     return (
-      <button key={k} onClick={() => setTab(k)} style={{ background: 'transparent', border: 0, padding: '2px 0 8px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <button key={k} onClick={() => setTab(k)} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 8px', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{label}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: on ? heat : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
         {on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}
@@ -668,7 +668,7 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
             <div style={{ display: 'flex', gap: 20 }}>
               {[['Mine', false], ['For a client', true]].map(([l, v]) => {
                 const on = draft.forClient === v;
-                return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
+                return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
               })}
             </div>
             {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder="Client name" className="bs-uline" style={uline} />}
@@ -1008,6 +1008,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setTab('programs');
       return;
     }
+    if (action === 'grocery') { setQueueView('grocery'); return; }
     if (action === 'pr') setQueueView('pr');
   };
   // MESSAGE button on a client profile → ensure the 1:1 conversation exists and
