@@ -83,20 +83,41 @@ function useProPresenceTick() {
 
 function demoWorkoutReviewSessions(role = 'trainer') {
   const isNutri = role === 'nutritionist';
+  // Nutritionist review = meal-log days (kcal/protein/meals) — NOT relabeled
+  // workout sets. Honest nutrition shape; the detail body branches on
+  // `nutrition: true`.
+  if (isNutri) return [
+    { id: 'demo-nutritionist-day-1', nutrition: true, title: 'Tue · 4 meals logged', status: 'complete day',
+      kcal: 1980, target: 2100, protein_g: 152, protein_target_g: 170, logged: 4, planned: 4, flag: null,
+      meals: [
+        { slot: 'Breakfast', name: 'Greek yogurt bowl', kcal: 420, macros: '32P · 44C · 12F' },
+        { slot: 'Lunch', name: 'Chicken + rice plate', kcal: 620, macros: '48P · 62C · 16F' },
+        { slot: 'Snack', name: 'Protein shake + banana', kcal: 310, macros: '30P · 38C · 4F' },
+        { slot: 'Dinner', name: 'Salmon, potatoes, greens', kcal: 630, macros: '42P · 48C · 24F' },
+      ], coach_workout_review_notes: [] },
+    { id: 'demo-nutritionist-day-2', nutrition: true, title: 'Mon · 3 of 4 meals logged', status: 'gap flagged',
+      kcal: 1210, target: 2100, protein_g: 82, protein_target_g: 170, logged: 3, planned: 4,
+      flag: 'PROTEIN 88G UNDER · DINNER UNLOGGED',
+      meals: [
+        { slot: 'Breakfast', name: 'Oats + berries', kcal: 390, macros: '18P · 62C · 9F' },
+        { slot: 'Lunch', name: 'Turkey wrap', kcal: 540, macros: '38P · 48C · 18F' },
+        { slot: 'Snack', name: 'Cottage cheese + fruit', kcal: 280, macros: '26P · 30C · 6F' },
+      ], coach_workout_review_notes: [] },
+  ];
   return [
     {
       id: `demo-${role}-session-1`,
-      title: isNutri ? 'Macro compliance session' : 'Lower pull session',
-      workout_name: isNutri ? 'Big plate day' : 'Lower Pull - Peak',
+      title: 'Lower pull session',
+      workout_name: 'Lower Pull - Peak',
       status: 'completed',
       started_at: '2026-05-14T13:05:00Z',
       ended_at: '2026-05-14T13:57:00Z',
       duration_seconds: 3120,
       summary: { completedSets: 10, avgSetSeconds: 48, avgRestSeconds: 94 },
       workout_set_logs: [
-        { id: 'd1', movement_name: isNutri ? 'Meal prep check' : 'Trap bar deadlift', set_number: 1, target_reps: '5', target_load: '245 lb', completed: true, set_duration_seconds: 42, rest_before_seconds: 0 },
-        { id: 'd2', movement_name: isNutri ? 'Protein target' : 'Trap bar deadlift', set_number: 2, target_reps: '5', target_load: '265 lb', completed: true, set_duration_seconds: 47, rest_before_seconds: 118 },
-        { id: 'd3', movement_name: isNutri ? 'Carb timing' : 'Bulgarian split squat', set_number: 1, target_reps: '8/side', target_load: '45 lb', completed: true, set_duration_seconds: 62, rest_before_seconds: 96 },
+        { id: 'd1', movement_name: 'Trap bar deadlift', set_number: 1, target_reps: '5', target_load: '245 lb', completed: true, set_duration_seconds: 42, rest_before_seconds: 0 },
+        { id: 'd2', movement_name: 'Trap bar deadlift', set_number: 2, target_reps: '5', target_load: '265 lb', completed: true, set_duration_seconds: 47, rest_before_seconds: 118 },
+        { id: 'd3', movement_name: 'Bulgarian split squat', set_number: 1, target_reps: '8/side', target_load: '45 lb', completed: true, set_duration_seconds: 62, rest_before_seconds: 96 },
       ],
       workout_sensor_samples: [
         { id: 's1', source: 'watch', metric: 'avg_hr', value: 132, unit: 'bpm' },
@@ -104,21 +125,21 @@ function demoWorkoutReviewSessions(role = 'trainer') {
         { id: 's3', source: 'watch', metric: 'calories', value: 418, unit: 'kcal' },
       ],
       coach_workout_review_notes: [
-        { id: 'n1', body: isNutri ? 'Good adherence. Ask about late-day hunger before changing macros.' : 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-05-14T16:05:00Z' },
+        { id: 'n1', body: 'Rest timing is solid. Cue slower eccentric on set 2 next week.', visibility: 'client', created_at: '2026-05-14T16:05:00Z' },
       ],
     },
     {
       id: `demo-${role}-session-2`,
-      title: isNutri ? 'Refeed follow-up' : 'Upper push session',
-      workout_name: isNutri ? 'Refeed template' : 'Upper Push - Tempo',
+      title: 'Upper push session',
+      workout_name: 'Upper Push - Tempo',
       status: 'completed',
       started_at: '2026-04-20T18:30:00Z',
       ended_at: '2026-04-20T19:18:00Z',
       duration_seconds: 2880,
       summary: { completedSets: 8, avgSetSeconds: 41, avgRestSeconds: 86 },
       workout_set_logs: [
-        { id: 'd4', movement_name: isNutri ? 'Dinner log' : 'Incline DB press', set_number: 1, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 39, rest_before_seconds: 0 },
-        { id: 'd5', movement_name: isNutri ? 'Fiber target' : 'Incline DB press', set_number: 2, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 43, rest_before_seconds: 82 },
+        { id: 'd4', movement_name: 'Incline DB press', set_number: 1, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 39, rest_before_seconds: 0 },
+        { id: 'd5', movement_name: 'Incline DB press', set_number: 2, target_reps: '10', target_load: '55 lb', completed: true, set_duration_seconds: 43, rest_before_seconds: 82 },
       ],
       workout_sensor_samples: [
         { id: 's4', source: 'watch', metric: 'avg_hr', value: 119, unit: 'bpm' },
@@ -135,11 +156,11 @@ function demoWorkoutReviewSessions(role = 'trainer') {
 function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
-  const accent = isNutri ? t.RUST : t.AMBER;
+  const heat = bsProHeat(t, role);
   const [sessions, setSessions] = useStateBSP([]);
   const [selectedId, setSelectedId] = useStateBSP(null);
   const [note, setNote] = useStateBSP('');
-  const [status, setStatus] = useStateBSP('Loading session logs...');
+  const [status, setStatus] = useStateBSP('LOADING…');
 
   useEffectBSP(() => {
     let cancelled = false;
@@ -151,13 +172,13 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         const nextRows = rows.length ? rows : demoWorkoutReviewSessions(role);
         setSessions(nextRows);
         setSelectedId((current) => current || nextRows[0]?.id || null);
-        setStatus(rows.length ? 'Live Supabase session logs' : 'Demo queue until assigned client sessions appear');
+        setStatus(rows.length ? 'LIVE · SUPABASE SESSION LOGS' : 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR');
       } catch (error) {
         if (cancelled) return;
         const fallback = demoWorkoutReviewSessions(role);
         setSessions(fallback);
         setSelectedId(fallback[0]?.id || null);
-        setStatus(error?.message || 'Showing demo review queue');
+        setStatus('DEMO QUEUE · OFFLINE');
       }
     }
     load();
@@ -200,47 +221,64 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
     }
   };
 
+  // Eyebrow-ABOVE-figure register (the Open Ledger hero-stat pattern); bare — no
+  // rule/box/fill.
   const stat = (label, value) => (
-    <div style={{ borderLeft: `1px solid ${t.RULE}`, paddingLeft: 10, minWidth: 0 }}>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );
 
   return (
     <BSPage>
-      <BSMasthead
-        title={isNutri ? 'Client Review' : 'Workout Review'}
-        thinRule
-        showDoubleRule={false}
-        leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
-        rightKicker={status}
-        trailing={<BSBackButton onClick={onBack} />}
-      />
+      {/* ── Ledger header — mast row (46px inset, no corner cluster) + THE QUEUE
+          eyebrow + ← BACK, serif "Workout review." (heat italic), status meta. ── */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+            THE QUEUE <span style={{ color: `${t.INK}80` }}>· {sessions.length} ITEMS</span>
+          </div>
+          <BSBackButton onClick={onBack} />
+        </div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+          {isNutri ? 'Client' : 'Workout'} <i style={{ color: heat, fontStyle: 'italic' }}>review.</i>
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{status}</div>
+      </div>
 
-      <BSSection title={isNutri ? 'Client sessions' : 'Logged workouts'} meta={`${sessions.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px 14px`, display: 'grid', gap: 8 }}>
+      {/* ── The queue — dot-leader rows; the selected row carries a heat spine +
+          aria-current (never color-only). No fill, no radius. ── */}
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
         {sessions.map((session) => {
           const active = session.id === selected?.id;
-          const count = session.summary?.completedSets || (session.workout_set_logs || []).length || 0;
+          const isNut = session.nutrition === true;
+          const count = isNut ? `${session.logged}/${session.planned}` : (session.summary?.completedSets || (session.workout_set_logs || []).length || 0);
+          const unit = isNut ? 'MEALS' : 'SETS';
+          const title = session.workout_name || session.title || 'Workout session';
           return (
-            <button key={session.id} onClick={() => setSelectedId(session.id)} style={{
-              width: '100%',
-              border: `1px solid ${active ? accent : t.RULE}`,
-              borderRadius: 14,
-              padding: 12,
-              background: active ? `${accent}16` : t.PAPER2,
-              color: t.INK,
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em' }}>{session.workout_name || session.title || 'Workout session'}</div>
-                <BSEyebrow color={active ? accent : t.INK50}>{count} sets</BSEyebrow>
-              </div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                {session.status || 'completed'} - {formatReviewSeconds(session.duration_seconds)}
-              </div>
+            <button
+              key={session.id}
+              type="button"
+              onClick={() => setSelectedId(session.id)}
+              aria-current={active ? 'true' : undefined}
+              aria-label={`${title}, ${count} ${unit.toLowerCase()}, ${session.status || 'completed'}`}
+              style={{
+                width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0,
+                borderTop: `1px solid ${t.INK}12`,
+                borderLeft: active ? `3px solid ${heat}` : '3px solid transparent',
+                minHeight: 52, padding: '11px 0 11px 11px',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+                <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{count} {unit}</span>
+              </span>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                {(session.status || 'completed')}{isNut ? '' : ` · ${formatReviewSeconds(session.duration_seconds)}`}
+              </span>
             </button>
           );
         })}
@@ -248,93 +286,130 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
       {selected ? (
         <>
-          <BSSection title="Session detail" meta={selected.status || 'completed'} />
-          <div style={{ margin: `0 ${t.padX}px 14px`, border: `1px solid ${t.RULE}`, borderRadius: 16, background: t.PAPER2, overflow: 'hidden' }}>
-            <div style={{ padding: 14 }}>
-              <BSEyebrow color={accent}>{selected.title || selected.workout_name || 'Workout session'}</BSEyebrow>
-              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 24, color: t.INK, fontWeight: 800, letterSpacing: '-0.04em' }}>
-                {selected.workout_name || selected.title || 'Session log'}
+          {/* Nutrition day (meal-log register + flag + per-meal rows) vs. the
+              workout body (sets + watch samples); COACH NOTES is shared below. */}
+          {selected.nutrition ? (
+            <div style={{ padding: `22px ${t.padX}px 0` }}>
+              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`MEAL LOG · ${selected.status || 'logged'}`} />}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                {stat('Kcal', selected.kcal)}
+                {stat('Target', selected.target)}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>Protein</div>
+                  <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>
+                    {selected.protein_g}<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.protein_target_g}G</span>
+                  </div>
+                </div>
+                {stat('Logged', `${selected.logged}/${selected.planned}`)}
               </div>
-              <div style={{ marginTop: 11, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 9 }}>
-                {stat('Sets', completedSets)}
-                {stat('Avg set', formatReviewSeconds(avgSet))}
-                {stat('Avg rest', formatReviewSeconds(avgRest))}
-                {stat('Elapsed', formatReviewSeconds(selected.duration_seconds))}
+              {selected.flag ? (
+                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
+              ) : null}
+              <div style={{ marginTop: 16 }}>
+                {(selected.meals || []).map((meal, index) => (
+                  <div key={index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meal.slot} · {meal.name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{meal.kcal} KCAL</span>
+                    </span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{meal.macros}</span>
+                  </div>
+                ))}
               </div>
             </div>
+          ) : (
+            <>
+          {/* ── Session detail — station head + bare 4-up registers (eyebrow above
+              figure) + dot-leader set rows. The bordered card is gone. ── */}
+          <div style={{ padding: `22px ${t.padX}px 0` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`SESSION DETAIL · ${selected.status || 'completed'}`} />}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {stat('Sets', completedSets)}
+              {stat('Avg set', formatReviewSeconds(avgSet))}
+              {stat('Avg rest', formatReviewSeconds(avgRest))}
+              {stat('Elapsed', formatReviewSeconds(selected.duration_seconds))}
+            </div>
+            <div style={{ marginTop: 16 }}>
+              {setLogs.length ? setLogs.map((entry, index) => {
+                const name = `${entry.movement_name || entry.moveName || 'Movement'} #${entry.set_number || entry.setNumber || index + 1}`;
+                const target = `${entry.target_reps || entry.targetReps || 'target'} · ${entry.target_load || entry.targetLoad || 'load'}`;
+                return (
+                  <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>SET {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · REST {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
+                    </span>
+                    <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{target}</span>
+                  </div>
+                );
+              }) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO SETS LOGGED" /> : null)}
+            </div>
+          </div>
 
-            <div style={{ borderTop: `1px solid ${t.HAIR}` }}>
-              {setLogs.map((entry, index) => (
-                <div key={entry.id || index} style={{ padding: '11px 14px', borderTop: index ? `1px solid ${t.HAIR}` : 0, display: 'grid', gridTemplateColumns: '1.25fr 0.7fr 0.7fr', gap: 9, alignItems: 'center' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 750, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.movement_name || entry.moveName || 'Movement'} #{entry.set_number || entry.setNumber || index + 1}
+          {/* ── Watch samples — bare registers (eyebrow above figure); a pending
+              sample renders — in t.INK50. ── */}
+          <div style={{ padding: `22px ${t.padX}px 0` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="WATCH SAMPLES" meta={`${sensorSamples.length} samples`} />}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, rowGap: 16 }}>
+              {(sensorSamples.length ? sensorSamples : [{ metric: 'watch data', value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => {
+                const pending = sample.value === 'pending' || sample.value == null;
+                return (
+                  <div key={sample.id || index} style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || 'metric').replace(/_/g, ' ')}</div>
+                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                      {pending ? '—' : sample.value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{sample.unit}</span> : null}
                     </div>
-                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                      {(entry.target_reps || entry.targetReps || 'target')} - {(entry.target_load || entry.targetLoad || 'load')}
-                    </div>
                   </div>
-                  <div>
-                    <BSEyebrow>Set</BSEyebrow>
-                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)}</div>
-                  </div>
-                  <div>
-                    <BSEyebrow>Rest</BSEyebrow>
-                    <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</div>
-                  </div>
+                );
+              })}
+            </div>
+          </div>
+            </>
+          )}
+
+          {/* ── Coach notes — heat-spine note rows over a quiet composer form (the
+              textarea + save button stay a quiet form; button keeps its t.INK
+              fill — this page's primary action). ── */}
+          <div style={{ padding: `22px ${t.padX}px 22px` }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="COACH NOTES" meta={`${reviewNotes.length} notes`} />}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {reviewNotes.map((item) => (
+                <div key={item.id} style={{ borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
+                  {item.body}
                 </div>
               ))}
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write feedback for the client..." style={{
+                width: '100%',
+                minHeight: 94,
+                resize: 'vertical',
+                border: `1px solid ${t.RULE}`,
+                borderRadius: 12,
+                background: t.PAPER2,
+                color: t.INK,
+                padding: 12,
+                fontFamily: t.DISPLAY,
+                fontSize: 15,
+                lineHeight: 1.35,
+                outline: 'none',
+              }} />
+              <button onClick={saveNote} style={{
+                border: 0,
+                borderRadius: 12,
+                background: t.INK,
+                color: t.PAPER,
+                minHeight: 48,
+                fontFamily: t.MONO,
+                fontSize: 10,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}>
+                Save review note
+              </button>
             </div>
-          </div>
-
-          <BSSection title="Watch samples" meta={`${sensorSamples.length} samples`} />
-          <div style={{ padding: `0 ${t.padX}px 14px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(sensorSamples.length ? sensorSamples : [{ metric: 'watch data', value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => (
-              <div key={sample.id || index} style={{ border: `1px solid ${t.RULE}`, borderRadius: 14, padding: 12, background: sample.value === 'pending' ? 'transparent' : `${accent}12` }}>
-                <BSEyebrow color={sample.value === 'pending' ? t.INK50 : accent}>{String(sample.metric || sample.type || 'metric').replace(/_/g, ' ')}</BSEyebrow>
-                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 26, color: t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums' }}>
-                  {sample.value ?? '--'} <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase' }}>{sample.unit || ''}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <BSSection title="Coach notes" meta={`${reviewNotes.length} notes`} />
-          <div style={{ padding: `0 ${t.padX}px 22px`, display: 'grid', gap: 10 }}>
-            {reviewNotes.map((item) => (
-              <div key={item.id} style={{ borderLeft: `3px solid ${accent}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
-                {item.body}
-              </div>
-            ))}
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write feedback for the client..." style={{
-              width: '100%',
-              minHeight: 94,
-              resize: 'vertical',
-              border: `1px solid ${t.RULE}`,
-              borderRadius: 12,
-              background: t.PAPER2,
-              color: t.INK,
-              padding: 12,
-              fontFamily: t.DISPLAY,
-              fontSize: 15,
-              lineHeight: 1.35,
-              outline: 'none',
-            }} />
-            <button onClick={saveNote} style={{
-              border: 0,
-              borderRadius: 12,
-              background: t.INK,
-              color: t.PAPER,
-              minHeight: 48,
-              fontFamily: t.MONO,
-              fontSize: 10,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}>
-              Save review note
-            </button>
           </div>
         </>
       ) : null}
@@ -2093,6 +2168,22 @@ function bsProMastRow(withCorners = true) {
   ) : null;
   return <MastRow trailing={trailing} />;
 }
+// Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
+// Case File uses (getUserPoints → bsTierForPoints → bsTierColor); role heat
+// until known / for demo rows.
+function useBSProClientHeat(t, role, clientUid) {
+  const [tier, setTier] = useStateBSP(null);
+  useEffectBSP(() => {
+    setTier(null);
+    if (!clientUid || !window.ShapeProfiles?.getUserPoints) return undefined;
+    let on = true;
+    window.ShapeProfiles.getUserPoints([clientUid])
+      .then((map) => { const pts = map && map[clientUid]; if (on && pts != null && window.bsTierForPoints) setTier(window.bsTierForPoints(pts)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [clientUid]);
+  return tier && window.bsTierColor ? window.bsTierColor(tier) : bsProHeat(t, role);
+}
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
@@ -2106,16 +2197,16 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
     </div>
   );
 }
-function BSProClientMini({ client }) {
+function BSProClientMini({ client, heat }) {
   const t = useBS();
   if (!client) return null;
   const prog = client.prog || (client.r || '').split('·')[0].trim() || 'Program';
   return (
-    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 15px' }}>
-      <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-      <div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{prog} · Week 6 of 12</div>
+    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${heat || t.INK}`, padding: '4px 0 4px 12px' }}>
+      <BSFacetAvatar size={38} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog}{client.week != null && client.weeks != null ? ` · Week ${client.week} of ${client.weeks}` : ''}</div>
       </div>
     </div>
   );
@@ -2123,12 +2214,15 @@ function BSProClientMini({ client }) {
 function BSProActionSec({ eyebrow, title, trailing, accent }) {
   const t = useBS();
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ width: 8, height: 2, background: accent }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow} · {title}</span>
+        </span>
+        {trailing}
       </div>
-      {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: accent, paddingBottom: 3, whiteSpace: 'nowrap' }}>{trailing}</div>}
+      <div aria-hidden style={{ marginTop: 7, height: 1, background: `linear-gradient(90deg, ${t.INK}, ${accent} 70%, transparent)` }} />
     </div>
   );
 }
@@ -2174,7 +2268,7 @@ function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, uni
 
 function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
+  const accent = useBSProClientHeat(t, role, clientUid);
   const isNutri = role === 'nutritionist';
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const gold = '#d8b25a';
@@ -2280,7 +2374,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     } catch (e) { setStatus('error'); }
   };
   const cta = (txt, onClick, mt) => (
-    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
+    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
   );
   const sendLabel = status === 'saving' ? 'Sending…' : status === 'done' ? 'Sent ✓' : 'Apply & Send →';
 
@@ -2303,7 +2397,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
       </div>
       <div>
-        <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing="TAP TO CHANGE →" accent={accent} />
+        <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50, whiteSpace: 'nowrap' }}>TAP TO CHANGE →</span>} accent={accent} />
         {days.map((label, i) => {
           const rest = label === 'Rest';
           return (
@@ -2333,7 +2427,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
           <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>FROM MACROS</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{kcalFromMacros.toLocaleString()} kcal · <span style={{ color: kcalDiff < 0 ? rust : teal }}>{kcalDiff >= 0 ? '+' : ''}{kcalDiff} vs target</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{kcalFromMacros.toLocaleString()} kcal · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{kcalDiff} vs target</span></span>
             </div>
             <div style={{ marginTop: 9, display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
               <div style={{ width: `${(pK / mTot) * 100}%`, background: teal }} />
@@ -2370,7 +2464,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow={isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'} titleA="Tune the" titleB={isNutri ? 'plan.' : 'program.'} accent={accent} onBack={onBack} />
-        <BSProClientMini client={client} />
+        <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {isNutri ? nutriBody : trainerBody}
           <div>
@@ -2394,7 +2488,8 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
 
 function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
+  const accent = useBSProClientHeat(t, role, clientUid);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
   const first = (client?.n || 'there').split(' ')[0];
   const TYPES = isNutri
@@ -2420,7 +2515,6 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const typeLabel = TYPES.find(x => x.k === type)?.l || 'Session';
   const modeLabel = modeOpts.find(m => m.k === mode)?.l || 'Zoom';
   const dateStr = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}-${String(sel.getDate()).padStart(2, '0')}`;
-  const summaryWhen = `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()} · ${time} · ${duration} min · ${modeLabel}`;
   const add = async () => {
     setStatus('saving');
     try {
@@ -2435,7 +2529,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow="SCHEDULE" titleA="Book a" titleB={isNutri ? 'consult.' : 'session.'} accent={accent} onBack={onBack} />
-        <BSProClientMini client={client} />
+        <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           <div>
             <BSProActionSec eyebrow="WHAT" title="Session type" accent={accent} />
@@ -2483,11 +2577,15 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
           </button>
           <div>
             <BSProActionSec eyebrow="SUMMARY" title="The booking" accent={accent} />
-            <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{typeLabel} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
+            <div style={{ display: 'flex', gap: 20 }}>
+              {[['DAY', `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()}`], ['TIME', time], ['LENGTH', `${duration} min`]].map(([lab, fig]) => (
+                <div key={lab} style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{lab}</div>
+                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>{fig}</div>
+                </div>
+              ))}
             </div>
-            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
+            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
             {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't add — try again.</div>}
             {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · books once linked to a live member</div>}
           </div>
