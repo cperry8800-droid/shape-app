@@ -258,6 +258,43 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Goals flow: Open Ledger sheets + "one goal, many terms" hierarchy (#1585)
+- **The four goal-flow sheets re-clothed in the Open Ledger form grammar** (owner
+  screenshots flagged them as the last boxed-form stragglers). New **`.bs-uline`**
+  utility (shared chrome CSS): zero-box **underline field** with an accent focus
+  underline via `--bs-accent`/`--bs-uline-ink` (+ a `.bs-uline-row:focus-within`
+  variant for rows whose inputs share one underline). Behavior/handlers verbatim:
+  - **`BSWeighInSheet`** — boxed PAPER2 inputs die for a bare 40px underline
+    weight register (tabular, unit as a mono eyebrow) + a quiet underline
+    body-fat row; ink→teal gradient rule under "Today's *weight*."; Cancel →
+    ink text-action; Save → the clipped solid-teal ledger CTA.
+  - **`BSOverallEditSheet`** — all fields → underline grammar (numbers tabular);
+    YOUR WHY → hairline transparent box; Cancel → text-action.
+  - **`BSHeadlineEditSheet`** (rust/gold) — gradient head rule, underline fields,
+    clipped solid-accent Save; eyebrow reads `EDIT · HEADLINE`.
+  - **`BSGoalEditSheet`** — underline fields; the boxed template picker dies for a
+    **typographic category index** (active = ink + teal underline) over
+    **dot-leader template rows** (`name ···· ~N WKS`, mono sub); the tinted
+    timeline box → a mono dot-leader line; DELETE/CANCEL → text-actions.
+- **"One goal, many terms" (owner-approved de-confusion pass).** Four goal-shaped
+  objects competed on the Contract page; now there is exactly ONE: a **THE GOAL ·
+  BY {date}** eyebrow leads the verdict; the station mottos (`trainingMeta`/
+  `nutritionMeta`) demote to one quoted italic byline; the station lists reframe
+  as **SUPPORTING TARGETS · SERVE THE GOAL**, cap at 3 visible rows with an
+  `N more target(s) · SHOW ＋` expander; the language sweeps through (add-buttons
+  → "Add a training/nutrition target", the per-target sheet retitles **New/Edit
+  target** + SAVE TARGET). Data model + handlers unchanged.
+- **Contract-page tweaks (owner screenshots):** `BSOLHead` station eyebrows
+  bolder (8.5/INK50 → 9.5/INK, 10px tick); the add-target rows are
+  **dashed-border add-boxes** (obviously buttons, 48px targets).
+- **CodeRabbit round (all fixed + replied, `864cdeb0`):** a real **Major** — the
+  weigh-in zero-box pass had dropped the only keyboard-focus cue (fixed via
+  `.bs-uline-row:focus-within`); "1 more targets" pluralization; the duplicated
+  station furniture extracted to shared `stationMotto`/`tgtEyebrow`/`tgtExpander`
+  helpers. Squash-merged `2d7fe066` (#1585); CI green; merged on green per the
+  owner's call (no preview pass). Built in a worktree; local build stays
+  App-Control-blocked — CI was the build gate.
+
 ### 2026-07-07 — Goal add/edit sheet → full-page title-page panel + hidden scrollbar (#1582)
 - **`BSGoalEditSheet`** (the per-goal add/edit sheet with the categorized template
   picker, mounted from the Goals "Contract" page) was the last goal sheet still on
