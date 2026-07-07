@@ -14963,8 +14963,8 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Goal' : 'Edit · Goal'}</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></>}</h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Target' : 'Edit · Target'}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>target.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>target.</span></>}</h1>
         <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       </div>
       {/* Scrollable form — scrollbar hidden */}
@@ -15018,7 +15018,7 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
       <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
         {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}><span style={{ borderBottom: `2px solid ${t.RUST}66`, paddingBottom: 2 }}>Delete</span></button>}
         <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
-        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
+        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save target</button>
       </div>
     </div>
   );
@@ -15130,6 +15130,10 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   const [readRef, readSeen] = useBSSdInView();
+  // "One goal, many terms": the station target-lists cap at 3 visible rows with
+  // a show-more expander so the page never reads as a pile of competing goals.
+  const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false });
+  const TGT_CAP = 3;
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
@@ -15199,6 +15203,10 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       {/* THE READ — the verdict lead + register row */}
       <div ref={refs.read} style={{ padding: `18px ${t.padX}px 0`, scrollMarginTop: 56 }}>
         <div ref={readRef}>
+          {/* THE GOAL — there is exactly ONE goal on this page; everything below serves it. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
+            <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />The goal{byLabel ? <span style={{ color: t.INK50, fontWeight: 700 }}>&nbsp;· By {byLabel}</span> : null}
+          </div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.18, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
             {verdict.lead.slice(0, -1)}<span style={{ color: heat }}>.</span>
           </div>
@@ -15248,20 +15256,26 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       <div ref={refs.train} style={{ scrollMarginTop: 56 }}>
         <BSOLHead heat={heat} label="Training" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('training')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{trainingMeta.title || 'Set a training goal'}</div>
-          {trainingMeta.subtitle ? <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK50 }}>{trainingMeta.subtitle}</div> : null}
+          {/* Station motto — a byline, not another goal (the one goal lives up top). */}
+          {(trainingMeta.title || trainingMeta.subtitle) ? (
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[trainingMeta.title, trainingMeta.subtitle].filter(Boolean).join(' — ')}”</div>
+          ) : null}
           {trainPlan
             ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />}
-          {trainGoals.map((g, i) => (
-            <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Goal'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
+          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+          {(showAllTargets.training ? trainGoals : trainGoals.slice(0, TGT_CAP)).map((g, i) => (
+            <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
           ))}
+          {trainGoals.length > TGT_CAP && !showAllTargets.training && (
+            <BSOLRow t={t} text={`${trainGoals.length - TGT_CAP} more targets`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, training: true }))} />
+          )}
           {liftRows.map((l, i) => (
             <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
           ))}
-          <button onClick={() => onAddGoal('training')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a training goal</button>
+          <button onClick={() => onAddGoal('training')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a training target</button>
           <BSOLRow t={t} text="The full training record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
@@ -15270,17 +15284,23 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       <div ref={refs.nutr} style={{ scrollMarginTop: 56 }}>
         <BSOLHead heat={heat} label="Nutrition" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('nutrition')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{nutritionMeta.title || 'Set a nutrition goal'}</div>
-          {nutritionMeta.subtitle ? <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK50 }}>{nutritionMeta.subtitle}</div> : null}
+          {/* Station motto — a byline, not another goal. */}
+          {(nutritionMeta.title || nutritionMeta.subtitle) ? (
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[nutritionMeta.title, nutritionMeta.subtitle].filter(Boolean).join(' — ')}”</div>
+          ) : null}
           {nutrPlan
             ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />}
-          {nutrGoals.map((g, i) => (
-            <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Goal'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
+          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+          {(showAllTargets.nutrition ? nutrGoals : nutrGoals.slice(0, TGT_CAP)).map((g, i) => (
+            <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
           ))}
-          <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition goal</button>
+          {nutrGoals.length > TGT_CAP && !showAllTargets.nutrition && (
+            <BSOLRow t={t} text={`${nutrGoals.length - TGT_CAP} more targets`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, nutrition: true }))} />
+          )}
+          <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition target</button>
           <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
@@ -15364,7 +15384,7 @@ function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': accent }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Edit · Goal</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Edit · Headline</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: accent }}>headline.</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
