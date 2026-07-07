@@ -15032,8 +15032,8 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
 function BSOLHead({ heat, label, right = null, t }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: `24px ${t.padX}px 0` }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>
-        <span aria-hidden style={{ width: 8, height: 2, background: heat, display: 'inline-block' }} />{label}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
+        <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />{label}
       </span>
       {right}
     </div>
@@ -15261,7 +15261,7 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
           {liftRows.map((l, i) => (
             <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
           ))}
-          <BSOLRow t={t} glyph="＋" glyphColor={heat} text="Add a training goal" textColor={t.INK70} onPress={() => onAddGoal('training')} />
+          <button onClick={() => onAddGoal('training')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a training goal</button>
           <BSOLRow t={t} text="The full training record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
@@ -15280,7 +15280,7 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
           {nutrGoals.map((g, i) => (
             <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Goal'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
           ))}
-          <BSOLRow t={t} glyph="＋" glyphColor={heat} text="Add a nutrition goal" textColor={t.INK70} onPress={() => onAddGoal('nutrition')} />
+          <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition goal</button>
           <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
