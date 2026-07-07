@@ -9,7 +9,7 @@ import enOnboarding from './catalogs/en/onboarding.json';
 import enSettings from './catalogs/en/settings.json';
 import enScore from './catalogs/en/score.json';
 
-const NS = ['common', 'onboarding', 'settings', 'score'];
+const NS = ['common', 'onboarding', 'settings', 'score', 'home'];
 
 // Vite: load every catalog file that exists so ar/ja (added in the pilot
 // translation task) light up automatically once their JSON is present.
@@ -83,6 +83,9 @@ if (typeof window !== 'undefined') {
   window.ShapeI18n = {
     t: (key, opts) => i18next.t(key, opts),
     current: () => i18next.language,
+    // Intl-safe locale for date/number formatting (maps catalog codes Intl doesn't
+    // know — e.g. 'arz' → 'ar' — falling through to the code itself otherwise).
+    intlLocale: (code) => intlLocaleOf(code || i18next.language),
     activeLocales,
     localeMeta,
   };
