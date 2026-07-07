@@ -1514,6 +1514,11 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   );
 }
 
+// Stable per-ingredient id so a React list key never collides on duplicate
+// names (addFood / manual edits can produce two rows with the same name).
+let _bsIngSeq = 0;
+const bsIngId = () => `bsing-${++_bsIngSeq}`;
+
 // Full meal-logging flow — opened from the home "Up next" meal card's
 // "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
 // photo, or voice; writes to the day total and shows a logged confirmation.
@@ -1536,15 +1541,15 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     // signed-in account with no macro breakdown, start empty (add what you ate)
     // — never the demo plate. The demo ingredients are the signed-out preview.
     if (meal && Number.isFinite(Number(meal.kcal))) {
-      return [{ name: meal.title || 'Meal', qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
+      return [{ id: bsIngId(), name: meal.title || 'Meal', qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
     }
     if (signedIn) return [];
     return [
-      { name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
-      { name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
-      { name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
-      { name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
-      { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
+      { id: bsIngId(), name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
+      { id: bsIngId(), name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
+      { id: bsIngId(), name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
+      { id: bsIngId(), name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
+      { id: bsIngId(), name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
     ];
   });
   const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
@@ -1680,7 +1685,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
       c: Math.max(0, Math.round(Number(editIng.c) || 0)), f: Math.max(0, Math.round(Number(editIng.f) || 0)),
     };
-    if (editIng.index == null) { setIngs(arr => [...arr, { ...item, on: true }]); window.__bsToast?.(`Added ${name}`, 'ok'); }
+    if (editIng.index == null) { setIngs(arr => [...arr, { ...item, id: bsIngId(), on: true }]); window.__bsToast?.(`Added ${name}`, 'ok'); }
     else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.('Ingredient updated', 'ok'); }
     setEditIng(null);
   };
@@ -1870,7 +1875,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Ingredients · tap to toggle</div>
         <div style={{ marginTop: 4 }}>
           {ings.map((x, i) => (
-            <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div key={x.id || x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <button onClick={() => toggle(i)} aria-pressed={x.on} aria-label={`${x.on ? 'Exclude' : 'Include'} ${x.name}`} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
               <div style={{ flex: 1, minWidth: 0, opacity: x.on ? 1 : 0.4 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
@@ -2019,26 +2024,35 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           { name: 'Olive oil',               qty: '1 tbsp',  kcal: 120, p: 0,  c: 0,  f: 14 },
         ];
         const q = foodQuery.trim().toLowerCase();
-        const rows = q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3);
-        const addFood = (f) => { setIngs(arr => [...arr, { name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(`Added ${f.name}`, 'ok'); setShowAddFood(false); };
+        // Honest-data: signed-in members get NO fabricated catalog — food search
+        // isn't wired yet, so route them straight to manual entry. The demo list
+        // (search + recents) is the signed-out preview only.
+        const rows = signedIn ? [] : (q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3));
+        const addFood = (f) => { setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(`Added ${f.name}`, 'ok'); setShowAddFood(false); };
         return createPortal((
           <div onClick={() => setShowAddFood(false)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>Add food</div>
-              <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods, brands, barcodes…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-              <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{q ? `${rows.length} result${rows.length === 1 ? '' : 's'}` : (signedIn ? 'Recents — food search coming soon' : 'Recents')}</div>
-              <div style={{ marginTop: 2 }}>
-                {rows.map((r, i) => (
-                  <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
-                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.qty} · {r.kcal} kcal · {r.p}P</div>
-                    </div>
-                    <button onClick={() => addFood(r)} aria-label={`Add ${r.name}`} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
+              {signedIn ? (
+                <div style={{ padding: '2px 0 4px', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70 }}>Food search is coming. Enter what you ate manually for now.</div>
+              ) : (
+                <>
+                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods, brands, barcodes…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{q ? `${rows.length} result${rows.length === 1 ? '' : 's'}` : 'Recents'}</div>
+                  <div style={{ marginTop: 2 }}>
+                    {rows.map((r, i) => (
+                      <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
+                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{r.qty} · {r.kcal} kcal · {r.p}P</div>
+                        </div>
+                        <button onClick={() => addFood(r)} aria-label={`Add ${r.name}`} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
+                      </div>
+                    ))}
+                    {q && rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
                   </div>
-                ))}
-                {rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
-              </div>
+                </>
+              )}
               <button onClick={() => { setShowAddFood(false); openAddIng(); }} style={{ marginTop: 12, width: '100%', padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Enter manually →</button>
             </div>
           </div>
@@ -2511,7 +2525,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
-    return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
+    return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} dayTargets={{ cal: (ticker && typeof ticker.cal_target === 'number') ? ticker.cal_target : null, protein: (ticker && typeof ticker.protein_target === 'number') ? ticker.protein_target : null }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
