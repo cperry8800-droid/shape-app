@@ -3799,6 +3799,25 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     setUploading(false);
   };
   const rmMedia = (i) => setMedia(list => list.filter((_, j) => j !== i));
+  // Per-exercise clip attach — one hidden input, target block tracked by ref.
+  // Reuses the media section's ShapeCoachMedia upload + signed-out guard.
+  const clipInputRef = React.useRef(null);
+  const clipTargetRef = React.useRef(null);
+  const openClip = (i) => { clipTargetRef.current = i; if (clipInputRef.current) clipInputRef.current.click(); };
+  const pickClip = async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    const i = clipTargetRef.current;
+    clipTargetRef.current = null;
+    if (!file || i == null) return;
+    if (!window.ShapeCoachMedia?.upload) { setStatus('Sign in to upload media.'); setTimeout(() => setStatus(''), 1800); return; }
+    setUploading(true);
+    try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
+    catch (err) { setStatus(String(err?.message || 'Upload failed')); setTimeout(() => setStatus(''), 2200); }
+    setUploading(false);
+  };
+  const clearClip = (i) => setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
+  const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
   const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
   const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
   const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
@@ -3821,12 +3840,21 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
             {lbl(blockLabel)}
             <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>+ ADD</button>
           </div>
+          <input ref={clipInputRef} type="file" accept="video/*" onChange={pickClip} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {blocks.map((b, i) => (
               <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
                 <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
-                <button onClick={() => rmBlock(i)} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {b.video ? (<>
+                    <button type="button" onClick={() => window.open(b.video, '_blank')} aria-label={`Play clip for ${b.text || 'exercise'}`} style={clipBtnStyle}>▶ CLIP</button>
+                    <button type="button" onClick={() => clearClip(i)} aria-label={`Remove clip from ${b.text || 'exercise'}`} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
+                  </>) : (
+                    <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={`Attach a video clip to ${b.text || 'exercise'}`} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>＋ CLIP</button>
+                  )}
+                  <button type="button" onClick={() => rmBlock(i)} aria-label="Remove" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                </span>
               </div>
             ))}
             {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>None yet — add one.</div>}
@@ -3892,6 +3920,39 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Program duplicated');
   };
   const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
+
+  // ── Add a clip to a published workout (WORKOUT VIDEOS station) ──
+  const [clipSheet, setClipSheet] = useStateBSP(false);
+  const [clipPlanId, setClipPlanId] = useStateBSP(null);
+  const [clipUploading, setClipUploading] = useStateBSP(false);
+  const clipVideoRef = React.useRef(null);
+  const openClipAdder = () => {
+    if (!serverPlans || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Sign in and publish a plan to add workout clips'); return; }
+    if (!serverPlans.length) { flash('Publish a plan first, then add a clip'); return; }
+    setClipSheet(true);
+  };
+  const pickPlanForClip = (id) => { setClipPlanId(id); if (clipVideoRef.current) clipVideoRef.current.click(); };
+  const uploadClipToPlan = async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    const planId = clipPlanId;
+    const plan = (serverPlans || []).find(p => p.id === planId);
+    if (!file || !plan || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Could not add clip'); return; }
+    setClipUploading(true);
+    try {
+      const m = await window.ShapeCoachMedia.upload(file);
+      if (m && m.url) {
+        const nextDetail = { ...(plan.detail || {}), media: [...((plan.detail && plan.detail.media) || []), m] };
+        const row = await window.ShapeCoachPlans.update({ id: plan.id, detail: nextDetail });
+        const merged = (row && row.detail) ? row : { ...plan, detail: nextDetail };
+        setServerPlans(list => (list || []).map(p => (p.id === plan.id ? merged : p)));
+        flash('Clip added to ' + plan.name);
+      }
+    } catch (err) { flash(String(err?.message || 'Upload failed')); }
+    setClipUploading(false);
+    setClipPlanId(null);
+    setClipSheet(false);
+  };
 
   const basePrograms = [
     { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
@@ -4081,6 +4142,30 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
+        <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
+        {clipSheet && createPortal(
+          <div onClick={() => { setClipSheet(false); setClipPlanId(null); }} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a clip to a workout" style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>＋ Add a clip</div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Pick a <span style={{ fontStyle: 'italic', color: heat }}>workout.</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{clipUploading ? 'Uploading…' : 'Choose which plan this clip belongs to, then pick a video.'}</div>
+              <div style={{ marginTop: 12 }}>
+                {(serverPlans || []).map((p, i) => (
+                  <button key={p.id || i} type="button" disabled={clipUploading} onClick={() => pickPlanForClip(p.id)} aria-label={`Add a clip to ${p.name}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minHeight: 52, textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: clipUploading ? 'default' : 'pointer', padding: '13px 0', opacity: clipUploading ? 0.5 : 1 }}>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                      {p.meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{p.meta}</span>}
+                    </span>
+                    <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: heat }}>＋</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
+        )}
+
         {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
         <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
 
@@ -4137,14 +4222,40 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           ))}
         </div>
 
-        {/* Video library — upload videos of the workouts in your plans */}
+        {/* Video library — real clips flattened from published plans (plan
+            media + per-block clips); demo cues are the signed-out fallback. */}
         {stationHead('WORKOUT VIDEOS')}
-        <BSProTextAction mono heat={heat} t={t} label="＋ Upload a workout video" onClick={() => flash('Upload a workout video — record or add from camera roll')} />
-        <div style={{ marginTop: 2 }}>
-          {cues.map((c, i) => (
-            <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
-          ))}
-        </div>
+        <BSProTextAction heat={teal} t={t} label="＋ Add a clip to a workout →" onClick={openClipAdder} />
+        {serverPlans === null ? (
+          <div style={{ marginTop: 2 }}>
+            {cues.map((c, i) => (
+              <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
+            ))}
+          </div>
+        ) : (() => {
+          const clips = [];
+          (serverPlans || []).forEach((p) => {
+            const d = p && p.detail;
+            const from = 'FROM ' + String((p && p.name) || 'PLAN').toUpperCase();
+            (d && Array.isArray(d.media) ? d.media : []).forEach((m) => {
+              if (m && m.type === 'video' && m.url) clips.push({ url: m.url, name: (m.name && m.name.trim()) || 'Clip', meta: from });
+            });
+            (d && Array.isArray(d.blocks) ? d.blocks : []).forEach((b) => {
+              if (b && b.video) {
+                const words = String((b.text) || '').trim().split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+                clips.push({ url: b.video, name: words || 'Clip', meta: from });
+              }
+            });
+          });
+          if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="NO CLIPS YET" /> : null}</div>;
+          return (
+            <div style={{ marginTop: 2 }}>
+              {clips.map((c, i) => (
+                <BSProCatRow key={i} index={i} name={c.name} meta={c.meta} heat={heat} t={t} onOpen={() => window.open(c.url, '_blank')} />
+              ))}
+            </div>
+          );
+        })()}
         </>)}
 
         {libTab === 'programs' && (<>
