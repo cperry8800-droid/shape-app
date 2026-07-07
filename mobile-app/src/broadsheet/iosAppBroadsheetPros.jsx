@@ -1702,8 +1702,11 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   return (
     <BSPage>
       {/* §B.1 Header — mast row + THE ROSTER eyebrow + serif "Your clients."
-          (heat italic accent) + mono right meta + ＋ ADD (≥44px). */}
-      {bsProMastRow()}
+          (heat italic accent) + mono right meta + ＋ ADD (≥44px). The mast row
+          needs the standard 46px top / t.padX horizontal inset (BSPage provides
+          no top padding) so it clears the notch + rounded corners — matches
+          BSProActionHead / BSStShell; without it the masthead sat off-screen. */}
+      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
