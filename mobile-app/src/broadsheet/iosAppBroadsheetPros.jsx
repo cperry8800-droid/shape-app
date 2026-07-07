@@ -1987,6 +1987,52 @@ function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.
 // on all papers; nutritionist gold is a light/dark pair). bsProAccent (teal)
 // stays the ACTION accent for the action pages — heat ≠ accent.
 function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b'; }
+// ── Open Ledger catalogue primitives (Plans tab, both roles — spec §1) ──
+// Typographic index: mono 9.5/800 items, active = ink + 2px page-teal
+// underline (the roster's filter-index grammar, BSProRosterView §B.3).
+function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } = {}) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <div role="tablist" aria-label={ariaLabel} className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 16, borderBottom: `1px solid ${t.INK}12`, overflowX: 'auto' }}>
+      {items.map(([k, l]) => {
+        const on = activeKey === k;
+        return (
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{l}</button>
+        );
+      })}
+    </div>
+  );
+}
+// Dot-leader catalogue row: mono index · serif name · leader · mono price ·
+// ASSIGN heat-underlined action; meta subline. Row tap = onOpen.
+function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', minHeight: 52, padding: '13px 0', borderTop: `1px solid ${t.INK}12` }}>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(index + 1).padStart(2, '0')}</span>
+      <button type="button" onClick={onOpen} aria-label={`Open ${name}`} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+          <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
+          {price && <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{String(price).toUpperCase()}</span>}
+        </span>
+        {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{meta}</span>}
+      </button>
+      {onAssign && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={`Assign ${name} to a client`} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: '0 2px' }}>
+          <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>ASSIGN</span>
+        </button>
+      )}
+    </div>
+  );
+}
+// Text action: ink + heat underline (mono:false) or plain mono (mono:true).
+function BSProTextAction({ label, onClick, heat, t, mono = false }) {
+  return (
+    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: mono ? t.INK50 : t.INK }}>
+      <span style={mono ? undefined : { borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
+    </button>
+  );
+}
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
 function bsProMastRow(withCorners = true) {
