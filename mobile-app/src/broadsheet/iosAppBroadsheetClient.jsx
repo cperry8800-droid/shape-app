@@ -11,6 +11,7 @@ import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
+import { bsLiveEffort, BS_EFFORT_RAMP } from '../services/liveEffort.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -1447,47 +1448,31 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Today · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: rust }}>.</span></div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
 
-      {/* Coach note card */}
-      <div style={{ padding: `14px ${t.padX}px 4px` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${rust}55`, borderLeft: `3px solid ${rust}`, background: `linear-gradient(155deg, ${rust}24, ${rust}08 45%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <BSAvatar init="J" size={34} fill={rust} ink={t.PAPER} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Jordan Chen</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Coach</div>
-              </div>
-            </div>
-            <button onClick={onMessage} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Message</button>
-          </div>
-          <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
-            “{wkNote}”
-          </div>
+      {/* Coach note — Wire press credit (rust = trainer role) */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ borderLeft: `3px solid ${rust}`, padding: '3px 0 3px 11px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK, lineHeight: 1.5, letterSpacing: '-0.01em' }}>“{wkNote}”</div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan Chen · Trainer · notes</div>
         </div>
       </div>
 
-      {/* Moves */}
-      <div style={{ padding: `22px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>Plan</BSEyebrow>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Moves</div>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: teal }}>{moves.length} →</span>
-        </div>
-      </div>
-      <div style={{ padding: `4px ${t.padX}px` }}>
-        {moves.map((m, i, arr) => (
-          <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'start', padding: '14px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, paddingTop: 4 }}>{String(i + 1).padStart(2, '0')}</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.01em' }}>“{m.cue}”</div>
+      {/* Moves — the plan ledger */}
+      <BSOLHead heat={t.ACCENT} label="Plan" t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{moves.length} moves</span>} />
+      <div style={{ padding: `2px ${t.padX}px 0` }}>
+        {moves.map((m, i) => (
+          <div key={m.name} style={{ padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+              <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+              <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</span>
+              <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{m.load || ''}{m.load && m.up ? ' +' : ''}</span>
             </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: rust, fontVariantNumeric: 'tabular-nums', paddingTop: 4, whiteSpace: 'nowrap' }}>{m.load || ''}{m.load && m.up ? ' +' : ''}</span>
+            <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
+            {m.cue && <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em' }}>“{m.cue}”</div>}
           </div>
         ))}
       </div>
@@ -3564,12 +3549,12 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
       {/* Today hero — the session at a glance, on the instrument plate. */}
-      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" data-tour="hero-train" style={{ margin: `12px ${t.padX}px 0` }}>
+      <div data-tour="hero-train" style={{ margin: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
         </div>
-        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, lineHeight: 0.96, letterSpacing: '-0.035em', color: t.INK }}>{cur.headline}</div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>
         <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
@@ -3579,11 +3564,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
           </div>
         )}
-        <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 11.5 }}>J</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
           </div>
           {effMoves.length > 0 ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
@@ -3591,7 +3576,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
         </div>
-      </BSPlate>
+      </div>
 
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
@@ -19289,17 +19274,8 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
         title={program.headline}
       />
 
-      {/* Hero strip */}
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <BSHalftone height={140} accent={program.accent} pattern="dots" />
-      </div>
-
-      {/* Stats bar */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: `repeat(${isRest ? 2 : 4}, 1fr)`,
-        padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`,
-        borderTop: `2px solid ${t.INK}`, marginTop: 18,
-      }}>
+      {/* Register — the session at a glance (eyebrow-above-figure, no boxes) */}
+      <div style={{ padding: `18px ${t.padX}px 0`, display: 'flex' }}>
         {[
           { l: 'Tag',  v: program.tag },
           { l: 'Time', v: program.meta.split('·')[0].trim() },
@@ -19308,68 +19284,58 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
             { l: 'Reps', v: totalReps > 0 ? totalReps.toString() : '—' },
           ]),
         ].map((s, i) => (
-          <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}</div>
+          <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i > 0 ? `1px solid ${bsTHexA(t.INK, 0.14)}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>{s.l}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}</div>
           </div>
         ))}
       </div>
+      <div aria-hidden style={{ margin: `13px ${t.padX}px 0`, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
 
       {/* Brief */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>The brief</BSEyebrow>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 500, letterSpacing: '-0.005em' }}>
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 500, letterSpacing: '-0.005em' }}>
           {program.copy}
         </div>
       </div>
 
-      {/* Blocks */}
+      {/* Blocks — move ledger */}
       {blocks.map((bk, bi) => (
         <React.Fragment key={bi}>
-          <BSSection title={bk.name} meta={bk.moves.length > 0 ? `${bk.moves.length} move${bk.moves.length === 1 ? '' : 's'}` : 'Auxiliary'} />
+          <BSOLHead heat={t.ACCENT} label={bk.name} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{bk.moves.length > 0 ? `${bk.moves.length} move${bk.moves.length === 1 ? '' : 's'}` : 'Auxiliary'}</span>} />
           {bk.note && (
-            <div style={{ padding: `0 ${t.padX}px 12px` }}>
-              <div style={{
-                fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4,
-                borderLeft: `2px solid ${t.INK}`, paddingLeft: 10,
-              }}>{bk.note}</div>
+            <div style={{ padding: `6px ${t.padX}px 0` }}>
+              <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{bk.note}</div>
             </div>
           )}
           {bk.moves.length > 0 && (
-            <div style={{ padding: `0 ${t.padX}px` }}>
-              <div style={{ borderTop: `2px solid ${t.INK}` }}>
-                {bk.moves.map((m, i) => {
-                  const cue = m.cue || _bsCueLibrary[m.m];
-                  return (
-                    <div key={i} style={{ padding: '14px 0', borderBottom: i === bk.moves.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600, width: 24 }}>{m.n}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontWeight: 700, letterSpacing: '-0.015em' }}>{m.m}</div>
-                          <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.06em' }}>{m.s} · {m.l}</div>
-                          {cue && (
-                            <div style={{ marginTop: 8, padding: '8px 10px', background: t.PAPER2, borderLeft: `2px solid ${program.accent}`,
-                              fontFamily: t.DISPLAY, fontSize: 13, color: t.INK85, lineHeight: 1.35, fontStyle: 'italic',
-                            }}>“{cue}”</div>
-                          )}
-                        </div>
-                      </div>
+            <div style={{ padding: `2px ${t.padX}px 0` }}>
+              {bk.moves.map((m, i) => {
+                const cue = m.cue || _bsCueLibrary[m.m];
+                return (
+                  <div key={i} style={{ padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+                      <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{m.n}</span>
+                      <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{m.m}</span>
+                      <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
+                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, fontWeight: 700 }}>{m.s}{m.l ? ` · ${m.l}` : ''}</span>
                     </div>
-                  );
-                })}
-              </div>
+                    {cue && (
+                      <div style={{ marginTop: 6, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK70, lineHeight: 1.35 }}>“{cue}”</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </React.Fragment>
       ))}
 
-      {/* Coach note */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 10, fontWeight: 700 }}>
-          ▍ Notes from Jordan
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.35, letterSpacing: '-0.01em' }}>
-          {program.coachLine}
+      {/* Coach note — Wire press credit */}
+      <div style={{ padding: `22px ${t.padX}px 0` }}>
+        <div style={{ borderLeft: `3px solid #c0533b`, padding: '3px 0 3px 11px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 500, fontSize: 15, lineHeight: 1.4, color: t.INK }}>{program.coachLine}</div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan · Trainer · notes</div>
         </div>
       </div>
 
@@ -19467,6 +19433,24 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
+  // "The Meter" — the page's heat tracks live effort (HR zone → last-set RPE →
+  // neutral). Damped: re-evaluated at most every 5s; color rides a 1.2s CSS
+  // transition. Reduced motion: a page that shifts color is motion → lock to
+  // the neutral accent.
+  const [effort, setEffort] = useStateBSC(null);
+  React.useEffect(() => {
+    if (bsSdReduced()) return undefined;
+    const tick = () => {
+      const done = setLogs.filter((e) => e.completed && e.rpe);
+      const lastRpe = done.length ? done[done.length - 1].rpe : null;
+      setEffort(bsLiveEffort({ bpm: hrmOn ? hrNow : null, rpe: lastRpe }));
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => clearInterval(id);
+  }, [hrmOn, hrNow, setLogs]);
+  const heat = (!bsSdReduced() && effort) ? BS_EFFORT_RAMP[effort.zone] : (t.isLight ? '#0a8f87' : '#34d6c5');
+  const heatTrans = { transition: 'color 1.2s ease, border-color 1.2s ease, background-color 1.2s ease' };
   const _bsStrength = useBSStrength();
 
   React.useEffect(() => {
@@ -19642,43 +19626,53 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       {/* Header — End / Live timer / set count */}
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block' }} /> Live · {fmt(elapsedSec)}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: heat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} /> Live · {fmt(elapsedSec)}
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
       </div>
 
-      {/* Live heart rate from a worn Bluetooth monitor — its avg/max land on the
-          workout's stats. Tap to connect one when none is paired. */}
-      <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'center' }}>
-        {hrmOn && hrNow ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#c0392b' : '#ff6b6b' }}>
-            {bsFeedIcon('heart', 12, true)} {hrNow} bpm · live
-          </span>
-        ) : (
+      {/* Effort meter — with a live HR strap, a Z1→Z5 zone strip + needle; the
+          page heat tracks the current zone. Without one, the Connect pill. */}
+      {hrmOn && hrNow ? (
+        <div style={{ padding: `10px ${t.padX}px 0` }} aria-label={`${hrNow} beats per minute, zone ${effort?.zone || 1} effort`}>
+          <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
+            <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: t.INK, left: `${Math.min(97, Math.max(1, (hrNow / 190) * 100))}%`, transition: 'left 1.2s ease' }} />
+          </div>
+          <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            <span style={{ color: t.INK50 }}>Z1</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: heat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {hrNow} bpm · {effort?.label || 'Z1'} effort</span>
+            <span style={{ color: t.INK50 }}>Z5</span>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'center' }}>
           <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
             {bsFeedIcon('heart', 11)} Connect HR monitor
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Rest timer — pinned at the very top while resting between sets (instrument plate) */}
+      {/* Rest — a zero-box register; the rule drains as time counts down. */}
       {restEnd && restLeft > 0 && (
-        <div style={{ margin: `12px ${t.padX}px 0`, padding: 16, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', borderLeft: `3px solid ${teal}`, background: t.INK, color: t.PAPER }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Rest</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>Set {restAfterSet} of {move.sets} · done</span>
+        <div style={{ margin: `12px ${t.padX}px 0` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>
+              <span aria-hidden style={{ width: 8, height: 2, background: heat, ...heatTrans }} />Rest
+            </span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Set {restAfterSet} of {move.sets} · done</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: 'rgba(255,255,255,0.55)' }}>of {fmt(restTotal)}</span>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 42, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>of {fmt(restTotal)}</span>
+            {hrmOn && hrNow ? <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{hrNow} bpm · come down to Z2</span> : null}
           </div>
-          <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.round(Math.max(0, Math.min(1, (restTotal - restLeft) / restTotal)) * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+          <div aria-hidden style={{ marginTop: 10, height: 2, background: t.HAIR }}>
+            <div style={{ height: 2, background: heat, width: `${Math.round(Math.max(0, Math.min(1, restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
           </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ flex: 1, padding: '11px', borderRadius: 5, background: 'transparent', color: t.PAPER, border: `1px solid rgba(255,255,255,0.4)`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>+30 sec</button>
-            <button onClick={() => setRestEnd(null)} style={{ flex: 1.4, padding: '11px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
+          <div style={{ marginTop: 8, display: 'flex', gap: 18, alignItems: 'center' }}>
+            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>+30 sec</button>
+            <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', padding: '11px 18px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', borderRadius: 5, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
           </div>
         </div>
       )}
@@ -19687,56 +19681,46 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{title || 'Live session'}</div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>w/ Jordan · {Math.round(pct * 100)}% complete · ~{minLeft} min left</div>
-        <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+        <div aria-hidden style={{ marginTop: 12, height: 2, background: t.HAIR }}>
+          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: heat, transition: bsSdReduced() ? 'none' : 'width .5s ease, background-color 1.2s ease' }} />
         </div>
       </div>
 
 
       {/* Current exercise */}
       <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>Exercise {moveIdx + 1} of {moves.length}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 800, ...heatTrans }}>Exercise {moveIdx + 1} of {moves.length}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{move.sets} × {move.reps}</span>
       </div>
       <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: t.RUST }}>.</span></div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
 
-      {/* Suggested next load (e1RM progression nudge) */}
+      {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
       {_bsSug && (
-        <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <button
-            onClick={_bsFillSuggestion}
-            aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
-            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14 }}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Suggested</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Tap to use →</span>
-            </div>
-            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load}<span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}> {_bsSug.unit}</span></span>
-              {_bsSug.reps != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>× {_bsSug.reps}</span>}
-            </div>
-            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>{_bsSug.rationale}</div>
+        <div style={{ padding: `10px ${t.padX}px 0` }}>
+          <button onClick={_bsFillSuggestion} aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
+            style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>Suggested</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load} {_bsSug.unit}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>Use →</span>
+            </span>
+            <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{_bsSug.rationale}</span>
           </button>
         </div>
       )}
 
-      {/* Plate math */}
+      {/* Plate math — unboxed line (gym plate colors are semantic, kept) */}
       {perSide && (
-        <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Per side ({activeLoad} lb)</div>
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700 }}>Bar +</span>
-              {plates.length ? plates.map((p, i) => (
-                <span key={i} style={{ padding: '4px 9px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{p}</span>
-              )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>bar only</span>}
-            </div>
-          </div>
+        <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Per side ({activeLoad} lb) · bar +</span>
+          {plates.length ? plates.map((p, i) => (
+            <span key={i} style={{ padding: '3px 8px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10, fontWeight: 800 }}>{p}</span>
+          )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>bar only</span>}
         </div>
       )}
 
@@ -19750,22 +19734,21 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           const done = completed[k];
           const isActive = i === activeIdx;
           const ri = setInputs[k] || { reps: '', load: String(move.l || ''), rpe: '' };
-          const bc = isActive ? teal : t.HAIR;
           const cell = (field, ph) => (
             <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" disabled={done} aria-label={`Set ${i + 1} ${field}`}
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${done ? t.HAIR : bc}`, background: done ? 'transparent' : (isActive ? `${teal}12` : t.PAPER2), color: t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.6 : 1 }} />
+              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px dotted ${bsTHexA(t.INK, 0.3)}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? teal : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
               {cell('load', 'lb')}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : (isActive ? teal : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer' }}>✓</button>
+              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
             </div>
           );
         })}
-        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 8, width: '100%', padding: '11px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, width: '100%', minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
       </div>
 
       {/* Primary log CTA */}
@@ -19797,10 +19780,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
           const isCurrent = i === moveIdx;
           return (
-            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: isCurrent ? t.PAPER2 : 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${teal}` : '3px solid transparent', borderRadius: 5, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : t.INK50 }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
+            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? heat : t.INK50, ...heatTrans }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{mv.m}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>NOW</span>}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.sets} × {mv.reps} · 90s rest</div>
               </div>
               {mv.l && <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{mv.l}</span>}
@@ -19809,20 +19792,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         })}
       </div>
 
-      {/* Live coach message */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${t.RUST}55`, borderLeft: `3px solid ${t.RUST}`, background: `linear-gradient(155deg, ${t.RUST}22, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <BSAvatar init="J" size={30} fill={t.RUST} ink={t.PAPER} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Jordan</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Live · coaching</div>
-              </div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>2 min ago</span>
-          </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{'“' + cue + '”'}</div>
+      {/* Live coach message — Wire press credit (rust is the trainer ROLE color) */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '3px 0 3px 11px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{'“' + cue + '”'}</div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan · live · coaching · 2 min</div>
         </div>
       </div>
 
