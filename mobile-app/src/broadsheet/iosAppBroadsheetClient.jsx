@@ -12993,7 +12993,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // live/action (the old pink LIVE/NEW capsules die), one breathing dot per
           // live room, unread as bare teal text. Send/share moved into the thread
           // header (the row keeps only the pin STATE + open/join).
-          const tealSig = t.isLight ? '#0a8f87' : '#34d6c5';
+          const tealSig = teal; // same component-level teal source (declared above)
           const chReduced = bsSdReduced();
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
