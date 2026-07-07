@@ -12274,7 +12274,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
-    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost });
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: ch.memberCount || 0 });
     if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -12309,11 +12309,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const friendUnread = (friendRows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
   const coachUnread = (threadRows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
   const online = useBSOnline(); // live "N online" presence count for the masthead
-  const unreadBadge = (key) => {
-    const n = (unread && unread[key]) || 0;
-    if (!n) return null;
-    return <span style={{ flexShrink: 0, padding: '3px 8px', borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{n === 1 ? '1 new' : `${n} new`}</span>;
-  };
   // Pushpin icon. PINNED → solid teal head (a clear status). NOT pinned → a
   // hollow outline (a subtle "tap to pin" affordance), so an unpinned channel
   // never looks pinned.
@@ -12326,6 +12321,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   );
   const [composerSlot, setComposerSlot] = useStateBSC(null);
   React.useEffect(() => { setComposerSlot(document.getElementById('bs-composer-slot')); }, []);
+  // The channels index rides the shared Open Ledger keyframes (fade-up rows,
+  // breathing LIVE dot) — inject once here so the tab animates even when no
+  // activity card has mounted yet this session.
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   // Theme-aware feed colors — text/hairlines follow the active paper theme so
   // the tab/chip labels and cards stay legible on light (cream) paper, not just
   // the dark default. Cards use a light panel on light themes, dark otherwise.
@@ -12789,12 +12788,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   if (openChat) {
     const isCh = !!openChat.channelId || String(openChat.n || '').startsWith('#');
     return (
-      <BSChatThread
-        thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
-        eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
-        onBack={() => setOpenChat(null)}
-        onOpenProfile={(person) => setOpenProfile(person)}
-      />
+      <>
+        <BSChatThread
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
+          onBack={() => setOpenChat(null)}
+          onOpenProfile={(person) => setOpenProfile(person)}
+          onSendChannel={openChat.channelId ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+        />
+        {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
+      </>
     );
   }
 
@@ -12977,27 +12980,42 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             { key: 'friends', label: 'Friends', color: '#147b68', badge: _friendUnread },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
-          const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
+          // Channels index — Open Ledger grammar: zero-box dot-leader rows, teal =
+          // live/action (the old pink LIVE/NEW capsules die), one breathing dot per
+          // live room, unread as bare teal text. Send/share moved into the thread
+          // header (the row keeps only the pin STATE + open/join).
+          const tealSig = t.isLight ? '#0a8f87' : '#34d6c5';
+          const chReduced = bsSdReduced();
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
+            const chN = (unread && unread['ch:' + ch.id]) || 0;
+            const openOrJoin = () => ch.joined ? openChannelNow(ch) : joinChannelNow(ch);
             return (
-              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 2px', borderTop: i ? `1px solid ${hair}66` : 0 }}>
-                <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>#{ch.name}</span>
-                    {ch.live && <span style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.12em', color: '#e0518a', border: '1px solid #e0518a', padding: '1px 3px', borderRadius: 3 }}>LIVE</span>}
-                    {ch.private && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', color: muted }}>🔒</span>}
-                    {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', color: TEALB }}>HOST</span>}
+              <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
+                <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    {ch.live && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig, ...(chReduced ? null : { '--sd-glow': bsTHexA(tealSig, 0.5), animation: 'bsSdPrBreath 2.4s ease-in-out infinite' }) }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: tealSig }}>LIVE</span>
+                      </span>
+                    )}
+                    {ch.private && <span aria-label="Private" style={{ fontSize: 8, flexShrink: 0, opacity: 0.6 }}>🔒</span>}
+                    {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', color: muted, flexShrink: 0 }}>HOST</span>}
+                    <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(2px)' }} />
+                    {chN > 0 && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: tealSig, fontVariantNumeric: 'tabular-nums' }}>{chN} NEW</span>}
                   </div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.05em', color: muted, marginTop: 2 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? ` · ${ch.online} online` : ''}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+                    {ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? <span> · <span style={{ color: tealSig, fontWeight: 700 }}>{ch.online} online</span></span> : null}
+                  </div>
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  {unreadBadge('ch:' + ch.id)}
-                  <button onClick={() => { if (isSample) { window.__bsToast?.('Sample channel — share real ones.', 'info'); return; } setSendPostFor({ channel: { id: ch.id, name: ch.name, memberCount: ch.memberCount || 0 } }); }} aria-label="Send channel to a member" title="Send to a member" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('send', 12)}</button>
-                  <button onClick={() => bsSharePostExternal({ who: '', title: `Join #${ch.name} on Shape`, body: `${ch.memberCount || 0} members`, postId: null })} aria-label="Share channel" title="Share" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('share', 12)}</button>
-                  <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.35 }}><PinIcon filled={ch.pinned} size={16} /></button>
-                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 24, height: 24, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>+</button>}
-                  <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '5px 12px', borderRadius: 999, background: ch.joined ? 'transparent' : TEAL, color: ch.joined ? cardInk : '#031f1c', border: ch.joined ? `1px solid ${hair}` : 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
+                  <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin to top'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
+                  {ch.joined
+                    ? <button onClick={openOrJoin} aria-label={`Open #${ch.name}`} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
+                    : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 4, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
                 </div>
               </div>
             );
@@ -13005,47 +13023,72 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Channels — its own top-level tab (Signal v2). Same wired channel
           // list/create/search as before, lifted out of the Team selector.
           if (tab === 'channels') {
+            const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px 2px' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
-                </div>
-                {/* Search + a compact "+" box that opens the create form */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
-                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
-                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Ledger head — honest register + the ink→teal rule */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, padding: '0 2px' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>The channels</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {chDisplay.length} {chDisplay.length === 1 ? 'channel' : 'channels'}
+                      {chLiveCount ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{chLiveCount} live</span></span> : null}
+                      {chUnread ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{chUnread} new</span></span> : null}
+                    </span>
                   </div>
-                  <button onClick={() => setNewChannel(newChannel === null ? '' : null)} aria-label={newChannel === null ? 'Create channel' : 'Cancel'} title={newChannel === null ? 'Create new channel' : 'Cancel'} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 11, background: newChannel === null ? `${TEALB}1f` : 'transparent', color: newChannel === null ? TEALB : muted, border: `1px solid ${newChannel === null ? `${TEALB}66` : hair}`, fontSize: 20, fontWeight: 400, lineHeight: 1, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform .15s', transform: newChannel === null ? 'none' : 'rotate(45deg)' }}>+</button>
+                  <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${tealSig} 62%, transparent)` }} />
                 </div>
+                {/* Underline search + ＋ NEW text-action */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div className="bs-uline bs-uline-row" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 2px 9px', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }}>
+                    <span aria-hidden style={{ fontSize: 13, color: muted, flexShrink: 0 }}>⌕</span>
+                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, padding: 0 }} />
+                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ flexShrink: 0, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', padding: 0 }}>CLEAR</button>}
+                  </div>
+                  <button onClick={() => setNewChannel(newChannel === null ? '' : null)} style={{ flexShrink: 0, minHeight: 40, background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: newChannel === null ? tealSig : muted, borderBottom: `2px solid ${newChannel === null ? `${tealSig}66` : 'transparent'}`, paddingBottom: 3 }}>{newChannel === null ? '＋ New' : 'Cancel'}</span>
+                  </button>
+                </div>
+                {/* Create — a quiet zero-box form (two-tier rule) */}
                 {newChannel !== null && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 11, borderRadius: 14, border: `1px solid ${hair}`, background: card, padding: 13 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEALB }}>New channel</div>
-                    <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ width: '100%', boxSizing: 'border-box', height: 40, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 12, padding: '0 14px', fontFamily: t.BODY, fontSize: 14.5, color: t.INK, outline: 'none' }} />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {[['public', 'Public', 'Anyone can join', '🌐'], ['private', 'Private', 'Invite only', '🔒']].map(([k, title, sub, icon]) => {
-                        const on = (k === 'private') === newChannelPrivate;
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: tealSig }}>
+                      <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: tealSig }} />
+                      New · Channel
+                    </div>
+                    <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" className="bs-uline" style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', padding: '6px 0 9px', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }} />
+                    <div style={{ display: 'flex', gap: 22 }}>
+                      {[[false, 'Public', 'Anyone can join'], [true, 'Private', 'Invite only']].map(([v, title, sub]) => {
+                        const on = newChannelPrivate === v;
                         return (
-                          <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'left', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1a` : 'transparent', cursor: 'pointer' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: on ? cardInk : muted, letterSpacing: '-0.01em' }}><span style={{ fontSize: 12 }}>{icon}</span>{title}</span>
-                            <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{sub}</span>
+                          <button key={title} onClick={() => setNewChannelPrivate(v)} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '6px 0 9px', cursor: 'pointer', position: 'relative', textAlign: 'left', minHeight: 40 }}>
+                            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : muted }}>{title}</span>
+                            <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginLeft: 6 }}>· {sub}</span>
+                            {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: tealSig }} />}
                           </button>
                         );
                       })}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 1 }}>
-                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ flex: '0 0 auto', height: 40, padding: '0 18px', borderRadius: 12, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ flex: 1, height: 40, borderRadius: 12, background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: newChannel.trim() ? 'pointer' : 'default' }}>Create channel</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
+                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, borderBottom: `2px solid ${bsTHexA(t.INK, 0.25)}`, paddingBottom: 3 }}>Cancel</button>
+                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ marginLeft: 'auto', padding: '11px 18px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: newChannel.trim() ? 'pointer' : 'default' }}>Create channel</button>
                     </div>
                   </div>
                 )}
-                <div style={{ marginTop: 2 }}>{chDisplay.map(chRow)}</div>
+                <div>{chDisplay.map(chRow)}</div>
                 {_chQ && chDisplay.length === 0 && (
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels match “{channelQuery.trim()}”.</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>
+                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+                    No channels match “{channelQuery.trim()}”
+                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+                  </div>
                 )}
                 {channels && chList.length === 0 && newChannel === null && (
-                  <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels yet — start one.</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>
+                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+                    No channels yet — start one
+                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+                  </div>
                 )}
               </div>
             );
@@ -13686,7 +13729,7 @@ function bsLongPress(onTrigger) {
   };
 }
 
-function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null }) {
   const t = useBS();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
@@ -13770,13 +13813,22 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
-        <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
-          {!thread.group && <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
-          </div>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
+            {!thread.group && <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
+            </div>
+          </button>
+          {/* Channel actions live HERE (not on every index row): send to a member + share */}
+          {thread.channelId && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              {onSendChannel && <button onClick={onSendChannel} aria-label="Send channel to a member" title="Send to a member" style={{ width: 32, height: 32, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('send', 14)}</button>}
+              <button onClick={() => bsSharePostExternal({ who: '', title: `Join ${thread.who} on Shape`, body: thread.role || '', postId: null })} aria-label="Share channel" title="Share" style={{ width: 32, height: 32, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('share', 14)}</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Messages — bottom padding clears the pinned composer, which now
