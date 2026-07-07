@@ -4024,7 +4024,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     .map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
-    const list = [...customCards, ...basePrograms];
+    // §5 (CodeRabbit) — the demo social-proof rows (48 on it · 4.9 ★) are a
+    // signed-OUT preview only; a signed-in coach sees only their real
+    // serverPlans-derived rows (customCards), with the empty-state redaction.
+    const list = signedIn ? [...customCards] : [...customCards, ...basePrograms];
     if (sort === 'Price') return [...list].sort((a, b) => numFrom(b.price, /(\d+)/) - numFrom(a.price, /(\d+)/));
     if (sort === 'Rating') return [...list].sort((a, b) => numFrom(b.meta, /([\d.]+) ★/) - numFrom(a.meta, /([\d.]+) ★/));
     return [...list].sort((a, b) => numFrom(b.meta, /(\d+) on it/) - numFrom(a.meta, /(\d+) on it/));
@@ -4053,8 +4056,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
     setEditDraft(null); setDrafting(false);
   };
-  // Single day workouts
-  const workouts = [
+  // Single day workouts — demo catalogue (signed-OUT preview only; §5 CodeRabbit).
+  const workouts = signedIn ? [] : [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
     { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
     { n: 'Tempo Run · Zone 2', meta: '45 min · cardio · Z2' },
@@ -4065,15 +4068,16 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Push Day', meta: '6 lifts · 50 min · RPE 8' },
     { n: 'Pull Day', meta: '6 lifts · 50 min · RPE 7.5' },
   ];
-  // Reusable weekly routines / templates (the "Programs" sub-tab)
-  const routines = [
+  // Reusable weekly routines / templates (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const routines = signedIn ? [] : [
     { n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' },
     { n: '3-day Full Body', meta: '3 days/wk · beginner' },
     { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
     { n: 'Bro split · 5-day', meta: '5 days/wk · hypertrophy' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab)
-  const enrolled = [
+  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
+  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
+  const enrolled = signedIn ? [] : [
     { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
     { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
     { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
@@ -4244,14 +4248,18 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </>)}
 
         {libTab === 'workouts' && (<>
-        {/* Top workout — unboxed verdict lead */}
-        {featureLead('TOP WORKOUT · 62 MIN', 'Lower Push —', 'Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', <>
+        {/* Top workout — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "used by 34 · 4.9 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP WORKOUT · 62 MIN', 'Lower Push —', 'Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', <>
           <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('workout')} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Lower Push Peak')} /></span>
         </>)}
-        {/* Single day workouts */}
+        {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
         {stationHead('SESSIONS', monoTrail('NEW →', () => openDraft('workout')))}
+        {workouts.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO WORKOUTS YET" /> : null
+        ) : (
         <div style={{ marginTop: 2 }}>
           {workouts.map((w, i) => (
             <BSProCatRow key={w.n} index={i} name={w.n} meta={w.meta} heat={heat} t={t}
@@ -4259,6 +4267,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
               onAssign={() => setAssignPlan({ id: w.id || null, name: w.n, meta: w.meta, detail: w.detail || null })} />
           ))}
         </div>
+        )}
 
         {/* Video library — real clips flattened from published plans (plan
             media + per-block clips); demo cues are the signed-out fallback. */}
@@ -4303,14 +4312,18 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </>)}
 
         {libTab === 'programs' && (<>
-        {/* Top program — unboxed verdict lead */}
-        {featureLead('TOP PROGRAM · 8 WK', '5-day Upper /', 'Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', <>
+        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "used by 22 · 4.8 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP PROGRAM · 8 WK', '5-day Upper /', 'Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', <>
           <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('5-day Upper Lower')} /></span>
         </>)}
-        {/* Reusable weekly routines / templates */}
+        {/* Reusable weekly routines / templates — demo signed-out, redaction signed-in-with-none. */}
         {stationHead('TEMPLATES', monoTrail('NEW →', () => openDraft('program')))}
+        {routines.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+        ) : (
         <div style={{ marginTop: 2 }}>
           {routines.map((r, i) => (
             <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
@@ -4318,6 +4331,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
+        )}
         </>)}
         </>)}
 
@@ -4807,14 +4821,17 @@ function BSNutriPlans() {
   const customCards = (serverPlans || dupes)
     .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')
     .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
-  const plans = [...customCards,
+  // §5 (CodeRabbit) — the demo social-proof rows (12 on it · 4.9 ★) are a
+  // signed-OUT preview only; a signed-in coach sees only their real
+  // serverPlans-derived rows (customCards), with the empty-state redaction.
+  const plans = signedIn ? [...customCards] : [...customCards,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
     { n: 'Vegetarian Base', meta: '2,400 kcal · 6 on it · 4.7 ★', price: '$120' },
     { n: 'Maintenance', meta: '2,700 kcal · 14 on it · 4.9 ★', price: '$120' },
   ];
-  // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab)
-  const nutriPrograms = [
+  // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const nutriPrograms = signedIn ? [] : [
     { n: 'Busy professional', meta: '4 wks · fast & balanced · $130' },
     { n: 'New-parent reset', meta: '6 wks · simple batch meals · $120' },
     { n: 'Athlete fuel', meta: '8 wks · performance · $160' },
@@ -4840,8 +4857,8 @@ function BSNutriPlans() {
     setEditDraft(null); setDrafting(false);
   };
   const libBuild = ({ plans: 'mealplan', programs: 'program', diet: 'diet' })[libTab] || 'mealplan';
-  // Diet-specific meals / plans (the "Diet" sub-tab)
-  const diets = [
+  // Diet-specific meals / plans (the "Diet" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
+  const diets = signedIn ? [] : [
     { n: 'Keto · 7-day', meta: '20g net carbs · high fat · $90' },
     { n: 'Mediterranean', meta: 'whole-food · heart-healthy · $90' },
     { n: 'High-protein cut', meta: '180g+ protein · lean · $100' },
@@ -4850,14 +4867,15 @@ function BSNutriPlans() {
   ];
   // Owner directive — individual dishes shown under a MEALS station on the Diet
   // sub-tab (no ASSIGN, no price; open = the same openDraft the diet rows use).
-  const singleMeals = [
+  const singleMeals = signedIn ? [] : [
     { n: 'Salmon dinner plate', meta: '630 kcal · 42P · dinner' },
     { n: 'High-protein breakfast bowl', meta: '420 kcal · 32P · breakfast' },
     { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
     { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab)
-  const enrolled = [
+  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
+  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
+  const enrolled = signedIn ? [] : [
     { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
     { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
     { prog: 'Vegetarian Base', n: 6, who: [['S', '#2f7d4f'], ['P', '#8a5cf6']] },
@@ -5005,14 +5023,18 @@ function BSNutriPlans() {
         </>)}
 
         {libTab === 'programs' && (<>
-        {/* Top program — unboxed verdict lead */}
-        {featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
+        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "24 on it · 4.8 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
           <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Busy professional')} /></span>
         </>)}
-        {/* Lifestyle meal programs for sale */}
+        {/* Lifestyle meal programs for sale — demo signed-out, redaction signed-in-with-none. */}
         {stationHead('LIFESTYLE', monoTrail('NEW →', () => openDraft('program')))}
+        {nutriPrograms.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+        ) : (
         <div style={{ marginTop: 2 }}>
           {nutriPrograms.map((r, i) => (
             <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
@@ -5020,17 +5042,22 @@ function BSNutriPlans() {
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
+        )}
         </>)}
 
         {libTab === 'diet' && (<>
-        {/* Top diet — unboxed verdict lead */}
-        {featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
+        {/* Top diet — unboxed verdict lead. §5 (CodeRabbit) — fabricated
+            "31 on it · 4.7 ★" so signed-OUT preview only. */}
+        {!signedIn && featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
           <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('diet')} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
           <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Keto 7-day')} /></span>
         </>)}
-        {/* Diet-specific meals / plans */}
+        {/* Diet-specific meals / plans — demo signed-out, redaction signed-in-with-none. */}
         {stationHead('DIET-SPECIFIC', monoTrail('NEW →', () => openDraft('diet')))}
+        {diets.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO DIETS YET" /> : null
+        ) : (
         <div style={{ marginTop: 2 }}>
           {diets.map((r, i) => (
             <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
@@ -5038,14 +5065,20 @@ function BSNutriPlans() {
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
+        )}
 
-        {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no ASSIGN) */}
+        {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no
+            ASSIGN) — demo signed-out, redaction signed-in-with-none. */}
         {stationHead('MEALS · SINGLE DISHES')}
+        {singleMeals.length === 0 ? (
+          Redact ? <Redact INK={t.INK} label="NO MEALS YET" /> : null
+        ) : (
         <div style={{ marginTop: 2 }}>
           {singleMeals.map((m, i) => (
             <BSProCatRow key={m.n} index={i} name={m.n} meta={m.meta} heat={heat} t={t} onOpen={() => openDraft(libBuild)} />
           ))}
         </div>
+        )}
         </>)}
         </>)}
 
