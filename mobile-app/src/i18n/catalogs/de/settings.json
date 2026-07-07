@@ -318,10 +318,10 @@
   "toast.deleteDone": "Dein Konto und deine Daten wurden gelöscht.",
   "toast.deleteError": "Löschen nicht möglich — schreib an privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Mitgliedschaft pausieren? Du behältst deine Daten und kannst jederzeit fortsetzen.",
-  "toast.actionSubmitted": "Anfrage zu {action} gesendet — wir schicken dir eine Bestätigung per E-Mail.",
-  "toast.actionFailed": "{action} fehlgeschlagen",
   "toast.passwordUpdated": "Passwort aktualisiert",
   "toast.fieldUpdated": "{label} aktualisiert",
   "toast.twoFactorEnabled": "Zwei-Faktor-Authentifizierung aktiviert",
-  "toast.twoFactorDisabled": "Zwei-Faktor-Authentifizierung deaktiviert"
+  "toast.twoFactorDisabled": "Zwei-Faktor-Authentifizierung deaktiviert",
+  "toast.pauseSubmitted": "Pausierungsanfrage gesendet — wir senden dir eine Bestätigung per E-Mail.",
+  "toast.pauseFailed": "Pausierungsanfrage fehlgeschlagen — bitte versuche es erneut."
 }

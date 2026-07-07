@@ -318,10 +318,10 @@
   "toast.deleteDone": "Dem don delete your account and your data.",
   "toast.deleteError": "No fit delete — email privacy@theshapecommunity.com",
   "confirm.pauseMembership": "You wan pause your membership? You go keep your data and fit continue anytime.",
-  "toast.actionSubmitted": "Don send {action} request — we go email you confirmation.",
-  "toast.actionFailed": "{action} fail",
   "toast.passwordUpdated": "Don update password",
   "toast.fieldUpdated": "Don update {label}",
   "toast.twoFactorEnabled": "Don enable two-step check",
-  "toast.twoFactorDisabled": "Don disable two-step check"
+  "toast.twoFactorDisabled": "Don disable two-step check",
+  "toast.pauseSubmitted": "Pause request don submit — we go email you confirmation.",
+  "toast.pauseFailed": "Pause request no work — abeg try again."
 }

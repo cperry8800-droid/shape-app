@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} sur 4 actives",
   "card.privacySummary": "Profil · {visibility}",
-  "card.moreSummaryCoach": "Profil public · Score · Boutique · Radio",
+  "card.moreSummaryCoach": "Profil public · Score · Store · Radio",
   "card.aboutSummary": "Aide · contact · légal",
   "card.accountActionsSummary": "Exporter · suspendre · supprimer",
   "card.nutritionSummary": "Régime · allergies · macros",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · préfs",
   "card.billingActive": "Actif · gérer",
   "card.billingInactive": "Gérer · factures",
-  "card.moreSummaryClient": "Objectifs · Habitudes · Bibliothèque · Score · Boutique",
+  "card.moreSummaryClient": "Objectifs · Habitudes · Bibliothèque · Score · Store",
   "capacity.atCapacity": "Complet",
   "capacity.open": "Ouvert aux réservations",
   "capacity.pause": "Suspendre les nouvelles réservations",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Votre compte et vos données ont été supprimés.",
   "toast.deleteError": "Échec de la suppression — écrivez à privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Suspendre votre abonnement ? Vous gardez vos données et pouvez reprendre à tout moment.",
-  "toast.actionSubmitted": "Demande de {action} envoyée — nous vous enverrons une confirmation par e-mail.",
-  "toast.actionFailed": "Échec de {action}",
   "toast.passwordUpdated": "Mot de passe mis à jour",
   "toast.fieldUpdated": "{label} mis à jour",
   "toast.twoFactorEnabled": "Authentification à deux facteurs activée",
-  "toast.twoFactorDisabled": "Authentification à deux facteurs désactivée"
+  "toast.twoFactorDisabled": "Authentification à deux facteurs désactivée",
+  "toast.pauseSubmitted": "Demande de pause envoyée — nous vous enverrons une confirmation par e-mail.",
+  "toast.pauseFailed": "Échec de la demande de pause — veuillez réessayer."
 }

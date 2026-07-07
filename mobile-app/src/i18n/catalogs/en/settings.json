@@ -318,10 +318,10 @@
   "toast.deleteDone": "Your account and data have been deleted.",
   "toast.deleteError": "Could not delete — email privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Pause your membership? You keep your data and can resume anytime.",
-  "toast.actionSubmitted": "{action} request submitted — we’ll email a confirmation.",
-  "toast.actionFailed": "{action} failed",
   "toast.passwordUpdated": "Password updated",
   "toast.fieldUpdated": "{label} updated",
   "toast.twoFactorEnabled": "Two-factor enabled",
-  "toast.twoFactorDisabled": "Two-factor disabled"
+  "toast.twoFactorDisabled": "Two-factor disabled",
+  "toast.pauseSubmitted": "Pause request submitted — we’ll email a confirmation.",
+  "toast.pauseFailed": "Pause request failed — please try again."
 }

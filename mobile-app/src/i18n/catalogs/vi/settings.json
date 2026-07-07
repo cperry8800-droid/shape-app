@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} trong 4 đang bật",
   "card.privacySummary": "Hồ sơ · {visibility}",
-  "card.moreSummaryCoach": "Hồ sơ công khai · Điểm · Cửa hàng · Radio",
+  "card.moreSummaryCoach": "Hồ sơ công khai · Score · Store · Radio",
   "card.aboutSummary": "Trợ giúp · liên hệ · pháp lý",
   "card.accountActionsSummary": "Xuất · tạm dừng · xóa",
   "card.nutritionSummary": "Chế độ ăn · dị ứng · macro",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · tùy chọn",
   "card.billingActive": "Đang hoạt động · quản lý",
   "card.billingInactive": "Quản lý · hóa đơn",
-  "card.moreSummaryClient": "Mục tiêu · Thói quen · Thư viện · Điểm · Cửa hàng",
+  "card.moreSummaryClient": "Mục tiêu · Thói quen · Thư viện · Score · Store",
   "capacity.atCapacity": "Đã kín chỗ",
   "capacity.open": "Đang nhận đặt lịch",
   "capacity.pause": "Tạm dừng nhận đặt lịch mới",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Tài khoản và dữ liệu của bạn đã được xóa.",
   "toast.deleteError": "Không thể xóa — gửi email tới privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Tạm dừng thành viên của bạn? Bạn giữ lại dữ liệu và có thể tiếp tục bất cứ lúc nào.",
-  "toast.actionSubmitted": "Đã gửi yêu cầu {action} — chúng tôi sẽ gửi email xác nhận.",
-  "toast.actionFailed": "{action} thất bại",
   "toast.passwordUpdated": "Đã cập nhật mật khẩu",
   "toast.fieldUpdated": "Đã cập nhật {label}",
   "toast.twoFactorEnabled": "Đã bật xác thực hai yếu tố",
-  "toast.twoFactorDisabled": "Đã tắt xác thực hai yếu tố"
+  "toast.twoFactorDisabled": "Đã tắt xác thực hai yếu tố",
+  "toast.pauseSubmitted": "Đã gửi yêu cầu tạm dừng — chúng tôi sẽ gửi email xác nhận.",
+  "toast.pauseFailed": "Yêu cầu tạm dừng thất bại — vui lòng thử lại."
 }

@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} з 4 активні",
   "card.privacySummary": "Профіль · {visibility}",
-  "card.moreSummaryCoach": "Публічний профіль · Рахунок · Магазин · Radio",
+  "card.moreSummaryCoach": "Публічний профіль · Score · Store · Radio",
   "card.aboutSummary": "Допомога · контакт · юридич.",
   "card.accountActionsSummary": "Експорт · пауза · видалення",
   "card.nutritionSummary": "Дієта · алергії · макроси",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · налашт.",
   "card.billingActive": "Активна · керувати",
   "card.billingInactive": "Керувати · рахунки",
-  "card.moreSummaryClient": "Цілі · Звички · Бібліотека · Рахунок · Магазин",
+  "card.moreSummaryClient": "Цілі · Звички · Бібліотека · Score · Store",
   "capacity.atCapacity": "Місць немає",
   "capacity.open": "Відкрито для запису",
   "capacity.pause": "Призупинити нові записи",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Ваш обліковий запис і дані видалено.",
   "toast.deleteError": "Не вдалося видалити — напишіть на privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Призупинити членство? Ви збережете дані й зможете відновити будь-коли.",
-  "toast.actionSubmitted": "Запит «{action}» надіслано — ми надішлемо підтвердження на ел. пошту.",
-  "toast.actionFailed": "Помилка: {action}",
   "toast.passwordUpdated": "Пароль оновлено",
   "toast.fieldUpdated": "Оновлено: {label}",
   "toast.twoFactorEnabled": "Двофакторну автентифікацію ввімкнено",
-  "toast.twoFactorDisabled": "Двофакторну автентифікацію вимкнено"
+  "toast.twoFactorDisabled": "Двофакторну автентифікацію вимкнено",
+  "toast.pauseSubmitted": "Запит на паузу надіслано — ми надішлемо підтвердження на пошту.",
+  "toast.pauseFailed": "Не вдалося надіслати запит на паузу — спробуйте ще раз."
 }

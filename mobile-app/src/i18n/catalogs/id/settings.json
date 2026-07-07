@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} dari 4 aktif",
   "card.privacySummary": "Profil · {visibility}",
-  "card.moreSummaryCoach": "Profil publik · Skor · Toko · Radio",
+  "card.moreSummaryCoach": "Profil publik · Score · Store · Radio",
   "card.aboutSummary": "Bantuan · kontak · legal",
   "card.accountActionsSummary": "Ekspor · jeda · hapus",
   "card.nutritionSummary": "Diet · alergi · makro",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · pref.",
   "card.billingActive": "Aktif · kelola",
   "card.billingInactive": "Kelola · faktur",
-  "card.moreSummaryClient": "Tujuan · Kebiasaan · Pustaka · Skor · Toko",
+  "card.moreSummaryClient": "Tujuan · Kebiasaan · Pustaka · Score · Store",
   "capacity.atCapacity": "Penuh",
   "capacity.open": "Terbuka untuk pemesanan",
   "capacity.pause": "Jeda pemesanan baru",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Akun dan data Anda telah dihapus.",
   "toast.deleteError": "Tidak dapat menghapus — email ke privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Jeda keanggotaan Anda? Anda menyimpan data dan bisa melanjutkan kapan saja.",
-  "toast.actionSubmitted": "Permintaan {action} terkirim — kami akan mengirim konfirmasi lewat email.",
-  "toast.actionFailed": "{action} gagal",
   "toast.passwordUpdated": "Kata sandi diperbarui",
   "toast.fieldUpdated": "{label} diperbarui",
   "toast.twoFactorEnabled": "Autentikasi dua faktor diaktifkan",
-  "toast.twoFactorDisabled": "Autentikasi dua faktor dinonaktifkan"
+  "toast.twoFactorDisabled": "Autentikasi dua faktor dinonaktifkan",
+  "toast.pauseSubmitted": "Permintaan jeda dikirim — kami akan mengirim email konfirmasi.",
+  "toast.pauseFailed": "Permintaan jeda gagal — coba lagi."
 }

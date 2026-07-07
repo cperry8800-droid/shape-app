@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} daga 4 na aiki",
   "card.privacySummary": "Martaba · {visibility}",
-  "card.moreSummaryCoach": "Martabar jama'a · Maki · Store · Radio",
+  "card.moreSummaryCoach": "Martabar jama'a · Score · Store · Radio",
   "card.aboutSummary": "Taimako · tuntuɓa · shari'a",
   "card.accountActionsSummary": "Fitarwa · dakatarwa · sharewa",
   "card.nutritionSummary": "Abinci · allergy · macros",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · zaɓuɓɓuka",
   "card.billingActive": "Aiki · sarrafa",
   "card.billingInactive": "Sarrafa · takardun biya",
-  "card.moreSummaryClient": "Manufofi · Ɗabi'u · Ɗakin karatu · Maki · Store",
+  "card.moreSummaryClient": "Manufofi · Ɗabi'u · Ɗakin karatu · Score · Store",
   "capacity.atCapacity": "Cika ya cika",
   "capacity.open": "A buɗe don rijista",
   "capacity.pause": "Dakatar da sabbin rijista",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "An share asusunka da bayananka.",
   "toast.deleteError": "An kasa sharewa — aika imel zuwa privacy@theshapecommunity.com",
   "confirm.pauseMembership": "A dakatar da zama membarka? Kana riƙe bayananka kuma za ka iya ci gaba a kowane lokaci.",
-  "toast.actionSubmitted": "An aika buƙatar {action} — za mu aika maka tabbaci ta imel.",
-  "toast.actionFailed": "{action} ya gaza",
   "toast.passwordUpdated": "An sabunta kalmar sirri",
   "toast.fieldUpdated": "An sabunta {label}",
   "toast.twoFactorEnabled": "An kunna tantancewa mai matakai biyu",
-  "toast.twoFactorDisabled": "An kashe tantancewa mai matakai biyu"
+  "toast.twoFactorDisabled": "An kashe tantancewa mai matakai biyu",
+  "toast.pauseSubmitted": "An aika buƙatar dakatarwa — za mu aika tabbaci ta imel.",
+  "toast.pauseFailed": "Buƙatar dakatarwa ta gaza — da fatan za a sake gwadawa."
 }

@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "{n} из 4 активны",
   "card.privacySummary": "Профиль · {visibility}",
-  "card.moreSummaryCoach": "Публичный профиль · Счёт · Магазин · Radio",
+  "card.moreSummaryCoach": "Публичный профиль · Score · Store · Radio",
   "card.aboutSummary": "Помощь · контакт · юридич.",
   "card.accountActionsSummary": "Экспорт · пауза · удаление",
   "card.nutritionSummary": "Диета · аллергии · макросы",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · настр.",
   "card.billingActive": "Активна · управлять",
   "card.billingInactive": "Управлять · счета",
-  "card.moreSummaryClient": "Цели · Привычки · Библиотека · Счёт · Магазин",
+  "card.moreSummaryClient": "Цели · Привычки · Библиотека · Score · Store",
   "capacity.atCapacity": "Мест нет",
   "capacity.open": "Открыто для записи",
   "capacity.pause": "Приостановить новые записи",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Ваш аккаунт и данные удалены.",
   "toast.deleteError": "Не удалось удалить — напишите на privacy@theshapecommunity.com",
   "confirm.pauseMembership": "Приостановить членство? Вы сохраните данные и сможете возобновить в любой момент.",
-  "toast.actionSubmitted": "Запрос «{action}» отправлен — мы пришлём подтверждение по эл. почте.",
-  "toast.actionFailed": "Ошибка: {action}",
   "toast.passwordUpdated": "Пароль обновлён",
   "toast.fieldUpdated": "Обновлено: {label}",
   "toast.twoFactorEnabled": "Двухфакторная аутентификация включена",
-  "toast.twoFactorDisabled": "Двухфакторная аутентификация отключена"
+  "toast.twoFactorDisabled": "Двухфакторная аутентификация отключена",
+  "toast.pauseSubmitted": "Запрос на паузу отправлен — мы пришлём подтверждение по эл. почте.",
+  "toast.pauseFailed": "Не удалось отправить запрос на паузу — попробуйте ещё раз."
 }

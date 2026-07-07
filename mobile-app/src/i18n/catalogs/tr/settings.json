@@ -136,7 +136,7 @@
   "card.healthSummary": "Apple Health · WHOOP · Strava",
   "card.notifSummary": "4 üzerinden {n} etkin",
   "card.privacySummary": "Profil · {visibility}",
-  "card.moreSummaryCoach": "Herkese açık profil · Puan · Mağaza · Radio",
+  "card.moreSummaryCoach": "Herkese açık profil · Score · Store · Radio",
   "card.aboutSummary": "Yardım · iletişim · yasal",
   "card.accountActionsSummary": "Dışa aktar · duraklat · sil",
   "card.nutritionSummary": "Diyet · alerjiler · makrolar",
@@ -144,7 +144,7 @@
   "card.prefsSuffix": "{value} · terc.",
   "card.billingActive": "Etkin · yönet",
   "card.billingInactive": "Yönet · faturalar",
-  "card.moreSummaryClient": "Hedefler · Alışkanlıklar · Kitaplık · Puan · Mağaza",
+  "card.moreSummaryClient": "Hedefler · Alışkanlıklar · Kitaplık · Score · Store",
   "capacity.atCapacity": "Kapasite dolu",
   "capacity.open": "Rezervasyona açık",
   "capacity.pause": "Yeni rezervasyonları duraklat",
@@ -318,10 +318,10 @@
   "toast.deleteDone": "Hesabın ve verilerin silindi.",
   "toast.deleteError": "Silinemedi — privacy@theshapecommunity.com adresine yaz",
   "confirm.pauseMembership": "Üyeliğin duraklatılsın mı? Verilerin korunur ve istediğin zaman devam edebilirsin.",
-  "toast.actionSubmitted": "{action} isteği gönderildi — sana e-posta ile onay göndereceğiz.",
-  "toast.actionFailed": "{action} başarısız",
   "toast.passwordUpdated": "Parola güncellendi",
   "toast.fieldUpdated": "{label} güncellendi",
   "toast.twoFactorEnabled": "İki adımlı doğrulama etkinleştirildi",
-  "toast.twoFactorDisabled": "İki adımlı doğrulama devre dışı bırakıldı"
+  "toast.twoFactorDisabled": "İki adımlı doğrulama devre dışı bırakıldı",
+  "toast.pauseSubmitted": "Duraklatma isteği gönderildi — onay e-postası göndereceğiz.",
+  "toast.pauseFailed": "Duraklatma isteği başarısız oldu — lütfen tekrar deneyin."
 }

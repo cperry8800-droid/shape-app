@@ -20632,6 +20632,11 @@ const BS_TIMEZONES = (() => {
 const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
 function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (key || 'medium')) || BS_TEXT_SIZE_OPTS[1])[1]; }
 
+// Paper modes — one source for the swatch grid AND the subtitle fallback label
+// (adding/renaming a mode can't desync the two).
+const BS_PAPER_OPTS = [['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']];
+function bsPaperLabel(key) { return (BS_PAPER_OPTS.find(([k]) => k === key) || BS_PAPER_OPTS[0])[1]; }
+
 // i18n bridge for this (separately-bundled) client module: read translations off
 // window.ShapeI18n and re-render when the locale changes (ShapeLocale is the signal).
 function useShapeTr() {
@@ -20936,9 +20941,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       }).catch(() => null);
-      window.__bsToast?.(tr('settings:toast.actionSubmitted', { action, defaultValue: '{action} request submitted — we’ll email a confirmation.' }), 'ok');
+      window.__bsToast?.(tr('settings:toast.pauseSubmitted', { defaultValue: 'Pause request submitted — we’ll email a confirmation.' }), 'ok');
     } catch (err) {
-      window.__bsToast?.(tr('settings:toast.actionFailed', { action, defaultValue: '{action} failed' }), 'err');
+      window.__bsToast?.(tr('settings:toast.pauseFailed', { defaultValue: 'Pause request failed — please try again.' }), 'err');
     }
   };
 
@@ -21777,7 +21782,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
         const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
         const renewsLabel = renews && !isNaN(renews.getTime())
-          ? tr('settings:plan.renews', { date: renews.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+          ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
           : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
         const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
         const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
@@ -21874,7 +21879,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div>
           <BSEyebrow color={t.ACCENT}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: ({ light: 'Cream', white: 'White', dark: 'Black', teal: 'Teal', manila: 'Manila', blueprint: 'Blueprint', carbon: 'Carbon', steel: 'Steel', bone: 'Bone', oxblood: 'Oxblood', sage: 'Sage', forest: 'Forest', slate: 'Slate', plum: 'Plum' })[tweaks.paperMode] || 'Cream' }), accent: tweaks.accentKey || 'blue', defaultValue: '{paper} · {accent}' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode) }), accent: tweaks.accentKey || 'blue', defaultValue: '{paper} · {accent}' })}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
@@ -21903,7 +21908,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
         {appearTab === 'paper' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']].map(([k,l]) => (
+          {BS_PAPER_OPTS.map(([k,l]) => (
             <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{tr('settings:paper.' + k, { defaultValue: l })}</Pill>
           ))}
         </div>
