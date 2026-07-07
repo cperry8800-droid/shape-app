@@ -258,6 +258,52 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Goals "The Contract" + Live Session "The Meter" — Open Ledger redesign (#1573 · #1575)
+- **The last two plate-era client surfaces serialized into the Open Ledger
+  language** (spec `docs/superpowers/specs/2026-07-07-goals-workout-open-ledger-design.md`,
+  plan `docs/superpowers/plans/2026-07-07-goals-workout-open-ledger.md`; owner-picked
+  G1 + W2 from a concept round). Presentation-only — `client_weigh_ins`, the
+  `ShapeSignals.goalProjection` ETA engine, `ShapeGoalAwards`, set logging, HR
+  capture, `suggestNextLoad`, swap sheets, and every demo/live gate carry over
+  verbatim. Two build PRs.
+- **Goals — "The Contract" (#1573, `faf30181`).** The three tab-views die for one
+  continuous ledger (`BSClientGoals`): a serif **verdict lead** from the ETA engine
+  (new pure `mobile-app/src/services/goalContract.mjs` — `bsGoalVerdict`, 10 vectors)
+  plus an eyebrow-above-figure **register row** (CURRENT · TO GO · PACE · ETA); an
+  **anchor index** replacing the segmented tab rail (scrolls to each station, nothing
+  hidden); **THE TERMS** milestones as dot-leaders (the next milestone's breathing
+  dot = the page's one loop); **Training / Nutrition** stations with rust/gold
+  press-credit plan rows + **revived per-goal add/edit** (`BSGoalEditSheet` had been
+  unmounted/dead); **THIS WEEK** targets + **YOUR WHY**; the share-with-coaches toggle
+  borderless. Heat = the member's tier (`bsMyTierColor`), line-only; four reusable OL
+  primitives (`BSOLHead/Act/Row/Credit`). **Kills:** `BSGoalsOverall/Training/Nutrition`,
+  the dead `BSGoalsTrend`/`bsGoalSeries`, the tab machinery.
+- **Live session — "The Meter" (#1575).** `BSSession` page heat now **tracks live
+  effort** — new pure `mobile-app/src/services/liveEffort.mjs` (`bsLiveEffort` → a
+  5-zone read on the **same ramp Session Details replays with**: HR zone → last-set
+  RPE → neutral teal), damped (5s re-eval, 1.2s transition; reduced-motion locks to
+  the accent). A worn HR strap adds a **Z1→Z5 zone strip + needle**; the breathing
+  LIVE dot is the page's one loop. Zero-box serialization throughout: underline set
+  inputs, the suggested-load + plate-math cards → dot-leader lines, the pill progress
+  bars → drawn heat rules, the rest instrument-plate → a register whose rule **drains**,
+  the queue → a dot-leader index with a heat **NOW** spine, the gradient coach card →
+  a **Wire press credit**. **Solid teal CTAs untouched**; the feel/effort review +
+  share-to-community block stays a quiet form (two-tier rule). The **Train deck hero**
+  and both **workout previews** (`BSWorkoutPreview`, `BSHomeWorkoutPreview`) follow the
+  same grammar on the neutral accent (serif verdict heads, dot-leader move ledgers,
+  rust press-credit coach notes, solid Begin CTAs kept).
+- **Browser-verified** both surfaces on a preview build: the Goals page renders as
+  one scroll with working anchors (THIS WEEK jumped 1544px→238px) + correct verdict
+  copy/registers/milestones; the session heat **shifts teal↔ember** as synthetic
+  `shape:hrm` events fire (Z4 165bpm → `#e8843c`, back to teal at Z1) with the zone
+  strip appearing/clearing, and previews + deck read correctly — zero React errors.
+- Per commit: JSX parse-check · PowerShell `/m/` build exit 0 · full `npm test`
+  (458, two new files registered) · LF. **On-device pass recommended** (owner):
+  Black/Sage/Cream papers × tier heats (sage/gold/teal/violet/rose) on Goals ×
+  session with and without an HR strap × reduced motion. *(Mid-build the web
+  container reset the tree to another session's branch; the session-meter branch +
+  its B1 commit were recovered intact — no work lost.)*
+
 ### 2026-07-06 — Profile social handles: X + Substack + host-prefix normalization · bolder boost-sheet Profile button (#1565)
 - **Two platforms added to the profile social-links picker on BOTH surfaces** — **X**
   (`x.com/`) and **Substack** (`substack.com/@`) join Instagram / TikTok / YouTube / Website
