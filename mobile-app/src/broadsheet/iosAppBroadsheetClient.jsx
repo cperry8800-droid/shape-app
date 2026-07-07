@@ -14928,8 +14928,10 @@ function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).
 function bsGoalWeighIns(overall) { return (overall && Array.isArray(overall.weighIns)) ? overall.weighIns.slice().filter(x => x && Number.isFinite(Number(x.kg))) : []; }
 function bsGoalNow(overall) { const wi = bsGoalWeighIns(overall); return wi.length ? Number(wi[wi.length - 1].kg) : (Number(overall && overall.now) || 0); }
 
-// Bottom-sheet add/edit flow with a categorized template picker (filtered to the
+// Full-page add/edit flow with a categorized template picker (filtered to the
 // active tab's group) + the same fields as the website's GoalEditModal.
+// Title-page panel matching BSOverallEditSheet (masthead + hero + gradient rule,
+// hidden scrollbar, pinned squared footer).
 function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -14940,24 +14942,41 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   const [activeCat, setActiveCat] = useStateBSC((cats[0] && cats[0].id) || 'cardio');
   const pick = (tpl) => { setG({ ...g, t: tpl.t, cur: tpl.cur, tgt: tpl.tgt, sub: tpl.sub, pct: tpl.pct, cat: tpl.cat, date: bsGoalIsoFromWeeks(tpl.weeksOut) }); setShowTpl(false); };
   const days = bsGoalDaysUntil(g.date);
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
+  // Keep the raw string while editing (decimals type cleanly); coerce on save.
+  const save = () => { if (!g.t) return; const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, cur: n(g.cur), tgt: n(g.tgt) }); };
+  const num = (key, label) => (
+    <label style={{ display: 'block' }}><span style={lbl}>{label}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[key] ?? ''} onChange={(e) => setG({ ...g, [key]: e.target.value })} style={field} /></label>
+  );
   const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{isNew ? 'New · Goal' : 'Edit · Goal'}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></>}</div>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      {/* Title-page header — masthead + hero title (matches the other pages) */}
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Goal' : 'Edit · Goal'}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></>}</h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+      {/* Scrollable form — scrollbar hidden */}
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {isNew && (
-          <div style={{ marginTop: 14 }}>
+          <div>
             <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: 0, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? '▾ Hide templates' : '▸ Browse goal templates'}</button>
             {showTpl && (
-              <div style={{ marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
+              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {cats.map(c => { const on = activeCat === c.id; return <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding: '7px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{c.label}</button>; })}
+                  {cats.map(c => { const on = activeCat === c.id; return <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding: '7px 12px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{c.label}</button>; })}
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   {BS_GOAL_TEMPLATES.filter(x => x.cat === activeCat).map((tpl, i) => (
-                    <button key={i} onClick={() => pick(tpl)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '10px 12px', color: t.INK }}>
+                    <button key={i} onClick={() => pick(tpl)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '10px 12px', color: t.INK }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{tpl.t}</div>
                       <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{tpl.sub} · ~{tpl.weeksOut} wks</div>
                     </button>
@@ -14967,29 +14986,28 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
             )}
           </div>
         )}
-        <div style={{ marginTop: 16 }}>
-          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Title</span><input value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Current</span><input type="number" value={g.cur} onChange={(e) => setG({ ...g, cur: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>
-            <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Target</span><input type="number" value={g.tgt} onChange={(e) => setG({ ...g, tgt: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-field" value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+          {num('cur', 'Current')}
+          {num('tgt', 'Target')}
+        </div>
+        <label style={{ display: 'block' }}><span style={lbl}>Subtext</span><input className="bs-field" value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-field" type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
+        {g.date && days != null && (
+          <div style={{ borderRadius: 6, border: `1px solid ${teal}40`, background: t.isLight ? `${teal}10` : `${teal}1c`, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
+            <span>Timeline</span><span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
           </div>
-          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Subtext</span><input value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
-          <label style={{ display: 'block', marginBottom: 12 }}><span style={lbl}>Target date</span><input type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
-          {g.date && days != null && (
-            <div style={{ marginBottom: 12, borderRadius: 10, border: `1px solid ${teal}40`, background: t.isLight ? `${teal}10` : `${teal}1c`, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
-              <span>Timeline</span><span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
-            </div>
-          )}
-          <button onClick={() => setG({ ...g, pct: !g.pct })} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginBottom: 6 }}>
-            <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.pct ? teal : t.RULE}`, background: g.pct ? teal : 'transparent', color: '#04201d', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{g.pct ? '✓' : ''}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Show values as percent (%)</span>
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18, alignItems: 'center' }}>
-          {onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RUST}66`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Delete</button>}
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => g.t && onSave(g)} disabled={!g.t} style={{ padding: '13px 22px', borderRadius: 999, border: 0, background: g.t ? teal : t.RULE, color: g.t ? '#04201d' : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
-        </div>
+        )}
+        <button onClick={() => setG({ ...g, pct: !g.pct })} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}>
+          <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.pct ? teal : t.RULE}`, background: g.pct ? teal : 'transparent', color: '#04201d', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{g.pct ? '✓' : ''}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Show values as percent (%)</span>
+        </button>
+      </div>
+      {/* Pinned footer — squared / clipped CTA */}
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, alignItems: 'center', background: t.PAPER }}>
+        {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', padding: '14px 18px', borderRadius: 6, border: `1px solid ${t.RUST}66`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Delete</button>}
+        <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? '#04201d' : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
       </div>
     </div>
   );
