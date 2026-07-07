@@ -4137,9 +4137,19 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
     if (!res.ok) return null;
     invalidateClientMetrics();
     // Shape Score: +10 once/day for logging a meal (server-gated + deduped;
-    // mirrors award_workout_session). Fire-and-forget — never blocks the log.
-    try { if (state.user?.id) supabase.rpc('award_meal_log', { p_day: _localDate() }).then(() => {}, () => {}); } catch (e) {}
-    return res.json();
+    // mirrors award_workout_session). Fire-and-forget — never blocks the log —
+    // but the RESULT ({awarded, points}) rides back on the resolved value so the
+    // confirmation can show +10 only when it was actually granted (not on an
+    // already-earned day). Errors + no-user resolve to null, never reject.
+    let awardPromise = Promise.resolve(null);
+    try {
+      if (state.user?.id) {
+        awardPromise = supabase.rpc('award_meal_log', { p_day: _localDate() })
+          .then((r) => (r && r.data && typeof r.data === 'object' ? r.data : null), () => null);
+      }
+    } catch (e) {}
+    const snap = await res.json().catch(() => ({}));
+    return { ...(snap && typeof snap === 'object' ? snap : {}), awardPromise };
   } catch (e) { return null; }
 }
 window.ShapeMealLog = { log: logMealMacros };
