@@ -1053,6 +1053,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const isNutri = role === 'nutritionist';
   const heat = bsProHeat(t, role);
   const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
+  // Live-bulletin boost sheet (nutritionist OPEN → — a cheer that lands mid-cook).
+  const [boostFor, setBoostFor] = useStateBSP(null);
 
   // Window-kit consumption (Task 1's Open Ledger kit, exposed on window by the
   // client bundle). Null-guarded — the client bundle may not have loaded yet.
@@ -1327,13 +1329,24 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                   </div>
                   <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
                 </div>
-                <button type="button" onClick={() => (liveClient ? openLiveMessage(lc) : onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' }))} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>{actionLabel}</button>
+                <button type="button" onClick={() => {
+                  // Nutritionist OPEN → the live-boost sheet (#1514 — cheer them
+                  // mid-cook). Works for a real live client AND the demo bulletin
+                  // (the sheet labels the preview honestly). Previously this fell
+                  // through to the trainer's workout watch payload on the nutri
+                  // shell (which never wires onWatchLive) — a dead link.
+                  if (isNutri) { setBoostFor(liveClient ? { name: lc.n, userId: lc.userId || null, activity: 'cooking', photoUrl: lc.avatarUrl || lc.avatar || null } : { name: 'Alex Rivera', userId: null, activity: 'cooking' }); return; }
+                  if (liveClient) openLiveMessage(lc); else onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' });
+                }} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>{actionLabel}</button>
               </div>
             </div>
             <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
           </div>
         );
       })()}
+      {boostFor && typeof window !== 'undefined' && window.BSLiveBoostSheet
+        ? React.createElement(window.BSLiveBoostSheet, { person: boostFor, onClose: () => setBoostFor(null) })
+        : null}
       {!coachSignedIn && (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
           <button type="button" onClick={onOpenReviews} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, minHeight: 44 }}>
