@@ -297,9 +297,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const monthEvents = (useServer || isDemoMonth) ? events : [];
   const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth];
 
-  const masthead = role === 'trainer' ? <>The<br/>schedule.</>
-                : role === 'nutritionist' ? <>The<br/>diary.</>
-                : <>Month's<br/>plan.</>;
+  // Serif page title removed (owner request) — the mast row + Calendar kicker carry the page.
 
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -333,7 +331,6 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     <BSPageCal>
       <BSPageHeaderCal
         kicker="Section · Calendar"
-        title={masthead}
         trailing={trailing}
       />
 
