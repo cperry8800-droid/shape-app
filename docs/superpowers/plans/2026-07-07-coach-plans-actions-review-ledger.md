@@ -183,7 +183,7 @@ Note: `data-tour="hero-plans"` MOVES here from the old AI card (line 4025) so th
 </div>
 ```
 
-(cues rows pass no `price`/`onAssign`; workouts/routines pass `onAssign` exactly as the old `assignTrail` did). `secHead(...)` calls become `window.BSTStationHead` heads (heat tick) with the SORT/NEW trailing kept as a mono text button beside the head; delete `numRow`, `assignTrail`, and `secHead` once unreferenced.
+(cues rows pass no `price`/`onAssign`; workouts/routines pass `onAssign` exactly as the old `assignTrail` did). **Owner directive 2026-07-07:** the demo `workouts` array ADDITIONALLY gains four day-type rows — Upper Body — Hypertrophy · Lower Body — Strength · Push Day · Pull Day (content-only). `secHead(...)` calls become `window.BSTStationHead` heads (heat tick) with the SORT/NEW trailing kept as a mono text button beside the head; delete `numRow`, `assignTrail`, and `secHead` once unreferenced.
 
 - [ ] **Step 5: Feature cards + video upload + enrolled.** TOP WORKOUT (4068-4080) and TOP PROGRAM (4102-4114) gradient cards → unboxed verdict leads: mono eyebrow (`TOP WORKOUT · 62 MIN`), serif headline with heat-italic last word (kept), mono meta, then EDIT (teal is NOT used — ink + heat underline via `BSProTextAction` in a 3-across flex row w/ `width:'auto'`, `marginRight:18`) · DUPLICATE · SHARE →. The dashed purple video-upload card (4087-4096) → `BSProTextAction mono` `＋ UPLOAD A WORKOUT VIDEO` (purple dies). Enrolled rows (4047-4062): keep the facepiles + handlers, restyle borderless — replace `borderTop: 1px solid ${t.HAIR}` with `borderTop: 1px solid ${t.INK}12`, add a dotted leader between the program name and the `{n} on it` count (the `BSProCatRow` leader pattern). Empty catalogue (`programs.length === 0`) renders `window.BSTRedact` (`label="NO PUBLISHED PLANS"`) + the build-from-scratch action.
 
@@ -202,9 +202,20 @@ Note: `data-tour="hero-plans"` MOVES here from the old AI card (line 4025) so th
 
 - [ ] **Step 1: Apply the identical Task-2 transforms with the nutritionist config.** The component mirrors the trainer's anatomy (verified: same TABS/LIB_TABS/openDraft/serverPlans/enrolled structure at 4576-4648). Concretely: header eyebrow `THE CATALOGUE · 4 PUBLISHED · 40 ON IT`, serif **"Your plans."** (heat = gold italic); create actions `✦ DRAFT A MEAL PLAN IN SECONDS →` (uses `BUILD_LABEL[libBuild]` so programs/diet read right) + `＋ BUILD FROM SCRATCH`; LIB_TABS Plans/Programs/Diet → `bsProTypoIndex`; `plans` / `nutriPrograms` / `diets` / enrolled rows → `BSProCatRow` / borderless enrolled rows exactly as Task 2 Step 4-5 (repeat that code with this component's variables); any TOP-feature card in its render gets the Task-2 Step-5 verdict-lead treatment; gold heat everywhere the trainer used rust. Keep `data-tour="hero-nutrition-plans"` if present on the old AI card by moving it to the new header (grep first; if absent, skip).
 
-- [ ] **Step 2: Verify** — parse-check + build + browser-drive the nutritionist Plans tab (all sub-tabs, assign flow, AI sheet).
+- [ ] **Step 2 (owner directive 2026-07-07): Diet sub-tab gains a MEALS station.** Below the DIETS rows, add a second station head (`MEALS · SINGLE DISHES`, heat tick) over demo dot-leader rows (no ASSIGN, no price; `onOpen` = the same `openDraft(libBuild)` the diet rows use):
 
-- [ ] **Step 3: LF normalize + commit** (`feat(pros): nutritionist Plans tab → The Catalogue (Open Ledger)`).
+```js
+const singleMeals = [
+  { n: 'Salmon dinner plate', meta: '630 kcal · 42P · dinner' },
+  { n: 'High-protein breakfast bowl', meta: '420 kcal · 32P · breakfast' },
+  { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
+  { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
+];
+```
+
+- [ ] **Step 3: Verify** — parse-check + build + browser-drive the nutritionist Plans tab (all sub-tabs incl. the two Diet stations, assign flow, AI sheet).
+
+- [ ] **Step 4: LF normalize + commit** (`feat(pros): nutritionist Plans tab → The Catalogue (Open Ledger)`).
 
 ### Task 4: PR A gate
 

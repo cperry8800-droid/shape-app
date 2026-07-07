@@ -90,9 +90,16 @@ config (heat, copy, sub-tab keys), like `BSProToday`/`BSProRosterView`.
    the row's right edge (≥44px row; row tap keeps its current open/detail
    behavior; ASSIGN keeps opening `BSProAssignPage` with the plan preloaded).
    The `SORT · POPULAR →` control becomes a mono text action, behavior kept.
-6. **ENROLLED station** ("Clients on plans") — dot-leader rows (client ·
+6. **Sub-catalogue content (owner directive 2026-07-07):** the trainer
+   WORKOUTS sub-tab's catalogue includes classic day-type single sessions
+   (Upper Body · Lower Body · Push Day · Pull Day alongside the existing
+   demo sessions); the nutritionist DIET sub-tab carries TWO stations —
+   **DIETS** (the existing diet plans) and **MEALS · single dishes**
+   (individual meals: dinner plates, breakfast bowls, etc.) — same
+   dot-leader row grammar, demo data, no new tab keys or handlers.
+7. **ENROLLED station** ("Clients on plans") — dot-leader rows (client ·
    leader · plan/meta), tap-through kept.
-7. **Empty cases** (no published plans · no enrolled clients · signed-out) →
+8. **Empty cases** (no published plans · no enrolled clients · signed-out) →
    redaction lines + a `＋ BUILD FROM SCRATCH` action.
 
 ### Kills (Plans)
