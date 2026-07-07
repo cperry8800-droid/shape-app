@@ -258,6 +258,55 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Coach Plans "The Catalogue" both roles + exercise videos (#1577) · owner-tweaks batch (#1578 · #1579)
+- **The plate-era coach Plans pages serialized into the Open Ledger language**
+  (spec `docs/superpowers/specs/2026-07-07-coach-plans-actions-review-open-ledger.md`,
+  plan `docs/superpowers/plans/2026-07-07-coach-plans-actions-review-ledger.md`,
+  docs #1576; concept round → owner picked **Concept A**). Presentation-only —
+  `ShapeCoachPlans`, `updateCoachPlan`, the assign/enroll flows, and every
+  demo-vs-live gate carry over verbatim. Built subagent-driven, **all agents on
+  Opus** per owner directive.
+- **Trainer — "The Catalogue" (#1577, `66b12333` in-branch).** `BSTrainerPrograms`
+  restyled to a zero-box typographic index: station eyebrows with rust
+  (`#c0533b`) heat ticks, dot-leader `BSProCatRow` rows (index · name · meta ·
+  price), text-action verbs (＋NEW / ASSIGN / SORT) replacing pill CTAs. Owner
+  add: the Workouts demo now carries **classic day-type sessions** (Upper Body,
+  Lower Body, Push Day, Pull Day) alongside the programs.
+- **Nutritionist — "The Catalogue" (#1577, `5472a293`).** 1:1 **gold** (`bsProHeat`)
+  mirror of the trainer page (`BSNutriPlans`), plus — per owner — the Diet tab now
+  shows **two stations: DIETS and MEALS·SINGLE DISHES** (`singleMeals`: salmon
+  dinner plate, high-protein breakfast bowl, chicken + rice lunch, recovery
+  smoothie), so individual dinner meals show alongside full diet plans.
+- **Exercise videos (#1577, `1a52dfdc`) — new capability.** Trainers can attach a
+  clip to any exercise block: per-block **＋CLIP / ▶CLIP / ×** in `BSCoachDraftEditor`
+  (stores `block.video` via `ShapeCoachPlans.update({id,detail})`,
+  `ShapeCoachMedia.upload` → `{url,type,name}`, `window.open(…, 'noopener')`), and a
+  real **WORKOUT VIDEOS** station that aggregates both `detail.media[type==='video']`
+  and per-block clips into a browsable library.
+- **Honesty pass (CodeRabbit, 2 rounds → `a1070a34` · `0415fe88`).** CodeRabbit
+  caught what the per-task + whole-branch reviews missed: every fabricated-stat
+  demo array (48-enrolled / 4.9★ social proof, hardcoded catalogue totals) now
+  **gated to `!signedIn`** — signed-in coaches see `serverPlans`-only + `BSTRedact`
+  empty-states, never invented numbers; a `buildType` leak on paid-plans closed;
+  teal→role-heat on the note flash; clip-sheet Escape/close + `noopener` a11y.
+  Four ledger helpers (`stationHead` / `monoTrail` / `featureLead` / `enrolledRow`)
+  extracted to module-level `bsPro*`. Reaffirms CodeRabbit as the authoritative
+  honesty gate. **Squash-merged `41db1ae9`.**
+- **Owner-tweaks batch.** #1578 (`693fd250`): **Shape Radio bar moved to the top**
+  of coach home, directly under the edition band (both roles); the dateline reads
+  **"TRAINERS EDITION" / "NUTRI EDITION"** (was "COACHES EDITION" / "NUTRI"); the
+  calendar serif page-titles removed on all three roles ("The schedule." / "The
+  diary." / "Month's plan."). #1579 (`d00c4dad`): a **very small feed side-gap
+  increase** (`BSActivityCard` content gutter 8→12px, full-bleed route strip
+  matched) on the activity + both profile feeds. *(#1578's merge took only its
+  first commit; the feed-gap change was re-landed on fresh main as #1579.)*
+- Per PR: JSX parse-check · PowerShell `/m/` build exit 0 · full `npm test` (458)
+  · LF. **Open follow-ups (owner):** on-device pass across Black/Sage/Cream ×
+  both roles (trainer rust / nutritionist gold, signed-in redaction states, the
+  video library, clip attach sheet); the deferred product question of whether
+  nutritionist **meal blocks** should expose ＋CLIP (no nutri video library yet —
+  default kept).
+
 ### 2026-07-07 — Goals "The Contract" + Live Session "The Meter" — Open Ledger redesign (#1573 · #1575)
 - **The last two plate-era client surfaces serialized into the Open Ledger
   language** (spec `docs/superpowers/specs/2026-07-07-goals-workout-open-ledger-design.md`,
