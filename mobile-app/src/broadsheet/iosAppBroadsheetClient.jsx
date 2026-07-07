@@ -20637,6 +20637,11 @@ function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (k
 const BS_PAPER_OPTS = [['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']];
 function bsPaperLabel(key) { return (BS_PAPER_OPTS.find(([k]) => k === key) || BS_PAPER_OPTS[0])[1]; }
 
+// Accent options — English fallback labels for the appearance subtitle; the
+// live labels come from the settings:accent.* catalog (same keys the swatches use).
+const BS_ACCENT_OPTS = [['blue','Blue'],['amber','Amber'],['rust','Rust'],['green','Green'],['teal','Teal'],['white','White'],['black','Black']];
+function bsAccentLabel(key) { return (BS_ACCENT_OPTS.find(([k]) => k === key) || BS_ACCENT_OPTS[0])[1]; }
+
 // i18n bridge for this (separately-bundled) client module: read translations off
 // window.ShapeI18n and re-render when the locale changes (ShapeLocale is the signal).
 function useShapeTr() {
@@ -21879,7 +21884,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div>
           <BSEyebrow color={t.ACCENT}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode) }), accent: tweaks.accentKey || 'blue', defaultValue: '{paper} · {accent}' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }), accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }), defaultValue: '{paper} · {accent}' })}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
