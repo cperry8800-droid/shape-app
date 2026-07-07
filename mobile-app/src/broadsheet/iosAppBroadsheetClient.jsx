@@ -20659,6 +20659,19 @@ function BSLanguageSetting({ t }) {
   const tr = useShapeTr();
   const cur = (window.ShapeLocale?.get?.()) || 'en';
   const langs = window.ShapeI18n?.activeLocales?.() || [];
+  // List each language in the CURRENTLY SELECTED language (exonyms) via Intl.DisplayNames
+  // — pick English → "Spanish/Italian…", pick Spanish → "Inglés/Italiano…". One instance
+  // for the active locale; falls back to each language's own endonym if the platform
+  // has no display name for a code/locale pair.
+  let bsLangNames = null;
+  try { bsLangNames = new Intl.DisplayNames([cur], { type: 'language' }); } catch (e) {}
+  const bsLangLabel = (l) => {
+    try {
+      const n = bsLangNames && bsLangNames.of(l.code);
+      if (n && n !== l.code) return n.charAt(0).toUpperCase() + n.slice(1);
+    } catch (e) {}
+    return l.nativeName;
+  };
   // Compact row (matches the Shape Radio row): label + a native dropdown — the full
   // language list lives in the <select> popup instead of taking a screen of space.
   // The dropdown itself shows the current selection, so no redundant subtitle.
@@ -20669,7 +20682,7 @@ function BSLanguageSetting({ t }) {
       </div>
       <select value={cur} onChange={(e) => window.ShapeLocale?.set?.(e.target.value)} aria-label={tr('settings:language.row', { defaultValue: 'Language' })}
         style={{ flexShrink: 0, maxWidth: 170, padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${bsTHexA(t.INK, 0.3)}`, background: bsTHexA(t.INK, 0.05), color: t.INK, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
-        {langs.map((l) => <option key={l.code} value={l.code} lang={l.code}>{l.nativeName}</option>)}
+        {langs.map((l) => <option key={l.code} value={l.code} lang={cur}>{bsLangLabel(l)}</option>)}
       </select>
     </div>
   );
