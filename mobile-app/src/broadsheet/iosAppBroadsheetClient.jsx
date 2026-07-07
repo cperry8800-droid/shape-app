@@ -12274,7 +12274,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
-    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${ch.memberCount} member${ch.memberCount === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: ch.memberCount || 0 });
+    const mc = ch.memberCount || 0;
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${mc} member${mc === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc });
     if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -12794,7 +12795,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
-          onSendChannel={openChat.channelId ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+          onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
         />
         {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       </>
