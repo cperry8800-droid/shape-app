@@ -14942,14 +14942,15 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
   const [activeCat, setActiveCat] = useStateBSC((cats[0] && cats[0].id) || 'cardio');
   const pick = (tpl) => { setG({ ...g, t: tpl.t, cur: tpl.cur, tgt: tpl.tgt, sub: tpl.sub, pct: tpl.pct, cat: tpl.cat, date: bsGoalIsoFromWeeks(tpl.weeksOut) }); setShowTpl(false); };
   const days = bsGoalDaysUntil(g.date);
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
+  // Zero-box underline fields — the Open Ledger form grammar.
+  const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   // Keep the raw string while editing (decimals type cleanly); coerce on save.
   // Blank/invalid numbers normalize to the sheet's defaults (0 / 100) so a saved
   // row never renders an empty ratio downstream (goalMeta only null-checks).
   const save = () => { if (!g.t) return; const n = (v, d) => { if (v === '' || v == null) return d; const x = Number(v); return Number.isFinite(x) ? x : d; }; onSave({ ...g, cur: n(g.cur, 0), tgt: n(g.tgt, 100) }); };
   const num = (key, label) => (
-    <label style={{ display: 'block' }}><span style={lbl}>{label}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[key] ?? ''} onChange={(e) => setG({ ...g, [key]: e.target.value })} style={field} /></label>
+    <label style={{ display: 'block' }}><span style={lbl}>{label}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[key] ?? ''} onChange={(e) => setG({ ...g, [key]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>
   );
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
@@ -14962,25 +14963,31 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Goal' : 'Edit · Goal'}</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></>}</h1>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{isNew ? 'New · Target' : 'Edit · Target'}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{isNew ? <>New <span style={{ fontStyle: 'italic', color: teal }}>target.</span></> : <>Edit <span style={{ fontStyle: 'italic', color: teal }}>target.</span></>}</h1>
         <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       </div>
       {/* Scrollable form — scrollbar hidden */}
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `16px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {isNew && (
           <div>
-            <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: 0, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? '▾ Hide templates' : '▸ Browse goal templates'}</button>
+            <button onClick={() => setShowTpl(s => !s)} style={{ background: 'transparent', border: 0, padding: '6px 0', minHeight: 32, color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{showTpl ? '▾ Hide templates' : '▸ Browse goal templates'}</button>
             {showTpl && (
-              <div style={{ marginTop: 10, borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 12 }}>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                  {cats.map(c => { const on = activeCat === c.id; return <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ padding: '7px 12px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: on ? teal : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{c.label}</button>; })}
+              <div style={{ marginTop: 4 }}>
+                {/* Category index — typographic, active = ink + heat underline */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  {cats.map(c => { const on = activeCat === c.id; return <button key={c.id} onClick={() => setActiveCat(c.id)} style={{ background: 'transparent', border: 0, padding: '8px 0', minHeight: 36, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}><span style={{ borderBottom: `2px solid ${on ? teal : 'transparent'}`, paddingBottom: 3 }}>{c.label}</span></button>; })}
                 </div>
-                <div style={{ display: 'grid', gap: 8 }}>
+                {/* Template rows — dot-leader ledger rows, no boxes */}
+                <div style={{ marginTop: 2 }}>
                   {BS_GOAL_TEMPLATES.filter(x => x.cat === activeCat).map((tpl, i) => (
-                    <button key={i} onClick={() => pick(tpl)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', padding: '10px 12px', color: t.INK }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{tpl.t}</div>
-                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{tpl.sub} · ~{tpl.weeksOut} wks</div>
+                    <button key={i} onClick={() => pick(tpl)} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, padding: '10px 0', minHeight: 48 }}>
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tpl.t}</span>
+                        <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>~{tpl.weeksOut} wks</span>
+                      </span>
+                      <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tpl.sub}</span>
                     </button>
                   ))}
                 </div>
@@ -14988,16 +14995,18 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
             )}
           </div>
         )}
-        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-field" value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={g.t} onChange={(e) => setG({ ...g, t: e.target.value })} placeholder="What are you shaping toward?" style={field} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
           {num('cur', 'Current')}
           {num('tgt', 'Target')}
         </div>
-        <label style={{ display: 'block' }}><span style={lbl}>Subtext</span><input className="bs-field" value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
-        <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-field" type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>Subtext</span><input className="bs-uline" value={g.sub} onChange={(e) => setG({ ...g, sub: e.target.value })} placeholder="e.g. 40 lb to go · +5 lb / 3 weeks" style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-uline" type="date" value={g.date || ''} onChange={(e) => setG({ ...g, date: e.target.value })} style={field} /></label>
         {g.date && days != null && (
-          <div style={{ borderRadius: 6, border: `1px solid ${teal}40`, background: t.isLight ? `${teal}10` : `${teal}1c`, padding: '10px 13px', display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
-            <span>Timeline</span><span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <span style={{ color: t.INK50 }}>Timeline</span>
+            <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
+            <span style={{ color: teal }}>{days} days · ~{Math.max(1, Math.round(days / 7))} wks</span>
           </div>
         )}
         <button onClick={() => setG({ ...g, pct: !g.pct })} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}>
@@ -15005,11 +15014,11 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
           <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Show values as percent (%)</span>
         </button>
       </div>
-      {/* Pinned footer — squared / clipped CTA */}
-      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, alignItems: 'center', background: t.PAPER }}>
-        {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', padding: '14px 18px', borderRadius: 6, border: `1px solid ${t.RUST}66`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Delete</button>}
-        <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? '#04201d' : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
+      {/* Pinned footer — text-actions + the clipped solid CTA */}
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
+        {!isNew && onDelete && <button onClick={onDelete} style={{ marginRight: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}><span style={{ borderBottom: `2px solid ${t.RUST}66`, paddingBottom: 2 }}>Delete</span></button>}
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+        <button onClick={save} disabled={!g.t} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: g.t ? teal : t.RULE, color: g.t ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: g.t ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save target</button>
       </div>
     </div>
   );
@@ -15023,8 +15032,8 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
 function BSOLHead({ heat, label, right = null, t }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: `24px ${t.padX}px 0` }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>
-        <span aria-hidden style={{ width: 8, height: 2, background: heat, display: 'inline-block' }} />{label}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
+        <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />{label}
       </span>
       {right}
     </div>
@@ -15121,6 +15130,22 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   const verdict = bsGoalVerdict({ start, now, target, unit, proj: goalProj });
   const toneColor = { good: t.GREEN, warn: t.AMBER, bad: t.RUST, neutral: t.INK }[verdict.tone] || t.INK;
   const [readRef, readSeen] = useBSSdInView();
+  // "One goal, many terms": the station target-lists cap at 3 visible rows with
+  // a show-more expander so the page never reads as a pile of competing goals.
+  const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false });
+  const TGT_CAP = 3;
+  // Shared station furniture (Training + Nutrition render the same anatomy).
+  const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
+    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: t.INK50 }}>“{[meta.title, meta.subtitle].filter(Boolean).join(' — ')}”</div>
+  ) : null;
+  const tgtEyebrow = () => (
+    <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Supporting targets · serve the goal</div>
+  );
+  const tgtExpander = (kind, goals) => {
+    const hidden = goals.length - TGT_CAP;
+    if (hidden <= 0 || showAllTargets[kind]) return null;
+    return <BSOLRow t={t} text={`${hidden} more target${hidden === 1 ? '' : 's'}`} textColor={t.INK50} meta="Show ＋" metaColor={heat} onPress={() => setShowAllTargets(s => ({ ...s, [kind]: true }))} />;
+  };
   const hasGoal = range !== 0 && Number.isFinite(start) && Number.isFinite(target) && start && target;
   // Milestones from the real goal trajectory (start -> quarter points -> target).
   const milestones = (() => {
@@ -15190,6 +15215,10 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       {/* THE READ — the verdict lead + register row */}
       <div ref={refs.read} style={{ padding: `18px ${t.padX}px 0`, scrollMarginTop: 56 }}>
         <div ref={readRef}>
+          {/* THE GOAL — there is exactly ONE goal on this page; everything below serves it. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}>
+            <span aria-hidden style={{ width: 10, height: 2, background: heat, display: 'inline-block' }} />The goal{byLabel ? <span style={{ color: t.INK50, fontWeight: 700 }}>&nbsp;· By {byLabel}</span> : null}
+          </div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.18, color: verdict.tone === 'bad' ? t.RUST : t.INK }}>
             {verdict.lead.slice(0, -1)}<span style={{ color: heat }}>.</span>
           </div>
@@ -15239,20 +15268,22 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       <div ref={refs.train} style={{ scrollMarginTop: 56 }}>
         <BSOLHead heat={heat} label="Training" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('training')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{trainingMeta.title || 'Set a training goal'}</div>
-          {trainingMeta.subtitle ? <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK50 }}>{trainingMeta.subtitle}</div> : null}
+          {/* Station motto — a byline, not another goal (the one goal lives up top). */}
+          {stationMotto(trainingMeta)}
           {trainPlan
             ? <BSOLCredit spine={t.RUST} title={trainPlan.t} credit={`TRAINER · ${String(trainPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No training plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={t.RUST} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />}
-          {trainGoals.map((g, i) => (
-            <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Goal'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
+          {tgtEyebrow()}
+          {(showAllTargets.training ? trainGoals : trainGoals.slice(0, TGT_CAP)).map((g, i) => (
+            <BSOLRow key={`tg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('training', i)} />
           ))}
+          {tgtExpander('training', trainGoals)}
           {liftRows.map((l, i) => (
             <BSOLRow key={`lift-${i}`} t={t} text={l.t} meta={`${l.w} ▲ ${l.d}`} metaColor={t.INK70} />
           ))}
-          <BSOLRow t={t} glyph="＋" glyphColor={heat} text="Add a training goal" textColor={t.INK70} onPress={() => onAddGoal('training')} />
+          <button onClick={() => onAddGoal('training')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a training target</button>
           <BSOLRow t={t} text="The full training record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
@@ -15261,17 +15292,19 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
       <div ref={refs.nutr} style={{ scrollMarginTop: 56 }}>
         <BSOLHead heat={heat} label="Nutrition" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('nutrition')} t={t} />} />
         <div style={{ padding: `2px ${t.padX}px 0` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>{nutritionMeta.title || 'Set a nutrition goal'}</div>
-          {nutritionMeta.subtitle ? <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK50 }}>{nutritionMeta.subtitle}</div> : null}
+          {/* Station motto — a byline, not another goal. */}
+          {stationMotto(nutritionMeta)}
           {nutrPlan
             ? <BSOLCredit spine={'#d8a23a'} title={nutrPlan.t} credit={`NUTRITIONIST · ${String(nutrPlan.sub || '').toUpperCase()}`} t={t} />
             : signedIn
               ? <><BSTRedact INK={t.INK} label="No nutrition plan yet" /><BSOLAct heat={heat} label="Find a coach →" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
               : <BSOLCredit spine={'#d8a23a'} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />}
-          {nutrGoals.map((g, i) => (
-            <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Goal'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
+          {tgtEyebrow()}
+          {(showAllTargets.nutrition ? nutrGoals : nutrGoals.slice(0, TGT_CAP)).map((g, i) => (
+            <BSOLRow key={`ng-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('nutrition', i)} />
           ))}
-          <BSOLRow t={t} glyph="＋" glyphColor={heat} text="Add a nutrition goal" textColor={t.INK70} onPress={() => onAddGoal('nutrition')} />
+          {tgtExpander('nutrition', nutrGoals)}
+          <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition target</button>
           <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
         </div>
       </div>
@@ -15299,12 +15332,14 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC({ ...overall });
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
+  // Zero-box underline fields — the Open Ledger form grammar (.bs-uline focus →
+  // accent underline via --bs-accent).
+  const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
   const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={field} /></label>;
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
       {/* Title-page header — masthead + hero title (matches the other pages) */}
@@ -15322,18 +15357,18 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
       </div>
       {/* Scrollable form — scrollbar hidden */}
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-field" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-field" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input className="bs-field" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input className="bs-uline" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 11 }}>{num('start')}{num('now')}{num('target')}</div>
-        <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ ...field, resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>{num('start')}{num('now')}{num('target')}</div>
+        <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
       </div>
-      {/* Pinned footer — squared / clipped CTA */}
-      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, background: t.PAPER }}>
-        <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
+      {/* Pinned footer — text-action Cancel + clipped solid CTA */}
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
       </div>
     </div>
   );
@@ -15347,20 +15382,22 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
 function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const t = useBS();
   const [m, setM] = useStateBSC({ ...meta });
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
+  // Zero-box underline fields (accent focus via --bs-accent on the sheet root).
+  const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Edit · Goal</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: accent }}>headline.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input value={m.title || ''} onChange={(e) => setM({ ...m, title: e.target.value })} style={field} /></label>
-          <label style={{ display: 'block' }}><span style={lbl}>Subtitle</span><input value={m.subtitle || ''} onChange={(e) => setM({ ...m, subtitle: e.target.value })} style={field} /></label>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': accent }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Edit · Headline</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: accent }}>headline.</span></div>
+        <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-uline" value={m.title || ''} onChange={(e) => setM({ ...m, title: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>Subtitle</span><input className="bs-uline" value={m.subtitle || ''} onChange={(e) => setM({ ...m, subtitle: e.target.value })} style={field} /></label>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => onSave(m)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#fff', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save</button>
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+          <button onClick={() => onSave(m)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: accent, color: '#fff', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save</button>
         </div>
       </div>
     </div>
@@ -15384,22 +15421,26 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '14px 16px' }}>
-          <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val, Number.isFinite(bfVal) ? bfVal : null); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>{unit}</span>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
+        <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+        {/* Weight register — bare underline figure (Open Ledger form grammar);
+            .bs-uline-row lights the shared underline on focus-within. */}
+        <div className="bs-uline bs-uline-row" style={{ marginTop: 18, display: 'flex', alignItems: 'baseline', gap: 10, '--bs-uline-ink': bsTHexA(t.INK, 0.28) }}>
+          <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val, Number.isFinite(bfVal) ? bfVal : null); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', padding: '2px 0 9px' }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{unit}</span>
         </div>
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '11px 16px' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, flexShrink: 0 }}>Body fat · optional</span>
-          <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right' }} />
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>%</span>
+        {/* Body fat — quiet underline row */}
+        <div className="bs-uline bs-uline-row" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 10, '--bs-uline-ink': bsTHexA(t.INK, 0.12) }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800, flexShrink: 0 }}>Body fat · optional</span>
+          <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right', fontVariantNumeric: 'tabular-nums', padding: '2px 0 8px' }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50 }}>%</span>
         </div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates your trend + progress · start {Number(overall.start).toLocaleString()} · target {Number(overall.target).toLocaleString()}</div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? teal : t.RULE, color: ok ? '#04201d' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save weigh-in</button>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates your trend + progress · start {Number(overall.start).toLocaleString()} · target {Number(overall.target).toLocaleString()}</div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+          <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? teal : t.RULE, color: ok ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save weigh-in</button>
         </div>
       </div>
     </div>
