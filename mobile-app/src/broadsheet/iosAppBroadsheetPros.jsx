@@ -2093,6 +2093,22 @@ function bsProMastRow(withCorners = true) {
   ) : null;
   return <MastRow trailing={trailing} />;
 }
+// Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
+// Case File uses (getUserPoints → bsTierForPoints → bsTierColor); role heat
+// until known / for demo rows.
+function useBSProClientHeat(t, role, clientUid) {
+  const [tier, setTier] = useStateBSP(null);
+  useEffectBSP(() => {
+    setTier(null);
+    if (!clientUid || !window.ShapeProfiles?.getUserPoints) return undefined;
+    let on = true;
+    window.ShapeProfiles.getUserPoints([clientUid])
+      .then((map) => { const pts = map && map[clientUid]; if (on && pts != null && window.bsTierForPoints) setTier(window.bsTierForPoints(pts)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [clientUid]);
+  return tier && window.bsTierColor ? window.bsTierColor(tier) : bsProHeat(t, role);
+}
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
@@ -2106,16 +2122,16 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
     </div>
   );
 }
-function BSProClientMini({ client }) {
+function BSProClientMini({ client, heat }) {
   const t = useBS();
   if (!client) return null;
   const prog = client.prog || (client.r || '').split('·')[0].trim() || 'Program';
   return (
-    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 15px' }}>
-      <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-      <div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{prog} · Week 6 of 12</div>
+    <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${heat || t.INK}`, padding: '4px 0 4px 12px' }}>
+      <BSFacetAvatar size={38} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog} · Week 6 of 12</div>
       </div>
     </div>
   );
@@ -2123,12 +2139,15 @@ function BSProClientMini({ client }) {
 function BSProActionSec({ eyebrow, title, trailing, accent }) {
   const t = useBS();
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ width: 8, height: 2, background: accent }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow} · {title}</span>
+        </span>
+        {trailing}
       </div>
-      {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: accent, paddingBottom: 3, whiteSpace: 'nowrap' }}>{trailing}</div>}
+      <div aria-hidden style={{ marginTop: 7, height: 1, background: `linear-gradient(90deg, ${t.INK}, ${accent} 70%, transparent)` }} />
     </div>
   );
 }
@@ -2174,7 +2193,7 @@ function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, uni
 
 function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
+  const accent = useBSProClientHeat(t, role, clientUid);
   const isNutri = role === 'nutritionist';
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const gold = '#d8b25a';
@@ -2280,7 +2299,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     } catch (e) { setStatus('error'); }
   };
   const cta = (txt, onClick, mt) => (
-    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
+    <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
   );
   const sendLabel = status === 'saving' ? 'Sending…' : status === 'done' ? 'Sent ✓' : 'Apply & Send →';
 
@@ -2303,7 +2322,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
       </div>
       <div>
-        <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing="TAP TO CHANGE →" accent={accent} />
+        <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50, whiteSpace: 'nowrap' }}>TAP TO CHANGE →</span>} accent={accent} />
         {days.map((label, i) => {
           const rest = label === 'Rest';
           return (
@@ -2333,7 +2352,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
           <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>FROM MACROS</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{kcalFromMacros.toLocaleString()} kcal · <span style={{ color: kcalDiff < 0 ? rust : teal }}>{kcalDiff >= 0 ? '+' : ''}{kcalDiff} vs target</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{kcalFromMacros.toLocaleString()} kcal · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{kcalDiff} vs target</span></span>
             </div>
             <div style={{ marginTop: 9, display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
               <div style={{ width: `${(pK / mTot) * 100}%`, background: teal }} />
@@ -2370,7 +2389,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow={isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'} titleA="Tune the" titleB={isNutri ? 'plan.' : 'program.'} accent={accent} onBack={onBack} />
-        <BSProClientMini client={client} />
+        <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {isNutri ? nutriBody : trainerBody}
           <div>
@@ -2394,7 +2413,8 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
 
 function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
+  const accent = useBSProClientHeat(t, role, clientUid);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
   const first = (client?.n || 'there').split(' ')[0];
   const TYPES = isNutri
@@ -2420,7 +2440,6 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const typeLabel = TYPES.find(x => x.k === type)?.l || 'Session';
   const modeLabel = modeOpts.find(m => m.k === mode)?.l || 'Zoom';
   const dateStr = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}-${String(sel.getDate()).padStart(2, '0')}`;
-  const summaryWhen = `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()} · ${time} · ${duration} min · ${modeLabel}`;
   const add = async () => {
     setStatus('saving');
     try {
@@ -2435,7 +2454,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         <BSProActionHead eyebrow="SCHEDULE" titleA="Book a" titleB={isNutri ? 'consult.' : 'session.'} accent={accent} onBack={onBack} />
-        <BSProClientMini client={client} />
+        <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           <div>
             <BSProActionSec eyebrow="WHAT" title="Session type" accent={accent} />
@@ -2483,11 +2502,15 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
           </button>
           <div>
             <BSProActionSec eyebrow="SUMMARY" title="The booking" accent={accent} />
-            <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{typeLabel} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
+            <div style={{ display: 'flex', gap: 20 }}>
+              {[['DAY', `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()}`], ['TIME', time], ['LENGTH', `${duration} min`]].map(([lab, fig]) => (
+                <div key={lab} style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{lab}</div>
+                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>{fig}</div>
+                </div>
+              ))}
             </div>
-            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
+            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
             {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't add — try again.</div>}
             {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · books once linked to a live member</div>}
           </div>
