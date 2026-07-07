@@ -258,6 +258,40 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Coach pass: live-bulletin OPEN fix · honest ledgered event sheets · live-watch console (#1587)
+- **Dead OPEN → on the nutritionist Today live bulletin fixed.** Root cause: the
+  demo path fired `onWatchLive` with a trainer workout payload at a handler the
+  nutri shell never wires — a silent no-op. OPEN → now opens **`BSLiveBoostSheet`**
+  (#1514 — a cheer that lands mid-cook) for BOTH real live clients and the demo
+  bulletin (the sheet self-labels previews). The sheet is window-exposed from the
+  client bundle, and — CodeRabbit's **P2**, a real catch — the bulletin
+  **dynamic-imports the client module on demand** first, because a cold coach
+  session loads the pros bundle WITHOUT the client module (`loadProsBundle`
+  imports only the 5 feature modules + pros), so the global wouldn't exist on
+  exactly the path being fixed.
+- **Coach calendar client-event sheets (SES/CON/MEAL) — data honesty.** RPE no
+  longer fabricates `8` (and cardio ZONE no longer defaults Z2) on events with no
+  authored detail; the hardcoded consult **agenda + last-consult notes were
+  shown on REAL bookings** → now demo-gated (`event.source !== 'event'`), with an
+  honest "No agenda attached · set one when booking" line on live consults; the
+  no-detail session copy is role-aware (coach copy instead of the client's "open
+  the Train tab" line).
+- **Event-sheet serialization (Open Ledger).** Boxed stat/macro plates → a shared
+  **`BSEventStatRegister`** (bare eyebrow-above-figure columns + ink→accent rule;
+  extracted per CodeRabbit's dedup Major); boxed move/plate lists → dot-leader
+  ledger rows; tinted cue/notes boxes → accent-spine italic blocks; station
+  eyebrows carry accent ticks.
+- **Live watch console (`BSProLiveWatch`) design pass** (owner-reviewed): rust
+  retired from the chrome — LIVE chip, WATCHING LIVE eyebrow, and the exercise
+  period go **teal** (live = teal; rust stays severity-only); SEND A CUE / UP
+  NEXT red eyebrows → station heads; the set grid drops its box-field look (it's
+  a **read-only mirror** of the client's inputs) for bare tabular figures with a
+  teal underline on the live set; SEND → the clipped solid-teal CTA; the queue's
+  filled active box → a teal **NOW spine**; the header counter reads `SETS 6/20`.
+- Squash-merged `d8c4eeac` (#1587); CI green; all 3 CodeRabbit findings fixed +
+  replied in-PR (`1a13c08f`). Merge-on-green per the owner's flow; parse-check ×3
+  + LF; CI was the build gate.
+
 ### 2026-07-07 — Goals flow: Open Ledger sheets + "one goal, many terms" hierarchy (#1585)
 - **The four goal-flow sheets re-clothed in the Open Ledger form grammar** (owner
   screenshots flagged them as the last boxed-form stragglers). New **`.bs-uline`**
