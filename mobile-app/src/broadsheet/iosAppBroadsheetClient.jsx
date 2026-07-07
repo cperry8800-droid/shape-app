@@ -12822,13 +12822,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     );
   }
 
-  // "Training now" presence rail (Signal redesign). Illustrative for now — the
-  // app has a live online *count* but not per-person current-activity, so this
-  // is demo data wired through the real tier-color helpers; swap `TRAINING_NOW`
-  // for a live presence feed when the backend exposes who's-doing-what.
-  // Everyone here is ONLINE NOW (pulsing ring = `live`). The corner DOT marks who's
-  // ACTIVE right now: activity 'workout' → teal dot, 'cooking' → amber dot. People
-  // without an activity are just online (no dot).
+  // "Training now" presence rail (Signal redesign). LIVE when signed in — real
+  // members currently mid-activity from `ShapePresence.activeNow` (built into
+  // `realActive` above with real tier / avatar / name). The `TRAINING_NOW` demo
+  // shows ONLY in signed-out preview; a signed-in member with nobody active sees
+  // no rail (honest — never fabricated people). Pulsing ring = ONLINE; the corner
+  // DOT marks who's ACTIVE: 'workout' → teal dot, 'cooking' → amber dot.
   const TRAINING_NOW = [
     { name: 'Priya Shah',    tier: 'peak',   live: true, activity: 'workout', photo: '1544005313-94ddf0286df2' },
     { name: 'Drew Oyelaran', tier: 'legend', live: true,                      photo: '1499996860823-5214fcc65f8f' },
@@ -12842,8 +12841,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
-  const railPeople = realActive.length ? realActive : TRAINING_NOW;
-  const liftingNow = online > 0 ? online : 2104;
+  // Auth-gated FIRST: signed in → only real active members (or none); signed-out
+  // preview → only the demo cast (realActive is never surfaced in preview, even if
+  // activeNow populated it on mount).
+  const railPeople = loggedIn ? realActive : TRAINING_NOW;
+  const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
 
   return (
     <BSPage>
@@ -12865,7 +12867,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
       </div>
 
-      {/* Live "training now" presence rail — kept visible on every chat tab. */}
+      {/* Live "training now" presence rail — hidden when nobody's active (a
+          signed-in member with no active people sees no rail). */}
+      {railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
@@ -12894,6 +12898,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             })}
           </div>
       </div>
+      )}
 
       {boostFor && (
         <BSLiveBoostSheet person={boostFor} onClose={() => setBoostFor(null)}
