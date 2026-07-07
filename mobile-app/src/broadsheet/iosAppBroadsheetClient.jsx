@@ -12841,8 +12841,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
-  // Signed in → real active members (or none); demo only in signed-out preview.
-  const railPeople = realActive.length ? realActive : (loggedIn ? [] : TRAINING_NOW);
+  // Auth-gated FIRST: signed in → only real active members (or none); signed-out
+  // preview → only the demo cast (realActive is never surfaced in preview, even if
+  // activeNow populated it on mount).
+  const railPeople = loggedIn ? realActive : TRAINING_NOW;
   const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
 
   return (
