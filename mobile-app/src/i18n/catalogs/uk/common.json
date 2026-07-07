@@ -1,5 +1,10 @@
 {
   "action.continue": "Продовжити",
   "action.back": "Назад",
-  "action.done": "Готово"
+  "action.done": "Готово",
+  "nav.home": "Головна",
+  "nav.train": "Тренування",
+  "nav.eat": "Їжа",
+  "nav.chat": "Чат",
+  "nav.me": "Я"
 }

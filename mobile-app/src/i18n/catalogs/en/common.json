@@ -1,5 +1,10 @@
 {
   "action.continue": "Continue",
   "action.back": "Back",
-  "action.done": "Done"
+  "action.done": "Done",
+  "nav.home": "Home",
+  "nav.train": "Train",
+  "nav.eat": "Eat",
+  "nav.chat": "Chat",
+  "nav.me": "Me"
 }

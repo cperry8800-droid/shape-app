@@ -1,5 +1,10 @@
 {
   "action.continue": "Lanjutkan",
   "action.back": "Kembali",
-  "action.done": "Selesai"
+  "action.done": "Selesai",
+  "nav.home": "Beranda",
+  "nav.train": "Latihan",
+  "nav.eat": "Makan",
+  "nav.chat": "Chat",
+  "nav.me": "Saya"
 }
