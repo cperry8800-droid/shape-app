@@ -39,8 +39,8 @@ import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchen
 
 const QTY_RE = /\d|pinch|drizzle|handful|to taste|dash|splash|zest|juice of/i;
 
-test('catalog: expanded to at least 34 recipes', () => {
-  assert.ok(SHAPE_KITCHEN_RECIPES.length >= 34, `have ${SHAPE_KITCHEN_RECIPES.length}`);
+test('catalog: expanded to the full 35 recipes', () => {
+  assert.ok(SHAPE_KITCHEN_RECIPES.length >= 35, `have ${SHAPE_KITCHEN_RECIPES.length}`);
 });
 
 test('catalog: every recipe has the required fields', () => {
@@ -64,12 +64,19 @@ test('catalog: ingredients are structured {n, m} with a real quantity on every l
   }
 });
 
-test('catalog: steps are detailed (>=4 steps, each >=50 chars, time/heat cues present)', () => {
+test('catalog: steps are detailed (>=4 steps, each >=50 chars, cue-rich)', () => {
+  const TIME = /(min|minute|second|hour|overnight)/i;
+  const HEAT = /heat|warm|boil|simmer|fry|roast|bake|sear|grill|toast|cook|steam|chill|freeze/i;
+  const VESSEL = /pan|pot|skillet|bowl|tray|sheet|dish|oven|blender|jar|container|board|plate|fridge/i;
+  const DONE = /golden|tender|crisp|browned|set|thicken|soft|fragrant|firm|combine|smooth|coat/i;
   for (const r of SHAPE_KITCHEN_RECIPES) {
-    assert.ok(r.steps.length >= 3, `${r.title}: only ${r.steps.length} steps`);
+    assert.ok(r.steps.length >= 4, `${r.title}: only ${r.steps.length} steps`);
     for (const s of r.steps) assert.ok(s.length >= 50, `${r.title}: thin step "${s.slice(0, 40)}…"`);
     const joined = r.steps.join(' ');
-    assert.ok(/(min|minute|second|hour)/i.test(joined), `${r.title}: no time cue in steps`);
+    assert.ok(TIME.test(joined), `${r.title}: no time cue in steps`);
+    // Require >=2 cue families so a no-cook recipe still passes on time + vessel/doneness.
+    const families = [TIME, HEAT, VESSEL, DONE].filter((re) => re.test(joined)).length;
+    assert.ok(families >= 2, `${r.title}: steps need >=2 cue families, has ${families}`);
   }
 });
 
@@ -635,7 +642,7 @@ const lines = SHAPE_KITCHEN_RECIPES.map((r) => `  {
     tags: ${ser(r.tags)},
     hero: ${ser(r.hero)},
     blurb: ${ser(r.blurb)},
-    ingredients: ${ser(r.ingredients.map((i) => `${i.n} ${i.m}`))},
+    ingredients: ${ser(r.ingredients.map((i) => `${i.n} ${i.m}${i.k != null ? ` (${i.k} kcal)` : ''}`))},
     steps: ${ser(r.steps)},
     tip: ${ser(r.tip)},
   },`);

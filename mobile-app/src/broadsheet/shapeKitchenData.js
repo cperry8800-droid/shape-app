@@ -954,20 +954,20 @@ export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Mediterranea
 export const RECIPE_PROTEINS = ["Seafood", "Poultry", "Meat"];
 export const RECIPE_FREE_FROM = ["Gluten-free", "Dairy-free"];
 export const RECIPE_GOALS = ["High-protein", "Low-carb"];
-const _RECIPE_NOT_GF = new Set([
+export const _RECIPE_NOT_GF = new Set([
   "Tempo turkey lettuce cups", "Miso-glazed cod with greens", "Tofu and edamame poke bowl",
   "Grilled chicken Caesar, lightened", "Beef and broccoli stir-fry", "Tempeh and broccoli teriyaki",
   "Turkey meatballs in marinara", "Smoked salmon and avocado toast", "Greek yogurt power bowl",
   "Chicken pesto pasta", "Garlic shrimp linguine", "Lentil bolognese", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Crispy tofu grain bowl", "Overnight oats, three ways", "Harissa salmon with couscous", "Cottage cheese protein toast",
 ]);
-const _RECIPE_HAS_DAIRY = new Set([
+export const _RECIPE_HAS_DAIRY = new Set([
   "Greek yogurt power bowl", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Grilled chicken Caesar, lightened", "Roasted veg and halloumi traybake", "Turkey meatballs in marinara",
   "Chicken pesto pasta", "Creamy tomato and white bean pasta", "Beef ragu rigatoni",
   "Overnight oats, three ways", "Garlic shrimp and courgette noodles", "Cottage cheese protein toast",
 ]);
-const _RECIPE_MED = new Set([
+export const _RECIPE_MED = new Set([
   "Sheet-pan salmon, sweet potato and broccoli", "Shrimp and quinoa harvest bowl", "Chickpea shakshuka",
   "Tuna niçoise bowl", "Roasted veg and halloumi traybake",
   "Harissa salmon with couscous", "Lemon-herb chicken meal-prep box",
