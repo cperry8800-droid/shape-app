@@ -258,6 +258,47 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-08 — Community feed: Universal/Following toggle + `followers` tier (#1609 spec · #1610 build) · workout auto-share spec (#1611)
+- **The community feed gains a two-mode viewing lens** (owner-designed round:
+  no separate follow feed — ONE feed with a switch): **UNIVERSAL** (default —
+  the whole community's public activity, byte-identical to the old feed) and
+  **FOLLOWING** (your accepted follows + yourself, including their new
+  **`followers`-tier** posts). House underline-index toggle on the mobile chat
+  Community feed AND the website community page; choice persists per device
+  (`localStorage('shape.feedMode')`).
+- **New `followers` post privacy tier** — migration
+  `2026-07-08-followers-post-visibility.sql` (**owner runs it**): CHECK +
+  `can_view_community_post()` + the read RLS policy allow the author + their
+  ACCEPTED followers (`user_follows.status='accepted'`), nowhere else;
+  likes/comments/profile views inherit automatically (they gate through the
+  function). This is how a Just-friends member's activity reaches only their
+  friends' feeds. Nothing writes the tier yet (that's Spec 2), so everything
+  degrades safely pre-migration.
+- **One rule module**: pure `mobile-app/src/services/feedMode.mjs`
+  (`bsFeedQuerySpec` — universal keeps `['public','community']` + no author
+  filter; following adds `followers` + scopes to accepted follows + self),
+  unit-tested (`tests/feed-mode.test.mjs`, suite 468). Mobile
+  `listCommunityPosts(mode)` + a 60s-cached accepted-following reader; web
+  `GET /api/community/feed?mode=following`. RLS is the authority — client
+  filters only narrow.
+- **Honest Following empty state** (mobile): follow suggestions
+  (`BSFollowSuggestions`) + a one-tap `SEE EVERYONE — UNIVERSAL →` escape;
+  website gets the text + escape. **Review round (both fixed + replied):**
+  Codex P2 — escaping an empty Following into an empty Universal leaked the
+  live-empty flags (now an explicit reset restores the legacy demo fallback;
+  errors never downgrade); CodeRabbit Minor — signed-out Following on the web
+  dead-ended on a generic empty (now the demo set shows in both modes,
+  mobile-parity per spec AC6). CodeRabbit APPROVED; staging click-through
+  verified the toggle both ways with zero new console errors.
+- **Spec 2 merged (#1611, build next): workout auto-share.** Device +
+  in-app workouts will post by the member's own privacy —
+  `Share workout data` × profile visibility → public / followers / private
+  (defaults On·Public = automatic), the 4 syncs stop hardcoding
+  `privacy:'private'`, Garmin joins the pipeline, in-app sessions auto-post,
+  ±20-min cross-source dedup, retroactive tightening, first-run notice. Makes
+  the currently-DEAD Settings toggle real. Build requires #1610's migration
+  applied first.
+
 ### 2026-07-07 — Chrome pass: side cushion · slimmer nav · condensing pinned masthead · followers-sheet fix (#1603 · #1605)
 - **#1603 (owner screenshots):** app-wide **side cushion +2px** on all three density
   tiers (`padX` 24/20/16 → 26/22/18 — one token, every `t.padX` consumer moves
