@@ -23,9 +23,9 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string }> {
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string; seg: string }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
@@ -40,7 +40,34 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       tempo: e.tempo != null ? String(e.tempo) : '',
       cue: e.cue != null ? String(e.cue) : '',
       group: e.group != null ? String(e.group) : '',
+      // Self-authored segment row (a run/ride/swim leg or a Hyrox station) — the
+      // free descriptor the deck renders in place of a load ("10 mi · Z2").
+      seg: e.seg != null ? String(e.seg) : '',
     }));
+}
+
+// Self-program stamp ({ id, name, week, day, weeks, runId }) — the deck groups /
+// labels a materialized block with it.
+function mapProgram(payload: Record<string, unknown> | null): { id: string; name: string; week: number | null; day: number | null; weeks: number | null; runId: string } | null {
+  const p = payload?.program;
+  if (!p || typeof p !== 'object') return null;
+  const o = p as Record<string, unknown>;
+  return {
+    id: String(o.id ?? ''),
+    name: String(o.name ?? ''),
+    week: Number(o.week) || null,
+    day: o.day != null && Number.isFinite(Number(o.day)) ? Number(o.day) : null,
+    weeks: Number(o.weeks) || null,
+    runId: String(o.runId ?? ''),
+  };
+}
+
+// Weekly-repeat weekdays (0=Mon..6=Sun) for a self session that recurs each week.
+function mapRepeatDow(payload: Record<string, unknown> | null): number[] | null {
+  const r = payload?.repeatDow;
+  if (!Array.isArray(r)) return null;
+  const dows = r.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  return dows.length ? dows : null;
 }
 
 export async function GET(request: Request) {
@@ -49,12 +76,16 @@ export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
   const weekStart = weekStartISO();
 
-  // ── Training: assigned workouts (scheduled onto the calendar or not). ──
+  // ── Training: assigned + self-authored workouts. ──
+  // WINDOW the dated rows to this-week-forward OR undated (weekly-repeat + not-
+  // yet-scheduled) so a long program's early weeks can't push the current week
+  // past the row cap — a 26-week block otherwise buries today under history.
   const { data: cwRows } = await supabase
     .from('client_workouts')
     .select('id, title, description, kind, payload, scheduled_date, created_at, trainer_id')
     .eq('client_id', user.id)
     .eq('status', 'published')
+    .or(`scheduled_date.gte.${weekStart},scheduled_date.is.null`)
     .order('scheduled_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(60);
@@ -69,6 +100,10 @@ export async function GET(request: Request) {
       title: w.title,
       description: w.description ?? '',
       kind: w.kind,
+      // Self-authored (member-built) when there's no coach behind the row.
+      selfAuthored: w.trainer_id === null,
+      program: mapProgram(payload),
+      repeatDow: mapRepeatDow(payload),
       scheduledDate: w.scheduled_date ?? null,
       time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
