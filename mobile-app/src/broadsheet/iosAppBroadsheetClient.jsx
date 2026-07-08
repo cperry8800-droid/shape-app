@@ -5089,10 +5089,10 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const advCount = (diet !== 'All' ? 1 : 0) + needs.length;
   const resetAdv = () => { setDiet('All'); setNeeds([]); };
   const Chip = ({ label, on, color, onClick, count }) => (
-    <button onClick={onClick} style={{
-      flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
-      border: `1px solid ${on ? (color || t.INK) : t.RULE}`, background: on ? (color || t.INK) : 'transparent',
-      color: on ? (color ? '#0a0f0d' : t.PAPER) : t.INK70,
+    <button type="button" onClick={onClick} aria-pressed={on} style={{
+      flex: '0 0 auto', padding: '8px 12px', borderRadius: 3, cursor: 'pointer',
+      border: `1px solid ${on ? (color || t.ACCENT) : t.RULE}`, background: 'transparent',
+      color: on ? (color || t.ACCENT) : t.INK70,
       fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
     }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
   );
@@ -5120,14 +5120,14 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {pills.map(([k, label, count]) => {
             const on = filter === k;
-            return <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+            return <button type="button" key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 3, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: 'transparent', color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
           })}
-          <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 999, border: `1px solid ${(filtersOpen || advCount) ? t.INK : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <button type="button" onClick={() => setFiltersOpen(o => !o)} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 3, border: `1px solid ${(filtersOpen || advCount) ? t.ACCENT : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Filters{advCount > 0 ? ` · ${advCount}` : ''}
             <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
           </button>
           {advCount > 0 && (
-            <button onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+            <button type="button" onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
           )}
         </div>
         {filtersOpen && (
@@ -5150,28 +5150,30 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
       </div>
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.length === 0 ? (
-          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
+          <div style={{ padding: '20px 2px', textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
         ) : list.map((r, i) => {
           const dc = BS_SK_DIET_COLOR[r.diet] || teal;
           const id = recId(r);
           const saved = savedIds.has(id);
           const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
           const coach = String(r.by || '').split(' ')[0];
+          const no = SHAPE_KITCHEN_RECIPES.indexOf(r) + 1 || null;
           return (
-            <BSPlate key={`${r.title}-${i}`} c={dc} notch={10} spine={2.5} pad="14px 14px 14px 18px">
-              <button onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, display: 'grid', gridTemplateColumns: '62px 1fr', gap: 12, alignItems: 'center' }}>
-                <span style={{ width: 62, height: 62, borderRadius: 6, background: r.hero, flexShrink: 0, border: `1px solid ${t.HAIR}` }} />
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: dc, marginBottom: 4 }}>{cat} · {coach}</span>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
-                  <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
-                </span>
+            <div key={`${r.title}-${i}`} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '12px 14px' }}>
+              <button type="button" onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat} · {coach}</span>
+                <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
+                <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
               </button>
-              <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
-                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 9, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
-                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 9, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+                <button type="button" onClick={() => onSendToGrocery(r)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Send to grocery</span>
+                  <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+                  <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
+                </button>
+                <button type="button" onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
-            </BSPlate>
+            </div>
           );
         })}
       </div>
