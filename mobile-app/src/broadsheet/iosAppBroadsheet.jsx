@@ -152,9 +152,9 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
 // ─── Density tokens ────────────────────────────────────────
 function makeDensity(densityKey = 'standard') {
   const map = {
-    relaxed:  { padX: 24, rowY: 14, sectGap: 28, headlineHero: 92, headlineLead: 44, body: 16 },
-    standard: { padX: 20, rowY: 11, sectGap: 22, headlineHero: 84, headlineLead: 38, body: 15 },
-    dense:    { padX: 16, rowY: 8,  sectGap: 16, headlineHero: 74, headlineLead: 32, body: 14 },
+    relaxed:  { padX: 26, rowY: 14, sectGap: 28, headlineHero: 92, headlineLead: 44, body: 16 },
+    standard: { padX: 22, rowY: 11, sectGap: 22, headlineHero: 84, headlineLead: 38, body: 15 },
+    dense:    { padX: 18, rowY: 8,  sectGap: 16, headlineHero: 74, headlineLead: 32, body: 14 },
   };
   return map[densityKey] || map.standard;
 }
@@ -409,7 +409,7 @@ function isInteractiveTarget(target) {
 // ═══════════════════════════════════════════════════════════
 
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 80, backdrop = null }) {
+function BSPage({ children, tabBarHeight = 72, backdrop = null }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
 
@@ -1060,7 +1060,7 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 72, padding: '6px 20px calc(10px + env(safe-area-inset-bottom, 0px))',
+      height: 64, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
       // Match the page's full background (PAPER_BG carries metallic/textured sheen
       // on papers like Steel) so the bar reads as part of the same paper, with a
       // faint theme-derived top fade for separation. Adapts to every paper.

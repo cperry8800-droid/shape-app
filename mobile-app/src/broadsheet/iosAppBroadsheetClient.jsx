@@ -6971,8 +6971,11 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
   );
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
-        <div style={{ position: 'sticky', top: 0, background: BG, zIndex: 1, marginBottom: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
+        {/* Fixed header layer — the list scrolls in its OWN pane below, so rows
+            can never ride up through the masthead/tabs/search (sticky inside the
+            padded scroller let them bleed through on device). */}
+        <div style={{ flexShrink: 0, background: BG, padding: '0 18px 12px' }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
               left, the profile owner's avatar on the right (no top hairline). */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -6998,6 +7001,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people" style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px 9px 31px', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.05), color: INK, fontFamily: SANS, fontSize: 13, outline: 'none' }} />
           </div>
         </div>
+        <div className="bs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
         {/* Pending follow requests — inline on my own followers list (private/friends). */}
         {showFollowBack && visibleReqs.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -7029,6 +7033,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -13215,43 +13220,64 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           }
           // Support — its own top-level tab: the continuous AI-backed thread.
+          // Serialized into the Open Ledger chat language (matches BSChatThread):
+          // a concierge masthead + tucked-corner tier-tinted bubbles, teal accent.
           if (tab === 'support') {
+            const noraTint = TEAL;           // concierge reads teal (was the dated blue #2e6fa0)
+            const myTC = bsMyTierColor();
             return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  {supportMsgs.map((m, i) => (
-                    m.me ? (
-                      <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
-                        <div style={{ padding: '9px 12px', borderRadius: 14, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                      </div>
-                    ) : (
-                      <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <div style={{ flexShrink: 0 }}>
-                          <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />
+              <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
+                {/* Concierge masthead — the section-head language the other tabs carry */}
+                <button onClick={() => setShowNora(true)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                  <BSFacetAvatar size={38} c={noraTint} initial="N" name="Nora" photo={BS_NORA_AVATAR} showRank={false} BG={t.PAPER} INK={'#fff'} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Concierge</div>
+                    <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>Nora<span style={{ color: noraTint }}>.</span></div>
+                  </div>
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
+                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
+                  </span>
+                </button>
+                <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
+
+                {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
+                  {supportMsgs.map((m, i) => {
+                    const me = m.me;
+                    const tc = me ? myTC : noraTint;
+                    const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
+                    return (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+                        <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
+                          {me
+                            ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
+                            : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
+                            {!me && (
+                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ' · Concierge' : ''}</div>
+                            )}
+                            <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                            {m.bot && (
+                              <button onClick={() => speakReply(m.t, { force: true })} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> Listen</button>
+                            )}
+                            {Array.isArray(m.actions) && m.actions.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                                {m.actions.map((a, ai) => (
+                                  a.type === 'proposal'
+                                    ? <BSNoraProposal key={ai} a={a} t={t} />
+                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
+                                        <span>{a.label}</span>
+                                        {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
+                                      </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Concierge" : ''}</div>
-                          <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                          {m.bot && (
-                            <button onClick={() => speakReply(m.t, { force: true })} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>🔊 Listen</button>
-                          )}
-                          {Array.isArray(m.actions) && m.actions.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
-                              {m.actions.map((a, ai) => (
-                                a.type === 'proposal'
-                                  ? <BSNoraProposal key={ai} a={a} t={t} />
-                                  : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
-                                      <span>{a.label}</span>
-                                      {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
-                                    </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
-                    )
-                  ))}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Nora is typing…</div>}
+                    );
+                  })}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>Nora is typing…</div>}
                 </div>
               </div>
             );
