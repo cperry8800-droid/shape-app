@@ -1251,7 +1251,7 @@ function useBSLibrary() {
       if (window.ShapeCoachPlans && window.ShapeCoachPlans.purchased) {
         window.ShapeCoachPlans.purchased().then((plans) => {
           if (!Array.isArray(plans) || !plans.length) return;
-          const owned = plans.map((p) => ({ id: 'plan-' + p.id, kind: 'plan', title: p.name, meta: p.meta || 'Purchased plan', owned: true, savedAt: p.purchasedAt ? new Date(p.purchasedAt).getTime() : Date.now() }));
+          const owned = plans.map((p) => ({ id: 'plan-' + p.id, kind: 'plan', title: p.name, meta: p.meta || 'Purchased plan', owned: true, planId: p.id, planKind: p.kind, detail: p.detail || {}, savedAt: p.purchasedAt ? new Date(p.purchasedAt).getTime() : Date.now() }));
           setItems((cur) => {
             const byId = new Map();
             for (const it of [...owned, ...cur]) if (it && it.id && !byId.has(it.id)) byId.set(it.id, it);
@@ -1298,6 +1298,25 @@ function BSLibraryDetail({ item, onBack }) {
   const km = BS_LIB_KINDS[item.kind] || { label: item.kind || 'Saved', color: t.INK50 };
   const lib = useBSLibrary();
   const saved = lib.some(x => x.id === item.id);
+  // A PURCHASED training plan can be scheduled onto the calendar (Start-this-plan).
+  const canStart = !!(item.owned && item.kind === 'plan' && item.planKind !== 'meal_plan' && item.planId != null && window.ShapeSelfTraining?.startPurchasedPlan);
+  const [startSheet, setStartSheet] = useStateBSC(false);
+  // Default start = next Monday, as YYYY-MM-DD.
+  const nextMonISO = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + ((8 - ((d.getDay() + 6) % 7 + 1)) % 7 || 7)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const [startISO, setStartISO] = useStateBSC(nextMonISO);
+  const [startWeeks, setStartWeeks] = useStateBSC(4);
+  const [starting, setStarting] = useStateBSC(false);
+  const [startErr, setStartErr] = useStateBSC('');
+  const doStart = async () => {
+    if (starting) return;
+    setStarting(true); setStartErr('');
+    try {
+      await window.ShapeSelfTraining.startPurchasedPlan({ plan: { id: item.planId, name: item.title, detail: item.detail || {} }, startISO, weeks: startWeeks });
+      window.__bsToast && window.__bsToast('On your Train tab', 'ok');
+      setStartSheet(false); onBack();
+    } catch (e) { setStartErr(String(e?.message || 'Could not start the plan.')); }
+    setStarting(false);
+  };
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
@@ -1324,10 +1343,38 @@ function BSLibraryDetail({ item, onBack }) {
           {item.savedAt ? <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
         </div>
       </div>
+      {canStart && (
+        <div style={{ padding: `16px ${t.padX}px 0` }}>
+          <button onClick={() => setStartSheet(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Start this plan →</button>
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Schedules the program onto your Train calendar as your own — edit any day.</div>
+        </div>
+      )}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <button onClick={() => { bsLibToggle(item); onBack(); }} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
       </div>
       <BSFooter right="Library" />
+      {startSheet && (
+        <div onClick={() => !starting && setStartSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Start plan</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{item.title}</div>
+            <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+            <label style={{ display: 'block' }}><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Start date</span>
+              <input className="bs-uline" type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} /></label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Weeks</span>
+              <button onClick={() => setStartWeeks(Math.max(1, startWeeks - 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{startWeeks}</span>
+              <button onClick={() => setStartWeeks(Math.min(26, startWeeks + 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
+            </div>
+            {startErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{startErr}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+              <button onClick={() => !starting && setStartSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+              <button onClick={doStart} disabled={starting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: starting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{starting ? 'Starting…' : 'Add to my week →'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </BSPage>
   );
 }
