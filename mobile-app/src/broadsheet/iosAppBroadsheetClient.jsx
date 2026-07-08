@@ -12598,6 +12598,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               if (active && avs) setAvatarByUser(avs);
             }).catch(() => {});
           }
+        } else if (active && res?.stored === 'supabase') {
+          // Universal came back live-but-EMPTY (e.g. escaping an empty Following)
+          // — reset to the legacy first-load state so signed-in falls back to the
+          // demo cards (postsLive false), instead of leaking Following's live-empty
+          // flags across modes. Errors keep the previous state (never downgrade).
+          setPosts(SAMPLE); setPostsLive(false); setActivityFeed([]);
         }
       } catch { /* keep sample */ }
     })();
