@@ -1,24 +1,20 @@
-// Server twin of mobile-app/src/services/workoutShare.mjs — keep the pure
-// parts in sync with the .mjs (the unit-tested source of truth).
-//
-// What privacy does an auto-posted workout get? The member's own Share toggle
-// gates everything; their profile visibility scopes it. Defaults mirror the
-// Settings pills' first options (On · Public). The resolver fails CLOSED
-// (private) so a transient settings failure can never accidentally publish.
+// Server helpers for workout auto-share. The PURE rule + dedup predicate are
+// imported directly from the mobile module (the unit-tested source of truth in
+// tests/workout-share.test.mjs) — one implementation, so the server sync/webhook
+// routes can never drift from the app. This file adds only the DB-touching
+// async wrappers (resolver, dedup query, first-share notice).
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import {
+  bsWorkoutSharePrivacy as workoutSharePrivacy,
+  bsIsDuplicateWorkoutPost as isDuplicateWorkoutPost,
+} from '../../mobile-app/src/services/workoutShare.mjs';
 
 export type SharePrivacy = 'public' | 'followers' | 'private';
+export { workoutSharePrivacy, isDuplicateWorkoutPost };
 
-export function workoutSharePrivacy(doc: Record<string, unknown> | null): SharePrivacy {
-  const d = doc && typeof doc === 'object' ? doc : {};
-  if (String((d as { shareWorkoutData?: unknown }).shareWorkoutData ?? 'On') === 'Off') return 'private';
-  const vis = String((d as { profileVisibility?: unknown }).profileVisibility ?? 'Public');
-  if (vis === 'Private') return 'private';
-  if (vis === 'Just friends') return 'followers';
-  return 'public';
-}
+const WINDOW_MS = 20 * 60 * 1000;
 
 // Fail CLOSED on a read error — a transient settings failure must degrade to
 // the old behavior (private), never accidentally publish someone's workout.
@@ -31,25 +27,10 @@ export async function resolveWorkoutSharePrivacy(client: SupabaseClient, userId:
       .eq('kind', 'client_settings')
       .maybeSingle();
     if (error) return 'private';
-    return workoutSharePrivacy((data?.data ?? null) as Record<string, unknown> | null);
+    return workoutSharePrivacy((data?.data ?? null) as Record<string, unknown> | null) as SharePrivacy;
   } catch {
     return 'private';
   }
-}
-
-const WINDOW_MS = 20 * 60 * 1000;
-export function isDuplicateWorkoutPost(
-  rows: Array<{ source_provider: string | null; created_at: string | null }>,
-  startISO: string,
-  provider: string,
-): boolean {
-  const start = Date.parse(startISO || '');
-  if (!Number.isFinite(start)) return false;
-  return (rows || []).some((r) => {
-    if (!r || !r.source_provider || r.source_provider === provider) return false;
-    const at = Date.parse(r.created_at || '');
-    return Number.isFinite(at) && Math.abs(at - start) <= WINDOW_MS;
-  });
 }
 
 // ±20-min different-provider window (device posts stamp created_at = activity
@@ -77,10 +58,12 @@ export async function findCrossSourceDuplicate(
 }
 
 // One-time heads-up the first time a member's workout auto-shares beyond
-// private. Dedup stamp lives in the same client_settings doc
-// (data.autoShareNoticeAt — the mobile in-app poster shares the field); the
-// notification insert needs service-role (notifications RLS has no self-insert
-// path). Best-effort, never throws.
+// private. The dedup stamp lives in its OWN user_goals row
+// (kind 'auto_share_flag', shared with the mobile in-app poster) — NOT merged
+// into client_settings, so this best-effort write can never clobber a
+// concurrent Settings change (read-modify-write race). The notification insert
+// needs service-role (notifications RLS has no self-insert path). Never throws.
+export const AUTO_SHARE_FLAG_KIND = 'auto_share_flag';
 export async function maybeSendFirstShareNotice(
   client: SupabaseClient, userId: string, privacy: SharePrivacy,
 ): Promise<void> {
@@ -90,15 +73,14 @@ export async function maybeSendFirstShareNotice(
       .from('user_goals')
       .select('data')
       .eq('user_id', userId)
-      .eq('kind', 'client_settings')
+      .eq('kind', AUTO_SHARE_FLAG_KIND)
       .maybeSingle();
     if (error) return;
-    const doc = (data?.data ?? {}) as Record<string, unknown>;
-    if (doc.autoShareNoticeAt) return;
+    if ((data?.data as { at?: unknown } | null)?.at) return;
     const { error: upErr } = await client
       .from('user_goals')
       .upsert(
-        { user_id: userId, kind: 'client_settings', data: { ...doc, autoShareNoticeAt: new Date().toISOString() } },
+        { user_id: userId, kind: AUTO_SHARE_FLAG_KIND, data: { at: new Date().toISOString() } },
         { onConflict: 'user_id,kind' },
       );
     if (upErr) return; // couldn't stamp → don't notify (avoids repeat notices)

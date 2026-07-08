@@ -2380,19 +2380,18 @@ async function saveWorkoutSessionLog({
     // No-op until the accountability migration is applied.
     try { if (state.user?.id) supabase.rpc('award_workout_session', { p_day: _localDate() }).then(() => {}, () => {}); } catch (e) {}
   }
-  // First-run heads-up (mobile twin of the server notice — same stamp field,
-  // so whichever path shares first wins and the member only ever sees one).
+  // First-run heads-up (mobile twin of the server notice). The stamp lives in
+  // its OWN user_goals row ('auto_share_flag', shared with the server) — never
+  // merged into client_settings, so it can't clobber a concurrent Settings
+  // change. Whichever path shares first wins; the member sees one toast ever.
   if (feedPost && resolvedPrivacy !== 'private' && supabase && state.user?.id) {
     try {
-      // Skip entirely on a read ERROR — merging onto a doc we couldn't read
-      // would clobber the member's real settings with just the stamp.
-      const { data: sdoc, error: sErr } = await supabase.from('user_goals').select('data')
-        .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
-      if (sErr) throw sErr;
-      const d = (sdoc && sdoc.data) || {};
-      if (!d.autoShareNoticeAt) {
+      const { data: fdoc, error: fErr } = await supabase.from('user_goals').select('data')
+        .eq('user_id', state.user.id).eq('kind', 'auto_share_flag').maybeSingle();
+      if (fErr) throw fErr;
+      if (!(fdoc && fdoc.data && fdoc.data.at)) {
         await supabase.from('user_goals').upsert(
-          { user_id: state.user.id, kind: 'client_settings', data: { ...d, autoShareNoticeAt: new Date().toISOString() } },
+          { user_id: state.user.id, kind: 'auto_share_flag', data: { at: new Date().toISOString() } },
           { onConflict: 'user_id,kind' });
         window.__bsToast?.('Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
       }

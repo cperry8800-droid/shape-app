@@ -2092,6 +2092,19 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   );
 }
 
+// Retro-tighten past auto-posts when a Settings change makes the member's
+// share level STRICTER (Share off, or profile → more private). Loosening never
+// touches history. Shared by both preference-update handlers so the rule can't
+// drift between them. Fire-and-forget.
+function bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs) {
+  try {
+    const ws = window.ShapeWorkoutShare;
+    if (!ws) return;
+    const before = ws.rule(prevPrefs); const after = ws.rule(nextPrefs);
+    if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
+  } catch (e) {}
+}
+
 // ── Live home week ───────────────────────────────────────────────────────────
 // Builds the home day-log / week-dots / up-next models from the REAL assigned
 // plan (/api/client/plan — the same source the Train + Eat tabs read), so a
@@ -21116,17 +21129,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') {
-        // Stricter share level → retro-tighten past auto-posts (fire-and-forget);
-        // loosening never touches history (never surprise-publish old workouts).
-        try {
-          const ws = window.ShapeWorkoutShare;
-          if (ws) {
-            const before = ws.rule(p); const after = ws.rule(next);
-            if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
-          }
-        } catch (e) {}
-      }
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
       return next;
     });
   };
@@ -21140,17 +21143,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') {
-        // Stricter share level → retro-tighten past auto-posts (fire-and-forget);
-        // loosening never touches history (never surprise-publish old workouts).
-        try {
-          const ws = window.ShapeWorkoutShare;
-          if (ws) {
-            const before = ws.rule(p); const after = ws.rule(next);
-            if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
-          }
-        } catch (e) {}
-      }
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
       return next;
     });
   };
