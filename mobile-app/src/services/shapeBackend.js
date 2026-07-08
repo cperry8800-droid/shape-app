@@ -7,6 +7,8 @@ import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
+import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
+import { bsMaterializeOutline } from './planOutline.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -1439,6 +1441,140 @@ async function assignClientWorkout({
   }
   return { stored: 'supabase', data: workoutFromRow(data) };
 }
+
+// ─── Self-authored training ──────────────────────────────────────────────────
+// A member with no coach builds their own workouts, programs and race
+// schedules. Self rows are client_workouts with trainer_id NULL, written
+// directly under the client self-CRUD RLS (2026-07-08-self-authored-workouts).
+// The client's /api/client/plan reads them back exactly like coach rows.
+function selfRunId() {
+  return 'p' + Math.random().toString(36).slice(2, 9);
+}
+// Shape a materialized row into a client_workouts insert record (self row).
+function selfWorkoutRow({ title, description = '', scheduledDate = null, payload = {} }) {
+  return {
+    trainer_id: null,
+    client_id: state.user.id,
+    title: title || 'Workout',
+    description: description || '',
+    kind: 'custom',
+    payload: payload || {},
+    scheduled_date: scheduledDate || null,
+    status: 'published',
+  };
+}
+// One self-row insert (self = trainer_id null, client = the signed-in user).
+async function insertSelfWorkout(spec) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const { data, error } = await supabase.from('client_workouts').insert(selfWorkoutRow(spec)).select().single();
+  if (error) throw error;
+  return workoutFromRow(data);
+}
+// Batch insert (one round-trip) — a full program is up to CAP (182) rows.
+async function insertSelfWorkouts(specs) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  if (!specs.length) return [];
+  const { data, error } = await supabase.from('client_workouts').insert(specs.map(selfWorkoutRow)).select();
+  if (error) throw error;
+  return (data || []).map(workoutFromRow);
+}
+// A weekly-repeating session — ONE row carrying payload.repeatDow. When editId
+// is passed (Edit · Yours), the prior repeat row is retired after the new one
+// lands so removed weekdays don't linger and duplicates can't accumulate.
+async function saveSelfSession({ name, discipline, repeatDow, moves, time, editId } = {}) {
+  const spec = bsRepeatSpec({ name, discipline, repeatDow, moves, time });
+  const created = await insertSelfWorkout({ title: spec.title, description: spec.description, payload: spec.payload });
+  if (editId && editId !== created.id) {
+    try { await supabase.from('client_workouts').delete().eq('id', editId).is('trainer_id', null); } catch (e) {}
+  }
+  invalidateClientMetrics();
+  return { runId: null, count: 1, data: created };
+}
+// A multi-week program — dated rows materialized across the block, stamped
+// payload.program{runId}, inserted in ONE batch. The rows land FIRST; a caller
+// replacing a prior block deletes it only after (atomic-in-effect) — see
+// startPurchasedPlan/removeProgram.
+async function saveSelfProgram({ name, discipline, weeks, startISO } = {}) {
+  const runId = selfRunId();
+  const rows = bsMaterializeProgram({ name, discipline, weeks, startISO, runId });
+  await insertSelfWorkouts(rows);
+  invalidateClientMetrics();
+  return { runId, count: rows.length };
+}
+// Start a PURCHASED plan onto the calendar. Materialize the outline → insert the
+// NEW block (fresh runId, one batch) → only then delete the prior plan:<id> rows
+// with a different runId. A mid-flow failure leaves the old block intact; readers
+// show the newest runId, so a re-start never duplicates.
+async function startPurchasedPlan({ plan, startISO, weeks = 4 } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const runId = selfRunId();
+  const rows = bsMaterializeOutline({ plan, startISO, weeks, runId });
+  await insertSelfWorkouts(rows);
+  // New block landed — retire the prior run of THIS plan (best-effort).
+  try {
+    const programId = `plan:${plan.id}`;
+    const { data: prior } = await supabase.from('client_workouts')
+      .select('id, payload')
+      .eq('client_id', state.user.id)
+      .is('trainer_id', null);
+    const stale = (prior || []).filter((w) => {
+      const p = w.payload && w.payload.program;
+      return p && p.id === programId && p.runId && p.runId !== runId;
+    }).map((w) => w.id);
+    if (stale.length) await supabase.from('client_workouts').delete().in('id', stale);
+  } catch (e) { /* the new block is live; a stale-row sweep failure is non-fatal */ }
+  invalidateClientMetrics();
+  return { runId, count: rows.length };
+}
+// Delete a single self row (edit/retire one day) or a whole program by its id.
+async function removeSelfWorkout(id) {
+  if (!supabase || !state.user?.id || !id) return { ok: false };
+  const { error } = await supabase.from('client_workouts').delete().eq('id', id).is('trainer_id', null);
+  invalidateClientMetrics();
+  return { ok: !error, error };
+}
+async function removeSelfProgram(programId) {
+  if (!supabase || !state.user?.id || !programId) return { ok: false };
+  const { data: rows } = await supabase.from('client_workouts')
+    .select('id, payload').eq('client_id', state.user.id).is('trainer_id', null);
+  const ids = (rows || []).filter((w) => w.payload && w.payload.program && w.payload.program.id === programId).map((w) => w.id);
+  if (ids.length) await supabase.from('client_workouts').delete().in('id', ids);
+  invalidateClientMetrics();
+  return { ok: true, count: ids.length };
+}
+// The member's own self rows (for edit/delete surfaces).
+async function listSelfWorkouts() {
+  if (!supabase || !state.user?.id) return [];
+  const { data } = await supabase.from('client_workouts')
+    .select('*').eq('client_id', state.user.id).is('trainer_id', null).eq('status', 'published');
+  return (data || []).map(workoutFromRow);
+}
+window.ShapeSelfTraining = {
+  saveSession: saveSelfSession,
+  saveProgram: saveSelfProgram,
+  startPurchasedPlan,
+  remove: removeSelfWorkout,
+  removeProgram: removeSelfProgram,
+  list: listSelfWorkouts,
+};
+
+// ✦ AI draft for the builder — POST a goal, get a STRUCTURED program back (the
+// builder's review shape). Returns null on any failure (the sheet shows the
+// honest "unavailable" fallback); NOTHING is saved here.
+async function draftTrainingProgram({ goal, weeks, daysPerWeek, discipline, experience } = {}) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/ai/draft-program`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ goal, weeks, daysPerWeek, discipline, experience }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d || !d.program) return null;
+    return d.program; // { name, discipline, weeks: [...] }
+  } catch (e) { return null; }
+}
+window.ShapeTrainingAI = { draft: draftTrainingProgram };
 
 async function updateClientWorkout({ workoutId, patch = {} } = {}) {
   if (!workoutId) {

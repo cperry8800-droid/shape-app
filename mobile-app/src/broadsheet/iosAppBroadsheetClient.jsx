@@ -13,6 +13,8 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
+import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
+import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -1249,7 +1251,7 @@ function useBSLibrary() {
       if (window.ShapeCoachPlans && window.ShapeCoachPlans.purchased) {
         window.ShapeCoachPlans.purchased().then((plans) => {
           if (!Array.isArray(plans) || !plans.length) return;
-          const owned = plans.map((p) => ({ id: 'plan-' + p.id, kind: 'plan', title: p.name, meta: p.meta || 'Purchased plan', owned: true, savedAt: p.purchasedAt ? new Date(p.purchasedAt).getTime() : Date.now() }));
+          const owned = plans.map((p) => ({ id: 'plan-' + p.id, kind: 'plan', title: p.name, meta: p.meta || 'Purchased plan', owned: true, planId: p.id, planKind: p.kind, detail: p.detail || {}, savedAt: p.purchasedAt ? new Date(p.purchasedAt).getTime() : Date.now() }));
           setItems((cur) => {
             const byId = new Map();
             for (const it of [...owned, ...cur]) if (it && it.id && !byId.has(it.id)) byId.set(it.id, it);
@@ -1296,6 +1298,25 @@ function BSLibraryDetail({ item, onBack }) {
   const km = BS_LIB_KINDS[item.kind] || { label: item.kind || 'Saved', color: t.INK50 };
   const lib = useBSLibrary();
   const saved = lib.some(x => x.id === item.id);
+  // A PURCHASED training plan can be scheduled onto the calendar (Start-this-plan).
+  const canStart = !!(item.owned && item.kind === 'plan' && item.planKind !== 'meal_plan' && item.planId != null && window.ShapeSelfTraining?.startPurchasedPlan);
+  const [startSheet, setStartSheet] = useStateBSC(false);
+  // Default start = next Monday, as YYYY-MM-DD.
+  const nextMonISO = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + ((8 - ((d.getDay() + 6) % 7 + 1)) % 7 || 7)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const [startISO, setStartISO] = useStateBSC(nextMonISO);
+  const [startWeeks, setStartWeeks] = useStateBSC(4);
+  const [starting, setStarting] = useStateBSC(false);
+  const [startErr, setStartErr] = useStateBSC('');
+  const doStart = async () => {
+    if (starting) return;
+    setStarting(true); setStartErr('');
+    try {
+      await window.ShapeSelfTraining.startPurchasedPlan({ plan: { id: item.planId, name: item.title, detail: item.detail || {} }, startISO, weeks: startWeeks });
+      window.__bsToast && window.__bsToast('On your Train tab', 'ok');
+      setStartSheet(false); onBack();
+    } catch (e) { setStartErr(String(e?.message || 'Could not start the plan.')); }
+    setStarting(false);
+  };
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
@@ -1322,10 +1343,38 @@ function BSLibraryDetail({ item, onBack }) {
           {item.savedAt ? <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
         </div>
       </div>
+      {canStart && (
+        <div style={{ padding: `16px ${t.padX}px 0` }}>
+          <button onClick={() => setStartSheet(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Start this plan →</button>
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Schedules the program onto your Train calendar as your own — edit any day.</div>
+        </div>
+      )}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <button onClick={() => { bsLibToggle(item); onBack(); }} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
       </div>
       <BSFooter right="Library" />
+      {startSheet && (
+        <div onClick={() => !starting && setStartSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Start plan</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{item.title}</div>
+            <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+            <label style={{ display: 'block' }}><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Start date</span>
+              <input className="bs-uline" type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} /></label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Weeks</span>
+              <button onClick={() => setStartWeeks(Math.max(1, startWeeks - 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{startWeeks}</span>
+              <button onClick={() => setStartWeeks(Math.min(26, startWeeks + 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
+            </div>
+            {startErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{startErr}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+              <button onClick={() => !starting && setStartSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+              <button onClick={doStart} disabled={starting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: starting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{starting ? 'Starting…' : 'Add to my week →'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </BSPage>
   );
 }
@@ -3267,16 +3316,34 @@ function bsBuildTrainProgram(workouts, t) {
   monday.setDate(monday.getDate() - bsWeekdayIdx(monday));
   const dateFor = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; };
 
-  // Slot workouts onto the week.
+  // Slot workouts onto the week. Dated rows claim their day first; then
+  // weekly-repeat self sessions (payload.repeatDow) fill their weekdays via
+  // bsSlotRepeats (respecting taken slots); finally any remaining undated rows
+  // fill the gaps in order.
+  const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
   const slots = [null, null, null, null, null, null, null];
+  const repeats = [];
   const unscheduled = [];
   for (const w of (workouts || [])) {
     if (w.scheduledDate) {
+      // Dated rows belong to their exact day. In this week + slot free → place it;
+      // slot taken or outside this week (a program's future/past day) → ignore
+      // (the deck is a 7-day view; other weeks show on the calendar).
       const dt = new Date(w.scheduledDate + 'T00:00:00');
       const idx = Math.round((dt - monday) / 86400000);
-      if (idx >= 0 && idx <= 6 && !slots[idx]) { slots[idx] = w; continue; }
+      if (idx >= 0 && idx <= 6 && !slots[idx]) slots[idx] = w;
+      continue;
     }
+    if (Array.isArray(w.repeatDow) && w.repeatDow.length) { repeats.push({ ...w, payload: { repeatDow: w.repeatDow } }); continue; }
     unscheduled.push(w);
+  }
+  // bsSlotRepeats reads payload.repeatDow — carry the original workout on the slot.
+  const repeatByDow = bsSlotRepeats(repeats, mondayISO);
+  for (let i = 0; i < 7; i++) {
+    if (!slots[i] && repeatByDow[i]) {
+      const orig = repeats.find((r) => r === repeatByDow[i]);
+      slots[i] = orig || repeatByDow[i];
+    }
   }
   for (let i = 0; i < 7 && unscheduled.length; i++) {
     if (!slots[i]) slots[i] = unscheduled.shift();
@@ -3294,10 +3361,15 @@ function bsBuildTrainProgram(workouts, t) {
       };
     }
     const moves = (w.exercises || []).map((e, j) => {
+      // Segment rows (a run/ride/swim leg or a Hyrox station) show their free
+      // descriptor as the scheme line, with no load column.
+      if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '' };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
       return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—' };
     });
+    const isSelf = !!w.selfAuthored;
+    const prog = w.program && w.program.id ? w.program : null;
     const isCustom = w.kind === 'custom';
     const timeLabel = w.time ? (() => {
       const [h, m] = String(w.time).split(':').map(Number);
@@ -3305,21 +3377,29 @@ function bsBuildTrainProgram(workouts, t) {
       const ap = h >= 12 ? 'PM' : 'AM';
       return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${ap}`;
     })() : '';
+    // Honest byline: self days are "Programmed by you" (or the program name · Wn),
+    // never a fabricated coach name; coach days keep the coach copy.
+    const selfByline = prog ? `${prog.name || 'Your program'}${prog.week ? ` · Week ${prog.week}` : ''}` : 'Programmed by you';
     return {
       d: label,
-      kicker: 'The Training',
+      kicker: isSelf ? 'The Training' : 'The Training',
       title: w.title || 'Workout',
-      tag: isCustom ? 'CUSTOM' : 'FEATURE',
-      tagColor: isCustom ? t.BLUE : t.AMBER,
+      tag: isSelf ? 'YOURS' : (isCustom ? 'CUSTOM' : 'FEATURE'),
+      tagColor: isSelf ? t.ACCENT : (isCustom ? t.BLUE : t.AMBER),
       accent: ACCENTS[i % ACCENTS.length],
       time: w.time || '',
       timeLabel,
       headline: w.title || 'Workout',
       meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
-      copy: w.description || 'Programmed by your coach.',
+      copy: w.description || (isSelf ? selfByline : 'Programmed by your coach.'),
       moves,
       total: `${moves.length} move${moves.length === 1 ? '' : 's'}`,
-      coachLine: w.description || 'Move with intent. Quality over load.',
+      coachLine: isSelf ? selfByline : (w.description || 'Move with intent. Quality over load.'),
+      // Self-authoring metadata the hero + edit affordance read.
+      selfAuthored: isSelf,
+      program: prog,
+      workoutId: w.id || null,
+      repeatDow: Array.isArray(w.repeatDow) ? w.repeatDow : null,
     };
   });
 }
@@ -3574,6 +3654,330 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// SELF-SERVE TRAINING — build your own week, program & race schedule
+// ═══════════════════════════════════════════════════════════
+const BS_BUILDER_DISCIPLINES = ['strength', 'run', 'ride', 'swim', 'row', 'conditioning', 'hybrid'];
+const BS_BUILDER_DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// A blank move row for the builder. Lift by default; a per-row toggle flips to segment.
+const bsBlankMove = () => ({ type: 'lift', name: '', sets: '3', reps: '8', load: '', seg: '' });
+// Weeks from today → a race date (at least 1).
+function bsWeeksUntil(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  const race = new Date(y, (m || 1) - 1, d || 1);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((race - today) / 86400000);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  return Math.max(1, Math.min(26, Math.ceil(days / 7)));
+}
+
+// The full-page builder. seed = { mode, name, discipline, moves?, weeks? (program
+// review), programId? } | null. Quiet Open Ledger form grammar.
+function BSWorkoutBuilder({ seed, onClose, onSaved }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const [mode, setMode] = useStateBSC(seed?.mode || 'session');
+  const [name, setName] = useStateBSC(seed?.name || '');
+  const [discipline, setDiscipline] = useStateBSC(seed?.discipline || 'strength');
+  // SESSION state
+  const [repeatDow, setRepeatDow] = useStateBSC(seed?.repeatDow || [bsWeekdayIdx()]);
+  const [time, setTime] = useStateBSC(seed?.time || '');
+  const [moves, setMoves] = useStateBSC(() =>
+    (seed?.moves && seed.moves.length)
+      ? seed.moves.map((m) => ({ type: m.seg ? 'seg' : 'lift', name: m.name || '', sets: m.sets != null ? String(m.sets) : '3', reps: m.reps != null ? String(m.reps) : '8', load: m.load || '', seg: m.seg || '' }))
+      : [bsBlankMove()]);
+  // PROGRAM state — a week-by-week review the member edits before saving.
+  const [progName, setProgName] = useStateBSC(seed?.name || '');
+  const [progDiscipline, setProgDiscipline] = useStateBSC(seed?.discipline || 'run');
+  const [starterId, setStarterId] = useStateBSC(seed?.programId || null); // re-deriving starter length
+  const [weeks, setWeeks] = useStateBSC(seed?.weeks?.length || (seed?.programId ? (BS_STARTER_PROGRAMS.find((p) => p.id === seed.programId)?.defaultWeeks || 8) : 8));
+  const [raceDate, setRaceDate] = useStateBSC('');
+  const [reviewWeeks, setReviewWeeks] = useStateBSC(seed?.weeks || []);
+  const [openWeek, setOpenWeek] = useStateBSC(0);
+  const [status, setStatus] = useStateBSC('');
+  // ✦ AI draft prompt sheet — { goal, days, exp } | null. Auto-opens when the
+  // door launched the builder via "Draft it for me".
+  const [draft, setDraft] = useStateBSC(seed?.autoDraft ? { goal: '', days: 4, exp: 'intermediate' } : null);
+  const [drafting, setDrafting] = useStateBSC(false);
+  const [draftErr, setDraftErr] = useStateBSC('');
+  const runDraft = async () => {
+    if (drafting) return;
+    setDrafting(true); setDraftErr('');
+    try {
+      const prog = await window.ShapeTrainingAI?.draft?.({ goal: draft.goal, weeks, daysPerWeek: draft.days, discipline: progDiscipline, experience: draft.exp });
+      if (!prog || !Array.isArray(prog.weeks) || !prog.weeks.length) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); setDrafting(false); return; }
+      setStarterId(null);
+      setProgName(prog.name || progName || 'My program');
+      if (prog.discipline) setProgDiscipline(prog.discipline);
+      setReviewWeeks(prog.weeks);
+      setWeeks(prog.weeks.length);
+      setOpenWeek(0);
+      setDraft(null);
+    } catch (e) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); }
+    setDrafting(false);
+  };
+
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
+
+  // A move-name datalist from the swap catalog + starter templates.
+  const moveNames = React.useMemo(() => {
+    const s = new Set();
+    try { Object.keys(BS_MOVE_SWAPS || {}).forEach((k) => s.add(k.replace(/\b\w/g, (c) => c.toUpperCase()))); } catch (e) {}
+    BS_STARTER_SESSIONS.forEach((sess) => sess.moves.forEach((m) => s.add(m.name)));
+    return [...s].slice(0, 120);
+  }, []);
+
+  // Re-derive a starter-seeded program when the length changes; a custom/draft
+  // program just clamps its weeks array.
+  const applyLength = (w) => {
+    const nw = Math.max(1, Math.min(26, Math.round(Number(w) || 1)));
+    setWeeks(nw);
+    if (starterId) {
+      const sched = bsStarterProgram(starterId, nw);
+      if (sched) { setReviewWeeks(sched.weeks); setProgDiscipline(sched.discipline); }
+    } else if (reviewWeeks.length) {
+      // Clamp or extend by repeating the last authored week.
+      const next = reviewWeeks.slice(0, nw);
+      while (next.length < nw) { const last = next[next.length - 1] || { days: [] }; next.push({ week: next.length + 1, days: (last.days || []).map((d) => ({ ...d })) }); }
+      setReviewWeeks(next.map((wk, i) => ({ ...wk, week: i + 1 })));
+    }
+  };
+  const applyRaceDate = (v) => {
+    setRaceDate(v);
+    const w = bsWeeksUntil(v);
+    if (w) applyLength(w);
+  };
+
+  const daysPerWeek = reviewWeeks.length ? Math.max(...reviewWeeks.map((wk) => (wk.days || []).length), 1) : 4;
+  const fits = mode === 'program' ? bsProgramFits(weeks, daysPerWeek) : true;
+  const rowCount = bsProgramRowCount(weeks, daysPerWeek);
+
+  const mondayISO = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - bsWeekdayIdx(d)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+
+  const toggleDow = (i) => setRepeatDow((prev) => prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort((a, b) => a - b));
+  const setMove = (i, patch) => setMoves((prev) => prev.map((m, j) => j === i ? { ...m, ...patch } : m));
+  const addMove = () => setMoves((prev) => [...prev, bsBlankMove()]);
+  const rmMove = (i) => setMoves((prev) => prev.length > 1 ? prev.filter((_, j) => j !== i) : prev);
+
+  const saveSession = async () => {
+    if (status === 'working') return;
+    const clean = moves.filter((m) => String(m.name || '').trim());
+    if (!clean.length || !repeatDow.length) { setStatus('Add a move + at least one day.'); return; }
+    setStatus('working');
+    try {
+      await window.ShapeSelfTraining.saveSession({
+        name: name.trim() || 'My workout', discipline, time: time || null, repeatDow, editId: seed?.editId || null,
+        moves: clean.map((m) => m.type === 'seg' ? { name: m.name.trim(), seg: m.seg.trim() || '—' } : { name: m.name.trim(), sets: m.sets, reps: m.reps, load: m.load }),
+      });
+      window.__bsToast && window.__bsToast('Added to your week', 'ok');
+      onSaved && onSaved();
+    } catch (e) { setStatus(String(e?.message || 'Could not save.')); }
+  };
+  const saveProgram = async () => {
+    if (status === 'working' || !fits) return;
+    if (!reviewWeeks.length) { setStatus('Pick a starter or draft a program first.'); return; }
+    setStatus('working');
+    try {
+      const res = await window.ShapeSelfTraining.saveProgram({ name: progName.trim() || 'My program', discipline: progDiscipline, weeks: reviewWeeks, startISO: mondayISO });
+      window.__bsToast && window.__bsToast(`${res.count}-session program added`, 'ok');
+      onSaved && onSaved();
+    } catch (e) { setStatus(String(e?.message || 'Could not save.')); }
+  };
+
+  const chip = (active, label, onClick) => (
+    <button key={label} onClick={onClick} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${active ? teal : t.RULE}`, background: active ? `${teal}1c` : 'transparent', color: active ? teal : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
+  );
+  const modeTab = (m, label) => (
+    <button onClick={() => setMode(m)} style={{ background: 'transparent', border: 0, padding: '4px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === m ? t.INK : t.INK50, borderBottom: mode === m ? `2px solid ${teal}` : '2px solid transparent' }}>{label}</button>
+  );
+
+  const sheet = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Build · Training</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>training.</span></h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+        <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>{modeTab('session', 'Session')}{modeTab('program', 'Program')}</div>
+      </div>
+
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {mode === 'session' ? (
+          <>
+            <label style={{ display: 'block' }}><span style={lbl}>Name</span><input className="bs-uline" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Push day" style={field} /></label>
+            <div><div style={lbl}>Discipline</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_DISCIPLINES.map((d) => chip(discipline === d, d, () => setDiscipline(d)))}</div></div>
+            <div><div style={lbl}>Repeat on</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{BS_BUILDER_DOW.map((d, i) => chip(repeatDow.includes(i), d, () => toggleDow(i)))}</div></div>
+            <label style={{ display: 'block' }}><span style={lbl}>Time (optional)</span><input className="bs-uline" type="time" value={time} onChange={(e) => setTime(e.target.value)} style={field} /></label>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}><span style={lbl}>Moves</span><span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{moves.length}</span></div>
+              <datalist id="bs-move-names">{moveNames.map((n) => <option key={n} value={n} />)}</datalist>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {moves.map((m, i) => (
+                  <div key={i} style={{ borderLeft: `2px solid ${t.RULE}`, paddingLeft: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
+                      <button onClick={() => setMove(i, { type: m.type === 'lift' ? 'seg' : 'lift' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 8px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.type === 'lift' ? 'Lift' : 'Segment'} ⇄</button>
+                      <button onClick={() => rmMove(i)} aria-label="Remove move" style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, padding: 2 }}>✕</button>
+                    </div>
+                    <input className="bs-uline" list="bs-move-names" value={m.name} onChange={(e) => setMove(i, { name: e.target.value })} placeholder={m.type === 'lift' ? 'Exercise' : 'Segment (e.g. Run)'} style={{ ...field, fontSize: 15 }} />
+                    {m.type === 'lift' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 12, marginTop: 8 }}>
+                        <label><span style={lbl}>Sets</span><input className="bs-uline bs-no-spin" type="number" inputMode="numeric" value={m.sets} onChange={(e) => setMove(i, { sets: e.target.value })} style={{ ...field, fontSize: 14 }} /></label>
+                        <label><span style={lbl}>Reps</span><input className="bs-uline" value={m.reps} onChange={(e) => setMove(i, { reps: e.target.value })} placeholder="8-12" style={{ ...field, fontSize: 14 }} /></label>
+                        <label><span style={lbl}>Load</span><input className="bs-uline" value={m.load} onChange={(e) => setMove(i, { load: e.target.value })} placeholder="optional" style={{ ...field, fontSize: 14 }} /></label>
+                      </div>
+                    ) : (
+                      <label style={{ display: 'block', marginTop: 8 }}><span style={lbl}>Distance / duration · zone</span><input className="bs-uline" value={m.seg} onChange={(e) => setMove(i, { seg: e.target.value })} placeholder="10 mi · Z2" style={{ ...field, fontSize: 14 }} /></label>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={addMove} style={{ marginTop: 12, width: '100%', minHeight: 42, border: `1px dashed ${t.RULE}`, borderRadius: 6, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ Add move</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label style={{ display: 'block' }}><span style={lbl}>Name</span><input className="bs-uline" value={progName} onChange={(e) => setProgName(e.target.value)} placeholder="e.g. Marathon block" style={field} /></label>
+            <div><div style={lbl}>Discipline</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{['run', 'ride', 'swim', 'triathlon', 'hybrid', 'strength'].map((d) => chip(progDiscipline === d, d, () => setProgDiscipline(d)))}</div></div>
+            <button onClick={() => setDraft({ goal: draft?.goal || '', days: daysPerWeek || 4, exp: draft?.exp || 'intermediate' })} style={{ width: '100%', minHeight: 44, border: `1px solid ${teal}`, borderRadius: 6, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'end' }}>
+              <div><div style={lbl}>Weeks</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button onClick={() => applyLength(weeks - 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 15 }}>−</button>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}>{weeks}</span>
+                  <button onClick={() => applyLength(weeks + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 15 }}>＋</button>
+                </div>
+              </div>
+              <label style={{ display: 'block' }}><span style={lbl}>Race date (optional)</span><input className="bs-uline" type="date" value={raceDate} onChange={(e) => applyRaceDate(e.target.value)} style={field} /></label>
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: fits ? t.INK50 : '#c0533b', letterSpacing: '0.04em' }}>
+              {reviewWeeks.length ? `${rowCount} session${rowCount === 1 ? '' : 's'} · ${daysPerWeek}/wk` : 'Pick a starter program or ✦ draft one to fill the weeks.'}
+              {!fits && ` — over ${BS_BUILDER_CAP}; trim the length or days.`}
+            </div>
+            {/* Week-by-week review */}
+            {reviewWeeks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {reviewWeeks.map((wk, wi) => (
+                  <div key={wi} style={{ borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
+                    <button onClick={() => setOpenWeek(openWeek === wi ? -1 : wi)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '10px 0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Week {wk.week}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{(wk.days || []).length} day{(wk.days || []).length === 1 ? '' : 's'} {openWeek === wi ? '▾' : '▸'}</span>
+                    </button>
+                    {openWeek === wi && (
+                      <div style={{ padding: '0 0 12px' }}>
+                        {(wk.days || []).map((d, di) => (
+                          <div key={di} style={{ padding: '6px 0', borderTop: di === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}` }}>
+                            <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{BS_BUILDER_DOW[d.dow]} · {d.title}</div>
+                            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2 }}>{(d.moves || []).map((m) => m.seg || `${m.name} ${m.sets || ''}×${m.reps || ''}`).join(' · ') || 'Rest'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Starter shortcuts to fill the review */}
+            {!reviewWeeks.length && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {BS_STARTER_PROGRAMS.map((p) => (
+                  <button key={p.id} onClick={() => { setStarterId(p.id); setProgName(progName || p.name); const sched = bsStarterProgram(p.id, p.defaultWeeks); setProgDiscipline(sched.discipline); setWeeks(p.defaultWeeks); setReviewWeeks(sched.weeks); }} style={{ padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer' }}>{p.name} · {p.defaultWeeks}wk</button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {status && status !== 'working' && <div style={{ fontFamily: t.MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>{status}</div>}
+      </div>
+
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+        <button onClick={mode === 'session' ? saveSession : saveProgram} disabled={status === 'working' || (mode === 'program' && !fits)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: (mode === 'program' && !fits) ? bsTHexA(teal, 0.4) : teal, color: t.isLight ? '#fff' : '#04201d', cursor: (status === 'working' || (mode === 'program' && !fits)) ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{status === 'working' ? 'Saving…' : mode === 'session' ? 'Add to my week →' : 'Add program →'}</button>
+      </div>
+
+      {/* ✦ Draft it for me — a goal prompt → a structured draft into the review.
+          Nothing is saved here; the draft just fills the week-by-week list. */}
+      {draft && (
+        <div onClick={() => !drafting && setDraft(null)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>✦ Draft it for me</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Shape drafts a {weeks}-week plan you can edit before saving.</div>
+            <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+            <textarea value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} rows={3} placeholder="e.g. first marathon on Oct 12, I run 3 days a week now" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 6, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Days/wk</span>
+              <button onClick={() => setDraft({ ...draft, days: Math.max(1, draft.days - 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{draft.days}</span>
+              <button onClick={() => setDraft({ ...draft, days: Math.min(7, draft.days + 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+              {['beginner', 'intermediate', 'advanced'].map((x) => chip(draft.exp === x, x, () => setDraft({ ...draft, exp: x })))}
+            </div>
+            {draftErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{draftErr}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+              <button onClick={() => !drafting && setDraft(null)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+              <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? 'Drafting…' : '✦ Draft my plan'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+// The empty-week landing for a signed-in member with no plan: the door to
+// building. Template shelves + custom + AI draft + open session.
+function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, onDraft }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const head = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '18px 0 9px' }}>{txt}</div>;
+  return (
+    <div style={{ padding: `2px ${t.padX}px 40px` }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginTop: 10 }}>No plan yet</div>
+      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>Build your <span style={{ fontStyle: 'italic', color: teal }}>week.</span></div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Start from a template, build your own, or let Shape draft a plan for your goal — no coach required.</div>
+      <div aria-hidden style={{ margin: '14px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 16 }}>
+        <button onClick={onBuild} style={{ width: '100%', minHeight: 48, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Build your own →</button>
+        <div style={{ display: 'flex', gap: 9 }}>
+          <button onClick={onDraft} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${teal}`, background: `${teal}12`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
+          <button onClick={onOpenSession} style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Open session</button>
+        </div>
+      </div>
+
+      {head('Sessions · one-tap')}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+        {BS_STARTER_SESSIONS.map((s) => (
+          <button key={s.id} onClick={() => onStartTemplate(s)} style={{ padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{s.name}</button>
+        ))}
+      </div>
+
+      {head('Programs · multi-week')}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {BS_STARTER_PROGRAMS.map((p, i) => (
+          <button key={p.id} onClick={() => onStartProgram(p)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}`, padding: '12px 0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK }}>{p.name}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.06em' }}>{p.defaultWeeks} wk · {p.daysPerWeek}/wk →</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // TRAIN — workout-focused page
 // ═══════════════════════════════════════════════════════════
 function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, goMarket = () => {}, autoStart = false, onAutoStartConsumed = () => {} }) {
@@ -3597,21 +4001,22 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return () => { cancelled = true; };
   }, []);
   const [liveProgram, setLiveProgram] = useStateBSC(null);
+  const [planLoaded, setPlanLoaded] = useStateBSC(false);
+  const [builder, setBuilder] = useStateBSC(null); // { mode, ...seed } | null — the self-serve builder overlay
 
-  // Pull the client's assigned plan; fall back to the demo program below when
-  // nothing is assigned (keeps the screen rich for unassigned/demo accounts).
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await window.ShapePlan?.get?.();
-        if (cancelled || !p?.training?.hasPlan) return;
-        setLiveProgram(bsBuildTrainProgram(p.training.workouts, t));
-        setDay(bsWeekdayIdx());
-      } catch (e) { /* keep demo program */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // Pull the client's assigned OR self-authored plan. A self-save/program lands
+  // in the same table, so a rebuild after saving picks it up. On no plan for a
+  // signed-in member, the Build-your-week door renders (below).
+  const loadPlan = React.useCallback(async () => {
+    try {
+      window.ShapeMetrics?.invalidate?.();
+      const p = await window.ShapePlan?.get?.();
+      if (p?.training?.hasPlan) { setLiveProgram(bsBuildTrainProgram(p.training.workouts, t)); setDay(bsWeekdayIdx()); }
+      else setLiveProgram(null);
+    } catch (e) { /* keep demo program */ }
+    finally { setPlanLoaded(true); }
+  }, [t]);
+  React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })(); return () => { cancelled = true; }; }, []);
 
   // ── Per-day program (demo fallback, May 8–14, 2026) ──
   // Demo fallback program (Mon..Sun) — built from the SHARED client week so the
@@ -3635,15 +4040,51 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Apply any coach-approved exercise swaps the user picked for this day.
   const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
 
+  // Self-serve builder overlay (Build your week / edit a self day). On save it
+  // reloads the plan so the new/edited program shows on the deck immediately.
+  if (builder) return <BSWorkoutBuilder seed={builder} onClose={() => setBuilder(null)} onSaved={() => { setBuilder(null); loadPlan(); }} />;
+
   // Parse "4 × 8 · …" → { sets: 4, reps: '8' } so the live player reflects the
   // actual session; segment-style cardio (no "× reps") falls back to one set.
-  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => {
+  // An empty move list = an OPEN session (log as you go); the player seeds a
+  // blank move and shows ＋ Add move.
+  if (session) return <BSSession title={effMoves.length === 0 ? 'Open session' : cur.title} moves={effMoves.map(m => {
     const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
     // No authored scheme (assigned-plan outline lines / cardio segments):
     // every move starts at 3 sets. "+ Add set" covers anything beyond.
     return { ...m, sets: mm ? Number(mm[1]) : 3, reps: mm ? mm[2] : '' };
   })} onBack={() => setSession(false)} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
+
+  // Signed-in member with NO plan (assigned or self) → the Build-your-week door
+  // instead of the empty rest-week. Signed-out preview keeps the demo deck.
+  const showBuildDoor = bsTrainSignedIn && planLoaded && !liveProgram;
+  if (showBuildDoor) {
+    const startTemplate = (s) => setBuilder({ mode: 'session', name: s.name, discipline: s.discipline, moves: s.moves });
+    const startProgram = (p) => setBuilder({ mode: 'program', name: p.name, discipline: p.discipline, programId: p.id });
+    return (
+      <BSPage>
+        <BSPageHeader kicker="Train" title="Your training" trailing={<BSHeaderTools onProfile={onProfile} />} />
+        <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
+          <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
+            <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
+          </div>
+          <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
+        </button>
+        <BSBuildDoor
+          onBuild={() => setBuilder({ mode: 'session' })}
+          onOpenSession={() => setSession(true)}
+          onStartTemplate={startTemplate}
+          onStartProgram={startProgram}
+          onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
+        />
+      </BSPage>
+    );
+  }
 
   return (
     <BSPage>
@@ -3667,6 +4108,15 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
 
+      {/* Build a workout — always reachable once a plan exists (the door owns the
+          empty state). Opens the self-serve builder. */}
+      {bsTrainSignedIn && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, margin: `8px ${t.padX}px 0` }}>
+          <button onClick={() => setSession(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Open session</button>
+          <button onClick={() => setBuilder({ mode: 'session' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>＋ Build a workout</button>
+        </div>
+      )}
+
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
@@ -3689,10 +4139,25 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
-          </div>
+          {cur.selfAuthored ? (
+            // Self-programmed day — honest "Programmed by you" (or the program
+            // name · Wn), teal spine. No fabricated coach name. A weekly-repeat
+            // session is editable in place; a program day is edited by re-drafting.
+            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${t.ACCENT}`, padding: '2px 0 2px 10px' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : 'Programmed by you'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? `Your program · Week ${cur.program.week}` : 'Your workout'}</span>
+                {cur.repeatDow && cur.workoutId && (
+                  <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Edit · Yours</button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
+            </div>
+          )}
           {effMoves.length > 0 ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
@@ -19695,9 +20160,15 @@ function bsPlates(total) {
 function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  // Open session (log as you go): no moves were handed in → seed one blank move
+  // and let the athlete name it + add more with ＋ Add move.
+  const openMode = !movesProp.length;
   // The move list is state so a client can add a set mid-workout ("+ Add set"
-  // under the set table) — the new set extends the CURRENT exercise only.
-  const [moves, setMoves] = useStateBSC(() => movesProp.map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
+  // under the set table) — the new set extends the CURRENT exercise only —
+  // and, in an open session, add whole moves as they go ("+ Add move").
+  const [moves, setMoves] = useStateBSC(() =>
+    (movesProp.length ? movesProp : [{ m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }])
+      .map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
       acc[`${mIdx}-${setIdx}`] = {
@@ -19858,6 +20329,17 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
     setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: String(move.rpe || '8') } }));
   };
+  // Open session: append a fresh blank move and jump to it.
+  const addMove = () => {
+    setMoves((ms) => {
+      const next = [...ms, { m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }];
+      setMoveIdx(next.length - 1);
+      return next;
+    });
+    setSetInputs((si) => ({ ...si }));
+  };
+  // Rename the current move (open session — you type it as you log).
+  const renameMove = (val) => setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, m: val } : m)));
 
   const startSet = (setIdx) => {
     const k = `${moveIdx}-${setIdx}`;
@@ -20030,8 +20512,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{move.sets} × {move.reps}</span>
       </div>
       <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
+        {openMode ? (
+          <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder="Name this move…" style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1, background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.INK, 0.25)}`, outline: 'none', padding: '2px 0 8px' }} />
+        ) : (
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
+        )}
+        {!openMode && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
 
@@ -20085,7 +20571,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             </div>
           );
         })}
-        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, width: '100%', minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+          {openMode && <button onClick={addMove} aria-label="Add another move" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add move</button>}
+        </div>
+        {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
 
       {/* Primary log CTA */}
