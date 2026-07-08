@@ -4715,16 +4715,113 @@ function BSMealPreview({ meal, onBack, onLog }) {
 // ═══════════════════════════════════════════════════════════
 // RECIPE PREVIEW — for "Recipe of the day" card (full recipe view)
 // ═══════════════════════════════════════════════════════════
+// The Kitchen Card — B+C combo from the 2026-07-08 concept round: a typed
+// index card (double-ruled frame) carrying the clipping anatomy. BOUNDED by
+// design: header · title · byline · register · figure · ingredients · note.
+// Directions/CTAs live on the page, never inside. Shared by the Shape
+// Kitchen detail and the Eat-day recipe preview.
+function BSKitchenCard({ recipe, no, dayLabel }) {
+  const t = useBS();
+  const r = recipe || {};
+  // Normalize the two recipe shapes (catalog vs day-view).
+  const macros = r.macros || { p: r.p, c: r.c, f: r.f };
+  const by = r.by || null;
+  const byRole = r.byRole || (r.coachNote ? 'Nutritionist' : null);
+  const note = r.tip || r.coachNote || null;
+  const noteName = (by || 'Coach').replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase();
+  const servesLabel = r.servings != null ? String(r.servings) : (r.portion || '—');
+  const ings = Array.isArray(r.ingredients) ? r.ingredients : [];
+  const half = Math.ceil(ings.length / 2);
+  const cols = [ings.slice(0, half), ings.slice(half)];
+  const qty = (ing) => {
+    const q = t.isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m);
+    const kc = ing.k ? String(ing.k).replace(/\s*kcal$/i, '') : null;
+    return kc ? `${q} · ${kc}` : q;
+  };
+  const gold = '#a07a2e';
+  const Dateline = ({ children }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{children}</span>
+      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+    </div>
+  );
+  return (
+    <div style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '16px 16px 18px', position: 'relative' }}>
+      <div aria-hidden style={{ position: 'absolute', top: 7, left: 7, right: 7, bottom: 7, border: `1px solid ${t.HAIR}`, pointerEvents: 'none' }} />
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', textAlign: 'center' }}>
+        Shape Kitchen · {no != null ? `Recipe Nº ${no}` : (dayLabel || 'Recipe')}
+      </div>
+      <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>
+        {String(bsNodeText(r.title) || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span>
+      </div>
+      {by ? (
+        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>
+          From the kitchen of {by}{byRole ? ` · ${byRole}` : ''}
+        </div>
+      ) : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
+        {[
+          ['Kcal', r.kcal != null ? String(r.kcal) : '—', null],
+          ['Macros', macros.p != null ? `${macros.p}P` : '—', macros.c != null ? `${macros.c}C · ${macros.f}F` : null],
+          ['Time', r.time || r.prep || '—', r.time && r.prep ? r.prep : null],
+          ['Serves', servesLabel, null],
+        ].map(([l, v, s]) => (
+          <div key={l}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+            {s ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{s}</div> : null}
+          </div>
+        ))}
+      </div>
+      {r.photo ? (
+        <div style={{ marginTop: 14 }}>
+          <img src={r.photo} alt={`Photograph of ${bsNodeText(r.title)}`} style={{ display: 'block', width: '100%', height: 150, objectFit: 'cover', border: `1px solid ${t.HAIR}`, boxSizing: 'border-box' }} />
+          <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', gap: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span>The plate</span>
+            {no != null ? <span>Fig. {no}</span> : null}
+          </div>
+        </div>
+      ) : null}
+      <Dateline>The ingredients</Dateline>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16, marginTop: 2 }}>
+        {cols.map((col, ci) => (
+          <div key={ci}>
+            {col.map((ing, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '9px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}` }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{qty(ing)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {note ? (
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.6, color: t.INK70 }}>
+          <b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b> {note}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// One canonical library record for a recipe, so the same recipe persists an
+// identical entry no matter which surface saved it (day view / catalog / detail).
+// Uses bsNodeText so a node-shaped day-view title still yields the catalog id.
+function bsRecipeLibItem(r) {
+  const title = bsNodeText(r.title);
+  const meta = r.servings != null ? `${r.kcal} kcal · serves ${r.servings}` : `${r.kcal} kcal`;
+  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: r.by || 'Shape Kitchen' };
+}
+
 function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
   const t = useBS();
   _bsScrollTopOnMount();
-  const [saved, setSaved] = useStateBSC(false);
   const r = recipe;
-
-  const totalCal = (r.p || 0) * 4 + (r.c || 0) * 4 + (r.f || 0) * 9 || 1;
-  const pPct = Math.round(((r.p || 0) * 4 / totalCal) * 100);
-  const cPct = Math.round(((r.c || 0) * 4 / totalCal) * 100);
-  const fPct = 100 - pPct - cPct;
+  // Real library save (was a local-only visual toggle — marked improvement).
+  const lib = useBSLibrary();
+  const _libItem = bsRecipeLibItem(r);
+  const saved = lib.some(x => x.id === _libItem.id);
 
   return (
     <BSPage>
@@ -4734,131 +4831,36 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
         title={r.title}
       />
 
-      {/* Hero halftone */}
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <BSHalftone height={170} accent={r.accent} pattern="dots" />
-      </div>
+      <BSKitchenCard recipe={r} dayLabel={dayLabel} />
 
-      {/* Meta strip */}
-      <div style={{ padding: `12px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', color: t.INK70, fontWeight: 600 }}>
-        {r.meta}
-      </div>
+      {(r.blurb || r.brief) ? (
+        <div style={{ margin: `16px ${t.padX}px 0`, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{r.blurb || r.brief}</div>
+        </div>
+      ) : null}
 
-      {/* Stats row */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        padding: `18px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}`,
-        borderTop: `2px solid ${t.INK}`, marginTop: 18,
-      }}>
-        {[
-          { l: 'KCAL',    v: String(r.kcal) },
-          { l: 'PROTEIN', v: r.p + 'g' },
-          { l: 'CARBS',   v: r.c + 'g' },
-          { l: 'FAT',     v: r.f + 'g' },
-        ].map((s, i) => (
-          <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
-          </div>
+      {/* The directions — outside the card (owner call). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
+        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>The method</span>
+        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
+      </div>
+      <div style={{ padding: `2px ${t.padX}px 0` }}>
+        {(r.steps || []).map((s, i) => (
+          <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
+            <b style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + i)}.</b> {s}
+          </p>
         ))}
       </div>
 
-      {/* Macro split bar */}
-      <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 14, border: `1px solid ${t.INK}` }}>
-          <div style={{ width: `${pPct}%`, background: t.GREEN }} />
-          <div style={{ width: `${cPct}%`, background: t.AMBER }} />
-          <div style={{ width: `${fPct}%`, background: t.RUST }} />
+      <div style={{ padding: `20px ${t.padX}px 0` }}>
+        <button type="button" onClick={onAddGrocery} style={{ display: 'block', width: '100%', padding: 14, border: 0, background: groceryAdded ? t.GREEN : t.ACCENT, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+          {groceryAdded ? '✓ On your grocery list' : 'Add to grocery list →'}
+        </button>
+        <div style={{ display: 'flex', gap: 18, marginTop: 4 }}>
+          <button type="button" onClick={onBack} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Close</button>
+          <button type="button" onClick={() => bsLibToggle(_libItem)} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: saved ? t.ACCENT : t.INK }}>{saved ? '✓ Saved to library' : '♡ Save recipe'}</button>
         </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
-        </div>
-      </div>
-
-      {/* Quick facts */}
-      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', gap: 18, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', color: t.INK70, fontWeight: 600 }}>
-        <span>⏱ {r.prep}</span>
-        <span>· {r.portion}</span>
-        <span>· Score <span style={{ color: t.AMBER, fontWeight: 700 }}>{r.score}</span></span>
-      </div>
-
-      {/* Brief */}
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>The dish</BSEyebrow>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>
-          {r.hero}
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>
-          {r.brief}
-        </div>
-      </div>
-
-      {/* Ingredients */}
-      <BSSection title="Ingredients" meta={`${r.ingredients.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }}>
-          {r.ingredients.map((ing, i) => (
-            <div key={i} style={{
-              padding: '12px 0', borderBottom: i === r.ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              display: 'flex', alignItems: 'baseline', gap: 12,
-            }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 56, letterSpacing: '0.04em' }}>{ing.n}</span>
-              <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{ing.m}</div>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }}>{ing.k}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Method */}
-      <BSSection title="Method" meta={`${r.steps.length} steps`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }}>
-          {r.steps.map((s, i) => (
-            <div key={i} style={{
-              padding: '14px 0', borderBottom: i === r.steps.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              display: 'flex', gap: 12, alignItems: 'flex-start',
-            }}>
-              <span style={{
-                width: 22, height: 22, borderRadius: '50%', background: r.accent, color: t.PAPER,
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{i + 1}</span>
-              <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK85 }}>{s}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Coach note */}
-      <div style={{ margin: `22px ${t.padX}px 0`, padding: 18, background: t.INK, color: t.PAPER }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.AMBER, marginBottom: 10, fontWeight: 700 }}>
-          ▍ Note from Rae · Nutrition
-        </div>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 500, fontSize: 16, lineHeight: 1.4, letterSpacing: '-0.01em' }}>
-          {r.coachNote}
-        </div>
-      </div>
-
-      {/* CTA row */}
-      <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>Close</button>
-        <button onClick={onAddGrocery} style={{ borderRadius: t.RADIUS_SM,
-          flex: 1, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`,
-          background: groceryAdded ? t.GREEN : 'transparent', color: groceryAdded ? t.PAPER : t.INK,
-          fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>{groceryAdded ? 'Added to grocery' : 'Add grocery list'}</button>
-        <button onClick={() => setSaved(s => !s)} style={{ borderRadius: t.RADIUS_SM,
-          flex: 1, padding: '14px', border: 0,
-          background: saved ? t.GREEN : t.INK, color: t.PAPER,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-        }}>{saved ? '✓ Saved to library' : 'Save recipe →'}</button>
       </div>
 
       <BSFooter right="Recipe" />
@@ -5095,10 +5097,10 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   const advCount = (diet !== 'All' ? 1 : 0) + needs.length;
   const resetAdv = () => { setDiet('All'); setNeeds([]); };
   const Chip = ({ label, on, color, onClick, count }) => (
-    <button onClick={onClick} style={{
-      flex: '0 0 auto', padding: '8px 12px', borderRadius: 999, cursor: 'pointer',
-      border: `1px solid ${on ? (color || t.INK) : t.RULE}`, background: on ? (color || t.INK) : 'transparent',
-      color: on ? (color ? '#0a0f0d' : t.PAPER) : t.INK70,
+    <button type="button" onClick={onClick} aria-pressed={on} style={{
+      flex: '0 0 auto', padding: '8px 12px', borderRadius: 3, cursor: 'pointer',
+      border: `1px solid ${on ? (color || t.ACCENT) : t.RULE}`, background: 'transparent',
+      color: on ? (color || t.ACCENT) : t.INK70,
       fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
     }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
   );
@@ -5126,14 +5128,14 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {pills.map(([k, label, count]) => {
             const on = filter === k;
-            return <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 999, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+            return <button type="button" key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 3, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: 'transparent', color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
           })}
-          <button onClick={() => setFiltersOpen(o => !o)} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 999, border: `1px solid ${(filtersOpen || advCount) ? t.INK : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <button type="button" onClick={() => setFiltersOpen(o => !o)} aria-expanded={filtersOpen} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 3, border: `1px solid ${(filtersOpen || advCount) ? t.ACCENT : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Filters{advCount > 0 ? ` · ${advCount}` : ''}
             <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
           </button>
           {advCount > 0 && (
-            <button onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+            <button type="button" onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
           )}
         </div>
         {filtersOpen && (
@@ -5156,28 +5158,30 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
       </div>
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.length === 0 ? (
-          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
+          <div style={{ padding: '20px 2px', textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, color: t.INK70 }}>{filter === 'saved' ? (savedCount === 0 && !q.trim() && advCount === 0 ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No saved recipes match.') : 'No recipes match.'}</div>
         ) : list.map((r, i) => {
           const dc = BS_SK_DIET_COLOR[r.diet] || teal;
           const id = recId(r);
           const saved = savedIds.has(id);
           const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
           const coach = String(r.by || '').split(' ')[0];
+          const no = SHAPE_KITCHEN_RECIPES.indexOf(r) + 1 || null;
           return (
-            <BSPlate key={`${r.title}-${i}`} c={dc} notch={10} spine={2.5} pad="14px 14px 14px 18px">
-              <button onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, display: 'grid', gridTemplateColumns: '62px 1fr', gap: 12, alignItems: 'center' }}>
-                <span style={{ width: 62, height: 62, borderRadius: 6, background: r.hero, flexShrink: 0, border: `1px solid ${t.HAIR}` }} />
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: dc, marginBottom: 4 }}>{cat} · {coach}</span>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
-                  <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
-                </span>
+            <div key={`${r.title}-${i}`} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '12px 14px' }}>
+              <button type="button" onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat} · {coach}</span>
+                <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
+                <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
               </button>
-              <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
-                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 9, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
-                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 9, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+                <button type="button" onClick={() => onSendToGrocery(r)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Send to grocery</span>
+                  <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+                  <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
+                </button>
+                <button type="button" onClick={() => bsLibToggle(bsRecipeLibItem(r))} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
-            </BSPlate>
+            </div>
           );
         })}
       </div>
@@ -5191,12 +5195,8 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   _bsScrollTopOnMount();
   const r = recipe;
   const slug = bsSkSlug(r.title);
-  // Shared "recipe anatomy" with BSMealPreview: macro split (% of kcal).
-  const _mp = r.macros || {};
-  const _totCal = (_mp.p || 0) * 4 + (_mp.c || 0) * 4 + (_mp.f || 0) * 9 || 1;
-  const pPct = Math.round(((_mp.p || 0) * 4 / _totCal) * 100);
-  const cPct = Math.round(((_mp.c || 0) * 4 / _totCal) * 100);
-  const fPct = 100 - pPct - cPct;
+  // Nº = the recipe's real position in the catalog — never fabricated.
+  const _no = (() => { const i = SHAPE_KITCHEN_RECIPES.indexOf(recipe); return i >= 0 ? i + 1 : null; })();
   const [reviews, setReviews] = useStateBSC([]);
   const [formRating, setFormRating] = useStateBSC(0);
   const [reviewText, setReviewText] = useStateBSC('');
@@ -5219,77 +5219,37 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ height: 150, borderRadius: t.RADIUS_SM, background: r.hero, display: 'flex', alignItems: 'flex-end', padding: 12 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '4px 9px', borderRadius: 999 }}>{r.time.toUpperCase()} · SERVES {r.servings} · {r.kcal} KCAL · {(r.diet || '').toUpperCase()}</span>
+
+      <BSKitchenCard recipe={r} no={_no} />
+
+      {r.blurb && (
+        <div style={{ margin: `16px ${t.padX}px 0`, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70, lineHeight: 1.5, textAlign: 'center' }}>
+          &ldquo;{r.blurb}&rdquo;
         </div>
+      )}
+
+      {/* The directions — OUTSIDE the card (owner call): lettered serif steps. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
+        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>The method</span>
+        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
       </div>
-      <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px' }}>
-          {[['KCAL', String(r.kcal)], ['PROTEIN', _mp.p + 'g'], ['CARBS', _mp.c + 'g'], ['FAT', _mp.f + 'g']].map(([l, v], i) => (
-            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            </div>
-          ))}
-        </div>
+      <div style={{ padding: `2px ${t.padX}px 0` }}>
+        {r.steps.map((s, i) => (
+          <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
+            <b style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + i)}.</b> {s}
+          </p>
+        ))}
       </div>
 
-      {/* Macro split bar — % of kcal (shared with the meal page) */}
-      <div style={{ padding: `10px ${t.padX}px 6px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 12, borderRadius: 3, overflow: 'hidden', background: t.HAIR }}>
-          <div style={{ width: `${pPct}%`, background: t.GREEN }} />
-          <div style={{ width: `${cPct}%`, background: t.AMBER }} />
-          <div style={{ width: `${fPct}%`, background: t.RUST }} />
-        </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
-        </div>
-      </div>
-      {r.blurb && (
-        <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <BSEyebrow color={t.ACCENT}>The dish</BSEyebrow>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>"{r.blurb}" — {r.by}, {r.byRole}</div>
-        </div>
-      )}
-      <BSSection title="Ingredients" meta={`${r.ingredients.length} items`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-          {r.ingredients.map((ing, i, arr) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '11px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{t.isMetric ? ing : bsHouseholdStr(ing)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <BSSection title="Method" meta={`${r.steps.length} steps`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-          {r.steps.map((s, i, arr) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, padding: '13px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.ACCENT, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, lineHeight: 1.55 }}>{s}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {r.tip && (
-        <div style={{ padding: `16px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.ACCENT}`, background: t.PAPER2, padding: 14 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 6 }}>Pro tip</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{r.tip}</div>
-          </div>
-        </div>
-      )}
-      <div style={{ padding: `16px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
-        <BSSaveButton full item={{ id: `recipe:${slug}`, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by }} />
-        <button onClick={onAddGrocery} style={{ flex: 1, borderRadius: t.RADIUS_SM, padding: '14px', border: `1px solid ${groceryAdded ? t.GREEN : t.INK}`, background: groceryAdded ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
-          {groceryAdded ? '✓ Grocery list' : 'Add to grocery'}
+      {/* CTAs — clipped teal primary + the shared save toggle. */}
+      <div style={{ padding: `20px ${t.padX}px 0` }}>
+        <button type="button" onClick={onAddGrocery} style={{ display: 'block', width: '100%', padding: 14, border: 0, background: groceryAdded ? t.GREEN : t.ACCENT, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+          {groceryAdded ? '✓ On your grocery list' : 'Send to grocery list →'}
         </button>
+        <div style={{ marginTop: 8 }}>
+          <BSSaveButton full item={bsRecipeLibItem(r)} />
+        </div>
       </div>
 
       <BSSection title="Reviews" meta={reviews.length ? `${avg} ★ · ${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}` : 'Be the first'} />
@@ -5305,14 +5265,14 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
           <button onClick={submitReview} style={{ borderRadius: t.RADIUS_SM, padding: '10px 18px', background: formRating ? t.INK : t.SURFACE, color: formRating ? t.PAPER : t.INK50, border: 0, cursor: formRating ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Post review</button>
         </div>
-        <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
-          {reviews.map(rv => (
-            <div key={rv.id} style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.HAIR}`, background: t.PAPER2, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
-                <span style={{ color: '#f4b860', fontSize: 13 }}>{'★★★★★'.slice(0, Math.round(rv.rating))}<span style={{ color: t.INK50 }}>{'★★★★★'.slice(0, 5 - Math.round(rv.rating))}</span></span>
+        <div style={{ marginTop: 14 }}>
+          {reviews.map((rv, i) => (
+            <div key={rv.id} style={{ borderLeft: `3px solid ${t.HAIR}`, padding: '2px 0 2px 12px', marginTop: i === 0 ? 0 : 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span role="img" aria-label={`${Math.round(rv.rating)} out of 5 stars`} style={{ color: '#f4b860', fontSize: 13 }}><span aria-hidden>{'★★★★★'.slice(0, Math.round(rv.rating))}<span style={{ color: t.INK50 }}>{'★★★★★'.slice(0, 5 - Math.round(rv.rating))}</span></span></span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50 }}>{(rv.author || 'You').toUpperCase()} · {new Date(rv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
               </div>
-              {rv.text && <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{rv.text}</div>}
+              {rv.text && <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{rv.text}</div>}
             </div>
           ))}
         </div>
@@ -6278,7 +6238,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     if (!recipe) return;
     const id = 'sk-' + bsSkSlug(recipe.title);
     const items = (recipe.ingredients || []).map((ing, idx) => {
-      const p = bsSkParseIngredient(ing);
+      // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
+      // legacy strings defensively via the old parser.
+      const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
       return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
     });
     const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
