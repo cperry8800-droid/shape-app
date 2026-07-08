@@ -1150,7 +1150,6 @@ function useBSProgram() {
 // only appears once a coach has pressed Apply on their Adjust page.
 function BSCoachAdjustBanner({ detail, kind }) {
   const t = useBS();
-  const accent = t.ACCENT;
   const d = kind === 'nutrition' ? detail?.nutrition : detail?.training;
   if (!d || !d.updatedAt) return null;
   let when = '';
@@ -1160,14 +1159,15 @@ function BSCoachAdjustBanner({ detail, kind }) {
     ? [d.calories != null ? `${d.calories} kcal` : null, d.protein != null ? `${d.protein}P` : null, d.carbs != null ? `${d.carbs}C` : null, d.fat != null ? `${d.fat}F` : null, d.meals != null ? `${d.meals} meals` : null]
     : [d.intensity ? ({ deload: 'Deload', maintain: 'Maintain', progress: 'Progress' }[d.intensity] || cap(d.intensity)) : null, d.sessions != null ? `${d.sessions}×/week` : null, ...(Array.isArray(d.focus) ? d.focus.slice(0, 2).map(cap) : [])]
   ).filter(Boolean);
+  const roleC = kind === 'nutrition' ? '#a07a2e' : '#c0533b';
   return (
-    <BSPlate c={accent} notch={10} pad="12px 14px 12px 18px" style={{ margin: `12px ${t.padX}px 0` }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
-      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '4px 9px' }}>{c}</span>)}
+    <div style={{ margin: `12px ${t.padX}px 0`, borderLeft: `3px solid ${roleC}`, padding: '2px 0 2px 10px' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: roleC, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
+      <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '4px 9px' }}>{c}</span>)}
       </div>
-      {d.note ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
-    </BSPlate>
+      {d.note ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
+    </div>
   );
 }
 
