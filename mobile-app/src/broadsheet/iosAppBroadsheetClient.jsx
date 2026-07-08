@@ -4141,14 +4141,21 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
         </div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>
+        {(() => {
+          // Render the deck headline only when it differs from the page title —
+          // otherwise the same phrase reads twice ("Upper Pull — Peak").
+          const _norm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
+          const _h = _norm(cur.headline);
+          if (!_h || _h === _norm(cur.title)) return null;
+          return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>;
+        })()}
         <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
         {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 999, padding: '3px 8px' }}>{cur.coachFocus}</span>}
-            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
+            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
+            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
           </div>
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
@@ -4175,7 +4182,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           {effMoves.length > 0 ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
-            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
+            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
         </div>
       </div>
@@ -4183,18 +4190,22 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker="Workout" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
+          <BSTrackHeader kicker="The program" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
+            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+              <span>N</span><span>Move</span><span>Scheme</span><span style={{ textAlign: 'right' }}>Load</span>
+            </div>
             {effMoves.map((r, i) => {
               const swapped = !!moveOverrides[`${day}:${i}`];
+              // Display-only abbreviation ("3 min rest" → "3m", "90s rest" → "90s");
+              // the stored scheme string is untouched (the session parser reads r.s).
+              const sch = String(r.s || '').replace(/(\d+)\s*min rest/g, '$1m').replace(/(\d+)s rest/g, '$1s');
               return (
-                <button key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{r.n}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{r.s}</div>
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, marginTop: 3 }}>{r.l}</span>
+                <button key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span>
                 </button>
               );
             })}
