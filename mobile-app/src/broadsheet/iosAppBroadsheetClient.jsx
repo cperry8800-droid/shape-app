@@ -14,7 +14,7 @@ import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
-import { bsProgramFits, bsProgramRowCount, bsMoveRow, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
+import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -3326,11 +3326,12 @@ function bsBuildTrainProgram(workouts, t) {
   const unscheduled = [];
   for (const w of (workouts || [])) {
     if (w.scheduledDate) {
+      // Dated rows belong to their exact day. In this week + slot free → place it;
+      // slot taken or outside this week (a program's future/past day) → ignore
+      // (the deck is a 7-day view; other weeks show on the calendar).
       const dt = new Date(w.scheduledDate + 'T00:00:00');
       const idx = Math.round((dt - monday) / 86400000);
-      if (idx >= 0 && idx <= 6 && !slots[idx]) { slots[idx] = w; continue; }
-      // A dated row outside this week (a program's future/past day) is ignored here.
-      if (idx >= 0 && idx <= 6) continue;
+      if (idx >= 0 && idx <= 6 && !slots[idx]) slots[idx] = w;
       continue;
     }
     if (Array.isArray(w.repeatDow) && w.repeatDow.length) { repeats.push({ ...w, payload: { repeatDow: w.repeatDow } }); continue; }

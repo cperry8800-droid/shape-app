@@ -258,6 +258,71 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-08 — Self-serve training: build your own week, program & race schedule (coach-less members)
+- **Closes the coach-less P0** the 2026-07-08 solo-member analysis surfaced: a
+  member with no coach had **no workout to log and no way to author one** (Train
+  showed a dead "No workout assigned" week). Now they get starter templates, a
+  full custom builder (any discipline), an AI draft assist, an open log-as-you-go
+  session, and Start-this-plan for purchased marketplace plans. Self-serve is the
+  floor; the "Find a trainer" bar keeps its pinned spot — coaching stays the pitch.
+  Spec `docs/superpowers/specs/2026-07-08-self-serve-training-design.md`, plan
+  `docs/superpowers/plans/2026-07-08-self-serve-training.md`; built task-by-task,
+  TDD on the pure modules.
+- **Foundation — one migration, everything downstream lights up unchanged.**
+  `2026-07-08-self-authored-workouts.sql` (**APPLIED live**): `client_workouts
+  .trainer_id` → nullable; **client self-CRUD RLS** (`trainer_id IS NULL AND
+  client_id = auth.uid()` pinned on every client write, so coach rows stay
+  client-untouchable and self rows coach-untouchable, both ways); and the
+  `notify_on_client_workout` trigger **guarded to coach rows** so a self-save (or
+  a 100-row program materialization) never fires "New workout from your coach".
+  Self rows are just `client_workouts` with a NULL trainer — the Train deck, home
+  hero, calendar, live session, +10 award, and workout auto-share (#1613) all
+  read them with **zero changes**.
+- **Three pure, unit-tested modules** (the source-of-truth pattern):
+  `starterTemplates.mjs` (10 sessions + 6 progressive programs — Marathon 16wk ·
+  Half 12wk · 10K 8wk · Triathlon sprint 12wk · Hyrox 8wk · Strength block —
+  real endurance build/cutback/taper, Hyrox mixing lift + segment rows, tri
+  rotating swim/bike/run + a brick; 8 tests), `trainingBuilder.mjs` (cap
+  validation `weeks × days ≤ 182`, program materialization onto real dates,
+  weekly-repeat slotting; 9 tests), `planOutline.mjs` (the coach `bsAssign*`
+  parsers **extracted from `iosAppBroadsheetPros.jsx`** + `bsMaterializeOutline` —
+  one implementation, the pros app imports them back; 7 tests). **497 tests green.**
+- **The four features.** (1) **Build-your-week door** replaces Train's empty state
+  (signed-in, no plan): Sessions shelf · Programs shelf · BUILD YOUR OWN · ✦ Draft
+  · Open session; signed-out keeps the demo deck behind a locked door. (2)
+  **`BSWorkoutBuilder`** — quiet Open-Ledger full-page form: SESSION mode (name ·
+  discipline chips · weekday toggles → `repeatDow`, ONE recurring row · move rows
+  that toggle **lift** (sets×reps×load) ↔ **segment** (`seg`, e.g. "10 mi · Z2"),
+  mixable) and PROGRAM mode (member-chosen **weeks 1–26 or a race date** · a
+  week-by-week review any day is editable in · live `bsProgramFits` gate that
+  BLOCKS an over-182 save, never truncates). (3) **✦ Draft it for me** — new
+  `POST /api/ai/draft-program` (cloned from `generate-plan`'s structured-output
+  plumbing, membership-gated by the `/api/ai` prefix + an auth check) returns a
+  STRUCTURED program into the builder's review; **nothing persists until the
+  member saves** (human-in-the-loop); model-down degrades to an honest
+  "unavailable", never a blank program. (4) **Open session** — the live player
+  starts empty with inline move-naming + ＋ Add move; saves through the identical
+  `saveWorkoutSessionLog` path (+10, dedup, auto-share inherited). (5)
+  **Start a purchased plan** — Library owned plans finally schedule; the shared
+  outline parsers materialize dated self rows, and a **re-start is atomic-in-
+  effect** (new block lands first under a fresh `runId`, the prior run deletes
+  only after — no data-loss window, no duplicates).
+- **Guardrails / honesty.** The plan route now **windows dated rows** to
+  this-week-forward OR undated (`scheduled_date.gte.<weekStart>` / `is null`) so a
+  long block's early weeks can't push the current week past the 60-row limit; a
+  coach-assigned workout **wins the day slot**; self days read **"Programmed by
+  you"** (or the program name · Wn) with a teal spine — never a fabricated coach
+  name; signed-out preview is byte-identical except the locked builder door.
+- **Server surface:** the one migration + one new route (`/api/ai/draft-program`,
+  registered in the War Room) + the `/api/client/plan` window & passthrough
+  (`repeatDow`/`seg`/`program`/`selfAuthored`). `ShapeSelfTraining` (save session/
+  program, start plan, remove, list) + `ShapeTrainingAI.draft` on the mobile data
+  layer. Verified per task: JSX parse · `tsc --noEmit` · `VITE_BASE=/m/` build
+  exit 0 · `npm test` 497. **Open follow-ups:** on-device pass across papers ×
+  disciplines (strength/run/tri/Hyrox) × the share matrix; coach read of a
+  member's self-authored plans (v1 shows it only via the session logs); website
+  builder parity (mobile-first).
+
 ### 2026-07-08 — Workout auto-share: device + in-app workouts post by the member's own privacy (#1613 build)
 - **Made the DEAD "Share workout data" toggle real** and closed the whole
   coach-less-solo social gap the analysis surfaced: a member's workouts now
