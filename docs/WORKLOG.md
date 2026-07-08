@@ -159,7 +159,21 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-06b.md`](HANDOFF-2026-07-06b.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-07-08.md`](HANDOFF-2026-07-08.md)** —
+> **Self-serve training for coach-less members** (spec #1616 → build #1618, on `main`):
+> the coach-less member had no workout to log and no way to author one — now a
+> **Build-your-week door**, a full **`BSWorkoutBuilder`** (any discipline — strength
+> sessions that repeat weekly, or multi-week programs incl. marathon/half/10K/tri/Hyrox
+> with a member-chosen length or a race date), **✦ Draft it for me** (`/api/ai/draft-program`,
+> human-in-the-loop), an **open log-as-you-go session**, and **Start-this-plan** for
+> purchased plans. Foundation = one migration (`client_workouts.trainer_id` nullable +
+> client self-CRUD RLS + notify guard) so the deck/home/calendar/live-session/+10/auto-share
+> all read self rows unchanged; 3 pure tested modules; atomic plan re-start; windowed plan
+> route. All 6 review findings fixed. Also this session: the Nora Support-chat avatar
+> (#1617 — face on every message, text-only masthead). Open: on-device pass; coach read of
+> self plans; website builder parity.
+>
+> (Prior: [`docs/HANDOFF-2026-07-06b.md`](HANDOFF-2026-07-06b.md) —
 > **The Shape Score wave** (7 PRs, all on `main`): session-details **pace bars + "The
 > Splits" page + zoomed THIS-TIER ladder** (#1557); **meal logging → +10/day** + habit
 > points reconciled to **+3** (#1558, migration); **"THE RECORD"** — a full Shape Score
@@ -318,7 +332,24 @@ changelog whenever something ships.
   (`repeatDow`/`seg`/`program`/`selfAuthored`). `ShapeSelfTraining` (save session/
   program, start plan, remove, list) + `ShapeTrainingAI.draft` on the mobile data
   layer. Verified per task: JSX parse · `tsc --noEmit` · `VITE_BASE=/m/` build
-  exit 0 · `npm test` 497. **Open follow-ups:** on-device pass across papers ×
+  exit 0 · `npm test` 497.
+- **Review round (all 6 fixed before merge, #1618 → `10f2fa3f`).** Codex 3×P2 —
+  (a) `draft-program` used the cookie-only server client, so the **native app's
+  Bearer draft would always 401** → switched to `currentUser(request)` (cookie OR
+  Bearer); (b) the plan route sorted **nulls LAST**, so a long program's future
+  dated rows could crowd the undated weekly-repeat row out of the 60-row cap →
+  `nullsFirst: true` (kept this-week-*forward*, not this-week-only, so a coach
+  plan starting next week still reads `hasPlan` — no false Build door); (c)
+  **Edit · Yours** didn't carry the row id, so editing a repeat inserted a
+  duplicate → the seed now threads `workoutId` and `saveSession` retires the old
+  row after the new lands. CodeRabbit 2×Major + 1×Trivial — (d) OpenAI strict
+  Structured Outputs **rejects `minimum`/`maximum`**, which would have errored
+  every draft call → dropped from the `dow` schema (the 0–6 clamp stays in
+  `sanitize()`); (e) `bsValidProgramShape` skipped per-move validation → now runs
+  the same `validMove` predicate; (f) `saveSelfProgram`/`startPurchasedPlan`
+  batched from up to 182 serial inserts to one array insert. CodeRabbit APPROVED
+  on re-review; CI green ×3.
+- **Open follow-ups:** on-device pass across papers ×
   disciplines (strength/run/tri/Hyrox) × the share matrix; coach read of a
   member's self-authored plans (v1 shows it only via the session logs); website
   builder parity (mobile-first).

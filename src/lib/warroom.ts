@@ -836,6 +836,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Self-serve training (coach-less members, 2026-07-08, #1618)',
+      items: [
+        { label: 'Migration 2026-07-08-self-authored-workouts.sql — client_workouts.trainer_id nullable + client self-CRUD RLS (trainer_id IS NULL AND client_id=auth.uid(), pinned both ways) + notify_on_client_workout guarded to coach rows. APPLIED live', status: 'done' },
+        { label: 'Pure tested modules: starterTemplates.mjs (10 sessions + 6 progressive programs — marathon/half/10K/tri/Hyrox/strength), trainingBuilder.mjs (cap 182, materialization, weekly-repeat slotting), planOutline.mjs (coach parsers extracted, shared with the pros Assign flow)', status: 'done' },
+        { label: 'Build-your-week door replaces Train\'s empty state (signed-in, no plan); signed-out keeps the demo deck behind a locked door', status: 'done' },
+        { label: 'BSWorkoutBuilder — SESSION (weekday-repeat, lift↔segment rows) + PROGRAM (member-chosen weeks 1–26 or a race date, week-by-week review, over-182 blocked)', status: 'done' },
+        { label: '✦ Draft it for me — POST /api/ai/draft-program (structured output, Bearer+cookie auth), human-in-the-loop into the builder review; model-down degrades honestly', status: 'done' },
+        { label: 'Open log-as-you-go session (＋ Add move, inline naming) → same saveWorkoutSessionLog path (+10, dedup, auto-share)', status: 'done' },
+        { label: 'Start a purchased plan onto the calendar from the Library — atomic-in-effect re-start (new block lands before the prior run deletes)', status: 'done' },
+        { label: 'Plan route windows dated rows this-week-forward + undated (nullsFirst) so a long block never starves the current week / repeat rows from the 60-row cap', status: 'done' },
+        { label: 'Coach read of a member\'s self-authored plans (v1 surfaces them only via the session logs)', status: 'pending' },
+        { label: 'Website builder parity (mobile-first); on-device pass across papers × disciplines × the share matrix', status: 'pending' },
+      ],
+    },
+    {
       section: 'Mobile ↔ website sync',
       items: [
         { label: 'window.shapeDb wired on mobile to the shared user_goals table', status: 'done' },
