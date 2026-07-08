@@ -10,6 +10,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot, type SnapshotPatch } from '@/lib/health-snapshot';
 import { readJson } from '@/lib/request-utils';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,7 @@ function normalizeRole(role?: string | null): 'client' | 'trainer' | 'nutritioni
   return 'member';
 }
 
-function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow | null, fallbackName: string) {
+function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow | null, fallbackName: string, sharePrivacy: SharePrivacy) {
   const activity = (w.activity || 'apple health workout').trim();
   const minutes = num(w.durationMin);
   const distanceKm = num(w.distanceM) !== null ? Number((num(w.distanceM)! / 1000).toFixed(2)) : null;
@@ -67,7 +68,7 @@ function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow
     author_id: userId,
     author_name: profile?.full_name || fallbackName,
     author_role: normalizeRole(profile?.role),
-    privacy: 'private',
+    privacy: sharePrivacy,
     activity_type: activity.toLowerCase(),
     title: activity,
     status: 'Imported from Apple Health',
@@ -83,7 +84,7 @@ function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow
         distanceKm !== null ? `${distanceKm} km` : '-',
         calories !== null ? `${calories} kcal` : '-',
       ],
-      tags: ['APPLE HEALTH', 'PRIVATE'],
+      tags: sharePrivacy === 'private' ? ['APPLE HEALTH', 'PRIVATE'] : ['APPLE HEALTH'],
     },
     route: {},
     source_provider: 'apple_health',
@@ -118,10 +119,13 @@ async function importWorkouts(
 ) {
   let imported = 0;
   const errors: string[] = [];
+  // The member's own share level — resolved once per sync run (fail-closed to
+  // 'private' on any settings read error).
+  const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
   for (const w of workouts) {
     if (!w.externalId) continue;
     await client.from('activities').upsert(activityRow(w, userId), { onConflict: 'user_id,source,external_id' });
-    const payload = workoutPostPayload(w, userId, profile, fallbackName);
+    const payload = workoutPostPayload(w, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
       .select('id')
@@ -134,13 +138,27 @@ async function importWorkouts(
       errors.push('Could not sync an activity.');
       continue;
     }
+    if (!existing?.id) {
+      // Cross-source guard: another provider (or the in-app logger) already
+      // posted this workout within ±20 min → keep the activities row, skip the
+      // social post (first-writer-wins, silent).
+      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'apple_health');
+      if (dup) continue;
+    }
+
+    // Updates never rewrite privacy — the member may have retro-tightened, and
+    // a re-sync must not loosen (or re-decide) an existing post's audience.
+    const { privacy: _privacy, ...updatePayload } = payload;
     const result = existing?.id
-      ? await client.from('community_posts').update(payload).eq('id', existing.id)
+      ? await client.from('community_posts').update(updatePayload).eq('id', existing.id)
       : await client.from('community_posts').insert(payload);
     if (result.error) {
       console.error('[shape-api] apple-health activity write failed:', result.error.message);
       errors.push('Could not save an activity.');
-    } else imported += 1;
+    } else {
+      imported += 1;
+      if (!existing?.id) await maybeSendFirstShareNotice(client, userId, sharePrivacy);
+    }
   }
   return { imported, errors };
 }

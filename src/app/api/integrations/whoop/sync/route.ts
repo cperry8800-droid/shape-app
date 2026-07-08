@@ -4,6 +4,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeWhoopSnapshots } from '@/lib/health-snapshot';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,7 +68,7 @@ function normalizeRole(role?: string | null): 'client' | 'trainer' | 'nutritioni
   return 'member';
 }
 
-function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: ProfileRow | null, fallbackName: string) {
+function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: ProfileRow | null, fallbackName: string, sharePrivacy: SharePrivacy) {
   const score = workout.score ?? {};
   const minutes = durationMinutes(workout.start, workout.end);
   const sport = (workout.sport_name || 'WHOOP workout').trim();
@@ -101,7 +102,7 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
     author_id: userId,
     author_name: profile?.full_name || fallbackName,
     author_role: normalizeRole(profile?.role),
-    privacy: 'private',
+    privacy: sharePrivacy,
     activity_type: sport.toLowerCase(),
     title: sport,
     status: 'Imported from WHOOP',
@@ -123,7 +124,7 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
         avgHr !== null ? `${avgHr} bpm` : '-',
         strain !== null ? String(strain) : '-',
       ],
-      tags: ['WHOOP', 'PRIVATE'],
+      tags: sharePrivacy === 'private' ? ['WHOOP', 'PRIVATE'] : ['WHOOP'],
     },
     route: {},
     source_provider: 'whoop',
@@ -162,6 +163,9 @@ async function importWhoopWorkouts(
 ) {
   let imported = 0;
   const errors: string[] = [];
+  // The member's own share level — resolved once per sync run (fail-closed to
+  // 'private' on any settings read error).
+  const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
 
   for (const workout of workouts) {
     if (!workout.id) continue;
@@ -170,7 +174,7 @@ async function importWhoopWorkouts(
       .from('activities')
       .upsert(whoopActivityRow(workout, userId), { onConflict: 'user_id,source,external_id' });
 
-    const payload = workoutPostPayload(workout, userId, profile, fallbackName);
+    const payload = workoutPostPayload(workout, userId, profile, fallbackName, sharePrivacy);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
       .select('id')
@@ -185,8 +189,19 @@ async function importWhoopWorkouts(
       continue;
     }
 
+    if (!existing?.id) {
+      // Cross-source guard: another provider (or the in-app logger) already
+      // posted this workout within ±20 min → keep the activities row, skip the
+      // social post (first-writer-wins, silent).
+      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'whoop');
+      if (dup) continue;
+    }
+
+    // Updates never rewrite privacy — the member may have retro-tightened, and
+    // a re-sync must not loosen (or re-decide) an existing post's audience.
+    const { privacy: _privacy, ...updatePayload } = payload;
     const result = existing?.id
-      ? await client.from('community_posts').update(payload).eq('id', existing.id)
+      ? await client.from('community_posts').update(updatePayload).eq('id', existing.id)
       : await client.from('community_posts').insert(payload);
 
     if (result.error) {
@@ -194,6 +209,7 @@ async function importWhoopWorkouts(
       errors.push('Could not save an activity.');
     } else {
       imported += 1;
+      if (!existing?.id) await maybeSendFirstShareNotice(client, userId, sharePrivacy);
     }
   }
 
