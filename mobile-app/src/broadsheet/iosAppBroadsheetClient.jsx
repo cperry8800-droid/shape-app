@@ -5024,7 +5024,6 @@ function bsRecipeListId(recipe, dayLabel) {
 
 function BSNutritionTopTabs({ active, onChange }) {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
@@ -5032,17 +5031,14 @@ function BSNutritionTopTabs({ active, onChange }) {
     ['recipes', 'Recipes'],
   ];
   return (
-    <div style={{ padding: `8px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+    <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
-          <button key={key} onClick={() => onChange(key)} style={{ borderRadius: 5,
-            position: 'relative', overflow: 'hidden',
-            padding: '8px 8px', border: `1px solid ${on ? teal : t.RULE}`,
-            background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK,
-            fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
-            cursor: 'pointer',
-          }}>{label}</button>
+          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 44, padding: '12px 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: on ? 800 : 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+            {label}
+            {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: t.ACCENT }} />}
+          </button>
         );
       })}
     </div>
@@ -6592,6 +6588,22 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   // up with the same meal on the website (shared user_goals store).
   const effMeals = cur.meals.map(m => { const ov = mealOverrides[m.title]; return ov ? { ...m, ...ov, _baseTitle: m.title } : { ...m, _baseTitle: m.title }; });
 
+  // Day totals vs targets — hoisted once (the kcal strip and the menu's next
+  // course both read them). Coach-set targets (Adjust plan → Apply) win.
+  const bsEatNum = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
+  const bsEatCoachN = bsEatProgram.detail?.nutrition;
+  const bsEatCalNow = bsEatNum(cur.totals.cal);
+  const bsEatCalTgt = (bsEatCoachN && bsEatCoachN.calories != null) ? bsEatNum(bsEatCoachN.calories) : bsEatNum(cur.totals.target.cal);
+  const bsEatCalLeft = Math.max(0, bsEatCalTgt - bsEatCalNow);
+  const bsEatCalPct = bsEatCalTgt ? Math.min(100, Math.round((bsEatCalNow / bsEatCalTgt) * 100)) : 0;
+  const bsEatMacros = [
+    { l: 'PROTEIN', v: bsEatNum(cur.totals.p), g: (bsEatCoachN && bsEatCoachN.protein != null) ? bsEatNum(bsEatCoachN.protein) : bsEatNum(cur.totals.target.p), c: t.RUST },
+    { l: 'CARBS', v: bsEatNum(cur.totals.c), g: (bsEatCoachN && bsEatCoachN.carbs != null) ? bsEatNum(bsEatCoachN.carbs) : bsEatNum(cur.totals.target.c), c: t.AMBER },
+    { l: 'FAT', v: bsEatNum(cur.totals.f), g: (bsEatCoachN && bsEatCoachN.fat != null) ? bsEatNum(bsEatCoachN.fat) : bsEatNum(cur.totals.target.f), c: t.BLUE },
+  ];
+  // "Next" = explicit state, else the first un-done meal — today only.
+  const bsEatNextMeal = day === bsWeekdayIdx() ? (effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done') || null) : null;
+
   return (
     <BSPage>
       <BSPageHeader
@@ -6610,105 +6622,59 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
-      {(() => {
-        const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
-        // Coach-set targets (from the nutritionist's Adjust plan → Apply) win over
-        // the demo/plan targets when present, so the hero reflects what they set.
-        const coachN = bsEatProgram.detail?.nutrition;
-        const calNow = num(cur.totals.cal);
-        const calTgt = (coachN && coachN.calories != null) ? num(coachN.calories) : num(cur.totals.target.cal);
-        const calLeft = Math.max(0, calTgt - calNow);
-        const calPct = calTgt ? Math.min(100, Math.round((calNow / calTgt) * 100)) : 0;
-        const macros = [
-          { l: 'PROTEIN', v: cur.totals.p, g: (coachN && coachN.protein != null) ? coachN.protein : cur.totals.target.p, c: t.RUST || '#d2693f' },
-          { l: 'CARBS', v: cur.totals.c, g: (coachN && coachN.carbs != null) ? coachN.carbs : cur.totals.target.c, c: t.AMBER || '#e8b14a' },
-          { l: 'FAT', v: cur.totals.f, g: (coachN && coachN.fat != null) ? coachN.fat : cur.totals.target.f, c: '#8a5cf6' },
-        ];
-        return (
-          <>
-            {/* Calorie hero — condensed */}
-            <div style={{ padding: `10px ${t.padX}px 0` }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 33, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
-                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{calPct}%</span>
-              </div>
-              <div style={{ marginTop: 7, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
-                <div style={{ width: `${calPct}%`, height: '100%', background: t.ACCENT }} />
-              </div>
-              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em' }}>
-                <span style={{ color: t.ACCENT }}>{calLeft.toLocaleString()} kcal left · on pace</span>
-              </div>
-            </div>
+      {/* Calorie register + one-line macro register (owner-composed crop) —
+          sits below the calendar rule; the hardcoded "on pace" claim is gone. */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 33, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{bsEatCalNow.toLocaleString()}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {bsEatCalTgt.toLocaleString()} KCAL</span>
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{bsEatCalPct}%</span>
+        </div>
+        <div aria-hidden style={{ marginTop: 7, height: 3, background: t.HAIR }}>
+          <div style={{ width: `${bsEatCalPct}%`, height: '100%', background: t.ACCENT }} />
+        </div>
+        <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.ACCENT }}>{bsEatCalLeft.toLocaleString()} kcal left</div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+          {bsEatMacros.map((m, i) => (
+            <React.Fragment key={m.l}>
+              {i > 0 && <span style={{ color: t.INK50 }}> · </span>}
+              <span style={{ color: m.c, fontWeight: 700 }}>{m.l}</span> {m.v}/{m.g}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
 
-            {/* Macro cards — condensed */}
-            <div style={{ padding: `9px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>
-              {macros.map((m) => {
-                const mv = num(m.v), mg = num(m.g);
-                const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
-                return (
-                  <div key={m.l} style={{ padding: '7px 9px 7px 11px', borderRadius: 5, border: `1px solid ${m.c}55`, borderLeft: `2.5px solid ${m.c}`, background: `linear-gradient(165deg, ${m.c}12, ${m.c}04 50%, ${t.PAPER2} 90%), ${t.PAPER}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>/ {mg}</span>
-                    </div>
-                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
-                    <div style={{ marginTop: 5, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
-                      <div style={{ width: `${mp}%`, height: '100%', background: m.c }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        );
-      })()}
-
-      {/* TODAY — the next-meal directive. Sits below the quiet calorie/macro strip
-          and above the meal list. */}
-      {day === bsWeekdayIdx() && (() => {
-        const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
-        const coachN = bsEatProgram.detail?.nutrition;
-        const calNow = num(cur.totals.cal);
-        const calTgt = (coachN && coachN.calories != null) ? num(coachN.calories) : num(cur.totals.target.cal);
-        const calLeft = Math.max(0, calTgt - calNow);
-        const total = effMeals.length;
-        const loggedN = effMeals.filter(m => m.state === 'done').length;
-        const nextMeal = effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done');
-        const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const done = !nextMeal;
-        const c = done ? t.GREEN : _teal;
-        return (
-          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" data-tour="hero-eat" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{done ? 'Today · eaten' : 'Today · your move'}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{loggedN}/{total} meals</span>
-            </div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{done ? 'All meals logged.' : `Log ${nextMeal.title}.`}</div>
-            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{calLeft.toLocaleString()} kcal left{done ? ' · nice work' : (nextMeal && bsMealSchedLabel(nextMeal) ? ` · ${bsMealSchedLabel(nextMeal)}` : '')}</div>
-            {!done && (
-              <button onClick={() => setPreviewMealId(nextMeal.id)} style={{ marginTop: 10, padding: '8px 14px', borderRadius: 8, border: `1px solid ${_teal}`, background: `${_teal}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Log it →</button>
-            )}
-          </BSPlate>
-        );
-      })()}
-
-      {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
-      <BSTrackHeader kicker="Meal list" title={day === bsWeekdayIdx() ? "Today's meals" : `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}'s meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
+      {/* The menu — courses by time. The next course carries the page's one
+          breathing dot + LOG IT; tapping any course opens the meal preview. */}
+      <BSTrackHeader kicker="The menu" title={day === bsWeekdayIdx() ? "Today's meals" : `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}'s meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
+      <div data-tour="hero-eat" style={{ padding: `10px ${t.padX}px 0` }}>
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
-          const next = m.state === 'next';
+          const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
           const swapped = !!mealOverrides[m._baseTitle];
+          const timeLabel = bsMealSchedLabel(m) || m.tag || '';
           return (
-            <button key={m.id} onClick={() => setPreviewMealId(m.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, color: logged ? t.ACCENT : t.INK50, fontWeight: 600, marginTop: 3 }}>{logged ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em', textDecoration: logged ? 'line-through' : 'none' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: next ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{next ? ' · LOG NOW' : ''}</div>
+            <div key={m.id} style={{ marginTop: i === 0 ? 0 : 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: isNext ? t.ACCENT : t.INK70 }}>{timeLabel}</span>
+                <span aria-hidden style={{ flex: 1, height: 1.5, background: isNext ? bsTHexA(t.ACCENT, 0.45) : t.HAIR }} />
+                {logged ? (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.ACCENT }}>✓</span>
+                ) : isNext ? (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>
+                    <span aria-hidden style={{ display: 'inline-block', width: 5, height: 5, borderRadius: 999, background: t.ACCENT, verticalAlign: 'middle', marginRight: 5, ...(bsSdReduced() ? null : { animation: 'bsPlatePulse 1.8s ease-in-out infinite' }) }} />
+                    NEXT
+                  </span>
+                ) : null}
               </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 3, whiteSpace: 'nowrap' }}>{bsMealSchedLabel(m)}</span>
-            </button>
+              <button type="button" onClick={() => setPreviewMealId(m.id)} aria-label={`${timeLabel} · ${m.title}${logged ? ' · logged' : isNext ? ' · next' : ''}`} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 2px' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: isNext ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{isNext ? ` · ${bsEatCalLeft.toLocaleString()} KCAL LEFT` : ''}</div>
+              </button>
+              {isNext && (
+                <button type="button" onClick={() => setPreviewMealId(m.id)} style={{ marginTop: 2, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Log it →</button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -6744,22 +6710,18 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker="Your plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
+      <BSTrackHeader kicker="The plan" title={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent', padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 999, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>{(liveMealCoach || 'M').replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase()}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist</div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>{liveProgram ? 'This week' : 'Apr plan'}</span>
-          </div>
-          <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-          </div>
+        <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist · {liveProgram ? 'This week' : 'Apr plan'}</div>
+          {cur.coachLine ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div> : null}
         </div>
+        <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>The shop list</span>
+          <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+          <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
+        </button>
       </div>
 
       {/* For the week — shop list (live from the nutritionist's grocery list) */}
