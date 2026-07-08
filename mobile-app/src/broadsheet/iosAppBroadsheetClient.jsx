@@ -6710,7 +6710,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker="The plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
+      <BSTrackHeader kicker="The plan" title={`${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
