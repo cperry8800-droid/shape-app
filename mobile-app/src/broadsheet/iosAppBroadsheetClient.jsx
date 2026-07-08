@@ -5024,7 +5024,6 @@ function bsRecipeListId(recipe, dayLabel) {
 
 function BSNutritionTopTabs({ active, onChange }) {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
@@ -5032,17 +5031,14 @@ function BSNutritionTopTabs({ active, onChange }) {
     ['recipes', 'Recipes'],
   ];
   return (
-    <div style={{ padding: `8px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+    <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
-          <button key={key} onClick={() => onChange(key)} style={{ borderRadius: 5,
-            position: 'relative', overflow: 'hidden',
-            padding: '8px 8px', border: `1px solid ${on ? teal : t.RULE}`,
-            background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK,
-            fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
-            cursor: 'pointer',
-          }}>{label}</button>
+          <button type="button" key={key} onClick={() => onChange(key)} aria-current={on ? 'page' : undefined} style={{ position: 'relative', minHeight: 44, padding: '12px 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: on ? 800 : 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+            {label}
+            {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: t.ACCENT }} />}
+          </button>
         );
       })}
     </div>
