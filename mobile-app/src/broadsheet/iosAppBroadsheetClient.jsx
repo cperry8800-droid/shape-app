@@ -5261,7 +5261,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           {r.ingredients.map((ing, i, arr) => (
             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '11px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: t.ACCENT, marginTop: 7, flex: 'none' }} />
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{t.isMetric ? ing : bsHouseholdStr(ing)}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{typeof ing === 'string' ? (t.isMetric ? ing : bsHouseholdStr(ing)) : `${ing.n} ${ing.m}`}</span>
             </div>
           ))}
         </div>
@@ -6278,7 +6278,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     if (!recipe) return;
     const id = 'sk-' + bsSkSlug(recipe.title);
     const items = (recipe.ingredients || []).map((ing, idx) => {
-      const p = bsSkParseIngredient(ing);
+      // Structured {n: qty, m: name} since the Kitchen Card wave; tolerate
+      // legacy strings defensively via the old parser.
+      const p = typeof ing === 'string' ? bsSkParseIngredient(ing) : { n: ing.m, q: ing.n };
       return { id: `${id}-${idx}`, n: p.n, q: p.q, meals: recipe.title };
     });
     const list = { id, name: `${recipe.title} grocery list`, kind: 'recipe', eyebrow: `Shape Kitchen · ${recipe.byRole}`, usedCount: 1, preview: items.slice(0, 3).map(i => i.n).join(' · '), count: items.length, items };
