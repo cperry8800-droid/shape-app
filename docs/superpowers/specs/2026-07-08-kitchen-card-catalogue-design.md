@@ -25,7 +25,9 @@ carry over verbatim.
 
 - No real photography sourcing — the card's figure slot is photo-READY; the
   content job stays on the Store-photography follow-up list.
-- No website recipe/library parity (separate wave).
+- No website recipe/library **design** parity (separate wave) — but recipe
+  **content** parity is IN scope (owner call, §7.6): the same catalog on app
+  and web.
 - `BSMealPreview` (the meal sheet) is NOT in scope — its Ingredients/Method
   boxes are a later fast-follow using the same grammar.
 - Sheets stay quiet forms (the Start-plan sheet, swap sheets, filter groups).
@@ -183,9 +185,14 @@ The Shape Kitchen dataset (`mobile-app/src/broadsheet/shapeKitchenData.js`,
 5. **New data-integrity test** `tests/shape-kitchen-data.test.mjs`
    (registered in the root test script): every recipe has the required
    fields, structured ingredients, and macro-consistent kcal.
-6. **Accepted drift**: the website's `/recipes` keeps its own copy of the
-   old 26 (already a separate dataset today); porting the refreshed catalog
-   to the website is a follow-up on the web-parity list.
+6. **Website content parity (owner call)**: the refreshed + expanded catalog
+   ports to the website's `/recipes` dataset (`public/newdesign/recipes.jsx`,
+   today a same-shape copy of the old 26) in the SAME wave — **content only,
+   the website's design/rendering untouched**. The port keeps whatever data
+   shape the website renderers consume (string ingredients may be generated
+   from the structured `{n, m, k}` entries); every touched referenced `.jsx`
+   gets its `?v=` cache-bust bump. Goal: the same recipes, same count, same
+   copy on app and web.
 
 ## Data
 
@@ -226,8 +233,9 @@ named in mono text, never color-only.
 
 ## Rollout
 
-Two build PRs: **PR A — the recipe surfaces + the catalog content** (§7
+Three build PRs: **PR A — the catalog content + the recipe surfaces** (§7
 restructure/expansion + data test, then `BSKitchenCard` + detail + preview +
-Recipes tab); **PR B — the Library** (Catalogue + detail). Each through the
+Recipes tab); **PR B — the Library** (Catalogue + detail); **PR C — the
+website content port** (§7.6, content-only, `?v=` bumps). Each through the
 standard gate (CI green + CodeRabbit findings addressed), squash-merged,
 branches kept.
