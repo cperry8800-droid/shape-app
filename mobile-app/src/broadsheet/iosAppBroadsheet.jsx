@@ -409,9 +409,25 @@ function isInteractiveTarget(target) {
 // ═══════════════════════════════════════════════════════════
 
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 72, backdrop = null }) {
+function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
+  // Condensing masthead: once the page's own masthead scrolls away (~64px), a
+  // pinned strip (logo + Vol·No + the standard corner) slides in over the
+  // scroller — ONE implementation, so the cushion is identical on every page.
+  // Full-screen flows with their own chrome (e.g. the meal logger) opt out
+  // with mast={false}.
+  const [mastCondensed, setMastCondensed] = useStateBS(false);
+
+  useEffectBS(() => {
+    if (!mast) return undefined;
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    const onScroll = () => setMastCondensed(el.scrollTop > 64);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [mast]);
 
   useEffectBS(() => {
     const el = scrollerRef.current;
@@ -485,13 +501,46 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null }) {
     </div>
   );
 
+  // Pinned condensed masthead — mirrors the tab bar's paper treatment (same
+  // gradient/blur/hairline/shadow, flipped) so top + bottom chrome read as one
+  // instrument. Slides in only once scrolled past the page's own masthead.
+  const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
+  const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pinnedMast = mast ? (
+    <div aria-hidden={!mastCondensed} style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
+      padding: `calc(10px + env(safe-area-inset-top, 0px)) ${t.padX}px 9px`,
+      background: `linear-gradient(0deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
+      backgroundColor: t.PAPER,
+      color: t.INK,
+      borderBottom: `1px solid ${t.SURFACE_BORDER}`,
+      backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+      boxShadow: `0 16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
+      transform: mastCondensed ? 'translateY(0)' : 'translateY(-110%)',
+      opacity: mastCondensed ? 1 : 0,
+      pointerEvents: mastCondensed ? 'auto' : 'none',
+      transition: mastReduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
+    }}>
+      <BSMastRow trailing={MastCorner ? <MastCorner size={26} /> : null} />
+    </div>
+  ) : null;
+
   // A backdrop (e.g. cosmic night sky, radio photo) sits fixed behind the
   // scrolling content; the scroller goes transparent so it shows through.
-  if (!backdrop) return scroller;
+  if (!backdrop) {
+    if (!pinnedMast) return scroller;
+    return (
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+        {scroller}
+        {pinnedMast}
+      </div>
+    );
+  }
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>{backdrop}</div>
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{scroller}</div>
+      {pinnedMast}
     </div>
   );
 }
