@@ -6971,8 +6971,11 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
   );
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
-        <div style={{ position: 'sticky', top: 0, background: BG, zIndex: 1, marginBottom: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
+        {/* Fixed header layer — the list scrolls in its OWN pane below, so rows
+            can never ride up through the masthead/tabs/search (sticky inside the
+            padded scroller let them bleed through on device). */}
+        <div style={{ flexShrink: 0, background: BG, padding: '0 18px 12px' }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
               left, the profile owner's avatar on the right (no top hairline). */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -6998,6 +7001,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people" style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px 9px 31px', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.05), color: INK, fontFamily: SANS, fontSize: 13, outline: 'none' }} />
           </div>
         </div>
+        <div className="bs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
         {/* Pending follow requests — inline on my own followers list (private/friends). */}
         {showFollowBack && visibleReqs.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -7029,6 +7033,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
