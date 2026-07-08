@@ -2287,9 +2287,12 @@ async function saveWorkoutSessionLog({
   if (!resolvedPrivacy) {
     if (supabase && state.user?.id) {
       try {
-        const { data: sdoc } = await supabase.from('user_goals').select('data')
+        // Supabase surfaces failures on `error` without throwing — fail CLOSED
+        // on it, like the server resolver (a no-row read with NO error is just
+        // "no doc yet" → the On·Public defaults apply).
+        const { data: sdoc, error: sErr } = await supabase.from('user_goals').select('data')
           .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
-        resolvedPrivacy = bsWorkoutSharePrivacy((sdoc && sdoc.data) || null);
+        resolvedPrivacy = sErr ? 'private' : bsWorkoutSharePrivacy((sdoc && sdoc.data) || null);
       } catch (e) { resolvedPrivacy = 'private'; }
     } else {
       resolvedPrivacy = 'private';
@@ -2381,8 +2384,11 @@ async function saveWorkoutSessionLog({
   // so whichever path shares first wins and the member only ever sees one).
   if (feedPost && resolvedPrivacy !== 'private' && supabase && state.user?.id) {
     try {
-      const { data: sdoc } = await supabase.from('user_goals').select('data')
+      // Skip entirely on a read ERROR — merging onto a doc we couldn't read
+      // would clobber the member's real settings with just the stamp.
+      const { data: sdoc, error: sErr } = await supabase.from('user_goals').select('data')
         .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
+      if (sErr) throw sErr;
       const d = (sdoc && sdoc.data) || {};
       if (!d.autoShareNoticeAt) {
         await supabase.from('user_goals').upsert(
