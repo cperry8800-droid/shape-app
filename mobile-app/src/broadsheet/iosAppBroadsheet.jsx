@@ -509,7 +509,10 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
   const pinnedMast = mast ? (
     <div aria-hidden={!mastCondensed} style={{
       position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
-      padding: `calc(10px + env(safe-area-inset-top, 0px)) ${t.padX}px 9px`,
+      // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
+      // full-size corner (34) with room to breathe, so scrolling doesn't shrink
+      // the bar; only its vertical padding is trimmed vs the hero.
+      padding: `calc(12px + env(safe-area-inset-top, 0px)) ${t.padX}px 11px`,
       background: `linear-gradient(0deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
       backgroundColor: t.PAPER,
       color: t.INK,
@@ -521,7 +524,7 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
       pointerEvents: mastCondensed ? 'auto' : 'none',
       transition: mastReduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
     }}>
-      <BSMastRow trailing={MastCorner ? <MastCorner size={26} /> : null} />
+      <BSMastRow trailing={MastCorner ? <MastCorner /> : null} />
     </div>
   ) : null;
 
