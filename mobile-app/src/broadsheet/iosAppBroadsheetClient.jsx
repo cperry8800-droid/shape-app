@@ -4715,6 +4715,96 @@ function BSMealPreview({ meal, onBack, onLog }) {
 // ═══════════════════════════════════════════════════════════
 // RECIPE PREVIEW — for "Recipe of the day" card (full recipe view)
 // ═══════════════════════════════════════════════════════════
+// The Kitchen Card — B+C combo from the 2026-07-08 concept round: a typed
+// index card (double-ruled frame) carrying the clipping anatomy. BOUNDED by
+// design: header · title · byline · register · figure · ingredients · note.
+// Directions/CTAs live on the page, never inside. Shared by the Shape
+// Kitchen detail and the Eat-day recipe preview.
+function BSKitchenCard({ recipe, no, dayLabel }) {
+  const t = useBS();
+  const r = recipe || {};
+  // Normalize the two recipe shapes (catalog vs day-view).
+  const macros = r.macros || { p: r.p, c: r.c, f: r.f };
+  const by = r.by || null;
+  const byRole = r.byRole || (r.coachNote ? 'Nutritionist' : null);
+  const note = r.tip || r.coachNote || null;
+  const noteName = (by || 'Coach').replace(/^Dr\.?\s+/i, '').split(' ')[0].toUpperCase();
+  const servesLabel = r.servings != null ? String(r.servings) : (r.portion || '—');
+  const ings = Array.isArray(r.ingredients) ? r.ingredients : [];
+  const half = Math.ceil(ings.length / 2);
+  const cols = [ings.slice(0, half), ings.slice(half)];
+  const qty = (ing) => {
+    const q = t.isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m);
+    const kc = ing.k ? String(ing.k).replace(/\s*kcal$/i, '') : null;
+    return kc ? `${q} · ${kc}` : q;
+  };
+  const gold = '#a07a2e';
+  const Dateline = ({ children }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{children}</span>
+      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+    </div>
+  );
+  return (
+    <div style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '16px 16px 18px', position: 'relative' }}>
+      <div aria-hidden style={{ position: 'absolute', top: 7, left: 7, right: 7, bottom: 7, border: `1px solid ${t.HAIR}`, pointerEvents: 'none' }} />
+      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', textAlign: 'center' }}>
+        Shape Kitchen · {no != null ? `Recipe Nº ${no}` : (dayLabel || 'Recipe')}
+      </div>
+      <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>
+        {String(bsNodeText(r.title) || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span>
+      </div>
+      {by ? (
+        <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>
+          From the kitchen of {by}{byRole ? ` · ${byRole}` : ''}
+        </div>
+      ) : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
+        {[
+          ['Kcal', r.kcal != null ? String(r.kcal) : '—', null],
+          ['Macros', macros.p != null ? `${macros.p}P` : '—', macros.c != null ? `${macros.c}C · ${macros.f}F` : null],
+          ['Time', r.time || r.prep || '—', r.time && r.prep ? r.prep : null],
+          ['Serves', servesLabel, null],
+        ].map(([l, v, s]) => (
+          <div key={l}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+            {s ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{s}</div> : null}
+          </div>
+        ))}
+      </div>
+      {r.photo ? (
+        <div style={{ marginTop: 14 }}>
+          <img src={r.photo} alt={`Photograph of ${bsNodeText(r.title)}`} style={{ display: 'block', width: '100%', height: 150, objectFit: 'cover', border: `1px solid ${t.HAIR}`, boxSizing: 'border-box' }} />
+          <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', gap: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span>The plate</span>
+            {no != null ? <span>Fig. {no}</span> : null}
+          </div>
+        </div>
+      ) : null}
+      <Dateline>The ingredients</Dateline>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16, marginTop: 2 }}>
+        {cols.map((col, ci) => (
+          <div key={ci}>
+            {col.map((ing, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '9px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}` }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{qty(ing)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {note ? (
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.6, color: t.INK70 }}>
+          <b style={{ color: gold, fontWeight: 800 }}>{noteName}:</b> {note}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
   const t = useBS();
   _bsScrollTopOnMount();
