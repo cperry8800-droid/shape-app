@@ -13,6 +13,8 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
+import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
+import { bsProgramFits, bsProgramRowCount, bsMoveRow, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -3267,16 +3269,33 @@ function bsBuildTrainProgram(workouts, t) {
   monday.setDate(monday.getDate() - bsWeekdayIdx(monday));
   const dateFor = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; };
 
-  // Slot workouts onto the week.
+  // Slot workouts onto the week. Dated rows claim their day first; then
+  // weekly-repeat self sessions (payload.repeatDow) fill their weekdays via
+  // bsSlotRepeats (respecting taken slots); finally any remaining undated rows
+  // fill the gaps in order.
+  const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
   const slots = [null, null, null, null, null, null, null];
+  const repeats = [];
   const unscheduled = [];
   for (const w of (workouts || [])) {
     if (w.scheduledDate) {
       const dt = new Date(w.scheduledDate + 'T00:00:00');
       const idx = Math.round((dt - monday) / 86400000);
       if (idx >= 0 && idx <= 6 && !slots[idx]) { slots[idx] = w; continue; }
+      // A dated row outside this week (a program's future/past day) is ignored here.
+      if (idx >= 0 && idx <= 6) continue;
+      continue;
     }
+    if (Array.isArray(w.repeatDow) && w.repeatDow.length) { repeats.push({ ...w, payload: { repeatDow: w.repeatDow } }); continue; }
     unscheduled.push(w);
+  }
+  // bsSlotRepeats reads payload.repeatDow — carry the original workout on the slot.
+  const repeatByDow = bsSlotRepeats(repeats, mondayISO);
+  for (let i = 0; i < 7; i++) {
+    if (!slots[i] && repeatByDow[i]) {
+      const orig = repeats.find((r) => r === repeatByDow[i]);
+      slots[i] = orig || repeatByDow[i];
+    }
   }
   for (let i = 0; i < 7 && unscheduled.length; i++) {
     if (!slots[i]) slots[i] = unscheduled.shift();
@@ -3294,10 +3313,15 @@ function bsBuildTrainProgram(workouts, t) {
       };
     }
     const moves = (w.exercises || []).map((e, j) => {
+      // Segment rows (a run/ride/swim leg or a Hyrox station) show their free
+      // descriptor as the scheme line, with no load column.
+      if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '' };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
       return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—' };
     });
+    const isSelf = !!w.selfAuthored;
+    const prog = w.program && w.program.id ? w.program : null;
     const isCustom = w.kind === 'custom';
     const timeLabel = w.time ? (() => {
       const [h, m] = String(w.time).split(':').map(Number);
@@ -3305,21 +3329,29 @@ function bsBuildTrainProgram(workouts, t) {
       const ap = h >= 12 ? 'PM' : 'AM';
       return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${ap}`;
     })() : '';
+    // Honest byline: self days are "Programmed by you" (or the program name · Wn),
+    // never a fabricated coach name; coach days keep the coach copy.
+    const selfByline = prog ? `${prog.name || 'Your program'}${prog.week ? ` · Week ${prog.week}` : ''}` : 'Programmed by you';
     return {
       d: label,
-      kicker: 'The Training',
+      kicker: isSelf ? 'The Training' : 'The Training',
       title: w.title || 'Workout',
-      tag: isCustom ? 'CUSTOM' : 'FEATURE',
-      tagColor: isCustom ? t.BLUE : t.AMBER,
+      tag: isSelf ? 'YOURS' : (isCustom ? 'CUSTOM' : 'FEATURE'),
+      tagColor: isSelf ? t.ACCENT : (isCustom ? t.BLUE : t.AMBER),
       accent: ACCENTS[i % ACCENTS.length],
       time: w.time || '',
       timeLabel,
       headline: w.title || 'Workout',
       meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
-      copy: w.description || 'Programmed by your coach.',
+      copy: w.description || (isSelf ? selfByline : 'Programmed by your coach.'),
       moves,
       total: `${moves.length} move${moves.length === 1 ? '' : 's'}`,
-      coachLine: w.description || 'Move with intent. Quality over load.',
+      coachLine: isSelf ? selfByline : (w.description || 'Move with intent. Quality over load.'),
+      // Self-authoring metadata the hero + edit affordance read.
+      selfAuthored: isSelf,
+      program: prog,
+      workoutId: w.id || null,
+      repeatDow: Array.isArray(w.repeatDow) ? w.repeatDow : null,
     };
   });
 }
@@ -3689,10 +3721,19 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
-          </div>
+          {cur.selfAuthored ? (
+            // Self-programmed day — honest "Programmed by you" (or the program
+            // name · Wn), teal spine. No fabricated coach name.
+            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${t.ACCENT}`, padding: '2px 0 2px 10px' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : 'Programmed by you'}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? `Your program · Week ${cur.program.week}` : 'Your workout'}</div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid #c0533b`, padding: '2px 0 2px 10px' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
+            </div>
+          )}
           {effMoves.length > 0 ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
