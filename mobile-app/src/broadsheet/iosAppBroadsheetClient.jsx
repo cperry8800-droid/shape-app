@@ -230,6 +230,9 @@ function BSMeCorner({ size = BS_HEADER_AVATAR }) {
     </span>
   );
 }
+// The chrome's pinned condensed masthead (BSPage) renders this as its trailing
+// corner — window-exposed because the chrome module can't import client components.
+window.BSMastCorner = BSMeCorner;
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
@@ -1791,7 +1794,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
 
   if (logged) {
     return (
-      <BSPage>
+      <BSPage mast={false}>
         <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55` }}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#04201d" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
@@ -1819,7 +1822,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   }
 
   return (
-    <BSPage>
+    <BSPage mast={false}>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>× Cancel</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log meal</span>
