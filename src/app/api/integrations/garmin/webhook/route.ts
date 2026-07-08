@@ -20,6 +20,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot } from '@/lib/health-snapshot';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -112,6 +113,22 @@ export async function POST(request: Request) {
   let snapshots = 0;
   let acts = 0;
 
+  // Per-user share level + author identity, resolved once per webhook delivery
+  // (one push can carry many users' items).
+  const shareByUser = new Map<string, SharePrivacy>();
+  const profileByUser = new Map<string, { full_name?: string | null; role?: string | null } | null>();
+  const shareFor = async (uid: string): Promise<SharePrivacy> => {
+    if (!shareByUser.has(uid)) shareByUser.set(uid, await resolveWorkoutSharePrivacy(admin, uid));
+    return shareByUser.get(uid) as SharePrivacy;
+  };
+  const profileFor = async (uid: string) => {
+    if (!profileByUser.has(uid)) {
+      const { data } = await admin.from('profiles').select('full_name, role').eq('id', uid).maybeSingle();
+      profileByUser.set(uid, (data ?? null) as { full_name?: string | null; role?: string | null } | null);
+    }
+    return profileByUser.get(uid) ?? null;
+  };
+
   // Dailies → resting HR / stress / active calories / steps on the calendar day.
   for (const d of dailies) {
     const uid = resolve(d.userId);
@@ -179,6 +196,66 @@ export async function POST(request: Request) {
         patch: { workout_minutes: mins, avg_heart_rate: avgHr, max_heart_rate: maxHr },
       });
     }
+
+    // Community post (parity with the other providers). Whoop-shaped summary
+    // payload — Garmin push sends no per-second streams.
+    const sharePrivacy = await shareFor(uid);
+    const profile = await profileFor(uid);
+    const distMi = num(a.distanceInMeters) != null ? `${((a.distanceInMeters as number) / 1609.344).toFixed(2)} mi` : null;
+    const kcal = num(a.activeKilocalories) != null ? `${Math.round(a.activeKilocalories as number)} kcal` : null;
+    const workoutStats: { label: string; value: string }[] = [];
+    if (mins != null) workoutStats.push({ label: 'Duration', value: `${mins} min` });
+    if (distMi) workoutStats.push({ label: 'Distance', value: distMi });
+    if (avgHr != null) workoutStats.push({ label: 'Avg HR', value: `${avgHr} bpm` });
+    if (maxHr != null) workoutStats.push({ label: 'Max HR', value: `${maxHr} bpm` });
+    if (kcal) workoutStats.push({ label: 'Calories', value: kcal });
+
+    const { data: existingPost, error: postLookupErr } = await admin
+      .from('community_posts')
+      .select('id')
+      .eq('author_id', uid)
+      .eq('source_provider', 'garmin')
+      .eq('source_activity_id', externalId)
+      .maybeSingle();
+    if (postLookupErr) { console.error('[shape-api] garmin post lookup failed:', postLookupErr.message); continue; }
+
+    const postPayload = {
+      author_id: uid,
+      author_name: profile?.full_name || 'Shape member',
+      author_role: ((r) => (r === 'trainer' || r === 'nutritionist' || r === 'client' ? r : 'client'))(String(profile?.role || 'client')),
+      privacy: sharePrivacy,
+      activity_type: type,
+      title: type.charAt(0).toUpperCase() + type.slice(1),
+      status: 'Imported from Garmin',
+      note: [type, distMi, avgHr != null ? `${avgHr} bpm avg HR` : null].filter(Boolean).join(' - ') || 'Imported from Garmin.',
+      metrics: {
+        provider: 'garmin',
+        durationMinutes: mins,
+        averageHeartRate: avgHr,
+        maxHeartRate: maxHr,
+        workoutStats,
+        statA: workoutStats[0]?.value ?? '-',
+        statB: workoutStats[1]?.value ?? '-',
+        statC: workoutStats[2]?.value ?? '-',
+        labels: [workoutStats[0]?.label ?? 'Duration', workoutStats[1]?.label ?? 'Distance', workoutStats[2]?.label ?? 'Avg HR'],
+        tags: sharePrivacy === 'private' ? ['GARMIN', 'PRIVATE'] : ['GARMIN'],
+      },
+      source_provider: 'garmin',
+      source_activity_id: externalId,
+      created_at: started ?? new Date().toISOString(),
+    };
+
+    if (!existingPost?.id) {
+      const dup = await findCrossSourceDuplicate(admin, uid, postPayload.created_at, 'garmin');
+      if (dup) continue;
+    }
+    // Updates never rewrite privacy (retro-tighten stands on re-delivery).
+    const { privacy: _privacy, ...updatePayload } = postPayload;
+    const postResult = existingPost?.id
+      ? await admin.from('community_posts').update(updatePayload).eq('id', existingPost.id)
+      : await admin.from('community_posts').insert(postPayload);
+    if (postResult.error) console.error('[shape-api] garmin post write failed:', postResult.error.message);
+    else if (!existingPost?.id) await maybeSendFirstShareNotice(admin, uid, sharePrivacy);
   }
 
   return NextResponse.json({ ok: true, snapshots, activities: acts });

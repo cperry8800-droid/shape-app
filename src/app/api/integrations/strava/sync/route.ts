@@ -4,6 +4,7 @@ import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeStravaSnapshots } from '@/lib/health-snapshot';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -214,7 +215,8 @@ function activityPostPayload(
   activity: StravaActivity,
   userId: string,
   profile: ProfileRow | null,
-  fallbackName: string
+  fallbackName: string,
+  sharePrivacy: SharePrivacy
 ) {
   const sport = activity.sport_type || activity.type || 'Activity';
   const distance = miles(activity.distance) ?? '-';
@@ -229,7 +231,7 @@ function activityPostPayload(
     author_id: userId,
     author_name: profile?.full_name || fallbackName,
     author_role: normalizeRole(profile?.role),
-    privacy: 'private',
+    privacy: sharePrivacy,
     activity_type: sport.toLowerCase(),
     title: activity.name || sport,
     status: 'Imported from Strava',
@@ -262,7 +264,7 @@ function activityPostPayload(
       statB: pace,
       statC: avgHr !== null ? `${avgHr} bpm` : duration,
       labels: ['Distance', pace === duration ? 'Time' : 'Pace', avgHr !== null ? 'Avg HR' : 'Time'],
-      tags: ['STRAVA', 'PRIVATE'],
+      tags: sharePrivacy === 'private' ? ['STRAVA', 'PRIVATE'] : ['STRAVA'],
     },
     route: {
       provider: 'strava',
@@ -437,6 +439,9 @@ async function importStravaActivities(
   // posts with HR get a trace fetched (existing posts already have theirs).
   const STREAM_CAP = 24;
   let streamsFetched = 0;
+  // The member's own share level — resolved once per sync run (fail-closed to
+  // 'private' on any settings read error).
+  const sharePrivacy = await resolveWorkoutSharePrivacy(client, userId);
 
   for (const activity of activities) {
     if (!activity.id) continue;
@@ -459,7 +464,7 @@ async function importStravaActivities(
       continue;
     }
 
-    const payload = activityPostPayload(activity, userId, profile, fallbackName);
+    const payload = activityPostPayload(activity, userId, profile, fallbackName, sharePrivacy);
     // Real HR / cadence / elevation traces for the detail-page graphs — new posts
     // only (existing posts already have theirs), in one streams call per activity.
     // Any activity with movement, HR, cadence, power, or elevation qualifies —
@@ -485,8 +490,19 @@ async function importStravaActivities(
       if (splits) m.splits = splits;
     }
 
+    if (!existing?.id) {
+      // Cross-source guard: another provider (or the in-app logger) already
+      // posted this workout within ±20 min → keep the activities row, skip the
+      // social post (first-writer-wins, silent).
+      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'strava');
+      if (dup) continue;
+    }
+
+    // Updates never rewrite privacy — the member may have retro-tightened, and
+    // a re-sync must not loosen (or re-decide) an existing post's audience.
+    const { privacy: _privacy, ...updatePayload } = payload;
     const result = existing?.id
-      ? await client.from('community_posts').update(payload).eq('id', existing.id)
+      ? await client.from('community_posts').update(updatePayload).eq('id', existing.id)
       : await client.from('community_posts').insert(payload);
 
     if (result.error) {
@@ -494,6 +510,7 @@ async function importStravaActivities(
       errors.push('Could not save an activity.');
     } else {
       imported += 1;
+      if (!existing?.id) await maybeSendFirstShareNotice(client, userId, sharePrivacy);
     }
   }
 
