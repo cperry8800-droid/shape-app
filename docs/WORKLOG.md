@@ -258,6 +258,51 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-08 — Workout auto-share: device + in-app workouts post by the member's own privacy (#1613 build)
+- **Made the DEAD "Share workout data" toggle real** and closed the whole
+  coach-less-solo social gap the analysis surfaced: a member's workouts now
+  auto-post to their profile + community feed at the privacy their OWN settings
+  resolve to, across every source. Builds on the Following feed (#1610) — this
+  is what writes the `followers` tier. **No migration.**
+- **One rule (pure, unit-tested):** `Share workout data` × `profileVisibility`
+  → On+Public `public` (Universal feed + profile) · On+"Just friends"
+  `followers` (only their followers' Following feeds) · On+Private or Off
+  `private` (self; coach still sees it via the client view). Missing settings
+  resolve to the defaults (On·Public) → sharing is automatic out of the box.
+  `mobile-app/src/services/workoutShare.mjs` is the source of truth (+
+  `tests/workout-share.test.mjs`, suite 473); the server `src/lib/
+  workout-share.ts` **imports the pure fns from it** (one implementation, no
+  twin drift — CodeRabbit Major) and adds the DB wrappers (resolver **fails
+  CLOSED** to private on any read error, dedup query, first-share notice).
+- **All six write sites obey it:** the 4 device syncs (Strava/Apple Health/
+  Oura/Whoop) stop hardcoding `privacy:'private'`; **Garmin finally auto-posts**
+  (it synced activities but never posted); **in-app logged sessions** auto-post
+  — and that path was repaired: session-id-idempotent `source_activity_id`
+  (was `Date.now()`), `created_at` stamped at session START (so the ±20-min
+  cross-source dedup lines up with device posts), the **+5 community award
+  gated off** for auto-shares (the workout already earns its +10), and the live
+  session's share toggle now **seeds from the member's rule** (passes `null` =
+  rule decides). **Every sync's UPDATE branch strips `privacy`** so a re-sync
+  can never loosen a retro-tightened post.
+- **Safeguards:** ±20-min cross-source dedup both directions (watch + phone
+  can't double-post one workout); **retroactive tightening** — flipping Share
+  off or profile → stricter pulls every past auto-post down
+  (`ShapeCommunity.tightenAutoPosts`, one shared `bsMaybeRetightenAutoPosts`
+  helper), loosening never republishes, manual composer posts untouched;
+  one-time first-share notice (server notification + mobile toast) whose dedup
+  stamp lives in its **own** `user_goals('auto_share_flag')` row — never merged
+  into `client_settings`, so the best-effort write can't clobber a concurrent
+  Settings change (CodeRabbit Major); sleep/recovery still never post.
+- **Review round (all addressed before merge):** Codex P1 — the mobile
+  resolver ignored Supabase's non-throwing `.error`, so a *failed* settings
+  read defaulted to PUBLIC → now fails closed like the server. CodeRabbit
+  (2 Major + 2 Trivial) — single-source pure logic, race-free dedicated-row
+  stamp, extracted retro-tighten helper, dropped a redundant `client_settings`
+  re-read. CodeRabbit re-reviewed + acknowledged; `tsc` clean, `next build` +
+  mobile build green, 473 tests. **Open:** on-device pass across papers +
+  the share matrix (Public/Friends/Private × On/Off) + the retro-tighten flip;
+  composer "Followers" option for manual posts (deferred).
+
 ### 2026-07-08 — Community feed: Universal/Following toggle + `followers` tier (#1609 spec · #1610 build) · workout auto-share spec (#1611)
 - **The community feed gains a two-mode viewing lens** (owner-designed round:
   no separate follow feed — ONE feed with a switch): **UNIVERSAL** (default —
