@@ -3626,7 +3626,7 @@ function bsWeeksUntil(dateStr) {
 
 // The full-page builder. seed = { mode, name, discipline, moves?, weeks? (program
 // review), programId? } | null. Quiet Open Ledger form grammar.
-function BSWorkoutBuilder({ seed, onClose, onSaved, onOpenDraft = null }) {
+function BSWorkoutBuilder({ seed, onClose, onSaved }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
@@ -3649,6 +3649,27 @@ function BSWorkoutBuilder({ seed, onClose, onSaved, onOpenDraft = null }) {
   const [reviewWeeks, setReviewWeeks] = useStateBSC(seed?.weeks || []);
   const [openWeek, setOpenWeek] = useStateBSC(0);
   const [status, setStatus] = useStateBSC('');
+  // ✦ AI draft prompt sheet — { goal, days, exp } | null. Auto-opens when the
+  // door launched the builder via "Draft it for me".
+  const [draft, setDraft] = useStateBSC(seed?.autoDraft ? { goal: '', days: 4, exp: 'intermediate' } : null);
+  const [drafting, setDrafting] = useStateBSC(false);
+  const [draftErr, setDraftErr] = useStateBSC('');
+  const runDraft = async () => {
+    if (drafting) return;
+    setDrafting(true); setDraftErr('');
+    try {
+      const prog = await window.ShapeTrainingAI?.draft?.({ goal: draft.goal, weeks, daysPerWeek: draft.days, discipline: progDiscipline, experience: draft.exp });
+      if (!prog || !Array.isArray(prog.weeks) || !prog.weeks.length) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); setDrafting(false); return; }
+      setStarterId(null);
+      setProgName(prog.name || progName || 'My program');
+      if (prog.discipline) setProgDiscipline(prog.discipline);
+      setReviewWeeks(prog.weeks);
+      setWeeks(prog.weeks.length);
+      setOpenWeek(0);
+      setDraft(null);
+    } catch (e) { setDraftErr('Drafting is unavailable right now — build manually or try again.'); }
+    setDrafting(false);
+  };
 
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
   const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
@@ -3779,9 +3800,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved, onOpenDraft = null }) {
           <>
             <label style={{ display: 'block' }}><span style={lbl}>Name</span><input className="bs-uline" value={progName} onChange={(e) => setProgName(e.target.value)} placeholder="e.g. Marathon block" style={field} /></label>
             <div><div style={lbl}>Discipline</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{['run', 'ride', 'swim', 'triathlon', 'hybrid', 'strength'].map((d) => chip(progDiscipline === d, d, () => setProgDiscipline(d)))}</div></div>
-            {onOpenDraft && (
-              <button onClick={() => onOpenDraft({ weeks, daysPerWeek, discipline: progDiscipline, name: progName })} style={{ width: '100%', minHeight: 44, border: `1px solid ${teal}`, borderRadius: 6, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
-            )}
+            <button onClick={() => setDraft({ goal: draft?.goal || '', days: daysPerWeek || 4, exp: draft?.exp || 'intermediate' })} style={{ width: '100%', minHeight: 44, border: `1px solid ${teal}`, borderRadius: 6, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>✦ Draft it for me</button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'end' }}>
               <div><div style={lbl}>Weeks</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -3836,6 +3855,34 @@ function BSWorkoutBuilder({ seed, onClose, onSaved, onOpenDraft = null }) {
         <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
         <button onClick={mode === 'session' ? saveSession : saveProgram} disabled={status === 'working' || (mode === 'program' && !fits)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: (mode === 'program' && !fits) ? bsTHexA(teal, 0.4) : teal, color: t.isLight ? '#fff' : '#04201d', cursor: (status === 'working' || (mode === 'program' && !fits)) ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{status === 'working' ? 'Saving…' : mode === 'session' ? 'Add to my week →' : 'Add program →'}</button>
       </div>
+
+      {/* ✦ Draft it for me — a goal prompt → a structured draft into the review.
+          Nothing is saved here; the draft just fills the week-by-week list. */}
+      {draft && (
+        <div onClick={() => !drafting && setDraft(null)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>✦ Draft it for me</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Shape drafts a {weeks}-week plan you can edit before saving.</div>
+            <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+            <textarea value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} rows={3} placeholder="e.g. first marathon on Oct 12, I run 3 days a week now" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 6, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Days/wk</span>
+              <button onClick={() => setDraft({ ...draft, days: Math.max(1, draft.days - 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{draft.days}</span>
+              <button onClick={() => setDraft({ ...draft, days: Math.min(7, draft.days + 1) })} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+              {['beginner', 'intermediate', 'advanced'].map((x) => chip(draft.exp === x, x, () => setDraft({ ...draft, exp: x })))}
+            </div>
+            {draftErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{draftErr}</div>}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+              <button onClick={() => !drafting && setDraft(null)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+              <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? 'Drafting…' : '✦ Draft my plan'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
   const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
@@ -3947,7 +3994,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
   // Self-serve builder overlay (Build your week / edit a self day). On save it
   // reloads the plan so the new/edited program shows on the deck immediately.
-  if (builder) return <BSWorkoutBuilder seed={builder} onClose={() => setBuilder(null)} onSaved={() => { setBuilder(null); loadPlan(); }} onOpenDraft={(ctx) => setBuilder({ mode: 'program', ...ctx })} />;
+  if (builder) return <BSWorkoutBuilder seed={builder} onClose={() => setBuilder(null)} onSaved={() => { setBuilder(null); loadPlan(); }} />;
 
   // Parse "4 × 8 · …" → { sets: 4, reps: '8' } so the live player reflects the
   // actual session; segment-style cardio (no "× reps") falls back to one set.
@@ -3985,7 +4032,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           onOpenSession={() => setSession(true)}
           onStartTemplate={startTemplate}
           onStartProgram={startProgram}
-          onDraft={() => setBuilder({ mode: 'program' })}
+          onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
         />
       </BSPage>
     );

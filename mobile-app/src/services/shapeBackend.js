@@ -1545,6 +1545,24 @@ window.ShapeSelfTraining = {
   list: listSelfWorkouts,
 };
 
+// ✦ AI draft for the builder — POST a goal, get a STRUCTURED program back (the
+// builder's review shape). Returns null on any failure (the sheet shows the
+// honest "unavailable" fallback); NOTHING is saved here.
+async function draftTrainingProgram({ goal, weeks, daysPerWeek, discipline, experience } = {}) {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/ai/draft-program`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ goal, weeks, daysPerWeek, discipline, experience }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d || !d.program) return null;
+    return d.program; // { name, discipline, weeks: [...] }
+  } catch (e) { return null; }
+}
+window.ShapeTrainingAI = { draft: draftTrainingProgram };
+
 async function updateClientWorkout({ workoutId, patch = {} } = {}) {
   if (!workoutId) {
     throw new Error('Workout id is required.');
