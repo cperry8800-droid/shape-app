@@ -3418,7 +3418,7 @@ function BSFindCoachBar({ role, onOpen }) {
   const c = trainer ? '#c0533b' : '#a07a2e';
   const glyphC = trainer ? '#c0533b' : '#b8923f';
   return (
-    <button onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', minHeight: 44, padding: '4px 2px 4px 10px', background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, borderLeft: `3px solid ${c}`, cursor: 'pointer', textAlign: 'left' }}>
+    <button type="button" onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', minHeight: 44, padding: '4px 2px 4px 10px', background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, borderLeft: `3px solid ${c}`, cursor: 'pointer', textAlign: 'left' }}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={glyphC} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
         {trainer
           ? <path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" />
@@ -3453,7 +3453,7 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
         {DOWL.map((L, i) => {
           const on = i === activeIdx;
           return (
-            <button key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? ', selected' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
+            <button type="button" key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? ', selected' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
               <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 14, color: on ? t.INK : t.INK50, letterSpacing: '-0.03em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
               <span aria-hidden style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : 'transparent' }} />
@@ -4201,7 +4201,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               // the stored scheme string is untouched (the session parser reads r.s).
               const sch = String(r.s || '').replace(/(\d+)\s*min rest/g, '$1m').replace(/(\d+)s rest/g, '$1s');
               return (
-                <button key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                <button type="button" key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
                   <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
