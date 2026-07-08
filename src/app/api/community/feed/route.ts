@@ -6,9 +6,9 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' | 'profile' {
+function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' | 'profile' | 'followers' {
   const value = String(input ?? '').toLowerCase();
-  if (value === 'public' || value === 'private' || value === 'profile') return value;
+  if (value === 'public' || value === 'private' || value === 'profile' || value === 'followers') return value;
   return 'community';
 }
 
@@ -39,13 +39,34 @@ function storagePathFromUrl(url: string, bucket: string): string | null {
 
 export async function GET(request: Request) {
   const client = await clientForRequest(request);
-  const { data: posts, error } = await client
+  const mode = new URL(request.url).searchParams.get('mode') === 'following' ? 'following' : 'universal';
+
+  let privacyIn: string[] = ['public', 'community'];
+  let authorIn: string[] | null = null;
+  if (mode === 'following') {
+    const user = await currentUser(request);
+    if (!user) return NextResponse.json({ posts: [] });
+    const { data: follows, error: followErr } = await client
+      .from('user_follows')
+      .select('following_id')
+      .eq('follower_id', user.id)
+      .eq('status', 'accepted')
+      .limit(500);
+    if (followErr) return dbError(followErr, 'community feed follows read', 400);
+    // Accepted follows + self; 'followers'-tier posts may surface here (and
+    // only here) — RLS re-checks per row, this filter just narrows the query.
+    privacyIn = ['public', 'community', 'followers'];
+    authorIn = [...new Set([...(follows ?? []).map((r) => r.following_id as string), user.id])];
+  }
+
+  let query = client
     .from('community_posts')
     .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
-    // 'profile' (profile-only) and 'private' posts never appear in the feed.
-    .in('privacy', ['public', 'community'])
-    .order('created_at', { ascending: false })
-    .limit(50);
+    // Universal: 'profile'/'private'/'followers' never appear. Following:
+    // 'followers' allowed, scoped to accepted follows + self (RLS re-checks).
+    .in('privacy', privacyIn);
+  if (authorIn) query = query.in('author_id', authorIn);
+  const { data: posts, error } = await query.order('created_at', { ascending: false }).limit(50);
 
   if (error) return dbError(error, 'community feed read', 400);
   return NextResponse.json({ posts: posts ?? [] });
