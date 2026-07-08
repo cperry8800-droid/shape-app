@@ -295,9 +295,11 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.posts)) live = d.posts.map(p => mapPost(p, uid)); }
       } catch (e) {}
       if (!alive) return;
-      // Universal keeps the demo backfill for signed-out preview. Following is
-      // allowed to be empty — an honest empty state, never demo-as-your-follows.
-      setFeed(signedIn ? live : (feedMode === 'following' ? live : [...live, ...DEMO_FEED]));
+      // Signed-out preview shows the demo set in BOTH modes (mobile parity —
+      // spec AC6): the demo band already labels it a preview, so a signed-out
+      // Following never dead-ends on a bare "nothing here" (CodeRabbit). The
+      // SIGNED-IN Following empty state stays honest via liveEmpty below.
+      setFeed(signedIn ? live : [...live, ...DEMO_FEED]);
       setLiveEmpty(signedIn && feedMode === 'following' && live.length === 0);
     })();
     return () => { alive = false; };
