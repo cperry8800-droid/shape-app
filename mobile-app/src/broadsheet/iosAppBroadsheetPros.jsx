@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
 // (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
@@ -2675,54 +2676,9 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 }
 
 // ── Assign a catalogue plan to a client ──────────────────────────────────────
-// Coach plans (coach_plans) store free-text outline blocks; these parsers map
-// them onto the shapes the client app already consumes — client_workouts
-// exercises (Train deck) and client_meal_plans days (Eat menu).
-const BS_ASSIGN_DOW = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-function bsAssignSplitBlock(text) {
-  const s = String(text || '').trim();
-  if (!s) return null;
-  const m = s.match(/^(.*?)\s*[—–:]\s*(.+)$/);
-  return { head: (m ? m[1] : s).trim(), tail: m ? m[2].trim() : '' };
-}
-// "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
-function bsAssignExercise(text) {
-  const p = bsAssignSplitBlock(text);
-  if (!p) return null;
-  let { head, tail } = p;
-  if (!tail) {
-    const dot = head.split(/\s*·\s*/);
-    if (dot.length > 1 && /\d/.test(dot.slice(1).join(''))) { head = dot[0].trim(); tail = dot.slice(1).join(' · '); }
-  }
-  const sx = tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
-  return {
-    name: head,
-    sets: sx ? sx[1] : '',
-    reps: sx ? sx[2] : '',
-    rest: '',
-    load: sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail,
-  };
-}
-// "Mon — Upper (push)" → { dow: 0, title, rest }; null when not a weekday line.
-function bsAssignDayLine(text) {
-  const p = bsAssignSplitBlock(text);
-  if (!p) return null;
-  const dow = BS_ASSIGN_DOW.indexOf(p.head.slice(0, 3).toLowerCase());
-  if (dow < 0) return null;
-  return { dow, title: p.tail || p.head, rest: /rest/i.test(p.tail || p.head) };
-}
-// "Breakfast — Greek yogurt bowl · 420 kcal" → meal-plan meal entry.
-function bsAssignMeal(text) {
-  const p = bsAssignSplitBlock(text);
-  if (!p) return null;
-  const lower = p.head.toLowerCase();
-  const slot = ['breakfast', 'lunch', 'dinner', 'snack'].find(w => lower.startsWith(w));
-  const kcal = ((p.tail || p.head).match(/(\d{2,4})\s*kcal/i) || [])[1];
-  return { slot: (slot || 'meal').toUpperCase(), title: p.tail || p.head, kcal: kcal ? Number(kcal) : 0 };
-}
-function bsAssignIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+// The outline parsers (bsAssignExercise / bsAssignDayLine / bsAssignMeal /
+// bsAssignIso) now live in ../services/planOutline.mjs — shared with the client
+// Start-this-plan flow so both callers map coach_plans blocks the same way.
 
 // The Assign page. Entered with a concrete plan (from the Plans catalogue) or
 // a fixed client (from the client profile's Manage tab) — whichever half is
