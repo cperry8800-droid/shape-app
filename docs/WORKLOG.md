@@ -258,6 +258,37 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-07 — Chrome pass: side cushion · slimmer nav · condensing pinned masthead · followers-sheet fix (#1603 · #1605)
+- **#1603 (owner screenshots):** app-wide **side cushion +2px** on all three density
+  tiers (`padX` 24/20/16 → 26/22/18 — one token, every `t.padX` consumer moves
+  together); the bottom **nav bar trimmed 72→64px** (tighter padding + page scroll
+  reserve to match); the Nora **Support chat serialized into the Open Ledger
+  language** (masthead + tinted bubbles); and the **followers/following sheet
+  bleed-through fixed** — the header was `position:sticky` INSIDE the padded
+  scroller, so on device rows rode up into the safe-area strip and painted through
+  the masthead/tabs/search; restructured to an opaque static header layer + the
+  list scrolling in its own pane (rows physically can't get behind the chrome).
+  CodeRabbit APPROVED (0 findings, incl. the post-push followers commit).
+- **#1605 — condensing pinned masthead (owner request: the top heading bar stays
+  present on scroll, same spacing on every page).** Every page embeds its own
+  masthead inside scrolled content at varying offsets, so per-page sticky would die
+  with its parent block — instead **`BSPage` owns it**: scroll past ~64px and a
+  pinned strip (logo + `Vol. 1 · No. 1` + the standard search/avatar corner) slides
+  in, with uniform `t.padX` + safe-area cushion by construction. Mirrors the tab
+  bar's paper treatment (gradient + blur + hairline + shadow, flipped) so top and
+  bottom chrome read as one instrument; zIndex 60 (above the 55 tab bar, below all
+  sheets); `prefers-reduced-motion` renders without the slide. The corner is
+  window-bridged (`window.BSMastCorner`) since the chrome can't import client
+  components — pros shells get it via the established client-globals load order.
+  Full-screen flows opt out via `mast={false}` (applied to the meal logger, whose
+  `× Cancel` chrome + sticky log bar must stay unobstructed).
+- Housekeeping: closed the accidental **staging→main PR #1604** (the `staging`
+  branch is the force-pushed scratch preview pointer — its content ships through
+  each feature's own PR; #1604's diff had silently drifted to unreviewed work).
+- **Open:** on-device pass for the masthead (papers × reduced-motion × safe-area on
+  the notch); consider `mast={false}` for other full-screen flows if the strip
+  reads wrong anywhere (calendar event sheets, live session).
+
 ### 2026-07-07 — Meal logger → "Correct the Record": Open Ledger restructure (#1597 spec · #1601 build)
 - **The last plate-era client sheet, rebuilt.** `BSLogMealFlow` (mobile) restructured
   from a 4-way mode-tab sheet into the Open Ledger language, fixing four real defects:
