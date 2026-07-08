@@ -4833,9 +4833,9 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
 
       <BSKitchenCard recipe={r} dayLabel={dayLabel} />
 
-      {r.blurb ? (
+      {(r.blurb || r.brief) ? (
         <div style={{ margin: `16px ${t.padX}px 0`, textAlign: 'center' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{r.blurb}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{r.blurb || r.brief}</div>
         </div>
       ) : null}
 
