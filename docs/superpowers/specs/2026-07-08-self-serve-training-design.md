@@ -46,10 +46,19 @@ One idempotent migration; every downstream reader lights up unchanged.
     untouchable by coaches, in both directions. Client SELECT policy already
     covers self rows (`client_id = auth.uid()`).
   - Existing `client_workouts_set_updated_at` trigger applies as-is.
+  - **Guard the `client_workouts_notify` trigger with `trainer_id IS NOT
+    NULL`** — today it fires "New workout from your coach" on every published
+    INSERT, so a self-save (let alone a 100-row program materialization) would
+    spam the member with false coach notifications. Self rows notify nothing.
 - **`/api/client/plan`**: pass through two payload fields — `repeatDow`
   (int[] 0=Mon..6=Sun) and per-exercise `seg` (free segment descriptor, e.g.
   `"10 mi · Z2"` / `"400m sled push"`). Also return `selfAuthored:
-  trainer_id === null` per workout. No new routes for the core.
+  trainer_id === null` per workout. **Window the dated query**: today the
+  route takes ALL published rows ordered `scheduled_date` ascending with
+  `.limit(60)`, so once a long block's early weeks pass, the current week
+  falls off the end. The query becomes *this week forward OR undated*
+  (`scheduled_date >= weekStart` / `scheduled_date IS NULL`), which keeps the
+  limit safe for the longest supported program. No new routes for the core.
 - **Writer**: `window.ShapeSelfTraining` in `shapeBackend.js` — direct
   RLS-scoped Supabase CRUD (`kind:'custom'`, `status:'published'`,
   `trainer_id:null`), mirroring how the coach app writes assignments.
@@ -66,9 +75,11 @@ One idempotent migration; every downstream reader lights up unchanged.
   so the deck + calendar can label "Marathon block · W6 D3". Marathon long-run
   progressions live here — each day is its own editable row, so "bump
   Saturday's long run" is a normal edit. Materialization is client-side (the
-  same pattern the coach Assign flow uses), capped at 160 rows per program
-  (26 weeks × 6 days fits; the builder clamps weeks to 1–26 and guards the
-  product).
+  same pattern the coach Assign flow uses). The cap derives from the clamps,
+  never truncates: weeks clamp to 1–26 and the builder VALIDATES
+  `weeks × days-per-week ≤ 182` (26 × 7 — every supported schedule fits) —
+  an over-cap request blocks the save with an honest message rather than
+  silently dropping rows.
 
 ## The builder — `BSWorkoutBuilder` (client module, full-page quiet form)
 
@@ -152,7 +163,11 @@ one adjustable at pick time):
   (`mobile-app/src/services/planOutline.mjs`, unit-tested; pros app imports it
   back — one implementation), materializes dated self rows stamped
   `payload.program:{id:'plan:'+planId,…}`. Re-starting the same plan replaces
-  its previous block (delete by program id first) — never duplicates.
+  its previous block **atomically-in-effect**: the new block materializes
+  fully FIRST (stamped with a fresh `program.runId`), and only after every
+  row lands do the prior run's rows delete — a mid-flow failure leaves the
+  old block intact, and duplicates are impossible because readers resolve a
+  plan's block by its newest `runId`.
 
 ## Coach interplay + guardrails
 
@@ -200,3 +215,6 @@ one adjustable at pick time):
    Coach-assigned weeks render exactly as before the migration.
 8. Signed-out preview is byte-identical to today except the locked builder
    door.
+9. A self-save fires NO notification (the "New workout from your coach"
+   trigger is guarded to coach rows), and the Train deck still shows the
+   CURRENT week of a 26-week block in its final weeks (windowed plan query).
