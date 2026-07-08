@@ -3408,6 +3408,30 @@ function bsBuildTrainProgram(workouts, t) {
 // ── Shared "tracklist" UI for the Train + Eat day views ────────────────────
 // Rounded weekly calendar: day letter, date number, status dot; active tile
 // gets a teal outline + faint wash.
+// Find-a-coach leader row — the marketplace deep link pinned atop Train + Eat.
+// Zero-box: 3px role spine + hairline bounds; role color rides spine/glyph/tag/
+// arrow, the title stays theme ink. One shared implementation (the trainer bar
+// was previously duplicated verbatim in the Build-door branch and the deck).
+function BSFindCoachBar({ role, onOpen }) {
+  const t = useBS();
+  const trainer = role === 'trainer';
+  const c = trainer ? '#c0533b' : '#a07a2e';
+  const glyphC = trainer ? '#c0533b' : '#b8923f';
+  return (
+    <button onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', minHeight: 44, padding: '4px 2px 4px 10px', background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, borderLeft: `3px solid ${c}`, cursor: 'pointer', textAlign: 'left' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={glyphC} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+        {trainer
+          ? <path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" />
+          : <><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></>}
+      </svg>
+      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{trainer ? 'Find a trainer' : 'Find a nutritionist'}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 7.5, color: glyphC, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap' }}>{trainer ? 'Vetted coaches' : 'Vetted RDs'}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)', minWidth: 12 }} />
+      <span style={{ color: glyphC, fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
+    </button>
+  );
+}
+
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const t = useBS();
   const DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -4065,16 +4089,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return (
       <BSPage>
         <BSPageHeader kicker="Train" title="Your training" trailing={<BSHeaderTools onProfile={onProfile} />} />
-        <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
-          <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
-            <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
-          </div>
-          <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-        </button>
+        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
         <BSBuildDoor
           onBuild={() => setBuilder({ mode: 'session' })}
           onOpenSession={() => setSession(true)}
@@ -4094,19 +4109,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
-      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
-          Soft rust TINT (the app's tinted-chip language) instead of a solid filled bar —
-          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
-        </div>
-        <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-      </button>
+      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always
+          visible. Zero-box role leader row (shared with the Build-door branch). */}
+      <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
 
       {/* Build a workout — always reachable once a plan exists (the door owns the
           empty state). Opens the self-serve builder. */}
@@ -6575,19 +6580,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
-      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
-          Soft gold TINT (the app's tinted-chip language) instead of a solid filled bar —
-          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#a07a2e', 0.5)}`, borderLeft: '3px solid #a07a2e', background: bsTHexA('#a07a2e', 0.1), cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#a07a2e', 0.16), border: `1px solid ${bsTHexA('#a07a2e', 0.45)}`, color: '#b8923f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a nutritionist</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#b8923f', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted RDs</span>
-        </div>
-        <span style={{ color: '#b8923f', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-      </button>
+      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's
+          always visible. Zero-box role leader row (shared with Train). */}
+      <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
