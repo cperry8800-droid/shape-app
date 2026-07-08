@@ -5,6 +5,7 @@ import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } fro
 import { registerPush } from './push.js';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
+import { bsFeedQuerySpec } from './feedMode.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -462,6 +463,7 @@ async function signOut() {
   // follow state / avatars (these are keyed by target id but hold viewer-relative data).
   for (const k in _followCache) delete _followCache[k];
   for (const k in _avatarCache) delete _avatarCache[k];
+  _followingIdsCache = { uid: null, ids: null, at: 0 };
   return setCached({ user: null, session: null, profile: null });
 }
 
@@ -2385,20 +2387,49 @@ window.ShapePRWall = { post: postPRToWall, announce: announcePRsFromSetLogs };
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();
-  if (clean === 'public' || clean === 'private' || clean === 'profile') return clean;
+  if (clean === 'public' || clean === 'private' || clean === 'profile' || clean === 'followers') return clean;
   return 'community';
 }
 
-async function listCommunityPosts() {
+// Accepted follows of the signed-in user — the FOLLOWING feed's author scope.
+// Cached 60s per uid; capped 500 (the .in() filter's practical bound). RLS on
+// community_posts remains the authority — this only narrows the query.
+let _followingIdsCache = { uid: null, ids: null, at: 0 };
+async function listAcceptedFollowingIds() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return [];
+  const now = Date.now();
+  if (_followingIdsCache.uid === uid && _followingIdsCache.ids && now - _followingIdsCache.at < 60000) {
+    return _followingIdsCache.ids;
+  }
+  const { data, error } = await supabase
+    .from('user_follows')
+    .select('following_id')
+    .eq('follower_id', uid)
+    .eq('status', 'accepted')
+    .limit(500);
+  if (error) return _followingIdsCache.uid === uid ? (_followingIdsCache.ids || []) : [];
+  const ids = (data || []).map((r) => r.following_id);
+  _followingIdsCache = { uid, ids, at: now };
+  return ids;
+}
+
+async function listCommunityPosts(mode = 'universal') {
   if (!supabase) return { stored: 'local', data: [] };
 
-  const { data, error } = await supabase
+  const spec = bsFeedQuerySpec(
+    mode,
+    state.user?.id || null,
+    mode === 'following' ? await listAcceptedFollowingIds() : []
+  );
+  let query = supabase
     .from('community_posts')
     .select(COMMUNITY_POST_SELECT)
-    // 'profile' (profile-only) and 'private' posts never appear in the feed.
-    .in('privacy', ['public', 'community'])
-    .order('created_at', { ascending: false })
-    .limit(50);
+    // Universal: 'profile'/'private'/'followers' never appear. Following:
+    // 'followers' allowed, scoped to accepted follows + self (RLS re-checks).
+    .in('privacy', spec.privacyIn);
+  if (spec.authorIn) query = query.in('author_id', spec.authorIn);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
 
   if (error) {
     return { stored: 'local', data: [], error };

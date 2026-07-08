@@ -228,6 +228,14 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     { kind: "post", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
   ];
   const [feed, setFeed] = React.useState(DEMO_FEED);
+  // Community feed viewing lens — UNIVERSAL (everyone's public activity, the
+  // default) vs FOLLOWING (accepted follows + you, incl. their followers-tier
+  // posts). Persisted per device; the route + RLS enforce visibility.
+  const [feedMode, setFeedMode] = React.useState(() => {
+    try { return localStorage.getItem('shape.feedMode') === 'following' ? 'following' : 'universal'; } catch (e) { return 'universal'; }
+  });
+  const switchFeedMode = (m) => { setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
+  const [liveEmpty, setLiveEmpty] = React.useState(false);
 
   // Hydrate the live posts on top of the demo content. The /api/community/feed
   // endpoint returns rows from community_posts (newest first); we map each row
@@ -283,14 +291,19 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); uid = data && data.user && data.user.id; signedIn = !!uid; } } catch (e) {}
       let live = [];
       try {
-        const r = await fetch('/api/community/feed', { credentials: 'same-origin' });
+        const r = await fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' });
         if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.posts)) live = d.posts.map(p => mapPost(p, uid)); }
       } catch (e) {}
       if (!alive) return;
+      // Signed-out preview shows the demo set in BOTH modes (mobile parity —
+      // spec AC6): the demo band already labels it a preview, so a signed-out
+      // Following never dead-ends on a bare "nothing here" (CodeRabbit). The
+      // SIGNED-IN Following empty state stays honest via liveEmpty below.
       setFeed(signedIn ? live : [...live, ...DEMO_FEED]);
+      setLiveEmpty(signedIn && feedMode === 'following' && live.length === 0);
     })();
     return () => { alive = false; };
-  }, []);
+  }, [feedMode]);
 
   // ── Inline renderers per feed kind ────────────────────────────────────
   function PRStat({ p }) {
@@ -831,8 +844,31 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               const f = filters.find(x => x.label === filter);
               return !f || !f.kinds || f.kinds.includes(p.kind);
             });
+            if (feedMode === "following" && liveEmpty) {
+              return (
+                <>
+                  <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
+                    {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
+                      const on = feedMode === m;
+                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(242,237,228,0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                    })}
+                  </div>
+                  <div style={{ padding: "26px 4px" }}>
+                    <div style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: INK }}>Nothing from your people yet.</div>
+                    <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>FOLLOW MEMBERS TO BUILD THIS FEED</div>
+                    <button onClick={() => switchFeedMode("universal")} style={{ marginTop: 12, background: "transparent", border: 0, cursor: "pointer", padding: "8px 0", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>SEE EVERYONE — UNIVERSAL →</button>
+                  </div>
+                </>
+              );
+            }
             return (
               <>
+                <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
+                  {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
+                    const on = feedMode === m;
+                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(242,237,228,0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                  })}
+                </div>
                 <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap", alignItems: "center" }}>
                   {filters.map((f) => {
                     const on = f.label === filter;
