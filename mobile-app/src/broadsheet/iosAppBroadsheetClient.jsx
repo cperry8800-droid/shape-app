@@ -12562,14 +12562,25 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Declared BEFORE the post-loader effect below (its dep array reads feedNonce) —
   // moving it here avoids a temporal-dead-zone ReferenceError when BSClientFeed renders.
   const [feedNonce, setFeedNonce] = useStateBSC(0);
+  // Community feed viewing lens — UNIVERSAL (everyone's public activity, the
+  // default) vs FOLLOWING (accepted follows + you, incl. their followers-tier
+  // posts). Persisted per device; the query + RLS enforce visibility.
+  const [feedMode, setFeedMode] = useStateBSC(() => {
+    try { return localStorage.getItem('shape.feedMode') === 'following' ? 'following' : 'universal'; } catch (e) { return 'universal'; }
+  });
+  const switchFeedMode = (m) => { setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
   React.useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const res = await window.ShapeCommunity?.listPosts?.();
-        if (active && Array.isArray(res?.data) && res.data.length) {
-          const mapped = res.data.map(mapPost).filter(p => p.body);
-          const acts = res.data.map(bsActivityFromPost).filter(Boolean);
+        const res = await window.ShapeCommunity?.listPosts?.(feedMode);
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        // Universal keeps the old behavior (sample until live rows exist).
+        // Following must be allowed to be EMPTY — an honest empty state, never
+        // the demo sample presented as your follows' activity.
+        if (active && (rows.length || (feedMode === 'following' && res?.stored === 'supabase'))) {
+          const mapped = rows.map(mapPost).filter(p => p.body);
+          const acts = rows.map(bsActivityFromPost).filter(Boolean);
           setPosts(mapped); setPostsLive(true); setActivityFeed(acts);
           // Batch the authors' all-time points → real tier per user for the bubbles.
           const ids = [...new Set([myUserId, ...mapped.map(p => p.userId), ...acts.map(a => a.userId)].filter(Boolean))];
@@ -12591,7 +12602,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
-  }, [feedNonce]);
+  }, [feedNonce, feedMode]);
   const [tierByUser, setTierByUser] = useStateBSC({}); // userId → real tier (from Shape Score)
   const [avatarByUser, setAvatarByUser] = useStateBSC({}); // userId → profile photo (data URL)
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
@@ -13319,6 +13330,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* Viewing lens: UNIVERSAL (everyone's public activity) / FOLLOWING
+                  (people you follow, incl. their followers-tier posts). */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `2px ${t.padX}px 4px` }}>
+                {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
+                {bsSubTab({ key: 'following', on: feedMode === 'following', color: TEALB, onClick: () => switchFeedMode('following'), label: 'Following' })}
+              </div>
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
@@ -13331,6 +13348,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 const realMode = loggedIn && postsLive;
                 const cards = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
                 if (realMode && !cards.length) {
+                  // FOLLOWING with nobody to show → honest empty state + a way out
+                  // (follow suggestions + a one-tap jump to Universal). Never blank.
+                  if (feedMode === 'following') {
+                    return (
+                      <div style={{ padding: `18px ${t.padX}px 8px` }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>Nothing from your people yet.</div>
+                        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Follow members to build this feed</div>
+                        <div style={{ marginTop: 14 }}><BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} /></div>
+                        <button onClick={() => switchFeedMode('universal')} style={{ marginTop: 14, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>See everyone — Universal →</button>
+                      </div>
+                    );
+                  }
                   return (
                     <div style={{ textAlign: 'center', padding: '40px 24px', color: muted }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.02em' }}>No activity yet</div>
