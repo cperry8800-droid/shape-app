@@ -6,6 +6,7 @@ import { registerPush } from './push.js';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
+import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -2234,7 +2235,7 @@ async function saveWorkoutSessionLog({
   setLogs = [],
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
-  privacy = 'private',
+  privacy = null, // null = auto-share: the member's own share rule decides
   clientWorkoutId = null,
   providerId = null,
   providerRole = null,
@@ -2277,11 +2278,47 @@ async function saveWorkoutSessionLog({
   if (hr && Number.isFinite(Number(hr.max))) workoutStats.push({ label: 'Max HR', value: `${Math.round(hr.max)} bpm` });
   if (avgRestSeconds) workoutStats.push({ label: 'Avg rest', value: `${avgRestSeconds}s` });
 
-  const feedPost = await createCommunityPost({
+  // Auto-share: no explicit privacy from the caller → the member's own share
+  // rule decides (Share toggle × profile visibility). Settings read is
+  // best-effort; any failure falls back to 'private' (fail-closed).
+  const sessionStart = structured?.data?.started_at
+    || new Date(Date.now() - Number(durationSeconds || 0) * 1000).toISOString();
+  let resolvedPrivacy = privacy;
+  if (!resolvedPrivacy) {
+    if (supabase && state.user?.id) {
+      try {
+        const { data: sdoc } = await supabase.from('user_goals').select('data')
+          .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
+        resolvedPrivacy = bsWorkoutSharePrivacy((sdoc && sdoc.data) || null);
+      } catch (e) { resolvedPrivacy = 'private'; }
+    } else {
+      resolvedPrivacy = 'private';
+    }
+  }
+  // Cross-source guard: a device (watch) post for this same workout within
+  // ±20 min of the session start → skip the social post (the session itself
+  // persisted above; first-writer-wins, silent). Best-effort — never blocks.
+  let crossDup = false;
+  if (supabase && state.user?.id) {
+    try {
+      const w = 20 * 60 * 1000; const s = Date.parse(sessionStart);
+      const { data: near } = await supabase.from('community_posts')
+        .select('source_provider, created_at')
+        .eq('author_id', state.user.id)
+        .not('source_provider', 'is', null)
+        .neq('source_provider', 'shape_session')
+        .gte('created_at', new Date(s - w).toISOString())
+        .lte('created_at', new Date(s + w).toISOString())
+        .limit(5);
+      crossDup = bsIsDuplicateWorkoutPost(near || [], sessionStart, 'shape_session');
+    } catch (e) { crossDup = false; }
+  }
+
+  const feedPost = crossDup ? null : await createCommunityPost({
     title,
     status: 'Sensor-authored workout log',
     note: `${completedSets} sets captured automatically. Avg set ${avgSetSeconds}s. Avg rest ${avgRestSeconds}s.`,
-    privacy,
+    privacy: resolvedPrivacy,
     activityType: workout,
     metrics: {
       provider: 'shape_session',
@@ -2319,10 +2356,14 @@ async function saveWorkoutSessionLog({
       statB: avgRestSeconds ? `${avgRestSeconds}s rest` : 'Rest tracked',
       statC: `${Math.round(durationSeconds / 60)} min`,
       labels: ['Sets', 'Avg rest', 'Elapsed'],
-      tags: ['SENSOR', 'PRIVATE', 'SESSION'],
+      tags: ['SENSOR', 'SESSION', ...(resolvedPrivacy === 'private' ? ['PRIVATE'] : [])],
     },
     sourceProvider: 'shape_session',
-    sourceActivityId: `shape-session-${Date.now()}`,
+    // Idempotent by the persisted session id (a retry of the same save can't
+    // double-post); Date.now() only for the local/offline fallback.
+    sourceActivityId: `shape-session-${structured?.data?.id || Date.now()}`,
+    createdAt: sessionStart,
+    autoShare: true,
   });
 
   invalidateClientMetrics();
@@ -2336,8 +2377,23 @@ async function saveWorkoutSessionLog({
     // No-op until the accountability migration is applied.
     try { if (state.user?.id) supabase.rpc('award_workout_session', { p_day: _localDate() }).then(() => {}, () => {}); } catch (e) {}
   }
+  // First-run heads-up (mobile twin of the server notice — same stamp field,
+  // so whichever path shares first wins and the member only ever sees one).
+  if (feedPost && resolvedPrivacy !== 'private' && supabase && state.user?.id) {
+    try {
+      const { data: sdoc } = await supabase.from('user_goals').select('data')
+        .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
+      const d = (sdoc && sdoc.data) || {};
+      if (!d.autoShareNoticeAt) {
+        await supabase.from('user_goals').upsert(
+          { user_id: state.user.id, kind: 'client_settings', data: { ...d, autoShareNoticeAt: new Date().toISOString() } },
+          { onConflict: 'user_id,kind' });
+        window.__bsToast?.('Workouts now share to your profile + feed · Settings → Share workout data', 'ok');
+      }
+    } catch (e) {}
+  }
   return {
-    ...feedPost,
+    ...(feedPost || {}),
     workoutSession: structured,
   };
 }
@@ -2469,6 +2525,8 @@ async function createCommunityPost({
   channel = '',
   photoUrl = '',
   mentions = [],
+  createdAt = '',      // ISO — auto-share posts stamp the activity START
+  autoShare = false,   // true = automatic workout post (skips the +5 award)
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanPhoto = String(photoUrl || '').trim();
@@ -2532,6 +2590,10 @@ async function createCommunityPost({
     photo_url: cleanPhoto || null,
     source_provider: sourceProvider || null,
     source_activity_id: sourceActivityId || null,
+    // Auto-posted workouts stamp created_at at the activity START so the
+    // ±20-min cross-source dedup window compares like with like (device posts
+    // already do this). Manual posts keep the DB default (now).
+    ...(createdAt ? { created_at: createdAt } : {}),
   };
 
   if (!supabase) {
@@ -2551,7 +2613,9 @@ async function createCommunityPost({
   // Shape Score: +5 for a feed-visible community post. The RPC hard-codes the
   // amount and re-verifies the post is caller-owned + feed-visible (idempotent on
   // the post id), so it can't be abused. Best-effort; no-ops until the migration runs.
-  if (data?.id) {
+  // AUTO-SHARED workout posts never earn it — the workout already earned its +10
+  // (spec: no double-dipping via automatic posts).
+  if (data?.id && !autoShare) {
     try { await supabase.rpc('award_community_post', { p_post_id: data.id }); invalidateClientMetrics(); } catch (e) {}
   }
 
@@ -4476,6 +4540,24 @@ async function countCommunityPostsByAuthor(authorId) {
   return count ?? 0;
 }
 
+// Retroactive tightening: when the member's share level gets STRICTER, every
+// past auto-post (device + in-app: source_provider is not null) drops to the
+// new level. Loosening never touches history (never surprise-publish), and
+// manual composer posts (null source_provider) are never touched.
+async function tightenAutoPosts(newPrivacy) {
+  if (!supabase || !state.user?.id) return { ok: false };
+  const looser = newPrivacy === 'private' ? ['public', 'community', 'followers']
+    : newPrivacy === 'followers' ? ['public', 'community'] : [];
+  if (!looser.length) return { ok: true, updated: 0 };
+  const { error } = await supabase
+    .from('community_posts')
+    .update({ privacy: newPrivacy })
+    .eq('author_id', state.user.id)
+    .not('source_provider', 'is', null)
+    .in('privacy', looser);
+  return { ok: !error };
+}
+
 window.ShapeCommunity = {
   listPosts: listCommunityPosts,
   listByAuthor: listCommunityPostsByAuthor,
@@ -4486,7 +4568,11 @@ window.ShapeCommunity = {
   uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
+  tightenAutoPosts,
 };
+// The share rule + rank, bridged for the Settings page + the live session's
+// share-toggle seed (the client module can't import service modules directly).
+window.ShapeWorkoutShare = { rule: bsWorkoutSharePrivacy, rank: BS_PRIVACY_RANK };
 
 // Public profile card + batch tier points (for chat avatars / profile page).
 async function getPublicProfile(userId) {

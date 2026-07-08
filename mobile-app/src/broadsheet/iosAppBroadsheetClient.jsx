@@ -19701,6 +19701,20 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
   const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
   const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
+  // Seed the share toggle from the member's own share rule (Settings → Share
+  // workout data × profile visibility) — auto-share is the DEFAULT for a
+  // sharing member; the toggle stays their per-workout override. Signed-out
+  // preview keeps false (nothing real posts anyway).
+  React.useEffect(() => {
+    let on = true;
+    try {
+      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule) return undefined;
+      window.shapeDb?.getUserGoals?.('client_settings').then((s) => {
+        if (on) setShareToFeed(window.ShapeWorkoutShare.rule(s || null) !== 'private');
+      }).catch(() => {});
+    } catch (e) {}
+    return () => { on = false; };
+  }, []);
   // Live heart rate from a worn Bluetooth monitor (window.ShapeHRM). Samples are
   // collected through the whole session → avg + max land on the workout's stats.
   const [hrNow, setHrNow] = useStateBSC(null);             // current bpm (live chip)
@@ -19905,9 +19919,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         setLogs,
         hr,
         review: { feel: reviewFeel, effort: reviewEffort },
-        privacy: shareToFeed ? 'community' : 'private',
+        // Checked → null = the member's share rule decides the audience
+        // (public / followers / private-if-Off). Unchecked → force private.
+        privacy: shareToFeed ? null : 'private',
       });
-      window.__bsToast?.(shareToFeed ? 'Workout shared to the community feed' : 'Private sensor workout log saved for coach review', 'ok');
+      window.__bsToast?.(shareToFeed ? 'Workout logged — shared per your privacy settings' : 'Private sensor workout log saved for coach review', 'ok');
     } catch (error) {
       window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
     }
@@ -21100,6 +21116,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') {
+        // Stricter share level → retro-tighten past auto-posts (fire-and-forget);
+        // loosening never touches history (never surprise-publish old workouts).
+        try {
+          const ws = window.ShapeWorkoutShare;
+          if (ws) {
+            const before = ws.rule(p); const after = ws.rule(next);
+            if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
+          }
+        } catch (e) {}
+      }
       return next;
     });
   };
@@ -21113,6 +21140,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') {
+        // Stricter share level → retro-tighten past auto-posts (fire-and-forget);
+        // loosening never touches history (never surprise-publish old workouts).
+        try {
+          const ws = window.ShapeWorkoutShare;
+          if (ws) {
+            const before = ws.rule(p); const after = ws.rule(next);
+            if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
+          }
+        } catch (e) {}
+      }
       return next;
     });
   };
