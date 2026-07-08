@@ -4833,12 +4833,11 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
 
       <BSKitchenCard recipe={r} dayLabel={dayLabel} />
 
-      {(r.hero || r.brief) && (
+      {r.blurb ? (
         <div style={{ margin: `16px ${t.padX}px 0`, textAlign: 'center' }}>
-          {r.hero ? <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, lineHeight: 1.4 }}>{r.hero}</div> : null}
-          {r.brief ? <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{r.brief}</div> : null}
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{r.blurb}</div>
         </div>
-      )}
+      ) : null}
 
       {/* The directions — outside the card (owner call). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
