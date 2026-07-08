@@ -5150,7 +5150,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
       </div>
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {list.length === 0 ? (
-          <div style={{ padding: '20px 2px', textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, color: t.INK70 }}>{filter === 'saved' ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No recipes match.'}</div>
+          <div style={{ padding: '20px 2px', textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, color: t.INK70 }}>{filter === 'saved' ? (savedCount === 0 && !q.trim() && advCount === 0 ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No saved recipes match.') : 'No recipes match.'}</div>
         ) : list.map((r, i) => {
           const dc = BS_SK_DIET_COLOR[r.diet] || teal;
           const id = recId(r);
