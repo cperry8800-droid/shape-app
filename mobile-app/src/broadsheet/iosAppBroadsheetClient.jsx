@@ -4805,13 +4805,22 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
   );
 }
 
+// One canonical library record for a recipe, so the same recipe persists an
+// identical entry no matter which surface saved it (day view / catalog / detail).
+// Uses bsNodeText so a node-shaped day-view title still yields the catalog id.
+function bsRecipeLibItem(r) {
+  const title = bsNodeText(r.title);
+  const meta = r.servings != null ? `${r.kcal} kcal · serves ${r.servings}` : `${r.kcal} kcal`;
+  return { id: `recipe:${bsSkSlug(title)}`, kind: 'recipe', title, meta, coach: r.by || 'Shape Kitchen' };
+}
+
 function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded = false }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const r = recipe;
   // Real library save (was a local-only visual toggle — marked improvement).
   const lib = useBSLibrary();
-  const _libItem = { id: `recipe:${bsSkSlug(bsNodeText(r.title))}`, kind: 'recipe', title: bsNodeText(r.title), meta: `${r.kcal} kcal`, coach: 'Shape Kitchen' };
+  const _libItem = bsRecipeLibItem(r);
   const saved = lib.some(x => x.id === _libItem.id);
 
   return (
@@ -5171,7 +5180,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
                   <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
                   <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
                 </button>
-                <button type="button" onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+                <button type="button" onClick={() => bsLibToggle(bsRecipeLibItem(r))} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
             </div>
           );
@@ -5240,7 +5249,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           {groceryAdded ? '✓ On your grocery list' : 'Send to grocery list →'}
         </button>
         <div style={{ marginTop: 8 }}>
-          <BSSaveButton full item={{ id: `recipe:${slug}`, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by }} />
+          <BSSaveButton full item={bsRecipeLibItem(r)} />
         </div>
       </div>
 
@@ -5261,7 +5270,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           {reviews.map((rv, i) => (
             <div key={rv.id} style={{ borderLeft: `3px solid ${t.HAIR}`, padding: '2px 0 2px 12px', marginTop: i === 0 ? 0 : 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#f4b860', fontSize: 13 }}>{'★★★★★'.slice(0, Math.round(rv.rating))}<span style={{ color: t.INK50 }}>{'★★★★★'.slice(0, 5 - Math.round(rv.rating))}</span></span>
+                <span role="img" aria-label={`${Math.round(rv.rating)} out of 5 stars`} style={{ color: '#f4b860', fontSize: 13 }}><span aria-hidden>{'★★★★★'.slice(0, Math.round(rv.rating))}<span style={{ color: t.INK50 }}>{'★★★★★'.slice(0, 5 - Math.round(rv.rating))}</span></span></span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', color: t.INK50 }}>{(rv.author || 'You').toUpperCase()} · {new Date(rv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
               </div>
               {rv.text && <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK, lineHeight: 1.5 }}>{rv.text}</div>}
