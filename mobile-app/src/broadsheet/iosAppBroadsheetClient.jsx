@@ -3439,19 +3439,28 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const todayIdx = (_now.getDay() + 6) % 7;
   const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
   const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
+  const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   return (
-    <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
-      {DOWL.map((L, i) => {
-        const on = i === activeIdx;
-        return (
-          <button key={i} onClick={() => onSelect(i)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 5, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : 'transparent' }}>
-            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 15, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
-            <span style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
-          </button>
-        );
-      })}
+    <div style={{ padding: `12px ${t.padX}px 4px` }}>
+      {/* Calendar rule with a heat needle over the active day (Session Meter grammar). */}
+      <div aria-hidden style={{ position: 'relative', height: 2, background: t.RULE, margin: '5px 2px 0' }}>
+        {DOWL.map((_, i) => (
+          <span key={i} style={{ position: 'absolute', left: `${((i + 0.5) * 100) / 7}%`, top: -3, width: 1.5, height: 8, background: t.RULE }} />
+        ))}
+        <span style={{ position: 'absolute', left: `${((activeIdx + 0.5) * 100) / 7}%`, top: -7, width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `7px solid ${t.ACCENT}`, transform: 'translateX(-5px)' }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginTop: 6 }}>
+        {DOWL.map((L, i) => {
+          const on = i === activeIdx;
+          return (
+            <button key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? ', selected' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 14, color: on ? t.INK : t.INK50, letterSpacing: '-0.03em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
+              <span aria-hidden style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : 'transparent' }} />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
