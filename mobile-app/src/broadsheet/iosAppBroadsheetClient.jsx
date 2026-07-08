@@ -13281,11 +13281,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
                     return (
                       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
-                        <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
-                          {me
-                            ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
-                            : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
+                        {/* No per-message avatars here: the concierge masthead above already
+                            carries Nora's portrait, so a bubble avatar doubles it — the mono
+                            byline is each incoming row's identity (tap → her profile). */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                             {!me && (
                               <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ' · Concierge' : ''}</div>
                             )}
@@ -13305,12 +13304,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                                 ))}
                               </div>
                             )}
-                          </div>
                         </div>
                       </div>
                     );
                   })}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>Nora is typing…</div>}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Nora is typing…</div>}
                 </div>
               </div>
             );
