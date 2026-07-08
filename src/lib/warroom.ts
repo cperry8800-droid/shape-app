@@ -833,6 +833,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Swaps persist to the shared store + notify the trainer/nutritionist', status: 'done' },
         { label: "Coach Adjust program/plan → Apply persists to client_programs.detail + reflects on the client's Train/Eat tabs (intensity/sessions/focus · calories/macros)", status: 'done' },
         { label: 'Migration 2026-06-05-client-program-detail.sql applied on Supabase (client_programs.detail jsonb)', status: 'done' },
+        { label: 'Train "The Program" + Eat "The Menu" Open Ledger serialization (#1622 chrome+train, #1623 eat; option C, presentation-only): shared BSFindCoachBar leader row (kills the door-branch dup), week strip → calendar rule + heat needle, coach-adjust plate → role-spine notice; Train columnar move table (N·MOVE·SCHEME·LOAD, scheme abbreviated display-only) + h1-dup fix; Eat underline tabs + kcal strip below the calendar (one-line macro register, FAT→t.BLUE, hardcoded "on pace" removed) + courses-by-time menu (✓/breathing NEXT/LOG IT, no strikethrough) + gold nutritionist press credit + THE SHOP LIST leader; day-total derivations hoisted (coach-override target now consistent across register/KCAL-LEFT/plan header)', status: 'done' },
+        { label: 'On-device pass for Train "The Program" + Eat "The Menu" across Black/Sage/Cream papers × done/next/rest states × reduced motion', status: 'pending' },
       ],
     },
     {

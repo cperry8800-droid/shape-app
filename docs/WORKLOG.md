@@ -159,7 +159,12 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-08.md`](HANDOFF-2026-07-08.md)** —
+> **Latest (2026-07-08): Train "The Program" + Eat "The Menu"** — the last two
+> plate-era client day-surfaces serialized into the Open Ledger language (option C,
+> presentation-only; #1622 shared-chrome+Train, #1623 Eat). See the dated changelog
+> entry below. Open: owner on-device pass.
+>
+> **Prior session handoff: [`docs/HANDOFF-2026-07-08.md`](HANDOFF-2026-07-08.md)** —
 > **Self-serve training for coach-less members** (spec #1616 → build #1618, on `main`):
 > the coach-less member had no workout to log and no way to author one — now a
 > **Build-your-week door**, a full **`BSWorkoutBuilder`** (any discipline — strength
@@ -271,6 +276,14 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-08 — Train "The Program" + Eat "The Menu": the last two plate-era day surfaces → Open Ledger (#1622 + #1623)
+- **Owner-picked Option C** from a 3-way visual concept round (spec #1620 → revised to C in #1621): the **Train deck** and the **Eat day view** — the last two half-serialized client surfaces — finish their serialization into the zero-box Open Ledger language, together with the shared chrome both carry. **Presentation-only** — no migration, no routes, no new modules, no behavior change. Two build PRs, both squash-merged, branch kept.
+- **Shared chrome (both pages):** a single **`BSFindCoachBar`** role-leader row (3px spine · glyph · VETTED tag · dot-leader · →) replaces the tinted find-a-coach boxes AND kills the trainer-bar JSX that was duplicated verbatim in the Build-door branch; the **week strip** boxes die → a **calendar rule with a heat needle** over the active day (Session-Meter grammar), typographic day/date columns + rest-day dot beneath, aria-labelled; the **coach-adjust banner** sheds its `BSPlate` → a role-spine notice (squared chips).
+- **Train — "The Program" (#1622):** the deck **h1 duplication is fixed** (the headline renders only when it differs from the page title — no more "Upper Pull — Peak" twice); the move list → a **columnar program table** (`N · MOVE · SCHEME · LOAD`, right-aligned tabular loads, display-only scheme abbreviation `3 min rest`→`3m` that never feeds the session parser); coach-adjust chips + Rest tag squared. `data-tour="hero-train"` + ▶ + rust press credit + swap flow unchanged.
+- **Eat — "The Menu" (#1623):** top tabs → the **house underline index** (2px heat under the active view, same on Grocery/Library/Recipes); a **kcal register below the calendar** (owner-composed crop) — big figure · 3px heat fill · `52 kcal left` · a **one-line macro register** (`PROTEIN 142/140 · CARBS 178/180 · FAT 58/60`), the three bordered macro tiles dead, **FAT drops raw `#8a5cf6` for `t.BLUE`**, and the hardcoded **`· on pace`** honesty bug removed; the `TODAY · YOUR MOVE` **plate AND the numbered meal list both die** → **courses by time** (rule-header: mono time · hairline · ✓ done / breathing **NEXT** dot / blank), done rows dim with **no strikethrough**, the next course carries the page's one loop + `· 52 KCAL LEFT` + a heat-underlined **LOG IT →**; the nutritionist card → a **gold press credit** (spine, no avatar circle, quote guarded when empty) + **THE SHOP LIST →** closing leader. `data-tour="hero-eat"` moved to the menu container.
+- **Consistency win (CodeRabbit Major):** the Eat day-total derivations are **hoisted once** (`bsEatCalTgt` etc., were duplicated across two IIFEs), so the coach-override-aware target now agrees across the register, the KCAL-LEFT sub-line, AND the "The plan" header (which previously re-derived the raw target → two different numbers under a coach override). CodeRabbit also nudged `type="button"` on the new buttons (addressed on both PRs).
+- **Verified** per commit: JSX parse · `VITE_BASE=/m/` build exit 0 · `npm test` 497 green · LF-normalized. Browser-driven both pages (390px, demo data): needle follows day taps, program table + course entries open the swap/preview flows, NEXT dot breathes (locked under reduced motion), 0px horizontal overflow, console errors all pre-existing infra 404s. **Open:** owner on-device pass across Black/Sage/Cream × done/next/rest × reduced motion.
 
 ### 2026-07-08 — Self-serve training: build your own week, program & race schedule (coach-less members)
 - **Closes the coach-less P0** the 2026-07-08 solo-member analysis surfaced: a
