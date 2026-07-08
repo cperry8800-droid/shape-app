@@ -1150,7 +1150,6 @@ function useBSProgram() {
 // only appears once a coach has pressed Apply on their Adjust page.
 function BSCoachAdjustBanner({ detail, kind }) {
   const t = useBS();
-  const accent = t.ACCENT;
   const d = kind === 'nutrition' ? detail?.nutrition : detail?.training;
   if (!d || !d.updatedAt) return null;
   let when = '';
@@ -1160,14 +1159,15 @@ function BSCoachAdjustBanner({ detail, kind }) {
     ? [d.calories != null ? `${d.calories} kcal` : null, d.protein != null ? `${d.protein}P` : null, d.carbs != null ? `${d.carbs}C` : null, d.fat != null ? `${d.fat}F` : null, d.meals != null ? `${d.meals} meals` : null]
     : [d.intensity ? ({ deload: 'Deload', maintain: 'Maintain', progress: 'Progress' }[d.intensity] || cap(d.intensity)) : null, d.sessions != null ? `${d.sessions}×/week` : null, ...(Array.isArray(d.focus) ? d.focus.slice(0, 2).map(cap) : [])]
   ).filter(Boolean);
+  const roleC = kind === 'nutrition' ? '#a07a2e' : '#c0533b';
   return (
-    <BSPlate c={accent} notch={10} pad="12px 14px 12px 18px" style={{ margin: `12px ${t.padX}px 0` }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
-      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '4px 9px' }}>{c}</span>)}
+    <div style={{ margin: `12px ${t.padX}px 0`, borderLeft: `3px solid ${roleC}`, padding: '2px 0 2px 10px' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: roleC, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
+      <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '4px 9px' }}>{c}</span>)}
       </div>
-      {d.note ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
-    </BSPlate>
+      {d.note ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
+    </div>
   );
 }
 
@@ -3408,6 +3408,30 @@ function bsBuildTrainProgram(workouts, t) {
 // ── Shared "tracklist" UI for the Train + Eat day views ────────────────────
 // Rounded weekly calendar: day letter, date number, status dot; active tile
 // gets a teal outline + faint wash.
+// Find-a-coach leader row — the marketplace deep link pinned atop Train + Eat.
+// Zero-box: 3px role spine + hairline bounds; role color rides spine/glyph/tag/
+// arrow, the title stays theme ink. One shared implementation (the trainer bar
+// was previously duplicated verbatim in the Build-door branch and the deck).
+function BSFindCoachBar({ role, onOpen }) {
+  const t = useBS();
+  const trainer = role === 'trainer';
+  const c = trainer ? '#c0533b' : '#a07a2e';
+  const glyphC = trainer ? '#c0533b' : '#b8923f';
+  return (
+    <button type="button" onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', minHeight: 44, padding: '4px 2px 4px 10px', background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, borderLeft: `3px solid ${c}`, cursor: 'pointer', textAlign: 'left' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={glyphC} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+        {trainer
+          ? <path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" />
+          : <><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></>}
+      </svg>
+      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{trainer ? 'Find a trainer' : 'Find a nutritionist'}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 7.5, color: glyphC, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap' }}>{trainer ? 'Vetted coaches' : 'Vetted RDs'}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)', minWidth: 12 }} />
+      <span style={{ color: glyphC, fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
+    </button>
+  );
+}
+
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const t = useBS();
   const DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -3415,19 +3439,28 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
   const todayIdx = (_now.getDay() + 6) % 7;
   const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
   const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d.getDate(); });
+  const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   return (
-    <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
-      {DOWL.map((L, i) => {
-        const on = i === activeIdx;
-        return (
-          <button key={i} onClick={() => onSelect(i)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 5, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : 'transparent' }}>
-            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 15, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
-            <span style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
-          </button>
-        );
-      })}
+    <div style={{ padding: `12px ${t.padX}px 4px` }}>
+      {/* Calendar rule with a heat needle over the active day (Session Meter grammar). */}
+      <div aria-hidden style={{ position: 'relative', height: 2, background: t.RULE, margin: '5px 2px 0' }}>
+        {DOWL.map((_, i) => (
+          <span key={i} style={{ position: 'absolute', left: `${((i + 0.5) * 100) / 7}%`, top: -3, width: 1.5, height: 8, background: t.RULE }} />
+        ))}
+        <span style={{ position: 'absolute', left: `${((activeIdx + 0.5) * 100) / 7}%`, top: -7, width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `7px solid ${t.ACCENT}`, transform: 'translateX(-5px)' }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginTop: 6 }}>
+        {DOWL.map((L, i) => {
+          const on = i === activeIdx;
+          return (
+            <button type="button" key={i} onClick={() => onSelect(i)} aria-label={`${names[i]} ${dates[i]}${on ? ', selected' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 14, color: on ? t.INK : t.INK50, letterSpacing: '-0.03em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
+              <span aria-hidden style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : 'transparent' }} />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -4065,16 +4098,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return (
       <BSPage>
         <BSPageHeader kicker="Train" title="Your training" trailing={<BSHeaderTools onProfile={onProfile} />} />
-        <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
-          <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
-            <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
-          </div>
-          <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-        </button>
+        <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
         <BSBuildDoor
           onBuild={() => setBuilder({ mode: 'session' })}
           onOpenSession={() => setSession(true)}
@@ -4094,19 +4118,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
-      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
-          Soft rust TINT (the app's tinted-chip language) instead of a solid filled bar —
-          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
-        </div>
-        <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-      </button>
+      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always
+          visible. Zero-box role leader row (shared with the Build-door branch). */}
+      <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
 
       {/* Build a workout — always reachable once a plan exists (the door owns the
           empty state). Opens the self-serve builder. */}
@@ -4127,14 +4141,21 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
         </div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>
+        {(() => {
+          // Render the deck headline only when it differs from the page title —
+          // otherwise the same phrase reads twice ("Upper Pull — Peak").
+          const _norm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
+          const _h = _norm(cur.headline);
+          if (!_h || _h === _norm(cur.title)) return null;
+          return <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 23, lineHeight: 1.0, letterSpacing: '-0.035em', color: t.INK }}>{String(cur.headline || '').replace(/\.$/, '')}<span style={{ color: t.ACCENT }}>.</span></div>;
+        })()}
         <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
         {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 999, padding: '3px 8px' }}>{cur.coachFocus}</span>}
-            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
+            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
+            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
           </div>
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
@@ -4161,7 +4182,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           {effMoves.length > 0 ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
-            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
+            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
         </div>
       </div>
@@ -4169,18 +4190,22 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
         <>
-          <BSTrackHeader kicker="Workout" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
+          <BSTrackHeader kicker="The program" title={`${effMoves.length} moves`} actionLabel="Swap" onAction={() => setSwapIdx('pick')} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
+            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
+              <span>N</span><span>Move</span><span>Scheme</span><span style={{ textAlign: 'right' }}>Load</span>
+            </div>
             {effMoves.map((r, i) => {
               const swapped = !!moveOverrides[`${day}:${i}`];
+              // Display-only abbreviation ("3 min rest" → "3m", "90s rest" → "90s");
+              // the stored scheme string is untouched (the session parser reads r.s).
+              const sch = String(r.s || '').replace(/(\d+)\s*min rest/g, '$1m').replace(/(\d+)s rest/g, '$1s');
               return (
-                <button key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{r.n}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{r.s}</div>
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, marginTop: 3 }}>{r.l}</span>
+                <button type="button" key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span>
                 </button>
               );
             })}
@@ -6575,19 +6600,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
-      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
-          Soft gold TINT (the app's tinted-chip language) instead of a solid filled bar —
-          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#a07a2e', 0.5)}`, borderLeft: '3px solid #a07a2e', background: bsTHexA('#a07a2e', 0.1), cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#a07a2e', 0.16), border: `1px solid ${bsTHexA('#a07a2e', 0.45)}`, color: '#b8923f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a nutritionist</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#b8923f', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted RDs</span>
-        </div>
-        <span style={{ color: '#b8923f', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
-      </button>
+      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's
+          always visible. Zero-box role leader row (shared with Train). */}
+      <BSFindCoachBar role="nutritionist" onOpen={() => goMarket('nutritionist')} />
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
