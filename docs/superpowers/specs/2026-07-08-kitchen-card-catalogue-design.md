@@ -148,6 +148,45 @@ with its `groceryAdded` state, back). Kills its bespoke pre-Open-Ledger layout
 4. `Remove from library / ♡ Save` boxed button → ink + 2px teal-underline
    text action (same `bsLibToggle` + `onBack`).
 
+## 7 · The catalog content — restructure + expand (owner-added scope)
+
+The Shape Kitchen dataset (`mobile-app/src/broadsheet/shapeKitchenData.js`,
+26 recipes) is updated WITH the redesign:
+
+1. **Restructure ingredients** from single strings (`"6 oz chicken thigh"`)
+   to the structured shape the day-view recipes already use — `{ n, m, k }`
+   (quantity · name · optional kcal string) — so `BSKitchenCard` consumes
+   ONE ingredient shape across catalog and plan recipes, and the ruled
+   lines get a real qty cell (+ dim kcal suffix) without string parsing.
+   Household-unit conversion applies to the structured quantity.
+2. **Notes**: each recipe's `tip` renders as the card's typed note under the
+   author's first name (`RAE: …`); tips are copyedited to fit that voice
+   (imperative, one thought).
+3. **Detail pass (owner call: "more detailed")** over every recipe, old and
+   new — each must be genuinely cookable from the card + article alone:
+   - **Ingredients**: a real quantity on EVERY line — no catch-all lines
+     like "Garlic, paprika, salt" (split into `2 cloves garlic`, `1 tsp
+     smoked paprika`, `1/2 tsp salt`); pantry basics included.
+   - **Steps**: heat level, vessel, time, and a **sensory doneness cue** in
+     every step that cooks ("medium-high until the edges blister, ~3 min");
+     the why kept where it teaches ("dry skin is what lets it brown").
+   - **Prep/cook split** in the `time` field where they differ
+     (`15 min prep · 25 min cook`), and a **storage / meal-prep line**
+     appended to the tip where the recipe batches.
+   - One house voice throughout; macro math sanity-checked
+     (kcal ≈ 4·P + 4·C + 9·F within ~±15%).
+4. **Expand by ~8–10 recipes** (catalog → ~35) targeting coverage gaps —
+   vegan/plant-based, seafood, snacks, batch-cook — same author roster,
+   written to the same detail bar (structured ingredients, cue-rich steps,
+   tip + storage note, tags, honest macros), gradient `hero` kept as the
+   tab-era placeholder field.
+5. **New data-integrity test** `tests/shape-kitchen-data.test.mjs`
+   (registered in the root test script): every recipe has the required
+   fields, structured ingredients, and macro-consistent kcal.
+6. **Accepted drift**: the website's `/recipes` keeps its own copy of the
+   old 26 (already a separate dataset today); porting the refreshed catalog
+   to the website is a follow-up on the web-parity list.
+
 ## Data
 
 - New **optional `photo` field** on recipe objects (catalog + plan recipes):
@@ -156,6 +195,7 @@ with its `groceryAdded` state, back). Kills its bespoke pre-Open-Ledger layout
   photo.
 - Recipe `Nº` = 1-based index in the Shape Kitchen catalog array (stable
   demo data); absent → day-name header (preview) or no Nº (library sub).
+- Catalog ingredient shape unified to `{ n, m, k }` (§7.1).
 
 ## Invariants (explicitly unchanged)
 
@@ -174,7 +214,8 @@ named in mono text, never color-only.
 ## Verification
 
 - Per commit: JSX parse-check · `VITE_BASE=/m/` mobile build exit 0 ·
-  `npm test` (497 today) · LF normalize.
+  `npm test` (497 today + the new catalog data-integrity test) · LF
+  normalize.
 - Browser drive (demo data): Recipes tab filter/search/save/send-to-grocery,
   detail card with and WITHOUT a photo (temporarily inject one locally to
   verify the figure, do not commit it), day-view recipe preview, Library
@@ -185,7 +226,8 @@ named in mono text, never color-only.
 
 ## Rollout
 
-Two build PRs: **PR A — the recipe surfaces** (`BSKitchenCard` + detail +
-preview + Recipes tab); **PR B — the Library** (Catalogue + detail). Each
-through the standard gate (CI green + CodeRabbit findings addressed),
-squash-merged, branches kept.
+Two build PRs: **PR A — the recipe surfaces + the catalog content** (§7
+restructure/expansion + data test, then `BSKitchenCard` + detail + preview +
+Recipes tab); **PR B — the Library** (Catalogue + detail). Each through the
+standard gate (CI green + CodeRabbit findings addressed), squash-merged,
+branches kept.
