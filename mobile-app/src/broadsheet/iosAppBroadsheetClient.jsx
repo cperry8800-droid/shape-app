@@ -6710,22 +6710,18 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Your plan — nutritionist card */}
-      <BSTrackHeader kicker="Your plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
+      <BSTrackHeader kicker="The plan" title={`${planGoalLabel} · ${(parseInt(String(cur.totals.target.cal).replace(/[^0-9]/g, ''), 10) || 0).toLocaleString()}`} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent', padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 999, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>{(liveMealCoach || 'M').replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase()}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist</div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>{liveProgram ? 'This week' : 'Apr plan'}</span>
-          </div>
-          <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setView('grocery')} style={{ flex: 1, padding: '11px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Shop list →</button>
-          </div>
+        <div style={{ borderLeft: '3px solid #a07a2e', padding: '2px 0 2px 12px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist · {liveProgram ? 'This week' : 'Apr plan'}</div>
+          {cur.coachLine ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div> : null}
         </div>
+        <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>The shop list</span>
+          <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+          <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
+        </button>
       </div>
 
       {/* For the week — shop list (live from the nutritionist's grocery list) */}
