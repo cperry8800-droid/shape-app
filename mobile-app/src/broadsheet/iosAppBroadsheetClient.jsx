@@ -3951,7 +3951,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
   // Parse "4 × 8 · …" → { sets: 4, reps: '8' } so the live player reflects the
   // actual session; segment-style cardio (no "× reps") falls back to one set.
-  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => {
+  // An empty move list = an OPEN session (log as you go); the player seeds a
+  // blank move and shows ＋ Add move.
+  if (session) return <BSSession title={effMoves.length === 0 ? 'Open session' : cur.title} moves={effMoves.map(m => {
     const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
     // No authored scheme (assigned-plan outline lines / cardio segments):
     // every move starts at 3 sets. "+ Add set" covers anything beyond.
@@ -20063,9 +20065,15 @@ function bsPlates(total) {
 function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  // Open session (log as you go): no moves were handed in → seed one blank move
+  // and let the athlete name it + add more with ＋ Add move.
+  const openMode = !movesProp.length;
   // The move list is state so a client can add a set mid-workout ("+ Add set"
-  // under the set table) — the new set extends the CURRENT exercise only.
-  const [moves, setMoves] = useStateBSC(() => movesProp.map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
+  // under the set table) — the new set extends the CURRENT exercise only —
+  // and, in an open session, add whole moves as they go ("+ Add move").
+  const [moves, setMoves] = useStateBSC(() =>
+    (movesProp.length ? movesProp : [{ m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }])
+      .map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
       acc[`${mIdx}-${setIdx}`] = {
@@ -20226,6 +20234,17 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
     setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: String(move.rpe || '8') } }));
   };
+  // Open session: append a fresh blank move and jump to it.
+  const addMove = () => {
+    setMoves((ms) => {
+      const next = [...ms, { m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }];
+      setMoveIdx(next.length - 1);
+      return next;
+    });
+    setSetInputs((si) => ({ ...si }));
+  };
+  // Rename the current move (open session — you type it as you log).
+  const renameMove = (val) => setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, m: val } : m)));
 
   const startSet = (setIdx) => {
     const k = `${moveIdx}-${setIdx}`;
@@ -20398,8 +20417,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{move.sets} × {move.reps}</span>
       </div>
       <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
+        {openMode ? (
+          <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder="Name this move…" style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1, background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.INK, 0.25)}`, outline: 'none', padding: '2px 0 8px' }} />
+        ) : (
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
+        )}
+        {!openMode && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
 
@@ -20453,7 +20476,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             </div>
           );
         })}
-        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, width: '100%', minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+          {openMode && <button onClick={addMove} aria-label="Add another move" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add move</button>}
+        </div>
+        {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
 
       {/* Primary log CTA */}
