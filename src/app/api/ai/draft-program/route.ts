@@ -11,7 +11,7 @@
 // an authenticated user so an open endpoint can't burn the OpenAI key.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 
@@ -65,7 +65,9 @@ const programSchema = {
               type: 'object', additionalProperties: false,
               required: ['dow', 'title', 'moves'],
               properties: {
-                dow: { type: 'integer', minimum: 0, maximum: 6 },
+                // OpenAI strict Structured Outputs rejects minimum/maximum — the
+                // 0..6 range is enforced in sanitize() after parsing instead.
+                dow: { type: 'integer' },
                 title: { type: 'string' },
                 moves: { type: 'array', items: moveSchema },
               },
@@ -164,8 +166,9 @@ async function draftWithOpenAI(body: Required<Body>): Promise<Program | null> {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Cookie (web) OR Bearer (native app) — the native builder sends Bearer, so a
+  // cookie-only client would 401 every mobile draft. currentUser handles both.
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const parsed = await readJson<unknown>(request, { allowEmpty: true });

@@ -3769,7 +3769,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
     setStatus('working');
     try {
       await window.ShapeSelfTraining.saveSession({
-        name: name.trim() || 'My workout', discipline, time: time || null, repeatDow,
+        name: name.trim() || 'My workout', discipline, time: time || null, repeatDow, editId: seed?.editId || null,
         moves: clean.map((m) => m.type === 'seg' ? { name: m.name.trim(), seg: m.seg.trim() || '—' } : { name: m.name.trim(), sets: m.sets, reps: m.reps, load: m.load }),
       });
       window.__bsToast && window.__bsToast('Added to your week', 'ok');
@@ -4147,8 +4147,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : 'Programmed by you'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? `Your program · Week ${cur.program.week}` : 'Your workout'}</span>
-                {cur.repeatDow && (
-                  <button onClick={() => setBuilder({ mode: 'session', name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Edit · Yours</button>
+                {cur.repeatDow && cur.workoutId && (
+                  <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Edit · Yours</button>
                 )}
               </div>
             </div>

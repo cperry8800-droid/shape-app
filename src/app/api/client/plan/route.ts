@@ -78,15 +78,19 @@ export async function GET(request: Request) {
 
   // ── Training: assigned + self-authored workouts. ──
   // WINDOW the dated rows to this-week-forward OR undated (weekly-repeat + not-
-  // yet-scheduled) so a long program's early weeks can't push the current week
-  // past the row cap — a 26-week block otherwise buries today under history.
+  // yet-scheduled), and sort NULLS FIRST so the undated repeat rows always
+  // survive the 60-row cap. A 26-week program has up to 182 future dated rows;
+  // with nulls first + ascending dates, the order is [repeats, this-week,
+  // early-future…], so the current week + repeats are never crowded out by a
+  // long block's later weeks. (this-week-forward, not this-week-only, so a coach
+  // plan that starts next week still reads as hasPlan — no false Build door.)
   const { data: cwRows } = await supabase
     .from('client_workouts')
     .select('id, title, description, kind, payload, scheduled_date, created_at, trainer_id')
     .eq('client_id', user.id)
     .eq('status', 'published')
     .or(`scheduled_date.gte.${weekStart},scheduled_date.is.null`)
-    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    .order('scheduled_date', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: false })
     .limit(60);
 

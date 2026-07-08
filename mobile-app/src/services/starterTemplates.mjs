@@ -265,5 +265,6 @@ export function bsValidProgramShape(p) {
   return p.weeks.every((wk) =>
     wk && Number.isInteger(wk.week) && Array.isArray(wk.days)
     && wk.days.every((d) => d && Number.isInteger(d.dow) && d.dow >= 0 && d.dow <= 6
-      && typeof d.title === 'string' && d.title && Array.isArray(d.moves)));
+      && typeof d.title === 'string' && d.title
+      && Array.isArray(d.moves) && d.moves.every(validMove)));
 }

@@ -1450,10 +1450,9 @@ async function assignClientWorkout({
 function selfRunId() {
   return 'p' + Math.random().toString(36).slice(2, 9);
 }
-// One self-row insert (self = trainer_id null, client = the signed-in user).
-async function insertSelfWorkout({ title, description = '', scheduledDate = null, payload = {} }) {
-  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
-  const row = {
+// Shape a materialized row into a client_workouts insert record (self row).
+function selfWorkoutRow({ title, description = '', scheduledDate = null, payload = {} }) {
+  return {
     trainer_id: null,
     client_id: state.user.id,
     title: title || 'Workout',
@@ -1463,40 +1462,54 @@ async function insertSelfWorkout({ title, description = '', scheduledDate = null
     scheduled_date: scheduledDate || null,
     status: 'published',
   };
-  const { data, error } = await supabase.from('client_workouts').insert(row).select().single();
+}
+// One self-row insert (self = trainer_id null, client = the signed-in user).
+async function insertSelfWorkout(spec) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const { data, error } = await supabase.from('client_workouts').insert(selfWorkoutRow(spec)).select().single();
   if (error) throw error;
   return workoutFromRow(data);
 }
-// A weekly-repeating session — ONE row carrying payload.repeatDow.
-async function saveSelfSession({ name, discipline, repeatDow, moves, time } = {}) {
+// Batch insert (one round-trip) — a full program is up to CAP (182) rows.
+async function insertSelfWorkouts(specs) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  if (!specs.length) return [];
+  const { data, error } = await supabase.from('client_workouts').insert(specs.map(selfWorkoutRow)).select();
+  if (error) throw error;
+  return (data || []).map(workoutFromRow);
+}
+// A weekly-repeating session — ONE row carrying payload.repeatDow. When editId
+// is passed (Edit · Yours), the prior repeat row is retired after the new one
+// lands so removed weekdays don't linger and duplicates can't accumulate.
+async function saveSelfSession({ name, discipline, repeatDow, moves, time, editId } = {}) {
   const spec = bsRepeatSpec({ name, discipline, repeatDow, moves, time });
   const created = await insertSelfWorkout({ title: spec.title, description: spec.description, payload: spec.payload });
+  if (editId && editId !== created.id) {
+    try { await supabase.from('client_workouts').delete().eq('id', editId).is('trainer_id', null); } catch (e) {}
+  }
   invalidateClientMetrics();
   return { runId: null, count: 1, data: created };
 }
 // A multi-week program — dated rows materialized across the block, stamped
-// payload.program{runId}. The rows land FIRST; a caller replacing a prior block
-// deletes it only after (atomic-in-effect) — see startPurchasedPlan/removeProgram.
+// payload.program{runId}, inserted in ONE batch. The rows land FIRST; a caller
+// replacing a prior block deletes it only after (atomic-in-effect) — see
+// startPurchasedPlan/removeProgram.
 async function saveSelfProgram({ name, discipline, weeks, startISO } = {}) {
   const runId = selfRunId();
   const rows = bsMaterializeProgram({ name, discipline, weeks, startISO, runId });
-  for (const r of rows) {
-    await insertSelfWorkout({ title: r.title, description: r.description, scheduledDate: r.scheduledDate, payload: r.payload });
-  }
+  await insertSelfWorkouts(rows);
   invalidateClientMetrics();
   return { runId, count: rows.length };
 }
 // Start a PURCHASED plan onto the calendar. Materialize the outline → insert the
-// NEW block (fresh runId) → only then delete the prior plan:<id> rows with a
-// different runId. A mid-flow failure leaves the old block intact; readers show
-// the newest runId, so a re-start never duplicates.
+// NEW block (fresh runId, one batch) → only then delete the prior plan:<id> rows
+// with a different runId. A mid-flow failure leaves the old block intact; readers
+// show the newest runId, so a re-start never duplicates.
 async function startPurchasedPlan({ plan, startISO, weeks = 4 } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in first.');
   const runId = selfRunId();
   const rows = bsMaterializeOutline({ plan, startISO, weeks, runId });
-  for (const r of rows) {
-    await insertSelfWorkout({ title: r.title, description: r.description, scheduledDate: r.scheduledDate, payload: r.payload });
-  }
+  await insertSelfWorkouts(rows);
   // New block landed — retire the prior run of THIS plan (best-effort).
   try {
     const programId = `plan:${plan.id}`;
