@@ -445,6 +445,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
   const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
+  // The shape:* event effects below register ONCE ([] deps), so their handlers
+  // must read the CURRENT render's jump closures at fire time — a mount-render
+  // navPush would compute navLoc() from frozen state and record {tab:'home'}
+  // forever (the dedupe would then swallow every later jump's push). Same
+  // live-ref pattern as navBackRef above.
+  const navJumpRef = React.useRef({});
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations };
 
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
@@ -454,7 +461,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Let any deep component (e.g. a playlist card's "Connect Spotify" prompt)
   // jump to Settings → Connected apps without prop-threading.
   React.useEffect(() => {
-    const open = () => goIntegrations();
+    const open = () => navJumpRef.current.goIntegrations();
     window.addEventListener('shape:openIntegrations', open);
     return () => window.removeEventListener('shape:openIntegrations', open);
   }, []);
@@ -462,7 +469,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Tapping the top-right profile avatar on any screen opens Settings/profile
   // — fired as an event so sub-pages don't need an onProfile prop threaded in.
   React.useEffect(() => {
-    const open = () => goSettings();
+    const open = () => navJumpRef.current.goSettings();
     window.addEventListener('shape:openProfile', open);
     return () => window.removeEventListener('shape:openProfile', open);
   }, []);
@@ -471,7 +478,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // profile editor itself, not just the Settings landing) deep-links straight
   // into the edit-profile pane where the Primary goal field lives.
   React.useEffect(() => {
-    const open = () => goEditProfile();
+    const open = () => navJumpRef.current.goEditProfile();
     window.addEventListener('shape:editProfile', open);
     return () => window.removeEventListener('shape:editProfile', open);
   }, []);
@@ -481,7 +488,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     // Honor the dispatcher's detail.role (e.g. a waitlist-invite notification, or
     // the Pricing "browse coaches" link) so the marketplace opens pre-filtered.
-    const open = (e) => { navPush(); setShowSettings(false); setSettingsStart(''); setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null); setTab('market'); };
+    const open = (e) => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null); setTab('market'); };
     window.addEventListener('shape:openMarket', open);
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
@@ -489,7 +496,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
-    const open = () => { navPush(); setShowSearch(true); };
+    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -500,7 +507,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
-      navPush();
+      navJumpRef.current.navPush();
       setShowSearch(false);
       setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
@@ -534,7 +541,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = () => { navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
+    const onStart = () => { navJumpRef.current.navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
