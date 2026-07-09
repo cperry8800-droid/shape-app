@@ -1406,7 +1406,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {[['workout', 'Workouts', t.RUST || '#c0533b'], ['meal', 'Meals', t.GREEN || '#5fae7e'], ['recipe', 'Recipes', teal], ['grocery', 'Groceries', '#3b74b8']].map(([k, label, c]) => {
+        {[['workout', 'Workouts', t.RUST || '#c0533b'], ['meal', 'Meals', t.GREEN || '#5fae7e'], ['recipe', 'Recipes', teal], ['grocery', 'Groceries', BS_LIB_KINDS.grocery.color]].map(([k, label, c]) => {
           const on = filter === k;
           const count = items.filter(i => i.kind === k).length;
           return (
