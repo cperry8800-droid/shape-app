@@ -5682,6 +5682,76 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   );
 }
 
+
+// Monthly offer editor — the coach writes what their monthly coaching includes
+// (blurb + up to 8 inclusion rows); shown to members on the marketplace Listing's
+// WHAT'S INCLUDED sheet + the standing-offer coupon. Quiet form (two-tier rule);
+// saves owner-scoped onto the provider row via window.ShapeCoachOffer.
+function BSProMonthlyOfferSheet({ role, accent, onClose }) {
+  const t = useBS();
+  const [blurb, setBlurb] = React.useState('');
+  const [rows, setRows] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const r = await window.ShapeCoachOffer?.get?.(role);
+        if (on && r && r.offer) { setBlurb(r.offer.blurb || ''); setRows(Array.isArray(r.offer.includes) ? r.offer.includes : []); }
+      } catch (e) {}
+      if (on) setLoaded(true);
+    })();
+    return () => { on = false; };
+  }, [role]);
+  const setRow = (i, v) => setRows((prev) => prev.map((x, xi) => (xi === i ? v : x)));
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      await window.ShapeCoachOffer.save(role, { blurb, includes: rows });
+      window.__bsToast?.('Monthly offer saved', 'ok');
+      onClose();
+    } catch (e) { setErr(String((e && e.message) || 'Could not save — are you signed in as an approved coach?')); }
+    setBusy(false);
+  };
+  return (
+    <div onClick={() => !busy && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your monthly offer" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Monthly offer · what's included</div>
+      <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>Tell members what monthly coaching gets them.</div>
+      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>Shown on your marketplace listing's coupon · plain text</div>
+      {!loaded ? (
+        <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (<>
+        <label style={{ display: 'block', marginTop: 14 }}>
+          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>The pitch · up to 600 chars</span>
+          <textarea value={blurb} onChange={(e) => setBlurb(e.target.value.slice(0, 600))} rows={4} placeholder="What working with you monthly actually looks like…"
+            style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
+        </label>
+        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Included · up to 8 lines</div>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <input value={r} onChange={(e) => setRow(i, e.target.value.slice(0, 80))} placeholder="e.g. 4 sessions · weekly check-ins"
+              style={{ flex: 1, boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '9px 11px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
+            <button onClick={() => setRows((prev) => prev.filter((_, xi) => xi !== i))} aria-label="Remove line" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
+          </div>
+        ))}
+        {rows.length < 8 && (
+          <button onClick={() => setRows((prev) => [...prev, ''])} style={{ marginTop: 10, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px 12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ Add a line</button>
+        )}
+        {err && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST }}>{err}</div>}
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={() => !busy && onClose()} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Cancel</button>
+          <button onClick={save} disabled={busy} style={{ flex: 1, padding: 14, border: 0, background: accent, color: t.isLight ? '#fff' : '#0c0a08', cursor: busy ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save offer'}</button>
+        </div>
+      </>)}
+      </div>
+    </div>
+  );
+}
+
 function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {}, onBack = null, onAppearance = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
@@ -5698,6 +5768,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const init = customInit || (displayName || 'S').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'S';
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
+  const [showOfferEditor, setShowOfferEditor] = useStateBSP(false);
   const [showContact, setShowContact] = useStateBSP(false);
   const [showTerms, setShowTerms] = useStateBSP(false);
   const [showGoals, setShowGoals] = useStateBSP(false);
@@ -5876,6 +5947,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           { l: 'Payouts', sub: 'Weekly · Stripe · Fri', r: '$4,820', onClick: startPayoutSetup },
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
           { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
+          { l: 'Monthly offer', sub: "What's included — shown on your marketplace listing", r: 'Edit', onClick: () => setShowOfferEditor(true) },
           { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },
           { l: 'Shape Radio', sub: 'Live stations · coach mixes', r: '→', onClick: () => onRadio() },
           { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
@@ -5897,6 +5969,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
         return (
           <div style={{ padding: `4px ${t.padX}px 8px` }}>
             {head('YOUR PRACTICE', 'Shortcuts', 22)}
+            {showOfferEditor && <BSProMonthlyOfferSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowOfferEditor(false)} />}
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>

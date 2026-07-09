@@ -3799,6 +3799,35 @@ async function coachAvailabilityGet(role, id) {
 }
 window.ShapeCoachAvailability = { get: coachAvailabilityGet };
 
+// Coach-authored monthly offer (the Listing's WHAT'S INCLUDED sheet): lives on
+// the coach's own provider row (monthly_offer jsonb, migration 2026-07-09).
+// The tables' own-row UPDATE policy covers the write — monthly_offer is not an
+// admin-pinned column (2026-06-25-provider-admin-column-guard).
+async function coachOfferGet(role) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!supabase || !uid) return null;
+  const table = normalizeRole(role) === 'nutritionist' ? 'nutritionists' : 'trainers';
+  const { data, error } = await supabase.from(table).select('id, monthly_offer').eq('owner_id', uid).maybeSingle();
+  if (error || !data) return null;
+  return { providerId: data.id, offer: data.monthly_offer || null };
+}
+async function coachOfferSave(role, offer) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!supabase || !uid) throw new Error('Sign in first.');
+  const table = normalizeRole(role) === 'nutritionist' ? 'nutritionists' : 'trainers';
+  const clean = {
+    blurb: String((offer && offer.blurb) || '').trim().slice(0, 600),
+    includes: (Array.isArray(offer && offer.includes) ? offer.includes : [])
+      .map((x) => String(x || '').trim().slice(0, 80)).filter(Boolean).slice(0, 8),
+    updatedAt: new Date().toISOString(),
+  };
+  const { error } = await supabase.from(table).update({ monthly_offer: clean }).eq('owner_id', uid);
+  if (error) throw error;
+  return clean;
+}
+window.ShapeCoachOffer = { get: coachOfferGet, save: coachOfferSave };
+
+
 window.ShapeWaitlist = {
   join: waitlistJoin,
   mine: waitlistMine,
