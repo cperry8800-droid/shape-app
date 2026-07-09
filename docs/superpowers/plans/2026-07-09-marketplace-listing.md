@@ -79,8 +79,10 @@ two-tier rule for the review composer + add sheets.
 
 - [ ] **Task 13 — website port.** The website coach living profile
   (`livingShared.jsx` `LvServices` rate card + `livingDesktop.jsx`) gains the wave's
-  commerce pieces: the standing-offer **coupon** as the rate card's lead offer, a
-  **single workouts/meals** shelf from the same `coach_plans` buckets, and the
+  commerce pieces: the standing-offer **coupon** as the rate card's lead offer, the
+  same role-aware single-item shelf the mobile Listing ships — **single workouts**
+  for trainers / **single meals** for nutritionists, both read from the real
+  `coach_plans` category buckets (nothing invented) — and the
   coach-authored **`monthly_offer`** what's-included (same column PR C adds — the
   provider rows are already public-read on the website). Honesty riders where they
   apply. `?v=` bumps on all consumer pages. Design language: the site's existing
