@@ -72,6 +72,22 @@ today's events open it. Deep in-page state (scroll position, half-typed
 forms, a partially-scrubbed chart) is NOT restored — identical to what any
 `shape:*` jump does today.
 
+**The current-location register (child-owned sub-state).** The shell only
+sees its own state (`tab` / takeover flags), but surfaces like `BSSettings`
+own their sub-pages internally (`showGoals`, `showPublicProfile`, …) — so a
+jump fired from Settings → Goals would otherwise push only "Settings landing"
+and back would under-return. Fix: **`ShapeNav.announce(subLoc | null)`** — a
+surface that owns nav-relevant sub-view state stamps a lightweight register
+whenever its sub-view changes (and clears it on close/unmount); every push
+composes `{ …shellLocation, …announcedSub }`. Replay requires each announced
+sub to be enterable from outside, which is the existing `settingsStart`
+pattern generalized — wave 1 enumerates the **replayable set** (Settings
+sub-pages via `settingsStart`, the Me sub-pages, the Eat sub-views, the Chat
+open thread via `chatRequest`); a sub-view not yet in the set announces its
+nearest replayable ancestor, so back degrades to that ancestor — never worse
+than today's behavior, and each later addition is a two-line change
+(announce + start-prop).
+
 ### 3. What pushes (the scope limiter)
 
 - **Cross-context jumps push** the *current* location before jumping: all six
@@ -114,16 +130,25 @@ forms, a partially-scrubbed chart) is NOT restored — identical to what any
 
 ### 5. Hardware / browser back
 
-On each stack `push`, mirror one `history.pushState({shapeNav})`; `popstate`
-→ `bsNavBack()`. Stack empty → let the platform default run (background the
-native app / leave `/m/`). App-shell only — the website is untouched. External
-navigations (Stripe checkout `location.assign`) are unaffected.
+**No per-entry mirroring** — a 1:1 `pushState` mirror would drift from the
+stack on dedupe no-ops and cap-30 evictions (browser entries with no matching
+stack mutation). Instead, a **single guard entry**: when the stack transitions
+empty → non-empty, push ONE `history.pushState({ shapeNav: true })`. On
+`popstate`: if `canPop()` → `bsNavBack()` and immediately **re-arm** (push the
+guard again); when that pop empties the stack, don't re-arm — the next
+hardware/browser back gets the platform default (background the native app /
+leave `/m/`). Dedupe no-ops and cap evictions never touch browser history at
+all, so drift is impossible by construction. (Browser *forward* after an
+in-app back is a deliberate no-op — the guard was consumed.) App-shell only —
+the website is untouched; external navigations (Stripe checkout
+`location.assign`) are unaffected.
 
 ### 6. Phasing — three PRs
 
 - **PR A — the spine (client):** `navHistory.mjs` + tests · client-shell
-  resolver · cross-jump instrumentation · takeover + detail-header smart-backs
-  · the hardware-back bridge.
+  resolver · the `announce` register + the wave-1 replayable set ·
+  cross-jump instrumentation · takeover + detail-header smart-backs · the
+  hardware-back guard-entry bridge.
 - **PR B — coach parity:** the two pros shells register resolvers on the same
   window spine; coach cross-jumps (`shape:proMessageCoach`,
   `shape:openProSettings`, roster → Case File chains) instrumented.
@@ -140,11 +165,14 @@ back button *means* in its local context.
 
 ### 8. Verification
 
-Pure vectors for both modules; per-commit JSX parse · `/m/` build · full
-`npm test` · LF. Browser-driven pass on staging: the four canonical jump
+Pure vectors for both modules (incl. guard-entry arm/re-arm/disarm sequences
+and announce-compose cases); per-commit JSX parse · `/m/` build · full
+`npm test` · LF. Browser-driven pass on staging: the five canonical jump
 chains (search → profile → back · notification → market → back · goals →
-edit-profile → back · chat thread → Listing → back), tab-swipe on each root
-tab including gestures started over a week strip / chart / filter rail
-(proving no hijack), hardware back through a chain, and reduced-motion.
+edit-profile → back · **Settings-Goals → edit-profile → back lands on
+Settings-Goals, not the Settings landing** · chat thread → Listing → back),
+hardware back walking a chain then exiting at the empty stack, tab-swipe on
+each root tab including gestures started over a week strip / chart / filter
+rail (proving no hijack), and reduced-motion.
 **Owner on-device pass** for gesture feel (thresholds are tuning constants in
 one place) across Black/Sage/Cream.
