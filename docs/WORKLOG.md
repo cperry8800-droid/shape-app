@@ -159,12 +159,14 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-09b): Navigation history PR A** — back returns to the TRUE
-> previous page: pure `navHistory.mjs` descriptor stack + announce register,
-> cross-jump instrumentation, smart-backs, and a single-guard-entry hardware/
-> browser-back bridge (`window.ShapeNav`). Spec #1642; PR B (coach shells) +
-> PR C (swipe gestures) next. Same day: **Book now parity** (#1640 — both
-> invited CTAs fire the per-role one-time purchase). Dated entries below.
+> **Latest (2026-07-09b): Navigation history PRs A + B** — back returns to the
+> TRUE previous page across **all three shells**: a pure `navHistory.mjs`
+> descriptor stack + announce register, cross-jump instrumentation, smart-backs,
+> and a single-guard-entry hardware/browser-back bridge, extracted into one
+> shared `useBSNavHistory` hook (`bsNavShell.js`) that the client, trainer and
+> nutritionist shells all ride. Spec #1642; **PR C (swipe gestures) next**. Same
+> day: **Book now parity** (#1640 — both invited CTAs fire the per-role one-time
+> purchase). Dated entries below.
 >
 > **Prior (2026-07-09): The Marketplace Listing wave** — tapping a marketplace coach
 > now opens **"THE LISTING"** (spec #1632), a purpose-built conversion page (the Signal
@@ -296,6 +298,49 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-09 — Navigation history PR B: the coach shells ride the same spine (one shared hook)
+- **PR B of 3** (after PR A `a65a599e`). Plan `docs/superpowers/plans/2026-07-09-nav-history-coach-parity.md`;
+  built subagent-driven on Opus, task-per-commit, browser-verified per shell.
+- **One hook, three shells.** PR A's ~60-line shell block (armed ref · push ·
+  back · popstate bridge · `window.ShapeNav` exposure) is extracted to
+  **`mobile-app/src/broadsheet/bsNavShell.js` → `useBSNavHistory({ navLoc,
+  navResolve })`**. The client shell refactors onto it with zero behavior change
+  (re-verified in a browser); **`BSTrainerAppInner`** and
+  **`BSNutritionistAppInner`** adopt it with their own `navLoc`/`navResolve`
+  covering their **six takeovers** (soundtracks · settings · calendar · reviews ·
+  habits · queue) plus tab/store/programs sub-state.
+- **Coach cross-jumps instrumented:** `shape:openProSettings` / `openProfile` /
+  `proAvailability` / `proSoundtracks` / `proMessageClient` / `proMessageCoach` /
+  `openSearch` / `openConversation`, plus `goRadio` / `goSettings` /
+  `openHomeWidget` (which now **early-returns on an unknown action before
+  pushing**, so a no-op door can't leave a phantom entry). Tab-bar taps still
+  never push; `shape:startTour` doesn't push (self-closing overlay).
+- **Settings sub-page replay comes free for coaches:** `BSSettings` is the shared
+  client component and already announces its sub-page, so threading the new
+  `settingsStart` state into it makes `Settings → Integrations → jump → back`
+  land back on **Integrations** in the coach apps too.
+- **`liveWatch` is deliberately NOT replayable** — re-opening a stale live-watch
+  would fabricate a session that may have ended (honest-data).
+- **Two more guard-invariant bugs found and fixed** (both inherited from PR A,
+  both browser-caught): (1) **`ShapeNav.clear()`** emptied the stack but left the
+  guard armed — the next push skipped arming and the next hardware Back was
+  swallowed; new pure `bsGuardAfterClear(armed)` keeps all four guard decisions
+  in the tested module (suite **521**). (2) A subagent shipped the
+  `useBSNavHistory` **call without its import** — parse, `tsc`, `npm test` and
+  the Vite build ALL pass on a bare identifier (it reads as a global), so only
+  rendering the trainer shell surfaces it. Both fixed before the PR.
+- **Verification note (process):** the `grep -c $'\r'` LF gate used across this
+  repo's sessions is **broken in Git Bash here** — it returns the line count for
+  CRLF *and* LF files alike. Use `tr -cd '\r' < f | wc -c` (must print 0). Audited
+  every file this session touched, working tree + committed blobs: all genuinely LF.
+- Verified per commit: JSX parse · `tsc --noEmit` · `VITE_BASE=/m/` build exit 0 ·
+  `npm test` 521 · LF (real check). Browser-driven on **all three shells** (role
+  flipped through the supported Tweaks path — a forced `role` boot crashes with
+  React #130 because `loadProsBundle` never loads the client module, which is why
+  `role` sits in `BS_TWEAKS_NO_PERSIST`; reproduced identically on merged main, so
+  it is a dev-path artifact, not a regression). **Open:** PR C (swipe gestures) +
+  the owner on-device pass, which rides PR C.
 
 ### 2026-07-09 — Navigation history PR A: back returns to the TRUE previous page (client spine)
 - **The app finally has navigation history.** Spec `docs/superpowers/specs/2026-07-09-navigation-history-swipe-design.md`
