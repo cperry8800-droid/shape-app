@@ -14,6 +14,7 @@ import React from 'react';
 import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
   bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop,
+  bsGuardAfterClear,
 } from '../services/navHistory.mjs';
 
 export function useBSNavHistory({ navLoc, navResolve }) {
@@ -60,10 +61,22 @@ export function useBSNavHistory({ navLoc, navResolve }) {
     return () => window.removeEventListener('popstate', onPop);
   }, [navBack]);
 
+  // Clearing empties the stack, so the guard must go with it — same reasoning as
+  // the in-app-pop consume above. A bare bsNavClear() would leave `armed` true
+  // with an empty stack: the next push would skip arming (already "armed"), and
+  // the next hardware Back would spend itself on the orphaned entry.
+  const navClear = React.useCallback(() => {
+    bsNavClear();
+    if (bsGuardAfterClear(armed.current) === 'consume') {
+      armed.current = false;
+      try { window.history.back(); } catch (e) {}
+    }
+  }, []);
+
   React.useEffect(() => {
-    window.ShapeNav = { push: navPush, back: navBack, canPop: bsNavCanPop, announce: bsNavAnnounce, clear: () => bsNavClear() };
+    window.ShapeNav = { push: navPush, back: navBack, canPop: bsNavCanPop, announce: bsNavAnnounce, clear: navClear };
     return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
-  }, [navPush, navBack]);
+  }, [navPush, navBack, navClear]);
 
   return { navPush, navBack };
 }
