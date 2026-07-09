@@ -159,7 +159,14 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-09): The Marketplace Listing wave** — tapping a marketplace coach
+> **Latest (2026-07-09b): Navigation history PR A** — back returns to the TRUE
+> previous page: pure `navHistory.mjs` descriptor stack + announce register,
+> cross-jump instrumentation, smart-backs, and a single-guard-entry hardware/
+> browser-back bridge (`window.ShapeNav`). Spec #1642; PR B (coach shells) +
+> PR C (swipe gestures) next. Same day: **Book now parity** (#1640 — both
+> invited CTAs fire the per-role one-time purchase). Dated entries below.
+>
+> **Prior (2026-07-09): The Marketplace Listing wave** — tapping a marketplace coach
 > now opens **"THE LISTING"** (spec #1632), a purpose-built conversion page (the Signal
 > living profile stays untouched behind one THE FULL PROFILE → door): eyebrow/portrait/
 > register head, a **real scheduling calendar** (weekly `provider_availability` minus
@@ -289,6 +296,49 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-09 — Navigation history PR A: back returns to the TRUE previous page (client spine)
+- **The app finally has navigation history.** Spec `docs/superpowers/specs/2026-07-09-navigation-history-swipe-design.md`
+  (#1642) + plan `docs/superpowers/plans/2026-07-09-nav-history-client-spine.md`;
+  built subagent-driven on Opus, task-per-commit. This is **PR A of 3** — PR B
+  (coach-shell parity) and PR C (edge-swipe back + tab swipe) follow.
+- **The spine:** pure **`mobile-app/src/services/navHistory.mjs`** (+
+  `tests/nav-history.test.mjs`, 6 vectors, suite 517) — a cap-30 LIFO of
+  replayable `{ tab, overlay?, sub?, detail? }` descriptors with deep-equal
+  dedupe, the **announce register** for child-owned sub-state, and pure
+  guard-entry decisions (`bsGuardAfterPush/Pop`).
+- **The shell owns replay** (`BSClientAppInner`): `navLoc()` derives the
+  shell-visible location; `navResolve(loc)` maps popped descriptors onto the
+  EXISTING entry points (`setTab` · takeover setters · `chatRequest` ·
+  `storeView` · new `eatStart`/`meStart` one-shot start props); exposed as
+  **`window.ShapeNav`** ({push, back, canPop, announce, clear}) for the pros
+  shells (PR B) and the gesture layer (PR C).
+- **What pushes:** every cross-context jump — the seven `shape:*` event
+  handlers, the `goX` helpers, calendar/search/settings takeover opens —
+  records the pre-jump location. **Tab-bar taps never push** (Android back
+  guidance). In-context "up" backs are untouched; **smart-backs**
+  (`stack-first, legacy fallback`) land on the takeover closes + the
+  whole-tab-jump backs (radio/market/store).
+- **Announce register (wave-1 replayable set):** BSSettings sub-pages
+  (edit-profile/integrations/about/pricing), Eat views (day/grocery/library),
+  Me pages (score/store), and conversation-id/channel chat threads — so a jump
+  from Eat-grocery or a Settings sub-page returns to exactly there, not the
+  context root. Demo/sample threads deliberately announce nothing.
+- **Hardware/browser back** rides a **single guard history entry** (arm on
+  empty→non-empty, re-arm per consumed pop, disarm at empty — dedupe/evictions
+  never touch browser history, so drift is impossible by construction).
+- **Real bug caught by browser verification, fixed in-branch:** the seven
+  once-registered (`[]`-dep) event effects captured the mount render's
+  `navPush` — `navLoc()` computed from frozen state recorded `{tab:'home'}`
+  forever and dedupe swallowed every later push. Fixed with the **`navJumpRef`**
+  live-ref (same pattern as `navBackRef`); chains re-verified honestly:
+  Settings@Integrations → market → back → **Integrations restored**;
+  Eat-grocery → settings → back → **grocery restored**; hardware back consumes
+  the guard then defers to the platform at empty; tab taps leave the stack
+  alone.
+- Verified per commit: JSX parse · `tsc --noEmit` · `VITE_BASE=/m/` build exit
+  0 · `npm test` 517 · LF. **Open:** PR B (pros shells) · PR C (gestures) ·
+  owner on-device pass rides PR C.
 
 ### 2026-07-09 — Book now parity: BOTH mobile invited "Book now" CTAs fire the one-time purchase (#1640, `67e8f092`)
 - **Closed the wrong-charge path on the mobile first-dibs invite.** Both invited
