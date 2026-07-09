@@ -409,9 +409,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
   // The shape:* event effects below register ONCE ([] deps), so their handlers
   // must read the CURRENT render's jump closures at fire time — a mount-render
-  // navPush would compute navLoc() from frozen state and record {tab:'home'}
-  // forever (the dedupe would then swallow every later jump's push). Same
-  // live-ref pattern as navBackRef above.
+  // goSettings/goIntegrations would be frozen at that render's state. (navPush
+  // itself is safe: useBSNavHistory reads navLoc through a per-render ref. The
+  // goX helpers below still close over state directly, so they need this.)
   const navJumpRef = React.useRef({});
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations };
 
