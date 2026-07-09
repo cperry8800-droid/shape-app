@@ -1,4 +1,5 @@
 import React from 'react';
+import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -483,7 +484,7 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
   }, []);
 
   const scroller = (
-    <div ref={scrollerRef} className="bs-scroll" style={{
+    <div ref={scrollerRef} className="bs-scroll" {...(mast ? {} : { 'data-bs-noswipe': '' })} style={{
       position: 'absolute', inset: 0,
       height: '100%',
       overflowX: 'hidden',
@@ -1508,8 +1509,101 @@ function BSBackButton({ onClick, label = 'Back', style }) {
     </button>
   );
 }
+// ═══ Swipe navigation (spec 2026-07-09 §4 · PR C) ═══════════════════════════
+// One gesture layer for all three shells: capture-phase, ALWAYS-passive touch
+// listeners on the phone surface classify a finished touch via the pure
+// bsSwipeIntent and dispatch `shape:navGesture` { intent }. The shells apply
+// the judgment (back → navBack ‖ close-top-takeover; prev/next-tab → step their
+// own tab order when no takeover is open). We never preventDefault, so this
+// layer cannot fight browser scrolling or the native scroll handlers above.
+
+// ONE ancestor walk decides whether a touch may become a gesture. Blocked when
+// it starts on: an interactive control · a horizontal scroller that actually
+// overflows · a touchAction-owning surface (chart scrubs set pan-y; the page
+// scroller's own pan-y is EXPECTED and skipped via .bs-scroll) · a sheet/overlay
+// (they portal into the surface at zIndex ≥ 500) · an explicit
+// [data-bs-noswipe] opt-out (BSPage stamps it for mast={false} full-screen flows).
+function bsSwipeBlocked(target) {
+  if (isInteractiveTarget(target)) return true;
+  let el = target instanceof Element ? target : null;
+  while (el && el.id !== 'bs-phone-surface' && el !== document.body) {
+    if (el.hasAttribute('data-bs-noswipe')) return true;
+    const s = getComputedStyle(el);
+    if (!el.classList.contains('bs-scroll')) {
+      if (/(^|\s)(none|pan-x|pan-y)(\s|$)/.test(s.touchAction || '')) return true;
+      if ((s.overflowX === 'auto' || s.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
+    }
+    const z = parseInt(s.zIndex, 10);
+    if (!Number.isNaN(z) && z >= 500 && (s.position === 'absolute' || s.position === 'fixed')) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
+// The tab-swipe slide: subtle 24px settle on the incoming screen, one-shot.
+// Reduced motion is handled in CSS (no JS branch), and a tab TAP renders with
+// no class at all — the slide only rides an actual swipe.
+let _bsNavSwipeCssDone = false;
+function bsInjectNavSwipeCss() {
+  if (_bsNavSwipeCssDone || typeof document === 'undefined') return;
+  _bsNavSwipeCssDone = true;
+  const s = document.createElement('style');
+  s.textContent = `
+    @keyframes bsNavSlideL { from { transform: translateX(24px); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes bsNavSlideR { from { transform: translateX(-24px); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+    .bs-nav-slide-l { animation: bsNavSlideL 180ms ease-out; }
+    .bs-nav-slide-r { animation: bsNavSlideR 180ms ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      .bs-nav-slide-l, .bs-nav-slide-r { animation: none !important; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function BSNavGestures() {
+  useEffectBS(() => {
+    bsInjectNavSwipeCss();
+    const surf = document.getElementById('bs-phone-surface') || document.body;
+    let start = null;
+    const onStart = (e) => {
+      if (e.touches.length !== 1) { start = null; return; }
+      const t0 = e.touches[0];
+      // Normalize x to the SURFACE's left edge — in the desktop preview the
+      // phone frame is inset, and the 24px edge zone is the phone's edge, not
+      // the browser window's.
+      const left = surf.getBoundingClientRect().left;
+      start = { x0: t0.clientX - left, y0: t0.clientY, t: Date.now(), blocked: bsSwipeBlocked(e.target) };
+    };
+    const onMove = (e) => { if (e.touches.length !== 1) start = null; };
+    const onEnd = (e) => {
+      if (!start || e.changedTouches.length !== 1) { start = null; return; }
+      const t1 = e.changedTouches[0];
+      const left = surf.getBoundingClientRect().left;
+      const intent = bsSwipeIntent({
+        x0: start.x0, y0: start.y0,
+        x1: t1.clientX - left, y1: t1.clientY,
+        dt: Date.now() - start.t, blocked: start.blocked,
+      });
+      start = null;
+      if (intent) { try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {} }
+    };
+    const onCancel = () => { start = null; };
+    surf.addEventListener('touchstart', onStart, { capture: true, passive: true });
+    surf.addEventListener('touchmove', onMove, { capture: true, passive: true });
+    surf.addEventListener('touchend', onEnd, { capture: true, passive: true });
+    surf.addEventListener('touchcancel', onCancel, { capture: true, passive: true });
+    return () => {
+      surf.removeEventListener('touchstart', onStart, true);
+      surf.removeEventListener('touchmove', onMove, true);
+      surf.removeEventListener('touchend', onEnd, true);
+      surf.removeEventListener('touchcancel', onCancel, true);
+    };
+  }, []);
+  return null;
+}
+
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton,
+  BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
