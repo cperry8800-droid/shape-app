@@ -397,6 +397,7 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
 function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
+  const isNutri = d.role === "Nutritionist";
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
   // back to the demo offerings when the coach hasn't published any.
   const [real, setReal] = React.useState(null);
@@ -406,8 +407,11 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
     let on = true;
     const kindOf = (cat, kind) => {
       const cc = String(cat || "").toLowerCase();
+      // The mobile Listing's role-aware single-item shelf (spec #1632 §4) —
+      // same category matchers, so app and site bucket identically.
+      if (isNutri ? /meal/.test(cc) : /workout|single/.test(cc)) return "Single";
       if (kind === "meal_plan" || /meal/.test(cc)) return "Meal plan";
-      if (/workout|single|session|form/.test(cc)) return "Workout";
+      if (/session|form/.test(cc)) return "Workout";
       if (/program|block|strength|hypertrophy|diet|cut|recomp|nutrition/.test(cc)) return "Program";
       return "Coaching";
     };
@@ -435,12 +439,12 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
     } catch (e) { alert("Could not start checkout."); }
   };
   // categories present, in stable order
-  const order = ["Workout", "Meal plan", "Program", "Coaching", "Consult"];
+  const order = ["Workout", "Meal plan", "Program", "Single", "Coaching", "Consult"];
   const kinds = order.filter(k => offerings.some(o => o.kind === k));
   const cats = ["All", ...kinds];
   const [cat, setCat] = React.useState("All");
   const list = cat === "All" ? offerings : offerings.filter(o => o.kind === cat);
-  const label = (k) => k === "All" ? "All" : (LV_CAT[k] || k);
+  const label = (k) => k === "All" ? "All" : (k === "Single" ? (isNutri ? "Single meals" : "Single workouts") : (LV_CAT[k] || k));
   const count = (k) => k === "All" ? offerings.length : offerings.filter(o => o.kind === k).length;
   const idx = (on) => ({ background: "transparent", border: 0, cursor: "pointer", whiteSpace: "nowrap", flex: "none", position: "relative", padding: "6px 2px 9px", fontFamily: lvMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? ink : hexA(ink, 0.45) });
   // Prefer the LIVE review avg/count (passed from LvCoachBlocks) so the rate-card
@@ -473,7 +477,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
             <div key={o.planId || o.name || o.kind + i} {...buyProps} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.45), marginBottom: 4 }}>{o.kind}</div>
+                  <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.45), marginBottom: 4 }}>{o.kind === "Single" ? (isNutri ? "Single meal" : "Single workout") : o.kind}</div>
                   <div style={{ fontFamily: lvSerif, fontSize: 17, letterSpacing: "-0.01em", color: ink }}>{o.name}</div>
                   <div style={{ fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.55), marginTop: 4 }}>{o.sub}</div>
                 </div>
@@ -581,6 +585,23 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (d.role === "Nutritionist" ? "$240" : "$200");
   const [provider, setProvider] = React.useState(null);
   const [liveReviews, setLiveReviews] = React.useState(null);
+  // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
+  // monthly_offer the mobile Listing's WHAT'S INCLUDED sheet reads. The
+  // provider tables are public-read; pre-migration the select just errors
+  // quietly and the coupon renders without it (honest absence, no fallback).
+  const [offer, setOffer] = React.useState(null);
+  React.useEffect(() => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!d.uid || !cl || !cl.from) return;
+    let on = true;
+    const table = d.role === "Nutritionist" ? "nutritionists" : "trainers";
+    cl.from(table).select("monthly_offer").eq("owner_id", d.uid).maybeSingle()
+      .then((r) => { if (on && r && !r.error && r.data && r.data.monthly_offer) setOffer(r.data.monthly_offer); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [d.uid, d.role]);
+  const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter(Boolean).slice(0, 8) : [];
+  const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
     if (d.uid && cl && cl.rpc) cl.rpc("get_coach_sale_plans_by_user", { p_user_id: d.uid }).then((r) => { const rows = (r && !r.error && r.data) || []; if (rows[0]) setProvider({ id: rows[0].provider_id, role: rows[0].provider_role }); }).catch(() => {});
@@ -612,10 +633,27 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       {!owner && (
         <div style={{ marginTop: 4 }}>
           {stHead(`Work with ${first}`)}
-          <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em" }}>Monthly coaching · <span style={{ color: c }}>{monthlyPrice}/mo</span></div>
+          {/* The standing-offer coupon — the mobile Listing's commerce centerpiece,
+              in the site's grammar (dashed clip frame; the buttons stay solid). */}
+          <div style={{ border: `1px dashed ${hexA(ink, 0.38)}`, padding: "15px 16px 16px", maxWidth: 520 }}>
+          <div style={{ fontFamily: lvMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>✂ Standing offer</div>
+          <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 8 }}>Monthly coaching · <span style={{ color: c }}>{monthlyPrice}/mo</span></div>
+          {hasOffer && (
+            <div style={{ marginTop: 11 }}>
+              {offer.blurb && String(offer.blurb).trim() ? <p style={{ fontFamily: lvSerif, fontSize: 13.5, fontStyle: "italic", lineHeight: 1.5, color: hexA(ink, 0.82), margin: 0, textWrap: "pretty" }}>{String(offer.blurb)}</p> : null}
+              {offerLines.map((line, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 7 }}>
+                  <span aria-hidden="true" style={{ flex: "none", fontFamily: lvMono, fontSize: 11, color: LV_TEAL }}>✓</span>
+                  <span style={{ fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>{String(line)}</span>
+                </div>
+              ))}
+              <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.4), marginTop: 9 }}>What's included · in {first}'s words</div>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, maxWidth: 420 }}>
             <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
             <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
+          </div>
           </div>
         </div>
       )}
