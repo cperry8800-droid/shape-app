@@ -1519,20 +1519,36 @@ function BSBackButton({ onClick, label = 'Back', style }) {
 
 // ONE ancestor walk decides whether a touch may become a gesture. Blocked when
 // it starts on: an interactive control · a horizontal scroller that actually
-// overflows · a touchAction-owning surface (chart scrubs set pan-y; the page
-// scroller's own pan-y is EXPECTED and skipped via .bs-scroll) · a sheet/overlay
-// (they portal into the surface at zIndex ≥ 500) · an explicit
-// [data-bs-noswipe] opt-out (BSPage stamps it for mast={false} full-screen flows).
+// overflows (the `.bs-scroll` class marks MANY scrollers — rails included — so
+// nothing is exempted by class; the checks are per-axis) · a touchAction-owning
+// surface — `pan-x`/`none` always claim horizontal touches, and `pan-y` claims
+// them ONLY on a non-vertically-scrolling element (that's a chart scrub;
+// a pan-y element that itself scrolls vertically is just a page/list scroller
+// and horizontal is unclaimed there) · a sheet/overlay (they portal into the
+// surface at zIndex ≥ 500) · an explicit [data-bs-noswipe] opt-out (BSPage
+// stamps it for mast={false} full-screen flows and noSwipe pages).
 function bsSwipeBlocked(target) {
-  if (isInteractiveTarget(target)) return true;
+  // Only TRUE input controls block a swipe at the target level — a horizontal
+  // drag on a text field / slider means selection/cursor/value, never nav.
+  // Buttons, links and rows deliberately do NOT block: dense pages (rosters,
+  // feeds, chat lists) are mostly tappable rows, and a blanket interactive
+  // block would leave them swipe-dead. The tap/drag distinction is the
+  // platform's: a real finger that travels far enough to classify never
+  // synthesizes a click, and these listeners are passive so taps are untouched.
+  if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return true;
   let el = target instanceof Element ? target : null;
   while (el && el.id !== 'bs-phone-surface' && el !== document.body) {
     if (el.hasAttribute('data-bs-noswipe')) return true;
     const s = getComputedStyle(el);
-    if (!el.classList.contains('bs-scroll')) {
-      if (/(^|\s)(none|pan-x|pan-y)(\s|$)/.test(s.touchAction || '')) return true;
-      if ((s.overflowX === 'auto' || s.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
-    }
+    const ta = s.touchAction || '';
+    // pan-y on a DECLARED vertical scroller is just page/list scrolling —
+    // horizontal is unclaimed. pan-y on a non-scroller (overflow visible) is a
+    // chart scrub claiming horizontal touches. Declared, not measured: a short
+    // page whose content happens to fit must not lose tab-swipe.
+    const declaresY = s.overflowY === 'auto' || s.overflowY === 'scroll';
+    if (/(^|\s)(none|pan-x)(\s|$)/.test(ta)) return true;
+    if (/(^|\s)pan-y(\s|$)/.test(ta) && !declaresY) return true;
+    if ((s.overflowX === 'auto' || s.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
     const z = parseInt(s.zIndex, 10);
     if (!Number.isNaN(z) && z >= 500 && (s.position === 'absolute' || s.position === 'fixed')) return true;
     el = el.parentElement;
