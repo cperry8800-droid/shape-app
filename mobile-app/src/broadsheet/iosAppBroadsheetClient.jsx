@@ -670,14 +670,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} initialPage={meStart} onStartConsumed={() => setMeStart('')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
@@ -5403,10 +5403,15 @@ function bsBuildPlanGrocery(program, author, name) {
   };
 }
 
-function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
+function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {} }) {
   const t = useBS();
   const bsEatProgram = useBSProgram();
-  const [view, setView] = useStateBSC('eat'); // 'eat' | 'grocery' | 'library'
+  const [view, setView] = useStateBSC(initialView || 'eat'); // 'eat' | 'grocery' | 'library'
+  React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ sub: view });
+    return () => window.ShapeNav?.announce?.(null);
+  }, [view]);
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
@@ -12709,6 +12714,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [coachThreads, setCoachThreads] = useStateBSC(null);
   const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
   const [openProfile, setOpenProfile] = useStateBSC(null); // tapped a chat avatar → public profile
+  // Nav announce: only threads re-enterable via chatRequest are announced
+  // (conversation-id DMs; real channels). Demo/local-only threads announce
+  // nothing — a push from them records the chat tab root. Channels carry their
+  // id at openChat.channelId (with name/members/host alongside), so we rebuild
+  // the { channel } shape that setChatRequest({ channel }) → openChannelNow
+  // replays; sample/demo channels (id 'sample…') are local-only, so skipped.
+  const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null }
+    : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost } }
+    : null;
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
+    return () => window.ShapeNav?.announce?.(null);
+  }, [JSON.stringify(chatNavDetail)]);
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
     window.ShapeMessages.listDirectCoachThreads()
@@ -18164,10 +18182,21 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
 }
 
 function BSClientMe(props) {
+  const { initialPage = '', onStartConsumed = () => {} } = props;
   // Goal / progress doors moved to the HOME tab (their overlays live there) —
   // the Me tab keeps only the Score → Store chain off the hero's score plate.
-  const [showScore, setShowScore] = useStateBSC(false);
-  const [showStore, setShowStore] = useStateBSC(false);
+  const [showScore, setShowScore] = useStateBSC(initialPage === 'score');
+  const [showStore, setShowStore] = useStateBSC(initialPage === 'store');
+  // Nav announce (spec §2): keep the register current with the Me tab's active
+  // replayable sub-page so a cross-jump push carries it. Only score/store are
+  // direct sub-states of this component (reconcile lives under Settings →
+  // Integrations, record under the Score page), so those are all that's announced.
+  React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
+  const meNavSub = showScore ? 'score' : showStore ? 'store' : '';
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ sub: meNavSub });
+    return () => window.ShapeNav?.announce?.(null);
+  }, [meNavSub]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
   const uid = (auth.user && auth.user.id) || null;
@@ -21876,6 +21905,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // "Primary goal · Edit" card) instead of the Settings landing.
   const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
   const [draft, setDraft] = useStateBSC(identity);
+  // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
+  // this keeps the register current as the user moves within Settings. Only
+  // the replayable keys (initialPage-supported) are announced.
+  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showAbout ? 'about-shape' : showPricing ? 'pricing' : '';
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ sub: navSub });
+    return () => window.ShapeNav?.announce?.(null);
+  }, [navSub]);
   // Persist the profile identity across sessions/devices via user_goals.
   React.useEffect(() => {
     if (!window.shapeDb?.getUserGoals) return;
