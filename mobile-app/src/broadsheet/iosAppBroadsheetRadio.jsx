@@ -158,8 +158,6 @@ function BSRadioProvider({ children }) {
     persistRadioPref(true, !!yes); // answered once → never auto-prompt again
   }
 
-  function reopenPrompt() { setShowPrompt(true); }
-
   function requestRadioPrompt() {
     setAsked(false);
     setShowPrompt(true);
@@ -217,7 +215,7 @@ function BSRadioProvider({ children }) {
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused,
     trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
-    showPrompt, askedPrompt, answerPrompt, reopenPrompt, requestRadioPrompt,
+    showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode,
     trackFeedback, setTrackFeedback, addTrackComment,
     musicLibraries, saveTrackToLibrary, isTrackSaved,
@@ -517,22 +515,25 @@ function radioNowPlayingDisplay(np) {
 // ═══════════════════════════════════════════════════════════
 // BSNowPlaying — Home page widget
 // ═══════════════════════════════════════════════════════════
+// Shared clipped-notch frame for the now-playing bar — one geometry for the
+// live and muted states so the two siblings can never drift.
+const bsNpClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+
 function BSNowPlaying({ onOpen }) {
   const t = useBS();
   const r = useBSRadio();
-  if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onPrompt={r.reopenPrompt} onOpen={onOpen} />;
+  if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onOpen={onOpen} />;
 
   const tr = radioNowPlayingDisplay(r.nowPlaying);
   const homeFeedback = (tr.hasTrack && r.trackFeedback[makeRadioTrackKey({ a: tr.title, b: tr.artist })]) || { vote: null, comments: [] };
 
-  const _npClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div onClick={onOpen} style={{
       position: 'relative', cursor: 'pointer', boxSizing: 'border-box',
       margin: `10px ${t.padX}px`, padding: 1.5,
-      clipPath: _npClip(13), background: `${t.ACCENT}80`, color: t.INK,
+      clipPath: bsNpClip(13), background: `${t.ACCENT}80`, color: t.INK,
     }}>
-      <div style={{ position: 'relative', overflow: 'hidden', clipPath: _npClip(12), background: t.PAPER }}>
+      <div style={{ position: 'relative', overflow: 'hidden', clipPath: bsNpClip(12), background: t.PAPER }}>
       {/* Light effects layer — accent (adapts to paper); stronger so it reads on light papers too */}
       <BSHalftoneAurora color={t.ACCENT} opacity={t.isLight ? 0.7 : 0.55} paused={r.paused} />
       <BSStageLight color={t.ACCENT} opacity={t.isLight ? 0.22 : 0.16} paused={r.paused} />
@@ -632,7 +633,9 @@ function BSNowPlaying({ onOpen }) {
 
 // Muted state when radio is off — still shows what's playing on the live
 // station so the user knows what they're missing, with a "Tune in" CTA.
-function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
+// Same clipped instrument frame as the live bar, quiet: rule-colored frame,
+// ink-alpha spine, no light-fx layers (the station is muted).
+function BSNowPlayingMuted({ onTurnOn, onOpen }) {
   const t = useBS();
   const r = useBSRadio();
   const tr = radioNowPlayingDisplay(r.nowPlaying);
@@ -640,10 +643,11 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
   return (
     <div onClick={onOpen} style={{
       position: 'relative', cursor: onOpen ? 'pointer' : 'default', boxSizing: 'border-box',
-      margin: `10px ${t.padX}px`, border: `1.5px solid ${t.RULE}`, borderRadius: 14, overflow: 'hidden',
-      background: t.PAPER, color: t.INK, opacity: 0.92,
+      margin: `10px ${t.padX}px`, padding: 1.5,
+      clipPath: bsNpClip(13), background: t.RULE, color: t.INK, opacity: 0.92,
     }}>
-      <div style={{ padding: `10px ${t.padX}px 10px` }}>
+      <div style={{ position: 'relative', overflow: 'hidden', clipPath: bsNpClip(12), background: t.PAPER }}>
+      <div style={{ position: 'relative', padding: `10px ${t.padX}px 10px` }}>
         {/* Eyebrow — single line (nowrap + tighter tracking so it fits the inset box) */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'nowrap',
@@ -656,7 +660,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
             <span>{r.LIVE.listeners.toLocaleString()} listening</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
           </span>
         </div>
 
@@ -681,7 +685,7 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
           </div>
 
           {/* Tune in — replaces the pause/play button */}
-          <button onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{ borderRadius: t.RADIUS_SM,
+          <button onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{ borderRadius: 4,
             padding: '7px 10px', flexShrink: 0,
             background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
@@ -689,6 +693,9 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
           }}>▶ Tune in</button>
         </div>
       </div>
+      </div>
+      {/* muted spine over the frame (live carries the accent; muted stays quiet) */}
+      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `rgba(${t.inkRGB},0.30)` }} />
     </div>
   );
 }
