@@ -3032,6 +3032,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const timedRows = rows.filter((r) => r._sortAt !== undefined).sort((a, b) => a._sortAt - b._sortAt);
         const untimedRows = rows.filter((r) => r._sortAt === undefined);
         const sortedRows = bsHomeSlateSort([...timedRows, ...untimedRows]);
+        // A quiet sub-head before the first habit row, so habits read as their
+        // own block inside the run-sheet (owner request) — meals/training stay
+        // unlabeled (their time + tag columns already identify them).
+        const firstHabitIdx = sortedRows.findIndex((r) => String(r.key).startsWith('habit-'));
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -3048,7 +3052,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               {sortedRows.length === 0 ? (
                 <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
               ) : sortedRows.map((r, i) => (
-                <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+                <React.Fragment key={r.key}>
+                  {i === firstHabitIdx && (
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `13px ${t.padX}px 3px` }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
+                      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+                    </div>
+                  )}
+                  <BSSlateRow index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+                </React.Fragment>
               ))}
               {openHabits.length > 3 && (
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
