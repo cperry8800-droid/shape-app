@@ -3782,6 +3782,23 @@ async function waitlistInvite(entryId) {
   if (!res.ok) throw new Error(json.error || 'Could not send the invite.');
   return json;
 }
+// Coach availability (the marketplace Listing + its full calendar): the coach's
+// public weekly pattern + booked sessions from GET /api/availability. Public
+// route (no auth); 60s cache per coach so the station + calendar share a fetch.
+const _coachAvailCache = new Map();
+async function coachAvailabilityGet(role, id) {
+  if (!apiBaseUrl || !role || !id) return null;
+  const key = `${role}:${id}`;
+  const hit = _coachAvailCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.data;
+  const res = await fetch(`${apiBaseUrl}/api/availability?role=${encodeURIComponent(role)}&id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (data) _coachAvailCache.set(key, { at: Date.now(), data });
+  return data;
+}
+window.ShapeCoachAvailability = { get: coachAvailabilityGet };
+
 window.ShapeWaitlist = {
   join: waitlistJoin,
   mine: waitlistMine,
