@@ -54,6 +54,16 @@ test('announce composes over the shell location; null clears', () => {
   assert.deepEqual(bsNavCompose({ tab: 'me' }), { tab: 'me' });
 });
 
+test('bsNavClear resets the announce register as well as the stack', () => {
+  bsNavPush({ tab: 'eat' });
+  bsNavAnnounce({ sub: 'grocery' });
+  bsNavClear();
+  assert.equal(bsNavSize(), 0);
+  // a stale announce would otherwise bleed into the next surface's first push
+  assert.equal(bsNavAnnounced(), null);
+  assert.deepEqual(bsNavCompose({ tab: 'home' }), { tab: 'home' });
+});
+
 test('guard decisions: arm on empty→non-empty, rearm while entries remain, disarm at empty', () => {
   assert.equal(bsGuardAfterPush(0, 1), 'arm');
   assert.equal(bsGuardAfterPush(1, 2), null);
