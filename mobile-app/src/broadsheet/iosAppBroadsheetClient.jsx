@@ -652,7 +652,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return (
       <BSSettings
         initialPage={settingsStart}
-        onBack={() => { setShowSettings(false); setSettingsStart(''); }}
+        onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
         onLogout={onLogout}
         tweaks={tweaks}
         setTweak={setTweak}
@@ -662,7 +662,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   if (showCalendar) {
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
-        <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => setShowCalendar(false)} />
+        <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
       </div>
     );
@@ -672,11 +672,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
-    radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
-    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => setTab('home')} onProfile={goSettings} goChat={goChat} />,
+    radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
+    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
@@ -704,7 +704,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         ]}
       />
       <BSRadioPrompt />
-      {showSearch && <BSUniversalSearch onClose={() => setShowSearch(false)} />}
+      {showSearch && <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} />}
       {showScoreIntro && <BSScoreIntro onClose={() => setShowScoreIntro(false)} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
