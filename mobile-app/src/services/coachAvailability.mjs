@@ -3,7 +3,8 @@
 // slots for the next N weeks. Consumed by the marketplace Listing (the OPEN
 // THIS WEEK station + the full calendar). Server shape = GET /api/availability:
 //   slots:  [{ weekday (0=Sun..6), start_minute, duration_min }]
-//   booked: [{ scheduled_at (ISO), status }]  — already filtered to requested/confirmed
+//   booked: ISO strings (the live route serializes b.scheduled_at) — object
+//   rows carrying { scheduled_at } are tolerated too; already requested/confirmed
 // All math is LOCAL time (a member books in their own clock; the server stores
 // the instant). Past slots never emit; a booked instant suppresses its slot.
 
@@ -14,7 +15,8 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
   const bookedKeys = new Set(
     (booked || [])
       .map((b) => {
-        const d = new Date(b && b.scheduled_at);
+        const raw = typeof b === 'string' ? b : b && b.scheduled_at;
+        const d = new Date(raw);
         return Number.isNaN(d.getTime()) ? null : `${isoDay(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
       })
       .filter(Boolean),
@@ -32,12 +34,15 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
       const h = Math.floor(startMin / 60);
       const m = startMin % 60;
       const at = new Date(day);
+      // setHours normalizes a DST spring-forward gap (02:30 → 03:30), so read
+      // iso/time back off the resolved Date — the emitted slot and a booked
+      // scheduled_at then key on the same real wall time.
       at.setHours(h, m, 0, 0);
       if (at.getTime() <= now.getTime()) continue; // past never emits
-      const iso = isoDay(day);
-      const time = `${pad2(h)}:${pad2(m)}`;
+      const iso = isoDay(at);
+      const time = `${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
       if (bookedKeys.has(`${iso}T${time}`)) continue; // taken
-      out.push({ iso, weekday: wd, time, durationMin: Number(s.duration_min) || 60 });
+      out.push({ iso, weekday: at.getDay(), time, durationMin: Number(s.duration_min) || 60 });
     }
   }
   return out.sort((a, b) => `${a.iso}T${a.time}`.localeCompare(`${b.iso}T${b.time}`));

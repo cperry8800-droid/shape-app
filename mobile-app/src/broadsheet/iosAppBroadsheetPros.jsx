@@ -5690,7 +5690,8 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
 function BSProMonthlyOfferSheet({ role, accent, onClose }) {
   const t = useBS();
   const [blurb, setBlurb] = React.useState('');
-  const [rows, setRows] = React.useState([]);
+  const [rows, setRows] = React.useState([]); // [{ id, value }] — stable keys survive mid-list deletes
+  const nextId = React.useRef(0);
   const [loaded, setLoaded] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
@@ -5699,18 +5700,18 @@ function BSProMonthlyOfferSheet({ role, accent, onClose }) {
     (async () => {
       try {
         const r = await window.ShapeCoachOffer?.get?.(role);
-        if (on && r && r.offer) { setBlurb(r.offer.blurb || ''); setRows(Array.isArray(r.offer.includes) ? r.offer.includes : []); }
+        if (on && r && r.offer) { setBlurb(r.offer.blurb || ''); setRows((Array.isArray(r.offer.includes) ? r.offer.includes : []).map((v) => ({ id: nextId.current++, value: v }))); }
       } catch (e) {}
       if (on) setLoaded(true);
     })();
     return () => { on = false; };
   }, [role]);
-  const setRow = (i, v) => setRows((prev) => prev.map((x, xi) => (xi === i ? v : x)));
+  const setRow = (id, v) => setRows((prev) => prev.map((x) => (x.id === id ? { ...x, value: v } : x)));
   const save = async () => {
     if (busy) return;
     setBusy(true); setErr('');
     try {
-      await window.ShapeCoachOffer.save(role, { blurb, includes: rows });
+      await window.ShapeCoachOffer.save(role, { blurb, includes: rows.map((r) => r.value) });
       window.__bsToast?.('Monthly offer saved', 'ok');
       onClose();
     } catch (e) { setErr(String((e && e.message) || 'Could not save — are you signed in as an approved coach?')); }
@@ -5731,15 +5732,15 @@ function BSProMonthlyOfferSheet({ role, accent, onClose }) {
             style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
         </label>
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Included · up to 8 lines</div>
-        {rows.map((r, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <input value={r} onChange={(e) => setRow(i, e.target.value.slice(0, 80))} placeholder="e.g. 4 sessions · weekly check-ins"
+        {rows.map((r) => (
+          <div key={r.id} style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <input value={r.value} onChange={(e) => setRow(r.id, e.target.value.slice(0, 80))} placeholder="e.g. 4 sessions · weekly check-ins"
               style={{ flex: 1, boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '9px 11px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
-            <button onClick={() => setRows((prev) => prev.filter((_, xi) => xi !== i))} aria-label="Remove line" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
+            <button onClick={() => setRows((prev) => prev.filter((x) => x.id !== r.id))} aria-label="Remove line" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
           </div>
         ))}
         {rows.length < 8 && (
-          <button onClick={() => setRows((prev) => [...prev, ''])} style={{ marginTop: 10, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px 12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ Add a line</button>
+          <button onClick={() => setRows((prev) => [...prev, { id: nextId.current++, value: '' }])} style={{ marginTop: 10, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px 12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ Add a line</button>
         )}
         {err && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST }}>{err}</div>}
         <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>

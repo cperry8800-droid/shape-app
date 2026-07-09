@@ -28,13 +28,22 @@ test('past slots never emit (same-day earlier time is dropped)', () => {
   assert.deepEqual(open.map((s) => `${s.iso} ${s.time}`), ['2026-07-08 17:00']);
 });
 
-test('a booked session suppresses exactly its slot instance', () => {
+test('a booked session suppresses exactly its slot instance (route serializes ISO strings)', () => {
   const open = bsProjectAvailability({
     slots: [{ weekday: 4, start_minute: 6 * 60 + 30, duration_min: 60 }],
-    booked: [{ scheduled_at: new Date(2026, 6, 9, 6, 30).toISOString(), status: 'confirmed' }],
+    booked: [new Date(2026, 6, 9, 6, 30).toISOString()], // GET /api/availability shape
     weeks: 2, now: NOW,
   });
   assert.deepEqual(open.map((s) => s.iso), ['2026-07-16']); // next week's stays open
+});
+
+test('object-shaped booked rows ({ scheduled_at }) suppress too', () => {
+  const open = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 6 * 60 + 30, duration_min: 60 }],
+    booked: [{ scheduled_at: new Date(2026, 6, 16, 6, 30).toISOString(), status: 'confirmed' }],
+    weeks: 2, now: NOW,
+  });
+  assert.deepEqual(open.map((s) => s.iso), ['2026-07-09']);
 });
 
 test('junk rows are ignored, results sort chronologically', () => {

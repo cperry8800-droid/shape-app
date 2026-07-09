@@ -1449,8 +1449,13 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     }
   };
 
+  // One expansion of the preview pattern feeds BOTH the calendar and the
+  // OPEN THIS WEEK rows (superset shape) so the two can't drift.
+  const expandPreviewSlots = () => p.availability.flatMap(([day, date, times, iso, month]) =>
+    times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month, weekday: new Date(`${iso}T00:00:00`).getDay() })));
+
   if (showCal) {
-    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : p.availability.flatMap(([, , times, iso]) => times.filter((x) => x && x !== '--').map((time) => ({ iso, weekday: new Date(`${iso}T00:00:00`).getDay(), time })))} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()]); }} />;
+    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : expandPreviewSlots()} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()]); }} />;
   }
 
   // THE FULL PROFILE → the Signal living page, byte-identical component —
@@ -1473,7 +1478,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()] }; };
   const allOpenSlots = realAvail != null
     ? realAvail.map(projSlotRow)
-    : p.availability.flatMap(([day, date, times, iso, month]) => times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month })));
+    : expandPreviewSlots();
   const openSlots = allOpenSlots.slice(0, 3);
   const Station = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: `22px ${t.padX}px 0` }}>
