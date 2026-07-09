@@ -15,6 +15,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
+import { bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce, bsNavCompose, bsGuardAfterPush, bsGuardAfterPop } from '../services/navHistory.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -367,6 +368,60 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
   const [showScoreIntro, setShowScoreIntro] = useStateBSC(false); // first-run "how Shape Score works" explainer
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
+  // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
+  const [eatStart, setEatStart] = useStateBSC('');
+  const [meStart, setMeStart] = useStateBSC('');
+  // The shell-visible location. Child-owned sub-state (Settings' active
+  // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
+  // announce register at compose time — see bsNavCompose.
+  const navLoc = () => {
+    if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
+    if (showCalendar) return { tab, overlay: 'calendar' };
+    if (showSearch) return { tab, overlay: 'search' };
+    if (tab === 'store') return { tab: 'store', sub: storeView };
+    if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
+    return { tab };
+  };
+  const navPush = () => {
+    const prev = bsNavSize();
+    const changed = bsNavPush(bsNavCompose(navLoc()));
+    if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm') {
+      try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {}
+    }
+    return changed;
+  };
+  // Replay a popped descriptor onto the existing entry points. NEVER pushes.
+  const navResolve = (loc) => {
+    if (!loc) return;
+    setShowSearch(loc.overlay === 'search');
+    setShowCalendar(loc.overlay === 'calendar');
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
+    if (loc.tab === 'market') setMarketRole((loc.detail && loc.detail.role) || null);
+    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    if (loc.tab === 'eat') setEatStart(loc.sub || '');
+    if (loc.tab === 'me') setMeStart(loc.sub || '');
+    if (loc.tab) setTab(loc.tab);
+  };
+  const navBack = () => {
+    if (!bsNavCanPop()) return false;
+    const loc = bsNavPop();
+    const g = bsGuardAfterPop(bsNavSize());
+    if (g === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
+    navResolve(loc);
+    return true;
+  };
+  React.useEffect(() => {
+    window.ShapeNav = {
+      push: navPush,
+      back: navBack,
+      canPop: bsNavCanPop,
+      announce: bsNavAnnounce,
+      clear: () => bsNavClear(),
+    };
+    return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
+  });
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
