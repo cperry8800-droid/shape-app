@@ -422,16 +422,16 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     };
     return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
   });
-  const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
-  const goEditProfile = () => { setSettingsStart('edit-profile'); setShowSettings(true); };
-  const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
-  const goRadio    = () => setTab('radio');
-  const goTrain    = () => setTab('train');
-  const goMarket   = (role) => { setMarketRole(typeof role === 'string' ? role : null); setTab('market'); };
-  const goScore    = () => { setStoreView('score'); setTab('store'); };
+  const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
+  const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
+  const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
+  const goRadio    = () => { navPush(); setTab('radio'); };
+  const goTrain    = () => { navPush(); setTab('train'); };
+  const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setTab('market'); };
+  const goScore    = () => { navPush(); setStoreView('score'); setTab('store'); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
-  const goChat = (coach, role) => { setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
+  const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
 
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
@@ -468,7 +468,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     // Honor the dispatcher's detail.role (e.g. a waitlist-invite notification, or
     // the Pricing "browse coaches" link) so the marketplace opens pre-filtered.
-    const open = (e) => { setShowSettings(false); setSettingsStart(''); goMarket(e?.detail?.role); };
+    const open = (e) => { navPush(); setShowSettings(false); setSettingsStart(''); setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null); setTab('market'); };
     window.addEventListener('shape:openMarket', open);
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
@@ -476,7 +476,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
-    const open = () => setShowSearch(true);
+    const open = () => { navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -487,6 +487,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      navPush();
       setShowSearch(false);
       setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
@@ -520,7 +521,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = () => { setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
+    const onStart = () => { navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
@@ -667,8 +668,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goEat={() => setTab('eat')} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
-    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
+    train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
