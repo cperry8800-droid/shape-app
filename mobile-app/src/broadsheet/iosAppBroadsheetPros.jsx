@@ -1133,7 +1133,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -4917,7 +4917,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
