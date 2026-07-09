@@ -326,7 +326,15 @@ changelog whenever something ships.
   class marks MANY scrollers incl. the chat presence rail, so nothing is
   exempted by class); `pan-x`/`none` always block; **`pan-y` blocks only on
   non-vertically-scrolling elements** (chart scrubs) while declared vertical
-  scrollers pass; sheets/overlays block (zIndex ≥ 500 portals);
+  scrollers pass; sheets/overlays block via their portal signature —
+  full-height coverage + explicit zIndex ≥ 10 (the z census spans 60→6000+,
+  so no threshold separates sheets from the z-55/60 chrome strips; coverage
+  does — review-hardened after Codex named two low-z composer sheets);
+  the blocked-walk runs ONLY on geometrically-qualifying touches, never on
+  taps (CodeRabbit perf finding); the shell judgment plumbing (step math ·
+  listener · slide state) is extracted to `bsNavShell.js` helpers
+  (`bsNavStepTab` · `useBSNavGestureHandler` · `useBSNavSlide` — kills the 3×
+  fork + the render-body ref mutation);
   `[data-bs-noswipe]` opts out — **BSPage stamps it automatically for
   `mast={false}` flows** (meal logger) and a new `noSwipe` prop covers the
   **live session** (`BSSession` — an edge-back mid-workout would jump to a

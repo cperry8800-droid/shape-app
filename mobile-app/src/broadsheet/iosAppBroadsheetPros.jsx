@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
-import { useBSNavHistory } from './bsNavShell.js';
+import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
 // (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
@@ -1062,8 +1062,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // Swipe judgment (PR C) — mirrors the client shell: 'back' = the stack, else
   // close the top takeover; tab swipes step the ROOT order only, never while a
   // takeover is open. liveWatch closes on back but is never replayed (ephemeral).
-  const navSlideRef = React.useRef(null);
-  const BS_PRO_TABS = ['today', 'clients', 'programs', 'chat', 'me'];
+  const [navSlideCls, navSlide] = useBSNavSlide(tab);
   const onNavGesture = (intent) => {
     if (intent === 'back') {
       if (navBack()) return;
@@ -1078,19 +1077,13 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       return;
     }
     if (showSearch || liveWatch || queueView || showSoundtracks || showSettings || showCalendar || showReviews || showHabits) return;
-    const i = BS_PRO_TABS.indexOf(tab);
-    if (i < 0) return;
-    const n = intent === 'next-tab' ? Math.min(BS_PRO_TABS.length - 1, i + 1) : Math.max(0, i - 1);
-    if (n === i) return;
-    navSlideRef.current = intent === 'next-tab' ? 'l' : 'r';
-    setTab(BS_PRO_TABS[n]);
+    const next = bsNavStepTab(['today', 'clients', 'programs', 'chat', 'me'], tab, intent);
+    if (!next) return;
+    navSlide(intent === 'next-tab' ? 'l' : 'r');
+    setTab(next);
   };
   navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
-  React.useEffect(() => {
-    const on = (e) => { const i = e?.detail?.intent; if (i) navJumpRef.current.onNavGesture?.(i); };
-    window.addEventListener('shape:navGesture', on);
-    return () => window.removeEventListener('shape:navGesture', on);
-  }, []);
+  useBSNavGestureHandler(navJumpRef);
   React.useEffect(() => {
     const onMsg = async (e) => {
       navJumpRef.current.navPush();
@@ -1153,9 +1146,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
     me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
-  // One-shot slide on tab SWIPE only (consumed here; a tap renders instantly).
-  const navSlideCls = navSlideRef.current === 'l' ? 'bs-nav-slide-l' : navSlideRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
-  navSlideRef.current = null;
+  // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
+  // effect after commit; a tab TAP renders instantly; reduced-motion in CSS.
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
@@ -4882,8 +4874,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   };
   const [chatRequest, setChatRequest] = useStateBSP(null);
   // Swipe judgment (PR C) — mirrors the trainer shell (no liveWatch here).
-  const navSlideRef = React.useRef(null);
-  const BS_PRO_TABS = ['today', 'clients', 'plans', 'chat', 'me'];
+  const [navSlideCls, navSlide] = useBSNavSlide(tab);
   const onNavGesture = (intent) => {
     if (intent === 'back') {
       if (navBack()) return;
@@ -4897,19 +4888,13 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       return;
     }
     if (showSearch || queueView || showSoundtracks || showSettings || showCalendar || showReviews || showHabits) return;
-    const i = BS_PRO_TABS.indexOf(tab);
-    if (i < 0) return;
-    const n = intent === 'next-tab' ? Math.min(BS_PRO_TABS.length - 1, i + 1) : Math.max(0, i - 1);
-    if (n === i) return;
-    navSlideRef.current = intent === 'next-tab' ? 'l' : 'r';
-    setTab(BS_PRO_TABS[n]);
+    const next = bsNavStepTab(['today', 'clients', 'plans', 'chat', 'me'], tab, intent);
+    if (!next) return;
+    navSlide(intent === 'next-tab' ? 'l' : 'r');
+    setTab(next);
   };
   navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
-  React.useEffect(() => {
-    const on = (e) => { const i = e?.detail?.intent; if (i) navJumpRef.current.onNavGesture?.(i); };
-    window.addEventListener('shape:navGesture', on);
-    return () => window.removeEventListener('shape:navGesture', on);
-  }, []);
+  useBSNavGestureHandler(navJumpRef);
   React.useEffect(() => {
     const onMsg = async (e) => {
       navJumpRef.current.navPush();
@@ -4971,9 +4956,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
     me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
-  // One-shot slide on tab SWIPE only (consumed here; a tap renders instantly).
-  const navSlideCls = navSlideRef.current === 'l' ? 'bs-nav-slide-l' : navSlideRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
-  navSlideRef.current = null;
+  // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
+  // effect after commit; a tab TAP renders instantly; reduced-motion in CSS.
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>

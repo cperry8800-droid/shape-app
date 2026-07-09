@@ -15,7 +15,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
-import { useBSNavHistory } from './bsNavShell.js';
+import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -418,8 +418,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // 'back' = the stack, else close the top takeover (mirrors the smart-backs).
   // Tab swipes step the ROOT order only — never while a takeover is open, and
   // never from jump-destination screens (radio/market/store aren't tab stops).
-  const navSlideRef = React.useRef(null);
-  const BS_ROOT_TABS = ['home', 'train', 'eat', 'chat', 'me'];
+  const [navSlideCls, navSlide] = useBSNavSlide(tab);
   const onNavGesture = (intent) => {
     if (intent === 'back') {
       if (navBack()) return;
@@ -429,19 +428,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       return;
     }
     if (showSettings || showCalendar || showSearch) return;
-    const i = BS_ROOT_TABS.indexOf(tab);
-    if (i < 0) return;
-    const n = intent === 'next-tab' ? Math.min(BS_ROOT_TABS.length - 1, i + 1) : Math.max(0, i - 1);
-    if (n === i) return;
-    navSlideRef.current = intent === 'next-tab' ? 'l' : 'r';
-    setTab(BS_ROOT_TABS[n]);
+    const next = bsNavStepTab(['home', 'train', 'eat', 'chat', 'me'], tab, intent);
+    if (!next) return;
+    navSlide(intent === 'next-tab' ? 'l' : 'r');
+    setTab(next);
   };
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, onNavGesture };
-  React.useEffect(() => {
-    const on = (e) => { const i = e?.detail?.intent; if (i) navJumpRef.current.onNavGesture?.(i); };
-    window.addEventListener('shape:navGesture', on);
-    return () => window.removeEventListener('shape:navGesture', on);
-  }, []);
+  useBSNavGestureHandler(navJumpRef);
 
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
@@ -689,10 +682,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} initialPage={meStart} onStartConsumed={() => setMeStart('')} />,
   };
-  // A tab SWIPE slides the incoming screen in (one-shot, consumed here so a tab
-  // TAP renders instantly with no class); reduced-motion kills it in CSS.
-  const navSlideCls = navSlideRef.current === 'l' ? 'bs-nav-slide-l' : navSlideRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
-  navSlideRef.current = null;
+  // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
+  // effect after commit; a tab TAP renders instantly; reduced-motion in CSS.
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>

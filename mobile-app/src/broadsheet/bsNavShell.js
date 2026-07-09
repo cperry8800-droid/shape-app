@@ -80,3 +80,39 @@ export function useBSNavHistory({ navLoc, navResolve }) {
 
   return { navPush, navBack };
 }
+
+// ── Swipe-judgment helpers shared by all three shells (PR C) ──
+// The shells differ only in their tab order, their takeover predicates, and
+// their close-top-takeover fallback; the step math, the once-registered
+// listener, and the one-shot slide state are identical — so they live here
+// (the same reasoning that extracted useBSNavHistory in PR B).
+
+// Step the given root-tab order, clamped at the ends. null = no move
+// (unknown tab — e.g. a jump-destination screen like radio/market — or
+// already at the boundary).
+export function bsNavStepTab(tabs, tab, intent) {
+  const i = tabs.indexOf(tab);
+  if (i < 0) return null;
+  const n = intent === 'next-tab' ? Math.min(tabs.length - 1, i + 1) : Math.max(0, i - 1);
+  return n === i ? null : tabs[n];
+}
+
+// Register the shape:navGesture listener ONCE, reading the CURRENT render's
+// handler through the shell's live jump ref (the PR A stale-closure lesson).
+export function useBSNavGestureHandler(jumpRef) {
+  React.useEffect(() => {
+    const on = (e) => { const i = e && e.detail && e.detail.intent; if (i) jumpRef.current.onNavGesture?.(i); };
+    window.addEventListener('shape:navGesture', on);
+    return () => window.removeEventListener('shape:navGesture', on);
+  }, [jumpRef]);
+}
+
+// One-shot slide class for a tab SWIPE (a tab TAP renders with no class).
+// The ref is cleared in an effect after the slide commit — never in the render
+// body (StrictMode double-invokes render; concurrent React can abort one).
+export function useBSNavSlide(tab) {
+  const dirRef = React.useRef(null);
+  React.useEffect(() => { dirRef.current = null; }, [tab]);
+  const cls = dirRef.current === 'l' ? 'bs-nav-slide-l' : dirRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
+  return [cls, (dir) => { dirRef.current = dir; }];
+}

@@ -1524,10 +1524,14 @@ function BSBackButton({ onClick, label = 'Back', style }) {
 // surface — `pan-x`/`none` always claim horizontal touches, and `pan-y` claims
 // them ONLY on a non-vertically-scrolling element (that's a chart scrub;
 // a pan-y element that itself scrolls vertically is just a page/list scroller
-// and horizontal is unclaimed there) · a sheet/overlay (they portal into the
-// surface at zIndex ≥ 500) · an explicit [data-bs-noswipe] opt-out (BSPage
-// stamps it for mast={false} full-screen flows and noSwipe pages).
-function bsSwipeBlocked(target) {
+// and horizontal is unclaimed there) · a sheet/overlay backdrop · an explicit
+// [data-bs-noswipe] opt-out (BSPage stamps it for mast={false} full-screen
+// flows and noSwipe pages).
+//
+// COST NOTE: the walk forces style/layout reads (getComputedStyle, scrollWidth)
+// — BSNavGestures therefore calls it only AFTER a finished touch has already
+// classified as a gesture geometrically, never on plain taps.
+function bsSwipeBlocked(target, surf) {
   // Only TRUE input controls block a swipe at the target level — a horizontal
   // drag on a text field / slider means selection/cursor/value, never nav.
   // Buttons, links and rows deliberately do NOT block: dense pages (rosters,
@@ -1536,6 +1540,7 @@ function bsSwipeBlocked(target) {
   // platform's: a real finger that travels far enough to classify never
   // synthesizes a click, and these listeners are passive so taps are untouched.
   if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return true;
+  const surfH = (surf && surf.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 0);
   let el = target instanceof Element ? target : null;
   while (el && el.id !== 'bs-phone-surface' && el !== document.body) {
     if (el.hasAttribute('data-bs-noswipe')) return true;
@@ -1549,8 +1554,15 @@ function bsSwipeBlocked(target) {
     if (/(^|\s)(none|pan-x)(\s|$)/.test(ta)) return true;
     if (/(^|\s)pan-y(\s|$)/.test(ta) && !declaresY) return true;
     if ((s.overflowX === 'auto' || s.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
+    // Sheet/overlay backdrops: every Broadsheet sheet portals in as an
+    // `absolute · inset:0 · explicit zIndex` layer, but the z values span 60
+    // (quick sheets) → 245 (composers) → 6000+ (loggers) while the chrome
+    // strips sit at z 55/60 — no threshold separates them. The signature that
+    // does: FULL-HEIGHT coverage plus a real stacking order (z ≥ 10 skips
+    // BSPage's z-0/1 backdrop wrappers; the coverage test skips the pinned
+    // mast / tab bar / composer slot, all short strips).
     const z = parseInt(s.zIndex, 10);
-    if (!Number.isNaN(z) && z >= 500 && (s.position === 'absolute' || s.position === 'fixed')) return true;
+    if (!Number.isNaN(z) && z >= 10 && (s.position === 'absolute' || s.position === 'fixed') && el.offsetHeight >= surfH * 0.85) return true;
     el = el.parentElement;
   }
   return false;
@@ -1586,9 +1598,11 @@ function BSNavGestures() {
       const t0 = e.touches[0];
       // Normalize x to the SURFACE's left edge — in the desktop preview the
       // phone frame is inset, and the 24px edge zone is the phone's edge, not
-      // the browser window's.
+      // the browser window's. Only the raw sample is taken here — the DOM
+      // blocked-walk is deferred to touchend and runs ONLY for touches whose
+      // geometry already classifies (taps stay style/layout-read-free).
       const left = surf.getBoundingClientRect().left;
-      start = { x0: t0.clientX - left, y0: t0.clientY, t: Date.now(), blocked: bsSwipeBlocked(e.target) };
+      start = { x0: t0.clientX - left, y0: t0.clientY, t: Date.now(), target: e.target };
     };
     const onMove = (e) => { if (e.touches.length !== 1) start = null; };
     const onEnd = (e) => {
@@ -1598,10 +1612,13 @@ function BSNavGestures() {
       const intent = bsSwipeIntent({
         x0: start.x0, y0: start.y0,
         x1: t1.clientX - left, y1: t1.clientY,
-        dt: Date.now() - start.t, blocked: start.blocked,
+        dt: Date.now() - start.t, blocked: false,
       });
+      const startTarget = start.target;
       start = null;
-      if (intent) { try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {} }
+      if (!intent) return;
+      if (bsSwipeBlocked(startTarget, surf)) return;
+      try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {}
     };
     const onCancel = () => { start = null; };
     surf.addEventListener('touchstart', onStart, { capture: true, passive: true });
