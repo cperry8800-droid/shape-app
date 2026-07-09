@@ -11072,7 +11072,7 @@ function BSUniversalSearch({ onClose }) {
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, padding: '12px 0 10px', overflowX: 'auto' }}>
           {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels']].map(([k, label]) => (
-            <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
+            <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
           ))}
         </div>
       </div>
