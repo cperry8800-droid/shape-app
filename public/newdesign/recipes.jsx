@@ -70,7 +70,7 @@ const RECIPES_BY_WEEKDAY = [
     by: "Tom Okafor", byRole: "Nutritionist", diet: "Poultry",
     time: "20 min", servings: 1, kcal: 520,
     macros: { p: 42, c: 38, f: 22 },
-    tags: ["Low carb","Quick","GF"],
+    tags: ["Low carb","Quick"],
     hero: "linear-gradient(135deg, #a3c98c 0%, #5b8a4c 55%, #1a1612 100%)",
     note: "Tuesday — quick spin between sessions.",
     ingredients: [
@@ -270,7 +270,7 @@ const RECIPES_EXTRA = [
     by: "Marco Bellini", byRole: "Nutritionist", diet: "Seafood",
     time: "20 min", servings: 1, kcal: 410,
     macros: { p: 42, c: 18, f: 16 },
-    tags: ["Seafood","Low carb","GF"],
+    tags: ["Seafood","Low carb"],
     hero: "linear-gradient(135deg, #6fae8e 0%, #2f6d5b 55%, #1a1612 100%)",
     note: "A restaurant move that takes ten minutes at home.",
     ingredients: [
