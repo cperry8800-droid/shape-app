@@ -947,7 +947,9 @@ function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey =
 }
 
 function BSTrainerApp({ onLogout, tweaks, setTweak }) {
-  return <BSSheetProvider><BSTrainerAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} /></BSSheetProvider>;
+  // BSNavGestures mounts in the wrapper (never early-returns) so edge-swipe
+  // back stays alive while a takeover has replaced the Inner's main render.
+  return <BSSheetProvider>{typeof window !== 'undefined' && window.BSNavGestures ? React.createElement(window.BSNavGestures) : null}<BSTrainerAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} /></BSSheetProvider>;
 }
 function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
@@ -1057,7 +1059,38 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // MESSAGE button on a client profile → ensure the 1:1 conversation exists and
   // jump to the Chat tab, opening that exact thread.
   const [chatRequest, setChatRequest] = useStateBSP(null);
-  navJumpRef.current = { navPush, goSettings, openHomeWidget };
+  // Swipe judgment (PR C) — mirrors the client shell: 'back' = the stack, else
+  // close the top takeover; tab swipes step the ROOT order only, never while a
+  // takeover is open. liveWatch closes on back but is never replayed (ephemeral).
+  const navSlideRef = React.useRef(null);
+  const BS_PRO_TABS = ['today', 'clients', 'programs', 'chat', 'me'];
+  const onNavGesture = (intent) => {
+    if (intent === 'back') {
+      if (navBack()) return;
+      if (showSearch) { setShowSearch(false); return; }
+      if (liveWatch) { setLiveWatch(null); return; }
+      if (queueView) { setQueueView(null); return; }
+      if (showSoundtracks) { setShowSoundtracks(false); return; }
+      if (showSettings) { setShowSettings(false); setSettingsStart(''); return; }
+      if (showCalendar) { setShowCalendar(false); return; }
+      if (showReviews) { setShowReviews(false); return; }
+      if (showHabits) setShowHabits(false);
+      return;
+    }
+    if (showSearch || liveWatch || queueView || showSoundtracks || showSettings || showCalendar || showReviews || showHabits) return;
+    const i = BS_PRO_TABS.indexOf(tab);
+    if (i < 0) return;
+    const n = intent === 'next-tab' ? Math.min(BS_PRO_TABS.length - 1, i + 1) : Math.max(0, i - 1);
+    if (n === i) return;
+    navSlideRef.current = intent === 'next-tab' ? 'l' : 'r';
+    setTab(BS_PRO_TABS[n]);
+  };
+  navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
+  React.useEffect(() => {
+    const on = (e) => { const i = e?.detail?.intent; if (i) navJumpRef.current.onNavGesture?.(i); };
+    window.addEventListener('shape:navGesture', on);
+    return () => window.removeEventListener('shape:navGesture', on);
+  }, []);
   React.useEffect(() => {
     const onMsg = async (e) => {
       navJumpRef.current.navPush();
@@ -1120,9 +1153,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
     me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
+  // One-shot slide on tab SWIPE only (consumed here; a tap renders instantly).
+  const navSlideCls = navSlideRef.current === 'l' ? 'bs-nav-slide-l' : navSlideRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
+  navSlideRef.current = null;
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      {screens[tab]}
+      <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
+        {screens[tab]}
+      </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
@@ -4748,7 +4786,8 @@ function BSCoachPlaylistStudio({ role, targets, title, meta, copy }) {
 // NUTRITIONIST
 // ═══════════════════════════════════════════════════════════
 function BSNutritionistApp({ onLogout, tweaks, setTweak }) {
-  return <BSSheetProvider><BSNutritionistAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} /></BSSheetProvider>;
+  // Same gesture-mount reasoning as BSTrainerApp.
+  return <BSSheetProvider>{typeof window !== 'undefined' && window.BSNavGestures ? React.createElement(window.BSNavGestures) : null}<BSNutritionistAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} /></BSSheetProvider>;
 }
 function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
@@ -4842,7 +4881,35 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (action === 'grocery') setQueueView('grocery');
   };
   const [chatRequest, setChatRequest] = useStateBSP(null);
-  navJumpRef.current = { navPush, goSettings, openHomeWidget };
+  // Swipe judgment (PR C) — mirrors the trainer shell (no liveWatch here).
+  const navSlideRef = React.useRef(null);
+  const BS_PRO_TABS = ['today', 'clients', 'plans', 'chat', 'me'];
+  const onNavGesture = (intent) => {
+    if (intent === 'back') {
+      if (navBack()) return;
+      if (showSearch) { setShowSearch(false); return; }
+      if (queueView) { setQueueView(null); return; }
+      if (showSoundtracks) { setShowSoundtracks(false); return; }
+      if (showSettings) { setShowSettings(false); setSettingsStart(''); return; }
+      if (showCalendar) { setShowCalendar(false); return; }
+      if (showReviews) { setShowReviews(false); return; }
+      if (showHabits) setShowHabits(false);
+      return;
+    }
+    if (showSearch || queueView || showSoundtracks || showSettings || showCalendar || showReviews || showHabits) return;
+    const i = BS_PRO_TABS.indexOf(tab);
+    if (i < 0) return;
+    const n = intent === 'next-tab' ? Math.min(BS_PRO_TABS.length - 1, i + 1) : Math.max(0, i - 1);
+    if (n === i) return;
+    navSlideRef.current = intent === 'next-tab' ? 'l' : 'r';
+    setTab(BS_PRO_TABS[n]);
+  };
+  navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
+  React.useEffect(() => {
+    const on = (e) => { const i = e?.detail?.intent; if (i) navJumpRef.current.onNavGesture?.(i); };
+    window.addEventListener('shape:navGesture', on);
+    return () => window.removeEventListener('shape:navGesture', on);
+  }, []);
   React.useEffect(() => {
     const onMsg = async (e) => {
       navJumpRef.current.navPush();
@@ -4904,9 +4971,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
     me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
+  // One-shot slide on tab SWIPE only (consumed here; a tap renders instantly).
+  const navSlideCls = navSlideRef.current === 'l' ? 'bs-nav-slide-l' : navSlideRef.current === 'r' ? 'bs-nav-slide-r' : undefined;
+  navSlideRef.current = null;
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      {screens[tab]}
+      <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
+        {screens[tab]}
+      </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
