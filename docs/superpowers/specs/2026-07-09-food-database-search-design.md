@@ -43,13 +43,17 @@ truth and the **server route imports them** (no TS twin drift):
 
 ### 2. Server route — `GET /api/nutrition/food-search?q=`
 
-- Lives under `/api/nutrition` → already **membership-gated by the proxy** and
-  rate-limited like every `/api/*` route. Bearer + cookie auth (native + /m/).
+- Lives under `/api/nutrition` → membership-gated + rate-limited by the proxy
+  — but the proxy **deliberately fails open** on faults, so the route ALSO
+  does its own auth like every sibling `/api/nutrition` route: **`currentUser
+  (request)` (cookie or Bearer) is required BEFORE any provider fetch** — an
+  unauthenticated request gets a 401 and never fans out (no provider-quota
+  burn during a proxy/limiter fault).
 - Fans out to both providers **in parallel with a per-provider timeout
   (~2.5 s)**; either side failing degrades to the other's results (both down →
   `{ results: [], unavailable: true }` — the sheet shows the honest
   can't-reach state, never an error page).
-  - **USDA FDC:** `POST api.nal.usda.gov/fdc/v1/foods/search` with
+  - **USDA FDC:** `POST https://api.nal.usda.gov/fdc/v1/foods/search` with
     `FDC_API_KEY` (free key; 3,600 req/hr default). DataTypes: Foundation +
     SR Legacy (generic/whole foods — FDC's strength in the hybrid).
   - **Open Food Facts:** the public search API, no key; a proper
