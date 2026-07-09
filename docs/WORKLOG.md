@@ -290,6 +290,31 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-09 — Book now parity: BOTH mobile invited "Book now" CTAs fire the one-time purchase (#1640, `67e8f092`)
+- **Closed the wrong-charge path on the mobile first-dibs invite.** Both invited
+  waitlist "Book now" buttons started the **monthly subscription** (`doSubscribe` /
+  `openCheckout(monthlyPkg)`) under a one-time label. Now both fire the **per-role
+  ONE-TIME purchase** — a non-Subscription `item.type` puts `/api/stripe/
+  checkout-session` in payment mode; the charge is **server-authoritative**
+  (trainer `session_price` / nutritionist `meal_plan_price`, the same fields
+  `coach.rate` maps from) — matching the website first-dibs fix (#1498).
+- **Two surfaces:** the Signal coach profile (`iosAppBroadsheetClient` — new
+  `doBookOneTime`) and the **marketplace Listing** (`iosAppBroadsheetMarketplace`
+  invited coupon branch) — the second was a **Codex P2** on the PR: the Listing is
+  the PRIMARY conversion page since #1634 and my first commit missed it. Both
+  invited states now carry the website's CTA trio — **Book now** (solid, one-time)
+  · **Subscribe /mo** · **Decline** — because the normal Work-with/coupon CTA is
+  hidden at capacity, so the subscription path must ride the invited state too.
+  No route/migration change (the invite gate + webhook booked-flip already cover
+  both modes).
+- **War Room:** parity item flipped done (both surfaces named); registered new
+  backlog items — nav-history back buttons, swipe navigation, website
+  phone-screenshot refresh (owner will direct the captures).
+- Verified: JSX parse ×2 · root `tsc --noEmit` clean · `npm test` 511 · LF. CI
+  green ×2 rounds; CodeRabbit APPROVED + re-review clean; Codex thread fixed +
+  resolved. *(Note: the merged branch `claude/booknow-parity` was NOT re-synced to
+  main — the force-push was blocked by session permissions; branch kept as-is.)*
+
 ### 2026-07-09 — The Marketplace Listing wave: THE LISTING conversion page · real scheduling calendar · coach-authored monthly offer · Habit Ledger · website parity (#1631–#1637)
 - **The routing discovery that redirected the wave** (owner prompted): tapping a
   marketplace coach opened the Signal living profile — `BSCoachDetailPublic` was a
