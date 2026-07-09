@@ -3782,6 +3782,52 @@ async function waitlistInvite(entryId) {
   if (!res.ok) throw new Error(json.error || 'Could not send the invite.');
   return json;
 }
+// Coach availability (the marketplace Listing + its full calendar): the coach's
+// public weekly pattern + booked sessions from GET /api/availability. Public
+// route (no auth); 60s cache per coach so the station + calendar share a fetch.
+const _coachAvailCache = new Map();
+async function coachAvailabilityGet(role, id) {
+  if (!apiBaseUrl || !role || !id) return null;
+  const key = `${role}:${id}`;
+  const hit = _coachAvailCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.data;
+  const res = await fetch(`${apiBaseUrl}/api/availability?role=${encodeURIComponent(role)}&id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (data) _coachAvailCache.set(key, { at: Date.now(), data });
+  return data;
+}
+window.ShapeCoachAvailability = { get: coachAvailabilityGet };
+
+// Coach-authored monthly offer (the Listing's WHAT'S INCLUDED sheet): lives on
+// the coach's own provider row (monthly_offer jsonb, migration 2026-07-09).
+// The tables' own-row UPDATE policy covers the write — monthly_offer is not an
+// admin-pinned column (2026-06-25-provider-admin-column-guard).
+async function coachOfferGet(role) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!supabase || !uid) return null;
+  const table = normalizeRole(role) === 'nutritionist' ? 'nutritionists' : 'trainers';
+  const { data, error } = await supabase.from(table).select('id, monthly_offer').eq('owner_id', uid).maybeSingle();
+  if (error || !data) return null;
+  return { providerId: data.id, offer: data.monthly_offer || null };
+}
+async function coachOfferSave(role, offer) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!supabase || !uid) throw new Error('Sign in first.');
+  const table = normalizeRole(role) === 'nutritionist' ? 'nutritionists' : 'trainers';
+  const clean = {
+    blurb: String((offer && offer.blurb) || '').trim().slice(0, 600),
+    includes: (Array.isArray(offer && offer.includes) ? offer.includes : [])
+      .map((x) => String(x || '').trim().slice(0, 80)).filter(Boolean).slice(0, 8),
+    updatedAt: new Date().toISOString(),
+  };
+  const { error } = await supabase.from(table).update({ monthly_offer: clean }).eq('owner_id', uid);
+  if (error) throw error;
+  return clean;
+}
+window.ShapeCoachOffer = { get: coachOfferGet, save: coachOfferSave };
+
+
 window.ShapeWaitlist = {
   join: waitlistJoin,
   mine: waitlistMine,

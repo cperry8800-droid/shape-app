@@ -9,6 +9,7 @@ import React from 'react';
 
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
+import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
 
 // ═══════════════════════════════════════════════════════════
 // Data
@@ -162,6 +163,7 @@ function mapSupabaseProvider(row, role) {
     at_capacity: Boolean(row.at_capacity),
     capacity_resume_at: row.capacity_resume_at || null,
     verified: Boolean(row.verified),
+    monthly_offer: row.monthly_offer || null,
   };
 }
 
@@ -1108,6 +1110,93 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
   );
 }
 
+// 24h 'HH:MM' -> 12h label, shared by the Listing's slot rows + the calendar.
+function bsFmtSlot12(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  if (Number.isNaN(h)) return hhmm;
+  const ap = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
+}
+const BSM_MONTHS3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const BSM_DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Full scheduling calendar (spec 2026-07-09 §3): a month grid over the coach's
+// projected open slots — real provider_availability minus booked sessions for
+// live coaches, the labeled preview week for demo rows. Tapping a slot runs the
+// SAME booking confirm as the Listing's OPEN THIS WEEK rows.
+function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const byDay = bsSlotsByDay(open);
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const [ym, setYm] = React.useState([today.getFullYear(), today.getMonth()]);
+  const [selIso, setSelIso] = React.useState(null);
+  const [y, mo] = ym;
+  const startPad = new Date(y, mo, 1).getDay();
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  const isoOf = (d) => `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const monthLabel = new Date(y, mo, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const nav = (dir) => { setSelIso(null); setYm(([yy, mm]) => (mm + dir < 0 ? [yy - 1, 11] : mm + dir > 11 ? [yy + 1, 0] : [yy, mm + dir])); };
+  const daySlots = selIso ? (byDay.get(selIso) || []) : [];
+  const first = (coach.name || '').split(' ')[0];
+  return (
+    <BSPage>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← The listing</button>
+        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>The calendar · {first}{demo ? ' · Preview' : ''}</div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>Open to <span style={{ fontStyle: 'italic', color: teal }}>book.</span></h1>
+        {demo ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Preview · typical availability — confirm at booking</div> : null}
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <button onClick={() => nav(-1)} aria-label="Previous month" style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>‹</button>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{monthLabel}</span>
+          <button onClick={() => nav(1)} aria-label="Next month" style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>›</button>
+        </div>
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          {BSM_DAYS3.map((d) => <div key={d} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{d}</div>)}
+          {Array.from({ length: startPad }, (_, i) => <div key={`pad-${i}`} />)}
+          {Array.from({ length: daysInMonth }, (_, i) => {
+            const d = i + 1;
+            const iso = isoOf(d);
+            const slots = byDay.get(iso) || [];
+            const past = iso < todayIso;
+            const on = selIso === iso;
+            const bookable = !past && slots.length > 0;
+            return (
+              <button key={iso} disabled={!bookable} onClick={() => setSelIso(on ? null : iso)} aria-label={bookable ? `${iso} — ${slots.length} open` : iso} style={{
+                aspectRatio: '1 / 1', boxSizing: 'border-box', padding: '5px 2px 3px', cursor: bookable ? 'pointer' : 'default',
+                border: `1px solid ${on ? teal : t.HAIR}`, borderRadius: 3, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+              }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: past ? t.INK30 : bookable ? t.INK : t.INK50, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d}</span>
+                {bookable ? <span aria-hidden style={{ width: 12, height: 2.5, background: roleColor }} /> : <span aria-hidden style={{ height: 2.5 }} />}
+              </button>
+            );
+          })}
+        </div>
+        {selIso ? (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: roleColor }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{new Date(`${selIso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · intro is free</span>
+            </div>
+            {daySlots.map((s, i) => (
+              <button key={`${s.iso}-${s.time}`} onClick={() => onPick(s)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{bsFmtSlot12(s.time)}</span>
+                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
+                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Hold it →</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Tap a marked day to see its open times.</div>
+        )}
+      </div>
+      <BSFooter right="Availability" />
+    </BSPage>
+  );
+}
+
 // THE LISTING (spec 2026-07-09) — the marketplace conversion page: the tapped
 // classified expanded. Role heat line-only; teal = the one commerce action;
 // tier NAMED in the meta; every commerce handler verbatim. The Signal living
@@ -1120,6 +1209,13 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const [showProfile, setShowProfile] = useStateBSM2(false);
+  const [showCal, setShowCal] = useStateBSM2(false);
+  const [offerSheet, setOfferSheet] = useStateBSM2(false);
+  // Real availability for live coaches: the weekly pattern minus booked
+  // sessions, projected 6 weeks (null = demo/preview row or fetch failed —
+  // the labeled preview pattern renders instead; [] = a live coach with no
+  // open slots, which reads honestly as none).
+  const [realAvail, setRealAvail] = useStateBSM2(null);
 
   // The coach's real published plans for sale (coach_plans). Bought through the
   // same Stripe Connect checkout; the plan_id rides along so the buyer owns it.
@@ -1130,6 +1226,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
     let on = true;
     window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    return () => { on = false; };
+  }, [saleProviderId, saleProviderRole]);
+  React.useEffect(() => {
+    if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }
+    let on = true;
+    window.ShapeCoachAvailability.get(saleProviderRole, saleProviderId)
+      .then((d) => { if (on && d && Array.isArray(d.slots)) setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6 })); })
+      .catch(() => {});
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole]);
   // Rate-card buckets (the plan sub-tabs died with the Listing): the single-item
@@ -1345,6 +1449,15 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     }
   };
 
+  // One expansion of the preview pattern feeds BOTH the calendar and the
+  // OPEN THIS WEEK rows (superset shape) so the two can't drift.
+  const expandPreviewSlots = () => p.availability.flatMap(([day, date, times, iso, month]) =>
+    times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month, weekday: new Date(`${iso}T00:00:00`).getDay() })));
+
+  if (showCal) {
+    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : expandPreviewSlots()} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()]); }} />;
+  }
+
   // THE FULL PROFILE → the Signal living page, byte-identical component —
   // the person payload moved here from the marketplace routing branch.
   if (showProfile && window.BSPublicProfile) {
@@ -1359,10 +1472,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }
 
-  const fmtSlot = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); if (Number.isNaN(h)) return hhmm; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
-  const openSlots = p.availability
-    .flatMap(([day, date, times, iso, month]) => times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month })))
-    .slice(0, 3);
+  const fmtSlot = bsFmtSlot12;
+  // One slot list feeds the station AND the calendar: real projected slots for
+  // live coaches (realAvail; [] = honestly none), the preview pattern otherwise.
+  const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()] }; };
+  const allOpenSlots = realAvail != null
+    ? realAvail.map(projSlotRow)
+    : expandPreviewSlots();
+  const openSlots = allOpenSlots.slice(0, 3);
   const Station = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: `22px ${t.padX}px 0` }}>
       <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: roleColor }} />
@@ -1450,6 +1567,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Hold it →</span>
           </button>
         ))}
+        <button onClick={() => setShowCal(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}` }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>See the full calendar</span>
+          <Leader />
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
+        </button>
       </div>
 
       {/* ── The rate card ─────────────────────────────── */}
@@ -1481,6 +1603,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               {Array.isArray(monthlyPkg.perks) && <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ marginTop: 9, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
               <button onClick={() => openCheckout(monthlyPkg)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 11, padding: 12, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+              <div style={{ marginTop: 9, textAlign: 'center' }}>
+                <button onClick={() => setOfferSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>What's included →</span></button>
+              </div>
             </>)}
           </div>
         </div>
@@ -1616,6 +1741,39 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       <div style={{ padding: `16px ${t.padX}px 20px` }}>
         <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Start with {firstName} · free intro →</button>
       </div>
+
+      {offerSheet && monthlyPkg && (() => {
+        // Coach-authored monthly offer (provider row monthly_offer) — honest
+        // generic fallback when the coach hasn't written one.
+        const mo = coach.monthly_offer && typeof coach.monthly_offer === 'object' ? coach.monthly_offer : null;
+        const blurb = (mo && typeof mo.blurb === 'string' && mo.blurb.trim()) ? mo.blurb.trim().slice(0, 600) : null;
+        const includes = (mo && Array.isArray(mo.includes) ? mo.includes : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 8);
+        const rows = includes.length ? includes : (Array.isArray(monthlyPkg.perks) ? monthlyPkg.perks : []);
+        return (
+          <div onClick={() => setOfferSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`What ${firstName}'s monthly coaching includes`} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>Monthly coaching{blurb ? '' : ' · Standard'}</div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>Coached by {firstName}, monthly<span style={{ color: roleColor }}>.</span></div>
+              <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+              {blurb ? <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>{blurb}</div>
+                : <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>{firstName} hasn't written a custom description yet — the standard monthly package includes:</div>}
+              <div style={{ marginTop: 6 }}>
+                {rows.map((line, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+                    <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: teal, fontWeight: 800 }}>✓</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>{String(line).slice(0, 80)}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
+                <button onClick={() => setOfferSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>Close</span></button>
+                <button onClick={() => { setOfferSheet(false); openCheckout(monthlyPkg); }} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <BSPublicActionPanel
         action={action}
