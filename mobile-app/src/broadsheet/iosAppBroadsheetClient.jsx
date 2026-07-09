@@ -15,7 +15,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
-import { bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce, bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop } from '../services/navHistory.mjs';
+import { useBSNavHistory } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -382,15 +382,6 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
     return { tab };
   };
-  const navArmedRef = React.useRef(false);
-  const navPush = () => {
-    const prev = bsNavSize();
-    const changed = bsNavPush(bsNavCompose(navLoc()));
-    if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm' && !navArmedRef.current) {
-      try { window.history.pushState({ shapeNav: true }, ''); navArmedRef.current = true; } catch (e) {}
-    }
-    return changed;
-  };
   // Replay a popped descriptor onto the existing entry points. NEVER pushes.
   const navResolve = (loc) => {
     if (!loc) return;
@@ -405,44 +396,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
-  const navBack = (fromPopstate = false) => {
-    if (!bsNavCanPop()) return false;
-    const loc = bsNavPop();
-    if (fromPopstate) {
-      // the browser just consumed the guard entry
-      if (bsGuardAfterPop(bsNavSize()) === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
-      else navArmedRef.current = false;
-    } else if (bsGuardAfterInAppPop(bsNavSize(), navArmedRef.current) === 'consume') {
-      // An ON-SCREEN back just emptied the stack, so the guard entry we pushed
-      // is now stale. Left in place it would eat the user's NEXT hardware Back
-      // (popstate spends itself on the guard and nothing moves — a swallowed
-      // press). Disarm FIRST so the popstate this triggers is ignored by onPop,
-      // then walk the browser off the guard.
-      navArmedRef.current = false;
-      try { window.history.back(); } catch (e) {}
-    }
-    navResolve(loc);
-    return true;
-  };
-  const navBackRef = React.useRef(navBack); navBackRef.current = navBack;
-  React.useEffect(() => {
-    window.ShapeNav = {
-      push: navPush,
-      back: navBack,
-      canPop: bsNavCanPop,
-      announce: bsNavAnnounce,
-      clear: () => bsNavClear(),
-    };
-    return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
-  });
-  React.useEffect(() => {
-    const onPop = () => {
-      if (!navArmedRef.current) return;         // not our guard entry
-      if (!navBackRef.current(true)) navArmedRef.current = false; // raced empty — disarm
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
   const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
@@ -455,9 +409,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
   // The shape:* event effects below register ONCE ([] deps), so their handlers
   // must read the CURRENT render's jump closures at fire time — a mount-render
-  // navPush would compute navLoc() from frozen state and record {tab:'home'}
-  // forever (the dedupe would then swallow every later jump's push). Same
-  // live-ref pattern as navBackRef above.
+  // goSettings/goIntegrations would be frozen at that render's state. (navPush
+  // itself is safe: useBSNavHistory reads navLoc through a per-render ref. The
+  // goX helpers below still close over state directly, so they need this.)
   const navJumpRef = React.useRef({});
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations };
 

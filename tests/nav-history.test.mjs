@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   bsNavPush, bsNavPop, bsNavPeek, bsNavCanPop, bsNavSize, bsNavClear,
   bsNavReplaceTop, bsNavAnnounce, bsNavAnnounced, bsNavCompose,
-  bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop,
+  bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop, bsGuardAfterClear,
 } from '../mobile-app/src/services/navHistory.mjs';
 
 test('push/pop round-trips descriptors in LIFO order', () => {
@@ -81,6 +81,11 @@ test('in-app back consumes the guard only when it empties the stack', () => {
   assert.equal(bsGuardAfterInAppPop(0, true), 'consume');
   // never armed (nothing to consume)
   assert.equal(bsGuardAfterInAppPop(0, false), null);
+});
+
+test('clearing an armed stack consumes the orphaned guard', () => {
+  assert.equal(bsGuardAfterClear(true), 'consume');
+  assert.equal(bsGuardAfterClear(false), null);
 });
 
 test('guard invariant holds across a full mixed sequence (armed ⟺ stack non-empty)', () => {

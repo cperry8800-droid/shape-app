@@ -56,6 +56,12 @@ export function bsNavCompose(shellLoc) { return _announced ? { ...shellLoc, ..._
 //                       or the next hardware Back would spend itself on it and
 //                       the user's real back would be swallowed.
 // Pure, so every arm/re-arm/disarm/consume sequence is unit-testable.
+// `bsGuardAfterClear` — clearing empties the stack, so an existing guard is
+//                       orphaned and must be consumed too (same shape as the
+//                       in-app pop). Without it, `armed` stays true over an
+//                       empty stack: the next push skips arming and the next
+//                       hardware Back is swallowed.
 export function bsGuardAfterPush(prevSize, nextSize) { return prevSize === 0 && nextSize > 0 ? 'arm' : null; }
 export function bsGuardAfterPop(sizeAfterPop) { return sizeAfterPop > 0 ? 'rearm' : 'disarm'; }
 export function bsGuardAfterInAppPop(sizeAfterPop, armed) { return sizeAfterPop === 0 && armed ? 'consume' : null; }
+export function bsGuardAfterClear(armed) { return armed ? 'consume' : null; }

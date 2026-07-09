@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { useBSNavHistory } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
 // (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
@@ -966,7 +967,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
   useEffectBSP(() => {
-    const open = () => setShowSearch(true);
+    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -976,6 +977,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      navJumpRef.current.navPush();
       setShowSearch(false);
       setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
@@ -998,10 +1000,50 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [programInitialTab, setProgramInitialTab] = useStateBSP('programs');
   const [queueView, setQueueView] = useStateBSP(null);
   const [liveWatch, setLiveWatch] = useStateBSP(null);
+  const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
   const scoreProfile = SHAPE_SCORE_PROFILES?.trainer;
-  const goRadio = () => setTab('radio');
-  const goSettings = () => setShowSettings(true);
+  // ── Nav history (spec 2026-07-09; PR A shipped the client spine) ──
+  // Takeovers are early-returns below, so they ARE the location when open.
+  const navLoc = () => {
+    if (showSoundtracks) return { tab, overlay: 'soundtracks' };
+    if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
+    if (showCalendar) return { tab, overlay: 'calendar' };
+    if (showReviews) return { tab, overlay: 'reviews' };
+    if (showHabits) return { tab, overlay: 'habits' };
+    if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
+    if (showSearch) return { tab, overlay: 'search' };
+    if (tab === 'store') return { tab: 'store', sub: storeView };
+    if (tab === 'programs') return { tab: 'programs', sub: programInitialTab };
+    return { tab };
+  };
+  // Replay a popped descriptor onto the existing entry points. NEVER pushes.
+  // liveWatch is deliberately NOT replayable (a live session is ephemeral —
+  // re-opening a stale watch would fabricate a session that may have ended).
+  const navResolve = (loc) => {
+    if (!loc) return;
+    setShowSoundtracks(loc.overlay === 'soundtracks');
+    setShowCalendar(loc.overlay === 'calendar');
+    setShowReviews(loc.overlay === 'reviews');
+    setShowHabits(loc.overlay === 'habits');
+    setShowSearch(loc.overlay === 'search');
+    setQueueView(loc.overlay === 'queue' && loc.detail ? loc.detail.type : null);
+    setLiveWatch(null);
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
+    if (loc.tab === 'programs') setProgramInitialTab(loc.sub || 'programs');
+    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    if (loc.tab) setTab(loc.tab);
+  };
+  const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
+  const navJumpRef = React.useRef({});
+  const goRadio = () => { navPush(); setTab('radio'); };
+  const goSettings = () => { navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
+    // Push ONLY for actions that actually navigate — an unknown action must not
+    // leave a phantom entry the user's next back would spend itself on.
+    if (!['reviews', 'clients', 'programs', 'playlists', 'grocery', 'pr'].includes(action)) return;
+    navPush();
     if (action === 'reviews') { setShowReviews(true); return; }
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'programs' || action === 'playlists') {
@@ -1015,8 +1057,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // MESSAGE button on a client profile → ensure the 1:1 conversation exists and
   // jump to the Chat tab, opening that exact thread.
   const [chatRequest, setChatRequest] = useStateBSP(null);
+  navJumpRef.current = { navPush, goSettings, openHomeWidget };
   React.useEffect(() => {
     const onMsg = async (e) => {
+      navJumpRef.current.navPush();
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
@@ -1034,6 +1078,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // client, then jump to Chat on that thread.
   React.useEffect(() => {
     const onCoach = async (e) => {
+      navJumpRef.current.navPush();
       const d = e?.detail || {};
       let cid = null;
       if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
@@ -1046,9 +1091,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:proMessageCoach', onCoach);
   }, []);
   React.useEffect(() => {
-    const onSettingsEvt = () => setShowSettings(true);
-    const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
-    const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
+    const onSettingsEvt = () => navJumpRef.current.goSettings();
+    const onAvail = () => { navJumpRef.current.navPush(); setShowSettings(false); setShowCalendar(true); };
+    const onSound = () => { navJumpRef.current.navPush(); setShowSettings(false); setShowSoundtracks(true); };
     // shape:openProfile is what every self-avatar tap fires (same as the client) —
     // open Settings in one tap, so the coach flow matches the client/preview flow.
     window.addEventListener('shape:openProSettings', onSettingsEvt);
@@ -1057,23 +1102,23 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
-  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
-  if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => setQueueView(null)} />;
+  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
+  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
+  if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
+  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
+  if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
   if (liveWatch) return <BSProLiveWatch client={liveWatch.client} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
   const screens = {
-    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
+    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
-    radio:    <BSRadioScreen onBack={() => setTab('today')} />,
+    radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
+    me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -1088,7 +1133,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -4723,7 +4768,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
   useEffectBSP(() => {
-    const open = () => setShowSearch(true);
+    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -4733,6 +4778,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      navJumpRef.current.navPush();
       setShowSearch(false);
       setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
@@ -4753,18 +4799,53 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showHabits, setShowHabits] = useStateBSP(false);
   const [storeView, setStoreView] = useStateBSP('store');
   const [queueView, setQueueView] = useStateBSP(null);
+  const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
   const scoreProfile = SHAPE_SCORE_PROFILES?.nutritionist;
-  const goRadio = () => setTab('radio');
-  const goSettings = () => setShowSettings(true);
+  // ── Nav history (spec 2026-07-09) — mirrors the trainer shell. ──
+  const navLoc = () => {
+    if (showSoundtracks) return { tab, overlay: 'soundtracks' };
+    if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
+    if (showCalendar) return { tab, overlay: 'calendar' };
+    if (showReviews) return { tab, overlay: 'reviews' };
+    if (showHabits) return { tab, overlay: 'habits' };
+    if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
+    if (showSearch) return { tab, overlay: 'search' };
+    if (tab === 'store') return { tab: 'store', sub: storeView };
+    return { tab };
+  };
+  const navResolve = (loc) => {
+    if (!loc) return;
+    setShowSoundtracks(loc.overlay === 'soundtracks');
+    setShowCalendar(loc.overlay === 'calendar');
+    setShowReviews(loc.overlay === 'reviews');
+    setShowHabits(loc.overlay === 'habits');
+    setShowSearch(loc.overlay === 'search');
+    setQueueView(loc.overlay === 'queue' && loc.detail ? loc.detail.type : null);
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
+    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    if (loc.tab) setTab(loc.tab);
+  };
+  const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
+  const navJumpRef = React.useRef({});
+  const goRadio = () => { navPush(); setTab('radio'); };
+  const goSettings = () => { navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
+    // Push ONLY for actions that actually navigate — an unknown action must not
+    // leave a phantom entry the user's next back would spend itself on.
+    if (!['reviews', 'plans', 'clients', 'grocery'].includes(action)) return;
+    navPush();
     if (action === 'reviews') { setShowReviews(true); return; }
     if (action === 'plans') { setTab('plans'); return; }
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'grocery') setQueueView('grocery');
   };
   const [chatRequest, setChatRequest] = useStateBSP(null);
+  navJumpRef.current = { navPush, goSettings, openHomeWidget };
   React.useEffect(() => {
     const onMsg = async (e) => {
+      navJumpRef.current.navPush();
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
@@ -4782,6 +4863,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // client, then jump to Chat on that thread.
   React.useEffect(() => {
     const onCoach = async (e) => {
+      navJumpRef.current.navPush();
       const d = e?.detail || {};
       let cid = null;
       if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
@@ -4794,9 +4876,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:proMessageCoach', onCoach);
   }, []);
   React.useEffect(() => {
-    const onSettingsEvt = () => setShowSettings(true);
-    const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
-    const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
+    const onSettingsEvt = () => navJumpRef.current.goSettings();
+    const onAvail = () => { navJumpRef.current.navPush(); setShowSettings(false); setShowCalendar(true); };
+    const onSound = () => { navJumpRef.current.navPush(); setShowSettings(false); setShowSoundtracks(true); };
     // shape:openProfile is what every self-avatar tap fires (same as the client) —
     // open Settings in one tap, so the coach flow matches the client/preview flow.
     window.addEventListener('shape:openProSettings', onSettingsEvt);
@@ -4805,22 +4887,22 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
-  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
-  if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => setShowReviews(false)} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => setQueueView(null)} />;
+  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
+  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
+  if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
+  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
+  if (queueView) return <BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
   const screens = {
-    today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
+    today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} />,
     plans:    <BSNutriPlans sheet={sheet} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
-    radio:    <BSRadioScreen onBack={() => setTab('today')} />,
+    radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
-      : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
+      : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
+    me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -4835,7 +4917,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
