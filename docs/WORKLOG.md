@@ -166,13 +166,14 @@ changelog whenever something ships.
 > booked sessions, projected by a new tested `coachAvailability.mjs`), the
 > **standing-offer coupon** with the at-capacity waitlist gate + a **coach-authored
 > monthly offer** (WHAT'S INCLUDED sheet · coaches edit it from their practice
-> shortcuts · migration `2026-07-09-provider-monthly-offer.sql` — **OWNER RUNS**),
+> shortcuts · migration `2026-07-09-provider-monthly-offer.sql` **APPLIED + verified**),
 > PROGRAMS + role-aware SINGLE WORKOUTS/MEALS shelves, and honesty fixes (the synthetic
 > match% chip + seeded 10.0/10 ratings die). Habits page → **"The Habit Ledger"**
 > (#1635); the **website coach profile brought to parity** (#1637 — coupon + monthly
 > offer + singles on the site's rate card). Six PRs: #1631 meal-preview/radio polish ·
 > #1633 slate habits head · #1634 the Listing · #1635 Habits · #1636 calendar + offer ·
-> #1637 website. See the dated entry below. Open: the migration + the on-device pass.
+> #1637 website. See the dated entry below + **[`docs/HANDOFF-2026-07-09.md`](HANDOFF-2026-07-09.md)**
+> (this wave's full handoff). Open: the on-device pass.
 > *(Prior 2026-07-08: Kitchen Card & Catalogue — #1627/#1628/#1629 — and Train "The
 > Program" + Eat "The Menu" — #1622/#1623.)*
 >
@@ -333,10 +334,10 @@ changelog whenever something ships.
   as the `setHours`-resolved wall time; the demo-expansion duplicated at two call
   sites → one `expandPreviewSlots`; the offer editor's deletable rows keyed by index →
   stable ids. CodeRabbit confirmed all four on re-review.
-- **⚠ Migration `2026-07-09-provider-monthly-offer.sql` (OWNER RUNS, idempotent):**
-  adds `monthly_offer jsonb` to `trainers` + `nutritionists` (shape
-  `{blurb ≤600, includes text[] ≤8×≤80, updatedAt}`). Everything degrades cleanly
-  until applied (the sheet shows the Standard fallback; saves surface an error).
+- **Migration `2026-07-09-provider-monthly-offer.sql` — APPLIED + verified live**
+  (owner ran it same day; `monthly_offer jsonb` confirmed on both `trainers` and
+  `nutritionists` via information_schema): shape
+  `{blurb ≤600, includes text[] ≤8×≤80, updatedAt}`, limits enforced by the editor.
 - **PR E #1637 — website coach-page parity.** All in `livingShared.jsx` (`?v=16`
   across the 7 consumer pages; `livingDesktop.jsx` untouched): the Work-with
   storefront becomes the **standing-offer coupon** (✂ dashed frame, Subscribe/Book
@@ -357,9 +358,10 @@ changelog whenever something ships.
   **DAILY HABITS** sub-head (i18n'd) separating habits from the day's agenda.
 - **Verified per commit:** JSX parse · `VITE_BASE=/m/` build exit 0 · `npm test`
   (511) · LF normalization; every PR gated on CI green + CodeRabbit with all threads
-  resolved. **Open:** owner runs the monthly_offer migration; on-device pass across
-  Black/Sage/Cream × trainer/nutritionist Listings (coupon states incl. at-capacity ×
-  the calendar month grid × the offer editor) + the Habit Ledger + the website coupon.
+  resolved. Session handoff: [`docs/HANDOFF-2026-07-09.md`](HANDOFF-2026-07-09.md).
+  **Open:** on-device pass across Black/Sage/Cream × trainer/nutritionist Listings
+  (coupon states incl. at-capacity × the calendar month grid × the offer editor) +
+  the Habit Ledger + the website coupon.
 
 ### 2026-07-08 — Kitchen Card & Catalogue: recipe surfaces + Library rebuilt · catalog → 35 detailed recipes · app⇄web parity (#1627 · #1628 · #1629)
 - **Owner-composed direction** (spec `docs/superpowers/specs/2026-07-08-kitchen-card-catalogue-design.md`
