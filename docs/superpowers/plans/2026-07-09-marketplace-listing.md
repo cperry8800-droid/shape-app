@@ -74,3 +74,16 @@ two-tier rule for the review composer + add sheets.
 - [ ] **Task 12 — docs.** WORKLOG dated entry + Latest pointer; War Room items
   (wave done · on-device pass pending · migration owner-run pending · website
   marketplace parity follow-up); memory wave file + MEMORY.md; merge on green.
+
+## PR E — website coach-page parity (owner addition 2026-07-09)
+
+- [ ] **Task 13 — website port.** The website coach living profile
+  (`livingShared.jsx` `LvServices` rate card + `livingDesktop.jsx`) gains the wave's
+  commerce pieces: the standing-offer **coupon** as the rate card's lead offer, the
+  same role-aware single-item shelf the mobile Listing ships — **single workouts**
+  for trainers / **single meals** for nutritionists, both read from the real
+  `coach_plans` category buckets (nothing invented) — and the
+  coach-authored **`monthly_offer`** what's-included (same column PR C adds — the
+  provider rows are already public-read on the website). Honesty riders where they
+  apply. `?v=` bumps on all consumer pages. Design language: the site's existing
+  #1537 ledger grammar (dStation/DLeader) — content parity, not a redesign.

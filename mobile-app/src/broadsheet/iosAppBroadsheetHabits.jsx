@@ -272,7 +272,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   );
   return target ? createPortal(sheet, target) : sheet;
 }
-function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange }) {
+function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, first = false }) {
   const t = useBS();
   const done = (habit.history || []).includes(_bsHabitsToday);
   const isAvoid = habit.type === 'avoid';
@@ -282,21 +282,18 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
   const hasRem = !!reminder && reminder.enabled !== false;
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', alignItems: 'center', gap: 10,
-      padding: '10px 12px', borderRadius: 5,
-      border: `1px solid ${done ? `${c}66` : t.RULE}`,
-      borderLeft: `3px solid ${done ? c : `${c}55`}`,
-      background: done ? (t.isLight ? `${c}12` : `${c}1c`) : t.PAPER2,
+      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
+      padding: '11px 0', minHeight: 44, borderTop: first ? 0 : `1px solid ${t.HAIR}`,
     }}>
       <button onClick={() => onToggle(habit.id)} aria-label={done ? 'Mark not done' : 'Mark done'} style={{
-        width: 25, height: 25, borderRadius: 5, cursor: 'pointer', flexShrink: 0,
-        border: `1.5px solid ${done ? c : t.RULE}`, background: done ? c : 'transparent',
+        width: 24, height: 24, borderRadius: 3, cursor: 'pointer', flexShrink: 0,
+        border: `1.5px solid ${done ? c : `${c}55`}`, background: done ? c : 'transparent',
         color: '#04201d', display: 'grid', placeItems: 'center',
         fontFamily: t.MONO, fontSize: 12, fontWeight: 900, padding: 0,
       }}>{done ? '✓' : ''}</button>
       <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
+        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
           {done ? (isAvoid ? '✓ Stayed clean' : '✓ Kept') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
@@ -307,106 +304,82 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
   );
 }
 
-// Section: "To-dos" / "To-don'ts" — count eyebrow, +Add link, card rows.
+// Section: "To do" / "To don't" — a station head (accent tick + mono count)
+// over tick-divider rows; ＋ Add is an underline text-action.
 function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange }) {
   const t = useBS();
   const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
-  const word = type === 'avoid' ? 'Stop' : 'Done';
+  const word = type === 'avoid' ? 'Stayed clean' : 'Done';
   return (
     <div style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-        <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{done}/{habits.length} {word}</div>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1 }}>{title}</div>
-        </div>
-        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, padding: 0 }}>+ Add →</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: accent }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{title} · {done}/{habits.length} {word}</span>
+        <span aria-hidden style={{ flex: 1 }} />
+        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: '4px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${accent}`, paddingBottom: 2 }}>＋ Add</span></button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {habits.length === 0 ? (
-          <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-            + Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
-          </button>
-        ) : habits.map(h => (
-          <BSHabitRow key={h.id} habit={h} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} />
-        ))}
-      </div>
+      {habits.length === 0 ? (
+        <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 8 }}>
+          ＋ Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
+        </button>
+      ) : habits.map((h, i) => (
+        <BSHabitRow key={h.id} habit={h} first={i === 0} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} />
+      ))}
     </div>
   );
 }
 
-// Top summary — points earned today vs possible, ring + tap → Shape Score.
+// The day's ledger — a serif verdict over a bare register (the plate, % ring
+// and split bars died with the Habit Ledger; the register carries them all).
 function BSHabitScoreCard({ habits, onOpenScore }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const week = _bsHabitInsightStats(habits); // this week's Shape Score from habits + adherence
   const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
   const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
-  const pct = possible ? Math.round((earned / possible) * 100) : 0;
-  // Per-type breakdown — split the day's points into To do vs Don't do it.
+  const remaining = possible - earned;
   const sumE = (list) => list.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
   const sumP = (list) => list.reduce((s, h) => s + _bsHabitPts(h), 0);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
-  const breakdown = [
-    { label: 'To do', c: teal, e: sumE(dos), p: sumP(dos) },
-    { label: "To don't", c: t.RUST, e: sumE(donts), p: sumP(donts) },
-  ];
-  const BSPlate = window.BSPlate;
   return (
-    <BSPlate c={teal} tick bracket pad="13px 14px 13px 20px" role="button" ariaLabel="See your Shape Score" onClick={onOpenScore} style={{ textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Earned today</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>+{earned}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>pts</span>
-          </div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal, fontWeight: 600, lineHeight: 1.4 }}>of {possible} possible · to your Shape Score</div>
-        </div>
-        <div style={{ width: 42, height: 42, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${teal} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 999, background: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK }}>{pct}%</div>
-        </div>
+    <div>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.3, color: t.INK }}>
+        {possible === 0
+          ? <>Add a habit — <span style={{ fontStyle: 'italic', color: teal }}>daily points live here.</span></>
+          : earned === 0
+            ? <>Nothing banked yet — <span style={{ fontStyle: 'italic', color: teal }}>{possible} pts on the table.</span></>
+            : remaining > 0
+              ? <>+{earned} banked today — <span style={{ fontStyle: 'italic', color: teal }}>{remaining} more on the table.</span></>
+              : <>+{earned} banked today — <span style={{ fontStyle: 'italic', color: teal }}>a clean sweep.</span></>}
       </div>
-      <div style={{ height: 3, borderRadius: 2, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: teal }} />
-      </div>
-      {/* Breakdown — To do vs Don't do it */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
-        {breakdown.map((b) => (
-          <div key={b.label}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: b.c }}>{b.label}</div>
-            <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>+{b.e}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>/ {b.p} pts</span>
-            </div>
-            <div style={{ height: 3, borderRadius: 2, background: t.HAIR, marginTop: 7, overflow: 'hidden' }}>
-              <div style={{ width: `${b.p ? Math.round((b.e / b.p) * 100) : 0}%`, height: '100%', background: b.c }} />
-            </div>
+      <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'repeat(5, auto)', justifyContent: 'space-between', gap: 8 }}>
+        {[
+          ['Today', `+${earned}/${possible}`, t.INK50],
+          ['To do', `${sumE(dos)}/${sumP(dos)}`, teal],
+          ["To don't", `${sumE(donts)}/${sumP(donts)}`, t.RUST],
+          ['This wk', `+${week.score}`, t.INK50],
+          ['Adherence', `${week.adherence}%`, t.INK50],
+        ].map(([l, v, lc]) => (
+          <div key={l}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', fontWeight: 800, textTransform: 'uppercase', color: lc }}>{l}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
           </div>
         ))}
       </div>
-      {/* This week — Shape Score earned from habits + adherence */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
-        <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>This week · from habits</div>
-          <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: teal, letterSpacing: '-0.03em', lineHeight: 1 }}>+{week.score}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>to Shape Score</span>
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{week.adherence}%</span>
-          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Adherence</div>
-        </div>
-      </div>
-      <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
-    </BSPlate>
+      <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 40, boxSizing: 'border-box', padding: '9px 0 0' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>The Shape Score</span>
+        <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)' }} />
+        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
+      </button>
+    </div>
   );
 }
 
-// 7-day completion grid — DO / DON'T rows × the last 7 days, on an instrument
-// plate (matching the score card above). Squared completion tiles; today is the
-// rightmost column (pattern value 2) and is accent-marked.
+// 7-day completion grid — DO / DON'T rows × the last 7 days, an unboxed
+// station (the plate chrome died with the Habit Ledger). Squared completion
+// tiles; today is the rightmost column (pattern value 2), accent-marked.
 function BSHabitGrid({ habits }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -427,9 +400,8 @@ function BSHabitGrid({ habits }) {
   };
   const NAME_FLEX = '1 1 44%';
   const DOTS_FLEX = '1 1 56%';
-  const BSPlate = window.BSPlate;
   return (
-    <BSPlate c={teal} bracket pad="13px 15px 14px 18px">
+    <div>
       {/* header — mono eyebrow + serif display title + ink→accent ledger */}
       <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Last 7 days</div>
       <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>The grid<span style={{ color: teal }}>.</span></div>
@@ -458,7 +430,7 @@ function BSHabitGrid({ habits }) {
           </div>
         );
       })}
-    </BSPlate>
+    </div>
   );
 }
 
