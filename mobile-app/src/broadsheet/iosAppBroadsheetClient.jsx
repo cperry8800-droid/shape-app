@@ -4501,6 +4501,28 @@ function bsMealPhoto(meal) {
   return pick('1490645935967-10de6ba17061');
 }
 
+// One qty label for a structured {n, m, k?} ingredient — household units off the
+// metric pref, the optional kcal annotation appended. Shared by the Kitchen Card
+// and the meal preview so the two Eat-day sheets can never drift.
+function bsIngQtyLabel(isMetric, ing) {
+  const q = isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m);
+  const kc = ing.k ? String(ing.k).replace(/\s*kcal$/i, '') : null;
+  return kc ? `${q} · ${kc}` : q;
+}
+
+// Page-level flanked dateline (rule · MONO label · rule) — the section head the
+// recipe surfaces use for THE METHOD; shared here so meals read identically.
+function BSDateline({ children }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
+      <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{children}</span>
+      <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
+    </div>
+  );
+}
+
 function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -4519,14 +4541,11 @@ function BSMealPreview({ meal, onBack, onLog }) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
   }
 
-  // Macro % of total kcal — visual bar split
-  const totalCal = (meal.p || 0) * 4 + (meal.c || 0) * 4 + (meal.f || 0) * 9 || 1;
-  const pPct = Math.round(((meal.p || 0) * 4 / totalCal) * 100);
-  const cPct = Math.round(((meal.c || 0) * 4 / totalCal) * 100);
-  const fPct = 100 - pPct - cPct;
   // Meals opened from the day log carry only macros — guard the rich fields.
   const ingredients = Array.isArray(meal.ingredients) ? meal.ingredients : [];
   const steps = Array.isArray(meal.steps) ? meal.steps : [];
+  const ingHalf = Math.ceil(ingredients.length / 2);
+  const ingCols = [ingredients.slice(0, ingHalf), ingredients.slice(ingHalf)];
 
   return (
     <BSPage>
@@ -4564,36 +4583,23 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>{meal.title}</div>
       </div>
 
-      {/* Stats row — squared instrument plate w/ accent spine */}
+      {/* Stats — bare register over the ledger rule (the boxed plate + split bar died,
+          matching the recipe surfaces; the register carries the same macros). */}
       <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[
-            { l: 'KCAL',    v: String(meal.kcal) },
-            { l: 'PROTEIN', v: meal.p + 'g' },
-            { l: 'CARBS',   v: meal.c + 'g' },
-            { l: 'FAT',     v: meal.f + 'g' },
-          ].map((s, i) => (
-            <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{s.l}</div>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, marginTop: 4, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
+            ['Kcal', String(meal.kcal)],
+            ['Protein', meal.p + 'g'],
+            ['Carbs', meal.c + 'g'],
+            ['Fat', meal.f + 'g'],
+          ].map(([l, v]) => (
+            <div key={l}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Macro split bar — rounded */}
-      <div style={{ padding: `10px ${t.padX}px 6px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 12, borderRadius: 3, overflow: 'hidden', background: t.HAIR }}>
-          <div style={{ width: `${pPct}%`, background: t.GREEN }} />
-          <div style={{ width: `${cPct}%`, background: t.AMBER }} />
-          <div style={{ width: `${fPct}%`, background: t.RUST }} />
-        </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
-        </div>
+        <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       </div>
 
       {/* Quick facts */}
@@ -4622,47 +4628,35 @@ function BSMealPreview({ meal, onBack, onLog }) {
         </div>
       )}
 
-      {/* Ingredients — rounded card */}
+      {/* Ingredients — two-column ruled lines under a dateline (Kitchen Card grammar) */}
       {ingredients.length > 0 && (
         <>
-          <BSSection title="Ingredients" meta={`${ingredients.length} items`} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-              {ingredients.map((ing, i) => (
-                <div key={i} style={{
-                  padding: '12px 0', borderBottom: i === ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                  display: 'flex', alignItems: 'baseline', gap: 12,
-                }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontWeight: 700, width: 78, flexShrink: 0, letterSpacing: '0.04em' }}>{t.isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m)}</span>
-                  <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{ing.m}</div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.06em', fontVariantNumeric: 'tabular-nums' }}>{ing.k}</span>
-                </div>
-              ))}
-            </div>
+          <BSDateline>The ingredients</BSDateline>
+          <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16, marginTop: 2 }}>
+            {ingCols.map((col, ci) => (
+              <div key={ci}>
+                {col.map((ing, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '9px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}` }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{bsIngQtyLabel(t.isMetric, ing)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </>
       )}
 
-      {/* Method — rounded card */}
+      {/* Method — lettered serif steps under the dateline (recipe-detail grammar) */}
       {steps.length > 0 && (
         <>
-          <BSSection title="Method" meta={`${steps.length} steps`} />
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '4px 14px' }}>
-              {steps.map((s, i) => (
-                <div key={i} style={{
-                  padding: '14px 0', borderBottom: i === steps.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                  display: 'flex', gap: 12, alignItems: 'flex-start',
-                }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: '50%', background: meal.tagColor, color: t.PAPER,
-                    fontFamily: t.MONO, fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>{i + 1}</span>
-                  <div style={{ flex: 1, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK85 }}>{s}</div>
-                </div>
-              ))}
-            </div>
+          <BSDateline>The method</BSDateline>
+          <div style={{ padding: `2px ${t.padX}px 0` }}>
+            {steps.map((s, i) => (
+              <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
+                <b style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + i)}.</b> {s}
+              </p>
+            ))}
           </div>
         </>
       )}
@@ -4699,7 +4693,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
         </button>
       </div>
 
-      <BSFooter right="Recipe" />
+      <BSFooter right="Meal" />
     </BSPage>
   );
 }
@@ -4725,11 +4719,7 @@ function BSKitchenCard({ recipe, no, dayLabel }) {
   const ings = Array.isArray(r.ingredients) ? r.ingredients : [];
   const half = Math.ceil(ings.length / 2);
   const cols = [ings.slice(0, half), ings.slice(half)];
-  const qty = (ing) => {
-    const q = t.isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m);
-    const kc = ing.k ? String(ing.k).replace(/\s*kcal$/i, '') : null;
-    return kc ? `${q} · ${kc}` : q;
-  };
+  const qty = (ing) => bsIngQtyLabel(t.isMetric, ing);
   const gold = '#a07a2e';
   const Dateline = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
@@ -4832,11 +4822,7 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
       ) : null}
 
       {/* The directions — outside the card (owner call). */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
-        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>The method</span>
-        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
-      </div>
+      <BSDateline>The method</BSDateline>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {(r.steps || []).map((s, i) => (
           <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
@@ -5221,11 +5207,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       )}
 
       {/* The directions — OUTSIDE the card (owner call): lettered serif steps. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `18px ${t.padX}px 0` }}>
-        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>The method</span>
-        <span aria-hidden style={{ flex: 1, height: 1.5, background: t.RULE }} />
-      </div>
+      <BSDateline>The method</BSDateline>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {r.steps.map((s, i) => (
           <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
