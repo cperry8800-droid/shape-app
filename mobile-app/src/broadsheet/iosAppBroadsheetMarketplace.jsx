@@ -1584,8 +1584,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               wl?.status === 'invited' ? (<>
                 <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>You're invited</div>
                 <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{firstName} has room for you.</div>
-                <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button onClick={() => openCheckout(monthlyPkg)} style={{ minHeight: 44, border: 0, background: t.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Book now</button>
+                {/* Book now = the per-role ONE-TIME purchase (trainer session /
+                    nutritionist meal plan) — a non-Subscription item.type puts the
+                    checkout route in one-time payment mode; the charge is server-
+                    authoritative (session_price / meal_plan_price, the same fields
+                    coach.rate maps from). The normal coupon CTA is hidden at
+                    capacity, so the subscription path rides alongside — mirrors the
+                    website first-dibs trio (#1498). */}
+                <button onClick={() => openCheckout({ type: 'One-time', name: isNutriDetail ? 'Meal plan' : 'Booking', price: `$${coach.rate}`, unit: 'one-time', perks: isNutriDetail ? ['Coach-built meal plan', 'No subscription'] : ['One-time session', 'No subscription'] })} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: t.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Book now</button>
+                <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button onClick={() => openCheckout(monthlyPkg)} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe /mo</button>
                   <button onClick={wlWithdraw} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Decline</button>
                 </div>
               </>) : wl ? (<>

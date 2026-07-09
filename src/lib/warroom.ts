@@ -625,6 +625,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Client Home/Eat lead with a "Today · your move" directive (Home: workout→meal→habits→done with per-item CTA; Eat: next meal to log above the quiet calorie strip); Home "Weekly totals" trimmed 4→2. Train already led with its session hero + Start', status: 'done' },
         { label: 'Client meal logger / "Logged." / home week strip onto instrument plates (clipped one-tap action, squared mode tabs, BSPlate summaries, ink→accent ledger)', status: 'done' },
         { label: 'Client Goals (Overall + Nutrition) carry the real engine pace-projection ETA — least-squares projectGoal over 8 weeks + week-over-week slip → an "ETA" stat (projected date / Stalled / 1y+ / Refresh) replacing the demo "On track"/"Adherence", + an ETA chip in the hero; honest "—" when history is too sparse', status: 'done' },
+        { label: 'Refresh the website phone screenshots (index.html journey beats + GetApp.html walkthrough) — the captures predate the July Open Ledger redesign wave (Home Front Page, The Menu, Kitchen Card, Habit Ledger, The Listing), so the marketing pages show an app that no longer exists; recapture at the 600×1387 screen aspect', status: 'pending' },
       ],
     },
     {
@@ -1021,6 +1022,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Shape Radio wordmark adapts on light papers: a recolored shape-radio-logo-lt.png (SHAPE + 2nd play-triangle → ink/black, play-triangle + RADIO stay teal) — the two-tone treatment; BSRadioWordmark picks the PNG by paper on the radio screen + prompt header', status: 'done' },
         { label: 'Calendar month view redesigned: per-day event list = clean divider rows (was bordered boxes); tighter grid cells (today ring) so weeks fit; event preview sheets read REAL data (workout looks up the session by title → cardio shows run segments not barbell rows; meal parses kcal/protein + derives carbs/fat + macro-split bar + "On the plate" from the title)', status: 'done' },
         { label: 'Settings rows: removed the rounded icon boxes (client BSSettings HubCard) — title + summary + chevron, accent on the title. Coach settings (BSProMe) already used numbered rows', status: 'done' },
+        { label: 'Navigation history: back buttons return to the TRUE previous page (a shared nav-history stack the whole app pushes onto), replacing per-surface hardcoded back destinations (the "Goals → Edit → Settings → back couldn\'t return" bug class). Spec first — widest-blast-radius audit in the client module', status: 'pending' },
+        { label: 'Swipe navigation: left/right swipe gestures move between pages (tab-to-tab + edge-swipe back), built ON the nav-history stack (same spine as the back-button fix); must not fight the app\'s horizontal surfaces (chart scrub, week strips, filter rails)', status: 'pending' },
       ],
     },
     {
@@ -1052,7 +1055,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'RLS-authoritative backend: client join/withdraw run on the caller-scoped client under own-row RLS policies + a guard_cols trigger (freezes created_at / provider ids / client_id + invite timestamps); INSERT gated on room-EXISTS AND at-capacity; UPDATE can\'t revert a live invite. FIFO position, coach room roster (+ names), and invites go through SECURITY DEFINER RPCs (get_my_waitlists / get_coach_waitroom / invite_from_waitlist, auth.uid()-ownership-checked). Admin only for notifications + the webhook booked-flip. Migration 2026-07-01-coach-waitlist.sql APPLIED', status: 'done' },
         { label: 'Register waitlist_join / waitlist_invite in the notification-center matrix — types listed in the web + mobile settings matrices and enforced at send time (createPreferredNotification resolves the recipient\'s prefs, stamps data.channels; mute / all-channels-off skip the write; the bell filters inapp-off rows)', status: 'done' },
         { label: 'Website invited "Book now" routes to the per-role one-time purchase (trainer → /purchase kind=booking, nutritionist → /purchase kind=meal_plan) instead of the subscribe link, with Subscribe monthly kept alongside; the webhook booked-flip covers both payment and subscription modes', status: 'done' },
-        { label: 'Mobile parity: the app\'s invited waitlist "Book now" (iosAppBroadsheetClient) still starts the monthly subscription via doSubscribe — route it to the per-role one-time purchase (or offer both) to match the website first-dibs path', status: 'pending' },
+        { label: 'Mobile parity: BOTH invited waitlist "Book now" surfaces — the Signal profile (iosAppBroadsheetClient doBookOneTime) AND the marketplace Listing (iosAppBroadsheetMarketplace openCheckout One-time item) — fire the per-role ONE-TIME purchase (checkout-session payment mode, server-authoritative price) with Subscribe /mo + Decline alongside; matches the website first-dibs trio (#1498)', status: 'done' },
       ],
     },
     {

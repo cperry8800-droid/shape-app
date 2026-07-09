@@ -10261,6 +10261,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(`Intro requested — ${first} will follow up.`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not book.', 'err'); }
   };
+  // First-dibs "Book now" is the per-role ONE-TIME purchase (trainer session /
+  // nutritionist meal plan), NOT the monthly subscription — website parity (#1498).
+  // A non-Subscription item.type puts /api/stripe/checkout-session in one-time
+  // payment mode; the price is server-authoritative off the provider row, the
+  // invite gate (hasActiveWaitlistInvite) allows both modes, and the Stripe
+  // webhook flips the waitlist row to booked for either.
+  const doBookOneTime = async () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
+    try { const r = await window.ShapePayments?.startCheckout?.({ item: { type: 'One-time', name: isNutri ? 'Meal plan' : 'Booking' }, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || 'Checkout setup needed.', 'info'); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not start checkout.', 'err'); }
+  };
   // ── Waiting list — only relevant when this coach is effectively at capacity.
   // The marketplace's commerce.coach carries the real DB row (at_capacity /
   // capacity_resume_at / provider_id); mirrors src/lib/capacity.ts isEffectivelyAtCapacity.
@@ -10629,8 +10640,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             <BSPlate c={tTheme.GREEN} tick style={{ margin: '24px -22px 0' }}>
               <Kick col={tTheme.GREEN}>You're invited</Kick>
               <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{first} has room for you.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book now</button>
+              {/* Book now = the one-time purchase; the normal Work-with block is hidden
+                  at capacity, so the invited state must also carry the subscription
+                  path (mirrors the website invited CTA trio, #1498). */}
+              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book now</button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe /mo</button>
                 <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Decline</button>
               </div>
             </BSPlate>
