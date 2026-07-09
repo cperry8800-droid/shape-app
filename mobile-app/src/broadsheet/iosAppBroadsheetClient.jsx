@@ -382,11 +382,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
     return { tab };
   };
+  const navArmedRef = React.useRef(false);
   const navPush = () => {
     const prev = bsNavSize();
     const changed = bsNavPush(bsNavCompose(navLoc()));
-    if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm') {
-      try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {}
+    if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm' && !navArmedRef.current) {
+      try { window.history.pushState({ shapeNav: true }, ''); navArmedRef.current = true; } catch (e) {}
     }
     return changed;
   };
@@ -404,14 +405,18 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
-  const navBack = () => {
+  const navBack = (fromPopstate = false) => {
     if (!bsNavCanPop()) return false;
     const loc = bsNavPop();
-    const g = bsGuardAfterPop(bsNavSize());
-    if (g === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
+    if (fromPopstate) {
+      // the browser just consumed the guard entry
+      if (bsGuardAfterPop(bsNavSize()) === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
+      else navArmedRef.current = false;
+    }
     navResolve(loc);
     return true;
   };
+  const navBackRef = React.useRef(navBack); navBackRef.current = navBack;
   React.useEffect(() => {
     window.ShapeNav = {
       push: navPush,
@@ -422,6 +427,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     };
     return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
   });
+  React.useEffect(() => {
+    const onPop = () => {
+      if (!navArmedRef.current) return;         // not our guard entry
+      if (!navBackRef.current(true)) navArmedRef.current = false; // raced empty — disarm
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
