@@ -1210,6 +1210,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const [showProfile, setShowProfile] = useStateBSM2(false);
   const [showCal, setShowCal] = useStateBSM2(false);
+  const [offerSheet, setOfferSheet] = useStateBSM2(false);
   // Real availability for live coaches: the weekly pattern minus booked
   // sessions, projected 6 weeks (null = demo/preview row or fetch failed —
   // the labeled preview pattern renders instead; [] = a live coach with no
@@ -1597,6 +1598,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               {Array.isArray(monthlyPkg.perks) && <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ marginTop: 9, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
               <button onClick={() => openCheckout(monthlyPkg)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 11, padding: 12, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+              <div style={{ marginTop: 9, textAlign: 'center' }}>
+                <button onClick={() => setOfferSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>What's included →</span></button>
+              </div>
             </>)}
           </div>
         </div>
@@ -1732,6 +1736,39 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       <div style={{ padding: `16px ${t.padX}px 20px` }}>
         <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Start with {firstName} · free intro →</button>
       </div>
+
+      {offerSheet && monthlyPkg && (() => {
+        // Coach-authored monthly offer (provider row monthly_offer) — honest
+        // generic fallback when the coach hasn't written one.
+        const mo = coach.monthly_offer && typeof coach.monthly_offer === 'object' ? coach.monthly_offer : null;
+        const blurb = (mo && typeof mo.blurb === 'string' && mo.blurb.trim()) ? mo.blurb.trim().slice(0, 600) : null;
+        const includes = (mo && Array.isArray(mo.includes) ? mo.includes : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 8);
+        const rows = includes.length ? includes : (Array.isArray(monthlyPkg.perks) ? monthlyPkg.perks : []);
+        return (
+          <div onClick={() => setOfferSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`What ${firstName}'s monthly coaching includes`} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>Monthly coaching{blurb ? '' : ' · Standard'}</div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>Coached by {firstName}, monthly<span style={{ color: roleColor }}>.</span></div>
+              <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+              {blurb ? <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>{blurb}</div>
+                : <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>{firstName} hasn't written a custom description yet — the standard monthly package includes:</div>}
+              <div style={{ marginTop: 6 }}>
+                {rows.map((line, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+                    <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: teal, fontWeight: 800 }}>✓</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>{String(line).slice(0, 80)}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
+                <button onClick={() => setOfferSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>Close</span></button>
+                <button onClick={() => { setOfferSheet(false); openCheckout(monthlyPkg); }} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <BSPublicActionPanel
         action={action}
