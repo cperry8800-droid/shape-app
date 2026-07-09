@@ -159,15 +159,22 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-08): Kitchen Card & Catalogue** — the recipe surfaces rebuilt as
-> **"The Kitchen Card"** (a typed double-ruled index card with the directions OUTSIDE
-> it) + the client Library as **"The Catalogue"** (a typographic index that IS the
-> filter + tick-divider rows), and the Shape Kitchen catalog restructured/expanded to
-> **35 detailed recipes** gated by a data-integrity test — mobile ⇄ website content
-> parity. Three PRs (#1627 card + catalog, #1628 Library, #1629 website port). See the
-> dated changelog entry below. Open: owner on-device pass + real recipe photography for
-> the card figure. *(Prior 2026-07-08: Train "The Program" + Eat "The Menu" —
-> #1622/#1623.)*
+> **Latest (2026-07-09): The Marketplace Listing wave** — tapping a marketplace coach
+> now opens **"THE LISTING"** (spec #1632), a purpose-built conversion page (the Signal
+> living profile stays untouched behind one THE FULL PROFILE → door): eyebrow/portrait/
+> register head, a **real scheduling calendar** (weekly `provider_availability` minus
+> booked sessions, projected by a new tested `coachAvailability.mjs`), the
+> **standing-offer coupon** with the at-capacity waitlist gate + a **coach-authored
+> monthly offer** (WHAT'S INCLUDED sheet · coaches edit it from their practice
+> shortcuts · migration `2026-07-09-provider-monthly-offer.sql` — **OWNER RUNS**),
+> PROGRAMS + role-aware SINGLE WORKOUTS/MEALS shelves, and honesty fixes (the synthetic
+> match% chip + seeded 10.0/10 ratings die). Habits page → **"The Habit Ledger"**
+> (#1635); the **website coach profile brought to parity** (#1637 — coupon + monthly
+> offer + singles on the site's rate card). Six PRs: #1631 meal-preview/radio polish ·
+> #1633 slate habits head · #1634 the Listing · #1635 Habits · #1636 calendar + offer ·
+> #1637 website. See the dated entry below. Open: the migration + the on-device pass.
+> *(Prior 2026-07-08: Kitchen Card & Catalogue — #1627/#1628/#1629 — and Train "The
+> Program" + Eat "The Menu" — #1622/#1623.)*
 >
 > **Prior session handoff: [`docs/HANDOFF-2026-07-08.md`](HANDOFF-2026-07-08.md)** —
 > **Self-serve training for coach-less members** (spec #1616 → build #1618, on `main`):
@@ -281,6 +288,78 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-09 — The Marketplace Listing wave: THE LISTING conversion page · real scheduling calendar · coach-authored monthly offer · Habit Ledger · website parity (#1631–#1637)
+- **The routing discovery that redirected the wave** (owner prompted): tapping a
+  marketplace coach opened the Signal living profile — `BSCoachDetailPublic` was a
+  dead fallback. Owner call: build **"THE LISTING"** as the marketplace conversion
+  page and keep the Signal profile untouched (reachable via a THE FULL PROFILE →
+  leader). Spec `docs/superpowers/specs/2026-07-09-marketplace-listing-design.md`
+  (#1632) + plan `docs/superpowers/plans/2026-07-09-marketplace-listing.md`; owner
+  additions mid-spec: full calendar access, buyable single workouts, a coach-written
+  monthly-offer description, the Habits page, and website parity.
+- **PR B #1634 — THE LISTING (`55ad7ba0`).** `BSCoachDetailPublic` rebuilt as one
+  continuous ledger (the tabs die): eyebrow `LISTING Nº n · ROLE · ✓ VETTED` (real
+  verified flag), duotone portrait, serif split name, tier NAMED in tier color, a 4-up
+  SCORE/SESSIONS/YEARS/RATING register, the clipped teal **BOOK THE INTRO · $0** CTA;
+  the **standing-offer coupon** (scissor-dashed) carries the **at-capacity waiting-room
+  gate** ported from the Signal storefront (join/waiting/invited states via
+  `window.ShapeWaitlist`); PROGRAMS + SINGLE WORKOUTS stations bucket the real
+  `coach_plans` by category; **honesty pass** — the synthesized match% chip and the
+  hardcoded 10.0/10 seeded ratings die (unrated testimonials), `$NaN` rate + footer
+  `coach.id` crash + unguarded `coach.spec` fixed on the plans-rail door path.
+- **PR D #1635 — Habits "The Habit Ledger" (`c85c91b5`).** Score card → serif verdict
+  ("+N banked today — N more on the table.") + a bare 5-col register + ink→teal ledger
+  rule; the grid unboxes (cells kept); habit rows → tick-divider rows (24px squared
+  checkbox); sections → station heads (accent tick + mono `TO DO · 1/2 DONE`) with an
+  underline ＋ Add. One CodeRabbit motif flag declined with receipts (the gradient
+  ledger rule is the documented house register, spec'd + pre-existing in-file).
+- **PR C #1636 — the calendar + the coach-authored monthly offer (`3030ad31`).**
+  New pure **`mobile-app/src/services/coachAvailability.mjs`** (+7 test vectors, suite
+  511): projects the coach's weekly `provider_availability` minus booked `sessions`
+  (public `GET /api/availability`) into dated open slots over 6 weeks — OPEN THIS WEEK
+  shows genuinely-open dated slots, `SEE THE FULL CALENDAR →` opens a month-grid
+  (`BSCoachAvailabilityCalendar`, role-heat ticks on bookable days, tap → dot-leader
+  slot rows → the same booking confirm); live coaches with no pattern read honestly
+  empty, demo/failed fetch falls to a labelled preview pattern. The coupon's
+  **WHAT'S INCLUDED →** sheet renders the coach's own `monthly_offer` (blurb ≤600 +
+  ≤8 teal-✓ lines, honest "Standard" fallback), and coaches write it from a new
+  **Monthly offer** practice shortcut (`BSProMonthlyOfferSheet`, owner-scoped direct
+  provider-row write — `monthly_offer` is deliberately NOT admin-pinned).
+  **Review round (4 findings, all fixed `8b225896`):** a real **P1** — the route
+  serializes `booked` as ISO **strings** but the projector read `.scheduled_at`, so a
+  live coach's booked slots reappeared open (both shapes now normalize to one
+  wall-time key + a string-shape test vector); DST spring-forward slots now key/display
+  as the `setHours`-resolved wall time; the demo-expansion duplicated at two call
+  sites → one `expandPreviewSlots`; the offer editor's deletable rows keyed by index →
+  stable ids. CodeRabbit confirmed all four on re-review.
+- **⚠ Migration `2026-07-09-provider-monthly-offer.sql` (OWNER RUNS, idempotent):**
+  adds `monthly_offer jsonb` to `trainers` + `nutritionists` (shape
+  `{blurb ≤600, includes text[] ≤8×≤80, updatedAt}`). Everything degrades cleanly
+  until applied (the sheet shows the Standard fallback; saves surface an error).
+- **PR E #1637 — website coach-page parity.** All in `livingShared.jsx` (`?v=16`
+  across the 7 consumer pages; `livingDesktop.jsx` untouched): the Work-with
+  storefront becomes the **standing-offer coupon** (✂ dashed frame, Subscribe/Book
+  handlers verbatim), rendering the coach's **`monthly_offer`** off the public
+  provider row (fails quietly pre-migration — honest absence); `LvServices` buckets
+  the real `coach_plans` with the mobile Listing's **exact** role-aware single
+  matchers into a **Single workouts / Single meals** rate-card category. Content
+  parity in the site's #1537 ledger grammar — no redesign. **Review round (3, all
+  fixed `deedd74e`):** a real **P2** — `d.role` is lowercase in both the demo persona
+  and live profiles, so the new `"Nutritionist"` checks never matched (the singles
+  shelf would read trainer-labeled and the offer fetch would hit `trainers` for every
+  nutritionist) → normalized case-insensitively, incl. the pre-existing price default
+  carrying the same latent check; offer lines filter to trimmed strings (the mobile
+  contract); the WHAT'S INCLUDED heading gates on lines existing. Merged `d8e55302`.
+- **Also this wave:** #1631 — the meal preview serialized (bare 4-up register +
+  Kitchen-Card two-column ingredients + lettered method steps) + the radio muted bar's
+  clipped frame (dead `onPrompt` removed); #1633 — the Home slate gains a mono
+  **DAILY HABITS** sub-head (i18n'd) separating habits from the day's agenda.
+- **Verified per commit:** JSX parse · `VITE_BASE=/m/` build exit 0 · `npm test`
+  (511) · LF normalization; every PR gated on CI green + CodeRabbit with all threads
+  resolved. **Open:** owner runs the monthly_offer migration; on-device pass across
+  Black/Sage/Cream × trainer/nutritionist Listings (coupon states incl. at-capacity ×
+  the calendar month grid × the offer editor) + the Habit Ledger + the website coupon.
 
 ### 2026-07-08 — Kitchen Card & Catalogue: recipe surfaces + Library rebuilt · catalog → 35 detailed recipes · app⇄web parity (#1627 · #1628 · #1629)
 - **Owner-composed direction** (spec `docs/superpowers/specs/2026-07-08-kitchen-card-catalogue-design.md`
