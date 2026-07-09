@@ -397,7 +397,7 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
 function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
-  const isNutri = d.role === "Nutritionist";
+  const isNutri = /nutritionist/i.test(String(d.role || "")); // d.role is lowercase (demo + live)
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
   // back to the demo offerings when the coach hasn't published any.
   const [real, setReal] = React.useState(null);
@@ -582,7 +582,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // Storefront: the profile is the listing. Resolve the coach's provider (for the
   // subscription checkout) + live reviews — the same data the marketplace used.
   const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
-  const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (d.role === "Nutritionist" ? "$240" : "$200");
+  const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (/nutritionist/i.test(String(d.role || "")) ? "$240" : "$200");
   const [provider, setProvider] = React.useState(null);
   const [liveReviews, setLiveReviews] = React.useState(null);
   // Coach-authored monthly offer (spec #1632 §5) — the same provider-row
@@ -594,13 +594,13 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
     const cl = window.shapeDb && window.shapeDb.client;
     if (!d.uid || !cl || !cl.from) return;
     let on = true;
-    const table = d.role === "Nutritionist" ? "nutritionists" : "trainers";
+    const table = /nutritionist/i.test(String(d.role || "")) ? "nutritionists" : "trainers";
     cl.from(table).select("monthly_offer").eq("owner_id", d.uid).maybeSingle()
       .then((r) => { if (on && r && !r.error && r.data && r.data.monthly_offer) setOffer(r.data.monthly_offer); })
       .catch(() => {});
     return () => { on = false; };
   }, [d.uid, d.role]);
-  const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter(Boolean).slice(0, 8) : [];
+  const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 8) : [];
   const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
@@ -647,7 +647,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                   <span style={{ fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>{String(line)}</span>
                 </div>
               ))}
-              <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.4), marginTop: 9 }}>What's included · in {first}'s words</div>
+              {offerLines.length > 0 && <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.4), marginTop: 9 }}>What's included · in {first}'s words</div>}
             </div>
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, maxWidth: 420 }}>
