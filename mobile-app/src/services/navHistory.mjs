@@ -42,8 +42,20 @@ export function bsNavAnnounce(partial) { _announced = partial && typeof partial 
 export function bsNavAnnounced() { return _announced; }
 export function bsNavCompose(shellLoc) { return _announced ? { ...shellLoc, ..._announced } : { ...shellLoc }; }
 
-// ── Guard-entry decisions (the hardware-back bridge, spec §5): ONE history
-// entry armed on the empty→non-empty transition, re-armed per consumed pop,
-// disarmed when the pop empties the stack. Pure so the sequences are testable.
+// ── Guard-entry decisions (the hardware-back bridge, spec §5). ONE browser
+// history entry stands in for the whole stack. The invariant these three keep:
+//
+//     a guard entry exists  ⟺  armed  ⟺  the stack is non-empty
+//
+// `bsGuardAfterPush`  — arm on the empty→non-empty transition (only then).
+// `bsGuardAfterPop`   — the POPSTATE path: the browser just consumed the guard,
+//                       so re-arm while entries remain, else disarm.
+// `bsGuardAfterInAppPop` — the ON-SCREEN back path: the guard was NOT consumed.
+//                       While entries remain it still stands for them (no-op);
+//                       when the stack empties it is stale and must be consumed,
+//                       or the next hardware Back would spend itself on it and
+//                       the user's real back would be swallowed.
+// Pure, so every arm/re-arm/disarm/consume sequence is unit-testable.
 export function bsGuardAfterPush(prevSize, nextSize) { return prevSize === 0 && nextSize > 0 ? 'arm' : null; }
 export function bsGuardAfterPop(sizeAfterPop) { return sizeAfterPop > 0 ? 'rearm' : 'disarm'; }
+export function bsGuardAfterInAppPop(sizeAfterPop, armed) { return sizeAfterPop === 0 && armed ? 'consume' : null; }

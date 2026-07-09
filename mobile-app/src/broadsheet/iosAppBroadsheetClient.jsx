@@ -15,7 +15,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
-import { bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce, bsNavCompose, bsGuardAfterPush, bsGuardAfterPop } from '../services/navHistory.mjs';
+import { bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce, bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop } from '../services/navHistory.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -412,6 +412,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       // the browser just consumed the guard entry
       if (bsGuardAfterPop(bsNavSize()) === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
       else navArmedRef.current = false;
+    } else if (bsGuardAfterInAppPop(bsNavSize(), navArmedRef.current) === 'consume') {
+      // An ON-SCREEN back just emptied the stack, so the guard entry we pushed
+      // is now stale. Left in place it would eat the user's NEXT hardware Back
+      // (popstate spends itself on the guard and nothing moves — a swallowed
+      // press). Disarm FIRST so the popstate this triggers is ignored by onPop,
+      // then walk the browser off the guard.
+      navArmedRef.current = false;
+      try { window.history.back(); } catch (e) {}
     }
     navResolve(loc);
     return true;
