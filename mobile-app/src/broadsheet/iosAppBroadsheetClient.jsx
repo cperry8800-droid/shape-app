@@ -15,7 +15,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
-import { useBSNavHistory } from './bsNavShell.js';
+import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -413,7 +413,28 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // itself is safe: useBSNavHistory reads navLoc through a per-render ref. The
   // goX helpers below still close over state directly, so they need this.)
   const navJumpRef = React.useRef({});
-  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations };
+  // Swipe judgment (PR C): the chrome's BSNavGestures classifies raw touches
+  // and dispatches shape:navGesture; THIS shell decides what an intent means.
+  // 'back' = the stack, else close the top takeover (mirrors the smart-backs).
+  // Tab swipes step the ROOT order only — never while a takeover is open, and
+  // never from jump-destination screens (radio/market/store aren't tab stops).
+  const [navSlideCls, navSlide] = useBSNavSlide(tab);
+  const onNavGesture = (intent) => {
+    if (intent === 'back') {
+      if (navBack()) return;
+      if (showSearch) { setShowSearch(false); return; }
+      if (showSettings) { setShowSettings(false); setSettingsStart(''); return; }
+      if (showCalendar) setShowCalendar(false);
+      return;
+    }
+    if (showSettings || showCalendar || showSearch) return;
+    const next = bsNavStepTab(['home', 'train', 'eat', 'chat', 'me'], tab, intent);
+    if (!next) return;
+    navSlide(intent === 'next-tab' ? 'l' : 'r');
+    setTab(next);
+  };
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, onNavGesture };
+  useBSNavGestureHandler(navJumpRef);
 
   React.useEffect(() => {
     window.__shapeActiveTab = tab;
@@ -661,9 +682,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} initialPage={meStart} onStartConsumed={() => setMeStart('')} />,
   };
+  // navSlideCls (from useBSNavSlide): one-shot on a tab SWIPE, cleared in an
+  // effect after commit; a tab TAP renders instantly; reduced-motion in CSS.
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
-      {screens[tab]}
+      <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
+        {screens[tab]}
+      </div>
       <BSRadioFx />
       {/* Pinned message composers (chat feed + DM threads) portal into this
           slot so they're positioned against the phone-frame container — not
@@ -701,6 +726,9 @@ function BSClientApp({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // its 600ms auto-prompt — making Home flash before the overlay.
   return (
     <BSSheetProvider>
+      {/* Gesture layer mounts HERE (never early-returns), so edge-swipe back
+          keeps working while a takeover has replaced the Inner's main render. */}
+      {typeof window !== 'undefined' && window.BSNavGestures ? React.createElement(window.BSNavGestures) : null}
       <BSClientAppInner onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} initialTab={initialTab} />
     </BSSheetProvider>
   );
@@ -20449,7 +20477,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
   const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
   return (
-    <BSPage>
+    <BSPage noSwipe>
       {/* Header — End / Live timer / set count */}
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>

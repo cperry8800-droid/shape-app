@@ -1,4 +1,5 @@
 import React from 'react';
+import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -409,7 +410,7 @@ function isInteractiveTarget(target) {
 // ═══════════════════════════════════════════════════════════
 
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
+function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
   // Condensing masthead: once the page's own masthead scrolls away (~64px), a
@@ -483,7 +484,7 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
   }, []);
 
   const scroller = (
-    <div ref={scrollerRef} className="bs-scroll" style={{
+    <div ref={scrollerRef} className="bs-scroll" {...((mast && !noSwipe) ? {} : { 'data-bs-noswipe': '' })} style={{
       position: 'absolute', inset: 0,
       height: '100%',
       overflowX: 'hidden',
@@ -1508,8 +1509,134 @@ function BSBackButton({ onClick, label = 'Back', style }) {
     </button>
   );
 }
+// ═══ Swipe navigation (spec 2026-07-09 §4 · PR C) ═══════════════════════════
+// One gesture layer for all three shells: capture-phase, ALWAYS-passive touch
+// listeners on the phone surface classify a finished touch via the pure
+// bsSwipeIntent and dispatch `shape:navGesture` { intent }. The shells apply
+// the judgment (back → navBack ‖ close-top-takeover; prev/next-tab → step their
+// own tab order when no takeover is open). We never preventDefault, so this
+// layer cannot fight browser scrolling or the native scroll handlers above.
+
+// ONE ancestor walk decides whether a touch may become a gesture. Blocked when
+// it starts on: an interactive control · a horizontal scroller that actually
+// overflows (the `.bs-scroll` class marks MANY scrollers — rails included — so
+// nothing is exempted by class; the checks are per-axis) · a touchAction-owning
+// surface — `pan-x`/`none` always claim horizontal touches, and `pan-y` claims
+// them ONLY on a non-vertically-scrolling element (that's a chart scrub;
+// a pan-y element that itself scrolls vertically is just a page/list scroller
+// and horizontal is unclaimed there) · a sheet/overlay backdrop · an explicit
+// [data-bs-noswipe] opt-out (BSPage stamps it for mast={false} full-screen
+// flows and noSwipe pages).
+//
+// COST NOTE: the walk forces style/layout reads (getComputedStyle, scrollWidth)
+// — BSNavGestures therefore calls it only AFTER a finished touch has already
+// classified as a gesture geometrically, never on plain taps.
+function bsSwipeBlocked(target, surf) {
+  // Only TRUE input controls block a swipe at the target level — a horizontal
+  // drag on a text field / slider means selection/cursor/value, never nav.
+  // Buttons, links and rows deliberately do NOT block: dense pages (rosters,
+  // feeds, chat lists) are mostly tappable rows, and a blanket interactive
+  // block would leave them swipe-dead. The tap/drag distinction is the
+  // platform's: a real finger that travels far enough to classify never
+  // synthesizes a click, and these listeners are passive so taps are untouched.
+  if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return true;
+  const surfH = (surf && surf.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 0);
+  let el = target instanceof Element ? target : null;
+  while (el && el.id !== 'bs-phone-surface' && el !== document.body) {
+    if (el.hasAttribute('data-bs-noswipe')) return true;
+    const s = getComputedStyle(el);
+    const ta = s.touchAction || '';
+    // pan-y on a DECLARED vertical scroller is just page/list scrolling —
+    // horizontal is unclaimed. pan-y on a non-scroller (overflow visible) is a
+    // chart scrub claiming horizontal touches. Declared, not measured: a short
+    // page whose content happens to fit must not lose tab-swipe.
+    const declaresY = s.overflowY === 'auto' || s.overflowY === 'scroll';
+    if (/(^|\s)(none|pan-x)(\s|$)/.test(ta)) return true;
+    if (/(^|\s)pan-y(\s|$)/.test(ta) && !declaresY) return true;
+    if ((s.overflowX === 'auto' || s.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
+    // Sheet/overlay backdrops: every Broadsheet sheet portals in as an
+    // `absolute · inset:0 · explicit zIndex` layer, but the z values span 60
+    // (quick sheets) → 245 (composers) → 6000+ (loggers) while the chrome
+    // strips sit at z 55/60 — no threshold separates them. The signature that
+    // does: FULL-HEIGHT coverage plus a real stacking order (z ≥ 10 skips
+    // BSPage's z-0/1 backdrop wrappers; the coverage test skips the pinned
+    // mast / tab bar / composer slot, all short strips).
+    const z = parseInt(s.zIndex, 10);
+    if (!Number.isNaN(z) && z >= 10 && (s.position === 'absolute' || s.position === 'fixed') && el.offsetHeight >= surfH * 0.85) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
+// The tab-swipe slide: subtle 24px settle on the incoming screen, one-shot.
+// Reduced motion is handled in CSS (no JS branch), and a tab TAP renders with
+// no class at all — the slide only rides an actual swipe.
+let _bsNavSwipeCssDone = false;
+function bsInjectNavSwipeCss() {
+  if (_bsNavSwipeCssDone || typeof document === 'undefined') return;
+  _bsNavSwipeCssDone = true;
+  const s = document.createElement('style');
+  s.textContent = `
+    @keyframes bsNavSlideL { from { transform: translateX(24px); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes bsNavSlideR { from { transform: translateX(-24px); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+    .bs-nav-slide-l { animation: bsNavSlideL 180ms ease-out; }
+    .bs-nav-slide-r { animation: bsNavSlideR 180ms ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      .bs-nav-slide-l, .bs-nav-slide-r { animation: none !important; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function BSNavGestures() {
+  useEffectBS(() => {
+    bsInjectNavSwipeCss();
+    const surf = document.getElementById('bs-phone-surface') || document.body;
+    let start = null;
+    const onStart = (e) => {
+      if (e.touches.length !== 1) { start = null; return; }
+      const t0 = e.touches[0];
+      // Normalize x to the SURFACE's left edge — in the desktop preview the
+      // phone frame is inset, and the 24px edge zone is the phone's edge, not
+      // the browser window's. Only the raw sample is taken here — the DOM
+      // blocked-walk is deferred to touchend and runs ONLY for touches whose
+      // geometry already classifies (taps stay style/layout-read-free).
+      const left = surf.getBoundingClientRect().left;
+      start = { x0: t0.clientX - left, y0: t0.clientY, t: Date.now(), target: e.target };
+    };
+    const onMove = (e) => { if (e.touches.length !== 1) start = null; };
+    const onEnd = (e) => {
+      if (!start || e.changedTouches.length !== 1) { start = null; return; }
+      const t1 = e.changedTouches[0];
+      const left = surf.getBoundingClientRect().left;
+      const intent = bsSwipeIntent({
+        x0: start.x0, y0: start.y0,
+        x1: t1.clientX - left, y1: t1.clientY,
+        dt: Date.now() - start.t, blocked: false,
+      });
+      const startTarget = start.target;
+      start = null;
+      if (!intent) return;
+      if (bsSwipeBlocked(startTarget, surf)) return;
+      try { window.dispatchEvent(new CustomEvent('shape:navGesture', { detail: { intent } })); } catch (err) {}
+    };
+    const onCancel = () => { start = null; };
+    surf.addEventListener('touchstart', onStart, { capture: true, passive: true });
+    surf.addEventListener('touchmove', onMove, { capture: true, passive: true });
+    surf.addEventListener('touchend', onEnd, { capture: true, passive: true });
+    surf.addEventListener('touchcancel', onCancel, { capture: true, passive: true });
+    return () => {
+      surf.removeEventListener('touchstart', onStart, true);
+      surf.removeEventListener('touchmove', onMove, true);
+      surf.removeEventListener('touchend', onEnd, true);
+      surf.removeEventListener('touchcancel', onCancel, true);
+    };
+  }, []);
+  return null;
+}
+
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton,
+  BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,

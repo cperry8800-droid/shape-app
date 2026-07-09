@@ -159,14 +159,17 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-09b): Navigation history PRs A + B** — back returns to the
-> TRUE previous page across **all three shells**: a pure `navHistory.mjs`
-> descriptor stack + announce register, cross-jump instrumentation, smart-backs,
-> and a single-guard-entry hardware/browser-back bridge, extracted into one
-> shared `useBSNavHistory` hook (`bsNavShell.js`) that the client, trainer and
-> nutritionist shells all ride. Spec #1642; **PR C (swipe gestures) next**. Same
-> day: **Book now parity** (#1640 — both invited CTAs fire the per-role one-time
-> purchase). Dated entries below.
+> **Latest (2026-07-09b): The navigation wave, complete (PRs A + B + C)** — back
+> returns to the TRUE previous page across **all three shells** (pure
+> `navHistory.mjs` descriptor stack + announce register + smart-backs + the
+> single-guard-entry hardware/browser-back bridge, one shared `useBSNavHistory`
+> hook), and **swipe navigation shipped**: left-edge swipe = back, content swipe
+> = adjacent root tab (`swipeIntent.mjs` + the chrome's `BSNavGestures`,
+> per-axis scroller guards, sheets/inputs/full-screen flows opt out, `BS_SWIPE`
+> = the one tuning surface). Spec #1642. Same day: **HOTFIX #1646** — universal
+> search had been CRASHING the app on open since 2026-07-07 (found live during
+> gesture verification) — and **Book now parity** (#1640). Open: the owner
+> on-device pass for the whole wave. Dated entries below.
 >
 > **Prior (2026-07-09): The Marketplace Listing wave** — tapping a marketplace coach
 > now opens **"THE LISTING"** (spec #1632), a purpose-built conversion page (the Signal
@@ -298,6 +301,76 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-09 — Navigation history PR C: swipe navigation (edge-back + tab swipe, all three shells)
+- **The wave's last piece** (spec #1642 §4; plan
+  `docs/superpowers/plans/2026-07-09-nav-swipe-gestures.md`; built INLINE on
+  Fable — gesture thresholds + DOM-context judgment + browser verification).
+- **One pure classifier** — `mobile-app/src/services/swipeIntent.mjs`
+  (+ `tests/swipe-intent.test.mjs`, 8 vectors, suite 529): edge-zone-wins rules
+  (`x0 ≤ 24px && dx ≥ 60 && |dy| < 40` → back, no dt cap — a slow deliberate
+  edge-drag still means back) and tab rules (`|dx| ≥ 70 && |dx| > 2·|dy| &&
+  dt ≤ 600ms`). **`BS_SWIPE` is the single tuning surface** for the owner's
+  on-device feel pass — no other threshold exists in the pipeline.
+- **One chrome gesture layer** — `BSNavGestures` (`iosAppBroadsheet.jsx`,
+  window-exported): capture-phase **always-passive** touch listeners on
+  `#bs-phone-surface` (never preventDefault — cannot fight scrolling or the
+  native scroll handlers), coordinates normalized to the SURFACE's left edge
+  (the desktop-preview bezel would otherwise break the edge zone), dispatching
+  `shape:navGesture { intent }`. **ONE ancestor walk** classifies a touch:
+  true input controls block (input/textarea/select/contenteditable — a drag
+  there means selection/cursor); **buttons/rows deliberately do NOT block**
+  (dense pages — rosters, feeds, lists — are mostly tappable rows and would be
+  swipe-dead; the platform never synthesizes a click after a real drag);
+  horizontal scrollers that actually overflow block (per-axis — the `.bs-scroll`
+  class marks MANY scrollers incl. the chat presence rail, so nothing is
+  exempted by class); `pan-x`/`none` always block; **`pan-y` blocks only on
+  non-vertically-scrolling elements** (chart scrubs) while declared vertical
+  scrollers pass; sheets/overlays block via their portal signature —
+  full-height coverage + explicit zIndex ≥ 10 (the z census spans 60→6000+,
+  so no threshold separates sheets from the z-55/60 chrome strips; coverage
+  does — review-hardened after Codex named two low-z composer sheets);
+  the blocked-walk runs ONLY on geometrically-qualifying touches, never on
+  taps (CodeRabbit perf finding); the shell judgment plumbing (step math ·
+  listener · slide state) is extracted to `bsNavShell.js` helpers
+  (`bsNavStepTab` · `useBSNavGestureHandler` · `useBSNavSlide` — kills the 3×
+  fork + the render-body ref mutation);
+  `[data-bs-noswipe]` opts out — **BSPage stamps it automatically for
+  `mast={false}` flows** (meal logger) and a new `noSwipe` prop covers the
+  **live session** (`BSSession` — an edge-back mid-workout would jump to a
+  stale cross-context location).
+- **Shell judgment ×3** (client + both coaches, live-ref pattern): `back` →
+  `navBack()` falling back to closing the top takeover; `prev/next-tab` → only
+  when no takeover is open, stepping each shell's OWN root order
+  (client home·train·eat·chat·me; coaches today·clients·programs|plans·chat·me),
+  **clamped at the ends** (no wrap); jump-destination screens (radio · market ·
+  store) get edge-back only. A tab SWIPE plays a one-shot 24px slide on the
+  incoming screen (`prefers-reduced-motion` kills it in CSS); a tab TAP renders
+  instantly as before.
+- **Browser-verified with synthesized touches** (client + trainer): tab order
+  walks + clamps; swipes starting on the presence rail / horizontal scrollers
+  do NOT switch tabs (this catch forced the per-axis guard rewrite); swipes
+  starting on roster rows DO work (this catch removed the blanket interactive
+  block); edge-back walks a jump chain and consumes the guard; empty-stack
+  edge-swipe no-ops; slow pans and diagonals never classify; the live session
+  blocks both gestures (`data-bs-noswipe` verified stamped); vertical scrolling
+  never misfires.
+- **Open:** the owner on-device feel pass (thresholds in `BS_SWIPE`) across
+  Black/Sage/Cream × both roles × reduced-motion — the standing item for the
+  whole nav wave.
+
+### 2026-07-09 — HOTFIX: universal search crashed the app on open (live since #1591)
+- **Opening universal search — the ⌕ in every header, all roles — crashed to
+  the error boundary** ("Something went wrong · on is not defined") since the
+  2026-07-07 grocery PR: its `aria-pressed` sweep referenced `on` in
+  `BSUniversalSearch`'s filter-chip map, the ONE swept site (of 17 audited)
+  whose callback never defines it → ReferenceError on first render. Unnoticed
+  for two days because nothing opened search in verification; **found live**
+  while browser-verifying the nav-gestures PR. One-token fix
+  (`aria-pressed={filter === k}`, #1646), browser-proven before merge.
+  *Lesson recorded: crash-class bugs in rarely-verified surfaces survive every
+  static gate — parse, tsc, tests, and build all pass on an undefined
+  identifier reference inside JSX.*
 
 ### 2026-07-09 — Navigation history PR B: the coach shells ride the same spine (one shared hook)
 - **PR B of 3** (after PR A `a65a599e`). Plan `docs/superpowers/plans/2026-07-09-nav-history-coach-parity.md`;
