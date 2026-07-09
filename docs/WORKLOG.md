@@ -159,10 +159,15 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-08): Train "The Program" + Eat "The Menu"** — the last two
-> plate-era client day-surfaces serialized into the Open Ledger language (option C,
-> presentation-only; #1622 shared-chrome+Train, #1623 Eat). See the dated changelog
-> entry below. Open: owner on-device pass.
+> **Latest (2026-07-08): Kitchen Card & Catalogue** — the recipe surfaces rebuilt as
+> **"The Kitchen Card"** (a typed double-ruled index card with the directions OUTSIDE
+> it) + the client Library as **"The Catalogue"** (a typographic index that IS the
+> filter + tick-divider rows), and the Shape Kitchen catalog restructured/expanded to
+> **35 detailed recipes** gated by a data-integrity test — mobile ⇄ website content
+> parity. Three PRs (#1627 card + catalog, #1628 Library, #1629 website port). See the
+> dated changelog entry below. Open: owner on-device pass + real recipe photography for
+> the card figure. *(Prior 2026-07-08: Train "The Program" + Eat "The Menu" —
+> #1622/#1623.)*
 >
 > **Prior session handoff: [`docs/HANDOFF-2026-07-08.md`](HANDOFF-2026-07-08.md)** —
 > **Self-serve training for coach-less members** (spec #1616 → build #1618, on `main`):
@@ -276,6 +281,56 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-08 — Kitchen Card & Catalogue: recipe surfaces + Library rebuilt · catalog → 35 detailed recipes · app⇄web parity (#1627 · #1628 · #1629)
+- **Owner-composed direction** (spec `docs/superpowers/specs/2026-07-08-kitchen-card-catalogue-design.md`
+  #1625+#1626, plan `docs/superpowers/plans/2026-07-08-kitchen-card-catalogue.md`):
+  the recipe surfaces become **"The Kitchen Card"** and the client Library becomes
+  **"The Catalogue."** Three PRs, each gated (CI + CodeRabbit), squash-merged, branch kept.
+- **The catalog — restructured, detailed, expanded, TDD'd (PR A #1627, `2391c52d`).**
+  `mobile-app/src/broadsheet/shapeKitchenData.js` ingredients moved from strings to
+  **structured `{n, m, k?}`** (qty · name · optional kcal) with a real quantity on every
+  line; a **cookable detail pass** on all 26 (heat/vessel/time + doneness cues, storage
+  notes, `time`/`prep`); **+9 new recipes → 35 total**. New
+  **`tests/shape-kitchen-data.test.mjs`** gates it (≥35 recipes, ≥4 cue-rich steps,
+  structured quantities, macro-consistent kcal ±15%, honest photo paths, and a
+  diet-classification desync guard added in review). **`BSKitchenCard`** is one shared
+  bounded card (typed Nº header · centered serif title · gold byline · 4-up register ·
+  **conditional photo figure — only when a real `photo` exists, no gradient stand-in** ·
+  two-column ruled ingredients w/ household-unit conversion · typed coach note) used by
+  BOTH the Shape Kitchen detail and the Eat-day preview (kills their drift); recipe detail
+  renders the **directions OUTSIDE the card** (lettered serif steps under THE METHOD); the
+  day-view preview's fake local save became a **real `bsLibToggle`** library save; the
+  Recipes tab got the slim Nº card stack.
+- **Library "The Catalogue" (PR B #1628, `d29ad748`).** `BSClientLibrary`'s 4-up bordered
+  stat-tile grid becomes a **typographic index that IS the filter** (count · mono label ·
+  underline that thickens when active, `aria-pressed`); saved-item cards become
+  **tick-divider rows** (kind-color tick · title · KIND · price · coach · meta · saved
+  date); the empty state unboxes to an honest italic line. `BSLibraryDetail`'s preview card
+  becomes a **kind-spine italic quote** and the save/remove button an **underline action**
+  (Start-this-plan CTA + sheet byte-identical). Grocery drops purple `#8a5cf6` for
+  `#3b74b8`, single-sourced from `BS_LIB_KINDS`.
+- **Website content parity (PR C #1629, `bda5b9a2`).** `public/newdesign/recipes.jsx`
+  regenerated from the mobile catalog — **`RECIPES_BY_WEEKDAY` (7, index 0=Sunday, the
+  Today widget) + `RECIPES_EXTRA` (28)**, weekday order preserved; structured ingredients
+  flattened to the site's **display strings** with the kcal annotation kept
+  (`"6 oz chicken thigh, skin-on (330 kcal)"` — lossless); `note` = the mobile `blurb`; the
+  `_RECIPE_NOT_GF`/`_RECIPE_HAS_DAIRY`/`_RECIPE_MED` title-sets synced so the site's diet
+  filters classify the 9 new recipes; `recipeNeeds`/`recipeMatchesDiet` + all render code
+  untouched; `?v=2` on Recipes.html + RecipeDetail.html (CRLF preserved). **Design untouched
+  — content-only.**
+- **Review rounds (all addressed).** PR A drew 5 CodeRabbit passes — several were real
+  correctness/honesty bugs: the Eat-day preview rendered the `linear-gradient(…)` hero
+  string as visible text (→ `r.blurb || r.brief`); a false "no saved recipes yet" empty
+  state when a filter hid saved recipes; a divergent per-surface library record (→ one
+  `bsRecipeLibItem` helper); star-rating a11y. PR C caught a stray **`GF` badge** on two
+  non-gluten-free recipes (soy sauce/miso) — fixed at the **source catalog** (same
+  contradiction was live post-PR-A) + re-ported, keeping app/web parity.
+- **Verified** per commit: JSX parse · `VITE_BASE=/m/` build exit 0 · `npm test` **505**
+  green (497 + the catalog data test's suite) · LF (CRLF preserved on the website HTML). No
+  migration, no routes. **Open:** owner on-device pass (papers × the card figure/no-figure ×
+  the Library index/rows) + **real recipe photography** for the card figure (joins the
+  Store product-photo follow-up).
 
 ### 2026-07-08 — Train "The Program" + Eat "The Menu": the last two plate-era day surfaces → Open Ledger (#1622 + #1623)
 - **Owner-picked Option C** from a 3-way visual concept round (spec #1620 → revised to C in #1621): the **Train deck** and the **Eat day view** — the last two half-serialized client surfaces — finish their serialization into the zero-box Open Ledger language, together with the shared chrome both carry. **Presentation-only** — no migration, no routes, no new modules, no behavior change. Two build PRs, both squash-merged, branch kept.
