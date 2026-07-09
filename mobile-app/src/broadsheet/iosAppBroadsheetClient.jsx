@@ -1289,7 +1289,7 @@ const BS_LIB_KINDS = {
   plan:    { label: 'Program', color: '#a07a2e' },
   meal:    { label: 'Meal',    color: '#5fae7e' },
   recipe:  { label: 'Recipe',  color: '#0a8f87' },
-  grocery: { label: 'Groceries', color: '#8a5cf6' },
+  grocery: { label: 'Groceries', color: '#3b74b8' },
 };
 
 function BSLibraryDetail({ item, onBack }) {
@@ -1334,14 +1334,12 @@ function BSLibraryDetail({ item, onBack }) {
         {(item.meta || item.coach) ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{[item.meta, item.coach].filter(Boolean).join(' · ')}</div> : null}
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 18 }}>
-          {item.preview ? (
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>{item.preview}</div>
-          ) : (
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>Saved {km.label.toLowerCase()} from your coach. Open it on its source page to start, swap, or log.</div>
-          )}
-          {item.savedAt ? <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
+        <div style={{ borderLeft: `3px solid ${km.color}`, padding: '2px 0 2px 12px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK, lineHeight: 1.5 }}>
+            {item.preview || `Saved ${km.label.toLowerCase()} from your coach. Open it on its source page to start, swap, or log.`}
+          </div>
         </div>
+        {item.savedAt ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}
       </div>
       {canStart && (
         <div style={{ padding: `16px ${t.padX}px 0` }}>
@@ -1349,8 +1347,8 @@ function BSLibraryDetail({ item, onBack }) {
           <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Schedules the program onto your Train calendar as your own — edit any day.</div>
         </div>
       )}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <button onClick={() => { bsLibToggle(item); onBack(); }} style={{ width: '100%', padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <button type="button" onClick={() => { bsLibToggle(item); onBack(); }} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${saved ? bsTHexA(t.INK, 0.35) : teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{saved ? 'Remove from library' : '♡ Save to library'}</button>
       </div>
       <BSFooter right="Library" />
       {startSheet && (
@@ -1407,14 +1405,15 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Every workout, meal, recipe and grocery list you keep — in one place.</div>
       </div>
 
-      <div style={{ padding: `16px ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {[['workout', 'Workouts', t.RUST], ['meal', 'Meals', t.GREEN || '#5fae7e'], ['recipe', 'Recipes', teal], ['grocery', 'Groceries', '#8a5cf6']].map(([k, label, c]) => {
+      <div style={{ padding: `16px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[['workout', 'Workouts', t.RUST || '#c0533b'], ['meal', 'Meals', t.GREEN || '#5fae7e'], ['recipe', 'Recipes', teal], ['grocery', 'Groceries', '#3b74b8']].map(([k, label, c]) => {
           const on = filter === k;
           const count = items.filter(i => i.kind === k).length;
           return (
-            <button key={k} onClick={() => setFilter(on ? 'all' : k)} style={{ borderRadius: 14, cursor: 'pointer', border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>{label}</span>
+            <button type="button" key={k} onClick={() => setFilter(on ? 'all' : k)} aria-pressed={on} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', minHeight: 44, textAlign: 'left' }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: on ? t.INK : t.INK70, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>{label}</span>
+              <span aria-hidden style={{ display: 'block', marginTop: 5, width: 22, height: on ? 3 : 2, background: c }} />
             </button>
           );
         })}
@@ -1430,29 +1429,22 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
       </div>
 
       {list.length === 0 ? (
-        <div style={{ padding: `8px ${t.padX}px` }}>
-          <div style={{ borderRadius: 18, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 24, textAlign: 'center' }}>
-            <div style={{ fontSize: 30 }}>❒</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK }}>{q ? 'No matches' : (filter === 'all' ? 'Nothing saved yet' : 'None in here yet')}</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>{q ? 'Try a different search.' : <>Save your coaches&rsquo; workouts, meals, recipes, and grocery lists here — tap <b>Save</b> on any of them.</>}</div>
-            {!q ? <button onClick={() => goMarket()} style={{ marginTop: 16, padding: '11px 18px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Browse marketplace →</button> : null}
-          </div>
+        <div style={{ padding: `20px ${t.padX}px`, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>{q ? 'No matches — try a different search.' : (filter === 'all' ? <>Nothing saved yet. Save your coaches&rsquo; workouts, meals, recipes, and grocery lists here — tap <b>Save</b> on any of them.</> : 'None in here yet.')}</div>
+          {!q ? <button type="button" onClick={() => goMarket()} style={{ marginTop: 16, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Browse marketplace →</button> : null}
         </div>
       ) : (
-        <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {list.map((it) => {
+        <div style={{ padding: `0 ${t.padX}px` }}>
+          {list.map((it, idx) => {
             const km = kindMeta[it.kind] || { label: it.kind, color: t.INK50 };
             return (
-              <button key={it.id} onClick={() => setOpen(it)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-                <div style={{ minWidth: 0 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 999, background: km.color }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: km.color }}>{km.label}{it.price ? ` · ${it.price}` : ''}</span>
-                  </span>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
-                  {(it.meta || it.coach) ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[it.meta, it.coach].filter(Boolean).join(' · ')}</div> : null}
-                </div>
-                <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, color: t.INK50, lineHeight: 1 }}>›</span>
+              <button type="button" key={it.id} onClick={() => setOpen(it)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '8px 1fr auto', gap: 10, alignItems: 'baseline', padding: '12px 0', borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', minHeight: 44 }}>
+                <span aria-hidden style={{ width: 8, height: 8, borderRadius: 1, alignSelf: 'center', background: km.color }} />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</span>
+                  <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[km.label && km.label.toUpperCase(), it.price, it.coach, it.meta].filter(Boolean).join(' · ')}</span>
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, whiteSpace: 'nowrap' }}>{it.savedAt ? new Date(it.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
               </button>
             );
           })}
