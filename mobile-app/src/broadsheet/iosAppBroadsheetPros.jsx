@@ -1106,11 +1106,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
+  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
   if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
   if (liveWatch) return <BSProLiveWatch client={liveWatch.client} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
   const screens = {
-    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
+    today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
     programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
@@ -1118,7 +1118,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
+    me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -4891,10 +4891,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
   if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
+  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
   if (queueView) return <BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
   const screens = {
-    today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} onOpenReviews={() => setShowReviews(true)} onWidgetOpen={openHomeWidget} onOpenHabits={() => setShowHabits(true)} onOpenScore={() => { setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
+    today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} />,
     plans:    <BSNutriPlans sheet={sheet} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
@@ -4902,7 +4902,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('today'); }} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
+    me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
