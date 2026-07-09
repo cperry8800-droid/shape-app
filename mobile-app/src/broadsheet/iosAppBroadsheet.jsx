@@ -410,7 +410,7 @@ function isInteractiveTarget(target) {
 // ═══════════════════════════════════════════════════════════
 
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
+function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
   // Condensing masthead: once the page's own masthead scrolls away (~64px), a
@@ -484,7 +484,7 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true }) {
   }, []);
 
   const scroller = (
-    <div ref={scrollerRef} className="bs-scroll" {...(mast ? {} : { 'data-bs-noswipe': '' })} style={{
+    <div ref={scrollerRef} className="bs-scroll" {...((mast && !noSwipe) ? {} : { 'data-bs-noswipe': '' })} style={{
       position: 'absolute', inset: 0,
       height: '100%',
       overflowX: 'hidden',
