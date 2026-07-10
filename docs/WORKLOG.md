@@ -365,6 +365,49 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Coach read of self-authored plans: the Case File "SELF-PROGRAMMED" station
+
+- **Closes the self-serve-training v1 gap** (#1618's registered follow-up): a
+  coach could see a self-programming member's session LOGS but never the plan
+  — self rows are `client_workouts` with `trainer_id NULL`, and the coach RLS
+  policies scope to the coach's own authored rows.
+- **Migration `2026-07-10-client-self-plans-coach-read.sql`** (⚠ **OWNER: run
+  it** — raw link on the PR): SECURITY DEFINER **`get_client_self_plans
+  (p_user_id)`**, gated on `is_coach_on_client` (the `get_client_lifts` /
+  `get_client_stats` precedent — the active coach↔client subscription IS the
+  permission), returning a **compact projection only** — title/kind/date +
+  the payload's program stamp + `repeatDow` + a move count, capped 200. Never
+  the full payload: no loads, cues, or notes — the member's authored detail
+  stays theirs; the coach reads the shape of the plan.
+- **Review round (Codex P2 — real, fixed):** oldest-first under the 200-row
+  cap meant a long self-history (two saved 26-week programs already exceed
+  200 rows) could evict the CURRENT run — the coach could miss an active
+  program or read it as past. The RPC now **windows to relevance**: undated
+  rows (repeats/drafts) + rows dated **last-week-forward**, nearest-first —
+  the cap can only trim the far tail of a long program, never the
+  current/upcoming sessions; a run that ended within the week still reads
+  `PAST`, older history drops off the Case File. CodeRabbit's index nit
+  folded in: a tiny **partial index** `(client_id, scheduled_date) where
+  trainer_id is null` serves the self-row read directly.
+- **Pure `mobile-app/src/services/selfPlansSummary.mjs`** (+ 7 test vectors,
+  suite **567**): groups rows into **programs** (per-RUN — a re-started plan
+  is its own line; the next dated session ≥ today carries the `W3 OF 16 ·
+  JUL 12` readout, a just-ended run reads an honest `PAST`), **weekly
+  repeats** (`Mo Th · WEEKLY` day letters on the builder's **0 = MONDAY**
+  base — bsMaterializeProgram's, not the reminders table's 0 = Sunday —
+  deduped), and **upcoming one-offs** (sorted, capped 5).
+  `Number(null)`-as-day-zero guarded (the food-search lesson).
+- **Case File** (`BSProClientFullProfilePage`, Profile tab, between KEY
+  LIFTS/MACROS and BODY): a **SELF-PROGRAMMED** station of dot-leader rows +
+  a `PROGRAMMED BY THE MEMBER` footnote — an **honest slot** (renders ONLY
+  when the member actually self-programs; coached-only clients, demo roster
+  rows, and pre-migration reads show nothing). Per-client reset +
+  stale-response guard (the care-team pattern);
+  `window.ShapeClientStats.getSelfPlans` on the data layer.
+- Verified: JSX parse ×2 · `npm test` 567 · `tsc --noEmit` clean · PowerShell
+  `/m/` build exit 0 · LF. War Room: follow-up flipped done + the OWNER
+  migration item registered.
+
 ### 2026-07-10 — One-shot AI undo: guarded claim on ai_audit_log (the #1652 deferred follow-up)
 - **Closes the Nora-wave deferred item** ("a transition-reporting guarded-claim
   RPC on `ai_audit_log` for a true one-shot water undo"). `undoChange` used to

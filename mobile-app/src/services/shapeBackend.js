@@ -3995,7 +3995,16 @@ async function getClientLifts(userId) {
   if (error) return null;
   return data || null;
 }
-window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
+// The member's SELF-AUTHORED training (trainer_id NULL rows) — compact
+// projection via get_client_self_plans (is_coach_on_client-gated; null until
+// the 2026-07-10 migration is applied or when the caller isn't their coach).
+async function getClientSelfPlans(userId) {
+  if (!supabase || !state.user?.id || !userId) return null;
+  const { data, error } = await supabase.rpc('get_client_self_plans', { p_user_id: userId });
+  if (error) return null;
+  return Array.isArray(data) ? data : null;
+}
+window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts, getSelfPlans: getClientSelfPlans };
 // Batch recent-sleep for a coach's roster (one call) so the triage engine can flag
 // a client's chronic sleep deficit. RLS scopes it to this coach's clients; returns
 // { [clientId]: { sleepHours: { avg7, lastNight, target } } } (empty on any failure).
