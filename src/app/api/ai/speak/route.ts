@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
-import { resolveVoice, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
+import { resolveVoice, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,11 @@ export async function POST(request: Request) {
 
   // The member's explicit voice choice, else the tone's default voice.
   const voice = resolveVoice(parsed.data.voice, parsed.data.tone);
-  const res = await synthesizeSpeech(text, { voice, promptId: 'nora.speak' });
+  // Delivery steering only — the words are synthesized verbatim (the parity
+  // header is untouched). The env override wins so the owner can pin a house
+  // style; unset, the per-tone default applies.
+  const instructions = (process.env.NORA_TTS_INSTRUCTIONS || '').trim() || voiceStyleForTone(parsed.data.tone);
+  const res = await synthesizeSpeech(text, { voice, instructions, promptId: 'nora.speak' });
   if (!res.ok) {
     const status = res.reason === 'no_key' ? 503 : 502;
     return NextResponse.json({ error: 'Could not read that aloud right now.' }, { status });

@@ -225,7 +225,7 @@ const SPEECH_CONTENT_TYPE: Record<SpeechFormat, string> = {
  */
 export async function synthesizeSpeech(
   text: string,
-  opts: { promptId: string; voice?: string; format?: SpeechFormat; timeoutMs?: number },
+  opts: { promptId: string; voice?: string; format?: SpeechFormat; timeoutMs?: number; instructions?: string },
 ): Promise<SynthesizeResult> {
   const { promptId } = opts;
   const key = process.env.OPENAI_API_KEY;
@@ -246,6 +246,8 @@ export async function synthesizeSpeech(
         voice: opts.voice || 'shimmer',
         input: text,
         response_format: format,
+        // Delivery steering only (gpt-4o-mini-tts). The input text is verbatim.
+        ...(opts.instructions ? { instructions: opts.instructions } : {}),
       }),
       signal: controller.signal,
     });
