@@ -176,25 +176,29 @@ function ensureWireStyles() {
   document.head.appendChild(el);
 }
 
-// The drifting dispatch-ticker ground shared by the beat and the wall. One
-// teal row when a name is present. Decorative (aria-hidden); `dim` fades it
-// behind the wall content.
-function BSWireGround({ name, dim }) {
+// The drifting dispatch-ticker ground. On the BEAT it carries one teal
+// "INCOMING · THE SHAPE DAILY · {NAME}" row (a briefing IS incoming). The wall
+// + the hold pass `plain` — abstract dashes only (a signed-out prospect isn't
+// getting a briefing, so that hot row would be wrong there) and fainter, so it
+// never competes with the wall copy. Decorative (aria-hidden); `dim` fades it.
+function BSWireGround({ name, dim, plain }) {
   ensureWireStyles();
   const INKF = 'rgba(242,237,228,0.26)', ACCF = '#34d6c5';
   const dash = '— ——— — ———— —— — ——— ————— — —— ——— — ———— —— — ——— —————';
-  const hot = 'INCOMING · THE SHAPE DAILY' + (name ? ' · ' + String(name).toUpperCase() : '');
-  const rows = [
+  const rows = plain ? [
+    { t: dash, d: 15, off: 0 }, { t: dash, d: 19, off: -4 }, { t: dash, d: 13, off: -8 },
+    { t: dash, d: 17, off: -5 }, { t: dash, d: 21, off: -2 }, { t: dash, d: 14, off: -7 }, { t: dash, d: 18, off: -3 },
+  ] : [
     { t: dash, d: 15, off: 0 },
     { t: dash, d: 19, off: -4 },
     { t: dash, d: 13, off: -8 },
-    { t: '—— ' + hot + ' ——', d: 17, off: -5, hot: true },
+    { t: '—— INCOMING · THE SHAPE DAILY' + (name ? ' · ' + String(name).toUpperCase() : '') + ' ——', d: 17, off: -5, hot: true },
     { t: dash, d: 21, off: -2 },
     { t: dash, d: 14, off: -7 },
     { t: dash, d: 18, off: -3 },
   ];
   return (
-    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16, opacity: dim ? 0.4 : 1, pointerEvents: 'none' }}>
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16, opacity: dim ? 0.22 : 1, pointerEvents: 'none' }}>
       {rows.map((r, i) => (
         <div key={i} className="bs-wire-row" style={{ '--wd': r.d + 's', animationDelay: r.off + 's', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, letterSpacing: '0.28em', color: r.hot ? ACCF : INKF, textShadow: r.hot ? '0 0 10px rgba(46,224,196,0.4)' : 'none', paddingLeft: 12 }}>{r.t}</div>
       ))}
@@ -1395,7 +1399,7 @@ async function bsmStartCheckout() {
 function BSWireHold() {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <BSWireGround />
+      <BSWireGround plain />
       <div style={{ position: 'relative', zIndex: 1 }}><BSShapeMark size={96} /></div>
       <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading Shape</span>
     </div>
@@ -1422,7 +1426,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
-      <BSWireGround dim />
+      <BSWireGround plain dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
         <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
           <span>Shape Wire</span><span style={{ color: INKF }}>Members only</span>
