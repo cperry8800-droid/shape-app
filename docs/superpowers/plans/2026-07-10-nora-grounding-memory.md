@@ -2,6 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status note:** this plan is a point-in-time build artifact. The
+implementation — including the PR review rounds' hardening (untrusted-data
+quoting, 64-bit note ids, strict CAS error taxonomy, per-event audits, the
+empty-note guard, row→facts adapters) — is the source of truth; the code
+sketches below are synced best-effort and the SOURCE FILES win on any
+divergence.
+
 **Goal:** Nora's support chat answers a member's personal questions with their real numbers (server-built, caller-RLS member-context block) and remembers what they tell her (`user_goals('nora_memory')` with CAS writes, remember/forget tools, a Settings management list).
 
 **Architecture:** A pure `memberContext.mjs` formats fetched facts into ONE system-message block (unit-tested formatting/omission); the route's thin fail-soft fetchers read ONLY through the caller's RLS client. Memory is a `{rev, notes}` doc mutated under CAS by every writer (pure `noraMemory.mjs` + a server CAS loop); `remember`/`forget` are direct-with-audit tools registered per-request AFTER the fail-closed membership check. The Settings UI lists/deletes notes through the same CAS path.
@@ -247,6 +254,7 @@ function normDoc(doc) {
 export function applyRemember(doc, text, nowIso) {
   const d = normDoc(doc);
   const clean = truncateNote(text);
+  if (!clean) return { error: 'empty_note' }; // whitespace-only never mints a note
   const id = noteId(clean);
   const existing = d.notes.find((n) => n.id === id);
   if (existing) return { doc: d, note: existing, deduped: true };
@@ -264,7 +272,10 @@ export function applyForget(doc, selector) {
   let matches;
   if (hasId) matches = d.notes.filter((n) => n.id === byId.trim());
   else {
-    const norm = truncateNote(byText).toLowerCase();
+    // Whitespace-normalize but NEVER truncate — an overlong selector must not
+    // prefix-match a shorter stored note (stored notes are all <=280, so it
+    // simply matches nothing). Matching is case-insensitive by design.
+    const norm = String(byText).replace(/\s+/g, ' ').trim().toLowerCase();
     matches = d.notes.filter((n) => n.text.toLowerCase() === norm);
   }
   if (matches.length === 0) return { error: 'not_found' };
@@ -389,6 +400,7 @@ const MEMBER_TOOLS = [
     - weigh-in: `client_weigh_ins` newest row (`weight, unit, logged_on`);
     - goal: `user_goals('client_goals')` → `overall` title/target/date;
     - memory: `user_goals('nora_memory')` → 10 most recent note texts, formatted `"${text} (id ${id})"` so the model has forget ids;
+    - **each row is ADAPTED to the formatter's keys** (never passed raw): `calories`→`today.kcal`, `protein_g`→`today.proteinG`, `workout_minutes > 0`→`today.trainedToday`, momentum number→`momentum.value`, ledger sum→`score.total`, weigh-in row→`weight.{latest,unit,loggedOn}`, `overall`→`goal.{title,target,unit,byDate}`, notes→quoted `memory[]` strings;
     - `failed` = true only when EVERY leg rejected (vs resolved-empty) — that's the `UNAVAILABLE_NOTE` trigger; partial data renders partially (honest omission).
 3. **Direct tools** run in `runTool` BEFORE the WRITE_TOOLS branch: `remember`/`forget` call the CAS + audit path (Task 3) and return `{ result: { done, noteId, audited } | { error, candidates? }, actions: [] }` — plus an ACTION-SPECIFIC UI chip emitted **only when `done === true`** (never on an error/ambiguous result): remember → `audited ? 'Noted ✓' : 'Noted — audit pending'`, forget → `audited ? 'Forgotten ✓' : 'Forgotten — audit pending'` (`{ type: 'screen', screen: 'nora_memory' }`), so the thread shows the state without new client plumbing.
 4. **The system message assembly** in `askOpenAI` gains one optional context block parameter — `input = [{ role: 'system', content: systemPrompt }, ...(contextMsg ? [{ role: 'system', content: contextMsg }] : []), ...recent]`.
@@ -399,6 +411,8 @@ test('CONTEXT_HEADER is a unique sentinel that static fallback copy can never co
   // The route's rule-based fallbackReply templates are static strings with no
   // member interpolation; this sentinel would have to be typed by hand to leak.
   assert.match(CONTEXT_HEADER, /^FACTS ABOUT THIS MEMBER/);
+  const routeSrc = readFileSync(new URL('../src/app/api/support/chat/route.ts', import.meta.url), 'utf8');
+  assert.ok(!routeSrc.includes('FACTS ABOUT THIS MEMBER'), 'route must import the sentinel, never inline it');
 });
 ```
 

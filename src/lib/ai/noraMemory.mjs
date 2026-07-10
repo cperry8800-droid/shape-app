@@ -55,6 +55,9 @@ const normDoc = normalizeMemoryDoc;
 export function applyRemember(doc, text, nowIso) {
   const d = normDoc(doc);
   const clean = truncateNote(text);
+  // Whitespace-only input must never mint an empty note (with a stable
+  // empty-string id) — reject before the id/dedupe/CAS path.
+  if (!clean) return { error: 'empty_note' };
   const id = noteId(clean);
   const existing = d.notes.find((n) => n.id === id);
   if (existing) return { doc: d, note: existing, deduped: true };

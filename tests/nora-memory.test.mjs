@@ -5,6 +5,11 @@ import { emptyMemoryDoc, truncateNote, applyRemember, applyForget, NOTES_CAP, NO
 
 const NOW = '2026-07-10T12:00:00.000Z';
 
+test('whitespace-only remember is rejected before the id/CAS path', () => {
+  assert.equal(applyRemember(emptyMemoryDoc(), '   ', NOW).error, 'empty_note');
+  assert.equal(applyRemember(emptyMemoryDoc(), null, NOW).error, 'empty_note');
+});
+
 test('remember adds newest-first with a stable id; identical text dedupes', () => {
   const a = applyRemember(emptyMemoryDoc(), 'hates burpees', NOW);
   assert.equal(a.doc.notes.length, 1);
