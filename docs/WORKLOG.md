@@ -313,6 +313,36 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Website screenshots refreshed: all 9 phone captures now show the July app (#1650, `83a0c29e`)
+- **Every phone capture on the marketing site was June-era** — pre-dating the
+  entire July Open Ledger redesign, so `GetApp.html`'s 9-slide walkthrough and
+  `index.html`'s 5 journey beats (which reuse the same files) showed an app
+  that no longer exists. All 9 recaptured and swapped: Front Page home ·
+  Train "The Program" table · Eat "The Menu" courses · the expanded aisle
+  grocery checklist · the Habit Ledger ("+3 banked" verdict + grid) · Score
+  "The Standing" ladder · the Terrain profile (ascent ridge) · Shape Radio
+  live player · the community feed (presence rail + Wire Dispatch PR card +
+  co-sign).
+- **Capture recipe (reusable):** chrome-devtools MCP against the live
+  production `/m/` signed-out demo, isolated context, viewport 375×867@2
+  (750×1734 → Lanczos to **600×1387**, the `.scr` boxes' exact aspect).
+  **Full-bleed fix:** the desktop-preview bezel keys off `isNativeBSApp()` —
+  add the `is-native-app` class to `<html>` AND restyle the mounted frame DOM
+  to the native branch's geometry (100vw/100dvh, no padding/radius/notch,
+  body margins zeroed); the two converge on any re-render. Gates walked
+  per boot (paywall Preview → Step inside → radio prompt); the
+  **PREVIEW · DEMO DATA banner reappears per boot — dismiss before every
+  capture** (one first-round set had to be retaken for it). Element clicking:
+  parts of the chrome don't surface in `textContent` (only in the a11y
+  tree) — click by snapshot uid, and verify tab switches via
+  `window.__shapeActiveTab`, never by assuming the click landed.
+- `habits.png` → `getapp-habits-v1.png` (joins the getapp-* naming); the 9
+  replaced files deleted (repo-wide grep confirmed only these two pages
+  referenced them); `?v=20260710` cache-bust on every slot. Content-only —
+  no layout/JS changes. CI green; CodeRabbit APPROVED (0 findings); Codex's
+  one P2 (this WORKLOG entry) shipped as this follow-up. War Room item
+  flipped done.
+
 ### 2026-07-10 — Real food-database search: the add-food sheet goes live (#1648, `54e54625`)
 - **Closes the #1601 "Correct the Record" follow-up** — signed-in members no
   longer see "Food search is coming. Enter what you ate manually": typing in

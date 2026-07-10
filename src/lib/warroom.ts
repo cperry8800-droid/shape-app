@@ -626,7 +626,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Client Home/Eat lead with a "Today · your move" directive (Home: workout→meal→habits→done with per-item CTA; Eat: next meal to log above the quiet calorie strip); Home "Weekly totals" trimmed 4→2. Train already led with its session hero + Start', status: 'done' },
         { label: 'Client meal logger / "Logged." / home week strip onto instrument plates (clipped one-tap action, squared mode tabs, BSPlate summaries, ink→accent ledger)', status: 'done' },
         { label: 'Client Goals (Overall + Nutrition) carry the real engine pace-projection ETA — least-squares projectGoal over 8 weeks + week-over-week slip → an "ETA" stat (projected date / Stalled / 1y+ / Refresh) replacing the demo "On track"/"Adherence", + an ETA chip in the hero; honest "—" when history is too sparse', status: 'done' },
-        { label: 'Refresh the website phone screenshots (index.html journey beats + GetApp.html walkthrough) — the captures predate the July Open Ledger redesign wave (Home Front Page, The Menu, Kitchen Card, Habit Ledger, The Listing), so the marketing pages show an app that no longer exists; recapture at the 600×1387 screen aspect', status: 'pending' },
+        { label: 'Refresh the website phone screenshots (index.html journey beats + GetApp.html walkthrough) — all 9 recaptured 2026-07-10 (#1650) full-bleed from the live production /m/ demo at the 600×1387 screen aspect: Front Page home · The Program · The Menu · aisle grocery · Habit Ledger · The Standing · Terrain profile · Radio · community feed; habits.png renamed getapp-habits-v1.png, old files removed', status: 'done' },
       ],
     },
     {
