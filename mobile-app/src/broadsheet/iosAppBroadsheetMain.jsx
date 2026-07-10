@@ -165,8 +165,8 @@ function ensureWireStyles() {
   .bs-wire-line { opacity:0; animation: bsWireRise 0.34s cubic-bezier(0.2,0.7,0.3,1) forwards; }
   @keyframes bsWireDrain { from{ transform:scaleX(1); } to{ transform:scaleX(0); } }
   .bs-wire-drain { transform-origin:left center; animation: bsWireDrain var(--dur,5s) linear forwards; }
-  @keyframes bsWireLoad { 0%{ transform:translateX(-110%); } 100%{ transform:translateX(360%); } }
-  .bs-wire-load { animation: bsWireLoad 1.4s cubic-bezier(0.4,0,0.6,1) infinite; will-change: transform; }
+  @keyframes bsWireFill { 0%{ transform:scaleX(0); } 100%{ transform:scaleX(1); } }
+  .bs-wire-fill { transform-origin:left center; animation: bsWireFill 3.4s cubic-bezier(0.3,0.5,0.35,1) forwards; will-change: transform; }
   .bs-wire-enter { outline:none; }
   .bs-wire-enter:focus-visible { outline:2px solid #34d6c5; outline-offset:3px; }
   .bs-wire-frow { display:flex; align-items:center; gap:10px; border-bottom:1px dotted rgba(242,237,228,0.34); padding:7px 0 6px; }
@@ -186,7 +186,7 @@ function ensureWireStyles() {
     .bs-wire-row{ animation:none!important; transform:none!important; }
     .bs-wire-line{ animation:none!important; opacity:1!important; transform:none!important; }
     .bs-wire-drain{ animation:none!important; transform:none!important; }
-    .bs-wire-load{ animation:none!important; transform:translateX(110%)!important; }
+    .bs-wire-fill{ animation:none!important; transform:scaleX(1)!important; }
   }`;
   const el = document.createElement('style');
   el.textContent = css;
@@ -217,16 +217,15 @@ function BSWireGround({ dim }) {
   );
 }
 
-// The launch's loading readout — a hairline track with a teal signal sweeping
-// it + a mono LOADING label, under the mark on the beat/hold. Indeterminate
-// (those screens hold until the membership check resolves); reduced-motion
-// parks the signal at rest.
+// The launch's loading readout — a hairline track whose teal fill loads 0→100%
+// (paced to the beat's ~3.5s dwell; it parks full if the membership check runs
+// long) + a mono LOADING label. Reduced-motion renders the bar full.
 function BSWireLoading({ top = 72 }) {
   ensureWireStyles();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: top }}>
       <div style={{ width: 148, height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }} aria-hidden="true">
-        <div className="bs-wire-load" style={{ width: '32%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
+        <div className="bs-wire-fill" style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
       <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>Loading</div>
     </div>
@@ -615,22 +614,18 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   if (style === 'wire-beat') {
     const name = bsDigestFirstName((window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {});
     const beatMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
-    const INKB = '#f2ede4';
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <BSWireGround />
-        <div style={{ position: 'relative', zIndex: 1, margin: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 26px 0', paddingBottom: 8, borderBottom: `2px solid ${INKB}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.7)' }}>
-          <span>Shape Wire</span><span style={{ color: '#34d6c5' }}>Live</span>
-        </div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
           <BSShapeMark size={112} calm />
           <div style={{ marginTop: 30, fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#34d6c5', textShadow: '0 0 12px rgba(46,224,196,0.35)', textAlign: 'center' }}>
             — Incoming · The Shape Wire{name ? ' · ' + name : ''} —
           </div>
         </div>
-        {/* The loading readout anchors LOW (boot-screen style) so the mark owns
+        {/* The loading readout anchors low (boot-screen style) so the mark owns
             the center of the dash field — owner call. */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 52 }}>
           <BSWireLoading top={0} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
@@ -839,15 +834,15 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           // the Inside Shape / In the world catalog columns — the pitch IS the
           // page). Tap-only "Step inside"; never auto-advances.
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
-            <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: You · Invitation</div>
+            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: You · Invitation</div>
             {/* the pitch, on the wire */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
                 { text: 'The Shape Wire lands every morning' },
-                { text: 'Your training · your numbers · a note from your coach' },
+                { text: 'Your training · your nutrition · your numbers · a note from your coach' },
                 { text: 'Step inside to make it yours', hot: true },
               ].map((ln, i) => (
-                <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 11, fontWeight: ln.hot ? 700 : 500, lineHeight: 2.05, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
+                <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 12.5, fontWeight: ln.hot ? 700 : 500, lineHeight: 1.95, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
                   {ln.text}
                 </div>
               ))}
@@ -1425,13 +1420,10 @@ function BSWireHold() {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
       <BSWireGround />
-      <div style={{ position: 'relative', zIndex: 1, margin: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 26px 0', paddingBottom: 8, borderBottom: '2px solid #f2ede4', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: holdMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.7)' }}>
-        <span>Shape Wire</span><span style={{ color: '#34d6c5' }}>Live</span>
-      </div>
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <BSShapeMark size={96} calm />
       </div>
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 52 }}>
         <BSWireLoading top={0} />
       </div>
       <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
@@ -1463,10 +1455,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
       <BSWireGround dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
-        <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
-          <span>Shape Wire</span><span style={{ color: INKF }}>Members only</span>
-        </div>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 26, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
           <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>

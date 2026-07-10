@@ -415,6 +415,14 @@ changelog whenever something ships.
   LF · browser screenshots of beat / wall / sign-in / create step 1 + 2 /
   phone. Deploy note stands: `public/m` builds at deploy — check the `/m/`
   asset hash before re-testing on device.
+- **Round 4 (owner on-device notes, same day):** the mono topbars come OFF the
+  **wall** (SHAPE WIRE · MEMBERS ONLY) and the **beat/hold** (SHAPE WIRE ·
+  LIVE) — the footer rule stays, the invite keeps its dated topbar; the
+  **loading bar loads 0→100%** (determinate `bs-wire-fill` paced to the ~3.5s
+  dwell, parks full if the check runs long; the indeterminate sweep dies) and
+  sits a little **higher** off the footer; the invite pitch adds **"your
+  nutrition"** and its lines step up 11→12.5 (eyebrow 8.5→9.5). All four
+  re-verified in-browser on the built bundle.
 
 ### 2026-07-10 — The launch on the wire: wire-ticker beat → the telegram Daily briefing (#1667 spec · #1668 build)
 
