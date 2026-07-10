@@ -7,7 +7,11 @@
 // repeat_dow, program, move_count, created_at }); camelCase twins are accepted
 // so a future non-RPC caller can't silently drop fields.
 
-const BS_SELF_PLAN_DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+// The self-training dow convention is 0 = MONDAY (BS_BUILDER_DOW /
+// bsMaterializeProgram: date = Monday(start) + dow) — NOT the reminders
+// table's 0 = Sunday. Mislabeling here would read a member's Tue/Thu plan
+// as Mon/Wed to their coach.
+const BS_SELF_PLAN_DAY_ABBR = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 // "repeatDow ints → 'Mo We Fr'" — invalid entries dropped, duplicates folded,
 // always displayed in week order regardless of stored order.

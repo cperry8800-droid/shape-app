@@ -393,9 +393,10 @@ changelog whenever something ships.
   suite **567**): groups rows into **programs** (per-RUN — a re-started plan
   is its own line; the next dated session ≥ today carries the `W3 OF 16 ·
   JUL 12` readout, a just-ended run reads an honest `PAST`), **weekly
-  repeats** (`Mo Th · WEEKLY` day letters, deduped), and **upcoming one-offs**
-  (sorted, capped 5). `Number(null)`-as-Sunday guarded (the food-search
-  lesson).
+  repeats** (`Mo Th · WEEKLY` day letters on the builder's **0 = MONDAY**
+  base — bsMaterializeProgram's, not the reminders table's 0 = Sunday —
+  deduped), and **upcoming one-offs** (sorted, capped 5).
+  `Number(null)`-as-day-zero guarded (the food-search lesson).
 - **Case File** (`BSProClientFullProfilePage`, Profile tab, between KEY
   LIFTS/MACROS and BODY): a **SELF-PROGRAMMED** station of dot-leader rows +
   a `PROGRAMMED BY THE MEMBER` footnote — an **honest slot** (renders ONLY

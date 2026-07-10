@@ -7,8 +7,8 @@ import { bsSelfPlansSummary, bsSelfPlanDays } from '../mobile-app/src/services/s
 const TODAY = '2026-07-10';
 
 test('day letters: week order, dedupe, invalid entries dropped', () => {
-  assert.equal(bsSelfPlanDays([5, 1, 3]), 'Mo We Fr');
-  assert.equal(bsSelfPlanDays([1, 1, '2', 9, -1, null]), 'Mo Tu');
+  assert.equal(bsSelfPlanDays([5, 1, 3]), 'Tu Th Sa');
+  assert.equal(bsSelfPlanDays([1, 1, '2', 9, -1, null]), 'Tu We');
   assert.equal(bsSelfPlanDays(null), '');
 });
 
@@ -50,8 +50,8 @@ test('weekly repeats dedupe by title+days; snake_case and camelCase both read', 
   ];
   const s = bsSelfPlansSummary(rows, TODAY);
   assert.deepEqual(s.repeats, [
-    { title: 'Upper day', days: 'Mo Th' },
-    { title: 'Run', days: 'Sa' },
+    { title: 'Upper day', days: 'Tu Fr' },
+    { title: 'Run', days: 'Su' },
   ]);
 });
 
