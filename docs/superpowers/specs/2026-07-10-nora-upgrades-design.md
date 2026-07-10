@@ -126,21 +126,30 @@ model prompt is trusted to enforce it):
   fetch REAL macros (hybrid FDC+OFF, #1648) and then propose a `log_meal`
   filled with them — "log the Chipotle bowl" stops being a guess.
 
-**Undo carries a stale-write guard.** Every proposal's `beforeState` records
-the touched row's version marker (`updated_at`, else a full value snapshot);
-undo restores ONLY while the current row still matches what execute wrote — a
-newer edit (the member logged again, a device synced) returns an honest
-conflict ("changed since — nothing undone"), never a blind overwrite. The
-existing `log_meal` undo has the same blind-overwrite gap today; PR C applies
-the identical guard to it while in the file.
+**Undo carries a stale-write guard — enforced IN the statement.** Every
+proposal's `beforeState` records the touched row's version marker
+(`updated_at`, else a full value snapshot); the undo's UPDATE/DELETE carries
+that predicate **in the atomic statement itself** (`…eq('updated_at',
+afterState.updatedAt)` — never a separate read-then-check, which would just
+move the race). Zero affected rows IS the conflict — surfaced honestly as
+"changed since — nothing undone", never a blind overwrite. Applies uniformly
+to every undo path; the existing `log_meal` undo has the same
+blind-overwrite gap today, and PR C applies the identical in-statement guard
+to it while in the file.
 
 ### 4. Memory (PR B, alongside grounding)
 
-- **`user_goals('nora_memory')`** — `{ notes: [{ id, text, at }] }`, cap 30
-  notes AND **cap 280 chars per note** (longer `remember` payloads are
+- **`user_goals('nora_memory')`** — `{ rev, notes: [{ id, text, at }] }`, cap
+  30 notes AND **cap 280 chars per note** (longer `remember` payloads are
   truncated at a word boundary before persistence — bounds the prompt-size
   contribution, not just the count), **no migration**. Injected into the
-  member-context block (10 most recent).
+  member-context block (10 most recent). **All writers mutate the doc under a
+  CAS revision:** `remember`, `forget`, and the Settings UI each re-read the
+  latest doc, apply their change against it (the 30-note cap enforced on that
+  fresh state), and write conditioned on the stored `rev`
+  (`…eq('data->>rev', rev)`, writing `rev + 1`; zero affected rows → re-read
+  and retry, twice, then surface the failure) — so concurrent edits can never
+  silently clobber each other or overshoot the cap.
 - Two tools: **`remember { note }`** / **`forget { note_id?, note? }`**.
   `remember`'s result surfaces each note's stable `id`; **`forget` deletes by
   `note_id`** (the model gets ids in context). Text-only `forget` is accepted
@@ -153,7 +162,10 @@ the identical guard to it while in the file.
   RPC — deliberately not added for v1): the memory write lands first, the
   audit row second, and an audit failure after a successful write surfaces
   `audited:false` in the tool result + a server log instead of throwing — the
-  exact established `proposals.mjs` pattern. **Retries repair the audit:**
+  exact established `proposals.mjs` pattern. **That server log carries safe
+  metadata ONLY** — operation id, action name, note id, status — never the
+  note text and never raw tool arguments (memory content must not leak into
+  logs). **Retries repair the audit:**
   both tools key their audit row on a stable operation id (the note's own id),
   so a retry that dedupes an already-written note reconciles the missing audit
   row (insert-if-absent) before returning — a mutation can't stay permanently
