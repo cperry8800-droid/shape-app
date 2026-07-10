@@ -3488,6 +3488,20 @@ async function getScoreRecord() {
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/score-record`, null);
 }
 window.ShapeScoreRecord = { get: getScoreRecord };
+// Real food search (meal logger add sheet). Plain authed fetch — NO shared
+// cache (queries are too varied to benefit); THROWS on failure so the sheet
+// can show the honest can't-reach state instead of a silent empty list.
+// Native-safe (apiBaseUrl + Bearer via sessionsAuthHeaders).
+async function searchFoods(q, { signal } = {}) {
+  const query = String(q || '').trim();
+  if (query.length < 2) return { results: [] };
+  const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/food-search?q=${encodeURIComponent(query)}`, {
+    headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store', signal,
+  });
+  if (!res.ok) throw new Error('food_search_failed');
+  return await res.json();
+}
+window.ShapeFoodSearch = { search: searchFoods };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
