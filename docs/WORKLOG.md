@@ -424,6 +424,20 @@ changelog whenever something ships.
   APPROVED after the 2 fixes (warm-skip uid + en-US). `public/m` built at deploy
   (gitignored). **Open:** the owner on-device pass — cold/warm/next-day ×
   signed-out wall/preview × reduced motion × Black/Sage/Cream papers.
+- **Owner-look follow-ups (same day, both merged):** **#1670** — the wall/hold
+  wire ground goes `plain` (the beat's teal "INCOMING · THE SHAPE DAILY" row is
+  BEAT-ONLY — behind the wall it was distracting + semantically wrong for a
+  prospect) and the dim opacity drops 0.4 → 0.22 so the ground never competes
+  with the copy. **#1671** — the **signed-out invite edition joins the wire
+  too** (owner call): SHAPE WIRE topbar · `TO: YOU · INVITATION` · the pitch as
+  three wire lines (teal hot line "STEP INSIDE TO MAKE IT YOURS") · the Inside
+  Shape / In the world columns unchanged · a clipped solid-teal STEP INSIDE —
+  still tap-gated, never stamps; and the **beat dwell 1.1s → 3.5s** (let the
+  overture breathe). Browser-verified on the built bundle: the wall shows plain
+  dashes only, the invite renders the wire set, the hold is copy-free.
+  *Deploy note:* `public/m` builds at deploy — a just-merged launch fix isn't
+  live until Vercel finishes (~5-10 min); check the `/m/` asset hash before
+  re-testing on device.
 
 ### 2026-07-10 — Both sweep migrations APPLIED + verified live (owner ran them)
 
