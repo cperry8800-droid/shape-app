@@ -116,6 +116,7 @@ function ensureSkyStyles() {
   .bs-shoot.s3 { top:9%;  left:-160px; animation: bsShoot3 11s linear infinite 6.5s; }
   @keyframes bsMarkPulse { 0%,100%{ transform:translateY(0) scale(1); } 50%{ transform:translateY(-10px) scale(1.085); } }
   .bs-shape-mark { animation: bsMarkPulse 2.1s ease-in-out infinite; filter:drop-shadow(0 0 32px rgba(10,197,168,0.85)) drop-shadow(0 0 14px rgba(46,224,196,0.8)); will-change: transform; }
+  .bs-shape-mark-calm { animation: bsMarkPulse 2.6s ease-in-out infinite; filter:drop-shadow(0 0 16px rgba(10,197,168,0.4)) drop-shadow(0 0 7px rgba(46,224,196,0.35)); will-change: transform; }
   .bs-splash-zoom { transition: transform 0.7s cubic-bezier(0.5,0,0.7,0.25); transform-origin: center center; will-change: transform; }
   .bs-splash-zoom.zooming { transform: scale(7); }
   .bs-splash-zoom.zooming .bs-shape-mark { animation: none !important; transform: none !important; filter: drop-shadow(0 0 36px rgba(10,197,168,0.98)) drop-shadow(0 0 16px rgba(46,224,196,0.95)); }
@@ -130,7 +131,7 @@ function ensureSkyStyles() {
   .bs-mark-edge { stroke-dasharray:38 97; animation: bsMarkEdge 3.2s linear infinite; }
   .bs-mark-edge.e2 { animation-delay:-1.6s; }
   @keyframes bsMarkEdge { to { stroke-dashoffset:-135; } }
-  @media (prefers-reduced-motion: reduce) { .bs-sky-tw,.bs-aurora,.bs-shoot,.bs-shape-mark,.bs-mark-edge{ animation:none!important; } }
+  @media (prefers-reduced-motion: reduce) { .bs-sky-tw,.bs-aurora,.bs-shoot,.bs-shape-mark,.bs-shape-mark-calm,.bs-mark-edge{ animation:none!important; } }
   .bs-hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
   .bs-hide-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
   .bs-no-spin::-webkit-inner-spin-button, .bs-no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -168,6 +169,19 @@ function ensureWireStyles() {
   .bs-wire-load { animation: bsWireLoad 1.4s cubic-bezier(0.4,0,0.6,1) infinite; will-change: transform; }
   .bs-wire-enter { outline:none; }
   .bs-wire-enter:focus-visible { outline:2px solid #34d6c5; outline-offset:3px; }
+  .bs-wire-frow { display:flex; align-items:center; gap:10px; border-bottom:1px dotted rgba(242,237,228,0.34); padding:7px 0 6px; }
+  .bs-wire-frow:focus-within { border-bottom-color:#34d6c5; border-bottom-style:solid; }
+  .bs-wire-input { flex:1 1 auto; min-width:0; background:transparent; border:0; outline:none; color-scheme:dark; caret-color:#34d6c5; }
+  .bs-wire-input::placeholder { color:rgba(242,237,228,0.28); }
+  .bs-wire-input:-webkit-autofill,
+  .bs-wire-input:-webkit-autofill:hover,
+  .bs-wire-input:-webkit-autofill:focus {
+    -webkit-box-shadow: inset 0 0 0 1000px #0c161c;
+    -webkit-text-fill-color:#f2ede4;
+    caret-color:#f2ede4;
+    transition: background-color 999999s ease-out 0s;
+  }
+  .bs-wire-input::-webkit-calendar-picker-indicator { filter:invert(0.85); opacity:0.55; }
   @media (prefers-reduced-motion: reduce) {
     .bs-wire-row{ animation:none!important; transform:none!important; }
     .bs-wire-line{ animation:none!important; opacity:1!important; transform:none!important; }
@@ -179,31 +193,25 @@ function ensureWireStyles() {
   document.head.appendChild(el);
 }
 
-// The drifting dispatch-ticker ground. On the BEAT it carries one teal
-// "INCOMING · THE SHAPE DAILY · {NAME}" row (a briefing IS incoming). The wall
-// + the hold pass `plain` — abstract dashes only (a signed-out prospect isn't
-// getting a briefing, so that hot row would be wrong there) and fainter, so it
-// never competes with the wall copy. Decorative (aria-hidden); `dim` fades it.
-function BSWireGround({ name, dim, plain }) {
+// The drifting dispatch-ticker ground — abstract dash rows only. The beat's
+// teal INCOMING line is a STATIC element of the beat composition (never a
+// drifting row, so it can't clip at the screen edge). Decorative (aria-hidden);
+// `dim` fades it further for surfaces that carry copy (wall / auth).
+function BSWireGround({ dim }) {
   ensureWireStyles();
-  const INKF = 'rgba(242,237,228,0.26)', ACCF = '#34d6c5';
+  const INKF = 'rgba(242,237,228,0.26)';
   const dash = '— ——— — ———— —— — ——— ————— — —— ——— — ———— —— — ——— —————';
-  const rows = plain ? [
-    { t: dash, d: 15, off: 0 }, { t: dash, d: 19, off: -4 }, { t: dash, d: 13, off: -8 },
-    { t: dash, d: 17, off: -5 }, { t: dash, d: 21, off: -2 }, { t: dash, d: 14, off: -7 }, { t: dash, d: 18, off: -3 },
-  ] : [
-    { t: dash, d: 15, off: 0 },
-    { t: dash, d: 19, off: -4 },
-    { t: dash, d: 13, off: -8 },
-    { t: '—— INCOMING · THE SHAPE WIRE' + (name ? ' · ' + String(name).toUpperCase() : '') + ' ——', d: 17, off: -5, hot: true },
-    { t: dash, d: 21, off: -2 },
-    { t: dash, d: 14, off: -7 },
-    { t: dash, d: 18, off: -3 },
+  const rows = [
+    { d: 15, off: 0 }, { d: 19, off: -4 }, { d: 13, off: -8 },
+    { d: 17, off: -5 }, { d: 21, off: -2 }, { d: 14, off: -7 }, { d: 18, off: -3 },
   ];
+  // Rows distribute evenly over the full height (never a clump behind the mark)
+  // and fade out at the screen edges instead of hard-clipping mid-dash.
+  const edgeFade = 'linear-gradient(90deg, transparent 0, #000 10%, #000 90%, transparent 100%)';
   return (
-    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16, opacity: dim ? 0.22 : 1, pointerEvents: 'none' }}>
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '104px 0 120px', opacity: dim ? 0.22 : 0.45, pointerEvents: 'none', WebkitMaskImage: edgeFade, maskImage: edgeFade }}>
       {rows.map((r, i) => (
-        <div key={i} className="bs-wire-row" style={{ '--wd': r.d + 's', animationDelay: r.off + 's', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, letterSpacing: '0.28em', color: r.hot ? ACCF : INKF, textShadow: r.hot ? '0 0 10px rgba(46,224,196,0.4)' : 'none', paddingLeft: 12 }}>{r.t}</div>
+        <div key={i} className="bs-wire-row" style={{ '--wd': r.d + 's', animationDelay: r.off + 's', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, letterSpacing: '0.28em', color: INKF, paddingLeft: 12 }}>{dash}</div>
       ))}
     </div>
   );
@@ -213,10 +221,10 @@ function BSWireGround({ name, dim, plain }) {
 // it + a mono LOADING label, under the mark on the beat/hold. Indeterminate
 // (those screens hold until the membership check resolves); reduced-motion
 // parks the signal at rest.
-function BSWireLoading() {
+function BSWireLoading({ top = 72 }) {
   ensureWireStyles();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 72 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: top }}>
       <div style={{ width: 148, height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }} aria-hidden="true">
         <div className="bs-wire-load" style={{ width: '32%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
@@ -266,10 +274,10 @@ function BSNightSky() {
   );
 }
 
-function BSShapeMark({ size = 104 }) {
+function BSShapeMark({ size = 104, calm }) {
   ensureSkyStyles();
   return (
-    <svg className="bs-shape-mark" width={size} height={size} viewBox="0 0 100 100" aria-hidden focusable="false" style={{ display: 'block' }}>
+    <svg className={calm ? 'bs-shape-mark-calm' : 'bs-shape-mark'} width={size} height={size} viewBox="0 0 100 100" aria-hidden focusable="false" style={{ display: 'block' }}>
       <polygon points="20,40 20,88 56,64" fill="#0ac5a8" />
       <polygon points="80,12 80,60 44,36" fill="#ffffff" />
       <polygon className="bs-mark-edge e1" points="20,40 20,88 56,64" fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" />
@@ -599,18 +607,34 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     );
   }
 
-  // ── WIRE BEAT: the ~1s brand overture. The membership check resolves behind
-  // it (the shell holds the stage until authReady + membership + min dwell,
-  // then routes), so no "Checking membership…" screen ever renders. Drifting
-  // dispatch ticker + the Shape mark; a hidden status line for screen readers.
+  // ── WIRE BEAT: the brand overture. The membership check resolves behind it
+  // (the shell holds the stage until authReady + membership + min dwell, then
+  // routes), so no "Checking membership…" screen ever renders. Structured like
+  // every other wire page — masthead rule on top, one centered column (mark →
+  // incoming line → loading readout), a footer rule — over the dim ticker.
   if (style === 'wire-beat') {
     const name = bsDigestFirstName((window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {});
+    const beatMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
+    const INKB = '#f2ede4';
     return (
-      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <BSWireGround name={name} />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <BSShapeMark size={112} />
-          <BSWireLoading />
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
+        <BSWireGround />
+        <div style={{ position: 'relative', zIndex: 1, margin: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 26px 0', paddingBottom: 8, borderBottom: `2px solid ${INKB}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.7)' }}>
+          <span>Shape Wire</span><span style={{ color: '#34d6c5' }}>Live</span>
+        </div>
+        <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
+          <BSShapeMark size={112} calm />
+          <div style={{ marginTop: 30, fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#34d6c5', textShadow: '0 0 12px rgba(46,224,196,0.35)', textAlign: 'center' }}>
+            — Incoming · The Shape Wire{name ? ' · ' + name : ''} —
+          </div>
+        </div>
+        {/* The loading readout anchors LOW (boot-screen style) so the mark owns
+            the center of the dash field — owner call. */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+          <BSWireLoading top={0} />
+        </div>
+        <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
+          <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
         </div>
       </div>
     );
@@ -931,6 +955,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const t = useBS();
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
+  // The email create form files in two short steps: 1 identity → 2 credentials.
+  const [createStep, setCreateStep] = useStateBSM(1);
   const [fullName, setFullName] = useStateBSM('');
   const [dob, setDob] = useStateBSM('');
   const [username, setUsername] = useStateBSM('');
@@ -961,6 +987,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const captchaSlot = !captchaOn ? null
     : verifyEmail ? 'verify'
     : (authMethod === 'phone' && otpSent) ? null
+    : (mode === 'create' && authMethod !== 'phone' && createStep === 1) ? null // the identity step makes no auth request
     : 'form';
   React.useEffect(() => {
     if (captchaIdRef.current != null) {
@@ -982,6 +1009,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   // Clear the RD/RDN toggle if the role changes away from nutritionist, so a
   // stale checkbox can't carry a dietitian signup into another role.
   React.useEffect(() => { if (role !== 'nutritionist') setIsDietitian(false); }, [role]);
+  React.useEffect(() => { setCreateStep(1); }, [mode]);
   // Live username availability while creating an account (debounced).
   React.useEffect(() => {
     if (!isCreate || !username) { setUnameOk(null); return; }
@@ -1004,14 +1032,15 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       return;
     }
     if (auth?.configured && isCreate && (!username || unameOk === false)) {
+      setCreateStep(1); // identity-step problem — surface it on its own step
       setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
       return;
     }
     // 18+ age gate at account creation.
     if (auth?.configured && isCreate) {
-      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      if (!dob) { setCreateStep(1); setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+      if (isNaN(d.getTime()) || d > eighteen) { setCreateStep(1); setAuthError('You must be 18 or older to use Shape.'); return; }
     }
     if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
     setBusy(true);
@@ -1037,6 +1066,22 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     } finally {
       setBusy(false);
     }
+  };
+  // Step 1 → 2 of the create dispatch: validate the identity fields before
+  // asking for credentials (submitAuth re-checks everything at transmit).
+  const advanceIdentity = () => {
+    setAuthError('');
+    const auth = window.ShapeAuth;
+    if (auth?.configured) {
+      if (!username || unameOk === false) {
+        setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
+        return;
+      }
+      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+    }
+    setCreateStep(2);
   };
   const resendVerify = async () => {
     // Resend hits Supabase Auth, so it needs its own captcha token once Auth
@@ -1106,6 +1151,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setAuthError('');
     setOtpSent(false);
     setOtpCode('');
+    setCreateStep(1);
   };
   // Fixed-dark wire palette (the launch surfaces never follow the paper theme).
   ensureWireStyles();
@@ -1114,12 +1160,26 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const C50 = 'rgba(242,237,228,0.5)';
   const LINE = 'rgba(242,237,228,0.18)';
   const LINE2 = 'rgba(242,237,228,0.34)';
-  const FIELD = 'rgba(255,255,255,0.05)';
   const WIRE_BG = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
-  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 4, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '8px 10px', fontFamily: t.DISPLAY, fontSize: 13, color: CREAM, outline: 'none' };
   const labelStyle = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 4 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
   const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[signupRole] || 'Client';
+  const shortRole = roleLabel.replace(' (RD/RDN)', '');
+  const stepped = isCreate && !isPhone; // the email create dispatch runs the 2-step split
+  // The wire-form grammar: mono label column + a dot-leader entry line per field.
+  const rowLabel = { flex: '0 0 84px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C50 };
+  const rowInput = { fontFamily: t.DISPLAY, fontSize: 14, color: CREAM, padding: '1px 0' };
+  const subNote = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4 };
+  const stepLine = { fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C50 };
+  const wireField = (label, inputEl, note) => (
+    <div>
+      <div className="bs-wire-frow">
+        <div style={rowLabel}>{label}</div>
+        {inputEl}
+      </div>
+      {note || null}
+    </div>
+  );
   // Forgot password — best effort via the auth layer; degrades to a neutral notice.
   const forgotPassword = async () => {
     setAuthError('');
@@ -1146,7 +1206,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   if (verifyEmail) {
     return (
       <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
-        <BSWireGround plain dim />
+        <BSWireGround dim />
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
           <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>Verify email</div>
@@ -1166,7 +1226,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
 
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
-      <BSWireGround plain dim />
+      <BSWireGround dim />
       {onBack && (
         <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>← Back</button>
       )}
@@ -1190,7 +1250,16 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           </div>
         </div>
 
-        {/* Role */}
+        {/* Step register — the create dispatch files in two short parts */}
+        {stepped && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: `2px solid ${LINE2}`, paddingBottom: 6, margin: '12px 0 2px' }}>
+            <span style={stepLine}>Step {createStep} of 2</span>
+            <span style={{ ...stepLine, color: '#2ee0c4' }}>{createStep === 1 ? 'Identity' : 'Credentials'}</span>
+          </div>
+        )}
+
+        {/* Role — sign-in always · create step 1 (identity) */}
+        {(!stepped || createStep === 1) && (
         <div style={{ marginBottom: 14 }}>
           <div style={labelStyle}>I'm a</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 6, padding: 4 }}>
@@ -1216,52 +1285,57 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             </button>
           )}
         </div>
+        )}
 
-        {/* Fields */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {isCreate && (
-            <div><div style={labelStyle}>Full name</div>
-              <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
+        {/* Fields — the dispatch form: mono label column + dot-leader entry lines */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {isCreate && (!stepped || createStep === 1) && wireField('Name',
+            <input className="bs-wire-input" placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" style={rowInput} />
+          )}
+          {isCreate && (!stepped || createStep === 1) && wireField('DOB · 18+',
+            <input className="bs-wire-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} aria-label="Date of birth" style={rowInput} />
+          )}
+          {stepped && createStep === 1 && wireField('Handle',
+            <input className="bs-wire-input" placeholder="your.handle" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={rowInput} />,
+            <div style={{ ...subNote, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
+              {!username ? 'Your Shape handle — letters · numbers · . _' : unameOk === false ? 'Taken or invalid — 3–20 chars, starts with a letter or number' : unameOk ? `@${username} is yours` : 'Checking…'}
             </div>
           )}
-          {isCreate && (
-            <div><div style={labelStyle}>Date of birth · Shape is 18+</div>
-              <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={inputStyle} aria-label="Date of birth" />
-            </div>
-          )}
-          {isCreate && !isPhone && (
-            <div><div style={labelStyle}>Username</div>
-              <input placeholder="your.handle" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={inputStyle} />
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
-                {!username ? 'Your Shape handle — letters · numbers · . _' : unameOk === false ? 'Taken or invalid — 3–20 chars, starts with a letter or number' : unameOk ? `@${username} is yours` : 'Checking…'}
-              </div>
-            </div>
+          {stepped && createStep === 2 && (
+            <>
+              <button type="button" onClick={() => { setCreateStep(1); setAuthError(''); }} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Step 1 · Identity</button>
+              <div style={{ ...subNote, marginTop: 0, color: C50 }}>Filed: {fullName.trim() || '—'} · @{username || '—'}{isDietitian ? ' · RD/RDN' : ''}</div>
+              {wireField('Email',
+                <input className="bs-wire-input" placeholder="you@example.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoCapitalize="none" style={rowInput} />
+              )}
+              {wireField('Password',
+                <input className="bs-wire-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" style={rowInput} />
+              )}
+            </>
           )}
           {isPhone ? (
             <>
               <button type="button" onClick={() => switchMethod('email')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Back to email</button>
-              <div><div style={labelStyle}>Phone</div>
-                <input placeholder="+1 555 123 4567" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...inputStyle, color: otpSent ? C50 : CREAM }} />
-              </div>
-              {otpSent && (
-                <div><div style={labelStyle}>Code</div>
-                  <input placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...inputStyle, fontSize: 20, letterSpacing: '0.3em' }} />
-                </div>
+              {wireField('Phone',
+                <input className="bs-wire-input" placeholder="+1 555 123 4567" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...rowInput, color: otpSent ? C50 : CREAM }} />
+              )}
+              {otpSent && wireField('Code',
+                <input className="bs-wire-input" placeholder="6-digit code" type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...rowInput, fontSize: 20, letterSpacing: '0.3em' }} />
               )}
               {otpSent && (
                 <button onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={{ alignSelf: 'flex-start', ...linkBtn }}>← Change number</button>
               )}
             </>
-          ) : (
+          ) : (!isCreate && (
             <>
-              <div><div style={{ ...labelStyle, fontWeight: 800, color: C70 }}>{isCreate ? 'Email' : 'Email or username'}</div>
-                <input placeholder={isCreate ? 'you@example.com' : 'you@example.com or your.handle'} type={isCreate ? 'email' : 'text'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={isCreate ? 'email' : 'username'} autoCapitalize="none" style={inputStyle} />
-              </div>
-              <div><div style={{ ...labelStyle, fontWeight: 800, color: C70 }}>Password</div>
-                <input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={inputStyle} />
-              </div>
+              {wireField('Account',
+                <input className="bs-wire-input" placeholder="Email or @handle" type="text" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" style={rowInput} />
+              )}
+              {wireField('Password',
+                <input className="bs-wire-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" style={rowInput} />
+              )}
             </>
-          )}
+          ))}
           {authError && (
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ff9b7a', lineHeight: 1.35 }}>
               {authError}
@@ -1272,22 +1346,25 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           )}
         </div>
 
-        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token). */}
-        {captchaOn && !(isPhone && otpSent) && (
-          <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
+        {/* Turnstile bot challenge — mounts whenever this screen can fire an auth
+            request (interaction-only: invisible unless Cloudflare needs a click). */}
+        {captchaSlot === 'form' && (
+          <div ref={captchaRef} style={{ display: 'flex', justifyContent: 'center' }} />
         )}
 
-        {/* Primary action — the launch's clipped solid-teal CTA */}
+        {/* Primary action — TRANSMIT, the launch's clipped solid-teal CTA */}
         <button
-          onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
+          onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : (stepped && createStep === 1 ? advanceIdentity : submitAuth)}
           disabled={busy}
           className="bs-wire-enter"
-          style={{ width: '100%', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          style={{ width: '100%', marginTop: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
-            ? (isCreate ? 'Creating…' : 'Signing in…')
+            ? (isCreate ? 'Transmitting…' : 'Signing in…')
             : isPhone
-              ? (otpSent ? (isCreate ? 'Verify & join →' : 'Verify & sign in →') : 'Text me a code →')
-              : (isCreate ? `Join as ${roleLabel} →` : `Sign in as ${roleLabel} →`)}
+              ? (otpSent ? (isCreate ? 'Transmit · Verify & join →' : 'Transmit · Verify & sign in →') : 'Transmit · Text me a code →')
+              : stepped
+                ? (createStep === 1 ? 'Next · Credentials →' : `Transmit · Join as ${shortRole} →`)
+                : `Transmit · Sign in as ${shortRole} →`}
         </button>
 
         {/* Create account / apply — role-aware: clients create an account,
@@ -1344,12 +1421,21 @@ async function bsmStartCheckout() {
 // copy (the check rides the launch, never gets its own labelled screen). Used
 // as the stage-'app'/'gate' safety-net loading state.
 function BSWireHold() {
+  const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <BSWireGround plain />
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <BSShapeMark size={96} />
-        <BSWireLoading />
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
+      <BSWireGround />
+      <div style={{ position: 'relative', zIndex: 1, margin: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 26px 0', paddingBottom: 8, borderBottom: '2px solid #f2ede4', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: holdMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.7)' }}>
+        <span>Shape Wire</span><span style={{ color: '#34d6c5' }}>Live</span>
+      </div>
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <BSShapeMark size={96} calm />
+      </div>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+        <BSWireLoading top={0} />
+      </div>
+      <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
+        <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
       </div>
     </div>
   );
@@ -1375,7 +1461,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
-      <BSWireGround plain dim />
+      <BSWireGround dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
         <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
           <span>Shape Wire</span><span style={{ color: INKF }}>Members only</span>

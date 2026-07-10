@@ -54,6 +54,10 @@ if (typeof window !== 'undefined') {
       return load()
         .then((ts) => ts.render(el, {
           sitekey: window.SHAPE_TURNSTILE_SITEKEY,
+          // The launch/auth surfaces are fixed-dark; interaction-only keeps the
+          // widget invisible unless Cloudflare actually needs a human click.
+          theme: 'dark',
+          appearance: 'interaction-only',
           callback: cb,
           'expired-callback': () => cb(''),
           'error-callback': () => cb(''),
