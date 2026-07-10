@@ -737,6 +737,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The launch on the wire — beat · telegram · wall · auth · application (2026-07-10)',
+      items: [
+        { label: 'Wire-ticker BEAT + "The telegram" Daily briefing (#1667 spec · #1668 build): ~3.5s beat holds while membership resolves behind it (no "Checking membership…" screen), telegram self-advances 5s w/ tap-skip, directive from the SAME source as Home (shared BS_LEVER_HEADS), pure dailyWire.mjs (bsLaunchRoute/bsAfterBeat/bsWireLines, 21 vectors)', status: 'done' },
+        { label: 'Warm-relaunch skip: per-account per-LOCAL-day shape.dailySeen stamp + persisted shape.lastUid (auth hydrates async — the CodeRabbit P2); cleared on logout, cross-account safe', status: 'done' },
+        { label: 'Members wall re-set in the wire grammar (signed-out/lapsed only, tap-gated; paywall_viewed analytics verbatim) + gate rides BEHIND the beat', status: 'done' },
+        { label: 'Polish rounds #1670–#1673: plain dim ground on wall/hold · beat dwell 3.5s · clean centered invite dispatch · LOADING readout · language picker + all auth screens onto the wire ground', status: 'done' },
+        { label: 'STOP/END tokens removed launch-wide + LOADING lower (#1674) — house middle-dot separators carry the lines', status: 'done' },
+        { label: 'Dietitian (RD/RDN) signup toggle ACTUALLY wired (#1674): was coercing to the trainer application + never sending nutrition_role; now nutritionist rails + details.nutrition_role=dietitian + a visible RD/RDN line on the application (reviewer still assigns profiles.role after credential review)', status: 'done' },
+        { label: 'BEAT restructured (#1675 + #1676, owner look): static centered INCOMING line (the drifting row clipped mid-word), ticker rows spread full-height + edge-fade mask + calmer, calm mark glow, mark owns the center, LOADING anchors low and fills 0→100% (bs-wire-fill, 3.4s, parks full), topbars removed from beat/hold/wall', status: 'done' },
+        { label: 'Sign-in/create = "The wire form" (#1675, owner-picked): mono label column + dot-leader entries, TRANSMIT CTAs, create split STEP 1 IDENTITY → STEP 2 CREDENTIALS (FILED recap, identity errors return to step 1, captcha mounts on step 2); autofill pinned dark, color-scheme dark DOB, Turnstile theme dark + interaction-only; every behavior carried (handle check, 18+ gate, phone OTP, forgot password, apply routing, verify-email, checkout handoff)', status: 'done' },
+        { label: 'Provider application on the wire (#1677, both roles): fixed-dark on the shared ground, role tag = the one role-heat placement (trainer rust / nutritionist gold · RD/RDN tag), auth-style step register + teal segments, dot-leader fields, teal chips/checks, dashed file drops, ghost BACK + clipped teal TRANSMIT·SUBMIT; validation/uploads/nutrition_role verbatim', status: 'done' },
+        { label: 'OWNER on-device pass: cold open (beat → telegram/wall) · same-day warm relaunch (straight to app) · next-morning stamp rollover · signed-out wall + Preview → invite · the wire-form auth (create both steps × roles × RD/RDN, phone OTP, autofill dark) · the application both roles · reduced motion · Black/Sage/Cream papers', status: 'manual' },
+      ],
+    },
+    {
       section: 'Community feed & chat',
       items: [
         { label: 'Chat tab rebuilt as role-aware "The feed." (Shape / own role / Community)', status: 'done' },
@@ -860,7 +875,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach read of a member\'s self-authored plans — DONE (2026-07-10): get_client_self_plans RPC (SECURITY DEFINER, is_coach_on_client-gated, compact projection — never the full payload) + a Case File "SELF-PROGRAMMED" honest-slot station (programs w/ next-session week/date · weekly repeats w/ day letters · upcoming one-offs; renders only when the member self-programs); pure tested selfPlansSummary.mjs', status: 'done' },
         { label: 'Migration 2026-07-10-client-self-plans-coach-read.sql APPLIED + verified live (owner ran it 2026-07-10; get_client_self_plans present w/ anon=false/authenticated=true + the client_workouts_self_by_date_idx partial index) — the Case File SELF-PROGRAMMED station reads live', status: 'done' },
         { label: 'Website builder parity — DONE (2026-07-10): "Build your week" widget on the dashboard Workouts tab (starter sessions + programs · custom weekly SESSION · custom N-week PROGRAM from the weekly pattern · ✦ Draft-it-for-me review→approve · Yours manage list w/ ShapeConfirm removes) over a new /api/client/self-training route that imports the SAME pure builder modules the app uses (bsRepeatSpec/bsMaterializeProgram/bsStarterProgram — one implementation, RLS-scoped writes). The per-week hand-editor stays a mobile strength (✦ Draft covers varied weeks on web)', status: 'done' },
-        { label: 'MARKETING WEBSITE copy: advertise self-serve training — clients can create their own workouts if they want ("build your own workouts, coach optional") on the public feature surfaces: index.html journey/feature beats · GetApp.html walkthrough · Pricing feature list. The feature is LIVE both surfaces (#1618 app · #1664 web) — the marketing pages just never mention it; the app members-wall line rides the splash-briefing build (direction picked 2026-07-10)', status: 'pending' },
+        { label: 'MARKETING WEBSITE copy: advertise self-serve training — clients can create their own workouts if they want ("build your own workouts, coach optional") on the public feature surfaces: index.html journey/feature beats · GetApp.html walkthrough · Pricing feature list. The feature is LIVE both surfaces (#1618 app · #1664 web) — the marketing pages just never mention it; the app members-wall line SHIPPED with the wire wall (#1668, "or build your own workouts")', status: 'pending' },
         { label: 'Self-serve on-device pass across papers × disciplines (strength/run/tri/Hyrox) × the share matrix', status: 'pending' },
       ],
     },

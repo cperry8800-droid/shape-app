@@ -159,7 +159,20 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10e): THE NORA WAVE — COMPLETE** (#1652 spec · #1653/#1654
+> **Latest (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
+> one day, each from the owner's live on-device look): #1667/#1668 wire beat +
+> "The telegram" Daily + warm-skip + wire wall · #1670–#1673 polish (plain dim
+> grounds, 3.5s dwell, clean invite, LOADING, picker + auth on the wire) ·
+> #1674 STOP/END removal + the **dietitian RD/RDN wiring fix** · #1675 beat
+> structure + **"The wire form"** sign-in/create (2-step IDENTITY →
+> CREDENTIALS, TRANSMIT CTAs, autofill/DOB/Turnstile fixes) · #1676 topbars
+> off + **0→100% loading fill** · #1677 the **provider application** (both
+> roles) in the launch grammar. `main` at **`b34d8a35`**. Full session
+> handoff: **[`docs/HANDOFF-2026-07-10b.md`](HANDOFF-2026-07-10b.md)**.
+> Open: the OWNER on-device pass across the whole flow (launch × auth ×
+> application × reduced motion × papers).
+>
+> **Prior (2026-07-10e): THE NORA WAVE — COMPLETE** (#1652 spec · #1653/#1654
 > voice · #1655 grounding+memory · #1656 member tools · #1657 voice-default
 > env), `main` at `51828ddb`. Full session handoff:
 > **[`docs/HANDOFF-2026-07-10.md`](HANDOFF-2026-07-10.md)** (also covers the
@@ -167,8 +180,8 @@ changelog whenever something ships.
 > in the day). **Owner's voice pick: `sage` + a fitness-instructor style** —
 > ⚠ OWNER: paste `NORA_TTS_VOICE=sage` + the `NORA_TTS_INSTRUCTIONS` block
 > (verbatim in the handoff) into Vercel, redeploy, then the Settings →
-> Preview-voice ear check. Open: the on-device Nora pass · the un-parked
-> splash-pages rearrangement pick · deferred items in the handoff.
+> Preview-voice ear check. Open: the on-device Nora pass · deferred items in
+> the handoff.
 >
 > **Prior (2026-07-10d): Nora member action tools — PR C closes the Nora
 > wave** — members DO things through Nora: **log_weigh_in / log_water /
