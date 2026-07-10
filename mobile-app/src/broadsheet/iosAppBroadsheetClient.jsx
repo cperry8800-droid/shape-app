@@ -1629,6 +1629,21 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
 let _bsIngSeq = 0;
 const bsIngId = () => `bsing-${++_bsIngSeq}`;
 
+// Real food recents — user_goals('food_recents'), cap 20, most-recent-first,
+// deduped by name. Best-effort: a failed write never blocks the add.
+async function bsLoadFoodRecents() {
+  try {
+    const doc = await window.shapeDb?.getUserGoals?.('food_recents');
+    const items = doc && Array.isArray(doc.items) ? doc.items : [];
+    return items.filter((x) => x && x.name).slice(0, 20);
+  } catch (e) { return []; }
+}
+function bsPushFoodRecent(items, f) {
+  const key = String(f.name || '').trim().toLowerCase();
+  const rest = (Array.isArray(items) ? items : []).filter((x) => String((x && x.name) || '').trim().toLowerCase() !== key);
+  return [{ name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0) }, ...rest].slice(0, 20);
+}
+
 // Full meal-logging flow — opened from the home "Up next" meal card's
 // "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
 // photo, or voice; writes to the day total and shows a logged confirmation.
@@ -1640,6 +1655,9 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const [portion, setPortion] = useStateBSC(1);
   const [note, setNote] = useStateBSC('');
   const [foodQuery, setFoodQuery] = useStateBSC('');
+  const [foodResults, setFoodResults] = useStateBSC(null);   // null = idle (no live query yet)
+  const [foodStatus, setFoodStatus] = useStateBSC('idle');   // idle | searching | done | error
+  const [foodRecents, setFoodRecents] = useStateBSC(null);   // null until loaded
   const [logged, setLogged] = useStateBSC(false);
   const [award, setAward] = useStateBSC(null);         // {awarded, points} | null — set after log resolves
   const [coach, setCoach] = useStateBSC(null);         // {name, role} | null — resolved linked nutritionist/coach
@@ -1667,6 +1685,34 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   // predicate compares against (toggle / edit / add / remove all diverge from it).
   const initialIngsRef = React.useRef(null);
   if (initialIngsRef.current === null) initialIngsRef.current = ings.map((x) => ({ ...x }));
+
+  // Real recents — loaded once per sheet open (signed-in only; the demo
+  // catalog stays the signed-out preview).
+  React.useEffect(() => {
+    if (!signedIn || !showAddFood || foodRecents !== null) return;
+    let on = true;
+    bsLoadFoodRecents().then((items) => { if (on) setFoodRecents(items); });
+    return () => { on = false; };
+  }, [signedIn, showAddFood]);
+
+  // Live food search — debounced 350 ms, in-flight aborted, min 2 chars.
+  React.useEffect(() => {
+    if (!signedIn || !showAddFood) return;
+    const q = foodQuery.trim();
+    if (q.length < 2) { setFoodResults(null); setFoodStatus('idle'); return; }
+    const ctl = new AbortController();
+    const timer = setTimeout(() => {
+      setFoodStatus('searching');
+      window.ShapeFoodSearch?.search(q, { signal: ctl.signal })
+        .then((data) => {
+          if (ctl.signal.aborted) return;
+          setFoodResults(Array.isArray(data.results) ? data.results : []);
+          setFoodStatus(data.unavailable ? 'error' : 'done');
+        })
+        .catch(() => { if (ctl.signal.aborted) return; setFoodResults([]); setFoodStatus('error'); });
+    }, 350);
+    return () => { clearTimeout(timer); ctl.abort(); };
+  }, [foodQuery, signedIn, showAddFood]);
   // Broadcast "cooking" presence while the meal logger is open (amber dot).
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
 
@@ -2134,17 +2180,54 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           { name: 'Olive oil',               qty: '1 tbsp',  kcal: 120, p: 0,  c: 0,  f: 14 },
         ];
         const q = foodQuery.trim().toLowerCase();
-        // Honest-data: signed-in members get NO fabricated catalog — food search
-        // isn't wired yet, so route them straight to manual entry. The demo list
-        // (search + recents) is the signed-out preview only.
-        const rows = signedIn ? [] : (q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3));
+        // Signed-in members search the REAL hybrid food database (FDC + OFF via
+        // /api/nutrition/food-search) with real user_goals recents; the demo
+        // list (search + recents) is the signed-out preview only.
+        const rows = q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3);
         const addFood = (f) => { setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(`Added ${f.name}`, 'ok'); setShowAddFood(false); };
+        // Live handlers — ＋ adds the provider's default serving directly; a tap
+        // on the row body opens the ingredient editor prefilled so the portion
+        // can be adjusted before it lands. Adds persist to real recents
+        // (best-effort — a failed write never blocks the add).
+        const addLiveFood = (f) => {
+          setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
+          window.__bsToast?.(`Added ${f.name}`, 'ok');
+          setShowAddFood(false);
+          const next = bsPushFoodRecent(foodRecents, f);
+          setFoodRecents(next);
+          try { window.shapeDb?.saveUserGoals?.('food_recents', { items: next }); } catch (e) {}
+        };
+        const editLiveFood = (f) => {
+          setShowAddFood(false);
+          setEditIng({ index: null, name: f.name, qty: f.qty || '', kcal: String(Math.round(Number(f.kcal) || 0)), p: String(Math.round(Number(f.p) || 0)), c: String(Math.round(Number(f.c) || 0)), f: String(Math.round(Number(f.f) || 0)) });
+        };
+        const searching = foodQuery.trim().length >= 2;
+        const liveRows = searching ? (foodResults || []) : (foodRecents || []);
+        const liveStatus = foodStatus === 'searching' ? 'Searching…'
+          : foodStatus === 'error' ? 'Can’t reach the food database — enter manually below'
+          : searching ? `${liveRows.length} result${liveRows.length === 1 ? '' : 's'}`
+          : (foodRecents === null || liveRows.length ? 'Recents' : 'No recents yet — search or enter manually');
         return createPortal((
           <div onClick={() => setShowAddFood(false)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>Add food</div>
               {signedIn ? (
-                <div style={{ padding: '2px 0 4px', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70 }}>Food search is coming. Enter what you ate manually for now.</div>
+                <>
+                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods & brands…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: foodStatus === 'error' ? t.RUST : t.INK50 }}>{liveStatus}</div>
+                  <div style={{ marginTop: 2 }}>
+                    {liveRows.map((r, i) => (
+                      <div key={r.id || `${r.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0', borderBottom: i === liveRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                        <button onClick={() => editLiveFood(r)} style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, padding: '9px 0', cursor: 'pointer' }}>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
+                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.brand ? `${r.brand} · ` : ''}{r.qty} · {r.kcal} kcal · {r.p}P</div>
+                        </button>
+                        <button onClick={() => addLiveFood(r)} aria-label={`Add ${r.name}`} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
+                      </div>
+                    ))}
+                    {searching && foodStatus === 'done' && liveRows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No matches for “{foodQuery.trim()}”.</div>}
+                  </div>
+                </>
               ) : (
                 <>
                   <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods, brands, barcodes…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
