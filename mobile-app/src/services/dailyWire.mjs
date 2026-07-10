@@ -126,7 +126,7 @@ export function bsWireLines(digest, directive) {
 
   // 3) Numbers line — fragments only when the datum exists
   const nums = [];
-  if (sc && sc.score != null) nums.push('SCORE ' + Number(sc.score).toLocaleString() + (sc.delta > 0 ? ' UP ' + sc.delta : ''));
+  if (sc && sc.score != null) nums.push('SCORE ' + Number(sc.score).toLocaleString('en-US') + (sc.delta > 0 ? ' UP ' + sc.delta : ''));
   if (nu && nu.protein != null) nums.push(nu.proteinTarget != null ? 'PROTEIN ' + nu.protein + ' OF ' + nu.proteinTarget : 'PROTEIN ' + nu.protein + 'G');
   if (streak > 0) nums.push('STREAK ' + streak + (streak === 1 ? ' DAY' : ' DAYS'));
   if (nums.length) lines.push({ text: nums.join(' · '), sep: true });

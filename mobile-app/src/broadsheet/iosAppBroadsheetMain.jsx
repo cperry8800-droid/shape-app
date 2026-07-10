@@ -1490,8 +1490,11 @@ function BSAppShell({ tweaks, setTweak }) {
   // stage-'app' gate stays the safety net if the restore later disagrees.
   const [stage, setStage] = useStateBSM(() => {
     try {
-      const auth = window.ShapeAuth?.getCachedState?.() || {};
-      const uid = auth?.user?.id;
+      // The auth `state` is empty until getCurrentSession() hydrates it (async),
+      // so the live uid isn't available synchronously at boot. Use the persisted
+      // 'shape.lastUid' (written when membership resolves, cleared on logout) so
+      // the uid-scoped warm-skip still works on a fresh JS context.
+      const uid = localStorage.getItem('shape.lastUid');
       const stamp = localStorage.getItem('shape.dailySeen');
       const memberCached = (window.ShapeMembership && window.ShapeMembership.active === true) || localStorage.getItem('shape.member') === '1';
       return bsLaunchRoute({ stamp, uid, todayLocal: bsLocalDay(), memberCached });
@@ -1618,10 +1621,13 @@ function BSAppShell({ tweaks, setTweak }) {
     let cancelled = false;
     const uid = authState?.user?.id;
     if (!uid) {
-      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
+      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); } catch (e) {}
       setMembership({ loading: false, active: false });
       return () => {};
     }
+    // Persist the signed-in uid so the next cold boot can make the uid-scoped
+    // warm-skip decision synchronously (the auth state hydrates async).
+    try { localStorage.setItem('shape.lastUid', uid); } catch (e) {}
     fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('unreachable'))))
       .then(d => {
@@ -1775,7 +1781,7 @@ function BSAppShell({ tweaks, setTweak }) {
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);
-    try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
+    try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
     // Land on the membership wall (the gate), not the bare login screen.
     setStage('app');
   };
