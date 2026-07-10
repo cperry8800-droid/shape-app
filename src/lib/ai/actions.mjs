@@ -12,6 +12,7 @@
 // endpoint's own 403 as the backstop.
 
 import { gateAction, disclaimerFor } from '../compliance/nutrition.mjs';
+import { applyRemember, applyForget, MEMORY_KIND } from './noraMemory.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).
@@ -434,6 +435,64 @@ export const rescheduleSessionAction = {
   },
 };
 
+// ── Memory · remember / forget (DIRECT-with-audit — no confirm card by spec
+// decision, #1652). These are NOT proposal actions: the support-chat route runs
+// them inline for VERIFIED MEMBERS ONLY (the tool list is assembled after the
+// fail-closed membership check; ctx.isMember re-checks here as defense-in-depth).
+// Writes go through ctx.casWrite (server.ts casWriteUserGoals — CAS on the
+// {rev, notes} doc); every write audits via ctx.audit keyed on the note's own
+// id, so a dedupe-hit retry REPAIRS a missing audit row instead of skipping it.
+async function ensureMemoryAudit(ctx, action, noteId, payload) {
+  try {
+    var existing = await ctx.supabase
+      .from('ai_audit_log').select('id')
+      .eq('actor_user_id', ctx.actor.id).eq('action', action)
+      .eq('target_id', noteId).limit(1);
+    if (existing && Array.isArray(existing.data) && existing.data.length) return true;
+    await ctx.audit.log({
+      actorUserId: ctx.actor.id, actorRole: ctx.actor.role, source: 'nora', action,
+      target: { userId: ctx.actor.id, kind: MEMORY_KIND, id: noteId },
+      confirmedPayload: payload,
+    });
+    return true;
+  } catch (e) {
+    // Safe metadata ONLY — never note text, never raw tool arguments.
+    console.warn('[nora-memory] audit failed', { action, noteId, status: 'unaudited' });
+    return false;
+  }
+}
+
+export const rememberMemoryTool = {
+  name: 'remember',
+  async run(ctx, input) {
+    if (ctx.isMember !== true) return { error: 'members_only' };
+    var text = String((input && input.note) || '').trim();
+    if (!text) return { error: 'empty_note' };
+    var now = new Date().toISOString();
+    var out = null;
+    var w = await ctx.casWrite(MEMORY_KIND, function (doc) { out = applyRemember(doc, text, now); return out; });
+    if (!w.ok) return { error: w.error || 'conflict' };
+    // remember's audit may carry the stored text (it persists in the doc anyway).
+    var audited = await ensureMemoryAudit(ctx, 'remember', out.note.id, { noteId: out.note.id, text: out.note.text });
+    return { done: true, noteId: out.note.id, deduped: out.deduped === true, audited };
+  },
+};
+
+export const forgetMemoryTool = {
+  name: 'forget',
+  async run(ctx, input) {
+    if (ctx.isMember !== true) return { error: 'members_only' };
+    var sel = { noteId: input && input.note_id, note: input && input.note };
+    var out = null;
+    var w = await ctx.casWrite(MEMORY_KIND, function (doc) { out = applyForget(doc, sel); return out; });
+    if (!w.ok) return { error: w.error || 'conflict', candidates: w.candidates || undefined };
+    // A forget must actually forget: the audit row records the id + stamps ONLY.
+    var audited = await ensureMemoryAudit(ctx, 'forget', out.removed.id, { noteId: out.removed.id });
+    return { done: true, noteId: out.removed.id, audited };
+  },
+};
+
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
-// chat route; these are the executors the scaffold runs.)
+// chat route; these are the executors the scaffold runs.) The memory tools above
+// are deliberately NOT in this list — they're direct, not proposal-drafted.
 export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction];

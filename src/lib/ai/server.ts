@@ -74,6 +74,50 @@ export function userGoalsStore(supabase: SupabaseClient, userId: string) {
   };
 }
 
+/**
+ * Compare-and-set write on a user_goals `{rev, …}` doc: re-read → mutate →
+ * UPDATE conditioned on the stored rev (writing rev+1); zero affected rows =
+ * a concurrent writer won → re-read and retry (×2), then surface 'conflict'.
+ * First-row bootstrap: no row → INSERT rev 1; a (user_id, kind) unique
+ * conflict is treated exactly like a CAS miss. `mutate(doc)` returns
+ * `{ doc }` to write, or `{ error, candidates? }` to abort (validation).
+ */
+export async function casWriteUserGoals(
+  supabase: SupabaseClient,
+  userId: string,
+  kind: string,
+  mutate: (doc: unknown) => Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string; candidates?: unknown }> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data } = await supabase
+      .from('user_goals')
+      .select('data')
+      .eq('user_id', userId)
+      .eq('kind', kind)
+      .maybeSingle();
+    const existing = (data as { data?: unknown } | null)?.data ?? null;
+    const out = mutate(existing);
+    if (out && out.error) return { ok: false, error: String(out.error), candidates: (out as { candidates?: unknown }).candidates };
+    const doc = (out as { doc?: Record<string, unknown> }).doc;
+    if (!doc) return { ok: false, error: 'bad_mutation' };
+    const rev = existing && typeof existing === 'object' && Number.isInteger((existing as { rev?: unknown }).rev)
+      ? ((existing as { rev: number }).rev)
+      : null;
+    const nextDoc = { ...doc, rev: (rev ?? 0) + 1 };
+    if (existing == null) {
+      const { error } = await supabase.from('user_goals').insert({ user_id: userId, kind, data: nextDoc });
+      if (!error) return { ok: true };
+      continue; // unique-key conflict = a concurrent first write → re-read (CAS miss)
+    }
+    let q = supabase.from('user_goals').update({ data: nextDoc }).eq('user_id', userId).eq('kind', kind);
+    q = rev == null ? q.is('data->>rev', null) : q.eq('data->>rev', String(rev));
+    const { data: upd, error } = await q.select('user_id');
+    if (!error && Array.isArray(upd) && upd.length > 0) return { ok: true };
+    // zero rows / error = a concurrent writer won — re-read and retry.
+  }
+  return { ok: false, error: 'conflict' };
+}
+
 type AuditEntry = {
   actorUserId: string;
   actorRole: string;
