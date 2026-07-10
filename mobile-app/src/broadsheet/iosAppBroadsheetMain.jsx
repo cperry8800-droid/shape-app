@@ -195,7 +195,7 @@ function BSWireGround({ name, dim, plain }) {
     { t: dash, d: 15, off: 0 },
     { t: dash, d: 19, off: -4 },
     { t: dash, d: 13, off: -8 },
-    { t: '—— INCOMING · THE SHAPE DAILY' + (name ? ' · ' + String(name).toUpperCase() : '') + ' ——', d: 17, off: -5, hot: true },
+    { t: '—— INCOMING · THE SHAPE WIRE' + (name ? ' · ' + String(name).toUpperCase() : '') + ' ——', d: 17, off: -5, hot: true },
     { t: dash, d: 21, off: -2 },
     { t: dash, d: 14, off: -7 },
     { t: dash, d: 18, off: -3 },
