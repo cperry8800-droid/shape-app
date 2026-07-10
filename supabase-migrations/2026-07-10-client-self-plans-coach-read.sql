@@ -13,9 +13,25 @@
 -- (no loads/cues/notes — the Case File summarizes; the member's authored
 -- detail stays theirs).
 --
+-- The read is WINDOWED to what the Case File can honestly summarize: undated
+-- rows (weekly repeats / drafts) + rows dated from a week back forward,
+-- nearest-first, capped 200. Without the window, a member with a long
+-- self-history (two saved 26-week programs already exceed 200 rows) would
+-- have the oldest rows consume the cap and the coach could miss the CURRENT
+-- run entirely — or read an active program as past (Codex P2 on the PR).
+-- The -7d lookback keeps "today" timezone-safe (server day vs member day)
+-- and lets a just-finished run still read PAST for a few days.
+--
 -- Depends on is_coach_on_client(uuid) (2026-05-26-shared-clients.sql) and
 -- the nullable trainer_id (2026-07-08-self-authored-workouts.sql).
 -- Idempotent. Safe to re-run.
+
+-- Partial index for the self-row read (client_workouts_client_idx covers
+-- client_id alone; this one serves the trainer_id-NULL filter + date order
+-- directly and stays tiny — self rows only).
+create index if not exists client_workouts_self_by_date_idx
+  on public.client_workouts (client_id, scheduled_date)
+  where trainer_id is null;
 
 drop function if exists public.get_client_self_plans(uuid);
 create or replace function public.get_client_self_plans(p_user_id uuid)
@@ -53,6 +69,10 @@ begin
     from public.client_workouts w
    where w.client_id = p_user_id
      and w.trainer_id is null
+     -- The relevance window: undated (repeats/drafts) + last-week-forward.
+     -- Nearest-first so the cap can only ever trim the FAR tail of a long
+     -- program — never the current/upcoming sessions.
+     and (w.scheduled_date is null or w.scheduled_date >= (now() at time zone 'utc')::date - 7)
    order by w.scheduled_date asc nulls first, w.created_at desc
    limit 200;
 end;

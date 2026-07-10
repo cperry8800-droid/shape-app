@@ -379,10 +379,20 @@ changelog whenever something ships.
   the payload's program stamp + `repeatDow` + a move count, capped 200. Never
   the full payload: no loads, cues, or notes — the member's authored detail
   stays theirs; the coach reads the shape of the plan.
+- **Review round (Codex P2 — real, fixed):** oldest-first under the 200-row
+  cap meant a long self-history (two saved 26-week programs already exceed
+  200 rows) could evict the CURRENT run — the coach could miss an active
+  program or read it as past. The RPC now **windows to relevance**: undated
+  rows (repeats/drafts) + rows dated **last-week-forward**, nearest-first —
+  the cap can only trim the far tail of a long program, never the
+  current/upcoming sessions; a run that ended within the week still reads
+  `PAST`, older history drops off the Case File. CodeRabbit's index nit
+  folded in: a tiny **partial index** `(client_id, scheduled_date) where
+  trainer_id is null` serves the self-row read directly.
 - **Pure `mobile-app/src/services/selfPlansSummary.mjs`** (+ 7 test vectors,
   suite **567**): groups rows into **programs** (per-RUN — a re-started plan
   is its own line; the next dated session ≥ today carries the `W3 OF 16 ·
-  JUL 12` readout, a fully-past run reads an honest `PAST`), **weekly
+  JUL 12` readout, a just-ended run reads an honest `PAST`), **weekly
   repeats** (`Mo Th · WEEKLY` day letters, deduped), and **upcoming one-offs**
   (sorted, capped 5). `Number(null)`-as-Sunday guarded (the food-search
   lesson).
