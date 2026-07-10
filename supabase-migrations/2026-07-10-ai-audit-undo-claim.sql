@@ -22,6 +22,19 @@
 -- FINALIZES (clears it — finalize_ai_action_undo); release works ONLY while
 -- it is still set. A finalized undo can never be reopened.
 --
+-- ABANDONED CLAIMS (crash between claim and finalize/release) are DELIBERATELY
+-- not auto-reclaimed. The two crash windows are indistinguishable server-side:
+-- (a) died BEFORE the reversal → data unreversed; (b) died AFTER the reversal,
+-- before finalize → data reversed. A lease/expiry reclaim would re-run the
+-- reversal in case (b) — reintroducing the double-apply this migration exists
+-- to kill. At-most-once is the chosen semantics (matching the spec's "true
+-- one-shot"): a crashed undo reads alreadyUndone, which is visible and
+-- support-recoverable, while a silent double-reversal corrupts accumulators.
+-- An abandoned claim is identifiable for operator recovery as
+--   status = 'undone' AND undo_claimed_at IS NOT NULL
+-- older than a few minutes — inspect the target data, then finalize or
+-- release it by hand with knowledge of which side of the crash it landed on.
+--
 -- mark_ai_action_undone (2026-06-16) is left untouched: the app falls back to
 -- the legacy read→reverse→mark order until this migration is applied.
 --
