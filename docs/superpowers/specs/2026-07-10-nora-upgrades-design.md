@@ -149,8 +149,15 @@ to it while in the file.
   fresh state), and write conditioned on the stored `rev`
   (`…eq('data->>rev', rev)`, writing `rev + 1`; zero affected rows → re-read
   and retry, twice, then surface the failure) — so concurrent edits can never
-  silently clobber each other or overshoot the cap.
-- Two tools: **`remember { note }`** / **`forget { note_id?, note? }`**.
+  silently clobber each other or overshoot the cap. **First-row bootstrap:**
+  when no `nora_memory` row exists yet, the writer INSERTs `{ rev: 1, notes:
+  [<the change>] }`; a concurrent first write surfaces as the unique-key
+  conflict on `(user_id, kind)`, which is treated exactly like a CAS miss —
+  re-read the row that won and continue through the normal CAS path (so a
+  first-time member can always save, and two racing first writes both land).
+- Two tools: **`remember { note }`** / **`forget { note_id?, note? }`** —
+  `forget` requires **exactly one selector**: neither field, or both at once,
+  is rejected with a validation error before anything is read.
   `remember`'s result surfaces each note's stable `id`; **`forget` deletes by
   `note_id`** (the model gets ids in context). Text-only `forget` is accepted
   only when it matches **exactly one** note — duplicates/ambiguity fail
@@ -180,7 +187,10 @@ to it while in the file.
   unlike the data tools which keep the confirm gate. Say the word if you want
   the confirm card on memory too.
 - **Management UI:** the Settings Nora section gains "What Nora remembers" —
-  the list, per-note delete, clear all. Self-only by RLS (`user_goals`).
+  the list, per-note delete, clear all. **Clear all runs through the standing
+  destructive-action confirm primitive (`window.bsAskConfirm`)** — cancel
+  performs no write of any kind; confirm executes the deletion (under the
+  same CAS path as every other writer). Self-only by RLS (`user_goals`).
 
 ## Out of scope (noted follow-ups)
 
