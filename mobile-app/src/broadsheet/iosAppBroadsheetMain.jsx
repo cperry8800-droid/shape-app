@@ -721,20 +721,16 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
   // ── 5. THE DAILY: a personalized morning briefing built on real member data ──
   if (style === 'classified') {
-    // Today's editorial date + time-of-day greeting.
+    // Today's editorial date (the wire topbar).
     const today = new Date();
     const wkday = today.toLocaleDateString([], { weekday: 'short' });
     const month = today.toLocaleDateString([], { month: 'short' });
     const day   = today.getDate();
-    const year  = today.getFullYear();
-    const dateLine = `${wkday} · ${month} ${day} · ${year}`;
     const dateShort = `${wkday} · ${month} ${day}`;
-    const hr = today.getHours();
-    const greetWord = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
 
     // FIXED night-sky palette — the background is a hardcoded dark cosmos
     // gradient, so the ink must NOT follow the paper theme.
-    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.22)', ACCF = '#34d6c5', AMBER = '#e9b949', BLUE = '#7ed4ff';
+    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.22)', ACCF = '#34d6c5', BLUE = '#7ed4ff';
     const serif = `'Newsreader', Georgia, serif`;
 
     const dg = bsDigest;                 // null while loading
@@ -821,46 +817,39 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
       );
     }
 
-    // Invite edition (signed-out preview). Whole-screen tap is a convenience;
-    // the "Step inside" button below is the real keyboard control — so the root
-    // isn't a role=button wrapping the nested WORLD links + that button.
+    // Invite edition (signed-out preview) + the shared loading shell — re-set in
+    // the wire grammar (owner call 2026-07-10) so the whole signed-out cold open
+    // speaks one language. Content unchanged: the pitch (now wire lines), Inside
+    // Shape, In the world, and the tap-gated Step inside (the real keyboard
+    // control — the root stays a convenience tap so it never wraps the nested
+    // links/button in a role=button). Never auto-advances, never stamps.
     return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: wireGround, color: INKF, padding: '50px 18px 22px', display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden', cursor: 'pointer' }}>
+      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: wireGround, color: INKF, padding: '52px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
 
         {/* topbar */}
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
-          <span>Your briefing</span>
-          <span style={{ fontWeight: 700, color: INKF }}>{dateShort}</span>
-        </div>
-
-        {/* masthead */}
-        <div style={{ textAlign: 'center', borderBottom: `1px solid ${INKF}`, paddingBottom: 12 }}>
-          <div className="bs-splash-title" style={{ width: '100%', margin: '0 auto', paddingBottom: 12, borderBottom: `3px solid ${INKF}` }}>
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, width: '100%', lineHeight: 1 }}>
-              <span className="bs-splash-the" style={{ fontFamily: serif, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
-              <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block', transform: 'translateY(-2px)' }} />
-              <span className="bs-splash-daily" style={{ fontFamily: serif, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
-            </span>
-          </div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF70, marginTop: 13 }}>Today's edition · <span style={{ fontWeight: 700, color: INKF }}>{dateLine}</span></div>
-        </div>
-
-        {/* greeting (centered) */}
-        <div style={{ fontFamily: serif, fontSize: 21, fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center' }}>
-          {greetWord}{name ? <>, <em style={{ fontStyle: 'italic', color: ACCF }}>{name}.</em></> : '.'}
+        <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
+          <span>Shape Wire</span>
+          <span style={{ color: INKF }}>{dateShort}</span>
         </div>
 
         {loading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
         ) : (
           // Signed-out preview only — the invite edition (members render the
           // telegram above). Tap-only "Step inside"; never auto-advances.
           <>
-            {/* invite lead */}
-            <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
-              <div style={{ fontFamily: serif, fontSize: 15, color: INKF70, lineHeight: 1.4, padding: '0 4px' }}>
-                Your training, your numbers, and a note from your coach — every morning. <span style={{ color: INKF }}>Step inside to make it yours.</span>
-              </div>
+            <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: You · Invitation</div>
+            {/* the pitch, on the wire */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '2px 0' }}>
+              {[
+                { text: 'The Shape Daily lands every morning' },
+                { text: 'Your training · your numbers · a note from your coach' },
+                { text: 'Step inside to make it yours', hot: true, end: true },
+              ].map((ln, i) => (
+                <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 11, fontWeight: ln.hot ? 700 : 500, lineHeight: 2.05, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
+                  {ln.text}<span style={{ color: 'rgba(242,237,228,0.3)' }}>{ln.end ? ' END' : ' STOP'}</span>
+                </div>
+              ))}
             </div>
             {/* two columns: Inside Shape + In the world */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 2 }}>
@@ -889,8 +878,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           </>
         )}
 
-        {/* CTA — tap to enter the app (the whole screen is also tappable) */}
-        <button onClick={onDone} className="bs-wire-enter" style={{ borderRadius: 999, margin: '4px auto 0', width: 'fit-content', padding: '10px 26px', background: INKF, color: '#0b0e0c', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+        {/* CTA — tap to enter the app (the whole screen is also tappable).
+            Clipped solid teal: the page's one action, matching the wall's JOIN. */}
+        <button onClick={onDone} className="bs-wire-enter" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', margin: '4px auto 0', width: 'fit-content', padding: '12px 30px', background: ACCF, color: '#05080c', border: 0, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
           <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
@@ -1704,14 +1694,15 @@ function BSAppShell({ tweaks, setTweak }) {
     if (stage === 'gate' && !memberGateLoading && memberAllowed) setStage('daily');
   }, [stage, memberGateLoading, memberAllowed]);
 
-  // The wire beat holds for a minimum dwell (~1.1s) so the overture reads, then
-  // the membership check resolves BEHIND it (memberGateLoading false) and it
-  // routes on — language picker on first run, else the telegram (members) or
-  // the gate/wall (non-members). No "Checking membership…" screen ever renders.
+  // The wire beat holds for a minimum dwell (~3.5s — owner call 2026-07-10:
+  // let the overture breathe) while the membership check resolves BEHIND it
+  // (memberGateLoading false), then routes on — language picker on first run,
+  // else the telegram (members) or the gate/wall (non-members). No "Checking
+  // membership…" screen ever renders.
   const [beatMinElapsed, setBeatMinElapsed] = useStateBSM(false);
   useEffectBSM(() => {
     if (stage !== 'beat') return undefined;
-    const id = setTimeout(() => setBeatMinElapsed(true), 1100);
+    const id = setTimeout(() => setBeatMinElapsed(true), 3500);
     return () => clearTimeout(id);
   }, [stage]);
   useEffectBSM(() => {
