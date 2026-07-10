@@ -239,6 +239,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/progress', 'GET'],
   ['/api/client/score', 'GET'],
   ['/api/client/score-record', 'GET'],
+  ['/api/client/self-training', 'GET'],
   ['/api/client/team', 'GET'],
   ['/api/client/strength', 'GET'],
   ['/api/client/timezone', 'POST'],
@@ -854,7 +855,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Start a purchased plan onto the calendar from the Library — atomic-in-effect re-start (new block lands before the prior run deletes)', status: 'done' },
         { label: 'Plan route windows dated rows this-week-forward + undated (nullsFirst) so a long block never starves the current week / repeat rows from the 60-row cap', status: 'done' },
         { label: 'Coach read of a member\'s self-authored plans (v1 surfaces them only via the session logs)', status: 'pending' },
-        { label: 'Website builder parity (mobile-first); on-device pass across papers × disciplines × the share matrix', status: 'pending' },
+        { label: 'Website builder parity — DONE (2026-07-10): "Build your week" widget on the dashboard Workouts tab (starter sessions + programs · custom weekly SESSION · custom N-week PROGRAM from the weekly pattern · ✦ Draft-it-for-me review→approve · Yours manage list w/ ShapeConfirm removes) over a new /api/client/self-training route that imports the SAME pure builder modules the app uses (bsRepeatSpec/bsMaterializeProgram/bsStarterProgram — one implementation, RLS-scoped writes). The per-week hand-editor stays a mobile strength (✦ Draft covers varied weeks on web)', status: 'done' },
+        { label: 'Self-serve on-device pass across papers × disciplines (strength/run/tri/Hyrox) × the share matrix', status: 'pending' },
       ],
     },
     {
