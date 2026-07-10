@@ -627,7 +627,11 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <div style={{ marginTop: 30, fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#34d6c5', textShadow: '0 0 12px rgba(46,224,196,0.35)', textAlign: 'center' }}>
             — Incoming · The Shape Wire{name ? ' · ' + name : ''} —
           </div>
-          <BSWireLoading top={44} />
+        </div>
+        {/* The loading readout anchors LOW (boot-screen style) so the mark owns
+            the center of the dash field — owner call. */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+          <BSWireLoading top={0} />
         </div>
         <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
           <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
@@ -1426,7 +1430,9 @@ function BSWireHold() {
       </div>
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <BSShapeMark size={96} calm />
-        <BSWireLoading top={44} />
+      </div>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 26 }}>
+        <BSWireLoading top={0} />
       </div>
       <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
         <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
