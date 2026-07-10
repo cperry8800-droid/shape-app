@@ -290,7 +290,10 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
   const legs = await Promise.allSettled([
     sb.from('daily_health_snapshot').select('calories, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
     sb.rpc('compute_momentum'),
-    sb.from('score_ledger').select('delta, source_kind').eq('user_id', uid).limit(2000),
+    // 2001 = the completeness probe: exactly 2001 rows back means the ledger
+    // was truncated, and a PARTIAL sum would misstate the member's real score
+    // — the fact is omitted instead (honest absence beats a wrong number).
+    sb.from('score_ledger').select('delta, source_kind').eq('user_id', uid).limit(2001),
     sb.from('client_weigh_ins').select('weight, unit, logged_on').eq('user_id', uid).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_goals').maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle(),
@@ -316,7 +319,7 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
   const mv = val<number>(1);
   if (mv != null) facts.momentum = { value: Number(mv) };
   const ledger = val<Array<{ delta?: number; source_kind?: string }>>(2);
-  if (Array.isArray(ledger) && ledger.length) {
+  if (Array.isArray(ledger) && ledger.length && ledger.length <= 2000) {
     const total = ledger.reduce((a, r) => a + (r.source_kind === 'store_redeem' ? 0 : Number(r.delta) || 0), 0);
     facts.score = { total };
   }

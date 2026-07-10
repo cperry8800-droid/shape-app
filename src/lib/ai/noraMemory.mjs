@@ -20,20 +20,37 @@ export function truncateNote(text) {
 }
 
 function noteId(text) {
-  // djb2 over the normalized text — stable across retries; deliberately no
-  // Date.now()/randomness so a replayed remember lands on the same id.
+  // Two independent 32-bit hashes (djb2 + sdbm) + the text length — ~64 bits of
+  // id space over ≤30 notes, so an id collision between DIFFERENT texts is
+  // effectively impossible (it would need equal lengths AND a double-hash
+  // collision). Stable across retries — deliberately no Date.now()/randomness —
+  // so a replayed remember lands on the same id.
   const s = text.toLowerCase();
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
-  return `mem_${h.toString(36)}`;
+  let h1 = 5381;
+  let h2 = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = ((h1 * 33) ^ c) >>> 0;
+    h2 = (c + (h2 << 6) + (h2 << 16) - h2) >>> 0;
+  }
+  return `mem_${h1.toString(36)}${h2.toString(36)}${s.length.toString(36)}`;
 }
 
-function normDoc(doc) {
+// Normalize a persisted doc to the schema: string id + string text only, each
+// record copied clean, capped to NOTES_CAP — a malformed stored blob can never
+// crash a mutation (`toLowerCase` on a number) or carry an over-cap list
+// forward. Exported: the mobile Settings mirror uses THIS normalizer so the
+// doc semantics have exactly one implementation.
+export function normalizeMemoryDoc(doc) {
   const d = doc && typeof doc === 'object' ? doc : {};
-  const notes = Array.isArray(d.notes) ? d.notes.filter((n) => n && typeof n === 'object' && n.id && n.text) : [];
+  const notes = (Array.isArray(d.notes) ? d.notes : [])
+    .filter((n) => n && typeof n === 'object' && typeof n.id === 'string' && n.id && typeof n.text === 'string' && n.text)
+    .map((n) => ({ id: n.id, text: n.text, at: typeof n.at === 'string' ? n.at : '' }))
+    .slice(0, NOTES_CAP);
   const rev = Number.isInteger(d.rev) && d.rev >= 0 ? d.rev : 0;
   return { rev, notes };
 }
+const normDoc = normalizeMemoryDoc;
 
 export function applyRemember(doc, text, nowIso) {
   const d = normDoc(doc);
@@ -57,7 +74,11 @@ export function applyForget(doc, selector) {
   let matches;
   if (hasId) matches = d.notes.filter((n) => n.id === byId.trim());
   else {
-    const norm = truncateNote(byText).toLowerCase();
+    // Whitespace-normalize but NEVER truncate the selector — a truncated
+    // overlong selector could exactly match a shorter stored note and delete
+    // something the member didn't name. Stored notes are all ≤ NOTE_MAX_CHARS,
+    // so an overlong selector simply matches nothing.
+    const norm = String(byText).replace(/\s+/g, ' ').trim().toLowerCase();
     matches = d.notes.filter((n) => n.text.toLowerCase() === norm);
   }
   if (matches.length === 0) return { error: 'not_found' };

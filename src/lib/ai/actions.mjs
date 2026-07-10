@@ -442,13 +442,20 @@ export const rescheduleSessionAction = {
 // Writes go through ctx.casWrite (server.ts casWriteUserGoals — CAS on the
 // {rev, notes} doc); every write audits via ctx.audit keyed on the note's own
 // id, so a dedupe-hit retry REPAIRS a missing audit row instead of skipping it.
-async function ensureMemoryAudit(ctx, action, noteId, payload) {
+// Audits are PER EVENT: a fresh write always inserts its own audit row. The
+// existence check runs ONLY on a dedupe hit (repairOnly) — that's the
+// retry-after-audit-failure repair path — so a remember → forget → remember of
+// the SAME text (same deterministic id) still logs the second remember as its
+// own event instead of being suppressed by the historical row.
+async function ensureMemoryAudit(ctx, action, noteId, payload, repairOnly) {
   try {
-    var existing = await ctx.supabase
-      .from('ai_audit_log').select('id')
-      .eq('actor_user_id', ctx.actor.id).eq('action', action)
-      .eq('target_id', noteId).limit(1);
-    if (existing && Array.isArray(existing.data) && existing.data.length) return true;
+    if (repairOnly) {
+      var existing = await ctx.supabase
+        .from('ai_audit_log').select('id')
+        .eq('actor_user_id', ctx.actor.id).eq('action', action)
+        .eq('target_id', noteId).limit(1);
+      if (existing && Array.isArray(existing.data) && existing.data.length) return true;
+    }
     await ctx.audit.log({
       actorUserId: ctx.actor.id, actorRole: ctx.actor.role, source: 'nora', action,
       target: { userId: ctx.actor.id, kind: MEMORY_KIND, id: noteId },
@@ -473,7 +480,9 @@ export const rememberMemoryTool = {
     var w = await ctx.casWrite(MEMORY_KIND, function (doc) { out = applyRemember(doc, text, now); return out; });
     if (!w.ok) return { error: w.error || 'conflict' };
     // remember's audit may carry the stored text (it persists in the doc anyway).
-    var audited = await ensureMemoryAudit(ctx, 'remember', out.note.id, { noteId: out.note.id, text: out.note.text });
+    // A dedupe hit is the retry path → repair-only; a fresh write always logs
+    // its own event.
+    var audited = await ensureMemoryAudit(ctx, 'remember', out.note.id, { noteId: out.note.id, text: out.note.text }, out.deduped === true);
     return { done: true, noteId: out.note.id, deduped: out.deduped === true, audited };
   },
 };
@@ -487,7 +496,8 @@ export const forgetMemoryTool = {
     var w = await ctx.casWrite(MEMORY_KIND, function (doc) { out = applyForget(doc, sel); return out; });
     if (!w.ok) return { error: w.error || 'conflict', candidates: w.candidates || undefined };
     // A forget must actually forget: the audit row records the id + stamps ONLY.
-    var audited = await ensureMemoryAudit(ctx, 'forget', out.removed.id, { noteId: out.removed.id });
+    // Every forget is its own event — never repair-only.
+    var audited = await ensureMemoryAudit(ctx, 'forget', out.removed.id, { noteId: out.removed.id }, false);
     return { done: true, noteId: out.removed.id, audited };
   },
 };

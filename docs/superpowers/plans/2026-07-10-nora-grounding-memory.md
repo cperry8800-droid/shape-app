@@ -326,12 +326,19 @@ export async function casWriteUserGoals(
       .eq('kind', kind)
       .eq('data->>rev', String(rev))
       .select('user_id');
-    if (!error && Array.isArray(upd) && upd.length > 0) return { ok: true, result: out as Record<string, unknown> };
+    if (error) return { ok: false, error: 'write_failed' };
+    if (Array.isArray(upd) && upd.length > 0) return { ok: true, result: out as Record<string, unknown> };
     // zero rows = a concurrent writer won — re-read and retry.
   }
   return { ok: false, error: 'conflict' };
 }
 ```
+
+**Error taxonomy (binding, as implemented):** only GENUINE CAS misses retry —
+a read error returns `read_failed` immediately; an insert error retries ONLY
+on the `23505` unique violation (anything else → `write_failed`); an update
+error → `write_failed`. RLS denials, network failures, and schema errors
+surface as themselves, never masked as `conflict`.
 
 - The two actions in `actions.mjs` follow `logMealAction`'s object shape but with `direct: true` and no `undo` (direct-with-audit — the spec decision). Their `execute(ctx, input)` uses `ctx.casWrite` + `ctx.audit` which the ROUTE threads in (Task 4 builds a small `memoryCtx`); the pure mutations come from `noraMemory.mjs`. Follow the file's existing JSDoc/comment style; the model-facing descriptions must tell Nora to prefer `note_id` from context for forget and to relay `ambiguous` candidates plainly.
 
@@ -359,7 +366,8 @@ git commit -m "feat(nora): CAS user_goals writer + remember/forget direct-with-a
 ```
 resolveActor → (actor ? computeMembership(actor.supabase, actor.user.id, actor.user.email) : null)
 → isMember? → fetchMemberFacts(actor) [fail-soft, Promise.allSettled]
-            → contextMsg = facts ? formatMemberContext(facts) : UNAVAILABLE_NOTE (on FAILURE)
+            → { facts, failed } = fetchMemberFacts(actor)
+            → contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts)   ← branch on `failed`, never wrapper truthiness
             → tools = TOOLS + memberTools (remember/forget schemas)   ← members ONLY
 → !isMember → tools = TOOLS exactly as today; NO context message      ← byte-identical
 ```
@@ -382,7 +390,7 @@ const MEMBER_TOOLS = [
    - goal: `user_goals('client_goals')` → `overall` title/target/date;
    - memory: `user_goals('nora_memory')` → 10 most recent note texts, formatted `"${text} (id ${id})"` so the model has forget ids;
    - `failed` = true only when EVERY leg rejected (vs resolved-empty) — that's the `UNAVAILABLE_NOTE` trigger; partial data renders partially (honest omission).
-3. **Direct tools** run in `runTool` BEFORE the WRITE_TOOLS branch: `remember`/`forget` call the CAS + audit path (Task 3) and return `{ result: { done, noteId, audited } | { error, candidates? }, actions: [] }` — plus a UI chip action `{ type: 'screen', label: audited ? 'Noted ✓' : 'Noted — audit pending', screen: 'nora_memory' }` so the thread shows the state without new client plumbing.
+3. **Direct tools** run in `runTool` BEFORE the WRITE_TOOLS branch: `remember`/`forget` call the CAS + audit path (Task 3) and return `{ result: { done, noteId, audited } | { error, candidates? }, actions: [] }` — plus an ACTION-SPECIFIC UI chip emitted **only when `done === true`** (never on an error/ambiguous result): remember → `audited ? 'Noted ✓' : 'Noted — audit pending'`, forget → `audited ? 'Forgotten ✓' : 'Forgotten — audit pending'` (`{ type: 'screen', screen: 'nora_memory' }`), so the thread shows the state without new client plumbing.
 4. **The system message assembly** in `askOpenAI` gains one optional context block parameter — `input = [{ role: 'system', content: systemPrompt }, ...(contextMsg ? [{ role: 'system', content: contextMsg }] : []), ...recent]`.
 5. `fallbackReply` is UNTOUCHED (it takes only the user text — structurally no member content). Add the test vector: `tests/member-context.test.mjs` gains
 
@@ -414,7 +422,7 @@ git commit -m "feat(nora): grounded member context + per-request member tools (r
 
 **Interfaces:**
 - Consumes: the `{rev, notes}` doc shape; `window.bsAskConfirm` (existing destructive-action primitive); `window.shapeDb.client` (Supabase).
-- Produces: `window.ShapeNoraMemory = { list(): Promise<notes[]>, removeNote(id): Promise<{ok}>, clearAll(): Promise<{ok}> }` — removeNote/clearAll run the SAME CAS loop client-side (re-read → mutate → `.update().eq('data->>rev', …)` → retry ×2; clearAll writes `{rev: rev+1, notes: []}`); mirror the pure mutations by hand (the mobile bundle can't import the server module — same kept-in-sync note as `NORA_VOICE_LIST`).
+- Produces: `window.ShapeNoraMemory = { list(): Promise<notes[]>, removeNote(id): Promise<{ok}>, clearAll(): Promise<{ok}> }` — removeNote/clearAll run the SAME CAS loop client-side (re-read → mutate → `.update().eq('data->>rev', …)` → retry ×2 on genuine misses only, hard errors surfaced; clearAll writes `{rev: rev+1, notes: []}`). **The doc SEMANTICS are imported, not forked:** shapeBackend imports the shared `normalizeMemoryDoc` from `src/lib/ai/noraMemory.mjs` (pure ESM, cross-root — the established `dashSignals.js` import precedent), so normalization/cap rules have exactly one implementation; only the environment-specific persistence loop lives client-side. (`public/m` is NOT committed — it's built at deploy since #1470; CI's Mobile check is the bundle gate.)
 
 UI (in the Settings Nora block, beside Preview voice): a "What Nora remembers" row that expands to the note list — each row: note text · relative date · a quiet `×` delete; a `CLEAR ALL` text-action that calls `window.bsAskConfirm('Forget everything Nora remembers?', …)` and on confirm `clearAll()`; empty state: "Nothing yet — tell Nora 'remember …' in Support chat." Follow the section's existing row styling exactly (mono eyebrows, `t.*` tokens, hairline rules).
 

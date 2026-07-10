@@ -22,6 +22,11 @@ test('notes truncate at a word boundary at 280 chars and the cap drops the oldes
   const t = truncateNote(long);
   assert.ok(t.length <= NOTE_MAX_CHARS);
   assert.ok(!/\s$/.test(t) && !t.endsWith('wor'));
+  // A single unbroken token longer than the cap: hard-cut (no word boundary
+  // exists), never empty, never over the cap, no trailing whitespace.
+  const unbroken = truncateNote('x'.repeat(NOTE_MAX_CHARS + 40));
+  assert.equal(unbroken.length, NOTE_MAX_CHARS);
+  assert.ok(!/\s$/.test(unbroken));
   let doc = emptyMemoryDoc();
   for (let i = 0; i < NOTES_CAP + 5; i++) doc = applyRemember(doc, `note number ${i}`, NOW).doc;
   assert.equal(doc.notes.length, NOTES_CAP);
@@ -46,8 +51,26 @@ test('forget: exactly one selector; by id; by exact single text; partial text ne
 });
 
 test('a malformed stored doc normalizes instead of crashing', () => {
-  const r = applyRemember({ rev: 'x', notes: [null, { id: 'mem_a', text: 'kept', at: NOW }, { bad: true }] }, 'new note', NOW);
-  assert.equal(r.doc.notes.length, 2);
+  const r = applyRemember({ rev: 'x', notes: [null, { id: 'mem_a', text: 'kept', at: NOW }, { bad: true }, { id: 'mem_b', text: 123 }, { id: 77, text: 'no string id' }] }, 'new note', NOW);
+  assert.equal(r.doc.notes.length, 2); // non-string text + non-string id both dropped
   assert.equal(r.doc.notes[0].text, 'new note');
   assert.equal(r.doc.notes[1].text, 'kept');
+  // forget over the same malformed doc never throws (toLowerCase on a number)
+  assert.equal(applyForget({ notes: [{ id: 'mem_b', text: 123 }] }, { note: 'anything' }).error, 'not_found');
+  // an over-cap stored list is capped at normalization, even on a dedupe pass
+  const big = { rev: 1, notes: Array.from({ length: NOTES_CAP + 8 }, (_, i) => ({ id: `mem_x${i}`, text: `stored ${i}`, at: NOW })) };
+  const dedupe = applyRemember(big, 'stored 0', NOW); // hits no id (different hash) → adds, still capped
+  assert.ok(dedupe.doc.notes.length <= NOTES_CAP);
+});
+
+test('an overlong forget selector never matches a shorter stored note', () => {
+  let doc = emptyMemoryDoc();
+  doc = applyRemember(doc, 'word '.repeat(100), NOW).doc; // stored TRUNCATED at 280
+  const truncatedStored = doc.notes[0].text;
+  // The full (untruncated) original text is NOT an exact match for the stored
+  // truncation — the selector must not be truncated into a false match.
+  const r = applyForget(doc, { note: 'word '.repeat(100) });
+  assert.equal(r.error, 'not_found');
+  // The exact stored text still deletes.
+  assert.equal(applyForget(doc, { note: truncatedStored }).removed.text, truncatedStored);
 });
