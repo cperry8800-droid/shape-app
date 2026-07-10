@@ -159,7 +159,18 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-09b): The navigation wave, complete (PRs A + B + C)** — back
+> **Latest (2026-07-10): Real food-database search in the meal logger (#1648)** —
+> the add-food sheet's "search coming" placeholder is dead: signed-in members
+> search a **hybrid USDA FoodData Central + Open Food Facts** database (pure
+> `foodSearch.mjs` normalize/merge/rank shared by route + tests · `GET
+> /api/nutrition/food-search` with auth BEFORE provider fan-out, 2.5 s per-leg
+> timeouts, either-side degrade, honest unavailable state · debounced/aborted
+> sheet UI — ＋ adds the default serving, row-tap opens the editor prefilled ·
+> **recents real** via `user_goals('food_recents')`, no migration). Runs
+> OFF-only until the owner sets the free **`FDC_API_KEY`**. Spec #1643; dated
+> entry below. Open: on-device pass + barcode scan (v2).
+>
+> **Prior (2026-07-09b): The navigation wave, complete (PRs A + B + C)** — back
 > returns to the TRUE previous page across **all three shells** (pure
 > `navHistory.mjs` descriptor stack + announce register + smart-backs + the
 > single-guard-entry hardware/browser-back bridge, one shared `useBSNavHistory`
@@ -301,6 +312,61 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-10 — Real food-database search: the add-food sheet goes live (#1648, `54e54625`)
+- **Closes the #1601 "Correct the Record" follow-up** — signed-in members no
+  longer see "Food search is coming. Enter what you ate manually": typing in
+  the meal logger's add-food sheet searches a REAL hybrid food database and a
+  result lands as a normal ingredient row (stable `bsIngId`, provider macros
+  pre-filled). Spec `docs/superpowers/specs/2026-07-09-food-database-search-design.md`
+  (#1643, owner decisions: **hybrid USDA FDC + Open Food Facts · text-only v1**);
+  plan committed in-branch; built INLINE on Fable, one PR.
+- **One pure module** — `mobile-app/src/services/foodSearch.mjs`
+  (+ `tests/food-search.test.mjs`, 11 vectors, suite **540**): `normalizeFdcFood`
+  (per-100 g nutrients × gram servingSize, honest `100 g` fallback),
+  `normalizeOffProduct` (serving grams → per-serving nutriments → honest 100 g;
+  barcode kept for the v2 scanner), `mergeAndRank` (**kcal-less rows dropped —
+  never a fabricated 0**; name+brand dedupe; **token-coverage ranking** because
+  FDC names are comma-inverted — 'Chicken, broilers or fryers, breast…' never
+  prefix-matches 'chicken breast'; generic-above-branded unless the query looks
+  like a brand; cap 12). The server route imports these directly — the
+  `workoutShare.mjs` one-implementation pattern, no TS twin drift.
+- **`GET /api/nutrition/food-search?q=`** — `currentUser(request)` (cookie or
+  Bearer) required BEFORE any provider fetch (the proxy gate fails open by
+  design, so the route owns its auth; a 401 never burns provider quota).
+  Parallel FDC (Foundation + SR Legacy) + OFF legs, 2.5 s per-leg timeouts,
+  either side failing degrades to the other, both down → `{ results: [],
+  unavailable: true }` (the sheet reads an honest can't-reach line, never an
+  error page). **No `FDC_API_KEY` → the FDC leg is quietly skipped** (OFF-only)
+  — ⚠ **OWNER: create the free key (fdc.nal.usda.gov) → Vercel env** (War Room
+  manual item). OFF requests carry the policy `User-Agent: Shape/1.0
+  (privacy@theshapecommunity.com)`. No DB cache in v1 (client debounce + cap
+  keep volume tiny; a keyed cache table is the known next step if OFF
+  politeness ever matters).
+- **The sheet** (`BSLogMealFlow`): search input ("Search foods & brands…" —
+  barcodes leave the copy until v2), mono status line (`Searching…` / `N
+  results` / rust failure copy), result rows (name · `brand · qty · kcal · P`).
+  **Debounced 350 ms, in-flight aborted, min 2 chars**; ＋ adds the provider's
+  default serving directly; **tapping the row body opens the existing
+  ingredient editor prefilled** so the portion is adjustable before it lands.
+  `Enter manually →` stays the floor on every state; signed-out demo
+  byte-identical. **Recents become real**: adds persist to
+  `user_goals('food_recents')` (cap 20, most-recent-first, name-deduped, **no
+  migration**); the empty-query state shows them.
+- **Review round (3 CodeRabbit findings, all real, fixed `0dd9cbef`):** an add
+  racing the initial recents load saved a ONE-item list over the member's cloud
+  recents + the editor path never persisted → one centralized async
+  `rememberFood` (awaits the cloud list when state is unloaded, merges, then
+  saves; the loader uses a functional setter so a late resolve can't clobber);
+  the previous query's rows stayed clickable through the debounce → results
+  clear the instant the query changes; `Number(null)` is `0` in JS, so a
+  `value: null` nutrient could fabricate a 0-kcal row past the honest-data
+  drop → `num()` nulls null/undefined/'' first (+ a test vector).
+- Verified per commit: JSX parse · `tsc --noEmit` clean · PowerShell
+  `VITE_BASE=/m/` build exit 0 · `npm test` 540 · LF (`tr -cd '\r'` = 0). CI
+  green ×2 rounds; CodeRabbit re-review clean, all threads resolved.
+  **Open:** the on-device pass (search → add → edit-prefill → recents replay ×
+  papers) and v2 barcode scanning (OFF rows already carry the barcode).
 
 ### 2026-07-09 — Navigation history PR C: swipe navigation (edge-back + tab swipe, all three shells)
 - **The wave's last piece** (spec #1642 §4; plan
@@ -6895,6 +6961,6 @@ Verified four unchecked War Room items (multi-agent: repo code + **live Supabase
   (Coach detail pages are now redesigned — see changelog.)
 
 ### Known stubs / next
-- Food-database free-text search in the logger (Search tab uses local recents today).
+- Barcode scanning in the add-food sheet (v2 — OFF results already carry the barcode; needs the native camera).
 - Native mic + camera plugins for the iOS App Store build (WebView fallback today).
 - On-device "Shape reads macros" from a meal photo (currently photo → coach review only).
