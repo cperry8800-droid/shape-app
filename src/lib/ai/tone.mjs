@@ -79,6 +79,19 @@ export function resolveVoice(voice, tone) {
   return normalizeVoice(voice) || voiceForTone(tone);
 }
 
+// The FULL gpt-4o-mini-tts voice set — wider than the member picker, so the
+// owner's env default (NORA_TTS_VOICE, auditioned at openai.fm) can pin any
+// API voice (e.g. 'fable') without widening the picker. Precedence: a member's
+// explicit picker choice → the env default → the tone default.
+export const OPENAI_TTS_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
+export function resolveVoiceWithDefault(voice, envVoice, tone) {
+  const picked = normalizeVoice(voice);
+  if (picked) return picked;
+  const env = String(envVoice || '').trim().toLowerCase();
+  if (OPENAI_TTS_VOICES.includes(env)) return env;
+  return voiceForTone(tone);
+}
+
 // ── spoken directive (parity) ───────────────────────────────────────────────
 // Compose the ONE line that is BOTH shown and spoken for a directive, so what
 // you read is exactly what you hear. The engine's verdict + reason (the facts)

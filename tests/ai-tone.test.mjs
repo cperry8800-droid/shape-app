@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   TONES, DEFAULT_TONE, normalizeTone, FRAMING_RULES, toneInstruction, voiceForTone,
   voiceStyleForTone, speakableDirective, encodeSpokenText, decodeSpokenText, containsShaming,
-  NORA_VOICES, normalizeVoice, resolveVoice,
+  NORA_VOICES, normalizeVoice, resolveVoice, resolveVoiceWithDefault, OPENAI_TTS_VOICES,
 } from '../src/lib/ai/tone.mjs';
 
 test('tone normalizes safely and defaults to supportive', () => {
@@ -44,6 +44,18 @@ test('voice maps per tone (supportive warmer, direct neutral)', () => {
   assert.equal(voiceForTone('supportive'), 'shimmer');
   assert.equal(voiceForTone('direct'), 'alloy');
   assert.equal(voiceForTone('bogus'), 'shimmer'); // default
+});
+
+test('resolveVoiceWithDefault: picker wins, then the env voice, then the tone default', () => {
+  // A member's explicit pick always wins over the env default.
+  assert.equal(resolveVoiceWithDefault('onyx', 'fable', 'supportive'), 'onyx');
+  // No pick → the owner's env voice (any valid API voice, incl. non-picker ones).
+  assert.equal(resolveVoiceWithDefault(undefined, 'fable', 'supportive'), 'fable');
+  assert.equal(resolveVoiceWithDefault('auto', 'FABLE ', 'direct'), 'fable'); // trimmed + case-insensitive
+  // Junk/unset env → the tone default (never trusted into the API call).
+  assert.equal(resolveVoiceWithDefault(undefined, 'robot9000', 'supportive'), 'shimmer');
+  assert.equal(resolveVoiceWithDefault(undefined, '', 'direct'), 'alloy');
+  assert.ok(OPENAI_TTS_VOICES.includes('fable'));
 });
 
 test('voiceStyleForTone steers delivery per tone and defaults supportive', () => {

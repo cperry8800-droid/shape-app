@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
-import { resolveVoice, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
+import { resolveVoiceWithDefault, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,8 +34,10 @@ export async function POST(request: Request) {
   // back to on-device speech (or just shows the text).
   if (!hasOpenAIKey()) return NextResponse.json({ error: 'Voice is unavailable.' }, { status: 503 });
 
-  // The member's explicit voice choice, else the tone's default voice.
-  const voice = resolveVoice(parsed.data.voice, parsed.data.tone);
+  // The member's explicit voice choice → the owner's env default
+  // (NORA_TTS_VOICE, the openai.fm audition winner — may be any API voice,
+  // e.g. 'fable') → the tone's default voice.
+  const voice = resolveVoiceWithDefault(parsed.data.voice, process.env.NORA_TTS_VOICE, parsed.data.tone);
   // Delivery steering only — the words are synthesized verbatim (the parity
   // header is untouched). The env override wins so the owner can pin a house
   // style; unset, the per-tone default applies.
