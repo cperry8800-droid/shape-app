@@ -12,6 +12,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
+import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
@@ -1643,6 +1644,61 @@ function bsPushFoodRecent(items, f) {
   return [{ name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0) }, ...rest].slice(0, 20);
 }
 
+// Barcode scan support: the BarcodeDetector API (Chrome/Android WebView) +
+// camera access. iOS WebKit ships neither BarcodeDetector nor (pre-14.3)
+// getUserMedia — those fall to the manual digits entry, honestly.
+function bsBarcodeScanSupported() {
+  try {
+    return typeof window !== 'undefined'
+      && typeof window.BarcodeDetector === 'function'
+      && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  } catch (e) { return false; }
+}
+
+// Live camera scanner for the add-food sheet. Owns the stream lifecycle
+// (unmount stops every track); polls BarcodeDetector ~3×/s on the video and
+// fires onHit ONCE with the first raw code. Camera denial / detector failure
+// degrades to onFallback (the manual digits entry) — never a dead end.
+function BSBarcodeScan({ onHit, onFallback, teal }) {
+  const t = useBS();
+  const videoRef = React.useRef(null);
+  React.useEffect(() => {
+    let stream = null, timer = null, done = false;
+    let detector = null;
+    try {
+      detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf'] });
+    } catch (e) { onFallback(); return undefined; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then((s) => {
+        if (done) { s.getTracks().forEach((tr) => tr.stop()); return; }
+        stream = s;
+        const v = videoRef.current;
+        if (v) { v.srcObject = s; const p = v.play && v.play(); if (p && p.catch) p.catch(() => {}); }
+        timer = setInterval(async () => {
+          const vid = videoRef.current;
+          if (done || !vid || vid.readyState < 2) return;
+          try {
+            const hits = await detector.detect(vid);
+            const code = hits && hits[0] && hits[0].rawValue;
+            if (code && !done) { done = true; clearInterval(timer); onHit(String(code)); }
+          } catch (e) { /* per-frame detect failures are normal — keep polling */ }
+        }, 350);
+      })
+      .catch(() => { if (!done) onFallback(); });
+    return () => { done = true; if (timer) clearInterval(timer); if (stream) stream.getTracks().forEach((tr) => tr.stop()); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div style={{ marginTop: 12, position: 'relative', borderRadius: t.RADIUS_SM, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: '#000' }}>
+      <video ref={videoRef} muted playsInline style={{ display: 'block', width: '100%', height: 190, objectFit: 'cover' }} />
+      <div aria-hidden style={{ position: 'absolute', left: '10%', right: '10%', top: '50%', height: 2, background: teal, opacity: 0.85, boxShadow: `0 0 12px ${teal}` }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff' }}>Point at the barcode</span>
+      </div>
+    </div>
+  );
+}
+
 // Full meal-logging flow — opened from the home "Up next" meal card's
 // "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
 // photo, or voice; writes to the day total and shows a logged confirmation.
@@ -1657,6 +1713,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const [foodResults, setFoodResults] = useStateBSC(null);   // null = idle (no live query yet)
   const [foodStatus, setFoodStatus] = useStateBSC('idle');   // idle | searching | done | error
   const [foodRecents, setFoodRecents] = useStateBSC(null);   // null until loaded
+  // Barcode lookup (v2) — 'scan' opens the camera (BarcodeDetector), 'enter'
+  // the manual digits input (the honest fallback where the API is absent —
+  // iOS WebKit has no BarcodeDetector).
+  const [barcodeMode, setBarcodeMode] = useStateBSC(null);      // null | 'scan' | 'enter'
+  const [barcodeDigits, setBarcodeDigits] = useStateBSC('');
+  const [barcodeStatus, setBarcodeStatus] = useStateBSC('idle'); // idle | looking | invalid | notfound | error
   const [logged, setLogged] = useStateBSC(false);
   const [award, setAward] = useStateBSC(null);         // {awarded, points} | null — set after log resolves
   const [coach, setCoach] = useStateBSC(null);         // {name, role} | null — resolved linked nutritionist/coach
@@ -1694,6 +1756,21 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     bsLoadFoodRecents().then((items) => { if (on) setFoodRecents((cur) => (cur === null ? items : cur)); });
     return () => { on = false; };
   }, [signedIn, showAddFood]);
+
+  // In-flight barcode lookup — aborted on sheet close and before a new lookup,
+  // so a late OFF response can never reopen a dismissed editor or land the
+  // PREVIOUS barcode's product over the one the member is entering now.
+  const barcodeCtlRef = React.useRef(null);
+  // Closing the add sheet always ends a scan (unmounts the camera), aborts an
+  // in-flight lookup, and clears the barcode state — a reopened sheet never
+  // resumes a stale lookup.
+  React.useEffect(() => {
+    if (!showAddFood) {
+      try { barcodeCtlRef.current?.abort(); } catch (e) {}
+      barcodeCtlRef.current = null;
+      setBarcodeMode(null); setBarcodeDigits(''); setBarcodeStatus('idle');
+    }
+  }, [showAddFood]);
 
   // Persist an added food to real recents. Centralized so BOTH add paths (＋
   // direct and via the prefilled editor) go through it, and so an add that
@@ -2223,6 +2300,32 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           // fromSearch: the editor's save persists this add to recents too.
           setEditIng({ index: null, fromSearch: true, name: f.name, qty: f.qty || '', kcal: String(Math.round(Number(f.kcal) || 0)), p: String(Math.round(Number(f.p) || 0)), c: String(Math.round(Number(f.c) || 0)), f: String(Math.round(Number(f.f) || 0)) });
         };
+        // Barcode → one OFF product → the prefilled ingredient editor (the
+        // member confirms the portion before it lands — same contract as a
+        // search-row tap). Honest states for invalid / not-found / outage.
+        // Stale-guarded like the text search: a new lookup (or the sheet
+        // closing) ABORTS the prior request, and every post-await update is
+        // gated on this call still being the live one — a late response can
+        // never reopen a dismissed sheet or win over a newer code.
+        const lookupBarcode = async (raw) => {
+          const code = bsValidBarcode(raw);
+          if (!code) { setBarcodeStatus('invalid'); return; }
+          try { barcodeCtlRef.current?.abort(); } catch (e) {}
+          const ctl = new AbortController();
+          barcodeCtlRef.current = ctl;
+          setBarcodeStatus('looking');
+          setBarcodeMode((m) => (m === 'scan' ? null : m)); // a scanned hit stops the camera
+          try {
+            const data = await window.ShapeFoodSearch?.barcode?.(code, { signal: ctl.signal });
+            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
+            const row = data && Array.isArray(data.results) ? data.results[0] : null;
+            if (row) { setBarcodeStatus('idle'); setBarcodeDigits(''); setBarcodeMode(null); editLiveFood(row); return; }
+            setBarcodeStatus(data && data.unavailable ? 'error' : 'notfound');
+          } catch (e) {
+            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
+            setBarcodeStatus('error');
+          }
+        };
         const searching = foodQuery.trim().length >= 2;
         const liveRows = searching ? (foodResults || []) : (foodRecents || []);
         const liveStatus = foodStatus === 'searching' ? 'Searching…'
@@ -2236,6 +2339,31 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
               {signedIn ? (
                 <>
                   <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder="Search foods & brands…" style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+                  {/* Barcode (v2) — scan where BarcodeDetector exists (Chrome /
+                      Android WebView); the manual digits entry everywhere
+                      (iOS WebKit ships no BarcodeDetector). */}
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 18 }}>
+                    {bsBarcodeScanSupported() && (
+                      <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'scan' ? null : 'scan'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'scan' ? teal : t.INK50 }}>▥ Scan barcode</button>
+                    )}
+                    <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'enter' ? null : 'enter'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'enter' ? teal : t.INK50 }}># Enter barcode</button>
+                    {barcodeMode && <button onClick={() => { setBarcodeMode(null); setBarcodeStatus('idle'); }} style={{ marginLeft: 'auto', background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>Cancel</button>}
+                  </div>
+                  {barcodeMode === 'scan' && <BSBarcodeScan teal={teal} onHit={(code) => lookupBarcode(code)} onFallback={() => setBarcodeMode('enter')} />}
+                  {barcodeMode === 'enter' && (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                      <input value={barcodeDigits} onChange={(e) => setBarcodeDigits(e.target.value.replace(/[^\d\s-]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(barcodeDigits); }} inputMode="numeric" placeholder="Barcode digits (EAN / UPC)…" aria-label="Barcode digits" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '11px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 14, outline: 'none' }} />
+                      <button onClick={() => lookupBarcode(barcodeDigits)} disabled={barcodeStatus === 'looking'} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 16px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#08221f', cursor: barcodeStatus === 'looking' ? 'default' : 'pointer', opacity: barcodeStatus === 'looking' ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Look up</button>
+                    </div>
+                  )}
+                  {barcodeStatus !== 'idle' && (
+                    <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: barcodeStatus === 'looking' ? t.INK50 : t.RUST }}>
+                      {barcodeStatus === 'looking' ? 'Looking up…'
+                        : barcodeStatus === 'invalid' ? 'That doesn’t read as a barcode — 8–14 digits'
+                        : barcodeStatus === 'notfound' ? 'No match for that barcode — search or enter it manually'
+                        : 'Can’t reach the food database — try again or enter manually'}
+                    </div>
+                  )}
                   <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: foodStatus === 'error' ? t.RUST : t.INK50 }}>{liveStatus}</div>
                   <div style={{ marginTop: 2 }}>
                     {liveRows.map((r, i) => (
