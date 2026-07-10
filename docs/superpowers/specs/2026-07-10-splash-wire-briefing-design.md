@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-10 · **Status:** Spec for owner review (build follows approval)
 
-Concept board (owner-picked): https://claude.ai/code/artifact/562cd222-1012-4efc-9a2e-edadf0caefc9
+Concept board (owner-picked): <https://claude.ai/code/artifact/562cd222-1012-4efc-9a2e-edadf0caefc9>
 
 ## The problem
 
@@ -89,8 +89,11 @@ tap-only "Step inside"). The **member branch is re-set as the telegram**:
 - **Self-advance: 5s**, timer starting only once the digest has resolved and
   the lines have rendered (the "Putting today together…" loading state
   carries NO timer — a slow fetch never burns the member's reading time).
-  Any tap (full-screen target, `role="button"`, Enter/Space) enters
-  immediately. Both paths write the seen-stamp, then `setStage('app')`.
+  Any tap enters immediately — the full-screen root is a real keyboard
+  control: `role="button"` + `tabIndex={0}` + a visible `:focus-visible`
+  outline + Enter/Space handling (and the **invite edition's "Step inside"
+  root gets the identical treatment** — today it's tap-only). Both paths
+  write the seen-stamp, then `setStage('app')`.
 - Fresh login (`handleLogin`) still lands directly on `'app'` — the telegram
   is a cold-open ritual, not a post-login stop (today's behavior, kept).
 - Preview (`onPreview`) still sets preview mode → `'daily'` invite edition →
@@ -129,11 +132,14 @@ Home's lead already resolves the engine directive
 (`iosAppBroadsheetClient.jsx` ~2602: `window.ShapeSignals.selfRecord()` →
 `ShapeSignals.directive(rec)`, gated on
 `dir.action && dir.lever !== 'none' && dir.verdict !== '—'`). The splash calls
-the **exact same two-call path with the exact same gate** — `ShapeSignals` is
+the **identical two-call path with the identical gate** — `ShapeSignals` is
 a window-global loaded by `main.jsx` services, available before the client
-bundle. The evaluation joins `bsBuildDailyDigest`'s existing `Promise.all`
-(guarded; null on absence/error — an unresolved directive omits the line,
-never delays entry).
+bundle. The evaluation joins `bsBuildDailyDigest`'s `Promise.all` as a
+**bounded leg**: the evaluation is raced against a ~1.5s timeout
+(`Promise.race`) and resolves `null` on timeout, absence, or error — so a
+slow or hung `ShapeSignals` evaluation can never delay the digest render (the
+digest's other legs stay authoritative for timing), and a `null` directive
+simply omits the line.
 
 The **lever → head words** map (checkin → "Send your weekly check-in.",
 training → "Keep the streak alive.", nutrition → "Log a meal today.", goal →
@@ -167,9 +173,14 @@ registered in `npm test`):
   `'beat'`; malformed stamp → `'beat'`.
 - `bsAfterBeat({ allowed, hasLocale })` → `'lang' | 'daily' | 'gate'`.
 - `bsWireLines(digest, directive)` → ordered `[{ text, hot }]` with STOP/END
-  placement. Vectors: full digest; rest day; no plan; numbers-only; directive
-  present/absent; signed-out → `null`; closer variants; no fabricated
-  fragments when legs are null.
+  placement. **Signed-out sentinel contract:** the digest itself carries the
+  membership state — `bsWireLines` returns `null` when `digest` is null/absent
+  OR `digest.signedIn !== true` (the caller renders the invite edition
+  instead); a member digest with missing legs is the honest-omission path,
+  never conflated with signed-out. Vectors: full digest; rest day; no plan;
+  numbers-only; directive present/absent; `null` digest → `null`;
+  `signedIn: false` → `null`; closer variants; no fabricated fragments when
+  legs are null.
 - `bsWireDirective(dir)` + `BS_LEVER_HEADS` — mirror of Home's gate
   (`lever === 'none'` / `verdict === '—'` / missing action → null).
 
@@ -184,8 +195,10 @@ registered in `npm test`):
   static rule + an explicit `ENTER →` affordance — **no auto-advance under
   reduced motion** (timing pressure removed, WCAG 2.2.1); tap/Enter/Space
   enters.
-- The telegram is real text (screen-reader readable); the root carries
-  `role="button"` + `aria-label="Enter the app"`.
+- The telegram is real text (screen-reader readable); the root is a real
+  keyboard control — `role="button"` + `aria-label="Enter the app"` +
+  `tabIndex={0}` + a visible `:focus-visible` outline + Enter/Space handling.
+  The invite edition's "Step inside" root carries the same contract.
 
 ## What dies / what stays
 
