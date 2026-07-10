@@ -23,6 +23,7 @@ import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
+import { searchFoodsServer } from '@/lib/food-search-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -231,7 +232,7 @@ const TOOLS = [
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
 
 // ── Member-only tools (memory) ────────────────────────────────────────────────
 // Appended to the tool list ONLY for a verified member (computeMembership,
@@ -265,10 +266,90 @@ const MEMBER_TOOLS = [
     },
     strict: false,
   },
+  // ── PR C · member action tools (spec #1652 §3) — the four writes DRAFT a
+  // confirm card (never applied until the member approves); find_food is a
+  // read-only lookup feeding a real-macro log_meal proposal.
+  {
+    type: 'function',
+    name: 'log_weigh_in',
+    description:
+      "Log the member's OWN weigh-in for today. Use when they tell you their weight. Pass exactly what they said — never convert or guess a unit. DRAFTS the change for them to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        weight: { type: 'number', description: 'The weight value they gave.' },
+        unit: { type: 'string', enum: ['lb', 'kg'], description: 'Only if they said it.' },
+      },
+      required: ['weight'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'log_water',
+    description:
+      "Add water to the member's OWN hydration for today. Pass the amount and unit they gave (ml or oz). DRAFTS the change for them to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'The amount they said.' },
+        unit: { type: 'string', enum: ['ml', 'oz'], description: 'The unit they said.' },
+      },
+      required: ['amount', 'unit'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: 'function',
+    name: 'check_habit',
+    description:
+      "Check off one of the member's OWN habits for today. Pass the habit as they said it — the server matches it against their real habit list and FAILS CLOSED on no match or several matches (relay the candidates and ask which). DRAFTS the change for them to confirm.",
+    parameters: {
+      type: 'object',
+      properties: { habit: { type: 'string', description: 'The habit, in their words.' } },
+      required: ['habit'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: 'function',
+    name: 'set_reminder',
+    description:
+      "Set a recurring reminder for the member (weigh_in, checkin, water, photo, or custom with a label). time is HH:MM 24h; days is 0=Sun…6=Sat (defaults to weekdays — say so). DRAFTS the reminder for them to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['weigh_in', 'checkin', 'water', 'photo', 'custom'] },
+        time: { type: 'string', description: 'HH:MM, 24-hour.' },
+        days: { type: 'array', items: { type: 'integer' }, description: '0=Sun…6=Sat. Omit for weekdays.' },
+        label: { type: 'string', description: 'Required for kind=custom — what to remind them of.' },
+      },
+      required: ['kind', 'time'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'find_food',
+    description:
+      "Look up REAL foods + macros (USDA + Open Food Facts) BEFORE proposing log_meal for a named food — e.g. 'log a chipotle chicken bowl' → find_food first, then log_meal with the returned numbers. NEVER invent macros; if the lookup is unavailable, say so and ask for their numbers.",
+    parameters: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'The food to search, e.g. "chicken burrito bowl".' } },
+      required: ['query'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
 ];
 const MEMORY_TOOLS = new Set(['remember', 'forget']);
 const MEMBER_PROMPT_NOTE =
-  "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.";
+  "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
+  "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.";
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -365,6 +446,22 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // DIRECTLY with audit; memoryCtx is null for non-members, so even a fabricated
 // call fails closed.
 async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null): Promise<ToolOut> {
+  if (name === 'find_food') {
+    // Member-only READ (the schema only exists in a member's tool list;
+    // memoryCtx doubles as the verified-member marker). Real macros for a
+    // follow-up log_meal proposal — never a fabricated number.
+    if (!memoryCtx) return { result: { error: 'members_only' }, actions: [] };
+    const q = String(args.query || '').trim().slice(0, 80);
+    if (q.length < 2) return { result: { error: 'query_too_short' }, actions: [] };
+    const found = await searchFoodsServer(q).catch(() => ({ results: [], unavailable: true as const }));
+    if (found.unavailable) return { result: { error: 'food_search_unavailable', message: 'The food database is unreachable right now — ask the member for their numbers instead.' }, actions: [] };
+    type FoodRow = { name?: string; brand?: string; qty?: string; kcal?: number; p?: number; c?: number; f?: number };
+    const rows = (found.results as FoodRow[]).slice(0, 5).map((r) => ({
+      name: r.name, brand: r.brand || null, serving: r.qty || null,
+      kcal: r.kcal ?? null, protein: r.p ?? null, carbs: r.c ?? null, fat: r.f ?? null,
+    }));
+    return { result: { foods: rows }, actions: [] };
+  }
   if (MEMORY_TOOLS.has(name)) {
     if (!memoryCtx) return { result: { error: 'members_only' }, actions: [] };
     const tool = name === 'remember' ? rememberMemoryTool : forgetMemoryTool;
@@ -432,8 +529,9 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // change via the AI1 scaffold, carrying the ACTOR'S session (so the endpoint's
 // auth + RLS stay the gate). Nothing is applied — the client confirms the
 // returned token at /api/ai/proposals/confirm. Takes the ALREADY-resolved
-// actor (POST resolves it once for membership + context + proposals).
-function makePropose(actor: Actor | null, request: Request): ProposeFn {
+// actor + membership (POST resolves both once) — the member self-service
+// tools' buildPreview re-checks ctx.isMember as defense-in-depth.
+function makePropose(actor: Actor | null, request: Request, isMember: boolean): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
@@ -445,7 +543,7 @@ function makePropose(actor: Actor | null, request: Request): ProposeFn {
       action: name,
       input: args,
       actor: { id: actor.user.id, role: actor.role },
-      ctx: makeCtx(actor, request),
+      ctx: { ...makeCtx(actor, request), isMember },
       secret,
     });
     if (!res.ok) {
@@ -566,13 +664,14 @@ export async function POST(request: Request) {
   // signed-in-NON-member request runs the exact pre-PR-B path — same prompt,
   // same TOOLS array, no context — byte-identical behavior.
   const actor = await resolveActor(request).catch(() => null);
-  const propose = makePropose(actor, request);
   let contextMsg: string | null = null;
   let memberTools: typeof MEMBER_TOOLS = [];
   let memoryCtx: MemoryCtx | null = null;
+  let isMember = false;
   if (actor) {
     const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
     if (membership && membership.isMember) {
+      isMember = true;
       memberTools = MEMBER_TOOLS;
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role },
@@ -585,6 +684,7 @@ export async function POST(request: Request) {
       contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
     }
   }
+  const propose = makePropose(actor, request, isMember);
 
   const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx }).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
