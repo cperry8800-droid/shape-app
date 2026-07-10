@@ -495,7 +495,14 @@ function DtrBuilder({ self, onChanged }) {
             <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
               <span style={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{r.title}</span>
               <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{dtrDayLetters(r.repeatDow)} · weekly</span>
-              <button type="button" onClick={() => { setMode("session"); setEditId(r.id); setName(r.title); setDows(r.repeatDow.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)); setErr(null); setNotice("Editing " + r.title + " — save to replace it."); }} style={DTR_BTN}>Edit</button>
+              <button type="button" onClick={() => {
+                setMode("session"); setEditId(r.id); setName(r.title);
+                setDows(r.repeatDow.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6));
+                // Hydrate the SAVED moves — a weekday/name edit must replace
+                // the row with what it held, never the form's leftover state.
+                setMoves(((r.moves && r.moves.length) ? r.moves : [dtrEmptyMove()]).map((m) => ({ name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
+                setErr(null); setNotice("Editing " + r.title + " — save to replace it.");
+              }} style={DTR_BTN}>Edit</button>
               <button type="button" onClick={() => removeOne(r)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
             </div>
           ))}
@@ -657,8 +664,19 @@ function ClientWorkoutsPage() {
 
   const coach = live ? ((plan && plan.training && plan.training.coach) || "your coach") : DTR_DEMO.coach;
   const workouts = live ? ((plan && plan.training && plan.training.workouts) || []) : DTR_DEMO.workouts;
-  const { weeks, anytime } = dtrBuildWeeks(workouts, completedDates, new Date());
-  const tonight = dtrTonight(weeks);
+  // Weekly-repeat self sessions (payload.repeatDow, no scheduled_date) render
+  // as their own block — dtrBuildWeeks would mislabel them "anytime". A repeat
+  // whose weekdays include TODAY backs the Tonight hero when no dated workout
+  // claims it (the mobile bsSlotRepeats rule, at this page's display depth).
+  const repeatRows = workouts.filter((w) => Array.isArray(w.repeatDow) && w.repeatDow.length);
+  const datedRows = workouts.filter((w) => !(Array.isArray(w.repeatDow) && w.repeatDow.length));
+  const { weeks, anytime } = dtrBuildWeeks(datedRows, completedDates, new Date());
+  let tonight = dtrTonight(weeks);
+  if (!tonight && repeatRows.length) {
+    const todayDow = (new Date().getDay() + 6) % 7; // 0 = Monday (the builder convention)
+    const rep = repeatRows.find((w) => w.repeatDow.includes(todayDow));
+    if (rep) tonight = { day: { workout: rep, done: false, isToday: true }, when: "Tonight" };
+  }
   const stamped = workouts.find((w) => w.template && w.template.name);
   const programName = live ? (stamped ? stamped.template.name : (plan && plan.training && plan.training.hasPlan ? "Assigned program" : null)) : DTR_DEMO.program;
   const currentWeek = weeks.find((w) => w.status === "current");
@@ -708,6 +726,20 @@ function ClientWorkoutsPage() {
             check-in). This is the human-loop sell, kept always-visible. */}
         {weeks.length > 0 && (
           <DtrNextWeekLocked coach={coach} weekN={lastWeekN != null ? lastWeekN + 1 : null} />
+        )}
+        {repeatRows.length > 0 && (
+          <div className="dash-plate" style={{ "--dac": DTR_TEAL, paddingLeft: 24 }}>
+            <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Weekly · programmed by you</div>
+            <div style={{ marginTop: 6 }}>
+              {repeatRows.map((w, i) => (
+                <div key={w.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
+                  <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_TEAL, letterSpacing: "0.08em" }}>{dtrDayLetters(w.repeatDow)}</span>
+                  <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves · repeats weekly</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
         {anytime.length > 0 && (
           <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>

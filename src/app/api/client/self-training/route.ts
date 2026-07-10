@@ -66,14 +66,19 @@ function mineFromRow(r: SelfRow) {
   const p = r.payload && typeof r.payload === 'object' ? r.payload : {};
   const program = p.program && typeof p.program === 'object' ? p.program : null;
   const repeatDow = Array.isArray(p.repeatDow) ? p.repeatDow : null;
-  const moves = Array.isArray(p.exercises) ? p.exercises.length : 0;
+  const exercises = Array.isArray(p.exercises) ? p.exercises : [];
   return {
     id: r.id,
     title: r.title || 'Workout',
     scheduledDate: r.scheduled_date || null,
     repeatDow,
     program,
-    moveCount: moves,
+    moveCount: exercises.length,
+    // Repeat rows carry their full move list so Edit · Yours can hydrate the
+    // form — a weekday/name edit must replace the row with the SAVED moves,
+    // never whatever the form last held. Program rows stay count-only (not
+    // editable on the web).
+    moves: repeatDow && repeatDow.length ? exercises : undefined,
     time: typeof p.time === 'string' ? p.time : null,
     createdAt: r.created_at,
   };
