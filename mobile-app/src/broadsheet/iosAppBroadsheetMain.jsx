@@ -164,12 +164,15 @@ function ensureWireStyles() {
   .bs-wire-line { opacity:0; animation: bsWireRise 0.34s cubic-bezier(0.2,0.7,0.3,1) forwards; }
   @keyframes bsWireDrain { from{ transform:scaleX(1); } to{ transform:scaleX(0); } }
   .bs-wire-drain { transform-origin:left center; animation: bsWireDrain var(--dur,5s) linear forwards; }
+  @keyframes bsWireLoad { 0%{ transform:translateX(-110%); } 100%{ transform:translateX(360%); } }
+  .bs-wire-load { animation: bsWireLoad 1.4s cubic-bezier(0.4,0,0.6,1) infinite; will-change: transform; }
   .bs-wire-enter { outline:none; }
   .bs-wire-enter:focus-visible { outline:2px solid #34d6c5; outline-offset:3px; }
   @media (prefers-reduced-motion: reduce) {
     .bs-wire-row{ animation:none!important; transform:none!important; }
     .bs-wire-line{ animation:none!important; opacity:1!important; transform:none!important; }
     .bs-wire-drain{ animation:none!important; transform:none!important; }
+    .bs-wire-load{ animation:none!important; transform:translateX(110%)!important; }
   }`;
   const el = document.createElement('style');
   el.textContent = css;
@@ -202,6 +205,22 @@ function BSWireGround({ name, dim, plain }) {
       {rows.map((r, i) => (
         <div key={i} className="bs-wire-row" style={{ '--wd': r.d + 's', animationDelay: r.off + 's', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, letterSpacing: '0.28em', color: r.hot ? ACCF : INKF, textShadow: r.hot ? '0 0 10px rgba(46,224,196,0.4)' : 'none', paddingLeft: 12 }}>{r.t}</div>
       ))}
+    </div>
+  );
+}
+
+// The launch's loading readout — a hairline track with a teal signal sweeping
+// it + a mono LOADING label, under the mark on the beat/hold. Indeterminate
+// (those screens hold until the membership check resolves); reduced-motion
+// parks the signal at rest.
+function BSWireLoading() {
+  ensureWireStyles();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 26 }}>
+      <div style={{ width: 148, height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }} aria-hidden="true">
+        <div className="bs-wire-load" style={{ width: '32%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
+      </div>
+      <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>Loading</div>
     </div>
   );
 }
@@ -489,18 +508,6 @@ async function bsDigestStreakChallenge(auth) {
   } catch (e) {}
   return { streak: streak, challenge: challenge };
 }
-// Open an external source link — system browser on native (Capacitor Browser),
-// else a new tab on the /m/ web build.
-function bsOpenExternal(url) {
-  // Only ever open http(s) links — never javascript:/data: (safe-by-construction
-  // even if a future caller passes a non-constant/remote source URL).
-  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
-  try {
-    const cap = window.Capacitor;
-    if (cap && cap.Plugins && cap.Plugins.Browser && cap.Plugins.Browser.open) { cap.Plugins.Browser.open({ url }); return; }
-    window.open(url, '_blank', 'noopener,noreferrer');
-  } catch (e) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} }
-}
 // The engine directive (the SAME two-call path + gate the Home lead uses), as
 // a BOUNDED leg: raced against a ~1.5s timeout so a slow/hung ShapeSignals can
 // never delay the telegram render — the digest's other legs stay authoritative
@@ -601,10 +608,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <BSWireGround name={name} />
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={112} />
+          <BSWireLoading />
         </div>
-        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading Shape</span>
       </div>
     );
   }
@@ -730,42 +737,11 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
     // FIXED night-sky palette — the background is a hardcoded dark cosmos
     // gradient, so the ink must NOT follow the paper theme.
-    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.22)', ACCF = '#34d6c5', BLUE = '#7ed4ff';
-    const serif = `'Newsreader', Georgia, serif`;
+    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', ACCF = '#34d6c5';
 
     const dg = bsDigest;                 // null while loading
     const loading = dg === null;
-    const signedIn = !!(dg && dg.signedIn);
-    const name = dg && dg.name;
-    const sc = dg && dg.score;
-    const tr = dg && dg.training;
-    const co = dg && dg.coach;
-    const nu = dg && dg.nutrition;
-    const streak = (dg && dg.streak) || 0;
-    const challenge = dg && dg.challenge;
-
-    // Evergreen research notes — curated, shown to everyone (not personal data).
-    // Evergreen research notes — curated, shown to everyone. Each links to its real
-    // source (tap opens it; the source line carries a ↗). Headlines match what the
-    // linked study actually found.
-    const WORLD = [
-      { tag: 'Strength', title: 'Lifting curbs muscle loss on GLP-1s', src: 'PubMed · 2025', url: 'https://pubmed.ncbi.nlm.nih.gov/41122508/' },
-      { tag: 'Nutrition', title: 'Protein gains plateau near 1.6 g/kg', src: 'Morton · BJSM 2018', url: 'https://pubmed.ncbi.nlm.nih.gov/28698222/' },
-    ];
-    // "Inside Shape" — what the app offers (shown in the non-member preview, beside
-    // "In the world"). A signed-in member sees their own numbers here instead.
-    const INSIDE = [
-      { tag: 'Score', title: 'Shape Score 2.0', src: 'Tiers · streaks · rewards' },
-      { tag: 'Coaching', title: 'Vetted coaches, one tap', src: 'Browse the marketplace' },
-      { tag: 'Chat', title: 'Coach chat + community', src: 'Voice notes · channels' },
-      { tag: 'Plan', title: 'Train · eat · recover', src: 'Your whole day, daily' },
-    ];
-
-    const colHead = { fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', color: INKF, textTransform: 'uppercase', borderBottom: `2px solid ${INKF}`, paddingBottom: 5 };
-    const statK = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50, marginBottom: 2 };
-    const statV = { fontFamily: serif, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.05 };
-    const statS = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 };
-    const newsTag = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: BLUE, fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 };
+    const name = dg && dg.name;          // bsWireLines reads the rest of the digest
 
     // The telegram lines assemble ONLY from the member's real digest (+ the
     // bounded directive). Non-null exactly for a signed-in member; the
@@ -836,11 +812,13 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: mono, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
         ) : (
           // Signed-out preview only — the invite edition (members render the
-          // telegram above). Tap-only "Step inside"; never auto-advances.
-          <>
+          // telegram above): one clean wire dispatch, centered (the owner cut
+          // the Inside Shape / In the world catalog columns — the pitch IS the
+          // page). Tap-only "Step inside"; never auto-advances.
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
             <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: You · Invitation</div>
             {/* the pitch, on the wire */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '2px 0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
                 { text: 'The Shape Daily lands every morning' },
                 { text: 'Your training · your numbers · a note from your coach' },
@@ -851,31 +829,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 </div>
               ))}
             </div>
-            {/* two columns: Inside Shape + In the world */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 2 }}>
-              <div style={{ paddingRight: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={colHead}>Inside Shape</div>
-                {INSIDE.map((it, i) => (
-                  <div key={i}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: ACCF, fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{it.tag}</div>
-                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{it.title}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{it.src}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: RULEF }} />
-              <div style={{ paddingLeft: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={colHead}>In the world</div>
-                {WORLD.map((w, i) => (
-                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
-                    <div style={newsTag}>{w.tag}</div>
-                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </>
+          </div>
         )}
 
         {/* CTA — tap to enter the app (the whole screen is also tappable).
@@ -1390,8 +1344,10 @@ function BSWireHold() {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <BSWireGround plain />
-      <div style={{ position: 'relative', zIndex: 1 }}><BSShapeMark size={96} /></div>
-      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading Shape</span>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <BSShapeMark size={96} />
+        <BSWireLoading />
+      </div>
     </div>
   );
 }
