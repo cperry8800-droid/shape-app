@@ -286,6 +286,342 @@ function DtrHistory({ sessions, prDates }) {
   );
 }
 
+// ── Build your week — self-serve training parity (#1618 → website) ─────────
+// The mobile builder's core capabilities on the dashboard: starter sessions +
+// programs, a custom weekly SESSION (repeatDow moves), a custom N-week PROGRAM
+// (this week's pattern replicated — the per-week hand-editor stays a mobile
+// strength), and ✦ Draft it for me (POST /api/ai/draft-program, human-in-the-
+// loop: nothing persists until Save). All writes go through
+// /api/client/self-training, which imports the SAME pure builder modules the
+// app uses — one implementation, no drift. Self-serve is the floor; coaching
+// stays the pitch (the marketplace leader keeps its pinned spot).
+const DTR_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // index 0 = Monday (the builder convention)
+const DTR_AMBER = "#d8a23a";
+const DTR_BUILDER_CAP = 182;
+
+function dtrDayLetters(dows) {
+  return (Array.isArray(dows) ? dows : [])
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+    .sort((a, b) => a - b)
+    .map((d) => DTR_DOW[d].slice(0, 2))
+    .join(" ");
+}
+
+const DTR_BTN = { fontFamily: DTR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent", color: DTR_INK50, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" };
+const DTR_BTN_ON = { ...DTR_BTN, color: DTR_TEAL, borderColor: DTR_TEAL };
+const DTR_CTA = { ...DTR_BTN, background: DTR_TEAL, color: "#08221f", border: 0, padding: "10px 16px", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" };
+const DTR_FIELD = { background: "rgba(242,237,228,0.04)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 11px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, outline: "none" };
+
+let dtrMoveSeq = 0;
+function dtrMoveKey() { dtrMoveSeq += 1; return "mv" + dtrMoveSeq; }
+function dtrEmptyMove() { return { _k: dtrMoveKey(), name: "", sets: "3", reps: "8", load: "", seg: "", isSeg: false }; }
+function dtrMoveOut(m) {
+  return m.isSeg
+    ? { name: m.name.trim(), seg: String(m.seg || "").trim() }
+    : { name: m.name.trim(), sets: String(m.sets || "").trim(), reps: String(m.reps || "").trim(), load: String(m.load || "").trim(), seg: "" };
+}
+function dtrMoveValid(m) {
+  if (!m.name.trim()) return false;
+  return m.isSeg ? !!String(m.seg || "").trim() : (!!String(m.sets || "").trim() && !!String(m.reps || "").trim());
+}
+
+function DtrMoveRows({ moves, setMoves }) {
+  const upd = (i, patch) => setMoves(moves.map((m, j) => (j === i ? { ...m, ...patch } : m)));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {moves.map((m, i) => (
+        <div key={m._k || i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input value={m.name} onChange={(e) => upd(i, { name: e.target.value })} placeholder="Move (e.g. Back squat · or 10 mi run)" style={{ ...DTR_FIELD, flex: "1 1 180px", minWidth: 0 }} />
+          {m.isSeg ? (
+            <input value={m.seg} onChange={(e) => upd(i, { seg: e.target.value })} placeholder="Segment · e.g. 10 mi · Z2" style={{ ...DTR_FIELD, flex: "1 1 140px", minWidth: 0 }} />
+          ) : (
+            <React.Fragment>
+              <input value={m.sets} onChange={(e) => upd(i, { sets: e.target.value })} aria-label="Sets" placeholder="Sets" style={{ ...DTR_FIELD, width: 56 }} />
+              <input value={m.reps} onChange={(e) => upd(i, { reps: e.target.value })} aria-label="Reps" placeholder="Reps" style={{ ...DTR_FIELD, width: 64 }} />
+              <input value={m.load} onChange={(e) => upd(i, { load: e.target.value })} aria-label="Load" placeholder="Load" style={{ ...DTR_FIELD, width: 84 }} />
+            </React.Fragment>
+          )}
+          <button type="button" onClick={() => upd(i, { isSeg: !m.isSeg })} title="Toggle lift ↔ segment" style={m.isSeg ? DTR_BTN_ON : DTR_BTN}>{m.isSeg ? "Segment" : "Lift"}</button>
+          <button type="button" onClick={() => setMoves(moves.filter((_, j) => j !== i))} aria-label={"Remove " + (m.name || "move")} style={{ ...DTR_BTN, borderColor: "transparent", color: DTR_INK50 }}>×</button>
+        </div>
+      ))}
+      {moves.length < 20 && <button type="button" onClick={() => setMoves([...moves, dtrEmptyMove()])} style={{ ...DTR_BTN, alignSelf: "flex-start" }}>＋ Add move</button>}
+    </div>
+  );
+}
+
+function DtrDowToggles({ dows, setDows }) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {DTR_DOW.map((d, i) => {
+        const on = dows.includes(i);
+        return (
+          <button key={d} type="button" onClick={() => setDows(on ? dows.filter((x) => x !== i) : [...dows, i].sort((a, b) => a - b))} aria-pressed={on} style={on ? DTR_BTN_ON : DTR_BTN}>{d}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DtrBuilder({ self, onChanged }) {
+  const templates = (self && self.templates) || { sessions: [], programs: [] };
+  const mine = (self && self.mine) || [];
+  const [mode, setMode] = React.useState("starters"); // starters | session | program | draft
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const [notice, setNotice] = React.useState(null);
+
+  // Shared weekly pattern (SESSION + custom PROGRAM reuse it).
+  const [name, setName] = React.useState("");
+  const [dows, setDows] = React.useState([0, 2, 4]);
+  const [moves, setMoves] = React.useState([dtrEmptyMove()]);
+  const [editId, setEditId] = React.useState(null);
+  // PROGRAM extras.
+  const [weeksN, setWeeksN] = React.useState(8);
+  const [startISO, setStartISO] = React.useState(dtrIso(new Date()));
+  // Starter-program pick.
+  const [starterId, setStarterId] = React.useState(null);
+  const [starterWeeks, setStarterWeeks] = React.useState(8);
+  // ✦ Draft.
+  const [draftGoal, setDraftGoal] = React.useState("");
+  const [draftWeeks, setDraftWeeks] = React.useState(8);
+  const [draftDays, setDraftDays] = React.useState(4);
+  const [draft, setDraft] = React.useState(null); // the reviewed program
+  const [draftState, setDraftState] = React.useState("idle"); // idle | drafting | unavailable
+
+  const post = async (payload, savedMsg) => {
+    setBusy(true); setErr(null); setNotice(null);
+    try {
+      const res = await fetch("/api/client/self-training", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr((data && data.error) || "Could not save — try again."); return null; }
+      if (savedMsg) setNotice(savedMsg);
+      if (onChanged) onChanged();
+      return data;
+    } catch (e) { setErr("Could not save — try again."); return null; }
+    finally { setBusy(false); }
+  };
+
+  const movesOk = moves.length > 0 && moves.every(dtrMoveValid);
+  const saveSession = () => {
+    if (!name.trim()) { setErr("Name the session."); return; }
+    if (!dows.length) { setErr("Pick at least one weekday."); return; }
+    if (!movesOk) { setErr("Every move needs a name plus sets × reps (or a segment)."); return; }
+    post({ action: "session", name: name.trim(), repeatDow: dows, moves: moves.map(dtrMoveOut), editId: editId || undefined },
+      editId ? "Session updated." : "Session saved — it repeats weekly.").then((d) => { if (d) { setEditId(null); setName(""); setMoves([dtrEmptyMove()]); } });
+  };
+
+  // Custom PROGRAM = this weekly pattern replicated across N weeks (the
+  // per-week hand-editor is the mobile builder's; ✦ Draft covers varied weeks
+  // here). The cap gate BLOCKS the save honestly — it never truncates.
+  const programRows = weeksN * dows.length;
+  const programFits = weeksN >= 1 && weeksN <= 26 && dows.length >= 1 && programRows <= DTR_BUILDER_CAP;
+  const saveProgram = () => {
+    if (!name.trim()) { setErr("Name the program."); return; }
+    if (!movesOk) { setErr("Every move needs a name plus sets × reps (or a segment)."); return; }
+    if (!programFits) { setErr("That's more than the " + DTR_BUILDER_CAP + "-session cap — shorten the block."); return; }
+    const weeks = Array.from({ length: weeksN }, (_, i) => ({
+      week: i + 1,
+      days: dows.map((dow) => ({ dow, title: name.trim(), moves: moves.map(dtrMoveOut) })),
+    }));
+    post({ action: "program", name: name.trim(), weeks, startISO }, "Program saved — " + programRows + " sessions on the calendar.")
+      .then((d) => { if (d) { setName(""); setMoves([dtrEmptyMove()]); } });
+  };
+
+  const runDraft = async () => {
+    if (!draftGoal.trim()) { setErr("Describe the goal — e.g. \"first marathon in October, 4 days a week\"."); return; }
+    setErr(null); setDraft(null); setDraftState("drafting");
+    try {
+      const res = await fetch("/api/ai/draft-program", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: draftGoal.trim(), weeks: draftWeeks, daysPerWeek: draftDays }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data && data.program && Array.isArray(data.program.weeks) && data.program.weeks.length) { setDraft(data.program); setDraftState("idle"); }
+      else setDraftState("unavailable");
+    } catch (e) { setDraftState("unavailable"); }
+  };
+  const saveDraft = () => {
+    if (!draft) return;
+    post({ action: "program", name: draft.name || draftGoal.trim().slice(0, 80) || "Your program", weeks: draft.weeks, startISO },
+      "Program saved — it lands on your week.").then((d) => { if (d) { setDraft(null); setDraftGoal(""); } });
+  };
+
+  const removeOne = async (row) => {
+    const ok = window.ShapeConfirm && window.ShapeConfirm.open
+      ? await window.ShapeConfirm.open({ title: "Remove this session?", name: row.title, message: "It comes off your week. This can't be undone.", confirmLabel: "Remove" })
+      : window.confirm("Remove " + row.title + "?");
+    if (ok) post({ action: "remove", id: row.id }, "Removed.");
+  };
+  const removeProgram = async (p) => {
+    const ok = window.ShapeConfirm && window.ShapeConfirm.open
+      ? await window.ShapeConfirm.open({ title: "Remove this program?", name: p.name, message: "Every remaining session of it comes off the calendar. This can't be undone.", confirmLabel: "Remove program" })
+      : window.confirm("Remove the whole program " + p.name + "?");
+    if (ok) post({ action: "removeProgram", programId: p.id }, "Program removed.");
+  };
+
+  // Yours — group the member's self rows for the manage list.
+  const yours = React.useMemo(() => {
+    const progs = new Map();
+    const repeats = [];
+    let oneOffs = 0;
+    for (const r of mine) {
+      if (r.program && r.program.id) {
+        const g = progs.get(r.program.id) || { id: r.program.id, name: r.program.name || r.title, weeks: r.program.weeks || null, count: 0 };
+        g.count += 1; progs.set(r.program.id, g);
+      } else if (Array.isArray(r.repeatDow) && r.repeatDow.length) repeats.push(r);
+      else oneOffs += 1;
+    }
+    return { programs: [...progs.values()], repeats, oneOffs };
+  }, [mine]);
+
+  const seg = (id, label) => (
+    <button type="button" onClick={() => { setMode(id); setErr(null); setNotice(null); }} aria-pressed={mode === id} style={mode === id ? DTR_BTN_ON : DTR_BTN}>{label}</button>
+  );
+
+  return (
+    <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_TEAL, paddingLeft: 24 }}>
+      <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Build your week · self-serve training</div>
+      <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55, margin: "8px 0 12px", maxWidth: 560 }}>
+        A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands. <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a>
+      </div>
+
+      {(yours.programs.length > 0 || yours.repeats.length > 0 || yours.oneOffs > 0) && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginBottom: 6 }}>Yours · programmed by you</div>
+          {yours.programs.map((p) => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+              <span style={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{p.name}</span>
+              <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{p.count} sessions{p.weeks ? " · " + p.weeks + " wks" : ""}</span>
+              <button type="button" onClick={() => removeProgram(p)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
+            </div>
+          ))}
+          {yours.repeats.map((r) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+              <span style={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{r.title}</span>
+              <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{dtrDayLetters(r.repeatDow)} · weekly</span>
+              <button type="button" onClick={() => {
+                setMode("session"); setEditId(r.id); setName(r.title);
+                setDows(r.repeatDow.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6));
+                // Hydrate the SAVED moves — a weekday/name edit must replace
+                // the row with what it held, never the form's leftover state.
+                setMoves(((r.moves && r.moves.length) ? r.moves : [dtrEmptyMove()]).map((m) => ({ _k: dtrMoveKey(), name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
+                setErr(null); setNotice("Editing " + r.title + " — save to replace it.");
+              }} style={DTR_BTN}>Edit</button>
+              <button type="button" onClick={() => removeOne(r)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
+            </div>
+          ))}
+          {yours.oneOffs > 0 && <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DTR_INK50, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>+ {yours.oneOffs} dated one-off{yours.oneOffs === 1 ? "" : "s"}</div>}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {seg("starters", "Starters")}
+        {seg("session", "Custom session")}
+        {seg("program", "Custom program")}
+        {seg("draft", "✦ Draft it for me")}
+      </div>
+
+      {mode === "starters" && (
+        <div>
+          <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginBottom: 6 }}>Sessions · repeat weekly</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {templates.sessions.map((s) => (
+              <button key={s.id} type="button" style={DTR_BTN} onClick={() => {
+                setMode("session"); setEditId(null); setName(s.name);
+                setMoves((s.moves || []).map((m) => ({ _k: dtrMoveKey(), name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
+                setErr(null); setNotice(s.name + " loaded — pick the weekdays and save.");
+              }}>{s.name}</button>
+            ))}
+          </div>
+          <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginBottom: 6 }}>Programs · race &amp; block schedules</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {templates.programs.map((p) => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => { setStarterId(starterId === p.id ? null : p.id); setStarterWeeks(p.defaultWeeks); setErr(null); }} aria-pressed={starterId === p.id} style={starterId === p.id ? DTR_BTN_ON : DTR_BTN}>{p.name}</button>
+                <span style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50 }}>{p.defaultWeeks} wks · {p.daysPerWeek}d/wk</span>
+                {starterId === p.id && (
+                  <React.Fragment>
+                    <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Weeks
+                      <input type="number" min="1" max="26" value={starterWeeks} onChange={(e) => setStarterWeeks(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} style={{ ...DTR_FIELD, width: 60 }} />
+                    </label>
+                    <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Start
+                      <input type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ ...DTR_FIELD, width: 140 }} />
+                    </label>
+                    <button type="button" disabled={busy} onClick={() => post({ action: "starter_program", id: p.id, weeks: starterWeeks, startISO }, p.name + " scheduled — it lands on your calendar.").then((d) => { if (d) setStarterId(null); })} style={DTR_CTA}>{busy ? "Saving…" : "Start this plan"}</button>
+                  </React.Fragment>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(mode === "session" || mode === "program") && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={mode === "session" ? "Session name · e.g. Upper day" : "Program name · e.g. Fall strength block"} style={{ ...DTR_FIELD, maxWidth: 340 }} />
+          <DtrDowToggles dows={dows} setDows={setDows} />
+          <DtrMoveRows moves={moves} setMoves={setMoves} />
+          {mode === "program" && (
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Weeks
+                <input type="number" min="1" max="26" value={weeksN} onChange={(e) => setWeeksN(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} style={{ ...DTR_FIELD, width: 60 }} />
+              </label>
+              <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Start
+                <input type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ ...DTR_FIELD, width: 140 }} />
+              </label>
+              <span style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: programFits ? DTR_INK50 : DTR_RUST }}>{programRows} sessions{programFits ? "" : " · over the " + DTR_BUILDER_CAP + " cap"}</span>
+            </div>
+          )}
+          <div>
+            <button type="button" disabled={busy} onClick={mode === "session" ? saveSession : saveProgram} style={DTR_CTA}>
+              {busy ? "Saving…" : mode === "session" ? (editId ? "Save changes" : "Save · repeats weekly") : "Save program"}
+            </button>
+            {editId && <button type="button" onClick={() => { setEditId(null); setName(""); setMoves([dtrEmptyMove()]); setNotice(null); }} style={{ ...DTR_BTN, marginLeft: 10 }}>Cancel edit</button>}
+          </div>
+        </div>
+      )}
+
+      {mode === "draft" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input value={draftGoal} onChange={(e) => setDraftGoal(e.target.value)} placeholder={"The goal · e.g. \"first half-marathon in 12 weeks, 4 days a week\""} style={{ ...DTR_FIELD, maxWidth: 480 }} />
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Weeks
+              <input type="number" min="1" max="26" value={draftWeeks} onChange={(e) => setDraftWeeks(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} style={{ ...DTR_FIELD, width: 60 }} />
+            </label>
+            <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Days/wk
+              <input type="number" min="1" max="7" value={draftDays} onChange={(e) => setDraftDays(Math.max(1, Math.min(7, Number(e.target.value) || 1)))} style={{ ...DTR_FIELD, width: 56 }} />
+            </label>
+            <label style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, display: "inline-flex", alignItems: "center", gap: 6 }}>Start
+              <input type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ ...DTR_FIELD, width: 140 }} />
+            </label>
+            <button type="button" disabled={draftState === "drafting"} onClick={runDraft} style={DTR_CTA}>{draftState === "drafting" ? "Drafting…" : "✦ Draft it"}</button>
+          </div>
+          {draftState === "unavailable" && <div style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_AMBER, letterSpacing: "0.06em" }}>The draft assistant is unavailable right now — build it by hand, or try again.</div>}
+          {draft && (
+            <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{draft.name || "Your program"}</div>
+              <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, letterSpacing: "0.08em", textTransform: "uppercase", margin: "4px 0 8px" }}>
+                {draft.weeks.length} weeks · {draft.weeks.reduce((a, w) => a + ((w.days && w.days.length) || 0), 0)} sessions — nothing is saved until you approve
+              </div>
+              <div style={{ fontSize: 12, color: DTR_INK50, lineHeight: 1.6, maxHeight: 180, overflowY: "auto" }}>
+                {draft.weeks.slice(0, 26).map((w) => (
+                  <div key={w.week}>W{w.week}: {(w.days || []).map((d) => DTR_DOW[d.dow] + " · " + d.title).join("  ·  ")}</div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <button type="button" disabled={busy} onClick={saveDraft} style={DTR_CTA}>{busy ? "Saving…" : "Approve & save"}</button>
+                <button type="button" onClick={() => setDraft(null)} style={{ ...DTR_BTN, marginLeft: 10 }}>Discard</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(err || notice) && (
+        <div style={{ marginTop: 10, fontFamily: DTR_MONO, fontSize: 9, letterSpacing: "0.06em", color: err ? DTR_RUST : DTR_TEAL }} role="status">{err || notice}</div>
+      )}
+    </div>
+  );
+}
+
 // ── The page ────────────────────────────────────────────────────────────────
 function ClientWorkoutsPage() {
   const [plan, setPlan] = React.useState(null);
@@ -293,24 +629,30 @@ function ClientWorkoutsPage() {
   const [dash, setDash] = React.useState(null);
   const [prs, setPrs] = React.useState(null);
   const [source, setSource] = React.useState(null);
+  const [selfData, setSelfData] = React.useState(null); // /api/client/self-training (builder)
+  const [reloadTick, setReloadTick] = React.useState(0);
 
   React.useEffect(() => {
     let on = true;
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     (async () => {
-      const [pl, tr, db, pg] = await Promise.all([
-        j("/api/client/plan"), j("/api/client/train"), j("/api/client/dashboard"), j("/api/client/progress"),
+      const [pl, tr, db, pg, st] = await Promise.all([
+        j("/api/client/plan"), j("/api/client/train"), j("/api/client/dashboard"), j("/api/client/progress"), j("/api/client/self-training"),
       ]);
       if (!on) return;
       if (pl && pl.ok) setPlan(pl);
       if (tr && tr.ok) setTrain(tr);
       if (db && db.kpis) setDash(db);
       if (pg && pg.ok) setPrs(pg.prs || []);
-      setSource((pl && pl.ok && pl.training && pl.training.hasPlan) || (tr && tr.ok) ? "live" : "demo");
+      if (st && st.ok) setSelfData(st);
+      setSource((pl && pl.ok && pl.training && pl.training.hasPlan) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo");
     })();
     return () => { on = false; };
-  }, []);
+  }, [reloadTick]);
   const live = source === "live";
+  // A builder save/remove re-reads everything — the new rows ride the same
+  // plan feed the weeks view renders.
+  const reloadAll = React.useCallback(() => setReloadTick((t) => t + 1), []);
 
   // Completed dates: the dashboard's completed-workout calendar (80 deep).
   const completedDates = React.useMemo(() => {
@@ -324,8 +666,19 @@ function ClientWorkoutsPage() {
 
   const coach = live ? ((plan && plan.training && plan.training.coach) || "your coach") : DTR_DEMO.coach;
   const workouts = live ? ((plan && plan.training && plan.training.workouts) || []) : DTR_DEMO.workouts;
-  const { weeks, anytime } = dtrBuildWeeks(workouts, completedDates, new Date());
-  const tonight = dtrTonight(weeks);
+  // Weekly-repeat self sessions (payload.repeatDow, no scheduled_date) render
+  // as their own block — dtrBuildWeeks would mislabel them "anytime". A repeat
+  // whose weekdays include TODAY backs the Tonight hero when no dated workout
+  // claims it (the mobile bsSlotRepeats rule, at this page's display depth).
+  const repeatRows = workouts.filter((w) => Array.isArray(w.repeatDow) && w.repeatDow.length);
+  const datedRows = workouts.filter((w) => !(Array.isArray(w.repeatDow) && w.repeatDow.length));
+  const { weeks, anytime } = dtrBuildWeeks(datedRows, completedDates, new Date());
+  let tonight = dtrTonight(weeks);
+  if (!tonight && repeatRows.length) {
+    const todayDow = (new Date().getDay() + 6) % 7; // 0 = Monday (the builder convention)
+    const rep = repeatRows.find((w) => w.repeatDow.includes(todayDow));
+    if (rep) tonight = { day: { workout: rep, done: false, isToday: true }, when: "Tonight" };
+  }
   const stamped = workouts.find((w) => w.template && w.template.name);
   const programName = live ? (stamped ? stamped.template.name : (plan && plan.training && plan.training.hasPlan ? "Assigned program" : null)) : DTR_DEMO.program;
   const currentWeek = weeks.find((w) => w.status === "current");
@@ -376,6 +729,20 @@ function ClientWorkoutsPage() {
         {weeks.length > 0 && (
           <DtrNextWeekLocked coach={coach} weekN={lastWeekN != null ? lastWeekN + 1 : null} />
         )}
+        {repeatRows.length > 0 && (
+          <div className="dash-plate" style={{ "--dac": DTR_TEAL, paddingLeft: 24 }}>
+            <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Weekly · programmed by you</div>
+            <div style={{ marginTop: 6 }}>
+              {repeatRows.map((w, i) => (
+                <div key={w.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
+                  <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_TEAL, letterSpacing: "0.08em" }}>{dtrDayLetters(w.repeatDow)}</span>
+                  <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves · repeats weekly</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {anytime.length > 0 && (
           <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
             <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
@@ -391,6 +758,12 @@ function ClientWorkoutsPage() {
         )}
       </div>
     ) },
+
+    // Self-serve builder — renders only for an authenticated member (the GET
+    // 401s signed-out); coach-assigned weeks above always win the page lead.
+    selfData && selfData.ok ? { key: "builder", title: "Build your week", size: "full", render: () => (
+      <DtrBuilder self={selfData} onChanged={reloadAll} />
+    ) } : null,
 
     { key: "consistency", title: "Consistency", size: "half", render: () => (
       <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_GREEN, paddingLeft: 24 }}>

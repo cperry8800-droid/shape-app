@@ -365,6 +365,47 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Website workout-builder parity: "Build your week" on the dashboard Workouts tab
+
+- **Closes the self-serve-training website follow-up** (#1618, "website
+  builder parity — mobile-first"). Signed-in members build their own training
+  on the WEBSITE now, not just the app.
+- **New route `GET/POST /api/client/self-training`** (registered in the War
+  Room; membership proxy prefix + own auth; **all writes on the caller's RLS
+  client** — the self-CRUD policies pin `client_id = auth.uid()` +
+  `trainer_id IS NULL`, so the route can't author coach rows). GET → the
+  starter catalog (sessions full; programs METADATA only — `build` resolves
+  server-side) + the member's own self rows. POST actions: `session` (one
+  weekly-repeat row via `bsRepeatSpec`; Edit retires the prior row only AFTER
+  the new one lands), `program` (validated via `bsValidProgramShape` +
+  `bsValidMove`, capped honestly at 182 — BLOCKS, never truncates;
+  `bsMaterializeProgram` → one batch insert), `starter_program`
+  (`bsStarterProgram` resolved server-side), `remove` / `removeProgram`.
+  **One implementation:** the route imports the SAME pure mobile modules the
+  app writes with (the food-search-server pattern) — the two surfaces cannot
+  drift on row shape. `bsValidMove` is now exported from
+  `starterTemplates.mjs` (was internal) so every save path validates against
+  the one move predicate.
+- **`DtrBuilder`** (`dashTrain.jsx`, a full DashGrid widget on the Workouts
+  tab, rendered only when the self-training GET authenticates): **Starters**
+  (session templates prefill the form; race/block programs take weeks + a
+  start date → Start this plan) · **Custom session** (name · Mon–Sun toggles
+  · move rows that flip lift ↔ segment) · **Custom program** (the weekly
+  pattern replicated across N weeks, live `N sessions / over-cap` gate — the
+  per-week hand-editor stays a mobile strength; ✦ Draft covers varied weeks
+  here) · **✦ Draft it for me** (`/api/ai/draft-program` → a week-by-week
+  review, "nothing is saved until you approve" → save through the same
+  `program` action; model-down reads an honest unavailable line) · **Yours**
+  (programs/repeats/one-offs with Edit + `ShapeConfirm`-guarded Removes).
+  Saves re-read the plan feed, so new rows land straight in the page's
+  weeks view. Coaching stays the pitch (the Find-a-coach leader keeps its
+  spot). `dashTrain.jsx?v=20260710` on ClientApp + ClientTrain (byte-safe
+  replace — CRLF preserved).
+- Verified: JSX parse · `npm test` 560 · `tsc --noEmit` clean · PowerShell
+  `/m/` build exit 0 (the exported `bsValidMove` touches the mobile module) ·
+  LF on the LF files. War Room: parity item flipped done; the on-device pass
+  stays open.
+
 ### 2026-07-10 — Website Voice-chat parity: Nora's hold-to-talk + the web robot dies (chatWidget)
 
 - **Closes the Nora-wave deferred item** ("website parity for Voice-chat

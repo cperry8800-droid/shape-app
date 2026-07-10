@@ -239,6 +239,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/progress', 'GET'],
   ['/api/client/score', 'GET'],
   ['/api/client/score-record', 'GET'],
+  ['/api/client/self-training', 'GET'],
+  ['/api/client/self-training', 'POST'],
   ['/api/client/team', 'GET'],
   ['/api/client/strength', 'GET'],
   ['/api/client/timezone', 'POST'],
@@ -857,7 +859,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Plan route windows dated rows this-week-forward + undated (nullsFirst) so a long block never starves the current week / repeat rows from the 60-row cap', status: 'done' },
         { label: 'Coach read of a member\'s self-authored plans — DONE (2026-07-10): get_client_self_plans RPC (SECURITY DEFINER, is_coach_on_client-gated, compact projection — never the full payload) + a Case File "SELF-PROGRAMMED" honest-slot station (programs w/ next-session week/date · weekly repeats w/ day letters · upcoming one-offs; renders only when the member self-programs); pure tested selfPlansSummary.mjs', status: 'done' },
         { label: 'OWNER: run supabase-migrations/2026-07-10-client-self-plans-coach-read.sql (get_client_self_plans) — the Case File section stays hidden until applied', status: 'manual' },
-        { label: 'Website builder parity (mobile-first); on-device pass across papers × disciplines × the share matrix', status: 'pending' },
+        { label: 'Website builder parity — DONE (2026-07-10): "Build your week" widget on the dashboard Workouts tab (starter sessions + programs · custom weekly SESSION · custom N-week PROGRAM from the weekly pattern · ✦ Draft-it-for-me review→approve · Yours manage list w/ ShapeConfirm removes) over a new /api/client/self-training route that imports the SAME pure builder modules the app uses (bsRepeatSpec/bsMaterializeProgram/bsStarterProgram — one implementation, RLS-scoped writes). The per-week hand-editor stays a mobile strength (✦ Draft covers varied weeks on web)', status: 'done' },
+        { label: 'Self-serve on-device pass across papers × disciplines (strength/run/tri/Hyrox) × the share matrix', status: 'pending' },
       ],
     },
     {

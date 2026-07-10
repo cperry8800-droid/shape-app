@@ -248,12 +248,15 @@ export function bsStarterProgram(id, weeks) {
 }
 
 // ── Shape validators (used by tests + the builder to reject malformed drafts) ─
-function validMove(m) {
+// Exported for the self-training API route (website builder parity) — the ONE
+// move predicate every save path validates against.
+export function bsValidMove(m) {
   if (!m || typeof m.name !== 'string' || !m.name) return false;
   const isLift = m.sets != null && m.reps != null;
   const isSeg = typeof m.seg === 'string' && m.seg.length > 0;
   return isLift || isSeg;
 }
+const validMove = bsValidMove;
 
 export function bsValidSessionShape(s) {
   return !!s && typeof s.id === 'string' && typeof s.name === 'string'
