@@ -240,6 +240,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/score', 'GET'],
   ['/api/client/score-record', 'GET'],
   ['/api/client/self-training', 'GET'],
+  ['/api/client/self-training', 'POST'],
   ['/api/client/team', 'GET'],
   ['/api/client/strength', 'GET'],
   ['/api/client/timezone', 'POST'],

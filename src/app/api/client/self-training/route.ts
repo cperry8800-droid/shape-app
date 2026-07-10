@@ -141,7 +141,7 @@ export async function POST(request: Request) {
     // (removed weekdays can't linger; a failure leaves the old row intact).
     const editId = typeof body.editId === 'string' ? body.editId : '';
     if (editId && data && editId !== data.id) {
-      await supabase.from('client_workouts').delete().eq('id', editId).is('trainer_id', null);
+      await supabase.from('client_workouts').delete().eq('id', editId).is('trainer_id', null).eq('client_id', user.id);
     }
     return NextResponse.json({ ok: true, id: data?.id || null });
   }

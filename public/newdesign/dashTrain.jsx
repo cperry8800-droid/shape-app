@@ -312,7 +312,9 @@ const DTR_BTN_ON = { ...DTR_BTN, color: DTR_TEAL, borderColor: DTR_TEAL };
 const DTR_CTA = { ...DTR_BTN, background: DTR_TEAL, color: "#08221f", border: 0, padding: "10px 16px", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" };
 const DTR_FIELD = { background: "rgba(242,237,228,0.04)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 11px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, outline: "none" };
 
-function dtrEmptyMove() { return { name: "", sets: "3", reps: "8", load: "", seg: "", isSeg: false }; }
+let dtrMoveSeq = 0;
+function dtrMoveKey() { dtrMoveSeq += 1; return "mv" + dtrMoveSeq; }
+function dtrEmptyMove() { return { _k: dtrMoveKey(), name: "", sets: "3", reps: "8", load: "", seg: "", isSeg: false }; }
 function dtrMoveOut(m) {
   return m.isSeg
     ? { name: m.name.trim(), seg: String(m.seg || "").trim() }
@@ -328,7 +330,7 @@ function DtrMoveRows({ moves, setMoves }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {moves.map((m, i) => (
-        <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div key={m._k || i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input value={m.name} onChange={(e) => upd(i, { name: e.target.value })} placeholder="Move (e.g. Back squat · or 10 mi run)" style={{ ...DTR_FIELD, flex: "1 1 180px", minWidth: 0 }} />
           {m.isSeg ? (
             <input value={m.seg} onChange={(e) => upd(i, { seg: e.target.value })} placeholder="Segment · e.g. 10 mi · Z2" style={{ ...DTR_FIELD, flex: "1 1 140px", minWidth: 0 }} />
@@ -500,7 +502,7 @@ function DtrBuilder({ self, onChanged }) {
                 setDows(r.repeatDow.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6));
                 // Hydrate the SAVED moves — a weekday/name edit must replace
                 // the row with what it held, never the form's leftover state.
-                setMoves(((r.moves && r.moves.length) ? r.moves : [dtrEmptyMove()]).map((m) => ({ name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
+                setMoves(((r.moves && r.moves.length) ? r.moves : [dtrEmptyMove()]).map((m) => ({ _k: dtrMoveKey(), name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
                 setErr(null); setNotice("Editing " + r.title + " — save to replace it.");
               }} style={DTR_BTN}>Edit</button>
               <button type="button" onClick={() => removeOne(r)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
@@ -524,7 +526,7 @@ function DtrBuilder({ self, onChanged }) {
             {templates.sessions.map((s) => (
               <button key={s.id} type="button" style={DTR_BTN} onClick={() => {
                 setMode("session"); setEditId(null); setName(s.name);
-                setMoves((s.moves || []).map((m) => ({ name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
+                setMoves((s.moves || []).map((m) => ({ _k: dtrMoveKey(), name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
                 setErr(null); setNotice(s.name + " loaded — pick the weekdays and save.");
               }}>{s.name}</button>
             ))}
@@ -643,7 +645,7 @@ function ClientWorkoutsPage() {
       if (db && db.kpis) setDash(db);
       if (pg && pg.ok) setPrs(pg.prs || []);
       if (st && st.ok) setSelfData(st);
-      setSource((pl && pl.ok && pl.training && pl.training.hasPlan) || (tr && tr.ok) ? "live" : "demo");
+      setSource((pl && pl.ok && pl.training && pl.training.hasPlan) || (tr && tr.ok) || (st && st.ok && Array.isArray(st.mine) && st.mine.length > 0) ? "live" : "demo");
     })();
     return () => { on = false; };
   }, [reloadTick]);
