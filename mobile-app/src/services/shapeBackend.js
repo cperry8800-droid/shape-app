@@ -5308,8 +5308,8 @@ window.ShapeSupport = {
 // ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────
 // Off by default; fully usable without audio. `tone` (supportive | direct) also
 // rides along with Nora's text replies so the framing matches what's spoken.
-// speak() prefers the server route (consistent voice + tone→voice mapping) and
-// falls back to on-device speech (Web Speech API) when the route is unavailable.
+// speak() is server-only; a failure returns { ok:false, reason } and the caller
+// shows an honest state (never robot audio).
 const VOICE_KEY = 'shape.voice';
 // The voices a member can pick for Nora (curated OpenAI TTS set). 'auto' follows
 // the tone. Mirrors src/lib/ai/tone.mjs NORA_VOICES (kept in sync by hand — the
@@ -5333,21 +5333,14 @@ function writeVoicePrefs(p) {
 let _voiceAudio = null;
 function stopVoice() {
   try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
-  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
 }
-function speakOnDevice(text, tone) {
-  try {
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text || ''));
-    u.rate = tone === 'direct' ? 1.05 : 0.98; // direct = a touch crisper
-    window.speechSynthesis.speak(u);
-    return true;
-  } catch (e) { return false; }
-}
+// Server voice ONLY. The old on-device speechSynthesis fallback (the robot) is
+// deliberately GONE — a failed/unavailable server voice returns an honest
+// { ok:false, reason } and the caller decides what to say. Silence over
+// brand-damaging robot audio.
 async function speakVoice(text, toneOverride, opts = {}) {
   const clean = String(text || '').trim();
-  if (!clean) return { ok: false };
+  if (!clean) return { ok: false, reason: 'unavailable' };
   const prefs = readVoicePrefs();
   // Honor the voice opt-out: when auto-speak is OFF, a stray speak() call must NOT
   // read coaching content aloud. An explicit "Listen" tap passes { force:true } —
@@ -5355,27 +5348,24 @@ async function speakVoice(text, toneOverride, opts = {}) {
   if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
   const tone = toneOverride || prefs.tone;
   stopVoice();
-  // Prefer the server route (better voice + the tone→voice mapping).
-  if (apiBaseUrl && state.session?.access_token) {
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
-        body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        _voiceAudio = audio;
-        audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
-        await audio.play();
-        return { ok: true, source: 'server' };
-      }
-      // 503/unavailable → fall through to on-device speech.
-    } catch (e) { /* network → fall back */ }
+  if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
+    });
+    if (!res.ok) return { ok: false, reason: (res.status === 401 || res.status === 402) ? 'members' : 'unavailable' };
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    _voiceAudio = audio;
+    audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+    await audio.play();
+    return { ok: true, source: 'server' };
+  } catch (e) {
+    return { ok: false, reason: 'unavailable' };
   }
-  return { ok: speakOnDevice(clean, tone), source: 'device' };
 }
 // The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's
 // framing + sound follow you across devices/surfaces; the on/off ENABLED flag
