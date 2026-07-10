@@ -1,6 +1,6 @@
 # Nora upgrades — voice · grounded answers · member actions · memory
 
-**Date:** 2026-07-10 · **Status:** DRAFT — awaiting owner go
+**Date:** 2026-07-10 · **Status:** APPROVED — owner go 2026-07-10
 **Owner scope decisions taken:** the four picked items — **voice overhaul**,
 **grounded answers**, **member actions**, **memory**. The proactive Home
 byline, rich answer cards, and the Radio-DJ resume stay follow-ups.
@@ -32,11 +32,13 @@ Nora talks like a stranger and, in the demo, sounds like a robot:
     friend — relaxed pace, conversational, never announcer-like."
   - direct → "Crisp, confident, matter-of-fact coach — brisk, energetic, no
     fluff."
-  A **`NORA_TTS_INSTRUCTIONS` env** overrides both (the owner is auditioning
-  voices/styles — openai.fm demos every voice with instructions; whatever
-  lands is a one-line env change, no deploy edit). The route's **verbatim
-  contract is unchanged**: instructions steer *delivery*, never words —
-  `X-Spoken-Text` parity holds.
+  A **`NORA_TTS_INSTRUCTIONS` env** overrides both. This IS one new env var —
+  but strictly **optional**: unset, the code-side `voiceStyleForTone` defaults
+  apply and nothing breaks (the owner is auditioning voices/styles —
+  openai.fm demos every voice with instructions; whatever lands is a one-line
+  env change, no code edit). No other env is added; nothing is *required* for
+  deploy. The route's **verbatim contract is unchanged**: instructions steer
+  *delivery*, never words — `X-Spoken-Text` parity holds.
 - **The robot dies.** `speakOnDevice` + the fallback branch are DELETED.
   A failed/unavailable server voice returns `{ ok: false, reason }`:
   an explicit "Listen" tap shows an honest toast — signed-out: "Nora's voice
@@ -45,16 +47,21 @@ Nora talks like a stranger and, in the demo, sounds like a robot:
 - **Hold-to-talk conversation mode** (mobile Nora support chat): a mic button
   in her composer — hold → record (the meal-logger MediaRecorder pattern) →
   release → `/api/ai/transcribe` → the text sends as a normal chat message →
-  her reply auto-plays via `speakVoice(reply, { force: true })` while the
-  mode's on. A "Voice chat" toggle chip in the thread header, **off by
+  her reply auto-plays via `speakVoice(reply, undefined, { force: true })`
+  while the mode's on (the live signature is `speakVoice(text, toneOverride,
+  opts)` — force rides the third slot, so replies play even with the normal
+  voice toggle off). A "Voice chat" toggle chip in the thread header, **off by
   default**; any capture/transcribe failure degrades to the text composer with
   the error line (the logger's exact pattern). Website parity is a follow-up.
 - The existing voice picker (6 voices) and tone setting stay as-is.
 
 ### 2. Grounded answers (PR B)
 
-- `/api/support/chat`: when `resolveActor` returns an authenticated member,
-  the route builds a **server-side member-context block** — never
+- `/api/support/chat`: when the caller is an authenticated **member** — an
+  explicit membership check, not just `resolveActor` (which only proves a
+  signed-in profile; support chat sits outside the membership-gated prefixes,
+  so a signed-in prospect would otherwise slip into the member path) — the
+  route builds a **server-side member-context block** — never
   client-supplied — and injects it as a system message: *"Facts about THIS
   member — use them when relevant; never invent numbers; if a fact isn't
   here, say you don't have it."*
@@ -68,10 +75,15 @@ Nora talks like a stranger and, in the demo, sounds like a robot:
   contain the caller's own rows.
 - New **pure module `src/lib/ai/memberContext.ts`**: `formatMemberContext(
   facts) -> string` (unit-tested formatting/omission vectors); the fetchers
-  stay thin in the route. Context-fetch failure → chat proceeds ungrounded
-  (grounding must never break support). Signed-out/prospect chat is
-  byte-identical to today. Cost: ~300–500 extra prompt tokens per member
-  message.
+  stay thin in the route. **Context-fetch failure → honest-unavailable, not
+  silent:** the chat still proceeds (grounding must never break support), but
+  the system message is replaced with an explicit
+  `member_context_unavailable` note — *"live member facts could not be loaded
+  right now; if asked about their own numbers, say the data isn't available —
+  never estimate or invent it"* — so personal questions get an honest
+  unavailable answer instead of a fabricated one. Signed-out and signed-in
+  non-member chat is byte-identical to today. Cost: ~300–500 extra prompt
+  tokens per member message.
 
 ### 3. Member actions (PR C)
 
@@ -84,10 +96,12 @@ New Tier-1 tools in `actions.mjs`, exact `logMealAction` shape (self-scoped
   prior row (or deletes today's).
 - **`log_water { amount, unit: 'ml'|'oz' }`** → the `/api/client/hydration`
   delta (undo: restore the prior snapshot value, as `log_meal` does).
-- **`check_habit { habit }`** → fuzzy-match one of the member's own active
-  habits by name; preview names the matched habit + points; execute = the
-  existing habits-toggle path; undo untoggles. No match → the error lists
-  their actual habit names (never guess-toggles).
+- **`check_habit { habit }`** → fuzzy-match against the member's own active
+  habits by name, and proceed only on **exactly one** match; preview names the
+  matched habit + points; execute = the existing habits-toggle path; undo
+  untoggles. No match → the error lists their actual habit names; **multiple
+  matches → fail closed**: no preview/toggle, return the candidate names and
+  ask the member to pick one (never guess-toggles).
 - **`set_reminder { kind, time, days?, label? }`** → `user_scheduled_reminders`
   insert with the reminders route's validation. Undo deletes the row.
 - **`find_food { query }`** — a LOOKUP, not a proposal: the provider fan-out in
@@ -98,14 +112,21 @@ New Tier-1 tools in `actions.mjs`, exact `logMealAction` shape (self-scoped
 
 ### 4. Memory (PR B, alongside grounding)
 
-- **`user_goals('nora_memory')`** — `{ notes: [{ id, text, at }] }`, cap 30,
-  **no migration**. Injected into the member-context block (10 most recent).
-- Two tools: **`remember { note }`** / **`forget { note }`**. **Decision for
-  review:** these run **direct-with-audit** (no confirm card — "remember I
-  hate burpees" shouldn't need a modal; every write still lands in
-  `ai_audit_log` and shows an inline "Noted ✓" chip), unlike the data tools
-  which keep the confirm gate. Say the word if you want the confirm card on
-  memory too.
+- **`user_goals('nora_memory')`** — `{ notes: [{ id, text, at }] }`, cap 30
+  notes AND **cap 280 chars per note** (longer `remember` payloads are
+  truncated at a word boundary before persistence — bounds the prompt-size
+  contribution, not just the count), **no migration**. Injected into the
+  member-context block (10 most recent).
+- Two tools: **`remember { note }`** / **`forget { note_id?, note? }`**.
+  `remember`'s result surfaces each note's stable `id`; **`forget` deletes by
+  `note_id`** (the model gets ids in context). Text-only `forget` is accepted
+  only when it matches **exactly one** note — duplicates/ambiguity fail
+  closed, listing the candidates with ids. The audit row records the deleted
+  note's id + text. **Decision for review:** these run **direct-with-audit**
+  (no confirm card — "remember I hate burpees" shouldn't need a modal; every
+  write still lands in `ai_audit_log` and shows an inline "Noted ✓" chip),
+  unlike the data tools which keep the confirm gate. Say the word if you want
+  the confirm card on memory too.
 - **Management UI:** the Settings Nora section gains "What Nora remembers" —
   the list, per-note delete, clear all. Self-only by RLS (`user_goals`).
 
@@ -126,6 +147,8 @@ off **by ear by the owner** (pick voice + instructions, then we pin the env).
 
 ## Owner actions
 
-None required. Optional: audition voices/styles at openai.fm and hand me the
-winning voice + instruction line → `NORA_TTS_INSTRUCTIONS` (+ default voice)
-in Vercel env.
+Nothing is required for the build to ship — every default lives in code (the
+one new env var, `NORA_TTS_INSTRUCTIONS`, is an optional override). Optional:
+audition voices/styles at openai.fm and hand me the winning voice +
+instruction line → set `NORA_TTS_INSTRUCTIONS` (+ default voice) in Vercel
+env.
