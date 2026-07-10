@@ -365,6 +365,18 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Both sweep migrations APPLIED + verified live (owner ran them)
+
+- **`2026-07-10-ai-audit-undo-claim.sql`** (#1659) and
+  **`2026-07-10-client-self-plans-coach-read.sql`** (#1661) are live on
+  Supabase. Verified read-only: the `ai_audit_log.undo_claimed_at` column +
+  all three undo RPCs (`claim_/finalize_/release_ai_action_undo`) and
+  `get_client_self_plans` present, **grants confirmed anon=false /
+  authenticated=true** on every one (`has_function_privilege`), and the
+  `client_workouts_self_by_date_idx` partial index exists. The one-shot undo
+  claim order and the Case File SELF-PROGRAMMED station now run live end to
+  end. War Room: both OWNER items flipped done.
+
 ### 2026-07-10 — Website workout-builder parity: "Build your week" on the dashboard Workouts tab
 
 - **Closes the self-serve-training website follow-up** (#1618, "website
