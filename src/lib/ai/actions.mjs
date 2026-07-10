@@ -13,6 +13,7 @@
 
 import { gateAction, disclaimerFor } from '../compliance/nutrition.mjs';
 import { applyRemember, applyForget, MEMORY_KIND } from './noraMemory.mjs';
+import { matchHabit, waterLiters, REMINDER_KINDS, validReminderTime } from './memberTools.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).
@@ -101,13 +102,20 @@ export const logMealAction = {
   },
   async undo(ctx, plan) {
     // The endpoint accumulates (no negative path), so restore the prior snapshot
-    // macros directly on the actor's OWN RLS-scoped row.
+    // macros directly on the actor's OWN RLS-scoped row. The stale-write guard
+    // rides IN the statement (spec #1652): every column must still hold what
+    // execute wrote — a newer edit → zero rows → the honest conflict.
     var b = plan.beforeState || {};
-    await ctx.supabase
+    var a = plan.afterState || {};
+    var q = ctx.supabase
       .from('daily_health_snapshot')
       .update({ calories: b.calories, protein_g: b.protein_g, carbs_g: b.carbs_g, fat_g: b.fat_g, hydration_l: b.hydration_l })
       .eq('user_id', ctx.actor.id)
       .eq('snapshot_date', b.snapshot_date);
+    [['calories', a.calories], ['protein_g', a.protein_g], ['carbs_g', a.carbs_g], ['fat_g', a.fat_g], ['hydration_l', a.hydration_l]]
+      .forEach(function (kv) { q = kv[1] == null ? q.is(kv[0], null) : q.eq(kv[0], kv[1]); });
+    var res = await q.select('user_id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
   },
 };
 
@@ -435,6 +443,288 @@ export const rescheduleSessionAction = {
   },
 };
 
+// ── TIER 1 · member self-service tools (PR C, spec #1652) ────────────────────
+// Self-scoped (ctx.actor.id), preview → confirm → audit → undo like log_meal.
+// Exposed ONLY to verified members (the route's MEMBER_TOOLS list is built
+// after the membership check); each preview re-checks ctx.isMember as
+// defense-in-depth. Every undo enforces its predicate IN the atomic statement
+// — zero affected rows = the honest "changed since" conflict.
+var MEMBER_GATE_MSG = 'Becoming a member unlocks this.';
+function memberGate(ctx) { if (ctx.isMember !== true) throw new Error(MEMBER_GATE_MSG); }
+
+// The member's stored IANA timezone (client_profiles.timezone — captured on
+// app open, the same source the award day-clamp trusts). null when unset.
+async function memberTz(ctx) {
+  try {
+    var sel = await ctx.supabase.from('client_profiles').select('timezone').eq('user_id', ctx.actor.id).maybeSingle();
+    var tz = sel && sel.data && sel.data.timezone;
+    return typeof tz === 'string' && tz ? tz : null;
+  } catch (e) { return null; }
+}
+// The member's LOCAL calendar day — day-bucketed writes (weigh-in, habit,
+// hydration) must land on THEIR today (the src/lib/local-day.ts contract), not
+// UTC's: a US member logging at 9 pm is still on today, not tomorrow. The
+// server has no device clock, so the stored zone decides; missing/invalid → UTC.
+async function memberToday(ctx) {
+  var tz = await memberTz(ctx);
+  if (tz) {
+    try {
+      var day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    } catch (e) { /* bad stored zone → UTC */ }
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+// log_weigh_in → upsert today's client_weigh_ins row (the ShapeWeighIns path;
+// fires the goal-milestone check best-effort).
+export const logWeighInAction = {
+  name: 'log_weigh_in',
+  roles: ['client', 'trainer', 'nutritionist', 'admin'], // your OWN weigh-in
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    memberGate(ctx);
+    input = input || {};
+    var weight = Number(input.weight);
+    if (!Number.isFinite(weight) || weight <= 0 || weight >= 1500) throw new Error('Tell me the weight to log (a number).');
+    weight = Math.round(weight * 10) / 10;
+    // A supplied-but-unknown unit is REJECTED (never coerced to lb).
+    if (input.unit != null && input.unit !== 'kg' && input.unit !== 'lb') throw new Error('Which unit — lb or kg?');
+    var today = await memberToday(ctx);
+    var sel = await ctx.supabase
+      .from('client_weigh_ins')
+      .select('weight, unit')
+      .eq('user_id', ctx.actor.id)
+      .eq('logged_on', today)
+      .maybeSingle();
+    if (sel.error) throw new Error('Could not read today’s weigh-in right now.');
+    var cur = sel.data || null;
+    // The unit is always EXPLICIT and never assumed: the member's own word,
+    // else today's existing row's unit. Neither → ask (a first weigh-in stored
+    // in the wrong unit is a real wrong weight).
+    var unit = input.unit || (cur && cur.unit) || null;
+    if (!unit) throw new Error('Which unit — lb or kg?');
+    var before = { logged_on: today, weight: cur ? Number(cur.weight) : null, unit: cur ? String(cur.unit) : null };
+    var after = { logged_on: today, weight: weight, unit: unit };
+    return {
+      summary: 'Log today’s weigh-in: ' + weight + ' ' + unit + (cur ? ' (replaces ' + before.weight + ' ' + before.unit + ')' : ''),
+      diff: [{ label: 'Weight', before: cur ? before.weight + ' ' + before.unit : '—', after: weight + ' ' + unit }],
+      target: { userId: ctx.actor.id, kind: 'weigh_in', id: today },
+      beforeState: before, afterState: after, confirmedPayload: { weight: weight, unit: unit },
+    };
+  },
+  async execute(ctx, plan) {
+    var p = plan.confirmedPayload || {};
+    var res = await ctx.supabase
+      .from('client_weigh_ins')
+      .upsert({ user_id: ctx.actor.id, logged_on: plan.afterState.logged_on, weight: p.weight, unit: p.unit }, { onConflict: 'user_id,logged_on' });
+    if (res.error) throw new Error('Could not log the weigh-in.');
+    // The same milestone check the weigh-in sheet fires — best-effort.
+    try { await ctx.supabase.rpc('award_my_goal_milestones'); } catch (e) { /* non-blocking */ }
+    return { ok: true };
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    var a = plan.afterState || {};
+    // Value-snapshot predicate (the table has no updated_at): the row must
+    // still hold what execute wrote, IN the statement.
+    var res;
+    if (b.weight != null) {
+      res = await ctx.supabase
+        .from('client_weigh_ins')
+        .update({ weight: b.weight, unit: b.unit })
+        .eq('user_id', ctx.actor.id).eq('logged_on', a.logged_on)
+        .eq('weight', a.weight).eq('unit', a.unit)
+        .select('user_id');
+    } else {
+      res = await ctx.supabase
+        .from('client_weigh_ins')
+        .delete()
+        .eq('user_id', ctx.actor.id).eq('logged_on', a.logged_on)
+        .eq('weight', a.weight).eq('unit', a.unit)
+        .select('user_id');
+    }
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+  },
+};
+
+// log_water → the /api/client/hydration signed delta (0-clamped, ±2 L cap
+// there). Undo = the ACCUMULATOR INVERSE (a negative delta), deliberately not
+// a snapshot restore: it subtracts exactly what was added and preserves any
+// concurrent additions — strictly stronger than a restore under the spec's
+// no-blind-overwrite rule (the documented deviation).
+export const logWaterAction = {
+  name: 'log_water',
+  roles: ['client', 'trainer', 'nutritionist', 'admin'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    memberGate(ctx);
+    input = input || {};
+    var deltaL = waterLiters(input.amount, input.unit);
+    if (deltaL == null) throw new Error('Tell me the amount in ml or oz — e.g. 500 ml or 16 oz.');
+    if (deltaL > 2) throw new Error('That’s more than one log can add (2 L max) — log it in parts.');
+    var today = await memberToday(ctx);
+    var sel = await ctx.supabase
+      .from('daily_health_snapshot')
+      .select('hydration_l')
+      .eq('user_id', ctx.actor.id)
+      .eq('snapshot_date', today)
+      .maybeSingle();
+    // A failed read must never render as a fabricated 0 L on the card.
+    if (sel.error) throw new Error('Could not read today’s hydration right now.');
+    var cur = Number((sel.data && sel.data.hydration_l) || 0) || 0;
+    return {
+      summary: 'Add ' + input.amount + ' ' + input.unit + ' of water (' + deltaL + ' L) to today',
+      diff: [{ label: 'Hydration', before: cur + ' L', after: Math.round((cur + deltaL) * 1000) / 1000 + ' L' }],
+      target: { userId: ctx.actor.id, kind: 'hydration', id: today },
+      beforeState: { hydration_l: cur }, afterState: { deltaL: deltaL, date: today }, confirmedPayload: { deltaL: deltaL, date: today },
+    };
+  },
+  async execute(ctx, plan) {
+    // date = the member's LOCAL day from preview time, so the delta lands on
+    // the same calendar day the card promised.
+    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: plan.confirmedPayload.deltaL, date: plan.confirmedPayload.date });
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not log the water.');
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: -plan.afterState.deltaL, date: plan.afterState.date });
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not undo the water log.');
+  },
+};
+
+// check_habit → fuzzy-match ONE of the member's own active habits (fail-closed
+// on misses/ambiguity — never guess-toggles), then the existing toggle path.
+export const checkHabitAction = {
+  name: 'check_habit',
+  roles: ['client', 'trainer', 'nutritionist', 'admin'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    memberGate(ctx);
+    input = input || {};
+    var sel = await ctx.supabase
+      .from('user_habits')
+      .select('id, name')
+      .eq('user_id', ctx.actor.id)
+      .is('archived_at', null);
+    if (sel.error) throw new Error('Could not read your habits right now.');
+    var m = matchHabit(sel.data || [], input.habit);
+    if (m.error === 'ambiguous') throw new Error('Which one? ' + m.candidates.map(function (c) { return '“' + c.name + '”'; }).join(', ') + '.');
+    if (m.error) throw new Error((m.names && m.names.length) ? 'No habit matches that. Yours are: ' + m.names.join(' · ') + '.' : 'You have no active habits yet — add one on the Habits page.');
+    var today = await memberToday(ctx);
+    var done = await ctx.supabase
+      .from('user_habit_completions')
+      .select('id')
+      .eq('user_id', ctx.actor.id)
+      .eq('habit_id', m.habit.id)
+      .eq('done_on', today)
+      .maybeSingle();
+    if (done.error) throw new Error('Could not check that habit right now.');
+    if (done.data) throw new Error('“' + m.habit.name + '” is already checked off for today.');
+    return {
+      summary: 'Check off “' + m.habit.name + '” for today',
+      diff: [{ label: m.habit.name, before: 'Not done', after: 'Done ✓' }],
+      target: { userId: ctx.actor.id, kind: 'habit', id: m.habit.id },
+      beforeState: { habitId: m.habit.id, doneOn: today, wasDone: false },
+      afterState: { habitId: m.habit.id, doneOn: today },
+      confirmedPayload: { id: m.habit.id, date: today },
+    };
+  },
+  async execute(ctx, plan) {
+    // ADD-ONLY, never the raw toggle: if the member checked this habit
+    // elsewhere while the confirm card sat open, a blind toggle would UNCHECK
+    // it (and revoke its points) — the exact opposite of the previewed
+    // "Not done → Done". Re-check right before the toggle and fail stale.
+    var p = plan.confirmedPayload;
+    var done = await ctx.supabase
+      .from('user_habit_completions')
+      .select('id')
+      .eq('user_id', ctx.actor.id)
+      .eq('habit_id', p.id)
+      .eq('done_on', p.date)
+      .maybeSingle();
+    if (done.error) throw new Error('Could not check the habit right now.');
+    if (done.data) throw new Error('Already checked off — nothing to change.');
+    var r = await ctx.call('POST', '/api/client/habits', { action: 'toggle', id: p.id, date: p.date });
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not check the habit.');
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    // In-statement guard: delete today's completion for THIS habit — zero rows
+    // means it was already unchecked (or re-toggled) since.
+    var a = plan.afterState || {};
+    var res = await ctx.supabase
+      .from('user_habit_completions')
+      .delete()
+      .eq('user_id', ctx.actor.id)
+      .eq('habit_id', a.habitId)
+      .eq('done_on', a.doneOn)
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+    // Mirror the habits route's untoggle path: revoke the +3 award for the
+    // deleted completion so the Shape Score can't stay inflated after undo.
+    try {
+      var rev = await ctx.supabase.rpc('revoke_habit', { p_completion_id: res.data[0].id });
+      if (rev && rev.error) console.warn('[nora-habit] revoke_habit failed after undo', { completionId: res.data[0].id });
+    } catch (e) { console.warn('[nora-habit] revoke_habit failed after undo', { completionId: res.data[0].id }); }
+  },
+};
+
+// set_reminder → the reminders route's own validation, then its insert path.
+export const setReminderAction = {
+  name: 'set_reminder',
+  roles: ['client', 'trainer', 'nutritionist', 'admin'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    memberGate(ctx);
+    input = input || {};
+    var kind = REMINDER_KINDS.indexOf(String(input.kind)) >= 0 ? String(input.kind) : null;
+    if (!kind) throw new Error('What kind of reminder? weigh_in, checkin, water, photo, or custom.');
+    if (!validReminderTime(input.time)) throw new Error('Give me the time as HH:MM (24h), e.g. 07:30.');
+    var days = Array.isArray(input.days)
+      ? Array.from(new Set(input.days.map(Number).filter(function (d) { return Number.isInteger(d) && d >= 0 && d <= 6; }))).sort()
+      : [1, 2, 3, 4, 5]; // stated default: weekdays
+    if (!days.length) throw new Error('Pick at least one day (0=Sun … 6=Sat).');
+    var label = kind === 'custom' ? String(input.label || '').slice(0, 80) : '';
+    if (kind === 'custom' && !label) throw new Error('What should the custom reminder say?');
+    // The reminder fires in the MEMBER's zone (the cron interprets at_time in
+    // the row tz; the route defaults to UTC) — send their stored zone like the
+    // Settings flows send the device zone. Unset zone → UTC, said on the card.
+    var tz = await memberTz(ctx);
+    var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var daysLabel = days.length === 7 ? 'every day' : days.map(function (d) { return DAYS[d]; }).join(' ');
+    return {
+      summary: 'Set a ' + (label || kind.replace('_', '-')) + ' reminder at ' + input.time + (tz ? '' : ' (UTC — open the app once to set your timezone)') + ' · ' + daysLabel,
+      diff: [{ label: 'Reminder', before: '—', after: (label || kind) + ' · ' + input.time + ' · ' + daysLabel + (tz ? '' : ' · UTC' ) }],
+      target: { userId: ctx.actor.id, kind: 'reminder', id: null },
+      beforeState: {}, afterState: { kind: kind, atTime: String(input.time), days: days, label: label },
+      confirmedPayload: { kind: kind, label: label, atTime: String(input.time), days: days, tz: tz || 'UTC' },
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.call('POST', '/api/client/reminders', plan.confirmedPayload);
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not set the reminder.');
+    // Keep the created row's id for the undo predicate.
+    var rem = r.data && r.data.reminder;
+    if (rem && rem.id) plan.afterState.id = rem.id;
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var a = plan.afterState || {};
+    if (!a.id) throw new Error('Changed since — nothing undone.');
+    // In-statement guard: only an UNEDITED reminder (same kind + time) deletes.
+    var res = await ctx.supabase
+      .from('user_scheduled_reminders')
+      .delete()
+      .eq('id', a.id)
+      .eq('user_id', ctx.actor.id)
+      .eq('kind', a.kind)
+      .eq('at_time', a.atTime)
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+  },
+};
+
 // ── Memory · remember / forget (DIRECT-with-audit — no confirm card by spec
 // decision, #1652). These are NOT proposal actions: the support-chat route runs
 // them inline for VERIFIED MEMBERS ONLY (the tool list is assembled after the
@@ -505,4 +795,4 @@ export const forgetMemoryTool = {
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.) The memory tools above
 // are deliberately NOT in this list — they're direct, not proposal-drafted.
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];
