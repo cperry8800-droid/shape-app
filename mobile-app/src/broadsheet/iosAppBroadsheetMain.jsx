@@ -820,7 +820,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             {/* the pitch, on the wire */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
-                { text: 'The Shape Daily lands every morning' },
+                { text: 'The Shape Wire lands every morning' },
                 { text: 'Your training · your numbers · a note from your coach' },
                 { text: 'Step inside to make it yours', hot: true, end: true },
               ].map((ln, i) => (
