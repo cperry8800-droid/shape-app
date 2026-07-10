@@ -179,7 +179,13 @@ function BSApplyFile({ label, file, onChange, helper }) {
 
 function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   const t = useBS();
-  const [role, setRole] = useStateBSA(initialRole === 'nutritionist' ? 'nutritionist' : 'trainer');
+  // A dietitian (RD/RDN) applies on the NUTRITIONIST rails — the declaration
+  // rides in details.nutrition_role for the reviewer (who assigns
+  // profiles.role='dietitian' after credential review). Before this, an
+  // initialRole of 'dietitian' silently coerced to the TRAINER application
+  // and the RD/RDN flag never reached the apply route.
+  const isDietitianApplicant = initialRole === 'dietitian';
+  const [role, setRole] = useStateBSA(initialRole === 'nutritionist' || isDietitianApplicant ? 'nutritionist' : 'trainer');
   const [step, setStep] = useStateBSA(0);
   const [values, setValues] = useStateBSA(() => {
     const auth = window.ShapeAuth?.getCachedState?.() || {};
@@ -248,7 +254,14 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       }
       const next = await window.ShapeApplications?.submitProviderApplication?.({
         role,
-        values: { ...values, primary: values.primary || specialties[0], documents },
+        values: {
+          ...values,
+          primary: values.primary || specialties[0],
+          documents,
+          // The RD/RDN declaration — the apply route reads details.nutrition_role
+          // === 'dietitian' to label the application for the reviewer.
+          nutrition_role: (role === 'nutritionist' && isDietitianApplicant) ? 'dietitian' : '',
+        },
       });
       setResult(next || { stored: 'local' });
     } catch (err) {
@@ -261,6 +274,11 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   const body = (() => {
     if (step === 0) return (
       <div style={{ display: 'grid', gap: 9 }}>
+        {isDietitianApplicant && role === 'nutritionist' && (
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, padding: '8px 10px' }}>
+            Applying as a Registered Dietitian (RD/RDN) · credentialed badge on approval
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <BSApplyInput label="First name" value={values.firstName} onChange={v => set('firstName', v)} />
           <BSApplyInput label="Last name" value={values.lastName} onChange={v => set('lastName', v)} />

@@ -806,6 +806,10 @@ function applicationToPayload(role, values = {}) {
     years_experience: values.years || '',
     monthly_price: values.subPrice || '',
     details: {
+      // RD/RDN declaration (nutritionist applications only) — the apply route
+      // reads details.nutrition_role === 'dietitian' to label the application
+      // for the reviewer, who assigns profiles.role='dietitian' on approval.
+      nutrition_role: values.nutrition_role || '',
       timezone: values.tz || '',
       social_handles: values.social || '',
       bio: values.bio || '',

@@ -216,7 +216,7 @@ function BSWireGround({ name, dim, plain }) {
 function BSWireLoading() {
   ensureWireStyles();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 26 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 72 }}>
       <div style={{ width: 148, height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }} aria-hidden="true">
         <div className="bs-wire-load" style={{ width: '32%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
@@ -755,10 +755,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const kbEnter = { role: 'button', tabIndex: 0, 'aria-label': 'Enter the app', onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDone(); } } };
     const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
 
-    // ── THE TELEGRAM (member) ──
+    // ── THE TELEGRAM (member) ── (owner call: no STOP/END tokens — the line
+    // breaks + staggered entrances carry the wire cadence on their own)
     if (wireLines) {
-      const STOP = <span style={{ color: 'rgba(242,237,228,0.3)' }}> STOP</span>;
-      const END = <span style={{ color: 'rgba(242,237,228,0.3)' }}> END</span>;
       return (
         <div className="bs-wire-enter" {...kbEnter} onClick={onDone} style={{ position: 'absolute', inset: 0, background: wireGround, color: INKF, padding: '52px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
           {/* topbar */}
@@ -771,7 +770,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
             {wireLines.map((ln, i) => (
               <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 11, fontWeight: ln.hot ? 700 : 500, lineHeight: 2.05, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
-                {ln.text}{ln.end ? END : ln.sep ? STOP : null}
+                {ln.text}
               </div>
             ))}
           </div>
@@ -822,10 +821,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
               {[
                 { text: 'The Shape Wire lands every morning' },
                 { text: 'Your training · your numbers · a note from your coach' },
-                { text: 'Step inside to make it yours', hot: true, end: true },
+                { text: 'Step inside to make it yours', hot: true },
               ].map((ln, i) => (
                 <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 11, fontWeight: ln.hot ? 700 : 500, lineHeight: 2.05, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
-                  {ln.text}<span style={{ color: 'rgba(242,237,228,0.3)' }}>{ln.end ? ' END' : ' STOP'}</span>
+                  {ln.text}
                 </div>
               ))}
             </div>
@@ -1361,7 +1360,7 @@ function BSWireHold() {
 // The members wall — the app's only conversion gate. Logic verbatim (Join /
 // Preview / Sign in / Sign out + the paywall_viewed analytics), re-set in the
 // launch's wire grammar: the drifting ticker behind it (the wire is live, you're
-// just not on it yet), the feature list as one STOP-separated wire line, and a
+// just not on it yet), the feature list as one dot-separated wire line, and a
 // clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
 // surface), so it does NOT follow the paper theme — matching the beat/telegram.
 function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
@@ -1369,7 +1368,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.2)', teal = '#34d6c5';
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
-  const STOP = <span style={{ color: 'rgba(242,237,228,0.3)' }}> STOP </span>;
+  // Owner call: no STOP/END tokens — house middle-dot separators carry the line.
   const feat = ['Training', 'Nutrition', 'Coaches', 'Radio', 'The Score', 'Or build your own workouts'];
   const cta = { width: '100%', padding: '13px', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
   const ghost = { width: '100%', minHeight: 44, padding: '11px', border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
@@ -1385,7 +1384,7 @@ function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
           <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
-            {feat.map((x, i) => (<React.Fragment key={x}>{x}{i < feat.length - 1 ? STOP : <span style={{ color: 'rgba(242,237,228,0.3)' }}> END</span>}</React.Fragment>))}
+            {feat.join(' · ')}
           </div>
           <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? 'Join · $5/mo →' : 'Create account & join · $5/mo →'}</button>
           <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
