@@ -186,3 +186,80 @@ test('a failed execute RELEASES the nonce so the same draft can be retried', asy
   assert.equal(c2.ok, true);
   assert.equal(audit._rows.length, 1);
 });
+
+test('concurrent undos apply the reversal EXACTLY ONCE (one-shot claim)', async () => {
+  const { registry, audit, ctx } = setup();
+  let reversals = 0;
+  registry.define('counted', {
+    name: 'counted', roles: ['client'], source: 'engine',
+    async buildPreview() { return { summary: 's', diff: [], confirmedPayload: {} }; },
+    async execute() { return { ok: true }; },
+    async undo() { reversals += 1; },
+  });
+  const p = await proposeChange({ registry, action: 'counted', input: {}, actor: ACTOR, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit });
+
+  // Both racers pass the status read (fired before either claim lands); only
+  // the claim winner may run the reversal — a double-run would subtract
+  // log_water's inverse delta twice.
+  const [a, b] = await Promise.all([
+    undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit }),
+    undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit }),
+  ]);
+  assert.equal(a.ok, true);
+  assert.equal(b.ok, true);
+  assert.equal(reversals, 1);
+  assert.equal([a, b].filter((r) => r.alreadyUndone).length, 1);
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('a failed reversal releases the claim — the row stays executed and a retry works', async () => {
+  const { registry, audit, ctx } = setup();
+  let fail = true;
+  let reversals = 0;
+  registry.define('flaky-undo', {
+    name: 'flaky-undo', roles: ['client'], source: 'engine',
+    async buildPreview() { return { summary: 's', diff: [], confirmedPayload: {} }; },
+    async execute() { return { ok: true }; },
+    async undo() { reversals += 1; if (fail) { fail = false; throw new Error('reversal boom'); } },
+  });
+  const p = await proposeChange({ registry, action: 'flaky-undo', input: {}, actor: ACTOR, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit });
+
+  await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit }), /reversal boom/);
+  // The claim was handed back: the ledger never says undone for a reversal
+  // that didn't happen, and the member can retry.
+  assert.equal(audit._rows[0].status, 'executed');
+  const again = await undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit });
+  assert.equal(again.ok, true);
+  assert.equal(again.alreadyUndone, undefined);
+  assert.equal(reversals, 2);
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('a COMPLETED undo can never be re-opened — release after finalize is a no-op', async () => {
+  const { registry, audit, ctx } = setup();
+  let reversals = 0;
+  registry.define('counted-final', {
+    name: 'counted-final', roles: ['client'], source: 'engine',
+    async buildPreview() { return { summary: 's', diff: [], confirmedPayload: {} }; },
+    async execute() { return { ok: true }; },
+    async undo() { reversals += 1; },
+  });
+  const p = await proposeChange({ registry, action: 'counted-final', input: {}, actor: ACTOR, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit });
+  const u = await undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit });
+  assert.equal(u.ok, true);
+  assert.equal(reversals, 1);
+
+  // The Codex P2 scenario: the claimer calls the release RPC directly AFTER
+  // their undo completed. Finalize already closed the claim — the release is
+  // a reported no-op and the row stays undone.
+  const released = await audit.releaseUndo(c.auditId);
+  assert.equal(released, false);
+  assert.equal(audit._rows[0].status, 'undone');
+  // So a repeat undo can never re-run the reversal.
+  const again = await undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit });
+  assert.equal(again.alreadyUndone, true);
+  assert.equal(reversals, 1);
+});

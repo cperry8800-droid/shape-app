@@ -365,6 +365,44 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — One-shot AI undo: guarded claim on ai_audit_log (the #1652 deferred follow-up)
+- **Closes the Nora-wave deferred item** ("a transition-reporting guarded-claim
+  RPC on `ai_audit_log` for a true one-shot water undo"). `undoChange` used to
+  read the row's status → reverse the data → mark undone, so **two concurrent
+  undo requests could both pass the status read and both apply the reversal** —
+  `log_water`'s accumulator-inverse delta would subtract twice.
+- **Migration `2026-07-10-ai-audit-undo-claim.sql`** (⚠ **OWNER: run it** —
+  raw link posted on the PR): **`claim_ai_action_undo(p_id)`** — same
+  permission model as `mark_ai_action_undone` (actor or coach-on-client), but
+  the executed→undone transition is a **guarded UPDATE that REPORTS `found`**,
+  so of any number of concurrent callers exactly one wins the claim; and
+  **`release_ai_action_undo(p_id)`** — hands a claim back after a FAILED data
+  reversal (`status='undone' and undone_by=me` only — a completed undo or
+  someone else's claim can never be flipped back), mirroring the
+  consume/release contract on `ai_proposal_nonces`.
+- **`undoChange` (`proposals.mjs`) claims BEFORE reversing**: claim lost →
+  honest `alreadyUndone`; reversal throws → the claim is released (best-effort,
+  loud console error if even that fails) and the error propagates unchanged —
+  the ledger never records an undo that didn't happen, and "Changed since"
+  failures keep their exact semantics. **Pre-migration degrade**: the server
+  sink's `claimUndo` returns `null` when the RPC isn't deployed (PGRST202 /
+  42883) → the legacy read→reverse→mark order runs, so nothing breaks before
+  the owner applies the SQL. `mark_ai_action_undone` untouched.
+- **Review round (Codex P2 — real, fixed):** the RPCs are authenticated-
+  callable, so the claimer of a **completed** undo could call
+  `release_ai_action_undo` directly, flip the row back to `executed`, and
+  undo again — double-applying the reversal. Fix: a new
+  **`undo_claimed_at` in-flight marker** — claim sets it, a successful
+  reversal **finalizes** (`finalize_ai_action_undo` clears it, claimer-only),
+  and release works ONLY while it's still set — a finalized undo can never be
+  re-opened. CodeRabbit's nit folded in: the in-memory release/finalize
+  doubles now mirror the RPCs' `found` semantics (false on a no-op).
+- Tests (suite **563**): concurrent double-undo applies the reversal **exactly
+  once** (one `alreadyUndone`); a failed reversal leaves the row `executed`
+  and a retry succeeds; release-after-finalize is a reported no-op and the
+  reversal never re-runs. `tsc --noEmit` clean. War Room: guard registered
+  done + the migration as the OWNER manual item.
+
 ### 2026-07-10 — Feed + Home chrome cleanups: the #1528/#1527 War Room leftovers close
 
 - **Feed (`BSActivityCard`)** — the three registered leftovers: the
