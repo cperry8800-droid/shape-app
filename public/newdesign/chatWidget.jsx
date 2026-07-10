@@ -207,14 +207,28 @@ function ChatWidget(props) {
     return () => { cancelled = true; };
   }, []);
   const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
-  const stopNora = () => { try { if (noraAudioRef.current) { noraAudioRef.current.pause(); noraAudioRef.current = null; } } catch (e) {} try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} };
+  const stopNora = () => { try { if (noraAudioRef.current) { noraAudioRef.current.pause(); noraAudioRef.current = null; } } catch (e) {} };
   const setNoraEnabled = (on) => { try { localStorage.setItem("shape.nora.voice", on ? "on" : "off"); } catch (e) {} if (!on) stopNora(); setNoraVoiceState(s => ({ ...s, enabled: on })); };
   const setNoraTone = (tone) => setNoraVoiceState(s => { const n = { ...s, tone }; saveNoraAccount(n.tone, n.voice); return n; });
   const setNoraVoiceId = (voice) => setNoraVoiceState(s => { const n = { ...s, voice: normNoraVoice(voice) }; saveNoraAccount(n.tone, n.voice); return n; });
-  const speakNora = async (text) => {
+  // Server-only voice (mobile #1653 parity): the speechSynthesis robot is
+  // DEAD — silence over brand-damaging robot audio. Returns an honest
+  // { ok, reason: 'signed_out' | 'members' | 'unavailable' }; an EXPLICIT
+  // listen surfaces the reason as a transient notice, auto-speak failures
+  // stay silent (same contract as the app's speakVoice).
+  const [speakNotice, setSpeakNotice] = React.useState(null);
+  const speakNoticeTimer = React.useRef(null);
+  const flashSpeakNotice = (msg) => {
+    setSpeakNotice(msg);
+    try { if (speakNoticeTimer.current) clearTimeout(speakNoticeTimer.current); } catch (e) {}
+    speakNoticeTimer.current = setTimeout(() => setSpeakNotice(null), 3500);
+  };
+  const speakNora = async (text, opts) => {
+    const explicit = !!(opts && opts.explicit);
     const clean = String(text || "").trim();
-    if (!clean) return;
+    if (!clean) return { ok: false, reason: "unavailable" };
     stopNora();
+    let reason = "unavailable";
     try {
       const res = await fetch("/api/ai/speak", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
@@ -224,10 +238,16 @@ function ChatWidget(props) {
         const url = URL.createObjectURL(await res.blob());
         const audio = new Audio(url); noraAudioRef.current = audio;
         audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
-        await audio.play(); return;
+        await audio.play(); return { ok: true };
       }
-    } catch (e) { /* fall back to the browser voice (e.g. non-members, no key) */ }
-    try { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(clean); u.rate = noraVoice.tone === "direct" ? 1.05 : 0.98; window.speechSynthesis.speak(u); } } catch (e) {}
+      reason = res.status === 401 ? "signed_out" : (res.status === 402 || res.status === 403) ? "members" : "unavailable";
+    } catch (e) { reason = "unavailable"; }
+    if (explicit) {
+      flashSpeakNotice(reason === "signed_out" ? "Sign in to hear Nora's voice."
+        : reason === "members" ? "Nora's voice is a member feature."
+        : "Voice is unavailable right now.");
+    }
+    return { ok: false, reason };
   };
 
   React.useEffect(() => {
@@ -535,7 +555,11 @@ function ChatWidget(props) {
         setTyping(false);
         const finalReply = reply || supportReply(text);
         appendReply("Nora", finalReply, actions);
-        if (noraVoice.enabled) speakNora(finalReply); // off by default
+        // Auto-play the reply when the voice pref is on OR Voice-chat mode is
+        // active — read from the REF at reply time (the #1654 race fix: the
+        // chip may have flipped while the model was thinking). Failures stay
+        // silent (auto-speak is never a toast).
+        if (noraVoice.enabled || voiceChatRef.current) speakNora(finalReply);
       })();
       return;
     }
@@ -562,9 +586,71 @@ function ChatWidget(props) {
   const recogRef = React.useRef(null);
   const recRef = React.useRef(null);
 
+  // ── VOICE CHAT mode (mobile #1653/#1654 parity) ───────────────────────────
+  // A per-session header chip (off by default). ON: the mic becomes
+  // HOLD-TO-TALK — press records, release transcribes and the transcript
+  // SENDS as a normal message (through the same send()), and Nora's reply
+  // auto-plays (voiceChatRef is read at reply time — the #1654 race fix).
+  // Needs a deterministic release, so it rides MediaRecorder →
+  // /api/ai/transcribe only (SpeechRec's live drafting is the dictation
+  // path's tool, not hold-to-talk's).
+  const holdSupported = (typeof navigator !== "undefined" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== "undefined" && !!window.MediaRecorder);
+  const [voiceChat, setVoiceChat] = React.useState(false); // per-session, off by default
+  const voiceChatRef = React.useRef(false);
+  React.useEffect(() => { voiceChatRef.current = voiceChat; }, [voiceChat]);
+  const holdRef = React.useRef({ holding: false, mr: null });
+
+  const holdEnd = () => {
+    // Re-entrancy-safe: also covers "released before the recorder started"
+    // (holdStart checks `holding` after the async getUserMedia resolves, so an
+    // early release can never leave a hot mic running).
+    holdRef.current.holding = false;
+    const mr = holdRef.current.mr;
+    holdRef.current.mr = null;
+    try { if (mr && mr.state === "recording") mr.stop(); } catch (e) {}
+  };
+
+  const holdStart = async () => {
+    if (holdRef.current.holding || voiceState !== "idle") return; // one capture at a time
+    holdRef.current.holding = true;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { holdRef.current.holding = false; setVoiceErr("Mic blocked — allow access or type instead."); return; }
+    if (!holdRef.current.holding) { try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {} return; }
+    try {
+      const mr = new window.MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        setVoiceState("transcribing");
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+          const fd = new FormData(); fd.append("audio", blob, "nora.webm");
+          const res = await fetch("/api/ai/transcribe", { method: "POST", credentials: "same-origin", body: fd });
+          const data = await res.json().catch(() => ({}));
+          const transcript = res.ok && data && typeof data.transcript === "string" ? data.transcript.trim() : "";
+          if (transcript) { setVoiceErr(null); send(transcript); } // SENDS — not drafted
+          else if (res.status === 401 || res.status === 402) setVoiceErr("Sign in to use voice — or type your question.");
+          else setVoiceErr("Didn't catch that — hold to talk, or type.");
+        } catch (e) { setVoiceErr("Couldn't transcribe that — type instead."); }
+        setVoiceState("idle");
+      };
+      holdRef.current.mr = mr;
+      setVoiceErr(null); setVoiceState("listening");
+      mr.start();
+      if (!holdRef.current.holding) holdEnd(); // released during recorder setup
+    } catch (e) {
+      try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e2) {}
+      holdRef.current.holding = false;
+      setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead.");
+    }
+  };
+
   const stopVoice = () => {
     try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
     try { if (recRef.current && recRef.current.state === "recording") recRef.current.stop(); } catch (e) {}
+    holdEnd();
   };
 
   const startWebSpeech = () => {
@@ -1326,7 +1412,7 @@ function ChatWidget(props) {
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
                   {!m.me && isSupport && (
-                    <button onClick={() => speakNora(m.t)} title="Read this aloud" aria-label="Read this aloud"
+                    <button onClick={() => speakNora(m.t, { explicit: true })} title="Read this aloud" aria-label="Read this aloud"
                       style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", background: "transparent", color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>🔊 Listen</button>
                   )}
                   {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
@@ -1379,6 +1465,17 @@ function ChatWidget(props) {
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(242,237,228,0.14)"}`, background: noraVoice.enabled ? "rgba(10,197,168,0.12)" : "transparent", color: noraVoice.enabled ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
                 </button>
+                {holdSupported && (
+                  // Mode flips ALWAYS stop any active capture first (Codex P1:
+                  // dictation started before the flip would otherwise keep a
+                  // live mic behind the swapped-in hold button). Monochrome
+                  // mark only — no colored emoji on new additions.
+                  <button type="button" onClick={() => { stopVoice(); setVoiceChat(v => !v); }} title="Hold the mic to talk — your words send as a message and Nora's reply plays aloud"
+                    aria-pressed={voiceChat}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${voiceChat ? TEAL : "rgba(242,237,228,0.14)"}`, background: voiceChat ? "rgba(10,197,168,0.12)" : "transparent", color: voiceChat ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    Voice chat {voiceChat ? "on" : "off"}
+                  </button>
+                )}
                 <div style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", overflow: "hidden" }}>
                   {["supportive", "direct"].map(tn => (
                     <button key={tn} onClick={() => setNoraTone(tn)} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}
@@ -1392,9 +1489,11 @@ function ChatWidget(props) {
                 </select>
               </div>
             )}
-            {isSupport && (voiceState !== "idle" || voiceErr) && (
-              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: voiceErr ? "#e0a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
-                {voiceState === "listening" ? "● Listening… tap the mic to stop" : voiceState === "transcribing" ? "Transcribing…" : voiceErr}
+            {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (
+              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "#d8a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
+                {voiceState === "listening" ? (voiceChat ? "● Recording… release to send" : "● Listening… tap the mic to stop")
+                  : voiceState === "transcribing" ? "Transcribing…"
+                  : (voiceErr || speakNotice)}
               </div>
             )}
             <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -1411,8 +1510,37 @@ function ChatWidget(props) {
                   outline: "none", minHeight: 38, maxHeight: 100,
                 }}
               />
-              {isSupport && voiceSupported && (
-                <button onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
+              {isSupport && voiceChat && holdSupported ? (
+                // Voice-chat mode: HOLD to talk — press records, release
+                // transcribes + SENDS. Pointer events cover mouse + touch;
+                // leave/cancel are releases so a drag-off never leaves a hot
+                // mic. Keyboard path: hold Space/Enter down to record, release
+                // to send (e.repeat guarded so key-repeat can't re-enter).
+                <button
+                  type="button"
+                  onPointerDown={(e) => { e.preventDefault(); holdStart(); }}
+                  onPointerUp={holdEnd}
+                  onPointerLeave={holdEnd}
+                  onPointerCancel={holdEnd}
+                  onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); holdStart(); } }}
+                  onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); holdEnd(); } }}
+                  onBlur={holdEnd}
+                  onContextMenu={(e) => e.preventDefault()}
+                  title="Hold to talk — releases to send"
+                  aria-label="Hold to talk — press and hold (or hold Space) to record, release to send"
+                  style={{
+                    flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
+                    cursor: voiceState === "transcribing" ? "default" : "pointer",
+                    touchAction: "none", userSelect: "none", WebkitUserSelect: "none",
+                    border: voiceState === "listening" ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.1)",
+                    background: voiceState === "listening" ? "rgba(10,197,168,0.18)" : "rgba(242,237,228,0.04)",
+                    color: TEAL_BRIGHT,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                  {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
+                </button>
+              ) : isSupport && voiceSupported && (
+                <button type="button" onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
                   style={{
                     flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
                     cursor: voiceState === "transcribing" ? "default" : "pointer",

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -66,6 +67,17 @@ function formatReviewSeconds(value) {
 function bsNowHHMM() {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// "2026-07-14" → "JUL 14" for the Case File's self-programmed leaders. The
+// T00:00:00 suffix pins the ISO day to LOCAL midnight (bare ISO parses UTC and
+// can render the previous day west of Greenwich). Falls back to the raw string.
+function bsSelfPlanDateLabel(iso) {
+  try {
+    const d = new Date(`${iso}T00:00:00`);
+    if (isNaN(d)) return String(iso || '');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+  } catch (e) { return String(iso || ''); }
 }
 
 // Re-render on live-presence change (coach Today live-now banner). Mirrors the
@@ -3183,6 +3195,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     window.ShapeClientStats.get(clientUid).then(d => setCStats(d || null)).catch(() => {});
     if (window.ShapeClientStats?.getLifts) window.ShapeClientStats.getLifts(clientUid).then(d => setCLifts(d || null)).catch(() => {});
   }, [clientUid]);
+  // The member's SELF-AUTHORED training (v1 gap: it only surfaced via session
+  // logs). Reset per client + ignore stale responses (the care-team pattern);
+  // demo roster rows have no uid so this stays live-only.
+  const [cSelfPlans, setCSelfPlans] = useStateBSP(null);
+  useEffectBSP(() => {
+    setCSelfPlans(null);
+    if (!clientUid || !window.ShapeClientStats?.getSelfPlans) return undefined;
+    let ignore = false;
+    window.ShapeClientStats.getSelfPlans(clientUid).then(d => { if (!ignore) setCSelfPlans(Array.isArray(d) ? d : null); }).catch(() => {});
+    return () => { ignore = true; };
+  }, [clientUid]);
+  const selfPlans = React.useMemo(
+    () => bsSelfPlansSummary(cSelfPlans || [], new Date().toLocaleDateString('en-CA')),
+    [cSelfPlans]
+  );
   // Care team — the OTHER coach(es) on this shared client (trainer ↔ nutritionist).
   // The same overview fetch also carries the client's objective sleep (coach read).
   const [careTeam, setCareTeam] = useStateBSP(null);
@@ -3633,6 +3660,42 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             muted={t.INK50}
             still
           /> : macros.map((m, i) => <div key={i}>{trackRow(m.n, m.cur != null ? `${m.cur} g` : '—', m.c, `${m.tgt} g`, m.cur != null ? m.cur / m.tgt : 0, m.c)}</div>)}
+        </div>
+      )}
+
+      {/* SELF-PROGRAMMED — the member's own authored training (trainer_id-NULL
+          rows, coach read via get_client_self_plans). Honest slot: renders
+          ONLY when the member actually self-programs — a coached-only client
+          (or a demo row / pre-migration read) shows nothing here. */}
+      {(selfPlans.programs.length > 0 || selfPlans.repeats.length > 0 || selfPlans.upcoming.length > 0) && (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SELF-PROGRAMMED" meta={`${selfPlans.total} ${selfPlans.total === 1 ? 'SESSION' : 'SESSIONS'}`} />}
+          {selfPlans.programs.map((p, i) => (
+            <div key={`sp-prog-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                {p.nextDate
+                  ? <>{p.nextWeek != null ? `W${p.nextWeek}` : ''}{p.nextWeek != null && p.weeks ? ` OF ${p.weeks}` : ''}{p.nextWeek != null ? ' · ' : ''}<span style={{ color: heat }}>{bsSelfPlanDateLabel(p.nextDate)}</span></>
+                  : 'PAST'}
+              </span>
+            </div>
+          ))}
+          {selfPlans.repeats.map((r, i) => (
+            <div key={`sp-rep-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{r.days} <span style={{ color: t.INK50 }}>· WEEKLY</span></span>
+            </div>
+          ))}
+          {selfPlans.upcoming.map((u, i) => (
+            <div key={`sp-up-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.title}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: heat, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsSelfPlanDateLabel(u.date)}</span>
+            </div>
+          ))}
+          <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>PROGRAMMED BY THE MEMBER</span>
         </div>
       )}
 
