@@ -10,18 +10,25 @@ const { logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanA
 
 const SECRET = 'test-secret';
 
-// A chainable Supabase stub: from().select().eq().eq().maybeSingle(),
-// from().update().eq().eq(), and rpc().
-function supabaseMock({ snapshot = null, coachOnClient = true } = {}) {
-  const calls = { updates: [], rpc: [] };
-  const chain = {
-    select: () => chain,
-    eq: () => chain,
-    maybeSingle: async () => ({ data: snapshot }),
-    update: (patch) => { calls.updates.push(patch); return { eq: () => ({ eq: async () => ({}) }) }; },
-  };
+// A chainable Supabase stub: reads (from().select().eq()….maybeSingle()) and
+// guarded writes (from().update/delete().eq()/.is()… .select() → rows). The
+// in-statement stale-write guards await `.select()` on a write chain —
+// `writeRows: []` simulates the zero-affected-rows conflict.
+function supabaseMock({ snapshot = null, coachOnClient = true, writeRows = [{ user_id: 'x', id: 'row-1' }] } = {}) {
+  const calls = { updates: [], deletes: [], rpc: [] };
+  function makeChain(kind) {
+    const chain = {
+      select: () => (kind ? Promise.resolve({ data: writeRows, error: null }) : chain),
+      eq: () => chain,
+      is: () => chain,
+      maybeSingle: async () => ({ data: snapshot }),
+      update: (patch) => { calls.updates.push(patch); return makeChain('update'); },
+      delete: () => { calls.deletes.push(true); return makeChain('delete'); },
+    };
+    return chain;
+  }
   return {
-    from: () => chain,
+    from: () => makeChain(null),
     rpc: async (name) => { calls.rpc.push(name); return { data: name === 'is_coach_on_client' ? coachOnClient : null }; },
     _calls: calls,
   };
@@ -67,6 +74,19 @@ test('(a) TIER 1 — client logs a meal: preview → confirm → endpoint → au
   assert.equal(supabase._calls.updates[0].calories, 1200);
   assert.equal(supabase._calls.updates[0].protein_g, 90);
   assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('(a2) log_meal undo fails closed when the row changed since (in-statement stale-write guard)', async () => {
+  const registry = registryWith(logMealAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'client-1', role: 'client' };
+  // writeRows: [] = the guarded restore matched ZERO rows (a newer edit landed).
+  const supabase = supabaseMock({ snapshot: { calories: 1200, protein_g: 90 }, writeRows: [] });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: { ok: true } }));
+  const p = await proposeChange({ registry, action: 'log_meal', input: { kcal: 600, mealName: 'lunch' }, actor, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  await assert.rejects(() => undoChange({ registry, auditId: c.auditId, actor, ctx, audit }), /Changed since/);
+  assert.equal(audit._rows[0].status, 'executed', 'never marked undone on a conflict');
 });
 
 test('(b) TIER 2 — coach sets a client goal: permission → preview → endpoint → audit → undo', async () => {
