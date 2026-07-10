@@ -365,6 +365,57 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Launch round 3: STOPs die + dietitian wired (#1674) · the beat gets structure · sign-in/create = "The wire form"
+
+- **#1674 (merged `f56d0ba1`):** STOP/END tokens removed from every launch page
+  (telegram · invite · wall — house middle-dot separators carry the lines); the
+  beat/hold **LOADING readout sits lower** under the mark; and the **dietitian
+  (RD/RDN) signup toggle is now actually wired** — it was coercing the applicant
+  onto the TRAINER application and never sent `nutrition_role`, so the apply
+  route's isDietitian check could never fire from the app. Now: dietitian →
+  the nutritionist application rails + `details.nutrition_role='dietitian'`
+  (threaded through `applicationToPayload`) + a visible "Applying as a
+  Registered Dietitian (RD/RDN)" confirmation line on the application's step 1.
+  Reviewer contract unchanged (they assign `profiles.role='dietitian'` after
+  credential review).
+- **The beat page restructured** (owner: "off in a lot of areas … more
+  professional, clearer, structured properly"): it now carries the wire
+  masthead chrome — **SHAPE WIRE · LIVE over a 2px rule** + a footer rule
+  (THE SHAPE COMMUNITY · Vol. 1 · No. 1) — like every other launch page; the
+  teal **INCOMING · THE SHAPE WIRE line is STATIC and centered** under the mark
+  (it was a drifting ticker row that clipped mid-word at the screen edge); the
+  ticker ground distributes its dash rows **evenly over the full height** (no
+  clump behind the mark), **fades at the screen edges** (CSS mask) instead of
+  hard-clipping, and runs calmer (0.45 default · 0.22 dim); the mark's bloom is
+  toned down (new `calm` variant, reduced-motion covered). `BSWireHold` matches
+  the beat's structure (no INCOMING line — that stays beat-only, the #1670
+  call). The ground's hot-row branch is deleted; the line lives in the beat
+  composition where it can never clip.
+- **Sign-in / create-account = "The wire form"** (owner-picked from the
+  concept-board auth round): the boxed fields die for the dispatch grammar — a
+  mono **label column + dot-leader entry lines** (`.bs-wire-frow`, solid teal
+  underline on focus), the primary CTA reads **TRANSMIT · JOIN AS {ROLE} → /
+  TRANSMIT · SIGN IN AS {ROLE} →**, and the six-field create wall splits into
+  **two short steps** with a step register rule (STEP 1 · IDENTITY: role +
+  RD/RDN toggle + name + DOB + handle → STEP 2 · CREDENTIALS: email + password,
+  with a mono `FILED: name · @handle` recap + back link). Everything carried:
+  live handle availability, the 18+ DOB gate (checked at the step AND
+  re-checked at transmit — identity errors return you to step 1), the phone OTP
+  flow (single-step, name+DOB intact), forgot password, Apply-as-coach routing,
+  the verify-email screen, the checkout handoff, Turnstile.
+- **Input fixes from the board:** Chrome **autofill can no longer flood the
+  fields white** (`-webkit-box-shadow` inset pin + `-webkit-text-fill-color`);
+  `color-scheme: dark` on the wire inputs so the native DOB control renders
+  dark; **Turnstile goes `theme:'dark'` + `appearance:'interaction-only'`**
+  (invisible unless Cloudflare actually needs a click — the white card dies);
+  the captcha container now mounts per-slot, so it renders on create step 2
+  where the auth request actually fires (the slot machinery tears down /
+  re-renders the single-use widget on step transitions).
+- Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` **592** ·
+  LF · browser screenshots of beat / wall / sign-in / create step 1 + 2 /
+  phone. Deploy note stands: `public/m` builds at deploy — check the `/m/`
+  asset hash before re-testing on device.
+
 ### 2026-07-10 — The launch on the wire: wire-ticker beat → the telegram Daily briefing (#1667 spec · #1668 build)
 
 - **The member's three cold-open stops collapse into ONE self-advancing wire
