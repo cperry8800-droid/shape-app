@@ -319,7 +319,9 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
   const mv = val<number>(1);
   if (mv != null) facts.momentum = { value: Number(mv) };
   const ledger = val<Array<{ delta?: number; source_kind?: string }>>(2);
-  if (Array.isArray(ledger) && ledger.length && ledger.length <= 2000) {
+  // An EMPTY ledger is a real score of 0 (a brand-new member) — only a
+  // truncated (2001-row) fetch omits the fact.
+  if (Array.isArray(ledger) && ledger.length <= 2000) {
     const total = ledger.reduce((a, r) => a + (r.source_kind === 'store_redeem' ? 0 : Number(r.delta) || 0), 0);
     facts.score = { total };
   }

@@ -383,13 +383,13 @@ const MEMBER_TOOLS = [
 ```
 
 2. **`fetchMemberFacts(actor)`** — thin, every leg `Promise.allSettled` + null on miss; returns `{ facts, failed }`:
-   - today snapshot: `daily_health_snapshot` `.select('calories, protein_g, workout_minutes').eq('user_id', id).eq('snapshot_date', <local-day — reuse the route's UTC today; note the honest simplification in a comment>).maybeSingle()`;
-   - momentum: `supabase.rpc('compute_momentum')`;
-   - score: `score_ledger` `.select('delta, source_kind')` → sum excluding `store_redeem` (mirror `score-derive`) + tier via the thresholds in `@/lib/score-derive` helpers if exported, else omit tier;
-   - weigh-in: `client_weigh_ins` newest row (`weight, unit, logged_on`);
-   - goal: `user_goals('client_goals')` → `overall` title/target/date;
-   - memory: `user_goals('nora_memory')` → 10 most recent note texts, formatted `"${text} (id ${id})"` so the model has forget ids;
-   - `failed` = true only when EVERY leg rejected (vs resolved-empty) — that's the `UNAVAILABLE_NOTE` trigger; partial data renders partially (honest omission).
+    - today snapshot: `daily_health_snapshot` `.select('calories, protein_g, workout_minutes').eq('user_id', id).eq('snapshot_date', <local-day — reuse the route's UTC today; note the honest simplification in a comment>).maybeSingle()`;
+    - momentum: `supabase.rpc('compute_momentum')`;
+    - score: `score_ledger` `.select('delta, source_kind')` → sum excluding `store_redeem` (mirror `score-derive`) + tier via the thresholds in `@/lib/score-derive` helpers if exported, else omit tier;
+    - weigh-in: `client_weigh_ins` newest row (`weight, unit, logged_on`);
+    - goal: `user_goals('client_goals')` → `overall` title/target/date;
+    - memory: `user_goals('nora_memory')` → 10 most recent note texts, formatted `"${text} (id ${id})"` so the model has forget ids;
+    - `failed` = true only when EVERY leg rejected (vs resolved-empty) — that's the `UNAVAILABLE_NOTE` trigger; partial data renders partially (honest omission).
 3. **Direct tools** run in `runTool` BEFORE the WRITE_TOOLS branch: `remember`/`forget` call the CAS + audit path (Task 3) and return `{ result: { done, noteId, audited } | { error, candidates? }, actions: [] }` — plus an ACTION-SPECIFIC UI chip emitted **only when `done === true`** (never on an error/ambiguous result): remember → `audited ? 'Noted ✓' : 'Noted — audit pending'`, forget → `audited ? 'Forgotten ✓' : 'Forgotten — audit pending'` (`{ type: 'screen', screen: 'nora_memory' }`), so the thread shows the state without new client plumbing.
 4. **The system message assembly** in `askOpenAI` gains one optional context block parameter — `input = [{ role: 'system', content: systemPrompt }, ...(contextMsg ? [{ role: 'system', content: contextMsg }] : []), ...recent]`.
 5. `fallbackReply` is UNTOUCHED (it takes only the user text — structurally no member content). Add the test vector: `tests/member-context.test.mjs` gains
