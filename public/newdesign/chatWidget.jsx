@@ -1466,10 +1466,14 @@ function ChatWidget(props) {
                   {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
                 </button>
                 {holdSupported && (
-                  <button onClick={() => setVoiceChat(v => { if (v) holdEnd(); return !v; })} title="Hold the mic to talk — your words send as a message and Nora's reply plays aloud"
+                  // Mode flips ALWAYS stop any active capture first (Codex P1:
+                  // dictation started before the flip would otherwise keep a
+                  // live mic behind the swapped-in hold button). Monochrome
+                  // mark only — no colored emoji on new additions.
+                  <button type="button" onClick={() => { stopVoice(); setVoiceChat(v => !v); }} title="Hold the mic to talk — your words send as a message and Nora's reply plays aloud"
                     aria-pressed={voiceChat}
                     style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${voiceChat ? TEAL : "rgba(242,237,228,0.14)"}`, background: voiceChat ? "rgba(10,197,168,0.12)" : "transparent", color: voiceChat ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                    🎙 Voice chat {voiceChat ? "on" : "off"}
+                    Voice chat {voiceChat ? "on" : "off"}
                   </button>
                 )}
                 <div style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", overflow: "hidden" }}>
@@ -1486,7 +1490,7 @@ function ChatWidget(props) {
               </div>
             )}
             {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (
-              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "#e0a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
+              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "#d8a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
                 {voiceState === "listening" ? (voiceChat ? "● Recording… release to send" : "● Listening… tap the mic to stop")
                   : voiceState === "transcribing" ? "Transcribing…"
                   : (voiceErr || speakNotice)}
@@ -1509,15 +1513,21 @@ function ChatWidget(props) {
               {isSupport && voiceChat && holdSupported ? (
                 // Voice-chat mode: HOLD to talk — press records, release
                 // transcribes + SENDS. Pointer events cover mouse + touch;
-                // leave/cancel are releases so a drag-off never leaves a hot mic.
+                // leave/cancel are releases so a drag-off never leaves a hot
+                // mic. Keyboard path: hold Space/Enter down to record, release
+                // to send (e.repeat guarded so key-repeat can't re-enter).
                 <button
+                  type="button"
                   onPointerDown={(e) => { e.preventDefault(); holdStart(); }}
                   onPointerUp={holdEnd}
                   onPointerLeave={holdEnd}
                   onPointerCancel={holdEnd}
+                  onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); holdStart(); } }}
+                  onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); holdEnd(); } }}
+                  onBlur={holdEnd}
                   onContextMenu={(e) => e.preventDefault()}
                   title="Hold to talk — releases to send"
-                  aria-label="Hold to talk — releases to send"
+                  aria-label="Hold to talk — press and hold (or hold Space) to record, release to send"
                   style={{
                     flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
                     cursor: voiceState === "transcribing" ? "default" : "pointer",
@@ -1530,7 +1540,7 @@ function ChatWidget(props) {
                   {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
                 </button>
               ) : isSupport && voiceSupported && (
-                <button onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
+                <button type="button" onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
                   style={{
                     flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
                     cursor: voiceState === "transcribing" ? "default" : "pointer",
