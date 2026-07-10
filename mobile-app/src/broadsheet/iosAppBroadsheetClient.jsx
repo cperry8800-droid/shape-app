@@ -1666,7 +1666,7 @@ function BSBarcodeScan({ onHit, onFallback, teal }) {
     let stream = null, timer = null, done = false;
     let detector = null;
     try {
-      detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+      detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf'] });
     } catch (e) { onFallback(); return undefined; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then((s) => {
@@ -1757,10 +1757,19 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     return () => { on = false; };
   }, [signedIn, showAddFood]);
 
-  // Closing the add sheet always ends a scan (unmounts the camera) and clears
-  // the barcode state — a reopened sheet never resumes a stale lookup.
+  // In-flight barcode lookup — aborted on sheet close and before a new lookup,
+  // so a late OFF response can never reopen a dismissed editor or land the
+  // PREVIOUS barcode's product over the one the member is entering now.
+  const barcodeCtlRef = React.useRef(null);
+  // Closing the add sheet always ends a scan (unmounts the camera), aborts an
+  // in-flight lookup, and clears the barcode state — a reopened sheet never
+  // resumes a stale lookup.
   React.useEffect(() => {
-    if (!showAddFood) { setBarcodeMode(null); setBarcodeDigits(''); setBarcodeStatus('idle'); }
+    if (!showAddFood) {
+      try { barcodeCtlRef.current?.abort(); } catch (e) {}
+      barcodeCtlRef.current = null;
+      setBarcodeMode(null); setBarcodeDigits(''); setBarcodeStatus('idle');
+    }
   }, [showAddFood]);
 
   // Persist an added food to real recents. Centralized so BOTH add paths (＋
@@ -2294,17 +2303,28 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         // Barcode → one OFF product → the prefilled ingredient editor (the
         // member confirms the portion before it lands — same contract as a
         // search-row tap). Honest states for invalid / not-found / outage.
+        // Stale-guarded like the text search: a new lookup (or the sheet
+        // closing) ABORTS the prior request, and every post-await update is
+        // gated on this call still being the live one — a late response can
+        // never reopen a dismissed sheet or win over a newer code.
         const lookupBarcode = async (raw) => {
           const code = bsValidBarcode(raw);
           if (!code) { setBarcodeStatus('invalid'); return; }
+          try { barcodeCtlRef.current?.abort(); } catch (e) {}
+          const ctl = new AbortController();
+          barcodeCtlRef.current = ctl;
           setBarcodeStatus('looking');
           setBarcodeMode((m) => (m === 'scan' ? null : m)); // a scanned hit stops the camera
           try {
-            const data = await window.ShapeFoodSearch?.barcode?.(code, {});
+            const data = await window.ShapeFoodSearch?.barcode?.(code, { signal: ctl.signal });
+            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
             const row = data && Array.isArray(data.results) ? data.results[0] : null;
             if (row) { setBarcodeStatus('idle'); setBarcodeDigits(''); setBarcodeMode(null); editLiveFood(row); return; }
             setBarcodeStatus(data && data.unavailable ? 'error' : 'notfound');
-          } catch (e) { setBarcodeStatus('error'); }
+          } catch (e) {
+            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
+            setBarcodeStatus('error');
+          }
         };
         const searching = foodQuery.trim().length >= 2;
         const liveRows = searching ? (foodResults || []) : (foodRecents || []);
