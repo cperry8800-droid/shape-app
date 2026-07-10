@@ -365,6 +365,38 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Barcode v2: scan or type a barcode in the add-food sheet (OFF product lookup)
+
+- **Closes the #1648 v2 follow-up** ("OFF rows already carry the code"). The
+  meal logger's add-food sheet gains a barcode path: **▥ Scan barcode** (live
+  camera via the **BarcodeDetector** API — Chrome/Android WebView; ean_13 ·
+  ean_8 · upc_a · upc_e) and **# Enter barcode** (manual digits — the honest
+  fallback everywhere, since **iOS WebKit ships no BarcodeDetector**; the
+  native scanner plugin joins the existing native mic/camera stub). A hit
+  opens the **prefilled ingredient editor** (same contract as a search-row
+  tap — the member confirms the portion before it lands; recents persist via
+  the editor's existing fromSearch path).
+- **Server**: `GET /api/nutrition/food-search?barcode=` → single-leg **OFF v2
+  product endpoint** (`lookupBarcodeServer` in `food-search-server.ts`; same
+  UA policy + whole-leg 2.5s timeout via `timedJson`, which gains an `on404`
+  arg so an unknown code reads **notFound** — a real answer — instead of
+  "unavailable"). A 200 with `status: 0` / no product / **no stateable kcal**
+  (normalizeOffProduct → null) is also notFound — never a fabricated 0-kcal
+  row. Invalid codes 400 before any provider fetch; auth still required
+  before fan-out.
+- **Pure `bsValidBarcode`** (`foodSearch.mjs`, +1 test block → suite **561**):
+  strips spaces/hyphens, requires 8–14 digits (EAN-8 → GTIN-14), returns the
+  cleaned string or null. Client + route validate through the ONE
+  implementation.
+- **Sheet UX**: scan/enter text-actions under the search input (44px targets,
+  active = teal), a 190px camera block with a scan line + "Point at the
+  barcode", camera-denied/detector-failure degrades to the digits entry, and
+  honest mono status lines (Looking up… / not-a-barcode / no-match /
+  can't-reach). Closing the sheet unmounts the camera (every track stopped)
+  and clears the state; `ShapeFoodSearch.barcode(code)` on the data layer.
+- Verified: JSX parse · `node --check` ×2 · `npm test` 561 · `tsc --noEmit`
+  clean · PowerShell `/m/` build exit 0 · LF.
+
 ### 2026-07-10 — Coach read of self-authored plans: the Case File "SELF-PROGRAMMED" station
 
 - **Closes the self-serve-training v1 gap** (#1618's registered follow-up): a
@@ -7309,6 +7341,7 @@ Verified four unchecked War Room items (multi-agent: repo code + **live Supabase
   (Coach detail pages are now redesigned — see changelog.)
 
 ### Known stubs / next
-- Barcode scanning in the add-food sheet (v2 — OFF results already carry the barcode; needs the native camera).
-- Native mic + camera plugins for the iOS App Store build (WebView fallback today).
+- Native mic + camera plugins for the iOS App Store build (WebView fallback today;
+  iOS barcode SCANNING also rides this — WebKit has no BarcodeDetector, so iOS uses
+  the manual barcode entry until a native scanner plugin lands).
 - On-device "Shape reads macros" from a meal photo (currently photo → coach review only).

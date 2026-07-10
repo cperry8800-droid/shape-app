@@ -14,6 +14,17 @@
 
 export const BS_FOOD_RESULT_CAP = 12;
 
+// Barcode validation (the v2 scanner): strip the separators a label or a
+// manual entry carries, then require a plausible GTIN length — EAN-8 (8),
+// UPC-A (12), EAN-13 (13), GTIN-14 (14); 8–14 digits accepted so truncated
+// UPC-E expansions and ITF-14 codes read too. Returns the cleaned digit
+// string, or null (never a partial guess).
+export function bsValidBarcode(raw) {
+  const code = String(raw == null ? '' : raw).replace(/[\s-]/g, '');
+  if (!/^\d{8,14}$/.test(code)) return null;
+  return code;
+}
+
 // null/undefined/'' must stay null — Number(null) is 0, which would fabricate
 // a 0-kcal row past the honest-data drop check.
 const num = (v) => { if (v == null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
