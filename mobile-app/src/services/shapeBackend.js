@@ -5390,6 +5390,50 @@ async function loadVoiceTone() {
     return p;
   } catch (e) { return null; }
 }
+// ─── Nora memory (user_goals 'nora_memory') — Settings management ───────────
+// The {rev, notes:[{id,text,at}]} doc that Nora's remember/forget server tools
+// and this UI ALL mutate under CAS (rev-conditioned update, retry ×2, insert
+// bootstrap) — hand-mirror of src/lib/ai/noraMemory.mjs + server.ts
+// casWriteUserGoals (the mobile bundle can't import the server modules; kept in
+// sync by hand like NORA_VOICE_LIST above).
+function noraMemNorm(doc) {
+  const d = doc && typeof doc === 'object' ? doc : {};
+  return {
+    rev: Number.isInteger(d.rev) && d.rev >= 0 ? d.rev : null,
+    notes: Array.isArray(d.notes) ? d.notes.filter(n => n && n.id && n.text) : [],
+  };
+}
+async function noraMemoryRow() {
+  const uid = state.user?.id || null;
+  if (!uid || !supabase) return { uid: null, doc: null };
+  const { data } = await supabase.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle();
+  return { uid, doc: (data && data.data) || null };
+}
+async function noraMemCasWrite(mutate) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { uid, doc } = await noraMemoryRow();
+    if (!uid) return { ok: false, error: 'signed_out' };
+    const d = noraMemNorm(doc);
+    const next = { notes: mutate(d.notes), rev: (d.rev ?? 0) + 1 };
+    if (doc == null) {
+      const { error } = await supabase.from('user_goals').insert({ user_id: uid, kind: 'nora_memory', data: next });
+      if (!error) return { ok: true };
+      continue; // concurrent first write → re-read (CAS miss)
+    }
+    let q = supabase.from('user_goals').update({ data: next }).eq('user_id', uid).eq('kind', 'nora_memory');
+    q = d.rev == null ? q.is('data->>rev', null) : q.eq('data->>rev', String(d.rev));
+    const { data: upd, error } = await q.select('user_id');
+    if (!error && Array.isArray(upd) && upd.length) return { ok: true };
+    // zero rows = a concurrent writer won — re-read and retry.
+  }
+  return { ok: false, error: 'conflict' };
+}
+window.ShapeNoraMemory = {
+  async list() { const { doc } = await noraMemoryRow(); return noraMemNorm(doc).notes; },
+  removeNote(id) { return noraMemCasWrite((notes) => notes.filter(n => n.id !== id)); },
+  clearAll() { return noraMemCasWrite(() => []); },
+};
+
 window.ShapeVoice = {
   get: readVoicePrefs,
   voices: NORA_VOICE_LIST,
