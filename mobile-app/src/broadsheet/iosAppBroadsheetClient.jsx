@@ -12785,18 +12785,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
+  const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
   // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
   // default); the global voice on/off + tone still live in Settings → Nora voice.
   // (We do NOT force the tone here — that would overwrite the user's own setting
   // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
-  const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
+  // Explicit Listen taps toast honestly on failure; auto-speak stays silent.
+  const speakReply = (text, opts) => {
+    try {
+      const p = window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts);
+      if (p && p.then) p.then((r) => {
+        if (r && r.ok === false && !r.disabled && opts && opts.force) {
+          window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info');
+        }
+      });
+    } catch (e) {}
+  };
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
-  const sendSupport = async () => {
-    const body = supportDraft.trim();
-    if (!body || supportBusy) return;
+  // The body is a parameter so the voice hand-off (a released hold-to-talk
+  // transcript) and the typed path share ONE sender — no setState race.
+  const sendSupportText = async (body) => {
+    const clean = String(body || '').trim();
+    if (!clean || supportBusy) return;
     setSupportDraft('');
-    const next = [...supportMsgs, { who: 'You', t: body, time: 'now', me: true }];
+    const next = [...supportMsgs, { who: 'You', t: clean, time: 'now', me: true }];
     setSupportMsgs(next);
     setSupportBusy(true);
     try {
@@ -12805,12 +12818,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
-      if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply); // off by default
-
+      // Conversation mode reads every reply aloud; otherwise the global
+      // auto-speak toggle decides (off by default). Auto-speak failures are silent.
+      if (voiceChat) speakReply(reply, { force: true });
+      else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
     } catch (e) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
   };
+  const sendSupport = () => sendSupportText(supportDraft);
   // Nora's structured follow-ups → in-app destinations (the app is a webview, so
   // route coach/marketplace links to the in-app Marketplace rather than a URL).
   const runSupportAction = (a) => {
@@ -13857,7 +13873,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
                 {/* Concierge masthead — the section-head language the other tabs carry */}
-                <button onClick={() => setShowNora(true)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                {/* role="button" (not <button>) — the Voice-chat chip is a real
+                    <button> nested inside this tappable head, and button-in-button
+                    is invalid HTML. */}
+                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
                   {/* Text-only head — Nora's portrait rides her message bubbles below
                       (each reply should feel like HER), so the masthead carrying it
                       too read as a double avatar. */}
@@ -13868,7 +13887,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
                     <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
                   </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setVoiceChat(v => { const on = !v; if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } return on; }); }}
+                    aria-pressed={voiceChat}
+                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> Voice chat {voiceChat ? 'on' : 'off'}
+                  </button>
+                </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
 
                 {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
@@ -14028,7 +14055,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice placeholder="Message the Shape team…" />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? sendSupportText : undefined} placeholder="Message the Shape team…" />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -14199,7 +14226,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false, holdToTalk = false, onVoiceComplete }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -14231,7 +14258,13 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         onChange((finalText + ' ' + interim).replace(/\s+/g, ' ').trim());
       };
       rec.onerror = (e) => { setVoiceState('idle'); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setVoiceErr('Mic blocked — allow access or type.'); else if (e.error === 'no-speech') setVoiceErr("Didn't catch that — try again, or type."); else setVoiceErr('Voice hiccuped — type instead.'); };
-      rec.onend = () => setVoiceState((s) => (s === 'listening' ? 'idle' : s));
+      rec.onend = () => {
+        setVoiceState((s) => (s === 'listening' ? 'idle' : s));
+        // Conversation mode: a finished utterance sends as a message directly
+        // (the parent owns the send), instead of parking in the composer.
+        const finalClean = finalText.replace(/\s+/g, ' ').trim();
+        if (finalClean && onVoiceComplete) { onChange(''); onVoiceComplete(finalClean); }
+      };
       recogRef.current = rec; setVoiceErr(null); setVoiceState('listening'); rec.start();
     } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
   };
@@ -14251,7 +14284,11 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
           const fd = new FormData(); fd.append('audio', blob, 'nora.webm');
           const res = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
           const data = await res.json().catch(() => ({}));
-          if (res.ok && data && data.transcript) { onChange(data.transcript); setVoiceErr(null); }
+          if (res.ok && data && data.transcript) {
+            setVoiceErr(null);
+            if (onVoiceComplete) onVoiceComplete(String(data.transcript).trim());
+            else onChange(data.transcript);
+          }
           else if (res.status === 401 || res.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
           else setVoiceErr("Couldn't transcribe — type instead.");
         } catch (e) { setVoiceErr("Couldn't transcribe — type instead."); }
@@ -14266,6 +14303,11 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     setVoiceErr(null);
     if (SpeechRec) startWebSpeech(); else startServerVoice();
   };
+  // Hold-to-talk (conversation mode): press = start, release = stop → transcribe
+  // → send. Pointer-cancel/leave also stop so a dragged-off finger never leaves
+  // a hot mic.
+  const holdStart = (e) => { e.preventDefault(); if (voiceState !== 'idle') return; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
+  const holdEnd = () => { if (voiceState === 'listening') stopVoice(); };
   React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
@@ -14396,9 +14438,14 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18, lineHeight: 1,
     }}>＋</button>
   ) : null;
-  // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button style.
+  // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button
+  // style. In conversation mode (holdToTalk) it's press-and-hold: down = record,
+  // release = transcribe + send.
+  const micHandlers = holdToTalk
+    ? { onPointerDown: holdStart, onPointerUp: holdEnd, onPointerCancel: holdEnd, onPointerLeave: holdEnd }
+    : { onClick: toggleVoice };
   const micBtn = voiceOk ? (
-    <button onClick={toggleVoice} aria-label={voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora'} title={voiceState === 'listening' ? 'Stop' : 'Speak to Nora'} style={{
+    <button {...micHandlers} aria-label={holdToTalk ? 'Hold to talk' : (voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora')} title={holdToTalk ? 'Hold to talk' : (voiceState === 'listening' ? 'Stop' : 'Speak to Nora')} style={{
       flexShrink: 0, width: 33, height: 34, borderRadius: 17,
       border: `1px solid ${voiceState === 'listening' ? t.RUST : t.SURFACE_BORDER}`,
       background: voiceState === 'listening' ? `${t.RUST}1f` : (pinned ? t.SURFACE : t.PAPER),
@@ -14415,7 +14462,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // Listening / transcribing / error status line above the field.
   const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
     <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
-      {voiceState === 'listening' ? '● Listening… tap the mic to stop' : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
+      {voiceState === 'listening' ? (holdToTalk ? '● Listening… release to send' : '● Listening… tap the mic to stop') : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
     </div>
   ) : null;
   const tagChips = (onTag && tags && tags.length) ? (
@@ -22446,7 +22493,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Speak replies', key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice },
         { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
         { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
-        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound."); } catch (e) {} } },
+        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
       ],
     },
     {
