@@ -237,8 +237,10 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
  * claim_ai_action_undo RPC), exactly one caller wins the claim and applies
  * the reversal; the loser reads alreadyUndone. A claim whose reversal then
  * FAILS is handed back via releaseUndo so the ledger never records an undo
- * that didn't happen. Sinks without claimUndo (or pre-migration, when the
- * RPC signals absence with null) keep the legacy read→reverse→mark order.
+ * that didn't happen; a claim whose reversal SUCCEEDS is finalized
+ * (finalizeUndo clears the in-flight marker) so a completed undo can never
+ * be released and re-run. Sinks without claimUndo (or pre-migration, when
+ * the RPC signals absence with null) keep the legacy read→reverse→mark order.
  * @returns {{ok:true, alreadyUndone?:boolean} | {ok:false, error}}
  */
 export async function undoChange({ registry, auditId, actor, ctx, audit }) {
@@ -283,7 +285,23 @@ export async function undoChange({ registry, auditId, actor, ctx, audit }) {
     }
     throw e;
   }
-  if (!claimed) await audit.markUndone(auditId);
+  if (claimed) {
+    // Close the claim so it can never be released (re-opened) after a
+    // completed reversal. Best-effort: the data is reversed and the row
+    // already reads undone — a finalize failure only leaves the release
+    // window open, so log loudly rather than failing the undo.
+    if (typeof audit.finalizeUndo === 'function') {
+      try {
+        await audit.finalizeUndo(auditId);
+      } catch (finalizeErr) {
+        console.error('[shape-ai] undo claim finalize failed after a successful reversal:', {
+          auditId, message: (finalizeErr && finalizeErr.message) || String(finalizeErr),
+        });
+      }
+    }
+  } else {
+    await audit.markUndone(auditId);
+  }
   return { ok: true, undoneBy: actor ? actor.id : null };
 }
 
@@ -327,20 +345,32 @@ export function inMemoryAudit() {
     },
     // One-shot guard (mirrors claim_ai_action_undo): true = this caller won
     // the executed→undone transition; false = missing or already undone.
+    // undoClaimedAt is the in-flight marker — release only works while set.
     async claimUndo(id) {
       const r = rows.find((x) => x.id === id);
       if (!r || r.status !== 'executed') return false;
       r.status = 'undone';
       r.undoneAt = Date.now();
+      r.undoClaimedAt = Date.now();
+      return true;
+    },
+    // The reversal succeeded — close the claim (finalize_ai_action_undo).
+    // Mirrors FOUND: true only when an in-flight claim was actually closed.
+    async finalizeUndo(id) {
+      const r = rows.find((x) => x.id === id);
+      if (!r || r.status !== 'undone' || r.undoClaimedAt == null) return false;
+      r.undoClaimedAt = null;
       return true;
     },
     // Hand a claim back after a failed reversal (release_ai_action_undo).
+    // Mirrors FOUND: true only when a still-in-flight claim was flipped back;
+    // a finalized (completed) undo can never be re-opened.
     async releaseUndo(id) {
       const r = rows.find((x) => x.id === id);
-      if (r && r.status === 'undone') {
-        r.status = 'executed';
-        r.undoneAt = null;
-      }
+      if (!r || r.status !== 'undone' || r.undoClaimedAt == null) return false;
+      r.status = 'executed';
+      r.undoneAt = null;
+      r.undoClaimedAt = null;
       return true;
     },
     _rows: rows,

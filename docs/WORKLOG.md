@@ -388,10 +388,20 @@ changelog whenever something ships.
   sink's `claimUndo` returns `null` when the RPC isn't deployed (PGRST202 /
   42883) → the legacy read→reverse→mark order runs, so nothing breaks before
   the owner applies the SQL. `mark_ai_action_undone` untouched.
-- Tests (suite **562**): concurrent double-undo applies the reversal **exactly
+- **Review round (Codex P2 — real, fixed):** the RPCs are authenticated-
+  callable, so the claimer of a **completed** undo could call
+  `release_ai_action_undo` directly, flip the row back to `executed`, and
+  undo again — double-applying the reversal. Fix: a new
+  **`undo_claimed_at` in-flight marker** — claim sets it, a successful
+  reversal **finalizes** (`finalize_ai_action_undo` clears it, claimer-only),
+  and release works ONLY while it's still set — a finalized undo can never be
+  re-opened. CodeRabbit's nit folded in: the in-memory release/finalize
+  doubles now mirror the RPCs' `found` semantics (false on a no-op).
+- Tests (suite **563**): concurrent double-undo applies the reversal **exactly
   once** (one `alreadyUndone`); a failed reversal leaves the row `executed`
-  and a retry succeeds. `tsc --noEmit` clean. War Room: guard registered done +
-  the migration as the OWNER manual item.
+  and a retry succeeds; release-after-finalize is a reported no-op and the
+  reversal never re-runs. `tsc --noEmit` clean. War Room: guard registered
+  done + the migration as the OWNER manual item.
 
 ### 2026-07-10 — Nora's default voice pinned by env: NORA_TTS_VOICE + the owner's pick (#1657, `51828ddb`)
 

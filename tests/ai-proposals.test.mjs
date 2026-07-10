@@ -236,3 +236,30 @@ test('a failed reversal releases the claim — the row stays executed and a retr
   assert.equal(reversals, 2);
   assert.equal(audit._rows[0].status, 'undone');
 });
+
+test('a COMPLETED undo can never be re-opened — release after finalize is a no-op', async () => {
+  const { registry, audit, ctx } = setup();
+  let reversals = 0;
+  registry.define('counted-final', {
+    name: 'counted-final', roles: ['client'], source: 'engine',
+    async buildPreview() { return { summary: 's', diff: [], confirmedPayload: {} }; },
+    async execute() { return { ok: true }; },
+    async undo() { reversals += 1; },
+  });
+  const p = await proposeChange({ registry, action: 'counted-final', input: {}, actor: ACTOR, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit });
+  const u = await undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit });
+  assert.equal(u.ok, true);
+  assert.equal(reversals, 1);
+
+  // The Codex P2 scenario: the claimer calls the release RPC directly AFTER
+  // their undo completed. Finalize already closed the claim — the release is
+  // a reported no-op and the row stays undone.
+  const released = await audit.releaseUndo(c.auditId);
+  assert.equal(released, false);
+  assert.equal(audit._rows[0].status, 'undone');
+  // So a repeat undo can never re-run the reversal.
+  const again = await undoChange({ registry, auditId: c.auditId, actor: ACTOR, ctx, audit });
+  assert.equal(again.alreadyUndone, true);
+  assert.equal(reversals, 1);
+});

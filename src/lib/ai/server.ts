@@ -194,7 +194,16 @@ export function auditSink(supabase: SupabaseClient) {
       }
       return data === true;
     },
+    // The reversal succeeded — clear the in-flight marker so the claim can
+    // never be released (re-opened) again, even by the claimer calling the
+    // release RPC directly (Codex P2).
+    async finalizeUndo(id: string): Promise<boolean> {
+      const { data, error } = await supabase.rpc('finalize_ai_action_undo', { p_id: id });
+      if (error) throw new Error(`ai_audit undo finalize failed: ${error.message}`);
+      return data === true;
+    },
     // Hand a claim back after a failed reversal so the ledger stays honest.
+    // Only works on an in-flight claim (undo_claimed_at set).
     async releaseUndo(id: string): Promise<boolean> {
       const { data, error } = await supabase.rpc('release_ai_action_undo', { p_id: id });
       if (error) throw new Error(`ai_audit undo release failed: ${error.message}`);
