@@ -365,6 +365,38 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Website Voice-chat parity: Nora's hold-to-talk + the web robot dies (chatWidget)
+
+- **Closes the Nora-wave deferred item** ("website parity for Voice-chat
+  mode"). The website chat widget's Help (Nora) tab now matches mobile
+  #1653/#1654:
+  - **VOICE CHAT chip** in the support toolbar (per-session, off by default,
+    shown only where hold-to-talk is possible — MediaRecorder +
+    getUserMedia): ON turns the composer mic into **hold-to-talk** — press
+    records, release transcribes (`/api/ai/transcribe`) and the transcript
+    **SENDS as a normal message** through the same `send()`; Nora's reply
+    **auto-plays**. `voiceChatRef` is read **at reply time** (the #1654 race
+    fix — the chip may flip while the model thinks). Hold machinery carries
+    the mobile race guards: re-entrancy (`holding` + one capture at a time)
+    and the **early-release hot-mic** guard (released before getUserMedia
+    resolves → tracks stopped, nothing records); pointer leave/cancel count
+    as releases; widget unmount stops everything.
+  - **The web robot dies** (mobile #1653 parity): `speakNora`'s
+    `speechSynthesis` fallback — the robot every non-member heard — is
+    DELETED. Server-only voice returns honest
+    `{ok, reason: 'signed_out'|'members'|'unavailable'}`; an **explicit**
+    "Read this aloud" tap flashes the honest line ("Nora's voice is a member
+    feature." / "Sign in to hear Nora's voice." / "Voice is unavailable right
+    now."), **auto-speak failures stay silent**. Tap-to-dictate (the existing
+    mic) is unchanged when Voice chat is off.
+- `chatWidget.jsx?v=20260710` across all 35 versioned references
+  (**byte-safe node replace** — the first `sed` pass silently normalized
+  CRLF on every referencing HTML page and was reverted; the 2026-06-18
+  lesson holds). Legacy `public/mobile/*` pages + the lazy-loader's
+  un-versioned inject predate this and are unchanged (pending retirement).
+- Verified: JSX parse clean · every page diff is the 1-line `?v` bump. No
+  route/migration change (speak + transcribe already existed).
+
 ### 2026-07-10 — Feed + Home chrome cleanups: the #1528/#1527 War Room leftovers close
 
 - **Feed (`BSActivityCard`)** — the three registered leftovers: the
