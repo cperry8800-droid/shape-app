@@ -12786,6 +12786,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
   const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
+  // Read at REPLY time via the ref — a reply resolving after the user flips the
+  // chip off must not force-play (the async closure would hold the stale value).
+  const voiceChatRef = React.useRef(false);
   // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
   // default); the global voice on/off + tone still live in Settings → Nora voice.
   // (We do NOT force the tone here — that would overwrite the user's own setting
@@ -12820,7 +12823,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Conversation mode reads every reply aloud; otherwise the global
       // auto-speak toggle decides (off by default). Auto-speak failures are silent.
-      if (voiceChat) speakReply(reply, { force: true });
+      // voiceChatRef, not the closed-over state: the chip may have flipped off
+      // while this reply was in flight.
+      if (voiceChatRef.current) speakReply(reply, { force: true });
       else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
     } catch (e) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
@@ -13889,7 +13894,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   </span>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setVoiceChat(v => { const on = !v; if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } return on; }); }}
+                    onClick={(e) => { e.stopPropagation(); const on = !voiceChatRef.current; voiceChatRef.current = on; setVoiceChat(on); if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } }}
                     aria-pressed={voiceChat}
                     style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
@@ -14272,12 +14277,16 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window === 'undefined' || !window.MediaRecorder) { setVoiceErr("Voice isn't supported here — type instead."); return; }
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { setVoiceErr('Mic blocked — allow access or type.'); return; }
+    // Hold-to-talk: the finger came up while permission was pending — don't
+    // start a recording nobody is holding. Release the tracks and bail.
+    if (holdToTalk && !holdingRef.current) { try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {} return; }
     try {
       const mr = new window.MediaRecorder(stream);
       const chunks = [];
       mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
       mr.onstop = async () => {
         try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        if (mr._bsCancel) { setVoiceState('idle'); return; } // canceled hold — nothing to transcribe
         setVoiceState('transcribing');
         try {
           const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
@@ -14295,6 +14304,9 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         setVoiceState('idle');
       };
       recRef.current = mr; setVoiceErr(null); setVoiceState('listening'); mr.start();
+      // Belt-and-braces: released between the ref check and start() — cancel
+      // the recording quietly (onstop sees _bsCancel and skips transcription).
+      if (holdToTalk && !holdingRef.current) { mr._bsCancel = true; try { mr.stop(); } catch (e) {} }
     } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
   };
   const toggleVoice = () => {
@@ -14305,9 +14317,18 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   };
   // Hold-to-talk (conversation mode): press = start, release = stop → transcribe
   // → send. Pointer-cancel/leave also stop so a dragged-off finger never leaves
-  // a hot mic.
-  const holdStart = (e) => { e.preventDefault(); if (voiceState !== 'idle') return; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
-  const holdEnd = () => { if (voiceState === 'listening') stopVoice(); };
+  // a hot mic. holdingRef (not state) tracks the physical hold — the server path's
+  // startup is async (getUserMedia), so a release can beat the recorder into
+  // existence; startServerVoice re-checks the ref at each async boundary.
+  const holdingRef = React.useRef(false);
+  // holdingRef guards re-entrancy too: voiceState is stale until React
+  // re-renders, so a second same-frame pointerdown (multi-touch) would
+  // otherwise double-start and orphan the first recorder/stream.
+  const holdStart = (e) => { e.preventDefault(); if (holdingRef.current || voiceState !== 'idle') return; holdingRef.current = true; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
+  // Unconditional stop — voiceState in this closure can lag the actual recorder
+  // (React hasn't re-rendered yet on a fast press-release); stopVoice() is safe
+  // to call in any state.
+  const holdEnd = () => { holdingRef.current = false; stopVoice(); };
   React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
