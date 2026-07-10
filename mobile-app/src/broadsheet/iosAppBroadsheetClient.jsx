@@ -4,9 +4,8 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
-import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
+import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
@@ -3081,9 +3080,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
           />
         );
-        // Untimed rows come after all timed rows (bsHomeSlateSort's contract);
-        // every row here carries a real `time` so this only matters if a future
-        // row type omits one — kept honest rather than assumed.
+        // Ordering is bsHomeSlateSort's alone (the tested pure module): timed
+        // rows ascending by their displayed time, untimed rows after every
+        // timed row in source order. No second sort key — the old parallel
+        // `_sortAt` pre-sort duplicated the same ordering from raw minutes.
         const rows = [];
         // MEAL rows — one per selMeals meal. heroMealId suppresses the tick with
         // the lead echo (no second interactive surface on the lead's subject).
@@ -3093,7 +3093,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           rows.push({
             key: `meal-${m.id}`,
             time: fmtAt(mealMinutes(m)),
-            _sortAt: mealMinutes(m),
             tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
             title: m.title,
             status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : ''}`.replace(/ · $/, ''),
@@ -3116,7 +3115,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           rows.push({
             key: 'slate-training',
             time: fmtAt(WORKOUT_AT),
-            _sortAt: WORKOUT_AT,
             tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: rust,
             title: selWorkout.title,
             status: _wkShortMeta,
@@ -3133,7 +3131,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           rows.push({
             key: 'slate-training',
             time: '',
-            _sortAt: undefined,
             tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
             title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
             status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
@@ -3150,11 +3147,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const meta = isMeal
             ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
             : [p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
-          const atMins = bsHomeTimeMinutes(p.time);
           rows.push({
             key: `coach-${it.id}`,
             time: p.time || '',
-            _sortAt: atMins == null ? undefined : atMins,
             tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? teal : rust,
             title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
             status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
@@ -3186,7 +3181,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const doWord = tr('home:tag.do', { defaultValue: 'Do' });
           rows.push({
             key: `habit-${h.id || h.name}`,
-            time: '', _sortAt: undefined,
+            time: '',
             tag: avoid ? avoidWord : doWord, tagColor: pillC,
             title: h.name,
             status: tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: Math.round(h.pts) }),
@@ -3201,9 +3196,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             ariaLabel: tr('home:habit.rowAria', { defaultValue: '{kind}: {name}, worth {pts, plural, one {# point} other {# points}}, {state}', kind: avoid ? avoidWord : doWord, name: h.name, pts: Math.round(h.pts), state: h.done ? tr('home:aria.done', { defaultValue: 'done' }) : tr('home:aria.open', { defaultValue: 'open' }) }),
           });
         });
-        const timedRows = rows.filter((r) => r._sortAt !== undefined).sort((a, b) => a._sortAt - b._sortAt);
-        const untimedRows = rows.filter((r) => r._sortAt === undefined);
-        const sortedRows = bsHomeSlateSort([...timedRows, ...untimedRows]);
+        const sortedRows = bsHomeSlateSort(rows);
         // A quiet sub-head before the first habit row, so habits read as their
         // own block inside the run-sheet (owner request) — meals/training stay
         // unlabeled (their time + tag columns already identify them).
@@ -3220,20 +3213,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <div style={{ padding: `0 ${t.padX}px 4px` }}>
               <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
             </div>
-            <div data-tour="hero-habits">
+            <div>
               {sortedRows.length === 0 ? (
                 <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-              ) : sortedRows.map((r, i) => (
-                <React.Fragment key={r.key}>
-                  {i === firstHabitIdx && (
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `13px ${t.padX}px 3px` }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
-                      <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
-                    </div>
-                  )}
-                  <BSSlateRow index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
-                </React.Fragment>
+              ) : (firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx)).map((r, i) => (
+                <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+              ))}
+              {/* The tour's hero-habits anchor is THIS sub-block — narrowed from
+                  the whole slate (the spotlight used to swallow the meal +
+                  training rows too) to just the habits head, rows, and states. */}
+              <div data-tour="hero-habits">
+              {firstHabitIdx !== -1 && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `13px ${t.padX}px 3px` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
+                  <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
+                </div>
+              )}
+              {firstHabitIdx !== -1 && sortedRows.slice(firstHabitIdx).map((r, j) => (
+                <BSSlateRow key={r.key} index={firstHabitIdx + j} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
               ))}
               {openHabits.length > 3 && (
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
@@ -3254,6 +3252,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               {habitFlash && (
                 <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>{tr('home:slate.habitFlash', { defaultValue: '✓ +{pts} pts → Shape Score', pts: habitFlash.pts })}</div>
               )}
+              </div>
             </div>
             {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
                 rendered INSIDE the slate section, after the rows. Fixes the
@@ -3370,8 +3369,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px` }}>
               <BSShelfDoor c={teal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
-              <BSMeGoalCard c={teal} onOpen={() => setGoalsPage(true)} door />
-              <BSProgressDoor onOpen={() => setHomeProgressPage(true)} door />
+              <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
+              <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
               <BSShelfDoor c={teal} eyebrow={tr('home:door.shopList', { defaultValue: 'Shop list' })} figure="→" status={tr('home:door.byAisle', { defaultValue: 'By aisle' })} onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
             </div>
             {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
@@ -12460,8 +12459,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
                 {/* owner edit — only when the host supplies onEdit (profile) AND the
                     card is a real published post; the community feed passes no onEdit,
-                    and demo/PR cards have no postId, so this stays profile-own-posts. */}
-                {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
+                    and demo/PR cards have no postId, so this stays profile-own-posts.
+                    44px hit target (negative vertical margins keep the slim row
+                    height); the visible ✎ circle stays 22px. */}
+                {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ margin: '-11px 0 -11px auto', flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button>}
                 <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
             ) : (
@@ -12518,14 +12519,18 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {a.photo && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
           {a.video && (bsIsDirectVideoUrl(a.video)
             ? <video src={a.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: 10, background: '#000' }} />
-            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
-          {a.link && <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontWeight: 600, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.link.title || bsLinkHost(a.link.url)}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.link.url)} ↗</span></span></a>}
+            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 12, boxSizing: 'border-box' }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
+          {a.link && <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 13, boxSizing: 'border-box' }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontWeight: 600, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.link.title || bsLinkHost(a.link.url)}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.link.url)} ↗</span></span></a>}
           {/* coach attribution — honest slot: renders ONLY when the post names a
-              program + coach; suppressed entirely for self-coached / opted-out */}
+              program + coach; suppressed entirely for self-coached / opted-out.
+              PRESS CREDIT grammar (the co-sign's), not a bordered pill — the
+              999px chip was the last piece of pill chrome on the card. Handler
+              + eligibility carried verbatim; 44px target from invisible height. */}
           {coachLine && (
-            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
+            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, marginTop: 2, background: 'transparent', border: 0, borderRadius: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>Programmed by</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat, flexShrink: 0 }}>›</span>
             </button>
           )}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
@@ -16953,46 +16958,21 @@ function BSSleepHistory({ onClose }) {
 // language: clipped notch, teal spine, corner bracket, and one colored tick per
 // section behind the door (streak teal · trends blue · training rust ·
 // nutrition gold). Compresses on press via the shared chip CSS.
-function BSProgressDoor({ onOpen, door = false }) {
+// Door-only since the Front-Page restructure — its single caller is the home
+// door shelf; the old full-width plate branch had no caller and is gone.
+function BSProgressDoor({ onOpen }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
-  const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   const segs = [[tr('home:progress.streak', { defaultValue: 'Streak' }), teal], [tr('home:progress.trends', { defaultValue: 'Trends' }), t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], [tr('home:progress.training', { defaultValue: 'Training' }), t.RUST || '#c0533b'], [tr('home:progress.nutrition', { defaultValue: 'Nutrition' }), t.AMBER || '#d8b25a']];
-  if (door) {
-    const ticks = (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {segs.map(([lab, sc]) => (
-          <span key={lab} aria-hidden title={lab} style={{ width: 6, height: 6, borderRadius: 999, background: sc, flexShrink: 0 }} />
-        ))}
-      </span>
-    );
-    return <BSShelfDoor c={teal} eyebrow={tr('home:door.progress', { defaultValue: 'Progress' })} figure={ticks} status={tr('home:progress.sections', { defaultValue: '{count, plural, one {# section} other {# sections}}', count: 4 })} onOpen={onOpen} />;
-  }
-  return (
-    <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
-      <button onClick={onOpen} aria-label={tr('home:progress.openAria', { defaultValue: 'Open your progress' })} style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
-        <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clipN(11), background: bsTHexA(t.INK, 0.1) }} />
-        <span aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clipN(10), background: bsTHexA(t.INK, 0.025) }} />
-        <span aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: teal }} />
-        <span aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${teal}`, borderBottom: `1.5px solid ${teal}`, opacity: 0.55 }} />
-        <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 15px 12px 19px' }}>
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('home:door.progress', { defaultValue: 'Progress' })}<span style={{ color: teal }}>.</span></span>
-            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '3px 10px', marginTop: 6 }}>
-              {segs.map(([lab, c]) => (
-                <span key={lab} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-                  <span aria-hidden style={{ width: 10, height: 1.5, background: c, borderRadius: 2 }} />{lab}
-                </span>
-              ))}
-            </span>
-          </span>
-          <span aria-hidden style={{ color: teal, fontSize: 15, fontWeight: 700, flexShrink: 0 }}>›</span>
-        </span>
-      </button>
-    </div>
+  const ticks = (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {segs.map(([lab, sc]) => (
+        <span key={lab} aria-hidden title={lab} style={{ width: 6, height: 6, borderRadius: 999, background: sc, flexShrink: 0 }} />
+      ))}
+    </span>
   );
+  return <BSShelfDoor c={teal} eyebrow={tr('home:door.progress', { defaultValue: 'Progress' })} figure={ticks} status={tr('home:progress.sections', { defaultValue: '{count, plural, one {# section} other {# sections}}', count: 4 })} onOpen={onOpen} />;
 }
 
 // ── Front-Page primitives (spec: docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md) ──
@@ -17242,8 +17222,7 @@ function useBSStepsToday() {
   const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
   const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
   const hit = todayKnown && val >= TARGET;
-  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET);
-  return { hasData, todayKnown, val, goal: TARGET, pct, hit, stepPts };
+  return { hasData, todayKnown, val, goal: TARGET, pct, hit };
 }
 
 // Today instrument plate — the home daily check-in + hydration, consolidated into
@@ -17969,12 +17948,12 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
 
 // Featured goal card on the Me profile (self only) — your top body-comp goal
 // from user_goals('client_goals'). Personal numbers stay off the public profile.
-function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
+// Door-only since the Front-Page restructure — its single caller is the home
+// door shelf; the old plate/compact branches had no caller and are gone.
+function BSMeGoalCard({ onOpen }) {
   const t = useBS();
   const tr = useShapeTr();
-  // Follow the paper theme so the goal text reads on light papers too.
-  const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
+  const TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC(null);
   React.useEffect(() => {
     let on = true;
@@ -17982,45 +17961,25 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
     return () => { on = false; };
   }, []);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
-  // is the signed-out preview only. A real goal (g) shows once it loads. This gate
-  // is shared by ALL variants (door included) — a door never appears for a
-  // signed-in account with no goal.
+  // is the signed-out preview only. A real goal (g) shows once it loads — a door
+  // never appears for a signed-in account with no goal.
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
   const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
   const range = start - target;
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
-  const byD = ov.by ? new Date(ov.by) : null;
-  const dateLabel = byD && !isNaN(byD) ? byD.toLocaleDateString((typeof window !== 'undefined' && window.ShapeI18n?.current?.()) || undefined, { month: 'short', day: 'numeric' }).toUpperCase() : null;
-  const words = String(ov.title || 'Your goal').trim().split(/\s+/);
-  const last = words.length ? words.pop() : '';
-  const head = words.join(' ');
-  // Honest status — never a fabricated "on track". Shared by BOTH variants
-  // (door + plate footer): goal reached (within a small epsilon, so float
-  // rounding doesn't withhold the ✓) reads 'goal hit ✓'; otherwise a real
-  // '{N} {unit} to go'; when the values aren't usable, an honest '—'.
-  // toGo = now - target on a cut-framed goal (range > 0): at-or-past target
-  // reads as HIT — an over-achieved goal must never show a false "to go".
+  const toGo = +(now - target).toFixed(1);
+  // Honest status — never a fabricated "on track": goal reached (within a
+  // small epsilon, so float rounding doesn't withhold the ✓) reads 'goal hit
+  // ✓'; otherwise a real '{N} {unit} to go'; when the values aren't usable,
+  // an honest '—'. toGo = now - target on a cut-framed goal (range > 0):
+  // at-or-past target reads as HIT — never a false "to go" when over-achieved.
   const hasRange = range > 0 && isFinite(toGo) && !!unit;
   const goalHit = hasRange && toGo <= 0.05;
   const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, toGo).toFixed(1), unit }) : '—';
-  if (door) {
-    return (
-      <BSShelfDoor c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
-    );
-  }
   return (
-    <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel={tr('home:goal.openAria', { defaultValue: 'Open your goal' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}{dateLabel ? ` · ${tr('home:goal.by', { defaultValue: 'by {date}', date: dateLabel })}` : ''}{onOpen ? ' ›' : ''}</span>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{tr('home:goal.pctThere', { defaultValue: '{pct}% there', pct: Math.round(pct * 100) })}</span>
-      </div>
-      <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
-      <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{tr('home:goal.soFar', { defaultValue: '{sign}{amount} {unit} so far · {status}', sign: down > 0 ? '+' : '−', amount: Math.abs(down), unit, status: goalStatus })}</div>
-    </BSPlate>
+    <BSShelfDoor c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );
 }
 

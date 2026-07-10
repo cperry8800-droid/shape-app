@@ -365,6 +365,36 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — Feed + Home chrome cleanups: the #1528/#1527 War Room leftovers close
+
+- **Feed (`BSActivityCard`)** — the three registered leftovers: the
+  **"Programmed by" chip** drops its 999px bordered pill for the card's own
+  **press-credit grammar** (mono eyebrow + DISPLAY name + heat › chevron, 44px
+  target from invisible height — handler + honest-absent gating verbatim); the
+  **video-link + link tile glyph squares** drop their tier-color background
+  tint (`${tc}2e` — outside the sanctioned line-only tc placements) for ink
+  grammar (transparent + hairline border, muted glyph); the owner **edit ✎**
+  gets a real **44px hit target** (negative-margin trick keeps the slim meta
+  row height; the 22px visual circle is now an inner span).
+- **Home (`BSClientHome` + friends)** — the registered cleanup list:
+  **`BSMeGoalCard` + `BSProgressDoor` pruned to door-only** (their single
+  callers pass the door shelf; the plate/compact and full-width branches had
+  no caller — deleted, along with BSMeGoalCard's now-dead title-split/byline
+  locals); **`stepPts` dropped** from `useBSStepsToday` (never consumed — the
+  `shapeStepsPoints` import goes with it; `window.ShapeStepPoints` in the data
+  layer is untouched); the **slate double-sort collapsed** — rows were
+  pre-sorted by a parallel `_sortAt` minutes key and then re-sorted by
+  `bsHomeSlateSort` parsing the same displayed times; the pure module is now
+  the ONLY ordering (all `_sortAt` scaffolding + the `bsHomeTimeMinutes`
+  import removed); the **`hero-habits` tour anchor narrowed** from the whole
+  slate (the spotlight swallowed meals + training) to just the habits
+  sub-block (head + rows + empty/all-done/flash states — the anchor still
+  renders on habit-less days, and the tour's `tab-home` fallback covers the
+  empty-slate case).
+- Presentation/dead-code only — every handler, gate, and data path verbatim.
+  Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` 560 · LF.
+  War Room: both follow-up items flipped done.
+
 ### 2026-07-10 — Nora's default voice pinned by env: NORA_TTS_VOICE + the owner's pick (#1657, `51828ddb`)
 
 - The owner auditioned at openai.fm and landed on **`sage` with a
