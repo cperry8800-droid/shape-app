@@ -18,8 +18,11 @@ import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
 import { proposeChange } from '@/lib/ai/proposals.mjs';
-import { resolveActor, makeCtx, serverRegistry, proposalSecret } from '@/lib/ai/server';
+import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
 import { toneInstruction } from '@/lib/ai/tone.mjs';
+import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
+import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
+import { computeMembership } from '@/lib/membership-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -230,6 +233,113 @@ const TOOLS = [
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
 const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session']);
 
+// ── Member-only tools (memory) ────────────────────────────────────────────────
+// Appended to the tool list ONLY for a verified member (computeMembership,
+// fail-closed) — a signed-out or signed-in-prospect request carries exactly the
+// TOOLS array above, byte-identical to today, so non-members can never even
+// discover these. Direct-with-audit: applied inline (no confirm card, #1652).
+const MEMBER_TOOLS = [
+  {
+    type: 'function',
+    name: 'remember',
+    description:
+      "Remember a short personal fact the member EXPLICITLY asked you to keep (e.g. 'remember I hate burpees'). Pass their words, not your rewrite. Applied immediately (no confirm); tell them it's saved and manageable under Settings → What Nora remembers.",
+    parameters: {
+      type: 'object',
+      properties: { note: { type: 'string', description: 'The fact, in their words. Keep it short.' } },
+      required: ['note'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: 'function',
+    name: 'forget',
+    description:
+      'Delete ONE remembered note when the member asks you to forget it. Prefer note_id (ids are listed with your member facts); pass note (the exact text) only when you have no id. Never pass both. If the result lists candidates, relay them and ask which one.',
+    parameters: {
+      type: 'object',
+      properties: { note_id: { type: 'string' }, note: { type: 'string' } },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+];
+const MEMORY_TOOLS = new Set(['remember', 'forget']);
+const MEMBER_PROMPT_NOTE =
+  "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.";
+
+// The per-request context a direct memory tool runs with (member-verified).
+type MemoryCtx = {
+  actor: { id: string; role: string };
+  supabase: Actor['supabase'];
+  audit: ReturnType<typeof auditSink>;
+  isMember: true;
+  casWrite: (kind: string, mutate: (doc: unknown) => Record<string, unknown>) => Promise<{ ok: boolean; error?: string; candidates?: unknown }>;
+};
+
+// Thin, fail-soft member-fact fetchers — caller-RLS ONLY (actor.supabase), every
+// leg independent. `failed` is true only when EVERY leg rejected (a resolved-
+// but-empty leg is honest absence, not failure) — that's the UNAVAILABLE_NOTE
+// trigger per the spec's honest-unavailable contract.
+async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, unknown> | null; failed: boolean }> {
+  const sb = actor.supabase;
+  const uid = actor.user.id;
+  const today = new Date().toISOString().slice(0, 10); // UTC day — mirrors log_meal's snapshot key
+  const legs = await Promise.allSettled([
+    sb.from('daily_health_snapshot').select('calories, protein_g, workout_minutes').eq('user_id', uid).eq('snapshot_date', today).maybeSingle(),
+    sb.rpc('compute_momentum'),
+    // 2001 = the completeness probe: exactly 2001 rows back means the ledger
+    // was truncated, and a PARTIAL sum would misstate the member's real score
+    // — the fact is omitted instead (honest absence beats a wrong number).
+    sb.from('score_ledger').select('delta, source_kind').eq('user_id', uid).limit(2001),
+    sb.from('client_weigh_ins').select('weight, unit, logged_on').eq('user_id', uid).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
+    sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_goals').maybeSingle(),
+    sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle(),
+  ]);
+  const val = <T,>(i: number): T | null => {
+    const l = legs[i];
+    if (l.status !== 'fulfilled') return null;
+    const r = l.value as { data?: unknown; error?: unknown };
+    return (r && r.error == null ? (r.data as T) : null) ?? null;
+  };
+  const okCount = legs.filter((l) => l.status === 'fulfilled' && (l.value as { error?: unknown })?.error == null).length;
+  if (okCount === 0) return { facts: null, failed: true };
+
+  const facts: Record<string, unknown> = {};
+  const snap = val<{ calories?: number; protein_g?: number; workout_minutes?: number }>(0);
+  if (snap) {
+    facts.today = {
+      kcal: snap.calories != null ? Number(snap.calories) : null,
+      proteinG: snap.protein_g != null ? Number(snap.protein_g) : null,
+      trainedToday: snap.workout_minutes != null && Number(snap.workout_minutes) > 0 ? true : undefined,
+    };
+  }
+  const mv = val<number>(1);
+  if (mv != null) facts.momentum = { value: Number(mv) };
+  const ledger = val<Array<{ delta?: number; source_kind?: string }>>(2);
+  // An EMPTY ledger is a real score of 0 (a brand-new member) — only a
+  // truncated (2001-row) fetch omits the fact.
+  if (Array.isArray(ledger) && ledger.length <= 2000) {
+    const total = ledger.reduce((a, r) => a + (r.source_kind === 'store_redeem' ? 0 : Number(r.delta) || 0), 0);
+    facts.score = { total };
+  }
+  const weigh = val<{ weight?: number; unit?: string; logged_on?: string }>(3);
+  if (weigh && weigh.weight != null) facts.weight = { latest: Number(weigh.weight), unit: weigh.unit || 'lb', loggedOn: weigh.logged_on || null };
+  // user_goals rows nest the document under .data — unwrap before reading.
+  const goalsRow = val<{ data?: unknown }>(4);
+  const goalsDoc = goalsRow && typeof goalsRow === 'object' ? (goalsRow as { data?: unknown }).data : null;
+  const overall = goalsDoc && typeof goalsDoc === 'object' ? (goalsDoc as { overall?: { title?: string; target?: number; unit?: string; date?: string } }).overall : null;
+  if (overall && overall.title) facts.goal = { title: String(overall.title), target: overall.target, unit: overall.unit, byDate: overall.date };
+  const memRow = val<{ data?: unknown }>(5);
+  const memDoc = memRow && typeof memRow === 'object' ? ((memRow as { data?: unknown }).data as { notes?: Array<{ id?: string; text?: string }> } | null) : null;
+  if (memDoc && Array.isArray(memDoc.notes) && memDoc.notes.length) {
+    facts.memory = memDoc.notes.slice(0, 10).filter((n) => n && n.text).map((n) => `${n.text} (id ${n.id})`);
+  }
+  return { facts: Object.keys(facts).length ? facts : null, failed: false };
+}
+
 function coachLine(c: Coach): string {
   return `${c.name} — ${c.role}, ${c.city}. ${c.specialties.join(', ')}. ${c.cert}, ${c.years}y, ${c.format}. $${c.rate}/session, ★${c.rating}.`;
 }
@@ -251,7 +361,23 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // Runs a tool call; returns { result (for the model), actions (for the UI) }.
 // Read tools (recommend_coaches) run here; WRITE tools route through `propose`,
 // which drafts a confirm-required change via the AI1 scaffold (never executes).
-async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn): Promise<ToolOut> {
+// MEMORY tools (members only — the schemas are never exposed otherwise) run
+// DIRECTLY with audit; memoryCtx is null for non-members, so even a fabricated
+// call fails closed.
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null): Promise<ToolOut> {
+  if (MEMORY_TOOLS.has(name)) {
+    if (!memoryCtx) return { result: { error: 'members_only' }, actions: [] };
+    const tool = name === 'remember' ? rememberMemoryTool : forgetMemoryTool;
+    const result = (await tool.run(memoryCtx, args)) as { done?: boolean; audited?: boolean; error?: string };
+    const actions: SupportAction[] = [];
+    if (result && result.done) {
+      // Honest chip state: never a clean check while the audit is missing.
+      const ok = result.audited === true;
+      const label = name === 'remember' ? (ok ? 'Noted ✓' : 'Noted — audit pending') : (ok ? 'Forgotten ✓' : 'Forgotten — audit pending');
+      actions.push({ type: 'screen', label, screen: 'nora_memory' });
+    }
+    return { result, actions };
+  }
   if (WRITE_TOOLS.has(name)) {
     return propose(name, args);
   }
@@ -305,9 +431,9 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // Build the WRITE-tool executor for this request: drafts a confirm-required
 // change via the AI1 scaffold, carrying the ACTOR'S session (so the endpoint's
 // auth + RLS stay the gate). Nothing is applied — the client confirms the
-// returned token at /api/ai/proposals/confirm.
-async function makePropose(request: Request): Promise<ProposeFn> {
-  const actor = await resolveActor(request);
+// returned token at /api/ai/proposals/confirm. Takes the ALREADY-resolved
+// actor (POST resolves it once for membership + context + proposals).
+function makePropose(actor: Actor | null, request: Request): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
@@ -340,7 +466,8 @@ async function makePropose(request: Request): Promise<ProposeFn> {
 async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
-  tone?: string,
+  tone: string | undefined,
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null },
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -349,13 +476,22 @@ async function askOpenAI(
   }));
 
   // The tone shapes the framing (supportive vs direct) but never the facts.
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n${toneInstruction(tone)}`;
-  let input: unknown[] = [{ role: 'system', content: systemPrompt }, ...recent];
+  // The memory note rides ONLY for verified members (their tool list carries
+  // remember/forget) — the base prompt stays byte-identical for everyone else.
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}\n\n${toneInstruction(tone)}`;
+  let input: unknown[] = [
+    { role: 'system', content: systemPrompt },
+    // The server-built member-context block (or the honest unavailable note on
+    // a fetch FAILURE) — never client-supplied, members only.
+    ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
+    ...recent,
+  ];
   const actions: SupportAction[] = [];
+  const tools = member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS;
 
   // Allow up to 2 tool rounds, then take the text.
   for (let round = 0; round < 3; round++) {
-    const result = await callAI({ input, tools: TOOLS }, { promptId: 'support.chat' });
+    const result = await callAI({ input, tools }, { promptId: 'support.chat' });
     if (!result.ok) return null;
     const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
@@ -373,7 +509,7 @@ async function askOpenAI(
       } catch {
         parsed = {};
       }
-      const { result, actions: a } = await runTool(String(call.name), parsed, propose);
+      const { result, actions: a } = await runTool(String(call.name), parsed, propose, member.memoryCtx);
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
     }
@@ -383,6 +519,11 @@ async function askOpenAI(
 
 // Rule-based first responder for when the model is unset/down. Still returns
 // coach actions for coach questions so the experience degrades gracefully.
+// INVARIANT (spec #1652): this takes ONLY the user's text — no member context
+// ever reaches it, and its templates are static strings (coach names come from
+// the PUBLIC catalog), so a failed-context member can never receive fabricated
+// personal metrics through this path. tests/member-context.test.mjs pins the
+// context sentinel this function must never emit.
 function fallbackReply(text: string): { reply: string; actions: SupportAction[] } {
   const q = text.toLowerCase();
   const has = (...words: string[]) => words.some((w) => q.includes(w));
@@ -419,8 +560,33 @@ export async function POST(request: Request) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
 
-  const propose = await makePropose(request);
-  const ai = await askOpenAI(messages, propose, body.tone).catch(() => null);
+  // Resolve the actor ONCE; membership (fail-closed) decides whether the
+  // member-only layer exists AT ALL for this request: the context block, the
+  // memory tool schemas, and the direct-tool executor. A signed-out or
+  // signed-in-NON-member request runs the exact pre-PR-B path — same prompt,
+  // same TOOLS array, no context — byte-identical behavior.
+  const actor = await resolveActor(request).catch(() => null);
+  const propose = makePropose(actor, request);
+  let contextMsg: string | null = null;
+  let memberTools: typeof MEMBER_TOOLS = [];
+  let memoryCtx: MemoryCtx | null = null;
+  if (actor) {
+    const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+    if (membership && membership.isMember) {
+      memberTools = MEMBER_TOOLS;
+      memoryCtx = {
+        actor: { id: actor.user.id, role: actor.role },
+        supabase: actor.supabase,
+        audit: auditSink(actor.supabase),
+        isMember: true,
+        casWrite: (kind, mutate) => casWriteUserGoals(actor.supabase, actor.user.id, kind, mutate),
+      };
+      const { facts, failed } = await fetchMemberFacts(actor).catch(() => ({ facts: null, failed: true }));
+      contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
+    }
+  }
+
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx }).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));

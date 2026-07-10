@@ -15073,6 +15073,57 @@ function BSReminderManager() {
     </React.Fragment>
   );
 }
+// "What Nora remembers" — the member-managed view of user_goals('nora_memory')
+// (the notes Nora's remember tool saved). Per-note delete + clear-all (behind
+// the standing destructive-action confirm); writes ride window.ShapeNoraMemory's
+// CAS path, the same contract as Nora's own server tools.
+function BSNoraMemoryPage({ onBack }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [notes, setNotes] = useStateBSC(null);
+  const load = () => Promise.resolve(window.ShapeNoraMemory?.list?.()).then((n) => setNotes(Array.isArray(n) ? n : [])).catch(() => setNotes([]));
+  React.useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const fail = () => window.__bsToast?.('Could not update — try again', 'err');
+  const del = async (n) => {
+    const r = await window.ShapeNoraMemory?.removeNote?.(n.id);
+    if (r && r.ok) load(); else fail();
+  };
+  const clearAll = async () => {
+    if (!(await window.bsAskConfirm({ title: 'Forget everything Nora remembers?', message: 'This deletes every remembered note. Nora starts fresh — nothing else about your account changes.', confirmLabel: 'Forget all' }))) return;
+    const r = await window.ShapeNoraMemory?.clearAll?.();
+    if (r && r.ok) load(); else fail();
+  };
+  const when = (iso) => { try { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) { return ''; } };
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Nora" kicker="Memory" title={<>What Nora<br/>remembers.</>} />
+      <div style={{ padding: `4px ${t.padX}px 30px` }}>
+        {notes === null ? (
+          <div style={{ padding: '16px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+        ) : notes.length === 0 ? (
+          <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>Nothing yet — tell Nora “remember …” in Support chat and it lands here.</div>
+        ) : (
+          <React.Fragment>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 2px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{notes.length} note{notes.length === 1 ? '' : 's'}</div>
+              <button type="button" onClick={clearAll} style={{ background: 'transparent', border: 0, color: t.RUST, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear all</button>
+            </div>
+            {notes.map((n, i) => (
+              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: i < notes.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK, lineHeight: 1.35 }}>{n.text}</div>
+                  {n.at ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{when(n.at)}</div> : null}
+                </div>
+                <button type="button" onClick={async () => { if (await window.bsAskConfirm({ title: 'Forget this note?', name: n.text.slice(0, 60), message: 'Nora will no longer know this.', confirmLabel: 'Forget note' })) del(n); }} aria-label={`Forget note: ${n.text.slice(0, 40)}`} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+            <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Nora reads these to personalize her answers. Deleting a note here removes it from her memory immediately.</div>
+          </React.Fragment>
+        )}
+      </div>
+    </BSPage>
+  );
+}
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -21685,6 +21736,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
   const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
+  const [showNoraMemory, setShowNoraMemory] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [appearTab, setAppearTab] = useStateBSC('paper');
@@ -22354,6 +22406,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showNotifyPrefs) {
     return <BSNotifyPrefs onBack={() => setShowNotifyPrefs(false)} role={tweaks.role} />;
   }
+  if (showNoraMemory) {
+    return <BSNoraMemoryPage onBack={() => setShowNoraMemory(false)} />;
+  }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
   }
@@ -22515,6 +22570,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
         { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
         { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
+        { l: 'What Nora remembers', r: 'View', action: () => setShowNoraMemory(true) },
       ],
     },
     {

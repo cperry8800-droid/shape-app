@@ -159,7 +159,20 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10b): Nora voice overhaul — PR A of the Nora wave** — the
+> **Latest (2026-07-10c): Nora grounded answers + memory — PR B of the Nora
+> wave** — support chat now answers a member's personal questions with their
+> REAL numbers: a server-built, caller-RLS **member-context block** (pure
+> tested `memberContext.mjs`; fail-soft fetchers over snapshot/momentum/
+> ledger/weigh-ins/goal; fetch failure → an explicit honest-unavailable note,
+> never a guess) injected only for **verified members** (`computeMembership`,
+> fail-closed) — signed-out/prospect chat is byte-identical. And she
+> **remembers**: `user_goals('nora_memory')` `{rev, notes}` mutated under
+> **CAS** by every writer; `remember`/`forget` direct-with-audit tools whose
+> schemas non-members never see; Settings → **"What Nora remembers"** (per-
+> note forget + clear-all behind `bsAskConfirm`). Suite 551. Dated entry
+> below. Open: PR C member tools · owner voice pick.
+>
+> **Prior (2026-07-10b): Nora voice overhaul — PR A of the Nora wave** — the
 > robot is dead: `speakVoice` is server-only and returns an honest
 > `{ok, reason}` (explicit Listen taps toast "Nora's voice is a member
 > feature" / "Voice is unavailable right now"; auto-speak failures stay
@@ -325,6 +338,50 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-10 — Nora grounded answers + memory: real numbers in chat · remember/forget · Settings list (Nora wave PR B)
+
+- **PR B of the Nora wave** (spec #1652; plan
+  `docs/superpowers/plans/2026-07-10-nora-grounding-memory.md`; built inline,
+  TDD on the pure modules). "How am I doing this week?" finally gets the
+  member's own numbers, and "remember I hate burpees" sticks.
+- **Grounded answers.** `/api/support/chat` resolves the actor ONCE and runs
+  `computeMembership` (fail-closed): **verified members** get a server-built
+  **member-context block** injected as a system message — today's kcal/protein
+  (snapshot), momentum (`compute_momentum`), Shape Score (ledger sum excl.
+  redemptions), latest weigh-in, the Overall goal, and remembered notes — all
+  read on the **caller's RLS client** via thin `Promise.allSettled` fetchers
+  (a leg that resolves empty is honest absence; EVERY leg failing injects the
+  explicit `UNAVAILABLE_NOTE` — "say the data isn't available, never estimate").
+  Pure **`src/lib/ai/memberContext.mjs`** owns the words (tested: honest
+  omission, no-fabrication, null-on-empty; the fallback-sentinel vector).
+  Signed-out and signed-in-NON-member requests run the exact pre-PR-B path —
+  same prompt, same tool list, no context — byte-identical.
+- **Memory.** `user_goals('nora_memory')` = `{rev, notes:[{id,text,at}]}` —
+  cap 30 notes × 280 chars (word-boundary truncation), ids = a stable text
+  hash (retries dedupe + repair audits). **Every writer mutates under CAS**
+  (`casWriteUserGoals` in `server.ts`: rev-conditioned update writing rev+1,
+  zero rows → re-read + retry ×2, INSERT bootstrap treating the unique
+  conflict as a CAS miss). Pure **`noraMemory.mjs`** (tested: dedupe, cap,
+  forget selector arity/exact-match/ambiguity fail-closed).
+- **remember / forget** — direct-with-audit tools (no confirm card, the spec
+  decision): their schemas are appended to the function-calling tool list
+  **only after the membership check** (non-members can't even discover them;
+  `ctx.isMember` re-checks in-handler), executed inline by the route. Audit
+  keyed on the note's own id — a dedupe-hit retry **reconciles a missing
+  audit row**; audit failure returns `audited:false` + a safe-metadata-only
+  server log (never note text); the chip reads "Noted ✓ / Noted — audit
+  pending" honestly. **A forget's audit row records id + stamps only — never
+  the forgotten text.**
+- **Settings → "What Nora remembers"** (`BSNoraMemoryPage` + a Nora's-voice
+  section row): the note list, per-note forget (confirmed), **Clear all
+  behind `window.bsAskConfirm`** (cancel writes nothing). Writes ride
+  `window.ShapeNoraMemory`'s client-side mirror of the SAME CAS contract.
+- Verified per commit: JSX parse · `tsc --noEmit` clean · `npm test` **551**
+  (2 new files: member-context, nora-memory) · PowerShell `/m/` build exit 0 ·
+  LF. **Open:** PR C (member action tools + the log_meal undo guard parity
+  fix) · owner voice audition · on-device pass (member chat real numbers ·
+  remember → Settings round-trip · clear-all confirm).
 
 ### 2026-07-10 — Nora voice overhaul: style-steered TTS · the robot dies · Voice chat mode (Nora wave PR A)
 

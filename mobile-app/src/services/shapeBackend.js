@@ -9,6 +9,10 @@ import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
+// The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
+// dashSignals.js precedent): one implementation of the {rev, notes} semantics
+// for the server tools AND this Settings mirror, so they can't drift.
+import { normalizeMemoryDoc } from '../../../src/lib/ai/noraMemory.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -5390,6 +5394,52 @@ async function loadVoiceTone() {
     return p;
   } catch (e) { return null; }
 }
+// ─── Nora memory (user_goals 'nora_memory') — Settings management ───────────
+// The {rev, notes:[{id,text,at}]} doc that Nora's remember/forget server tools
+// and this UI ALL mutate under the same CAS contract. Doc SEMANTICS come from
+// the shared normalizeMemoryDoc import (one implementation, no drift); only
+// the persistence loop lives here (this runs on the member's own Supabase
+// client, mirroring server.ts casWriteUserGoals: rev-conditioned update
+// writing rev+1, retry ×2 on a genuine CAS miss, INSERT bootstrap, hard
+// errors surfaced — never retried).
+async function noraMemoryRow() {
+  const uid = state.user?.id || null;
+  if (!uid || !supabase) return { uid: null, doc: null };
+  const { data, error } = await supabase.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle();
+  if (error) return { uid, doc: null, readFailed: true };
+  return { uid, doc: (data && data.data) || null };
+}
+async function noraMemCasWrite(mutate) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { uid, doc, readFailed } = await noraMemoryRow();
+    if (!uid) return { ok: false, error: 'signed_out' };
+    if (readFailed) return { ok: false, error: 'read_failed' };
+    const d = normalizeMemoryDoc(doc);
+    // The raw rev drives the CAS predicate (a legacy rev-less doc conditions
+    // on NULL); the normalized rev only feeds the write.
+    const rawRev = doc && typeof doc === 'object' && Number.isInteger(doc.rev) && doc.rev >= 0 ? doc.rev : null;
+    const next = { notes: mutate(d.notes), rev: (rawRev ?? 0) + 1 };
+    if (doc == null) {
+      const { error } = await supabase.from('user_goals').insert({ user_id: uid, kind: 'nora_memory', data: next });
+      if (!error) return { ok: true };
+      if (error.code === '23505') continue; // concurrent first write → re-read (CAS miss)
+      return { ok: false, error: 'write_failed' };
+    }
+    let q = supabase.from('user_goals').update({ data: next }).eq('user_id', uid).eq('kind', 'nora_memory');
+    q = rawRev == null ? q.is('data->>rev', null) : q.eq('data->>rev', String(rawRev));
+    const { data: upd, error } = await q.select('user_id');
+    if (error) return { ok: false, error: 'write_failed' };
+    if (Array.isArray(upd) && upd.length) return { ok: true };
+    // zero rows = a concurrent writer won — re-read and retry.
+  }
+  return { ok: false, error: 'conflict' };
+}
+window.ShapeNoraMemory = {
+  async list() { const { doc } = await noraMemoryRow(); return normalizeMemoryDoc(doc).notes; },
+  removeNote(id) { return noraMemCasWrite((notes) => notes.filter(n => n.id !== id)); },
+  clearAll() { return noraMemCasWrite(() => []); },
+};
+
 window.ShapeVoice = {
   get: readVoicePrefs,
   voices: NORA_VOICE_LIST,
