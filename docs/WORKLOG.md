@@ -159,7 +159,22 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10c): Nora grounded answers + memory — PR B of the Nora
+> **Latest (2026-07-10d): Nora member action tools — PR C closes the Nora
+> wave** — members DO things through Nora: **log_weigh_in / log_water /
+> check_habit / set_reminder** ride the exact `log_meal` proposal rails
+> (preview → confirm → `ai_audit_log` → undo), self-scoped, exposed ONLY in a
+> verified member's tool list + re-gated in every `buildPreview`;
+> **`find_food`** looks up REAL macros through a shared
+> **`searchFoodsServer`** (extracted from the #1648 route — one fan-out) so
+> "log the Chipotle bowl" proposes real numbers. **Every undo now enforces
+> its predicate IN the atomic statement** (zero rows = the honest "changed
+> since" conflict) — including the `log_meal` parity fix for its old blind
+> restore; `check_habit` fuzzy-matches fail closed (pure tested
+> `memberTools.mjs`). Suite 559. Dated entry below. Wave A+B+C complete —
+> open: owner voice pick (`NORA_TTS_INSTRUCTIONS`) · on-device pass · the
+> splash-pages rearrangement (parked).
+>
+> **Prior (2026-07-10c): Nora grounded answers + memory — PR B of the Nora
 > wave** — support chat now answers a member's personal questions with their
 > REAL numbers: a server-built, caller-RLS **member-context block** (pure
 > tested `memberContext.mjs`; fail-soft fetchers over snapshot/momentum/
@@ -338,6 +353,50 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-10 — Nora member action tools: weigh-in/water/habit/reminder + find_food (Nora wave PR C — the wave closes)
+
+- **PR C of the Nora wave** (spec #1652; plan
+  `docs/superpowers/plans/2026-07-10-nora-member-tools.md`; built inline, TDD
+  on the pure module). "Log my weight at 182", "add 500 ml of water", "check
+  off my morning walk", "remind me to weigh in at 7:30", and "log the
+  Chipotle bowl" all work — and every write still goes through the confirm
+  card.
+- **Four proposal tools** in `actions.mjs`, the exact `logMealAction` shape
+  (self-scoped `ctx.actor.id`, preview → confirm → `ai_audit_log` → undo):
+  **`log_weigh_in`** (today's `client_weigh_ins` upsert, unit explicit in the
+  summary — never silently assumed; fires `award_my_goal_milestones`
+  best-effort), **`log_water`** (the `/api/client/hydration` delta via
+  `waterLiters` ml/oz conversion — null on unknown units, ±2 L route cap
+  honored), **`check_habit`** (pure `matchHabit` over the member's own active
+  habits — exactly one hit proceeds, no match lists their real names,
+  several matches fail closed listing candidates; already-done days refuse),
+  **`set_reminder`** (the reminders route's own validation mirrored; weekday
+  default stated in the summary). Schemas ride `MEMBER_TOOLS` — **only a
+  verified member's tool list carries them** + every `buildPreview` re-gates
+  on `ctx.isMember` (threaded through `makePropose`).
+- **`find_food`** — a member-only READ tool over the new shared
+  **`src/lib/food-search-server.ts`** (`searchFoodsServer(q)`, extracted
+  verbatim from the #1648 route — ONE fan-out implementation): top-5 real
+  foods with kcal/P/C/F for a follow-up `log_meal` proposal; provider outage
+  → an honest `food_search_unavailable` ("ask the member for their numbers").
+- **Every undo enforces its predicate IN the atomic statement** (spec #1652
+  round 4): zero affected rows = "Changed since — nothing undone."
+  `log_weigh_in` conditions on the full value snapshot (no `updated_at` on
+  that table); `check_habit` deletes today's completion row in-statement;
+  `set_reminder` deletes only an UNEDITED reminder (id + kind + time);
+  `log_water`'s undo is the **accumulator inverse** (a negative delta —
+  preserves concurrent additions, strictly stronger than a restore; the
+  documented deviation). **The `log_meal` parity fix ships**: its old blind
+  snapshot restore now carries the same per-column in-statement guard —
+  with a new stale-undo conflict test vector + a fully chainable
+  guarded-write Supabase mock in `tests/ai-actions.test.mjs`.
+- Verified per commit: `tsc --noEmit` clean · `npm test` **559** (new:
+  `member-tools`; extended: `ai-actions`) · LF. No migration, no env, no new
+  route. **The Nora wave (A voice · B grounding+memory · C tools) is
+  code-complete** — open: owner voice audition → `NORA_TTS_INSTRUCTIONS` ·
+  the on-device pass (voice chat round-trip · member chat real numbers ·
+  each tool propose→confirm→undo) · the parked splash-pages rearrangement.
 
 ### 2026-07-10 — Nora grounded answers + memory: real numbers in chat · remember/forget · Settings list (Nora wave PR B)
 
