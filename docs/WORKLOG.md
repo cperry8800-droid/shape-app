@@ -365,6 +365,66 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — The launch on the wire: wire-ticker beat → the telegram Daily briefing (#1667 spec · #1668 build)
+
+- **The member's three cold-open stops collapse into ONE self-advancing wire
+  dispatch.** Was: cosmos 4s splash → membership gate (members saw a bare
+  "Checking membership…" screen while auth restored) → the tap-gated "Shape
+  Daily" (which demanded a "Step inside" tap every open, even a lunchtime
+  relaunch). Now: a ~1s **wire-ticker beat** (drifting dispatch dashes, one lit
+  teal) that **holds while the membership check resolves behind it** →
+  **"The telegram"** (the member's real day as one wire message) that
+  **self-advances into the app after 5s** (draining rule + tap-to-skip). Spec
+  `docs/superpowers/specs/2026-07-10-splash-wire-briefing-design.md` (#1667, 3
+  CodeRabbit Majors fixed in-spec); built inline on Opus, TDD on the pure
+  module. Mobile-only.
+- **Pure `mobile-app/src/services/dailyWire.mjs`** (+ `tests/daily-wire.test.mjs`,
+  21 vectors, suite **592**): `bsLaunchRoute` (the warm-relaunch decision),
+  `bsAfterBeat` (post-beat routing), `bsWireLines` (telegram line assembly —
+  **signed-out sentinel** returns null when the digest isn't a signed-in
+  member, and each absent leg **omits its line**, never a fabricated figure),
+  and `bsWireDirective` + **`BS_LEVER_HEADS`** (the directive words).
+- **Boot decision (synchronous):** a known member who already saw today's
+  briefing skips **straight to the app** — a per-account, per-**local**-day
+  `shape.dailySeen` stamp (rolls over at the member's own midnight). The auth
+  state hydrates async, so the boot uid comes from a persisted **`shape.lastUid`**
+  (written when membership resolves, cleared on logout with `shape.dailySeen`) —
+  the CodeRabbit P2: without it the warm-skip never fired on a fresh JS context.
+  Cross-account safe (a logout→different-member login no longer matches the
+  stamp's uid, so the new member still gets their briefing).
+- **The wire beat** (`BSSplash style="wire-beat"`) holds a ~1.1s minimum, then
+  the shell routes on `!memberGateLoading` (the SAME membership signal the gate
+  reads) — language picker on first run, else the telegram (members) or the
+  gate/wall (non-members). **`BSPaywallLoading` ("Checking membership…") is
+  retired** for `BSWireHold` (the wire ground, no copy) — no membership screen
+  renders anywhere.
+- **The telegram** (the classified member branch, re-set): `SHAPE WIRE · TO:
+  {NAME}` + the digest lines (session · the **directive lit teal** · numbers ·
+  coach note) with STOP/END separators, self-advancing. The **directive joins
+  `bsBuildDailyDigest` as a `Promise.race`-bounded leg (~1.5s → null)** so a
+  slow/hung `ShapeSignals` can never delay the render. It calls the **identical**
+  `selfRecord()→directive()` path + gate Home's lead uses, and **Home's
+  `engineMove` head defaultValues now read the shared `BS_LEVER_HEADS`** — the
+  two surfaces can't drift. The signed-out **invite edition is unchanged**
+  (tap-only "Step inside").
+- **The members wall** (`BSPaywall`) restyled to the wire grammar — dim
+  drifting ticker ground, the feature list as one STOP-separated line (incl.
+  **"OR BUILD YOUR OWN WORKOUTS"** — the self-serve builder), a **clipped
+  solid-teal JOIN** (the one commerce action) — **logic + the `paywall_viewed`
+  analytics verbatim**, signed-out only.
+- **A11y / motion:** the telegram root is a real keyboard control (`role=button`
+  + `tabIndex` + Enter/Space + `:focus-visible`); the invite keeps its "Step
+  inside" button as the keyboard control (no nested-interactive `role=button`).
+  The drifting ticker is the launch's only loop (beat + wall grounds only);
+  **`prefers-reduced-motion` renders assembled with an explicit ENTER — no
+  auto-advance**. Launch surfaces are fixed-dark by design (don't follow the
+  paper theme). Score formatter pinned `toLocaleString('en-US')` (deterministic).
+- Verified: JSX parse ×2 · `tsc --noEmit` clean · `npm test` **592** · PowerShell
+  `/m/` build exit 0 · LF. CI green (Web · Mobile · gitleaks); CodeRabbit
+  APPROVED after the 2 fixes (warm-skip uid + en-US). `public/m` built at deploy
+  (gitignored). **Open:** the owner on-device pass — cold/warm/next-day ×
+  signed-out wall/preview × reduced motion × Black/Sage/Cream papers.
+
 ### 2026-07-10 — Both sweep migrations APPLIED + verified live (owner ran them)
 
 - **`2026-07-10-ai-audit-undo-claim.sql`** (#1659) and
