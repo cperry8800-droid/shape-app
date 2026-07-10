@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   TONES, DEFAULT_TONE, normalizeTone, FRAMING_RULES, toneInstruction, voiceForTone,
-  speakableDirective, encodeSpokenText, decodeSpokenText, containsShaming,
+  voiceStyleForTone, speakableDirective, encodeSpokenText, decodeSpokenText, containsShaming,
   NORA_VOICES, normalizeVoice, resolveVoice,
 } from '../src/lib/ai/tone.mjs';
 
@@ -44,6 +44,20 @@ test('voice maps per tone (supportive warmer, direct neutral)', () => {
   assert.equal(voiceForTone('supportive'), 'shimmer');
   assert.equal(voiceForTone('direct'), 'alloy');
   assert.equal(voiceForTone('bogus'), 'shimmer'); // default
+});
+
+test('voiceStyleForTone steers delivery per tone and defaults supportive', () => {
+  const s = voiceStyleForTone('supportive');
+  const d = voiceStyleForTone('direct');
+  assert.ok(s.length > 20 && d.length > 20);
+  assert.notEqual(s, d);
+  assert.match(s, /warm/i);
+  assert.match(d, /crisp|brisk/i);
+  // both explicitly ban the announcer read; unknown tone falls to supportive
+  assert.match(s, /never announcer/i);
+  assert.match(d, /never announcer/i);
+  assert.equal(voiceStyleForTone('bogus'), s);
+  assert.equal(voiceStyleForTone(null), s);
 });
 
 test('a member can pick a voice; unknown/auto falls back to the tone default', () => {

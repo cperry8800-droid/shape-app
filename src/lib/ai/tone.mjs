@@ -47,6 +47,17 @@ export function voiceForTone(tone) {
   return normalizeTone(tone) === 'direct' ? 'alloy' : 'shimmer';
 }
 
+// Speech-delivery style per tone for the gpt-4o-mini-tts `instructions` field —
+// steers HOW the words are read, never the words themselves (the verbatim
+// contract). The NORA_TTS_INSTRUCTIONS env (optional) overrides both at the
+// speak route, so the owner can pin a house style without a code change.
+export function voiceStyleForTone(tone) {
+  if (normalizeTone(tone) === 'direct') {
+    return 'Crisp, confident, matter-of-fact fitness coach — brisk, energetic pace, no fluff, never announcer-like.';
+  }
+  return 'Warm, natural, encouraging fitness coach talking with a friend — relaxed conversational pace, gentle emphasis, never announcer-like.';
+}
+
 // The voices a member can pick for Nora (curated OpenAI TTS set, friendly
 // labels). 'auto' (or anything unknown) means "follow the tone" via voiceForTone.
 export const NORA_VOICES = [

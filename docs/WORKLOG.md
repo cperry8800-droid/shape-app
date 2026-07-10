@@ -159,7 +159,20 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10): Real food-database search in the meal logger (#1648)** —
+> **Latest (2026-07-10b): Nora voice overhaul — PR A of the Nora wave** — the
+> robot is dead: `speakVoice` is server-only and returns an honest
+> `{ok, reason}` (explicit Listen taps toast "Nora's voice is a member
+> feature" / "Voice is unavailable right now"; auto-speak failures stay
+> silent); the server TTS (`gpt-4o-mini-tts`) now takes **style
+> `instructions`** — pure `voiceStyleForTone(tone)` in `tone.mjs` (tested),
+> overridable by the optional **`NORA_TTS_INSTRUCTIONS`** env (owner
+> auditioning at openai.fm) — with the verbatim `X-Spoken-Text` contract
+> untouched; and the mobile Nora support chat gains **Voice chat** mode
+> (header chip, off by default): hold-to-talk mic → transcript sends as a
+> message → her reply auto-plays. Spec #1652 (5 review rounds); dated entry
+> below. Open: PR B grounding+memory · PR C member tools · owner voice pick.
+>
+> **Prior (2026-07-10): Real food-database search in the meal logger (#1648)** —
 > the add-food sheet's "search coming" placeholder is dead: signed-in members
 > search a **hybrid USDA FoodData Central + Open Food Facts** database (pure
 > `foodSearch.mjs` normalize/merge/rank shared by route + tests · `GET
@@ -312,6 +325,44 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-10 — Nora voice overhaul: style-steered TTS · the robot dies · Voice chat mode (Nora wave PR A)
+
+- **PR A of the Nora-upgrades wave** (spec
+  `docs/superpowers/specs/2026-07-10-nora-upgrades-design.md`, #1652 —
+  merged after **5 CodeRabbit rounds** that hardened the wave's security/audit
+  contracts: per-request tool registry, CAS'd `nora_memory`, in-statement undo
+  guards, redacted audit logs, negative-path vectors; plan
+  `docs/superpowers/plans/2026-07-10-nora-voice-overhaul.md`; built inline).
+- **The robot is dead.** `speakVoice` (`shapeBackend.js`) is **server-only**:
+  the `speechSynthesis` fallback — the "actual robot" every signed-out preview
+  and non-member heard — is deleted. Failures return honest
+  `{ ok:false, reason: 'signed_out' | 'members' | 'unavailable' }`; an
+  explicit **Listen/Preview tap toasts** ("Nora's voice is a member feature" /
+  "Voice is unavailable right now") while **auto-speak failures stay silent**.
+  Silence over brand-damaging robot audio.
+- **The real voice gets a coach's delivery.** `synthesizeSpeech` passes a new
+  `instructions` field to `gpt-4o-mini-tts`; pure **`voiceStyleForTone(tone)`**
+  in `tone.mjs` (unit-tested, suite 541) supplies the per-tone default
+  (supportive = warm/conversational, direct = crisp/brisk, both
+  "never announcer-like"), and the **optional `NORA_TTS_INSTRUCTIONS` env**
+  overrides it — the owner auditions voices/styles at openai.fm and pins the
+  winner with a one-line env change. The **verbatim contract is untouched**:
+  instructions steer delivery, never words; `X-Spoken-Text` parity holds.
+- **Voice chat mode** (mobile Nora support chat): a **VOICE CHAT on/off chip**
+  in her thread header (off by default, per-session). On: the composer mic
+  becomes **hold-to-talk** (press = record, release = transcribe → the text
+  **sends as a normal message** via a shared `sendSupportText`) and her reply
+  **auto-plays** (`speakReply(reply, { force:true })`). Off: the mic stays the
+  existing tap-to-toggle dictation into the composer. Capture/transcribe
+  failures degrade to the text composer with the existing error line. The
+  header head became `role="button"` (a real `<button>` chip can't nest in a
+  `<button>`).
+- Verified: JSX parse · `tsc --noEmit` clean · `npm test` **541** · PowerShell
+  `/m/` build exit 0 · LF. **Open:** PR B (grounding + memory) → PR C (member
+  tools); owner voice audition → `NORA_TTS_INSTRUCTIONS` (+ default voice) in
+  Vercel; on-device pass (Listen toast · voice-chat round-trip · hold-to-talk
+  on real touch).
 
 ### 2026-07-10 — Website screenshots refreshed: all 9 phone captures now show the July app (#1650, `83a0c29e`)
 - **Every phone capture on the marketing site was June-era** — pre-dating the
