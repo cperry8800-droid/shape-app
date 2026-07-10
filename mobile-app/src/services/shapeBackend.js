@@ -3505,7 +3505,18 @@ async function searchFoods(q, { signal } = {}) {
   if (!res.ok) throw new Error('food_search_failed');
   return await res.json();
 }
-window.ShapeFoodSearch = { search: searchFoods };
+// Barcode → one OFF product (the v2 scanner). Same route, ?barcode= leg;
+// resolves { results:[row] } | { results:[], notFound } | { results:[], unavailable }.
+async function lookupFoodBarcode(code, { signal } = {}) {
+  const clean = String(code || '').trim();
+  if (!clean) return { results: [], notFound: true };
+  const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/food-search?barcode=${encodeURIComponent(clean)}`, {
+    headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store', signal,
+  });
+  if (!res.ok) throw new Error('food_barcode_failed');
+  return await res.json();
+}
+window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }

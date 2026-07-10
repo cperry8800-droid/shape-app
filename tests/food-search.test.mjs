@@ -3,7 +3,7 @@
 // products, incl. the honest-data kcal-drop rule and the serving-math paths.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeFdcFood, normalizeOffProduct, mergeAndRank } from '../mobile-app/src/services/foodSearch.mjs';
+import { normalizeFdcFood, normalizeOffProduct, mergeAndRank, bsValidBarcode } from '../mobile-app/src/services/foodSearch.mjs';
 
 const FDC_CHICKEN = {
   fdcId: 171077, description: 'Chicken, broilers or fryers, breast, meat only, cooked, roasted',
@@ -102,4 +102,16 @@ test('mergeAndRank: prefix match outranks substring match', () => {
   const b = { id: 'b', source: 'fdc', name: 'Fried rice', brand: null, qty: '100 g', kcal: 190, p: 5, c: 30, f: 6, per100g: null, servings: [] };
   const out = mergeAndRank([b, a], [], 'rice');
   assert.equal(out[0].id, 'a');
+});
+
+test('bsValidBarcode: GTIN lengths pass, separators strip, junk is null', () => {
+  assert.equal(bsValidBarcode('0123456789012'), '0123456789012'); // EAN-13
+  assert.equal(bsValidBarcode('01234567'), '01234567');           // EAN-8
+  assert.equal(bsValidBarcode(' 012345 678905 '), '012345678905'); // UPC-A w/ spaces
+  assert.equal(bsValidBarcode('0-12345-67890-5'), '012345678905'); // hyphens strip
+  assert.equal(bsValidBarcode('1234567'), null);        // too short
+  assert.equal(bsValidBarcode('123456789012345'), null); // too long
+  assert.equal(bsValidBarcode('12345abc9012'), null);   // letters
+  assert.equal(bsValidBarcode(''), null);
+  assert.equal(bsValidBarcode(null), null);
 });

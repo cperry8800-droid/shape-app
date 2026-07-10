@@ -16,12 +16,14 @@ const OFF_USER_AGENT = 'Shape/1.0 (privacy@theshapecommunity.com)';
 // headers arrive, so clearing the timer before res.json() would let a stalling
 // provider hold the request open past the advertised per-leg limit; aborting
 // the signal also rejects an in-flight body read. null = attempted and FAILED.
-async function timedJson(url: string, init: RequestInit): Promise<unknown | null> {
+// `on404` distinguishes a clean provider "no such record" (the barcode lookup's
+// unknown code) from an outage — undefined keeps 404 = failed (search legs).
+async function timedJson(url: string, init: RequestInit, on404?: unknown): Promise<unknown | null> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), PROVIDER_TIMEOUT_MS);
   try {
     const res = await fetch(url, { ...init, signal: ctl.signal, cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) return res.status === 404 && on404 !== undefined ? on404 : null;
     return await res.json(); // still under the timer — a stalled body aborts
   } catch {
     return null;
@@ -55,7 +57,25 @@ async function searchOff(q: string): Promise<unknown[] | null> {
   return Array.isArray(data.products) ? data.products : [];
 }
 
-export type FoodSearchResult = { results: unknown[]; unavailable?: boolean };
+export type FoodSearchResult = { results: unknown[]; unavailable?: boolean; notFound?: boolean };
+
+// Barcode → ONE product via the OFF v2 product endpoint (OFF rows already
+// carry the code; FDC has no barcode index, so this is single-leg).
+// Distinguishes honestly: a row · notFound (real answer: no such product /
+// no usable macros) · unavailable (the provider couldn't be reached).
+const BARCODE_NOT_FOUND = { status: 0 } as const;
+export async function lookupBarcodeServer(code: string): Promise<FoodSearchResult> {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=code,product_name,brands,serving_size,serving_quantity,nutriments`;
+  const data = (await timedJson(url, { headers: { 'user-agent': OFF_USER_AGENT } }, BARCODE_NOT_FOUND)) as
+    | { status?: number; product?: unknown }
+    | null;
+  if (data == null) return { results: [], unavailable: true };
+  // OFF signals a missing code as HTTP 404 or a 200 with status 0/no product.
+  const row = data.status !== 0 && data.product ? normalizeOffProduct(data.product) : null;
+  // A product with no stateable kcal normalizes to null — that is a NOT-FOUND
+  // for the logger (honest-data: never a fabricated 0-kcal row), not an outage.
+  return row ? { results: [row] } : { results: [], notFound: true };
+}
 
 export async function searchFoodsServer(q: string): Promise<FoodSearchResult> {
   const fdcKey = process.env.FDC_API_KEY || '';
