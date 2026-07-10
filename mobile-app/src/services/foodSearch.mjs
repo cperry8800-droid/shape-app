@@ -14,7 +14,9 @@
 
 export const BS_FOOD_RESULT_CAP = 12;
 
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+// null/undefined/'' must stay null — Number(null) is 0, which would fabricate
+// a 0-kcal row past the honest-data drop check.
+const num = (v) => { if (v == null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 const trimNum = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10));
 
 // FDC search hit (Foundation / SR Legacy): foodNutrients arrive per 100 g.

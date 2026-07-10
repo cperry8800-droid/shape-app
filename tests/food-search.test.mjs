@@ -49,6 +49,11 @@ test('normalizeFdcFood: kcal-less row is dropped, never a fabricated 0', () => {
   assert.equal(normalizeFdcFood(FDC_NO_KCAL), null);
 });
 
+test('normalizeFdcFood: a null energy value never fabricates a 0-kcal row', () => {
+  const raw = { fdcId: 3, description: 'Null energy', foodNutrients: [{ nutrientNumber: '208', value: null }] };
+  assert.equal(normalizeFdcFood(raw), null);
+});
+
 test('normalizeOffProduct: serving from serving_quantity grams', () => {
   const r = normalizeOffProduct(OFF_BAR);
   assert.equal(r.source, 'off');

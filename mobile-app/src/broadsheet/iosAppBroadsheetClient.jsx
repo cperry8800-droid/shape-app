@@ -1691,18 +1691,36 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   React.useEffect(() => {
     if (!signedIn || !showAddFood || foodRecents !== null) return;
     let on = true;
-    bsLoadFoodRecents().then((items) => { if (on) setFoodRecents(items); });
+    // A late load must never clobber a list an add already updated.
+    bsLoadFoodRecents().then((items) => { if (on) setFoodRecents((cur) => (cur === null ? items : cur)); });
     return () => { on = false; };
   }, [signedIn, showAddFood]);
+
+  // Persist an added food to real recents. Centralized so BOTH add paths (＋
+  // direct and via the prefilled editor) go through it, and so an add that
+  // races the initial recents load merges with the CLOUD list instead of
+  // clobbering it with a single item. Best-effort — never blocks the add.
+  const rememberFood = async (f) => {
+    try {
+      const base = foodRecents === null ? await bsLoadFoodRecents() : foodRecents;
+      const next = bsPushFoodRecent(base, f);
+      setFoodRecents(next);
+      await window.shapeDb?.saveUserGoals?.('food_recents', { items: next });
+    } catch (e) {}
+  };
 
   // Live food search — debounced 350 ms, in-flight aborted, min 2 chars.
   React.useEffect(() => {
     if (!signedIn || !showAddFood) return;
     const q = foodQuery.trim();
     if (q.length < 2) { setFoodResults(null); setFoodStatus('idle'); return; }
+    // Clear immediately — the previous query's rows must not stay clickable
+    // through the debounce (a member could add a food that no longer matches
+    // what they typed).
+    setFoodResults(null);
+    setFoodStatus('searching');
     const ctl = new AbortController();
     const timer = setTimeout(() => {
-      setFoodStatus('searching');
       window.ShapeFoodSearch?.search(q, { signal: ctl.signal })
         .then((data) => {
           if (ctl.signal.aborted) return;
@@ -1841,7 +1859,13 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
       c: Math.max(0, Math.round(Number(editIng.c) || 0)), f: Math.max(0, Math.round(Number(editIng.f) || 0)),
     };
-    if (editIng.index == null) { setIngs(arr => [...arr, { ...item, id: bsIngId(), on: true }]); window.__bsToast?.(`Added ${name}`, 'ok'); }
+    if (editIng.index == null) {
+      setIngs(arr => [...arr, { ...item, id: bsIngId(), on: true }]);
+      window.__bsToast?.(`Added ${name}`, 'ok');
+      // A search result added via the prefilled editor is still an add —
+      // recents replay what was added (with any portion edits made here).
+      if (editIng.fromSearch && signedIn) rememberFood(item);
+    }
     else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.('Ingredient updated', 'ok'); }
     setEditIng(null);
   };
@@ -2193,13 +2217,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
           window.__bsToast?.(`Added ${f.name}`, 'ok');
           setShowAddFood(false);
-          const next = bsPushFoodRecent(foodRecents, f);
-          setFoodRecents(next);
-          try { window.shapeDb?.saveUserGoals?.('food_recents', { items: next }); } catch (e) {}
+          rememberFood(f);
         };
         const editLiveFood = (f) => {
           setShowAddFood(false);
-          setEditIng({ index: null, name: f.name, qty: f.qty || '', kcal: String(Math.round(Number(f.kcal) || 0)), p: String(Math.round(Number(f.p) || 0)), c: String(Math.round(Number(f.c) || 0)), f: String(Math.round(Number(f.f) || 0)) });
+          // fromSearch: the editor's save persists this add to recents too.
+          setEditIng({ index: null, fromSearch: true, name: f.name, qty: f.qty || '', kcal: String(Math.round(Number(f.kcal) || 0)), p: String(Math.round(Number(f.p) || 0)), c: String(Math.round(Number(f.c) || 0)), f: String(Math.round(Number(f.f) || 0)) });
         };
         const searching = foodQuery.trim().length >= 2;
         const liveRows = searching ? (foodResults || []) : (foodRecents || []);
