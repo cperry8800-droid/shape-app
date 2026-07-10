@@ -1108,15 +1108,16 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setOtpSent(false);
     setOtpCode('');
   };
-  // Light-on-night-sky palette (mirrors the marketing index page).
-  const CREAM = '#f4efe6';
-  const C70 = 'rgba(244,239,230,0.72)';
-  const C50 = 'rgba(244,239,230,0.5)';
-  const LINE = 'rgba(244,239,230,0.18)';
-  const LINE2 = 'rgba(244,239,230,0.34)';
+  // Fixed-dark wire palette (the launch surfaces never follow the paper theme).
+  ensureWireStyles();
+  const CREAM = '#f2ede4';
+  const C70 = 'rgba(242,237,228,0.72)';
+  const C50 = 'rgba(242,237,228,0.5)';
+  const LINE = 'rgba(242,237,228,0.18)';
+  const LINE2 = 'rgba(242,237,228,0.34)';
   const FIELD = 'rgba(255,255,255,0.05)';
-  const SHAPE_GRAD = { background: 'linear-gradient(90deg, #2ee0c4, #8a5cf6 70%, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' };
-  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '7px 10px', fontFamily: t.DISPLAY, fontSize: 13, color: CREAM, outline: 'none' };
+  const WIRE_BG = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
+  const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 4, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '8px 10px', fontFamily: t.DISPLAY, fontSize: 13, color: CREAM, outline: 'none' };
   const labelStyle = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 4 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
   const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[signupRole] || 'Client';
@@ -1145,8 +1146,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   // "Check your email" — shown after a new account needs email verification.
   if (verifyEmail) {
     return (
-      <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <BSNightSky />
+      <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
+        <BSWireGround plain dim />
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
           <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>Verify email</div>
@@ -1157,7 +1158,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           {captchaOn && (
             <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
           )}
-          <button onClick={resendVerify} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Resend email</button>
+          <button onClick={resendVerify} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '12px 16px', background: 'transparent', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Resend email</button>
           <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>← Back to sign in</button>
         </div>
       </div>
@@ -1165,17 +1166,19 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   }
 
   return (
-    <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <BSNightSky />
+    <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
+      <BSWireGround plain dim />
       {onBack && (
         <button onClick={onBack} style={{ position: 'absolute', zIndex: 3, top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 10px))', left: 18, background: 'transparent', border: 0, color: C70, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 4px' }}>← Back</button>
       )}
-      <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
-        {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', display: 'block', marginLeft: -13, marginTop: -50, filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
+      <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {/* Logo lockup — top-left. marginTop:auto (+ the footer's marginBottom:auto)
+            centers the column when it's short and top-aligns it when the create
+            form overflows — a plain justify-content:center clips the top. */}
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', display: 'block', marginLeft: -13, marginTop: 'auto', filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
 
         {/* Eyebrow + heading */}
-        <div style={{ marginTop: 48 }}>
+        <div style={{ marginTop: 10 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>
             {isCreate ? 'Join Shape' : 'Sign in'}
           </div>
@@ -1191,19 +1194,19 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {/* Role */}
         <div style={{ marginBottom: 14 }}>
           <div style={labelStyle}>I'm a</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 999, padding: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 6, padding: 4 }}>
             {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
               const on = role === k;
               return <button key={k} onClick={() => setRole(k)} style={{
-                padding: '6px 4px', borderRadius: 999, border: 0,
-                background: on ? '#0ac5a8' : 'transparent', color: on ? '#031f1c' : CREAM,
-                fontFamily: t.DISPLAY, fontSize: 11, fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
+                padding: '7px 4px', borderRadius: 3, border: 0,
+                background: on ? '#34d6c5' : 'transparent', color: on ? '#05080c' : CREAM,
+                fontFamily: t.MONO, fontSize: 9, fontWeight: on ? 800 : 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
               }}>{l}</button>;
             })}
           </div>
           {/* Within the nutritionist application: declare RD/RDN (same discipline, credentialed). */}
           {isCreate && role === 'nutritionist' && (
-            <button onClick={() => setIsDietitian(v => !v)} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'transparent', border: `1px solid ${LINE2}`, borderRadius: 12, padding: '9px 12px', cursor: 'pointer' }}>
+            <button onClick={() => setIsDietitian(v => !v)} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'transparent', border: `1px solid ${LINE2}`, borderRadius: 4, padding: '9px 12px', cursor: 'pointer' }}>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: CREAM }}>I'm a Registered Dietitian (RD/RDN)</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: C50, marginTop: 2 }}>Same nutrition tools · credentialed badge</div>
@@ -1275,11 +1278,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
         )}
 
-        {/* Primary action — cream button */}
+        {/* Primary action — the launch's clipped solid-teal CTA */}
         <button
           onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : submitAuth}
           disabled={busy}
-          style={{ width: '100%', borderRadius: 12, padding: '9px 14px', background: '#0ac5a8', color: '#031f1c', border: 0, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          className="bs-wire-enter"
+          style={{ width: '100%', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? (isCreate ? 'Creating…' : 'Signing in…')
             : isPhone
@@ -1294,7 +1298,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             setAuthError('');
             if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(signupRole); else setMode('create'); }
             else { setMode('create'); }
-          }} style={{ width: '100%', borderRadius: 12, padding: '9px 14px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+          }} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '11px 14px', background: 'transparent', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
             {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}
           </button>
         )}
@@ -1308,13 +1312,13 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
 
         {/* Continue with phone — switches to the SMS one-time-code flow */}
         {!isPhone && (
-          <button onClick={() => switchMethod('phone')} style={{ width: '100%', borderRadius: 12, padding: 8, background: 'rgba(255,255,255,0.04)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => switchMethod('phone')} style={{ width: '100%', minHeight: 44, borderRadius: 0, padding: '11px 14px', background: 'rgba(255,255,255,0.03)', color: C70, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Continue with phone number
           </button>
         )}
 
         {/* Secondary links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 46 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '24px 18px', marginTop: 40, marginBottom: 'auto' }}>
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{isCreate ? 'Have an account? Sign in' : 'New here? Join Shape'}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>Use email instead</button>}
         </div>
