@@ -14321,7 +14321,10 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // startup is async (getUserMedia), so a release can beat the recorder into
   // existence; startServerVoice re-checks the ref at each async boundary.
   const holdingRef = React.useRef(false);
-  const holdStart = (e) => { e.preventDefault(); if (voiceState !== 'idle') return; holdingRef.current = true; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
+  // holdingRef guards re-entrancy too: voiceState is stale until React
+  // re-renders, so a second same-frame pointerdown (multi-touch) would
+  // otherwise double-start and orphan the first recorder/stream.
+  const holdStart = (e) => { e.preventDefault(); if (holdingRef.current || voiceState !== 'idle') return; holdingRef.current = true; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
   // Unconditional stop — voiceState in this closure can lag the actual recorder
   // (React hasn't re-rendered yet on a fast press-release); stopVoice() is safe
   // to call in any state.
