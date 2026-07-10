@@ -159,7 +159,18 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10d): Nora member action tools — PR C closes the Nora
+> **Latest (2026-07-10e): THE NORA WAVE — COMPLETE** (#1652 spec · #1653/#1654
+> voice · #1655 grounding+memory · #1656 member tools · #1657 voice-default
+> env), `main` at `51828ddb`. Full session handoff:
+> **[`docs/HANDOFF-2026-07-10.md`](HANDOFF-2026-07-10.md)** (also covers the
+> food search #1648/#1649 + the website screenshots #1650/#1651 from earlier
+> in the day). **Owner's voice pick: `sage` + a fitness-instructor style** —
+> ⚠ OWNER: paste `NORA_TTS_VOICE=sage` + the `NORA_TTS_INSTRUCTIONS` block
+> (verbatim in the handoff) into Vercel, redeploy, then the Settings →
+> Preview-voice ear check. Open: the on-device Nora pass · the un-parked
+> splash-pages rearrangement pick · deferred items in the handoff.
+>
+> **Prior (2026-07-10d): Nora member action tools — PR C closes the Nora
 > wave** — members DO things through Nora: **log_weigh_in / log_water /
 > check_habit / set_reminder** ride the exact `log_meal` proposal rails
 > (preview → confirm → `ai_audit_log` → undo), self-scoped, exposed ONLY in a
@@ -353,6 +364,35 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-10 — Nora's default voice pinned by env: NORA_TTS_VOICE + the owner's pick (#1657, `51828ddb`)
+
+- The owner auditioned at openai.fm and landed on **`sage` with a
+  fitness-instructor style**. `sage` is in the member picker, but the
+  DEFAULT (no explicit pick) was hardwired to the tone map — new pure
+  **`resolveVoiceWithDefault(voice, envVoice, tone)`** in `tone.mjs`
+  (tested): a member's explicit picker choice → the **`NORA_TTS_VOICE`** env
+  (validated against the FULL gpt-4o-mini-tts voice set, so the owner can pin
+  any API voice incl. non-picker ones) → the tone default. The 6-voice member
+  picker is unchanged. ⚠ **OWNER: set `NORA_TTS_VOICE=sage` +
+  `NORA_TTS_INSTRUCTIONS=<the fitness-instructor block>` in Vercel** (verbatim
+  in `docs/HANDOFF-2026-07-10.md`), redeploy, ear-check via Settings →
+  Preview voice. Both env vars optional — unset, code defaults apply.
+- **PR C review-round amendment** (the entry below was written pre-review;
+  #1656 merged with these fixes, `aea4a624`): **member-LOCAL dates** — new
+  `memberToday(ctx)`/`memberTz(ctx)` compute today in the member's stored
+  IANA zone (`client_profiles.timezone`), so a 9 pm US log no longer lands on
+  UTC-tomorrow (Codex P1), and `log_water` threads the date through
+  execute + undo; **units never assumed or coerced** (a unit-less first
+  weigh-in asks "lb or kg?", `'stone'` is rejected — never silently lb);
+  **habit confirm is add-only** (an intervening completion can't be toggled
+  OFF) and **undo calls `revoke_habit`** so the +3 leaves the score with the
+  completion; **reminders carry the member tz** (were firing at UTC);
+  preview read failures surface honestly (no fabricated 0 L); the
+  food-search provider timeout now covers response BODIES (`timedJson`).
+  Declined with receipts: a mandatory find_food provenance token (the human
+  confirm card IS the gate). Deferred: a guarded-claim RPC for a true
+  one-shot water undo (migration).
 
 ### 2026-07-10 — Nora member action tools: weigh-in/water/habit/reminder + find_food (Nora wave PR C — the wave closes)
 
