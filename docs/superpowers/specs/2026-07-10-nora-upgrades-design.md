@@ -97,9 +97,13 @@ Nora talks like a stranger and, in the demo, sounds like a robot:
 
 New Tier-1 tools in `actions.mjs`, exact `logMealAction` shape (self-scoped
 `ctx.actor.id`, preview → confirm → `ai_audit_log` → undo), registered in
-`serverRegistry` + support-chat function calling. **Every member tool gates on
-membership at execution time** — each handler runs the explicit membership
-check itself before building a preview AND before executing (support chat sits
+`serverRegistry` + support-chat function calling. **Non-members never even SEE
+the tools:** the support-chat function-calling tool list is assembled
+per-request AFTER the fail-closed membership check — a signed-out or
+signed-in-prospect request carries today's exact tool set (byte-identical, no
+discoverability). **And every member tool gates on membership at execution
+time as defense-in-depth** — each handler runs the explicit membership check
+itself before building a preview AND before executing (support chat sits
 outside the membership-gated `/api` prefixes, so neither the route nor the
 model prompt is trusted to enforce it):
 
@@ -122,6 +126,14 @@ model prompt is trusted to enforce it):
   fetch REAL macros (hybrid FDC+OFF, #1648) and then propose a `log_meal`
   filled with them — "log the Chipotle bowl" stops being a guess.
 
+**Undo carries a stale-write guard.** Every proposal's `beforeState` records
+the touched row's version marker (`updated_at`, else a full value snapshot);
+undo restores ONLY while the current row still matches what execute wrote — a
+newer edit (the member logged again, a device synced) returns an honest
+conflict ("changed since — nothing undone"), never a blind overwrite. The
+existing `log_meal` undo has the same blind-overwrite gap today; PR C applies
+the identical guard to it while in the file.
+
 ### 4. Memory (PR B, alongside grounding)
 
 - **`user_goals('nora_memory')`** — `{ notes: [{ id, text, at }] }`, cap 30
@@ -133,15 +145,22 @@ model prompt is trusted to enforce it):
   `remember`'s result surfaces each note's stable `id`; **`forget` deletes by
   `note_id`** (the model gets ids in context). Text-only `forget` is accepted
   only when it matches **exactly one** note — duplicates/ambiguity fail
-  closed, listing the candidates with ids. The audit row records the deleted
-  note's id + text. **Write-then-audit failure behavior** (there is no single
-  transaction across `user_goals` + `ai_audit_log` without a bespoke RPC —
-  deliberately not added for v1): the memory write lands first, the audit row
-  second, and an audit failure after a successful write surfaces
+  closed, listing the candidates with ids. **The `forget` audit row records
+  the deleted note's id + timestamps ONLY — never the text** (a forget must
+  actually forget; parking the forgotten content in `ai_audit_log` would
+  defeat the deletion). **Write-then-audit failure behavior** (there is no
+  single transaction across `user_goals` + `ai_audit_log` without a bespoke
+  RPC — deliberately not added for v1): the memory write lands first, the
+  audit row second, and an audit failure after a successful write surfaces
   `audited:false` in the tool result + a server log instead of throwing — the
-  exact established `proposals.mjs` pattern. Both tools are idempotent
-  (`remember` dedupes an identical note; `forget` by id), so a retry after a
-  partial failure never double-applies. These tools also gate on the same
+  exact established `proposals.mjs` pattern. **Retries repair the audit:**
+  both tools key their audit row on a stable operation id (the note's own id),
+  so a retry that dedupes an already-written note reconciles the missing audit
+  row (insert-if-absent) before returning — a mutation can't stay permanently
+  unaudited. The inline chip reflects `audited:false` honestly ("Noted — audit
+  pending"), never a clean "Noted ✓". Both tools are idempotent (`remember`
+  dedupes an identical note; `forget` by id), so a retry after a partial
+  failure never double-applies. These tools also gate on the same
   execution-time membership check as the data tools. **Decision for review:**
   these run **direct-with-audit**
   (no confirm card — "remember I hate burpees" shouldn't need a modal; every
@@ -163,8 +182,18 @@ commit: parse/tsc · `/m/` build · `npm test` (new vectors: `voiceStyleForTone`
 `formatMemberContext`, tool previews where pure) · LF. Click-throughs: demo
 Listen shows the honest toast (no robot); member chat answers "how am I doing
 this week" with real numbers; each tool round-trips propose → confirm → undo;
-memory survives a reload and deletes from Settings. Voice quality is signed
-off **by ear by the owner** (pick voice + instructions, then we pin the env).
+memory survives a reload and deletes from Settings. **Negative-path vectors
+(required before each PR ships):** signed-out AND signed-in-prospect chat
+exposes no member tool (the tool list is byte-identical to today's);
+membership revoked between preview and confirm → execute fails closed; every
+tool touches only the caller's own rows (self-scoped `ctx.actor.id` + RLS,
+asserted); undo against a row edited after execute returns the conflict and
+changes nothing; an audit-write failure followed by a retry reconciles the
+missing audit row; the model-down `fallbackReply` contains no member-context
+content; Settings "clear all" requires the confirm primitive
+(`window.bsAskConfirm`) and per-note delete removes exactly the one id. Voice
+quality is signed off **by ear by the owner** (pick voice + instructions,
+then we pin the env).
 
 ## Owner actions
 
