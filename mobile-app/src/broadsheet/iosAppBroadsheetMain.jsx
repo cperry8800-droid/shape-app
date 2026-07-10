@@ -296,10 +296,12 @@ function BSCosmicWordmark({ scale = 1 }) {
   );
 }
 
-// Share the cosmic background + mark with the role bundles (home, radio).
+// Share the cosmic background + mark with the role bundles (home, radio) and
+// the wire ground with the provider-application screen (same launch grammar).
 if (typeof window !== 'undefined') {
   window.BSNightSky = BSNightSky;
   window.BSShapeMark = BSShapeMark;
+  window.BSWireGround = BSWireGround;
 }
 
 // Switchable decorative background for the Classified splash.

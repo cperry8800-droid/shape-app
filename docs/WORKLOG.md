@@ -365,6 +365,29 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
+
+- **`BSProviderApplicationScreen` rebuilt in the wire grammar** (owner: "update
+  design on the application process on app for both trainer and nutritionist")
+  — it was the last paper-theme screen inside the launch flow (a cream 4-step
+  boxed form right after the fixed-dark wire auth pages). Now fixed-dark on the
+  shared drifting ticker ground (`BSWireGround` is window-exported for it):
+  teal PROVIDER DESK eyebrow + serif "Apply to *Shape.*", the **role tag as the
+  one role-heat placement** (trainer rust / nutritionist gold fill · dietitian
+  reads `NUTRITIONIST APPLICATION · RD/RDN`), the auth pages' **step register**
+  (STEP n OF 4 · SECTION over the 2px rule) + teal segment strip, **dot-leader
+  entry fields** (label above, teal underline on focus, dark-pinned autofill +
+  `color-scheme: dark` selects/date), squared teal specialty chips + checks,
+  dashed-frame file drops, teal-spined notice lines, and a ghost BACK · clipped
+  teal **CONTINUE → / TRANSMIT · SUBMIT →** action row. The submitted screen
+  matches (serif "Submitted *for review.*" + FILED ✓ / honest SAVED LOCALLY).
+- **Logic verbatim**: prefill from the cached auth profile, all field
+  keys/validation (required set, 4 consents, 5-year experience minimum, 10MB
+  file cap), the upload → `submitProviderApplication` chain, and the #1674
+  dietitian `nutrition_role` declaration are untouched.
+- Verified: JSX parse ×2 · PowerShell `/m/` build exit 0 · browser screenshots
+  of all 4 steps (nutritionist) + step 1 (trainer) on the built bundle.
+
 ### 2026-07-10 — Launch round 3: STOPs die + dietitian wired (#1674) · the beat gets structure · sign-in/create = "The wire form"
 
 - **#1674 (merged `f56d0ba1`):** STOP/END tokens removed from every launch page
