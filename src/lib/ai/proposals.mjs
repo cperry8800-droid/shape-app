@@ -227,8 +227,18 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
 }
 
 /**
- * Undo a previously-executed change: load its audit entry, reverse it via the
- * action's undo (from the stored before-state), and mark the entry undone.
+ * Undo a previously-executed change: load its audit entry, atomically CLAIM
+ * the executed→undone transition, then reverse the data via the action's own
+ * undo (from the stored before-state).
+ *
+ * Claim-first is the one-shot guard: two concurrent undo requests could both
+ * pass a status read and both apply the reversal (log_water's inverse delta
+ * would subtract twice). When the sink exposes claimUndo (the
+ * claim_ai_action_undo RPC), exactly one caller wins the claim and applies
+ * the reversal; the loser reads alreadyUndone. A claim whose reversal then
+ * FAILS is handed back via releaseUndo so the ledger never records an undo
+ * that didn't happen. Sinks without claimUndo (or pre-migration, when the
+ * RPC signals absence with null) keep the legacy read→reverse→mark order.
  * @returns {{ok:true, alreadyUndone?:boolean} | {ok:false, error}}
  */
 export async function undoChange({ registry, auditId, actor, ctx, audit }) {
@@ -238,6 +248,13 @@ export async function undoChange({ registry, auditId, actor, ctx, audit }) {
 
   const action = registry.get(entry.action);
   if (!action || typeof action.undo !== 'function') return { ok: false, error: 'not_undoable' };
+
+  let claimed = false;
+  if (typeof audit.claimUndo === 'function') {
+    const won = await audit.claimUndo(auditId);
+    if (won === false) return { ok: true, alreadyUndone: true };
+    claimed = won === true; // null = guard unavailable (pre-migration) → legacy order
+  }
 
   const plan = {
     action: entry.action,
@@ -249,8 +266,24 @@ export async function undoChange({ registry, auditId, actor, ctx, audit }) {
     afterState: entry.afterState,
     reversal: entry.reversal,
   };
-  await action.undo(ctx, plan);
-  await audit.markUndone(auditId);
+  try {
+    await action.undo(ctx, plan);
+  } catch (e) {
+    if (claimed && typeof audit.releaseUndo === 'function') {
+      try {
+        await audit.releaseUndo(auditId);
+      } catch (releaseErr) {
+        // The reversal failed AND the hand-back failed: the row reads undone
+        // but the data wasn't reversed. Surface loudly; the original error
+        // still propagates to the caller.
+        console.error('[shape-ai] undo claim release failed after a failed reversal:', {
+          auditId, message: (releaseErr && releaseErr.message) || String(releaseErr),
+        });
+      }
+    }
+    throw e;
+  }
+  if (!claimed) await audit.markUndone(auditId);
   return { ok: true, undoneBy: actor ? actor.id : null };
 }
 
@@ -289,6 +322,24 @@ export function inMemoryAudit() {
       if (r) {
         r.status = 'undone';
         r.undoneAt = Date.now();
+      }
+      return true;
+    },
+    // One-shot guard (mirrors claim_ai_action_undo): true = this caller won
+    // the executed→undone transition; false = missing or already undone.
+    async claimUndo(id) {
+      const r = rows.find((x) => x.id === id);
+      if (!r || r.status !== 'executed') return false;
+      r.status = 'undone';
+      r.undoneAt = Date.now();
+      return true;
+    },
+    // Hand a claim back after a failed reversal (release_ai_action_undo).
+    async releaseUndo(id) {
+      const r = rows.find((x) => x.id === id);
+      if (r && r.status === 'undone') {
+        r.status = 'executed';
+        r.undoneAt = null;
       }
       return true;
     },

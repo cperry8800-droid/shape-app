@@ -182,6 +182,24 @@ export function auditSink(supabase: SupabaseClient) {
       if (error) throw new Error(`ai_audit undo failed: ${error.message}`);
       return true;
     },
+    // One-shot guard: atomically win the executed→undone transition BEFORE the
+    // data reversal runs (claim_ai_action_undo). Returns null when the RPC
+    // isn't deployed yet so undoChange falls back to the legacy order.
+    async claimUndo(id: string): Promise<boolean | null> {
+      const { data, error } = await supabase.rpc('claim_ai_action_undo', { p_id: id });
+      if (error) {
+        const code = (error as { code?: string }).code;
+        if (code === 'PGRST202' || code === '42883' || /claim_ai_action_undo/.test(error.message)) return null;
+        throw new Error(`ai_audit undo claim failed: ${error.message}`);
+      }
+      return data === true;
+    },
+    // Hand a claim back after a failed reversal so the ledger stays honest.
+    async releaseUndo(id: string): Promise<boolean> {
+      const { data, error } = await supabase.rpc('release_ai_action_undo', { p_id: id });
+      if (error) throw new Error(`ai_audit undo release failed: ${error.message}`);
+      return data === true;
+    },
   };
 }
 
