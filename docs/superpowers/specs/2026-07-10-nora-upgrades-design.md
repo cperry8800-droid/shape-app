@@ -81,15 +81,27 @@ Nora talks like a stranger and, in the demo, sounds like a robot:
   `member_context_unavailable` note — *"live member facts could not be loaded
   right now; if asked about their own numbers, say the data isn't available —
   never estimate or invent it"* — so personal questions get an honest
-  unavailable answer instead of a fabricated one. Signed-out and signed-in
-  non-member chat is byte-identical to today. Cost: ~300–500 extra prompt
-  tokens per member message.
+  unavailable answer instead of a fabricated one. **The model-down fallback
+  stays honest too:** when `askOpenAI` fails, the route's rule-based
+  `fallbackReply` takes over — it is generic support copy that by construction
+  never states a personal metric, so a member whose context also failed can
+  never receive fabricated numbers through that path; PR B adds a test vector
+  asserting the fallback contains no member-context content. Signed-out and
+  signed-in non-member chat is byte-identical to today. Cost: ~300–500 extra
+  prompt tokens per member message for the facts block; injected memory adds
+  up to ~700 more at the worst case (10 notes × 280 chars ≈ 2,800 chars), so
+  the measured worst-case overhead is **~1,200 prompt tokens** per member
+  message — still trivial at support-chat volumes.
 
 ### 3. Member actions (PR C)
 
 New Tier-1 tools in `actions.mjs`, exact `logMealAction` shape (self-scoped
 `ctx.actor.id`, preview → confirm → `ai_audit_log` → undo), registered in
-`serverRegistry` + support-chat function calling:
+`serverRegistry` + support-chat function calling. **Every member tool gates on
+membership at execution time** — each handler runs the explicit membership
+check itself before building a preview AND before executing (support chat sits
+outside the membership-gated `/api` prefixes, so neither the route nor the
+model prompt is trusted to enforce it):
 
 - **`log_weigh_in { weight, unit? }`** → today's `client_weigh_ins` upsert
   (the ShapeWeighIns path; fires the goal-milestone check). Undo restores the
@@ -122,7 +134,16 @@ New Tier-1 tools in `actions.mjs`, exact `logMealAction` shape (self-scoped
   `note_id`** (the model gets ids in context). Text-only `forget` is accepted
   only when it matches **exactly one** note — duplicates/ambiguity fail
   closed, listing the candidates with ids. The audit row records the deleted
-  note's id + text. **Decision for review:** these run **direct-with-audit**
+  note's id + text. **Write-then-audit failure behavior** (there is no single
+  transaction across `user_goals` + `ai_audit_log` without a bespoke RPC —
+  deliberately not added for v1): the memory write lands first, the audit row
+  second, and an audit failure after a successful write surfaces
+  `audited:false` in the tool result + a server log instead of throwing — the
+  exact established `proposals.mjs` pattern. Both tools are idempotent
+  (`remember` dedupes an identical note; `forget` by id), so a retry after a
+  partial failure never double-applies. These tools also gate on the same
+  execution-time membership check as the data tools. **Decision for review:**
+  these run **direct-with-audit**
   (no confirm card — "remember I hate burpees" shouldn't need a modal; every
   write still lands in `ai_audit_log` and shows an inline "Noted ✓" chip),
   unlike the data tools which keep the confirm gate. Say the word if you want
