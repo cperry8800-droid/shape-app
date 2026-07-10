@@ -451,7 +451,30 @@ export const rescheduleSessionAction = {
 // — zero affected rows = the honest "changed since" conflict.
 var MEMBER_GATE_MSG = 'Becoming a member unlocks this.';
 function memberGate(ctx) { if (ctx.isMember !== true) throw new Error(MEMBER_GATE_MSG); }
-function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+// The member's stored IANA timezone (client_profiles.timezone — captured on
+// app open, the same source the award day-clamp trusts). null when unset.
+async function memberTz(ctx) {
+  try {
+    var sel = await ctx.supabase.from('client_profiles').select('timezone').eq('user_id', ctx.actor.id).maybeSingle();
+    var tz = sel && sel.data && sel.data.timezone;
+    return typeof tz === 'string' && tz ? tz : null;
+  } catch (e) { return null; }
+}
+// The member's LOCAL calendar day — day-bucketed writes (weigh-in, habit,
+// hydration) must land on THEIR today (the src/lib/local-day.ts contract), not
+// UTC's: a US member logging at 9 pm is still on today, not tomorrow. The
+// server has no device clock, so the stored zone decides; missing/invalid → UTC.
+async function memberToday(ctx) {
+  var tz = await memberTz(ctx);
+  if (tz) {
+    try {
+      var day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    } catch (e) { /* bad stored zone → UTC */ }
+  }
+  return new Date().toISOString().slice(0, 10);
+}
 
 // log_weigh_in → upsert today's client_weigh_ins row (the ShapeWeighIns path;
 // fires the goal-milestone check best-effort).
@@ -465,17 +488,22 @@ export const logWeighInAction = {
     var weight = Number(input.weight);
     if (!Number.isFinite(weight) || weight <= 0 || weight >= 1500) throw new Error('Tell me the weight to log (a number).');
     weight = Math.round(weight * 10) / 10;
-    var today = todayIso();
+    // A supplied-but-unknown unit is REJECTED (never coerced to lb).
+    if (input.unit != null && input.unit !== 'kg' && input.unit !== 'lb') throw new Error('Which unit — lb or kg?');
+    var today = await memberToday(ctx);
     var sel = await ctx.supabase
       .from('client_weigh_ins')
       .select('weight, unit')
       .eq('user_id', ctx.actor.id)
       .eq('logged_on', today)
       .maybeSingle();
-    var cur = (sel && sel.data) || null;
-    // The unit is always EXPLICIT in the summary — from the member's input,
-    // else today's existing row, else lb — never silently assumed.
-    var unit = input.unit === 'kg' || input.unit === 'lb' ? input.unit : (cur && cur.unit) || 'lb';
+    if (sel.error) throw new Error('Could not read today’s weigh-in right now.');
+    var cur = sel.data || null;
+    // The unit is always EXPLICIT and never assumed: the member's own word,
+    // else today's existing row's unit. Neither → ask (a first weigh-in stored
+    // in the wrong unit is a real wrong weight).
+    var unit = input.unit || (cur && cur.unit) || null;
+    if (!unit) throw new Error('Which unit — lb or kg?');
     var before = { logged_on: today, weight: cur ? Number(cur.weight) : null, unit: cur ? String(cur.unit) : null };
     var after = { logged_on: today, weight: weight, unit: unit };
     return {
@@ -535,28 +563,32 @@ export const logWaterAction = {
     var deltaL = waterLiters(input.amount, input.unit);
     if (deltaL == null) throw new Error('Tell me the amount in ml or oz — e.g. 500 ml or 16 oz.');
     if (deltaL > 2) throw new Error('That’s more than one log can add (2 L max) — log it in parts.');
-    var today = todayIso();
+    var today = await memberToday(ctx);
     var sel = await ctx.supabase
       .from('daily_health_snapshot')
       .select('hydration_l')
       .eq('user_id', ctx.actor.id)
       .eq('snapshot_date', today)
       .maybeSingle();
-    var cur = Number((sel && sel.data && sel.data.hydration_l) || 0) || 0;
+    // A failed read must never render as a fabricated 0 L on the card.
+    if (sel.error) throw new Error('Could not read today’s hydration right now.');
+    var cur = Number((sel.data && sel.data.hydration_l) || 0) || 0;
     return {
       summary: 'Add ' + input.amount + ' ' + input.unit + ' of water (' + deltaL + ' L) to today',
       diff: [{ label: 'Hydration', before: cur + ' L', after: Math.round((cur + deltaL) * 1000) / 1000 + ' L' }],
       target: { userId: ctx.actor.id, kind: 'hydration', id: today },
-      beforeState: { hydration_l: cur }, afterState: { deltaL: deltaL }, confirmedPayload: { deltaL: deltaL },
+      beforeState: { hydration_l: cur }, afterState: { deltaL: deltaL, date: today }, confirmedPayload: { deltaL: deltaL, date: today },
     };
   },
   async execute(ctx, plan) {
-    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: plan.confirmedPayload.deltaL });
+    // date = the member's LOCAL day from preview time, so the delta lands on
+    // the same calendar day the card promised.
+    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: plan.confirmedPayload.deltaL, date: plan.confirmedPayload.date });
     if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not log the water.');
     return r.data;
   },
   async undo(ctx, plan) {
-    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: -plan.afterState.deltaL });
+    var r = await ctx.call('POST', '/api/client/hydration', { deltaL: -plan.afterState.deltaL, date: plan.afterState.date });
     if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not undo the water log.');
   },
 };
@@ -579,7 +611,7 @@ export const checkHabitAction = {
     var m = matchHabit(sel.data || [], input.habit);
     if (m.error === 'ambiguous') throw new Error('Which one? ' + m.candidates.map(function (c) { return '“' + c.name + '”'; }).join(', ') + '.');
     if (m.error) throw new Error((m.names && m.names.length) ? 'No habit matches that. Yours are: ' + m.names.join(' · ') + '.' : 'You have no active habits yet — add one on the Habits page.');
-    var today = todayIso();
+    var today = await memberToday(ctx);
     var done = await ctx.supabase
       .from('user_habit_completions')
       .select('id')
@@ -587,7 +619,8 @@ export const checkHabitAction = {
       .eq('habit_id', m.habit.id)
       .eq('done_on', today)
       .maybeSingle();
-    if (done && done.data) throw new Error('“' + m.habit.name + '” is already checked off for today.');
+    if (done.error) throw new Error('Could not check that habit right now.');
+    if (done.data) throw new Error('“' + m.habit.name + '” is already checked off for today.');
     return {
       summary: 'Check off “' + m.habit.name + '” for today',
       diff: [{ label: m.habit.name, before: 'Not done', after: 'Done ✓' }],
@@ -598,7 +631,21 @@ export const checkHabitAction = {
     };
   },
   async execute(ctx, plan) {
-    var r = await ctx.call('POST', '/api/client/habits', { action: 'toggle', id: plan.confirmedPayload.id, date: plan.confirmedPayload.date });
+    // ADD-ONLY, never the raw toggle: if the member checked this habit
+    // elsewhere while the confirm card sat open, a blind toggle would UNCHECK
+    // it (and revoke its points) — the exact opposite of the previewed
+    // "Not done → Done". Re-check right before the toggle and fail stale.
+    var p = plan.confirmedPayload;
+    var done = await ctx.supabase
+      .from('user_habit_completions')
+      .select('id')
+      .eq('user_id', ctx.actor.id)
+      .eq('habit_id', p.id)
+      .eq('done_on', p.date)
+      .maybeSingle();
+    if (done.error) throw new Error('Could not check the habit right now.');
+    if (done.data) throw new Error('Already checked off — nothing to change.');
+    var r = await ctx.call('POST', '/api/client/habits', { action: 'toggle', id: p.id, date: p.date });
     if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not check the habit.');
     return r.data;
   },
@@ -614,6 +661,12 @@ export const checkHabitAction = {
       .eq('done_on', a.doneOn)
       .select('id');
     if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+    // Mirror the habits route's untoggle path: revoke the +3 award for the
+    // deleted completion so the Shape Score can't stay inflated after undo.
+    try {
+      var rev = await ctx.supabase.rpc('revoke_habit', { p_completion_id: res.data[0].id });
+      if (rev && rev.error) console.warn('[nora-habit] revoke_habit failed after undo', { completionId: res.data[0].id });
+    } catch (e) { console.warn('[nora-habit] revoke_habit failed after undo', { completionId: res.data[0].id }); }
   },
 };
 
@@ -634,14 +687,18 @@ export const setReminderAction = {
     if (!days.length) throw new Error('Pick at least one day (0=Sun … 6=Sat).');
     var label = kind === 'custom' ? String(input.label || '').slice(0, 80) : '';
     if (kind === 'custom' && !label) throw new Error('What should the custom reminder say?');
+    // The reminder fires in the MEMBER's zone (the cron interprets at_time in
+    // the row tz; the route defaults to UTC) — send their stored zone like the
+    // Settings flows send the device zone. Unset zone → UTC, said on the card.
+    var tz = await memberTz(ctx);
     var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var daysLabel = days.length === 7 ? 'every day' : days.map(function (d) { return DAYS[d]; }).join(' ');
     return {
-      summary: 'Set a ' + (label || kind.replace('_', '-')) + ' reminder at ' + input.time + ' · ' + daysLabel,
-      diff: [{ label: 'Reminder', before: '—', after: (label || kind) + ' · ' + input.time + ' · ' + daysLabel }],
+      summary: 'Set a ' + (label || kind.replace('_', '-')) + ' reminder at ' + input.time + (tz ? '' : ' (UTC — open the app once to set your timezone)') + ' · ' + daysLabel,
+      diff: [{ label: 'Reminder', before: '—', after: (label || kind) + ' · ' + input.time + ' · ' + daysLabel + (tz ? '' : ' · UTC' ) }],
       target: { userId: ctx.actor.id, kind: 'reminder', id: null },
       beforeState: {}, afterState: { kind: kind, atTime: String(input.time), days: days, label: label },
-      confirmedPayload: { kind: kind, label: label, atTime: String(input.time), days: days },
+      confirmedPayload: { kind: kind, label: label, atTime: String(input.time), days: days, tz: tz || 'UTC' },
     };
   },
   async execute(ctx, plan) {

@@ -12,11 +12,19 @@ const PROVIDER_TIMEOUT_MS = 2500;
 // OFF policy asks API consumers to identify themselves.
 const OFF_USER_AGENT = 'Shape/1.0 (privacy@theshapecommunity.com)';
 
-async function timedFetch(url: string, init: RequestInit): Promise<Response> {
+// One timer covers the WHOLE leg — headers AND body. fetch() resolves when
+// headers arrive, so clearing the timer before res.json() would let a stalling
+// provider hold the request open past the advertised per-leg limit; aborting
+// the signal also rejects an in-flight body read. null = attempted and FAILED.
+async function timedJson(url: string, init: RequestInit): Promise<unknown | null> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), PROVIDER_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: ctl.signal, cache: 'no-store' });
+    const res = await fetch(url, { ...init, signal: ctl.signal, cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json(); // still under the timer — a stalled body aborts
+  } catch {
+    return null;
   } finally {
     clearTimeout(timer);
   }
@@ -24,37 +32,27 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
 
 // null = the leg was attempted and FAILED; [] = clean empty result.
 async function searchFdc(q: string, key: string): Promise<unknown[] | null> {
-  try {
-    const res = await timedFetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // Foundation + SR Legacy = generic/whole foods — FDC's strength in the hybrid.
-      body: JSON.stringify({ query: q, dataType: ['Foundation', 'SR Legacy'], pageSize: 15 }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data?.foods) ? data.foods : [];
-  } catch {
-    return null;
-  }
+  const data = (await timedJson(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    // Foundation + SR Legacy = generic/whole foods — FDC's strength in the hybrid.
+    body: JSON.stringify({ query: q, dataType: ['Foundation', 'SR Legacy'], pageSize: 15 }),
+  })) as { foods?: unknown[] } | null;
+  if (data == null) return null;
+  return Array.isArray(data.foods) ? data.foods : [];
 }
 
 async function searchOff(q: string): Promise<unknown[] | null> {
-  try {
-    const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
-    url.searchParams.set('search_terms', q);
-    url.searchParams.set('search_simple', '1');
-    url.searchParams.set('action', 'process');
-    url.searchParams.set('json', '1');
-    url.searchParams.set('page_size', '15');
-    url.searchParams.set('fields', 'code,product_name,brands,serving_size,serving_quantity,nutriments');
-    const res = await timedFetch(url.toString(), { headers: { 'user-agent': OFF_USER_AGENT } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data?.products) ? data.products : [];
-  } catch {
-    return null;
-  }
+  const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
+  url.searchParams.set('search_terms', q);
+  url.searchParams.set('search_simple', '1');
+  url.searchParams.set('action', 'process');
+  url.searchParams.set('json', '1');
+  url.searchParams.set('page_size', '15');
+  url.searchParams.set('fields', 'code,product_name,brands,serving_size,serving_quantity,nutriments');
+  const data = (await timedJson(url.toString(), { headers: { 'user-agent': OFF_USER_AGENT } })) as { products?: unknown[] } | null;
+  if (data == null) return null;
+  return Array.isArray(data.products) ? data.products : [];
 }
 
 export type FoodSearchResult = { results: unknown[]; unavailable?: boolean };
