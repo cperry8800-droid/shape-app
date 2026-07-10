@@ -15,6 +15,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
+import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
@@ -2917,11 +2918,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // the day's next move feels like making a pledge you then keep (commitment &
     // consistency). The head stays the directive; the button is the promise.
     const engineMove = engineFlag ? ({
-      checkin:   { head: tr('home:lead.checkin.head', { defaultValue: 'Send your weekly check-in.' }), cta: [tr('home:lead.checkin.cta', { defaultValue: "I'll check in →" }), () => setCheckinPage(true)], c: t.ACCENT, stakes: tr('home:lead.checkin.stakes', { defaultValue: 'keep your momentum + protect 15 pts' }) },
-      training:  { head: tr('home:lead.training.head', { defaultValue: 'Keep the streak alive.' }), cta: [tr('home:lead.training.cta', { defaultValue: "I'll keep my streak →" }), () => setHabitsPage(true)], c: t.GREEN, stakes: tr('home:lead.training.stakes', { defaultValue: 'hold your streak + momentum' }) },
-      nutrition: { head: tr('home:lead.nutrition.head', { defaultValue: 'Log a meal today.' }), cta: [tr('home:lead.nutrition.cta', { defaultValue: "I'll log a meal →" }), () => goEat()], c: _teal, stakes: tr('home:lead.nutrition.stakes', { defaultValue: 'keep your momentum going' }) },
-      goal:      { head: tr('home:lead.goal.head', { defaultValue: 'Your goal pace slipped.' }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
-      score:     { head: tr('home:lead.score.head', { defaultValue: 'Grab a win today.' }), cta: [tr('home:lead.score.cta', { defaultValue: "I'll grab a win →" }), () => setHabitsPage(true)], c: t.AMBER },
+      // head defaultValues read the SHARED BS_LEVER_HEADS (dailyWire.mjs) so the
+      // Shape Daily telegram and this Home lead can never say a different move;
+      // i18n overrides still ride on top via the tr() key.
+      checkin:   { head: tr('home:lead.checkin.head', { defaultValue: BS_LEVER_HEADS.checkin }), cta: [tr('home:lead.checkin.cta', { defaultValue: "I'll check in →" }), () => setCheckinPage(true)], c: t.ACCENT, stakes: tr('home:lead.checkin.stakes', { defaultValue: 'keep your momentum + protect 15 pts' }) },
+      training:  { head: tr('home:lead.training.head', { defaultValue: BS_LEVER_HEADS.training }), cta: [tr('home:lead.training.cta', { defaultValue: "I'll keep my streak →" }), () => setHabitsPage(true)], c: t.GREEN, stakes: tr('home:lead.training.stakes', { defaultValue: 'hold your streak + momentum' }) },
+      nutrition: { head: tr('home:lead.nutrition.head', { defaultValue: BS_LEVER_HEADS.nutrition }), cta: [tr('home:lead.nutrition.cta', { defaultValue: "I'll log a meal →" }), () => goEat()], c: _teal, stakes: tr('home:lead.nutrition.stakes', { defaultValue: 'keep your momentum going' }) },
+      goal:      { head: tr('home:lead.goal.head', { defaultValue: BS_LEVER_HEADS.goal }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: tr('home:lead.score.head', { defaultValue: BS_LEVER_HEADS.score }), cta: [tr('home:lead.score.cta', { defaultValue: "I'll grab a win →" }), () => setHabitsPage(true)], c: t.AMBER },
       // `sleep` deliberately omitted — logging last night's sleep is consolidated
       // into the "Today · how are you" check-in page (opened from the nudge below;
       // Sleep · last night row + recovery readiness), so it never spawns a

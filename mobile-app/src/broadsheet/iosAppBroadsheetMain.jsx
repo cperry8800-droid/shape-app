@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
+import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -142,6 +143,63 @@ function ensureSkyStyles() {
   const el = document.createElement('style');
   el.textContent = css;
   document.head.appendChild(el);
+}
+
+// Reduced-motion check (JS side — so the telegram's auto-advance timer is
+// suppressed, not just the CSS animation).
+function bsPrefersReducedMotion() {
+  try { return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+}
+
+// The wire launch grammar: a drifting dispatch ticker (the beat + the wall
+// ground), the telegram's one-shot line entrances, and the 5s draining rule.
+let _bsWireStyled = false;
+function ensureWireStyles() {
+  if (_bsWireStyled || typeof document === 'undefined') return;
+  _bsWireStyled = true;
+  const css = `
+  @keyframes bsWireDrift { 0%{ transform:translateX(4%); } 100%{ transform:translateX(-30%); } }
+  .bs-wire-row { white-space:nowrap; animation: bsWireDrift var(--wd,16s) linear infinite alternate; }
+  @keyframes bsWireRise { 0%{ opacity:0; transform:translateY(8px); } 100%{ opacity:1; transform:translateY(0); } }
+  .bs-wire-line { opacity:0; animation: bsWireRise 0.34s cubic-bezier(0.2,0.7,0.3,1) forwards; }
+  @keyframes bsWireDrain { from{ transform:scaleX(1); } to{ transform:scaleX(0); } }
+  .bs-wire-drain { transform-origin:left center; animation: bsWireDrain var(--dur,5s) linear forwards; }
+  .bs-wire-enter { outline:none; }
+  .bs-wire-enter:focus-visible { outline:2px solid #34d6c5; outline-offset:3px; }
+  @media (prefers-reduced-motion: reduce) {
+    .bs-wire-row{ animation:none!important; transform:none!important; }
+    .bs-wire-line{ animation:none!important; opacity:1!important; transform:none!important; }
+    .bs-wire-drain{ animation:none!important; transform:none!important; }
+  }`;
+  const el = document.createElement('style');
+  el.textContent = css;
+  document.head.appendChild(el);
+}
+
+// The drifting dispatch-ticker ground shared by the beat and the wall. One
+// teal row when a name is present. Decorative (aria-hidden); `dim` fades it
+// behind the wall content.
+function BSWireGround({ name, dim }) {
+  ensureWireStyles();
+  const INKF = 'rgba(242,237,228,0.26)', ACCF = '#34d6c5';
+  const dash = '— ——— — ———— —— — ——— ————— — —— ——— — ———— —— — ——— —————';
+  const hot = 'INCOMING · THE SHAPE DAILY' + (name ? ' · ' + String(name).toUpperCase() : '');
+  const rows = [
+    { t: dash, d: 15, off: 0 },
+    { t: dash, d: 19, off: -4 },
+    { t: dash, d: 13, off: -8 },
+    { t: '—— ' + hot + ' ——', d: 17, off: -5, hot: true },
+    { t: dash, d: 21, off: -2 },
+    { t: dash, d: 14, off: -7 },
+    { t: dash, d: 18, off: -3 },
+  ];
+  return (
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16, opacity: dim ? 0.4 : 1, pointerEvents: 'none' }}>
+      {rows.map((r, i) => (
+        <div key={i} className="bs-wire-row" style={{ '--wd': r.d + 's', animationDelay: r.off + 's', fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, letterSpacing: '0.28em', color: r.hot ? ACCF : INKF, textShadow: r.hot ? '0 0 10px rgba(46,224,196,0.4)' : 'none', paddingLeft: 12 }}>{r.t}</div>
+      ))}
+    </div>
+  );
 }
 
 function BSNightSky() {
@@ -320,6 +378,11 @@ async function bsSplashGet(path, auth) {
     return await res.json();
   } catch (e) { return null; }
 }
+// The member's LOCAL calendar day ("YYYY-MM-DD", en-CA) — the warm-relaunch
+// seen-stamp basis, so the briefing rolls over at the member's own midnight.
+function bsLocalDay() {
+  try { return new Date().toLocaleDateString('en-CA'); } catch (e) { return ''; }
+}
 function bsDigestFirstName(auth) {
   try {
     const m = (auth && auth.user && auth.user.user_metadata) || {};
@@ -434,23 +497,42 @@ function bsOpenExternal(url) {
     window.open(url, '_blank', 'noopener,noreferrer');
   } catch (e) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} }
 }
+// The engine directive (the SAME two-call path + gate the Home lead uses), as
+// a BOUNDED leg: raced against a ~1.5s timeout so a slow/hung ShapeSignals can
+// never delay the telegram render — the digest's other legs stay authoritative
+// for timing, and a null directive simply omits the wire's teal line.
+async function bsDigestDirective() {
+  try {
+    const S = window.ShapeSignals;
+    if (!S || !S.selfRecord || !S.directive) return null;
+    const evaluate = (async () => {
+      const rec = await S.selfRecord();
+      if (!rec) return null;
+      return S.directive(rec) || null;
+    })();
+    const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 1500));
+    return await Promise.race([evaluate, timeout]);
+  } catch (e) { return null; }
+}
 async function bsBuildDailyDigest() {
   let auth = {};
   try { if (window.ShapeAuth && window.ShapeAuth.getCurrentSession) await window.ShapeAuth.getCurrentSession(); } catch (e) {}
   try { auth = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {}; } catch (e) { auth = {}; }
   const name = bsDigestFirstName(auth);
   if (!auth || !auth.user || !auth.user.id) return { signedIn: false, name: name };
-  const r = await Promise.all([bsDigestScore(auth), bsDigestTraining(), bsDigestCoach(), bsDigestNutrition(), bsDigestStreakChallenge(auth)]);
-  return { signedIn: true, name: name, score: r[0], training: r[1], coach: r[2], nutrition: r[3], streak: r[4].streak, challenge: r[4].challenge };
+  const r = await Promise.all([bsDigestScore(auth), bsDigestTraining(), bsDigestCoach(), bsDigestNutrition(), bsDigestStreakChallenge(auth), bsDigestDirective()]);
+  return { signedIn: true, name: name, score: r[0], training: r[1], coach: r[2], nutrition: r[3], streak: r[4].streak, challenge: r[4].challenge, directive: r[5] };
 }
 
 function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
-  // Classified is interactive: user must tap "Step inside" — no auto-advance.
+  // Classified (the telegram/invite) and the wire beat manage their own timing:
+  // classified self-advances or waits on a tap; the beat is held by the shell
+  // until membership resolves. Neither uses this generic auto-advance.
   useEffectBSM(() => {
-    if (style === 'classified') return; // classified is tap-only
-    const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 4000 : 1600);
+    if (style === 'classified' || style === 'wire-beat') return;
+    const id = setTimeout(onDone, (style === 'cosmos' || !style) ? 4000 : 1600);
     return () => clearTimeout(id);
   }, [style]);
 
@@ -482,6 +564,18 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return () => { alive = false; };
   }, [style]);
 
+  // The telegram self-advances 5s AFTER the member's digest resolves — a slow
+  // fetch never burns reading time (the loading state carries no timer). Under
+  // reduced motion there's NO auto-advance (the member taps ENTER); the
+  // signed-out invite edition stays tap-only (never auto-advances). onDone is
+  // memoized by the shell, so this fires exactly once per resolved member day.
+  const bsTeleReady = style === 'classified' && bsDigest && bsDigest.signedIn === true;
+  useEffectBSM(() => {
+    if (!bsTeleReady || bsPrefersReducedMotion()) return undefined;
+    const id = setTimeout(onDone, 5000);
+    return () => clearTimeout(id);
+  }, [bsTeleReady]);
+
   // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
   if (style === 'cosmos' || !style) {
     return (
@@ -490,6 +584,23 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <BSShapeMark size={132} />
         </div>
+      </div>
+    );
+  }
+
+  // ── WIRE BEAT: the ~1s brand overture. The membership check resolves behind
+  // it (the shell holds the stage until authReady + membership + min dwell,
+  // then routes), so no "Checking membership…" screen ever renders. Drifting
+  // dispatch ticker + the Shape mark; a hidden status line for screen readers.
+  if (style === 'wire-beat') {
+    const name = bsDigestFirstName((window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {});
+    return (
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <BSWireGround name={name} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <BSShapeMark size={112} />
+        </div>
+        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading Shape</span>
       </div>
     );
   }
@@ -656,8 +767,61 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const statS = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 };
     const newsTag = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: BLUE, fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 };
 
+    // The telegram lines assemble ONLY from the member's real digest (+ the
+    // bounded directive). Non-null exactly for a signed-in member; the
+    // signed-out invite edition falls through below, verbatim.
+    ensureWireStyles();
+    const wireLines = bsWireLines(dg, dg && dg.directive);
+    const reduced = bsPrefersReducedMotion();
+    const wireGround = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
+    // The full-screen enter control is a real keyboard button (role/tabIndex/
+    // focus outline + Enter/Space) — for the telegram AND the invite edition.
+    const kbEnter = { role: 'button', tabIndex: 0, 'aria-label': 'Enter the app', onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDone(); } } };
+    const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
+
+    // ── THE TELEGRAM (member) ──
+    if (wireLines) {
+      const STOP = <span style={{ color: 'rgba(242,237,228,0.3)' }}> STOP</span>;
+      const END = <span style={{ color: 'rgba(242,237,228,0.3)' }}> END</span>;
+      return (
+        <div className="bs-wire-enter" {...kbEnter} onClick={onDone} style={{ position: 'absolute', inset: 0, background: wireGround, color: INKF, padding: '52px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
+          {/* topbar */}
+          <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
+            <span>Shape Wire</span>
+            <span style={{ color: INKF }}>{dateShort}</span>
+          </div>
+          <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>To: {name || 'Member'} · Priority</div>
+          {/* the wire */}
+          <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+            {wireLines.map((ln, i) => (
+              <div key={i} className="bs-wire-line" style={{ animationDelay: (reduced ? 0 : 0.12 + i * 0.11) + 's', fontFamily: mono, fontSize: 11, fontWeight: ln.hot ? 700 : 500, lineHeight: 2.05, letterSpacing: '0.08em', textTransform: 'uppercase', color: ln.hot ? ACCF : INKF, textShadow: ln.hot ? '0 0 10px rgba(46,224,196,0.3)' : 'none' }}>
+                {ln.text}{ln.end ? END : ln.sep ? STOP : null}
+              </div>
+            ))}
+          </div>
+          {/* foot — self-advancing drain (or a static ENTER under reduced motion) */}
+          <div>
+            {reduced ? (
+              <div style={{ height: 2, background: `linear-gradient(90deg, #0ac5a8, ${ACCF})` }} />
+            ) : (
+              <div style={{ height: 2, background: 'rgba(242,237,228,0.14)', overflow: 'hidden' }}>
+                <div className="bs-wire-drain" style={{ '--dur': '5s', height: '100%', background: `linear-gradient(90deg, #0ac5a8, ${ACCF})` }} />
+              </div>
+            )}
+            <div style={{ marginTop: 9, display: 'flex', justifyContent: 'space-between', fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>
+              <span>{reduced ? 'Your day' : 'Entering…'}</span>
+              <span style={{ color: ACCF }}>{reduced ? 'Enter →' : 'Tap to skip'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Invite edition (signed-out preview). Whole-screen tap is a convenience;
+    // the "Step inside" button below is the real keyboard control — so the root
+    // isn't a role=button wrapping the nested WORLD links + that button.
     return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, padding: '50px 18px 22px', display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden', cursor: 'pointer' }}>
+      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: wireGround, color: INKF, padding: '50px 18px 22px', display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden', cursor: 'pointer' }}>
 
         {/* topbar */}
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
@@ -684,7 +848,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
-        ) : !signedIn ? (
+        ) : (
+          // Signed-out preview only — the invite edition (members render the
+          // telegram above). Tap-only "Step inside"; never auto-advances.
           <>
             {/* invite lead */}
             <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
@@ -717,104 +883,10 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
               </div>
             </div>
           </>
-        ) : (
-          <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column', gap: 11 }}>
-            {/* lead — today's training (centered) */}
-            <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
-              {tr && tr.hasWorkout ? (
-                <>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, color: ACCF, marginBottom: 5 }}>Today's training{tr.time ? ' · ' + bsDigestTime12(tr.time) : ''}</div>
-                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 26, lineHeight: 0.98, letterSpacing: '-0.03em' }}>{tr.title}.</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: INKF50, marginTop: 7 }}>
-                    {[tr.durationMin ? tr.durationMin + ' min' : null, tr.moveCount ? tr.moveCount + (tr.moveCount === 1 ? ' move' : ' moves') : null, tr.coach ? 'with ' + tr.coach : null].filter(Boolean).join(' · ')}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, color: ACCF, marginBottom: 5 }}>Today</div>
-                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 24, lineHeight: 0.98, letterSpacing: '-0.03em' }}>{tr ? 'Rest & recover.' : 'Find your coach.'}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: INKF50, marginTop: 7 }}>{tr ? 'No session scheduled' : 'Browse the marketplace inside'}</div>
-                </>
-              )}
-            </div>
-
-            {/* two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, marginTop: 2 }}>
-              <div style={{ paddingRight: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={colHead}>Your numbers</div>
-                {sc ? (
-                  <div>
-                    <div style={statK}>Shape Score</div>
-                    <div style={statV}>{sc.score.toLocaleString()}{sc.delta > 0 ? <span style={{ color: ACCF, fontFamily: t.MONO, fontWeight: 700, fontSize: 12, marginLeft: 5 }}>▲ {sc.delta}</span> : null}</div>
-                    <div style={statS}>{sc.tier}{sc.delta > 0 ? ' · +' + sc.delta + ' this week' : ''}</div>
-                  </div>
-                ) : null}
-                {nu ? (
-                  <div>
-                    <div style={statK}>Nutrition · today</div>
-                    <div style={statV}>{nu.protein != null ? <>{nu.protein}<span style={{ fontSize: 11, color: INKF50 }}>g protein</span></> : '—'}</div>
-                    <div style={statS}>{nu.cal != null ? nu.cal.toLocaleString() + (nu.calTarget ? ' / ' + nu.calTarget.toLocaleString() : '') + ' kcal' : ''}</div>
-                  </div>
-                ) : null}
-                {(challenge && challenge.workouts) ? (
-                  <div>
-                    <div style={statK}>This week</div>
-                    <div style={statV}>{challenge.workouts.done} <span style={{ fontSize: 12, color: INKF50 }}>of {challenge.workouts.target} done</span></div>
-                    <div style={statS}>{streak > 0 ? streak + '-day streak · keep it' : 'workouts'}</div>
-                  </div>
-                ) : streak > 0 ? (
-                  <div>
-                    <div style={statK}>Streak</div>
-                    <div style={statV}>{streak} <span style={{ fontSize: 12, color: INKF50 }}>day{streak === 1 ? '' : 's'}</span></div>
-                    <div style={statS}>keep it going</div>
-                  </div>
-                ) : null}
-                {!sc && !nu && !(challenge && challenge.workouts) && streak <= 0 ? (
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: INKF50, lineHeight: 1.5 }}>Log a workout or meal to start your numbers.</div>
-                ) : null}
-              </div>
-
-              <div style={{ background: RULEF }} />
-
-              <div style={{ paddingLeft: 11, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                <div style={colHead}>From your team</div>
-                {co ? (
-                  <div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: AMBER, fontWeight: 700, marginBottom: 4 }}>★ {co.who}{co.at ? ' · ' + bsDigestRelTime(co.at) : ''}</div>
-                    <div style={{ fontFamily: serif, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.3, color: INKF }}>“{bsDigestClamp(co.text, 130)}”</div>
-                  </div>
-                ) : (
-                  <div style={{ fontFamily: serif, fontSize: 13.5, lineHeight: 1.3, color: INKF70 }}>No coach yet — <span style={{ color: ACCF }}>find one inside →</span></div>
-                )}
-                <div style={{ ...colHead, marginTop: 2 }}>In the world</div>
-                {WORLD.map((w, i) => (
-                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
-                    <div style={newsTag}>{w.tag}</div>
-                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            {/* Inside Shape — what's in the app, beside your day */}
-            <div style={{ marginTop: 4 }}>
-              <div style={colHead}>Inside Shape</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '11px 14px', marginTop: 10 }}>
-                {INSIDE.map((it, i) => (
-                  <div key={i}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: ACCF, fontWeight: 700, textTransform: 'uppercase', marginBottom: 1 }}>{it.tag}</div>
-                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 12.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{it.title}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 1 }}>{it.src}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         )}
 
         {/* CTA — tap to enter the app (the whole screen is also tappable) */}
-        <button onClick={onDone} style={{ borderRadius: 999, margin: '4px auto 0', width: 'fit-content', padding: '10px 26px', background: INKF, color: '#0b0e0c', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+        <button onClick={onDone} className="bs-wire-enter" style={{ borderRadius: 999, margin: '4px auto 0', width: 'fit-content', padding: '10px 26px', background: INKF, color: '#0b0e0c', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
           <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
@@ -1317,48 +1389,64 @@ async function bsmStartCheckout() {
   } catch (e) { window.__bsToast?.('Could not start checkout — try again.', 'err'); }
 }
 
-function BSPaywallLoading({ t }) {
+// The membership-resolving hold — the wire ground, no "Checking membership…"
+// copy (the check rides the launch, never gets its own labelled screen). Used
+// as the stage-'app'/'gate' safety-net loading state.
+function BSWireHold() {
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: t.PAPER, color: t.INK50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Checking membership…</div>
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <BSWireGround />
+      <div style={{ position: 'relative', zIndex: 1 }}><BSShapeMark size={96} /></div>
+      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading Shape</span>
+    </div>
   );
 }
 
 // Full-screen membership wall for non-members. Offers Join (checkout / create
 // account), Sign in, and a "Preview the app" path so prospects can look around.
-function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+// The members wall — the app's only conversion gate. Logic verbatim (Join /
+// Preview / Sign in / Sign out + the paywall_viewed analytics), re-set in the
+// launch's wire grammar: the drifting ticker behind it (the wire is live, you're
+// just not on it yet), the feature list as one STOP-separated wire line, and a
+// clipped solid-teal JOIN as the one commerce action. Fixed-dark (a launch
+// surface), so it does NOT follow the paper theme — matching the beat/telegram.
+function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
+  ensureWireStyles();
+  const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.2)', teal = '#34d6c5';
+  const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
-  const cta = { width: '100%', padding: '11px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghost = { width: '100%', padding: '10px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
+  const STOP = <span style={{ color: 'rgba(242,237,228,0.3)' }}> STOP </span>;
+  const feat = ['Training', 'Nutrition', 'Coaches', 'Radio', 'The Score', 'Or build your own workouts'];
+  const cta = { width: '100%', padding: '13px', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
+  const ghost = { width: '100%', minHeight: 44, padding: '11px', border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
+  const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
-    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: t.PAPER, color: t.INK }}>
-      <div style={{ minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '22px 26px 34px' }}>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -4, marginTop: 30, filter: t.isLight ? 'brightness(0)' : 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Shape membership</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5, color: t.INK70, margin: '16px 0 0' }}>Unlock training, nutrition, coaching, community, Shape Radio and rewards — everything Shape does.</p>
-        <div style={{ margin: '18px 0 0', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {['Personalized training & nutrition', 'Daily habits, streaks & check-ins', 'Recipes, meal logging & grocery lists', 'Message your coaches + the community', 'Shape Radio + the Shape Store', 'Progress, goals & your Shape Score'].map(x => (
-            <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
-              <span style={{ color: teal, fontWeight: 800 }}>✓</span>{x}
-            </div>
-          ))}
+    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
+      <BSWireGround dim />
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
+        <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
+          <span>Shape Wire</span><span style={{ color: INKF }}>Members only</span>
         </div>
-        <button onClick={onJoin} style={{ ...cta, marginTop: 24 }}>{signedIn ? 'Activate membership · $5/mo →' : 'Create account & join · $5/mo →'}</button>
-        <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
-        {signedIn ? (
-          <div style={{ marginTop: 28, display: 'flex', justifyContent: 'center' }}>
-            <button onClick={onLogout} style={{ padding: '9px 24px', borderRadius: 999, border: `1px solid ${teal}55`, background: `${teal}1f`, color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign out</button>
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 124, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -2, marginTop: 26, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
+          <h1 style={{ fontFamily: `'Newsreader', Georgia, serif`, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '4px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
+          <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
+            {feat.map((x, i) => (<React.Fragment key={x}>{x}{i < feat.length - 1 ? STOP : <span style={{ color: 'rgba(242,237,228,0.3)' }}> END</span>}</React.Fragment>))}
           </div>
-        ) : (
-          <div style={{ marginTop: 28, textAlign: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>I already have an account</div>
-            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
-              <button onClick={onSignIn} style={{ padding: '9px 24px', borderRadius: 999, border: `1px solid ${teal}55`, background: `${teal}1f`, color: teal, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Sign in →</button>
+          <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? 'Join · $5/mo →' : 'Create account & join · $5/mo →'}</button>
+          <button onClick={onPreview} style={{ ...ghost, marginTop: 11 }}>Preview the app first →</button>
+          {signedIn ? (
+            <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
+              <button onClick={onLogout} style={textAction}>Sign out</button>
             </div>
-          </div>
-        )}
+          ) : (
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50 }}>I already have an account</div>
+              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'center' }}>
+                <button onClick={onSignIn} style={textAction}>Sign in →</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1395,10 +1483,23 @@ function BSPreviewBannerGated({ t, onJoin }) {
 
 function BSAppShell({ tweaks, setTweak }) {
   const authConfigured = Boolean(window.ShapeAuth?.configured);
-  // Always open on the cosmos splash. Its onDone routes into the language picker
-  // (when there's no stored locale) before the membership gate; a returning signed-in
-  // user with an account locale is advanced past the picker by the hydration effect.
-  const [stage, setStage] = useStateBSM('splash');
+  // Boot decision (synchronous): a known member who already saw today's briefing
+  // skips straight to the app (warm relaunch — the briefing is a morning ritual,
+  // not a toll). Everyone else opens on the wire beat, which holds until the
+  // membership check resolves behind it, then routes (lang / daily / gate). The
+  // stage-'app' gate stays the safety net if the restore later disagrees.
+  const [stage, setStage] = useStateBSM(() => {
+    try {
+      // The auth `state` is empty until getCurrentSession() hydrates it (async),
+      // so the live uid isn't available synchronously at boot. Use the persisted
+      // 'shape.lastUid' (written when membership resolves, cleared on logout) so
+      // the uid-scoped warm-skip still works on a fresh JS context.
+      const uid = localStorage.getItem('shape.lastUid');
+      const stamp = localStorage.getItem('shape.dailySeen');
+      const memberCached = (window.ShapeMembership && window.ShapeMembership.active === true) || localStorage.getItem('shape.member') === '1';
+      return bsLaunchRoute({ stamp, uid, todayLocal: bsLocalDay(), memberCached });
+    } catch (e) { return 'beat'; }
+  });
   // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
   // on their own app, not the client one) before the persisted/demo role.
   const [role, setRole] = useStateBSM(() => {
@@ -1493,7 +1594,7 @@ function BSAppShell({ tweaks, setTweak }) {
 
   // Replay splash on demand from Tweaks panel
   useEffectBSM(() => {
-    function onReplay() { setStage('splash'); }
+    function onReplay() { setBeatMinElapsed(false); setStage('beat'); }
     window.addEventListener('bs-replay-splash', onReplay);
     return () => window.removeEventListener('bs-replay-splash', onReplay);
   }, []);
@@ -1520,10 +1621,13 @@ function BSAppShell({ tweaks, setTweak }) {
     let cancelled = false;
     const uid = authState?.user?.id;
     if (!uid) {
-      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
+      try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); } catch (e) {}
       setMembership({ loading: false, active: false });
       return () => {};
     }
+    // Persist the signed-in uid so the next cold boot can make the uid-scoped
+    // warm-skip decision synchronously (the auth state hydrates async).
+    try { localStorage.setItem('shape.lastUid', uid); } catch (e) {}
     fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('unreachable'))))
       .then(d => {
@@ -1589,12 +1693,28 @@ function BSAppShell({ tweaks, setTweak }) {
   const memberAllowed = isApprovedCoach || signedIn || membership.active === true;
   const memberGateLoading = !isApprovedCoach && !signedIn && (!authReady || membership.loading);
 
-  // The membership wall ('gate') sits between the cosmos splash and the "Shape
-  // Daily" editorial splash: non-members see the paywall here; members auto-
-  // advance past it to the editorial splash, then the app.
+  // The membership wall ('gate') sits between the wire beat and the "Shape
+  // Daily" telegram: non-members see the paywall here; members auto-advance
+  // past it to the telegram, then the app.
   useEffectBSM(() => {
     if (stage === 'gate' && !memberGateLoading && memberAllowed) setStage('daily');
   }, [stage, memberGateLoading, memberAllowed]);
+
+  // The wire beat holds for a minimum dwell (~1.1s) so the overture reads, then
+  // the membership check resolves BEHIND it (memberGateLoading false) and it
+  // routes on — language picker on first run, else the telegram (members) or
+  // the gate/wall (non-members). No "Checking membership…" screen ever renders.
+  const [beatMinElapsed, setBeatMinElapsed] = useStateBSM(false);
+  useEffectBSM(() => {
+    if (stage !== 'beat') return undefined;
+    const id = setTimeout(() => setBeatMinElapsed(true), 1100);
+    return () => clearTimeout(id);
+  }, [stage]);
+  useEffectBSM(() => {
+    if (stage !== 'beat' || !beatMinElapsed || memberGateLoading) return;
+    let hasLocale = false; try { hasLocale = !!localStorage.getItem('shape.locale'); } catch (e) {}
+    setStage(bsAfterBeat({ allowed: memberAllowed, hasLocale }));
+  }, [stage, beatMinElapsed, memberGateLoading, memberAllowed]);
 
   // Expose "can this user actually send messages" (member access incl. coaches)
   // so the chat composer can lock for non-members previewing the app.
@@ -1661,7 +1781,7 @@ function BSAppShell({ tweaks, setTweak }) {
     setAuthState({});
     setBrowseMode(false);
     setPreviewMode(false);
-    try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); } catch (e) {}
+    try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
     // Land on the membership wall (the gate), not the bare login screen.
     setStage('app');
   };
@@ -1673,17 +1793,16 @@ function BSAppShell({ tweaks, setTweak }) {
   return (
     <BSRadioProvider>
       <BSPhone>
-        {stage === 'splash' && <BSSplash style="cosmos" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => { let has = false; try { has = !!localStorage.getItem('shape.locale'); } catch (e) {} setStage(has ? 'gate' : 'lang'); }} />}
+        {stage === 'beat' && <BSSplash style="wire-beat" onDone={() => {}} />}
         {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('gate')} />}
         {stage === 'gate' && (
-          // Membership wall — shown BEFORE the "Shape Daily" editorial splash.
-          // Members auto-advance (effect above); non-members see the paywall and
-          // choose Join / Sign in / Preview (preview → daily splash → app).
+          // Membership wall — shown BEFORE the "Shape Daily" telegram. Members
+          // auto-advance (effect above); non-members see the paywall and choose
+          // Join / Sign in / Preview (preview → the daily invite edition → app).
           memberGateLoading || memberAllowed ? (
-            <BSPaywallLoading t={t} />
+            <BSWireHold />
           ) : (
             <BSPaywall
-              t={t}
               signedIn={!!authUserId}
               onJoin={() => { if (authUserId) bsmStartCheckout(); else { setBrowseMode(false); setLoginMode('create'); setStage('login'); } }}
               onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
@@ -1692,7 +1811,13 @@ function BSAppShell({ tweaks, setTweak }) {
             />
           )
         )}
-        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => setStage('app')} />}
+        {stage === 'daily' && <BSSplash style="classified" bg={tweaks.splashBg || 'plain'} bgColor={tweaks.splashBgColor || 'auto'} onDone={() => {
+          // A real signed-in member entering their telegram stamps today's
+          // seen-marker (warm relaunch skips the rest of the day). The signed-out
+          // preview/invite path never stamps.
+          if (authUserId && !previewMode) { try { localStorage.setItem('shape.dailySeen', bsDailyStamp(authUserId, bsLocalDay())); } catch (e) {} }
+          setStage('app');
+        }} />}
         {stage === 'login'  && <BSLogin
           key={loginMode}
           initialMode={loginMode}
@@ -1711,10 +1836,9 @@ function BSAppShell({ tweaks, setTweak }) {
           // need the role bundle), so the membership page lands right after the
           // splash. Members + previewers fall through to the real app.
           memberGateLoading ? (
-            <BSPaywallLoading t={t} />
+            <BSWireHold />
           ) : (!memberAllowed && !previewMode) ? (
             <BSPaywall
-              t={t}
               signedIn={!!authUserId}
               onJoin={() => { if (authUserId) bsmStartCheckout(); else { setBrowseMode(false); setLoginMode('create'); setStage('login'); } }}
               onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
