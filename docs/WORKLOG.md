@@ -173,8 +173,11 @@ changelog whenever something ships.
 > + the **feed-parity backend audit** (same table/privacy/counts both
 > surfaces; two asymmetries noted in the dated entry). Note: **Pricing.html
 > AND Community.html are tracked with CRLF** (repo exceptions) — don't
-> LF-normalize them. Open: beat-background direction (owner to pick from the
-> presented options) · the standing OWNER on-device launch pass.
+> LF-normalize them. **#1682** the owner picked off the board: the beat goes
+> **ON AIR** (BSWireDial ruler + needle + whisper, plate moved to the TOP,
+> the mark floats in a breathing halo; hold mirrors it). Open: optional ON
+> AIR pairings (waveform bed · signal-lock ticks · static-calms-on-lock,
+> mocked on the board) · the standing OWNER on-device launch pass.
 >
 > **Prior (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
 > one day, each from the owner's live on-device look): #1667/#1668 wire beat +
@@ -444,6 +447,17 @@ changelog whenever something ships.
   under ALL/POSTS but not WORKOUTS/PRs/RUNS filters (app filters correctly
   by real kinds). Fix candidate if wanted: map `activity_type` → filter
   bucket in dashboardCommunity's `mapPost`.
+- **#1682 — the beat goes ON AIR** (owner picks off the background board
+  <https://claude.ai/code/artifact/42fa60d8-954d-43f6-bd56-688cd908d24b>):
+  the community plate (THE SHAPE COMMUNITY · VOL. 1 · NO. 1) moves footer →
+  TOP (rule beneath, safe-area padded); new **`BSWireDial`** — frequency
+  ruler low + teal needle gliding between stations (bsWireTune 13s) + an
+  ON AIR whisper (Shape Radio on the launch, decorative/aria-hidden,
+  reduced-motion parks the needle); the **mark floats** (bs-wire-mark-float
+  6.5s bob) inside a **breathing teal halo** (bs-wire-mark-halo 4.5s) over
+  its existing calm pulse/glow — compositor-only, reduced-motion pins both.
+  BSWireHold mirrors the identical composition (no beat→hold jump).
+  Browser-verified on the built bundle.
 
 ### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
 
