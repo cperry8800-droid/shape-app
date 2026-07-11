@@ -167,6 +167,8 @@ function ensureWireStyles() {
   .bs-wire-drain { transform-origin:left center; animation: bsWireDrain var(--dur,5s) linear forwards; }
   @keyframes bsWireFill { 0%{ transform:scaleX(0); } 100%{ transform:scaleX(1); } }
   .bs-wire-fill { transform-origin:left center; animation: bsWireFill 3.4s cubic-bezier(0.3,0.5,0.35,1) forwards; will-change: transform; }
+  @keyframes bsWireTape { 0%{ transform:translateX(0); } 100%{ transform:translateX(-50%); } }
+  .bs-wire-tape { position:absolute; top:0; left:0; width:200%; height:100%; animation: bsWireTape 16s linear infinite; will-change: transform; }
   @keyframes bsWireTune { 0%,12%{ left:18%; } 38%,58%{ left:63%; } 84%,100%{ left:18%; } }
   .bs-wire-needle { position:absolute; top:-4px; bottom:4px; left:63%; width:1.5px; background:linear-gradient(180deg, #34d6c5, rgba(52,214,197,0.15)); box-shadow:0 0 7px rgba(46,224,196,0.6); animation: bsWireTune 13s ease-in-out infinite; }
   @keyframes bsWireFloat { 0%, 100%{ transform:translateY(4px); } 50%{ transform:translateY(-5px); } }
@@ -196,6 +198,7 @@ function ensureWireStyles() {
     .bs-wire-needle{ animation:none!important; }
     .bs-wire-mark-float{ animation:none!important; transform:none!important; }
     .bs-wire-mark-halo{ animation:none!important; opacity:0.5!important; }
+    .bs-wire-tape{ animation:none!important; transform:none!important; }
   }`;
   const el = document.createElement('style');
   el.textContent = css;
@@ -236,6 +239,38 @@ function BSWireLoading({ top = 72 }) {
         <div className="bs-wire-fill" style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
       <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>Loading</div>
+    </div>
+  );
+}
+
+// The waveform bed — the "K" add-on (owner pick from the background board,
+// 2026-07-11): an audio-amplitude tape drifting behind the floating mark,
+// completing the ON AIR radio room. Bars are seeded-deterministic (same tape
+// every launch, no Math.random) and mirrored around a center hairline; two
+// identical 300-unit halves make the 16s translateX(-50%) loop seamless.
+// Whisper volume: 15%-cream bars, ~1 in 10 teal. Decorative (aria-hidden);
+// reduced motion holds the tape still.
+const BS_WIRE_TAPE_BARS = (() => {
+  let s = 21 >>> 0;
+  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const half = [];
+  for (let i = 0; i < 72; i++) {
+    half.push({ x: i * 4.2, h: 1.5 + Math.pow(rand(), 1.6) * 17, teal: rand() > 0.9 });
+  }
+  return [0, 300].flatMap((o) => half.map((b) => ({ ...b, x: o + b.x })));
+})();
+
+function BSWireWaveform() {
+  ensureWireStyles();
+  const edgeFade = 'linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%)';
+  return (
+    <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 88, transform: 'translateY(-50%)', overflow: 'hidden', pointerEvents: 'none', WebkitMaskImage: edgeFade, maskImage: edgeFade }}>
+      <svg className="bs-wire-tape" viewBox="0 0 600 64" preserveAspectRatio="none" focusable="false">
+        <line x1="0" y1="32" x2="600" y2="32" stroke="rgba(242,237,228,0.1)" strokeWidth="0.6" />
+        {BS_WIRE_TAPE_BARS.map((b, i) => (
+          <rect key={i} x={b.x.toFixed(1)} y={(32 - b.h / 2).toFixed(1)} width="1.5" height={b.h.toFixed(1)} fill={b.teal ? 'rgba(52,214,197,0.34)' : 'rgba(242,237,228,0.15)'} />
+        ))}
+      </svg>
     </div>
   );
 }
@@ -655,6 +690,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <BSWireGround />
+        <BSWireWaveform />
         <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
           <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
         </div>
@@ -1456,11 +1492,12 @@ async function bsmStartCheckout() {
 // as the stage-'app'/'gate' safety-net loading state.
 function BSWireHold() {
   const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
-  // Mirrors the beat's composition (plate top · floating haloed mark · ON AIR
-  // dial · loading low) so a beat→hold transition never visibly jumps.
+  // Mirrors the beat's composition (plate top · waveform bed · floating haloed
+  // mark · ON AIR dial · loading low) so a beat→hold transition never jumps.
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
       <BSWireGround />
+      <BSWireWaveform />
       <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
         <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
       </div>
