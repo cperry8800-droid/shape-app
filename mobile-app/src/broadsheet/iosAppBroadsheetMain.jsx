@@ -193,10 +193,9 @@ function ensureWireStyles() {
   document.head.appendChild(el);
 }
 
-// The drifting dispatch-ticker ground — abstract dash rows only. The beat's
-// teal INCOMING line is a STATIC element of the beat composition (never a
-// drifting row, so it can't clip at the screen edge). Decorative (aria-hidden);
-// `dim` fades it further for surfaces that carry copy (wall / auth).
+// The drifting dispatch-ticker ground — abstract dash rows only. Decorative
+// (aria-hidden); `dim` fades it further for surfaces that carry copy
+// (wall / auth).
 function BSWireGround({ dim }) {
   ensureWireStyles();
   const INKF = 'rgba(242,237,228,0.26)';
@@ -610,20 +609,16 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
   // ── WIRE BEAT: the brand overture. The membership check resolves behind it
   // (the shell holds the stage until authReady + membership + min dwell, then
-  // routes), so no "Checking membership…" screen ever renders. Structured like
-  // every other wire page — masthead rule on top, one centered column (mark →
-  // incoming line → loading readout), a footer rule — over the dim ticker.
+  // routes), so no "Checking membership…" screen ever renders. The mark alone
+  // owns the center — no copy (owner call, 2026-07-11) — with the loading
+  // readout low and a footer rule, over the dim ticker.
   if (style === 'wire-beat') {
-    const name = bsDigestFirstName((window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {});
     const beatMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <BSWireGround />
         <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
           <BSShapeMark size={112} calm />
-          <div style={{ marginTop: 30, fontFamily: beatMono, fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#34d6c5', textShadow: '0 0 12px rgba(46,224,196,0.35)', textAlign: 'center' }}>
-            — Incoming · The Shape Wire{name ? ' · ' + name : ''} —
-          </div>
         </div>
         {/* The loading readout anchors low (boot-screen style) so the mark owns
             the center of the dash field — owner call. */}
