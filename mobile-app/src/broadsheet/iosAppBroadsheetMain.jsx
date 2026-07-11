@@ -167,6 +167,12 @@ function ensureWireStyles() {
   .bs-wire-drain { transform-origin:left center; animation: bsWireDrain var(--dur,5s) linear forwards; }
   @keyframes bsWireFill { 0%{ transform:scaleX(0); } 100%{ transform:scaleX(1); } }
   .bs-wire-fill { transform-origin:left center; animation: bsWireFill 3.4s cubic-bezier(0.3,0.5,0.35,1) forwards; will-change: transform; }
+  @keyframes bsWireTune { 0%,12%{ left:18%; } 38%,58%{ left:63%; } 84%,100%{ left:18%; } }
+  .bs-wire-needle { position:absolute; top:-4px; bottom:4px; left:63%; width:1.5px; background:linear-gradient(180deg, #34d6c5, rgba(52,214,197,0.15)); box-shadow:0 0 7px rgba(46,224,196,0.6); animation: bsWireTune 13s ease-in-out infinite; }
+  @keyframes bsWireFloat { 0%, 100%{ transform:translateY(4px); } 50%{ transform:translateY(-5px); } }
+  .bs-wire-mark-float { position:relative; animation: bsWireFloat 6.5s ease-in-out infinite; will-change: transform; }
+  @keyframes bsWireHalo { 0%, 100%{ opacity:0.3; } 50%{ opacity:0.8; } }
+  .bs-wire-mark-halo { position:absolute; inset:-55%; border-radius:50%; background:radial-gradient(circle, rgba(52,214,197,0.2), transparent 62%); animation: bsWireHalo 4.5s ease-in-out infinite; pointer-events:none; will-change: opacity; }
   .bs-wire-enter { outline:none; }
   .bs-wire-enter:focus-visible { outline:2px solid #34d6c5; outline-offset:3px; }
   .bs-wire-frow { display:flex; align-items:center; gap:10px; border-bottom:1px dotted rgba(242,237,228,0.34); padding:7px 0 6px; }
@@ -187,6 +193,9 @@ function ensureWireStyles() {
     .bs-wire-line{ animation:none!important; opacity:1!important; transform:none!important; }
     .bs-wire-drain{ animation:none!important; transform:none!important; }
     .bs-wire-fill{ animation:none!important; transform:scaleX(1)!important; }
+    .bs-wire-needle{ animation:none!important; }
+    .bs-wire-mark-float{ animation:none!important; transform:none!important; }
+    .bs-wire-mark-halo{ animation:none!important; opacity:0.5!important; }
   }`;
   const el = document.createElement('style');
   el.textContent = css;
@@ -227,6 +236,34 @@ function BSWireLoading({ top = 72 }) {
         <div className="bs-wire-fill" style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #0ac5a8, #34d6c5)', boxShadow: '0 0 8px rgba(46,224,196,0.5)' }} />
       </div>
       <div style={{ fontFamily: `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`, fontSize: 8, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.55)' }}>Loading</div>
+    </div>
+  );
+}
+
+// The tuning dial — "ON AIR" (owner pick from the background board,
+// 2026-07-11): a frequency ruler with a teal needle gliding between stations
+// while the app tunes in — Shape Radio's presence on the launch, at whisper
+// volume. Decorative (aria-hidden); reduced motion parks the needle on the
+// station (the class's resting `left`).
+function BSWireDial() {
+  ensureWireStyles();
+  const dialMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
+  const ticks = [];
+  for (let i = 0; i <= 48; i++) {
+    const major = i % 6 === 0;
+    const x = (i / 48) * 100;
+    ticks.push(<line key={i} x1={x} y1={major ? 8 : 14} x2={x} y2={22} stroke={`rgba(242,237,228,${major ? 0.22 : 0.1})`} strokeWidth={major ? 0.7 : 0.45} />);
+  }
+  return (
+    <div aria-hidden="true" style={{ position: 'relative', zIndex: 1, margin: '0 46px 26px' }}>
+      <div style={{ position: 'relative', height: 26 }}>
+        <svg viewBox="0 0 100 26" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}>
+          <line x1="0" y1="22" x2="100" y2="22" stroke="rgba(242,237,228,0.16)" strokeWidth="0.5" />
+          {ticks}
+        </svg>
+        <div className="bs-wire-needle" />
+      </div>
+      <div style={{ marginTop: 9, textAlign: 'center', fontFamily: dialMono, fontSize: 7, fontWeight: 700, letterSpacing: '0.34em', textTransform: 'uppercase', color: 'rgba(52,214,197,0.55)' }}>On air</div>
     </div>
   );
 }
@@ -609,24 +646,29 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
 
   // ── WIRE BEAT: the brand overture. The membership check resolves behind it
   // (the shell holds the stage until authReady + membership + min dwell, then
-  // routes), so no "Checking membership…" screen ever renders. The mark alone
-  // owns the center — no copy (owner call, 2026-07-11) — with the loading
-  // readout low and a footer rule, over the dim ticker.
+  // routes), so no "Checking membership…" screen ever renders. Composition
+  // (owner picks, 2026-07-11): the community plate rides the TOP, the mark
+  // floats haloed in the center (no copy), the ON AIR tuning dial sits above
+  // the loading readout — all over the dim ticker.
   if (style === 'wire-beat') {
     const beatMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <BSWireGround />
-        <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
-          <BSShapeMark size={112} calm />
+        <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
+          <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
         </div>
+        <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
+          <div className="bs-wire-mark-float">
+            <span className="bs-wire-mark-halo" aria-hidden="true" />
+            <BSShapeMark size={112} calm />
+          </div>
+        </div>
+        <BSWireDial />
         {/* The loading readout anchors low (boot-screen style) so the mark owns
             the center of the dash field — owner call. */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 52 }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 'max(44px, calc(30px + env(safe-area-inset-bottom, 0px)))' }}>
           <BSWireLoading top={0} />
-        </div>
-        <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
-          <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
         </div>
       </div>
     );
@@ -1414,17 +1456,23 @@ async function bsmStartCheckout() {
 // as the stage-'app'/'gate' safety-net loading state.
 function BSWireHold() {
   const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
+  // Mirrors the beat's composition (plate top · floating haloed mark · ON AIR
+  // dial · loading low) so a beat→hold transition never visibly jumps.
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
       <BSWireGround />
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <BSShapeMark size={96} calm />
-      </div>
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 52 }}>
-        <BSWireLoading top={0} />
-      </div>
-      <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: '10px 0 max(26px, env(safe-area-inset-bottom, 0px))', borderTop: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
+      <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
         <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
+      </div>
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="bs-wire-mark-float">
+          <span className="bs-wire-mark-halo" aria-hidden="true" />
+          <BSShapeMark size={96} calm />
+        </div>
+      </div>
+      <BSWireDial />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', paddingBottom: 'max(44px, calc(30px + env(safe-area-inset-bottom, 0px)))' }}>
+        <BSWireLoading top={0} />
       </div>
     </div>
   );
