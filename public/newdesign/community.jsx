@@ -74,7 +74,7 @@ const LIVE_ACTIVITY = [
     body: "Easy long. Brooklyn Half is Sunday — taper feels good.",
     distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", hr: "152 avg",
     splits: [7.8, 7.6, 7.7, 7.4, 7.5, 7.8, 7.6, 7.9],
-    coach: "Diego solo",
+    coach: "Diego solo", kudos: 28, replies: 4,
   },
   {
     kind: "workout", who: "Elena R.", city: "London, UK", tier: "Peak", ago: "11m",
@@ -82,26 +82,26 @@ const LIVE_ACTIVITY = [
     body: "Squats felt locked in today. RPE 8 across the board, no missed reps.",
     title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5,
     moves: [["Back squat", "5 × 5 @ 185 lb"], ["RDL", "4 × 8 @ 155 lb"], ["Lunge", "3 × 12 ea"], ["Leg curl", "3 × 12"]],
-    coach: "Maya Okafor",
+    coach: "Maya Okafor", kudos: 38, replies: 4,
   },
   {
     kind: "tier", who: "Ana P.", city: "Miami, FL", tier: "Tempo", ago: "18m",
     avatarHue: 14,
     body: "Three weeks in. Tempo unlocked — 2× redemption value at the store, here we come.",
-    from: "Raw", to: "Tempo", earnedThisMonth: 752,
+    from: "Raw", to: "Tempo", earnedThisMonth: 752, kudos: 56, replies: 14,
   },
   {
     kind: "streak", who: "Yuki A.", city: "Tokyo, JP", tier: "Form", ago: "24m",
     avatarHue: 280,
     body: "Three weeks straight. Sunday-night protein prep is the unlock.",
-    days: 21,
+    days: 21, kudos: 41, replies: 9,
   },
   {
     kind: "pr", who: "Tomás R.", city: "Miami, FL", tier: "Peak", ago: "31m",
     avatarHue: 200,
     body: "Conventional, no belt. Felt like nothing.",
     lift: "Deadlift", load: "405 lb", delta: "+15 lb", sets: [["WARM", "5 × 5 @ 245"], ["BUILD", "3 × 3 @ 335"], ["TOP", "1 × 1 @ 405 ✓"]],
-    coach: "Tomás Reyes",
+    coach: "Tomás Reyes", kudos: 33, replies: 7,
   },
 ];
 
@@ -260,16 +260,27 @@ function StreakCard({ a }) {
   );
 }
 
-function ActivityFooter() {
+// The app's reaction grammar (mobile reactionVerbs.mjs): ONE unified count per
+// post whose VERB is derived from the activity — "Spot" on strength, "Beast" on
+// a PR, "Respect" on a run, "Props" as the fallback for anything non-canonical
+// (tier/streak cards resolve there, exactly like the app's bucket resolver).
+// Never a generic "kudos". Keep in step with the app module.
+const REACTION_VERB = { pr: "Beast", run: "Respect", workout: "Spot", tier: "Props", streak: "Props" };
+
+function ActivityFooter({ a }) {
+  const verb = (REACTION_VERB[a.kind] || "Props").toUpperCase();
+  // Glyphs replicate the app's bsFeedIcon 'react' (sharp upward arrow) and
+  // 'comment' (squared speech plate) — square caps, 1.7 stroke, currentColor.
+  const glyph = { width: 13, height: 13, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "square", strokeLinejoin: "miter", "aria-hidden": true };
   return (
-    <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 22, alignItems: "center", fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
-        KUDOS
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 18, alignItems: "center", fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 6, background: "rgba(46,224,196,0.08)", color: TEAL_BRIGHT, fontWeight: 700, textTransform: "uppercase" }}>
+        <svg {...glyph}><path d="M8 13.5V3.5" /><path d="M3.8 7.7L8 3.5l4.2 4.2" /></svg>
+        {verb} · {a.kudos}
       </span>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
-        REPLY
+        <svg {...glyph}><path d="M2.3 3.2h11.4v7H6.4L3.8 12.6V10.2H2.3z" /></svg>
+        {a.replies}
       </span>
       <span style={{ marginLeft: "auto", color: TEAL }}>SIGN IN TO ENGAGE →</span>
     </div>
@@ -302,7 +313,7 @@ function LiveActivity() {
                 {a.kind === "workout" && <WorkoutCard a={a} />}
                 {a.kind === "tier"    && <TierCard a={a} />}
                 {a.kind === "streak"  && <StreakCard a={a} />}
-                <ActivityFooter />
+                <ActivityFooter a={a} />
               </article>
             </CmReveal>
           ))}

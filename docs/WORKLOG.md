@@ -167,10 +167,14 @@ changelog whenever something ships.
 > journey Stage 03 + the 01 — Train loop beat · GetApp.html TRAIN walkthrough
 > step · Pricing WHAT'S INCLUDED bullet + coach-optional FAQ (+ `pricing.jsx`
 > `?v` cache-bust — it had none) — closes the marketing half of War Room
-> #1666 (item flipped done; the app wall line shipped with #1668). Note:
-> **Pricing.html is tracked with CRLF** (repo exception) — don't LF-normalize
-> it. Open: beat-background direction (owner to pick from the presented
-> options) · the standing OWNER on-device launch pass.
+> #1666 (item flipped done; the app wall line shipped with #1668). **#1681**
+> kudos dies — the website speaks the app's reaction grammar (verb chip ·
+> count on the marketing feed footer, "reactions" wording on the Score page)
+> + the **feed-parity backend audit** (same table/privacy/counts both
+> surfaces; two asymmetries noted in the dated entry). Note: **Pricing.html
+> AND Community.html are tracked with CRLF** (repo exceptions) — don't
+> LF-normalize them. Open: beat-background direction (owner to pick from the
+> presented options) · the standing OWNER on-device launch pass.
 >
 > **Prior (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
 > one day, each from the owner's live on-device look): #1667/#1668 wire beat +
@@ -411,9 +415,35 @@ changelog whenever something ships.
   the index loop beat **"04 — Coach" → "04 — Community"** ("The social side
   of strong.", GetApp's established community line) — the beat was already
   showing the community screenshot (getapp-community-v2.png) under coach
-  copy. **Gotcha for next time: Pricing.html is tracked with CRLF endings**
-  (unlike the rest of the repo) — a blanket `sed 's/\r$//'` rewrites all 28
-  lines; restore with `sed 's/$/\r/'`.
+  copy. **Gotcha for next time: Pricing.html AND Community.html are tracked
+  with CRLF endings** (unlike the rest of the repo) — a blanket
+  `sed 's/\r$//'` rewrites every line; restore with `sed 's/$/\r/'`.
+- **#1681 — "remove kudos everywhere" (owner)**: the app never says "kudos"
+  (ONE unified reaction count, verb from `reactionVerbs.mjs` — Spot / Beast /
+  Respect / Props…), so the website now matches. community.jsx marketing
+  footer: heart+KUDOS/REPLY → the app grammar (upward-arrow verb chip
+  `VERB · COUNT` + comment-plate glyph + count; per-kind verb map with a
+  pointer comment); demo entries gain counts. clientScore.jsx: "kudos" →
+  "reactions" ×3. Cache-busts: community.jsx first `?v` + clientScore bump.
+  Strava's never-rendered `kudosCount` + app-internal variable names stay.
+- **Feed-parity backend audit** (owner: "check on the backend that posted
+  activities will be the same for both"): ✓ one source of truth —
+  `community_posts` (+likes/comments) under caller RLS on BOTH surfaces
+  (app = direct Supabase via shapeBackend.js; web = /api/community/feed); ✓
+  identical privacy semantics (app `feedMode.mjs` bsFeedQuerySpec ≡ the
+  route's GET filter: universal `public+community`, following adds
+  `followers` scoped to accepted follows + self; both created_at desc,
+  limit 50); ✓ auto-share (#1613) posts render on both (web = post card +
+  Session modal); ✓ like/comment counts from the same rows; ✓ the +5 post
+  award is idempotent per post id (no cross-surface double-award). Two
+  asymmetries, both latent/minor: (1) app-side write enrichment (coach/
+  program credit, PR delta vs pr_wall_posts, PR-Wall ledger) doesn't exist
+  in the web POST path — moot today since the web composer can't author
+  structured workouts; (2) the web dashboard's filter tabs bucket by demo
+  `kind`, and every REAL post maps to kind `post` — real activities appear
+  under ALL/POSTS but not WORKOUTS/PRs/RUNS filters (app filters correctly
+  by real kinds). Fix candidate if wanted: map `activity_type` → filter
+  bucket in dashboardCommunity's `mapPost`.
 
 ### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
 

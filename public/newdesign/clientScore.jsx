@@ -144,7 +144,7 @@ function ClientScorePage() {
     ["Plan adherence",    280, "92% · last 30d"],
     ["Habits",            120, <>78% adherence · 9 active · <a href="ClientHabits.html" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>open →</a></>],
     ["PRs hit",           180, "4 this quarter"],
-    ["Community",          84, "12 posts, 38 kudos"],
+    ["Community",          84, "12 posts, 38 reactions"],
     ["Coach endorsements",160, "Maya + Rae weekly"],
     ["Radio participation",60, "4 rooms joined"],
     ["Referrals",         100, "2 friends on Shape"],
@@ -173,7 +173,7 @@ function ClientScorePage() {
     { when: "Tue · 9:00 AM",       what: "Workout logged · Lower power",  delta: 8  },
     { when: "Tue · 12:30 PM",      what: "Meal logged · on plan",         delta: 4  },
     { when: "Mon · 6:15 AM",       what: "Squat PR · +5 lb",              delta: 32 },
-    { when: "Mon · 6:00 PM",       what: "Community kudos · 4 received",  delta: 4  },
+    { when: "Mon · 6:00 PM",       what: "Community reactions · 4 received",  delta: 4  },
   ];
   const ledger = live && Array.isArray(live.recent) && live.recent.length
     ? live.recent.slice(0, 8).map(r => ({
@@ -298,7 +298,7 @@ function ClientScorePage() {
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+4</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community reactions</span><span>+4</span></div>
           </div>
         )}
       </Card>
