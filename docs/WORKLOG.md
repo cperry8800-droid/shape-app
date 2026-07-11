@@ -159,7 +159,20 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
+> **Latest (2026-07-11): the wordless beat + self-serve marketing copy** —
+> **#1679** the wire beat drops its static INCOMING line (owner call): the
+> first splash is now just the Shape mark centered on the dash-ticker ground,
+> LOADING low, footer rule. **#1680** the marketing site finally advertises
+> self-serve training ("build your own workouts, coach optional"): index.html
+> journey Stage 03 + the 01 — Train loop beat · GetApp.html TRAIN walkthrough
+> step · Pricing WHAT'S INCLUDED bullet + coach-optional FAQ (+ `pricing.jsx`
+> `?v` cache-bust — it had none) — closes the marketing half of War Room
+> #1666 (item flipped done; the app wall line shipped with #1668). Note:
+> **Pricing.html is tracked with CRLF** (repo exception) — don't LF-normalize
+> it. Open: beat-background direction (owner to pick from the presented
+> options) · the standing OWNER on-device launch pass.
+>
+> **Prior (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
 > one day, each from the owner's live on-device look): #1667/#1668 wire beat +
 > "The telegram" Daily + warm-skip + wire wall · #1670–#1673 polish (plain dim
 > grounds, 3.5s dwell, clean invite, LOADING, picker + auth on the wire) ·
@@ -377,6 +390,26 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-11 — The beat goes wordless + the marketing site says "coach optional" (#1679 · #1680)
+
+- **#1679 — the wire beat drops its INCOMING line** (owner: "remove the
+  incoming message on the first splash page, just have the logos appear").
+  The static teal `— Incoming · The Shape Wire · {name} —` line is gone; the
+  beat is now mark-only (BSShapeMark `calm`, centered on the dash ticker),
+  LOADING readout low, footer rule. The unused name lookup in the wire-beat
+  branch went with it; stage machinery/dwell/routing untouched.
+- **#1680 — self-serve marketing copy (War Room #1666 closes its web half)**:
+  the feature has been live since #1618 (app) / #1664 (web) but the public
+  pages never said so. index.html journey Stage 03 ("written by your coach,
+  or built by you right in the app") + 01 — Train loop beat ("No coach yet?
+  Build your own week — starter templates and custom programs, coach
+  optional") · GetApp.html TRAIN step (same line) · Pricing "Build your own
+  workouts — coach optional" bullet + the FAQ answer names self-built weeks.
+  `pricing.jsx` had NO `?v=` tag in Pricing.html — added `?v=20260711`.
+  War Room marketing-copy item → done. **Gotcha for next time: Pricing.html
+  is tracked with CRLF endings** (unlike the rest of the repo) — a blanket
+  `sed 's/\r$//'` rewrites all 28 lines; restore with `sed 's/$/\r/'`.
 
 ### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
 
