@@ -24,6 +24,7 @@ const PLATFORM_FEATURES = [
   "Browse all trainers & nutritionists",
   "Subscribe to any trainer or nutritionist",
   "Buy individual workout & meal plans",
+  "Build your own workouts — coach optional",
   "Direct messaging with your pros",
   "Full progress tracking & analytics",
   "Nutrition schedule & macro tracking",
@@ -39,7 +40,7 @@ const EXAMPLE_COACHES = [
 
 const PRICING_FAQ = [
   { q: "What do I get for $5/month?", a: "Full platform access — browse trainers and nutritionists, message your pros, track your progress, log meals, listen to Shape Radio ad-free, and join the community. The $5 is the Shape Platform fee. Anything you buy from an individual coach (a subscription, a plan, a one-off session) is separate and goes directly to them." },
-  { q: "Do I have to subscribe to a coach?", a: "No. For $5/mo you can browse, message intro calls, buy one-off plans, and use the community. A lot of members stay at the platform level and only buy workouts or meal plans à la carte. Others subscribe to one or more coaches for ongoing programming." },
+  { q: "Do I have to subscribe to a coach?", a: "No. For $5/mo you can browse, message intro calls, buy one-off plans, build your own workouts right in the app, and use the community. A lot of members stay at the platform level — training on self-built weeks or à-la-carte plans. Others subscribe to one or more coaches for ongoing programming." },
   { q: "How much do trainers and nutritionists cost?", a: "Each pro sets their own price. Trainers typically run $60–$150 per session or $80–$250/month for full programming. Nutritionists typically run $120–$250 per consult or $120–$300/month for plans + reviews. You see each coach's rate on their profile before you subscribe." },
   { q: "Can I cancel any time?", a: "Yes — the $5/mo cancels instantly from your settings. Coach subscriptions cancel on the same screen. No penalties, no lock-in. Your data and training history stay with you." },
   { q: "Do trainers and nutritionists pay to be on Shape?", a: "No monthly dues, no setup fees. Shape takes a 15% platform fee on everything clients pay you — you only pay when you earn. Standard card processing is separate." },
