@@ -407,9 +407,13 @@ changelog whenever something ships.
   optional") · GetApp.html TRAIN step (same line) · Pricing "Build your own
   workouts — coach optional" bullet + the FAQ answer names self-built weeks.
   `pricing.jsx` had NO `?v=` tag in Pricing.html — added `?v=20260711`.
-  War Room marketing-copy item → done. **Gotcha for next time: Pricing.html
-  is tracked with CRLF endings** (unlike the rest of the repo) — a blanket
-  `sed 's/\r$//'` rewrites all 28 lines; restore with `sed 's/$/\r/'`.
+  War Room marketing-copy item → done. Also in #1680 (owner, mid-review):
+  the index loop beat **"04 — Coach" → "04 — Community"** ("The social side
+  of strong.", GetApp's established community line) — the beat was already
+  showing the community screenshot (getapp-community-v2.png) under coach
+  copy. **Gotcha for next time: Pricing.html is tracked with CRLF endings**
+  (unlike the rest of the repo) — a blanket `sed 's/\r$//'` rewrites all 28
+  lines; restore with `sed 's/$/\r/'`.
 
 ### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
 
