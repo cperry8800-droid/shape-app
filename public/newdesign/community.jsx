@@ -262,9 +262,10 @@ function StreakCard({ a }) {
 
 // The app's reaction grammar (mobile reactionVerbs.mjs): ONE unified count per
 // post whose VERB is derived from the activity — "Spot" on strength, "Beast" on
-// a PR/milestone, "Respect" on a run, "Props" as the fallback. Never a generic
-// "kudos". Mirrored here for the demo kinds; keep in step with the app module.
-const REACTION_VERB = { pr: "Beast", run: "Respect", workout: "Spot", tier: "Beast", streak: "Props" };
+// a PR, "Respect" on a run, "Props" as the fallback for anything non-canonical
+// (tier/streak cards resolve there, exactly like the app's bucket resolver).
+// Never a generic "kudos". Keep in step with the app module.
+const REACTION_VERB = { pr: "Beast", run: "Respect", workout: "Spot", tier: "Props", streak: "Props" };
 
 function ActivityFooter({ a }) {
   const verb = (REACTION_VERB[a.kind] || "Props").toUpperCase();
