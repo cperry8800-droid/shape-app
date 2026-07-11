@@ -458,6 +458,14 @@ changelog whenever something ships.
   its existing calm pulse/glow — compositor-only, reduced-motion pins both.
   BSWireHold mirrors the identical composition (no beat→hold jump).
   Browser-verified on the built bundle.
+- **#1683 — the waveform bed (owner pick "K" off the board)**: the radio
+  room completes — **`BSWireWaveform`**, an audio-amplitude tape behind the
+  floating mark: seeded-deterministic bars (LCG, no Math.random — same tape
+  every launch) mirrored around a center hairline, two identical 300-unit
+  halves so the 16s `translateX(-50%)` loop is seamless, edge-fade masked,
+  whisper volume (15% cream bars · ~1 in 10 teal). Rides the beat AND
+  BSWireHold (mirror contract). Reduced motion holds the tape still.
+  Decorative only — stage machinery untouched.
 
 ### 2026-07-10 — The application goes on the wire: provider apply (both roles) in the launch grammar
 
