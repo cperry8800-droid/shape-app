@@ -1467,7 +1467,7 @@ function BSWireHold() {
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div className="bs-wire-mark-float">
           <span className="bs-wire-mark-halo" aria-hidden="true" />
-          <BSShapeMark size={96} calm />
+          <BSShapeMark size={112} calm />
         </div>
       </div>
       <BSWireDial />
