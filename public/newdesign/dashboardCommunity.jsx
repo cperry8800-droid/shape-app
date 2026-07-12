@@ -265,6 +265,9 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     // type string alone can't be trusted. Non-exclusive like the mobile
     // chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
     const bucketsFor = (p, m) => {
+      // Shared meals (spec 2026-07-12) file under NUTRITION only — a meal is
+      // not a workout, and it never cross-files.
+      if (m.kind === 'meal') return ['meal'];
       // Evidence gate = everything hasSession trusts below (trace/zone
       // metrics) + composer/provider markers + a stamped PR delta, so a
       // delta-only PR or a trace-bearing session never files as plain 'post'
@@ -292,6 +295,16 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       return {
         kind: 'post',
         buckets: bucketsFor(p, m),
+        // THE PLATE data for real shared meals (spec 2026-07-12) — meal macros
+        // only, honest-absent attribution; null on every other post.
+        meal: m.kind === 'meal' ? {
+          kcal: Math.round(Number(m.kcal) || 0), p: Math.round(Number(m.p) || 0),
+          c: Math.round(Number(m.c) || 0), f: Math.round(Number(m.f) || 0),
+          planned: !!m.planned,
+          portion: (Number(m.portion) > 0 && Number(m.portion) !== 1) ? Number(m.portion) : null,
+          recipeId: (typeof m.recipeId === 'string' && m.recipeId.trim()) ? m.recipeId.trim() : '',
+          coach: (typeof m.coach === 'string' && m.coach.trim()) ? m.coach.trim() : '',
+        } : null,
         id: p.id || null,
         who: p.author_name || 'Shape member',
         role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
@@ -401,6 +414,44 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           <span><span style={{ color: "rgba(242,237,228,0.45)" }}>F</span> {p.f}g</span>
         </div>
         <div style={{ marginTop: 8, fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{p.source}</div>
+      </div>
+    );
+  }
+  // THE PLATE (spec 2026-07-12) — a REAL shared meal's signature block: kcal
+  // headline, dot-leader macro lines, the AS PLANNED/ADJUSTED stamp + honest
+  // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal');
+  // the demo MealStat above stays untouched. Never day totals, never targets.
+  function MealPlate({ meal }) {
+    const g = (v) => `${Math.round(Number(v) || 0)} g`;
+    const rows = [["Protein", g(meal.p)], ["Carbs", g(meal.c)], ["Fat", g(meal.f)]];
+    return (
+      <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-hidden="true">
+          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.16)" }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.55)", fontWeight: 600 }}>THE PLATE</span>
+          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.16)" }} />
+        </div>
+        <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{Math.round(Number(meal.kcal) || 0)}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)" }}>KCAL</span>
+        </div>
+        <div style={{ marginTop: 6 }}>
+          {rows.map(([l, v]) => (
+            <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
+              <span style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{l}</span>
+              <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(242,237,228,0.3)", transform: "translateY(-3px)" }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.85)", letterSpacing: "0.04em" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>
+          <span style={{ flexShrink: 0 }}>{meal.planned ? "As planned" : "Adjusted"}{meal.portion ? ` · ${meal.portion}×` : ""}</span>
+          {meal.coach ? (
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>From {meal.coach}'s plan</span>
+          ) : meal.recipeId ? (
+            <span>Kitchen Card recipe</span>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -574,6 +625,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           {p.kind === "meal"    && <MealStat p={p} />}
           {p.kind === "streak"  && <StreakStat p={p} />}
         </>)}
+        {p.meal && <MealPlate meal={p.meal} />}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
         {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
         {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
@@ -861,7 +913,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               { label: "WORKOUTS", kinds: ["workout"] },
               { label: "PRs",      kinds: ["pr"] },
               { label: "RUNS",     kinds: ["run"] },
-              { label: "MEALS",    kinds: ["meal"] },
+              { label: "NUTRITION", kinds: ["meal"] },
               { label: "MILESTONES", kinds: ["streak", "tier"] },
               { label: "POSTS",    kinds: ["post"] },
             ];
