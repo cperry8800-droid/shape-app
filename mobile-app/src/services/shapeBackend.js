@@ -2676,6 +2676,9 @@ async function createCommunityPost({
   mentions = [],
   createdAt = '',      // ISO — auto-share posts stamp the activity START
   autoShare = false,   // true = automatic workout post (skips the +5 award)
+  skipAward = false,   // deliberate share that still must not earn (meal
+                       // shares, spec 2026-07-12) — NOT autoShare: auto-post
+                       // semantics (dedup windows, tightening) never apply
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanPhoto = String(photoUrl || '').trim();
@@ -2763,8 +2766,10 @@ async function createCommunityPost({
   // amount and re-verifies the post is caller-owned + feed-visible (idempotent on
   // the post id), so it can't be abused. Best-effort; no-ops until the migration runs.
   // AUTO-SHARED workout posts never earn it — the workout already earned its +10
-  // (spec: no double-dipping via automatic posts).
-  if (data?.id && !autoShare) {
+  // (spec: no double-dipping via automatic posts). skipAward covers deliberate
+  // shares that must not earn either (meal shares — the RPC guard migration
+  // backs this up server-side for the web route).
+  if (data?.id && !autoShare && !skipAward) {
     try { await supabase.rpc('award_community_post', { p_post_id: data.id }); invalidateClientMetrics(); } catch (e) {}
   }
 
