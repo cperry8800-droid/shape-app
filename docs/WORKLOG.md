@@ -425,6 +425,15 @@ changelog whenever something ships.
   state ("No runs on the wire yet." + one-tap **Show all →**); the chip is
   session-only (a sticky filter reads as a broken feed next open).
 - Cache-busts: `dashboardCommunity.jsx?v=20260712` across all six shells.
+- **#1685 follow-up (CodeRabbit's late findings on #1684)**: the web
+  evidence gate widens to everything `hasSession` trusts (hr/pace/power/
+  cadence/elev traces + zone durations) **plus a stamped `metrics.delta`**,
+  so delta-only PRs and trace-bearing sessions never file as plain `post`
+  (`?v=20260712b`). The RUNS-regex-breadth finding was DECLINED: the breadth
+  deliberately mirrors the app's `isRun` endurance semantics (typeLabel
+  'Run' covers rides/swims/walks) so the SAME post files identically on
+  both surfaces — narrowing only the web side would recreate the drift
+  this wave closed.
 
 ### 2026-07-11 — The beat goes wordless + the marketing site says "coach optional" (#1679 · #1680)
 
