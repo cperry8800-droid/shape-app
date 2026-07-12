@@ -256,23 +256,24 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
       return `${Math.floor(ms / 86_400_000)}d`;
     };
-    // Filter bucket for a REAL post — `kind` stays 'post' (the renderer
+    // Filter buckets for a REAL post — `kind` stays 'post' (the renderer
     // contract: the pr/run/workout demo renderers need fields the API omits);
-    // the bucket ONLY feeds the filter tabs, so a real logged run lands under
+    // the buckets ONLY feed the filter tabs, so a real logged run lands under
     // RUNS instead of just ALL/POSTS. Mirrors the app's bsActivityFromPost
     // cut: only posts with real activity evidence type as activities — the
     // API defaults activity_type to 'workout' even on plain notes, so the
-    // type string alone can't be trusted.
-    const bucketFor = (p, m) => {
+    // type string alone can't be trusted. Non-exclusive like the mobile
+    // chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
+    const bucketsFor = (p, m) => {
       const isActivity = m.kind === 'workout'
         || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
         || !!p.source_provider
         || !!(p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length);
-      if (!isActivity) return 'post';
-      if (String(m.delta || '').trim()) return 'pr';
+      if (!isActivity) return ['post'];
       const t = String(p.activity_type || '').toLowerCase();
-      if (/run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(t)) return 'run';
-      return 'workout';
+      const buckets = [/run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(t) ? 'run' : 'workout'];
+      if (String(m.delta || '').trim()) buckets.push('pr');
+      return buckets;
     };
     const mapPost = (p, uid) => {
       // Always render the body with the text-only 'post' renderer (the
@@ -284,7 +285,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
       return {
         kind: 'post',
-        bucket: bucketFor(p, m),
+        buckets: bucketsFor(p, m),
         id: p.id || null,
         who: p.author_name || 'Shape member',
         role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
@@ -861,9 +862,10 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             const visible = feed.filter(p => {
               if (myPostsOnly && !p.isMe) return false;
               const f = filters.find(x => x.label === filter);
-              // Real posts filter by their activity bucket (kind stays 'post'
-              // for the renderer); demo cards have no bucket → kind as before.
-              return !f || !f.kinds || f.kinds.includes(p.bucket || p.kind);
+              // Real posts filter by their activity buckets (kind stays 'post'
+              // for the renderer; a PR'd run matches BOTH RUNS and PRs); demo
+              // cards have no buckets → kind as before.
+              return !f || !f.kinds || f.kinds.some(k => (p.buckets || [p.kind]).includes(k));
             });
             if (feedMode === "following" && liveEmpty) {
               return (
