@@ -159,7 +159,15 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-11 → 12): launch rounds + feed filters** —
+> **Latest (2026-07-12b): MEALS ON THE WIRE — COMPLETE both surfaces** —
+> #1686 spec (3 review rounds) · #1687 PR A (share-by-choice on BSMealLogged
+> + THE PLATE card + Nutrition chip + the no-award migration) · #1688 PR B
+> (web NUTRITION tab + MealPlate). **Migration APPLIED + verified live**
+> (meal shares can never earn the +5 — either path). Honest-absent contract
+> everywhere (no fabricated "0 g" / "Adjusted"). Suite 601. Open: on-device
+> pass (share → both feeds · Undo retracts · LOCKED IN · score unchanged).
+>
+> **Prior (2026-07-11 → 12): launch rounds + feed filters** —
 > **#1679** the wire beat drops its static INCOMING line (owner call): the
 > first splash is now just the Shape mark centered on the dash-ticker ground,
 > LOADING low, footer rule. **#1680** the marketing site finally advertises
@@ -425,9 +433,23 @@ changelog whenever something ships.
   "Programmed by" suppressed on meals) · **Nutrition** chip joins the #1684
   row (meals file under Nutrition ONLY). Verb = LOCKED IN via the existing
   nutrition bucket — zero verb-system changes.
-- **PR B (web) follows**: bucketsFor meal branch + post-card macro plate +
-  MEALS tab renamed NUTRITION; merges only after the migration is applied +
-  verified live.
+- **#1688 (PR B, web) — MERGED**: bucketsFor meal branch (`['meal']`, files
+  under NUTRITION only) + **MealPlate** on the real-post card (kcal headline
+  · dot-leader P/C/F · stamp + attribution) + **MEALS tab renamed
+  NUTRITION** + the tag pill pinned by `metrics.kind` (activity_type
+  defaults to 'workout' on this API — can't be trusted alone).
+- **Migration APPLIED + verified live** (owner ran it 2026-07-12; RPC
+  carries the meal guard on BOTH checks — `activity_type` and
+  `metrics->>'kind'` — grants unchanged). The wave is COMPLETE both
+  surfaces: #1686 spec (3 review rounds) → #1687 PR A (merged `765ca056`,
+  4 findings fixed — the `{ postId }` shape bug meant Undo could never
+  delete; the `stored:'local'` false-✓; the Undo/share race; honest-absent
+  macros) → #1688 PR B (merged `2c57d7a7`, 2 findings fixed). Suite 601.
+  **Honest-absent contract everywhere**: missing macros are OMITTED (never
+  "0 g"), unknown planning state shows no stamp (never a default
+  "Adjusted"), attribution only when true. Open: on-device pass (share a
+  real meal → both feeds · Undo retracts · LOCKED IN verb · Nutrition
+  chip/tab · score unchanged by the share).
 
 ### 2026-07-12 — The feed learns to file: activity-type filters, both surfaces (#1684)
 
