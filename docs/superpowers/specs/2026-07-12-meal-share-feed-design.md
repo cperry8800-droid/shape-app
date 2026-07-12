@@ -52,11 +52,18 @@ action under the primary row:
 - **`Post to the wire →`** — mono, ghost, the same grammar as the screen's
   existing actions. One tap posts and swaps the row to `✓ On the wire ·
   Community` (mono, teal). No modal, no second step — the choice IS the tap.
-- **Undo symmetry:** the screen's existing Undo (un-logs the meal) also
-  deletes the shared post when one was made — a retracted meal never leaves
-  a ghost card on the feed.
-- The action renders only for signed-in members (the logger already gates on
-  membership); it never renders in coach preview contexts.
+- **Share/undo contract (review round):** the action disables while the
+  request is pending (no double-posts); the created `postId` persists in the
+  component's state; the screen's Undo deletes that post by id
+  (`ShapeCommunity.remove`) before returning — a retracted meal never leaves
+  a ghost card on the feed. A failed share shows an honest toast ("Could not
+  post — try again."), never a fake ✓.
+- **Honest Undo scope:** today's Undo is visual-only for the LOG side (it
+  returns to the preview; `ShapeMealLog.log`'s persisted macros/award are a
+  pre-existing gap it does not reverse). This spec couples Undo to the
+  shared POST only; real macro un-logging is out of scope here.
+- The action renders only for signed-in members (auth-gated at render); it
+  never renders in preview/demo contexts.
 
 ## Data contract (no schema change)
 
@@ -86,15 +93,18 @@ set; `recipeId`/`coach` come from the meal's plan/recipe source fields and are
 
 ## Scoring & anti-farm (defense in depth)
 
-- **Client:** the share call passes the existing award-skip (the same
-  mechanism `autoShare: true` uses in `createCommunityPost`), so the app path
-  never invokes `award_community_post` for a meal share.
-- **Server (migration, owner applies):** `award_community_post` gains a guard
-  — it returns 0 when the post's `metrics->>'kind' = 'meal'` (or
-  `activity_type = 'meal'`) — so a meal share via the WEB route (which calls
-  the RPC unconditionally on every insert) can never award either. Migration
-  file: `2026-07-12-meal-share-no-award.sql`; verified live before PR B
-  merges.
+- **Client:** `createCommunityPost` gains a **non-persisted `skipAward`
+  option**; the award gate becomes `!autoShare && !skipAward`. Deliberately
+  NOT reusing `autoShare` (review round): auto-post semantics (dedup
+  windows, `tightenAutoPosts`, backdated `created_at`) must never apply to a
+  deliberate share — the two flags mean different things and only happen to
+  share the award skip.
+- **Server (migration, owner applies):** `award_community_post` gains a
+  guard — the RPC **returns without inserting** (it stays `returns void`)
+  when the post's `activity_type = 'meal'` or `metrics->>'kind' = 'meal'` —
+  so a meal share via the WEB route (which calls the RPC unconditionally on
+  every insert) can never award either. Migration file:
+  `2026-07-12-meal-share-no-award.sql`; verified live before PR B merges.
 - `award_meal_log` (+10 for the log itself) is untouched — logging pays,
   re-broadcasting doesn't.
 
@@ -146,8 +156,9 @@ meal share IS a community post — no parallel machinery.
    not appear under WORKOUTS/RUNS/PRs on either surface.
 6. Attribution renders ONLY for plan/recipe-sourced meals; a freehand logged
    meal shows no coach line and no recipe link.
-7. Undo on `BSMealLogged` removes both the log and the shared post; the feed
-   never shows a card for a retracted meal.
+7. Undo on `BSMealLogged` deletes the shared post (by the persisted postId);
+   the feed never shows a card for a retracted meal. (The log-side macro
+   reversal is the pre-existing Undo gap — out of scope, noted above.)
 8. No comparative calorie UI exists anywhere in the build — no sorting,
    ranking, or min/max framing on any surface.
 9. Reduced motion and all three papers are unaffected (the card introduces
