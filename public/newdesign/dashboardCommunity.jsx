@@ -265,10 +265,16 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     // type string alone can't be trusted. Non-exclusive like the mobile
     // chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
     const bucketsFor = (p, m) => {
+      // Evidence gate = everything hasSession trusts below (trace/zone
+      // metrics) + composer/provider markers + a stamped PR delta, so a
+      // delta-only PR or a trace-bearing session never files as plain 'post'
+      // (CodeRabbit, #1684 follow-up).
       const isActivity = m.kind === 'workout'
         || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
         || !!p.source_provider
-        || !!(p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length);
+        || !!(p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length)
+        || !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations)
+        || !!String(m.delta || '').trim();
       if (!isActivity) return ['post'];
       const t = String(p.activity_type || '').toLowerCase();
       const buckets = [/run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(t) ? 'run' : 'workout'];
