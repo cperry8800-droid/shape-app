@@ -296,15 +296,23 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         kind: 'post',
         buckets: bucketsFor(p, m),
         // THE PLATE data for real shared meals (spec 2026-07-12) — meal macros
-        // only, honest-absent attribution; null on every other post.
-        meal: m.kind === 'meal' ? {
-          kcal: Math.round(Number(m.kcal) || 0), p: Math.round(Number(m.p) || 0),
-          c: Math.round(Number(m.c) || 0), f: Math.round(Number(m.f) || 0),
-          planned: !!m.planned,
-          portion: (Number(m.portion) > 0 && Number(m.portion) !== 1) ? Number(m.portion) : null,
-          recipeId: (typeof m.recipeId === 'string' && m.recipeId.trim()) ? m.recipeId.trim() : '',
-          coach: (typeof m.coach === 'string' && m.coach.trim()) ? m.coach.trim() : '',
-        } : null,
+        // only, honest-absent END TO END (CodeRabbit): a missing/malformed
+        // value is null (the plate drops the row — never a fabricated "0 g"),
+        // planned is tri-state (unknown → no stamp, never "Adjusted" by
+        // default), and a meal post with no numbers at all renders as a
+        // plain post.
+        meal: (() => {
+          if (m.kind !== 'meal') return null;
+          const num = (v) => { if (v === undefined || v === null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
+          const meal = {
+            kcal: num(m.kcal), p: num(m.p), c: num(m.c), f: num(m.f),
+            planned: typeof m.planned === 'boolean' ? m.planned : null,
+            portion: (Number(m.portion) > 0 && Number(m.portion) !== 1) ? Number(m.portion) : null,
+            recipeId: (typeof m.recipeId === 'string' && m.recipeId.trim()) ? m.recipeId.trim() : '',
+            coach: (typeof m.coach === 'string' && m.coach.trim()) ? m.coach.trim() : '',
+          };
+          return (meal.kcal != null || meal.p != null || meal.c != null || meal.f != null) ? meal : null;
+        })(),
         id: p.id || null,
         who: p.author_name || 'Shape member',
         role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
@@ -315,7 +323,10 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
         likes: Array.isArray(p.likes) ? p.likes.length : 0,
         comments: Array.isArray(p.comments) ? p.comments.length : 0,
-        tag: tagFor(p.activity_type),
+        // Meal posts pin the NUTRITION tag from metrics.kind — activity_type
+        // defaults to 'workout' on this API, so it can't be trusted alone
+        // (CodeRabbit: the visible pill must match the Nutrition bucket).
+        tag: m.kind === 'meal' ? 'NUTRITION' : tagFor(p.activity_type),
         isMe: !!(uid && p.author_id === uid),
         video: (m && m.video_url) || null,
         isLive: true,
@@ -422,8 +433,15 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal');
   // the demo MealStat above stays untouched. Never day totals, never targets.
   function MealPlate({ meal }) {
-    const g = (v) => `${Math.round(Number(v) || 0)} g`;
-    const rows = [["Protein", g(meal.p)], ["Carbs", g(meal.c)], ["Fat", g(meal.f)]];
+    // Honest-absent (CodeRabbit): mapPost delivers nullable macros + a
+    // tri-state planned. Absent rows drop, the kcal headline renders only
+    // when real, the stamp only when the planning state is KNOWN, and the
+    // footer only when it has something true to say.
+    const rows = [["Protein", meal.p], ["Carbs", meal.c], ["Fat", meal.f]]
+      .filter((r) => r[1] != null).map(([l, v]) => [l, `${v} g`]);
+    const stamp = meal.planned === true ? "As planned" : meal.planned === false ? "Adjusted" : null;
+    const stampLine = [stamp, meal.portion ? `${meal.portion}×` : null].filter(Boolean).join(" · ");
+    const attribution = meal.coach ? `From ${meal.coach}'s plan` : meal.recipeId ? "Kitchen Card recipe" : null;
     return (
       <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-hidden="true">
@@ -431,27 +449,29 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.55)", fontWeight: 600 }}>THE PLATE</span>
           <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.16)" }} />
         </div>
-        <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
-          <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{Math.round(Number(meal.kcal) || 0)}</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)" }}>KCAL</span>
-        </div>
-        <div style={{ marginTop: 6 }}>
-          {rows.map(([l, v]) => (
-            <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
-              <span style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{l}</span>
-              <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(242,237,228,0.3)", transform: "translateY(-3px)" }} />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.85)", letterSpacing: "0.04em" }}>{v}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>
-          <span style={{ flexShrink: 0 }}>{meal.planned ? "As planned" : "Adjusted"}{meal.portion ? ` · ${meal.portion}×` : ""}</span>
-          {meal.coach ? (
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>From {meal.coach}'s plan</span>
-          ) : meal.recipeId ? (
-            <span>Kitchen Card recipe</span>
-          ) : null}
-        </div>
+        {meal.kcal != null && (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{meal.kcal}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)" }}>KCAL</span>
+          </div>
+        )}
+        {rows.length > 0 && (
+          <div style={{ marginTop: 6 }}>
+            {rows.map(([l, v]) => (
+              <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
+                <span style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{l}</span>
+                <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(242,237,228,0.3)", transform: "translateY(-3px)" }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.85)", letterSpacing: "0.04em" }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {(stampLine || attribution) && (
+          <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>
+          <span style={{ flexShrink: 0 }}>{stampLine}</span>
+            {attribution && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attribution}</span>}
+          </div>
+        )}
       </div>
     );
   }
