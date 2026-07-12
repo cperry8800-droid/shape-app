@@ -52,12 +52,15 @@ action under the primary row:
 - **`Post to the wire →`** — mono, ghost, the same grammar as the screen's
   existing actions. One tap posts and swaps the row to `✓ On the wire ·
   Community` (mono, teal). No modal, no second step — the choice IS the tap.
-- **Share/undo contract (review round):** the action disables while the
+- **Share/undo contract (review rounds):** the action disables while the
   request is pending (no double-posts); the created `postId` persists in the
   component's state; the screen's Undo deletes that post by id
   (`ShapeCommunity.remove`) before returning — a retracted meal never leaves
   a ghost card on the feed. A failed share shows an honest toast ("Could not
-  post — try again."), never a fake ✓.
+  post — try again."), never a fake ✓. A **failed delete on Undo** toasts
+  honestly too ("Could not remove the post — delete it from the feed card")
+  and the undo still proceeds — the post stays owner-deletable from the
+  card's own menu; the member is never told it's gone when it isn't.
 - **Honest Undo scope:** today's Undo is visual-only for the LOG side (it
   returns to the preview; `ShapeMealLog.log`'s persisted macros/award are a
   pre-existing gap it does not reverse). This spec couples Undo to the
