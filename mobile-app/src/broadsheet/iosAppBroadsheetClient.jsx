@@ -8728,6 +8728,19 @@ function bsActivityFromPost(p) {
     replies: bsNormComments(p.comments).length,
   };
 }
+// Activity-type filter for the COMMUNITY stream (the chips under the lens
+// row). Buckets are non-exclusive on purpose — a deadlift PR is also a
+// workout, a PR'd race also a run. Real cards: typeLabel 'Run' = endurance
+// (route, or the run/ride/swim regex in bsActivityFromPost); `delta` = a
+// genuine stamped new best. Demo cards carry kind 'pr'|'run'|'workout'.
+function bsFeedTypeMatch(a, t) {
+  if (!a) return false;
+  if (t === 'all') return true;
+  if (t === 'prs') return a.kind === 'pr' || !!a.delta;
+  const isRun = a.kind === 'run' || a.typeLabel === 'Run';
+  return t === 'runs' ? isRun : !isRun; // 'workouts' = every non-endurance activity
+}
+
 // Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
 // sensor posts use the SAME mapper the community feed uses (bsActivityFromPost);
 // non-activity posts (note/photo/video/link) fall back to a minimal `a` so they
@@ -13336,6 +13349,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     try { return localStorage.getItem('shape.feedMode') === 'following' ? 'following' : 'universal'; } catch (e) { return 'universal'; }
   });
   const switchFeedMode = (m) => { setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
+  // Activity-type filter chips (All / Workouts / Runs / PRs) — session-only on
+  // purpose (a sticky filter reads as a broken feed on the next open).
+  const [feedType, setFeedType] = useStateBSC('all');
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -14122,6 +14138,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
                 {bsSubTab({ key: 'following', on: feedMode === 'following', color: TEALB, onClick: () => switchFeedMode('following'), label: 'Following' })}
               </div>
+              {/* Activity-type filter — a real logged run files under Runs, a
+                  stamped new best under PRs (buckets non-exclusive by design). */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `0 ${t.padX}px 4px` }}>
+                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']].map(([k, label]) =>
+                  bsSubTab({ key: k, on: feedType === k, color: TEALB, onClick: () => setFeedType(k), label }))}
+              </div>
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
@@ -14132,8 +14154,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   input and won't lose keyboard on re-render. */}
               {(() => {
                 const realMode = loggedIn && postsLive;
-                const cards = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
-                if (realMode && !cards.length) {
+                const all = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
+                const cards = all.filter((a) => bsFeedTypeMatch(a, feedType));
+                if (realMode && !all.length) {
                   // FOLLOWING with nobody to show → honest empty state + a way out
                   // (follow suggestions + a one-tap jump to Universal). Never blank.
                   if (feedMode === 'following') {
@@ -14150,6 +14173,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     <div style={{ textAlign: 'center', padding: '40px 24px', color: muted }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.02em' }}>No activity yet</div>
                       <div style={{ fontFamily: t.BODY, fontSize: 13, marginTop: 6, lineHeight: 1.4 }}>Log a workout or run — or connect Strava/Whoop in Settings — and it shows up here for the community.</div>
+                    </div>
+                  );
+                }
+                if (!cards.length) {
+                  // The base feed has cards but none match the type chip —
+                  // honest filtered-empty, one tap back to All. (Demo mode
+                  // never lands here: the sample set carries every bucket.)
+                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs' }[feedType] || 'activity';
+                  return (
+                    <div style={{ textAlign: 'center', padding: '32px 24px', color: muted }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: cardInk, letterSpacing: '-0.01em' }}>No {typeLabel} on the wire yet.</div>
+                      <button onClick={() => setFeedType('all')} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>Show all →</button>
                     </div>
                   );
                 }
