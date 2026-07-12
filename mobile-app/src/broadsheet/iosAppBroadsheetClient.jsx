@@ -4628,8 +4628,15 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
     setShareBusy(true);
     try {
       const res = await window.ShapeCommunity.createPost(bsMealSharePayload(share));
-      setSharedPostId((res && res.data && res.data.id) || 'shared');
-      window.__bsToast?.('On the wire → Community', 'ok');
+      // createCommunityPost returns { stored: 'local', … } WITHOUT throwing
+      // when the insert didn't reach Supabase — only a real stored row is a
+      // success (CodeRabbit: never a fake ✓ over a local fallback).
+      if (res && res.stored === 'supabase' && res.data && res.data.id) {
+        setSharedPostId(res.data.id);
+        window.__bsToast?.('On the wire → Community', 'ok');
+      } else {
+        window.__bsToast?.('Could not post — try again.', 'err');
+      }
     } catch (e) {
       window.__bsToast?.('Could not post — try again.', 'err');
     }
@@ -4637,12 +4644,14 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
   };
   const handleUndo = async () => {
     // Undo retracts the shared POST (a retracted meal never leaves a ghost
-    // card). A failed delete is told honestly — the post stays deletable from
-    // the feed card's own menu; we never claim it's gone when it isn't. The
-    // log-side macro reversal is the pre-existing Undo gap — out of scope
-    // here (spec, review rounds).
-    if (sharedPostId && sharedPostId !== 'shared' && window.ShapeCommunity?.remove) {
-      try { await window.ShapeCommunity.remove(sharedPostId); }
+    // card). Gated on shareBusy — a fast Undo mid-post would orphan the
+    // just-created row (CodeRabbit). A failed delete is told honestly — the
+    // post stays deletable from the feed card's own menu; we never claim
+    // it's gone when it isn't. The log-side macro reversal is the
+    // pre-existing Undo gap — out of scope here (spec, review rounds).
+    if (shareBusy) return;
+    if (sharedPostId && window.ShapeCommunity?.remove) {
+      try { await window.ShapeCommunity.remove({ postId: sharedPostId }); }
       catch (e) { window.__bsToast?.('Could not remove the post — delete it from the feed card.', 'err'); }
     }
     onUndo();
@@ -4684,7 +4693,7 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
         </div>
       )}
       <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-        <button onClick={handleUndo} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50 }}>Undo</button>
+        <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, opacity: shareBusy ? 0.5 : 1 }}>Undo</button>
       </div>
     </BSPage>
   );
@@ -8703,12 +8712,15 @@ function bsActivityFromPost(p) {
   // 3-up stat row: prefer the composer's workoutStats, else the sensor stats.
   // `fullStats` keeps EVERY stat (the detail page shows them all; the card 3-up).
   let statsRow = null, fullStats = null;
-  const mg = (v) => `${Math.round(Number(v) || 0)}`;
+  // Honest-absent macro read: a missing/malformed value renders NOTHING —
+  // never a fabricated 0 kcal / "0 g" (review round).
+  const mn = (v) => { if (v === undefined || v === null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
   if (isMeal) {
     // The kcal figure is the card hero; the plate (bsMealMenuLines) carries
-    // P/C/F — the detail page's fullStats lists all four.
-    statsRow = [['Calories', `${mg(rm.kcal)} kcal`]];
-    fullStats = [['Calories', `${mg(rm.kcal)} kcal`], ['Protein', `${mg(rm.p)} g`], ['Carbs', `${mg(rm.c)} g`], ['Fat', `${mg(rm.f)} g`]];
+    // P/C/F — the detail page's fullStats lists whatever is really there.
+    const kcalN = mn(rm.kcal);
+    fullStats = [['Calories', kcalN != null ? `${kcalN} kcal` : null], ['Protein', mn(rm.p) != null ? `${mn(rm.p)} g` : null], ['Carbs', mn(rm.c) != null ? `${mn(rm.c)} g` : null], ['Fat', mn(rm.f) != null ? `${mn(rm.f)} g` : null]].filter((r) => r[1]);
+    statsRow = kcalN != null ? [['Calories', `${kcalN} kcal`]] : fullStats.slice(0, 1);
   } else if (ws && ws.length) {
     fullStats = ws.map((s) => [String(s.label || s.k || s.key || '').trim(), String(s.value != null ? s.value : (s.v != null ? s.v : '')).trim()]).filter((r) => r[1]);
     statsRow = fullStats.slice(0, 3);
@@ -8750,9 +8762,11 @@ function bsActivityFromPost(p) {
     // The plate (spec 2026-07-12): the meal card's signature block — macros +
     // AS PLANNED/ADJUSTED stamp + honest attribution. Null on every other card.
     meal: isMeal ? {
-      kcal: Math.round(Number(rm.kcal) || 0), p: Math.round(Number(rm.p) || 0),
-      c: Math.round(Number(rm.c) || 0), f: Math.round(Number(rm.f) || 0),
-      planned: !!rm.planned,
+      // Nullable macros + tri-state planned (true/false/unknown) — the plate
+      // drops absent rows and omits the stamp when the state is unknown,
+      // never fabricating "0 g" or "Adjusted" (review round).
+      kcal: mn(rm.kcal), p: mn(rm.p), c: mn(rm.c), f: mn(rm.f),
+      planned: typeof rm.planned === 'boolean' ? rm.planned : null,
       portion: (Number(rm.portion) > 0 && Number(rm.portion) !== 1) ? Number(rm.portion) : null,
       recipeId: (typeof rm.recipeId === 'string' && rm.recipeId.trim()) ? rm.recipeId.trim() : '',
       coach: (typeof rm.coach === 'string' && rm.coach.trim()) ? rm.coach.trim() : '',
@@ -12753,34 +12767,45 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               and a printed footer with the AS PLANNED/ADJUSTED stamp + honest
               attribution. Guarded by a.meal — zero-render on every other card.
               No new animation (reduced-motion/papers unaffected). */}
-          {a.meal && (
-            <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 9px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
-                <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The plate</span>
-                <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
-              </div>
-              <div style={{ marginTop: 6 }}>
-                {bsMealMenuLines(a.meal).map(([l, v]) => (
-                  <div key={l} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0' }}>
-                    <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk }}>{l}</span>
-                    <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)' }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 11.5, color: cardInk, letterSpacing: '0.04em' }}>{v}</span>
+          {a.meal && (() => {
+            // Honest-absent plate: rows come pre-filtered (bsMealMenuLines
+            // drops missing macros), the stamp is tri-state (unknown → no
+            // stamp), and the footer renders only when it has something true
+            // to say (review round — never "0 g", never a fabricated
+            // "Adjusted").
+            const plateRows = bsMealMenuLines(a.meal);
+            const stamp = a.meal.planned === true ? 'As planned' : a.meal.planned === false ? 'Adjusted' : null;
+            const stampLine = [stamp, a.meal.portion ? `${a.meal.portion}×` : null].filter(Boolean).join(' · ');
+            const attribution = a.meal.coach ? `From ${a.meal.coach}'s plan` : a.meal.recipeId ? 'Kitchen Card recipe' : null;
+            return (
+              <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 9px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
+                  <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The plate</span>
+                  <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+                </div>
+                {plateRows.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    {plateRows.map(([l, v]) => (
+                      <div key={l} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0' }}>
+                        <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk }}>{l}</span>
+                        <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)' }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 11.5, color: cardInk, letterSpacing: '0.04em' }}>{v}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                {(stampLine || attribution) && (
+                  <div style={{ marginTop: 7, paddingTop: 7, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>{stampLine}</span>
+                    {attribution && (
+                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attribution}</span>
+                    )}
+                  </div>
+                )}
               </div>
-              <div style={{ marginTop: 7, paddingTop: 7, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>
-                  {a.meal.planned ? 'As planned' : 'Adjusted'}{a.meal.portion ? ` · ${a.meal.portion}×` : ''}
-                </span>
-                {a.meal.coach ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>From {a.meal.coach}'s plan</span>
-                ) : a.meal.recipeId ? (
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>Kitchen Card recipe</span>
-                ) : null}
-              </div>
-            </div>
-          )}
+            );
+          })()}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
               NOT modified; it runs full-bleed edge-to-edge: the card content has
               a small 8px side gutter, so the outer wrapper's negative margins

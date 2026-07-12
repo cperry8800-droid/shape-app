@@ -7,13 +7,21 @@
 //
 // Contract (owner-locked): the plate, not the ledger — the payload carries
 // the meal's own macros ONLY, never day totals/deficit/targets. Attribution
-// is honest-absent: recipeId/coach ride ONLY when truthy (no empty strings).
-// skipAward is always true — the meal LOG earns (award_meal_log); the share
-// never does (the RPC guard migration covers the web route too).
+// AND macros are honest-absent: a missing/malformed value is OMITTED, never
+// posted as a fabricated 0 ("0 g protein" is a claim, not a blank — review
+// round). skipAward is always true — the meal LOG earns (award_meal_log);
+// the share never does (the RPC guard migration covers the web route too).
+
+// Whole-number gram/kcal, or null when the input isn't a real number.
+function bsMealNum(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
 
 export function bsMealSharePayload({
   name = '',
-  kcal = 0, p = 0, c = 0, f = 0,
+  kcal, p, c, f,
   portion = 1,
   planned = false,
   note = '',
@@ -21,15 +29,12 @@ export function bsMealSharePayload({
   coach = '',
   privacy = 'community',
 } = {}) {
-  const round = (v) => Math.round(Number(v) || 0);
-  const metrics = {
-    kind: 'meal',
-    kcal: round(kcal),
-    p: round(p),
-    c: round(c),
-    f: round(f),
-    planned: !!planned,
-  };
+  const metrics = { kind: 'meal', planned: !!planned };
+  const kcalN = bsMealNum(kcal), pN = bsMealNum(p), cN = bsMealNum(c), fN = bsMealNum(f);
+  if (kcalN != null) metrics.kcal = kcalN;
+  if (pN != null) metrics.p = pN;
+  if (cN != null) metrics.c = cN;
+  if (fN != null) metrics.f = fN;
   const mult = Number(portion);
   if (Number.isFinite(mult) && mult > 0 && mult !== 1) metrics.portion = Math.round(mult * 100) / 100;
   const rid = String(recipeId || '').trim();
@@ -47,14 +52,11 @@ export function bsMealSharePayload({
 }
 
 // The plate's menu rows — label/value pairs for the dot-leader lines. Grams
-// render as whole numbers (the logger stores integers; a stray float never
-// prints ".00000001 g" on a card).
+// render as whole numbers, and a missing/malformed macro DROPS its row
+// (honest-absent — never a fabricated "0 g").
 export function bsMealMenuLines(meal) {
   const m = meal || {};
-  const g = (v) => `${Math.round(Number(v) || 0)} g`;
-  return [
-    ['Protein', g(m.p)],
-    ['Carbs', g(m.c)],
-    ['Fat', g(m.f)],
-  ];
+  return [['Protein', bsMealNum(m.p)], ['Carbs', bsMealNum(m.c)], ['Fat', bsMealNum(m.f)]]
+    .filter((r) => r[1] != null)
+    .map(([l, v]) => [l, `${v} g`]);
 }

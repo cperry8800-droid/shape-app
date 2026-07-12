@@ -414,7 +414,7 @@ changelog whenever something ships.
   (pending-guarded; Undo retracts the post by persisted id, failed delete
   toasts honestly; signed-in only) · pure `mealShare.mjs` payload builder
   (meal macros only, honest-absent recipeId/coach, skipAward always true;
-  9 tests, suite 600) · `createCommunityPost` gains non-persisted `skipAward`
+  9 tests, suite 601) · `createCommunityPost` gains non-persisted `skipAward`
   (gate `!autoShare && !skipAward` — NOT autoShare, whose auto-post semantics
   never touch a deliberate share) · **migration
   `2026-07-12-meal-share-no-award.sql` — ⚠ OWNER applies** (the RPC returns

@@ -53,15 +53,23 @@ test("payload never carries day totals or goal fields", () => {
   assert.deepEqual(keys, ["c", "f", "kcal", "kind", "p", "planned"]);
 });
 
+test("missing/malformed macros are OMITTED — never fabricated zeroes", () => {
+  const pay = bsMealSharePayload({ name: "Kcal-only", kcal: 500 });
+  assert.deepEqual(Object.keys(pay.metrics).sort(), ["kcal", "kind", "planned"]);
+  const junk = bsMealSharePayload({ name: "Junk", kcal: "abc", p: null, c: undefined, f: "" });
+  assert.deepEqual(Object.keys(junk.metrics).sort(), ["kind", "planned"]);
+});
+
 // ── bsMealMenuLines ──────────────────────────────────────────────────────────
 test("menu lines are P/C/F only — kcal rides the hero, never duplicated", () => {
   const lines = bsMealMenuLines({ kcal: 620, p: 44, c: 58, f: 22 });
   assert.deepEqual(lines, [["Protein", "44 g"], ["Carbs", "58 g"], ["Fat", "22 g"]]);
 });
 
-test("menu lines round stray floats and survive junk", () => {
+test("menu lines round stray floats and DROP absent macros (honest-absent)", () => {
   assert.deepEqual(bsMealMenuLines({ p: 44.000001, c: "58", f: null }), [
-    ["Protein", "44 g"], ["Carbs", "58 g"], ["Fat", "0 g"],
+    ["Protein", "44 g"], ["Carbs", "58 g"],
   ]);
-  assert.deepEqual(bsMealMenuLines(null), [["Protein", "0 g"], ["Carbs", "0 g"], ["Fat", "0 g"]]);
+  assert.deepEqual(bsMealMenuLines(null), []);
+  assert.deepEqual(bsMealMenuLines({ p: "junk" }), []);
 });
