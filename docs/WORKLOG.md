@@ -159,7 +159,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-11): the wordless beat + self-serve marketing copy** —
+> **Latest (2026-07-11 → 12): launch rounds + feed filters** —
 > **#1679** the wire beat drops its static INCOMING line (owner call): the
 > first splash is now just the Shape mark centered on the dash-ticker ground,
 > LOADING low, footer rule. **#1680** the marketing site finally advertises
@@ -175,9 +175,13 @@ changelog whenever something ships.
 > AND Community.html are tracked with CRLF** (repo exceptions) — don't
 > LF-normalize them. **#1682** the owner picked off the board: the beat goes
 > **ON AIR** (BSWireDial ruler + needle + whisper, plate moved to the TOP,
-> the mark floats in a breathing halo; hold mirrors it). Open: optional ON
-> AIR pairings (waveform bed · signal-lock ticks · static-calms-on-lock,
-> mocked on the board) · the standing OWNER on-device launch pass.
+> the mark floats in a breathing halo; hold mirrors it). **#1683** owner pick
+> "K": the **waveform bed** (BSWireWaveform seeded tape behind the mark, beat
+> + hold). **#1684 (2026-07-12)**: **activity-type filters on the community
+> feed, both surfaces** — web mapPost derives a real filter bucket (the audit
+> fix: a logged run files under RUNS) + the app stream gains All/Workouts/
+> Runs/PRs chips. Open: optional further beat layers (L signal-lock ·
+> M static-calm, on the board) · the standing OWNER on-device launch pass.
 >
 > **Prior (2026-07-10f): THE LAUNCH ON THE WIRE — COMPLETE** (six rounds in
 > one day, each from the owner's live on-device look): #1667/#1668 wire beat +
@@ -397,6 +401,30 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-12 — The feed learns to file: activity-type filters, both surfaces (#1684)
+
+- Closes the 2026-07-11 audit finding (real posts only appeared under
+  ALL/POSTS on the web dashboard's tabs) and adds the filter the APP never
+  had — owner: "yes lets build this, create a filter option on the feed".
+- **Web (dashboardCommunity.jsx)**: `mapPost` now derives a **filter
+  bucket** — workout / run / pr / post — from the post's REAL activity
+  evidence (`metrics.kind === 'workout'`, non-empty `workoutStats`,
+  `source_provider`, route points). The API defaults `activity_type` to
+  `'workout'` even on plain notes, so the type string alone can't be
+  trusted; a stamped `metrics.delta` files under PRs. `kind` stays `'post'`
+  (the pr/run/workout demo renderers need fields the API omits — renderer
+  contract untouched); the tabs filter on `p.bucket || p.kind`.
+- **App (iosAppBroadsheetClient.jsx)**: the COMMUNITY stream gains an
+  **activity-type chip row — All / Workouts / Runs / PRs** — under the
+  Universal/Following lens, same `bsSubTab` grammar. Pure
+  `bsFeedTypeMatch(a, t)`: buckets **non-exclusive by design** (a deadlift
+  PR is also a workout; a PR'd race also a run); real cards key off
+  `typeLabel === 'Run'` (endurance incl. rides/swims per bsActivityFromPost)
+  and the stamped `delta`; demo cards key off `kind`. Honest filtered-empty
+  state ("No runs on the wire yet." + one-tap **Show all →**); the chip is
+  session-only (a sticky filter reads as a broken feed next open).
+- Cache-busts: `dashboardCommunity.jsx?v=20260712` across all six shells.
 
 ### 2026-07-11 — The beat goes wordless + the marketing site says "coach optional" (#1679 · #1680)
 
