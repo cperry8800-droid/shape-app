@@ -12,6 +12,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
+import { bsMealSharePayload, bsMealMenuLines } from '../services/mealShare.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -4611,9 +4612,50 @@ function _bsScrollTopOnMount() {
 
 // Shared "Logged." confirmation screen — used after one-tap logging a meal
 // from the preview (and mirrors the log-meal flow's confirmation).
-function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, onUndo = () => {} }) {
+function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, onUndo = () => {}, share = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Share-by-choice (spec 2026-07-12): a deliberate per-meal action, default
+  // off, never auto. The created postId persists here so Undo can retract the
+  // post; the button disables while pending (no double-posts). Signed-in only
+  // — the demo preview never shows it.
+  const [sharedPostId, setSharedPostId] = useStateBSC(null);
+  const [shareBusy, setShareBusy] = useStateBSC(false);
+  const canShare = !!(share && typeof window !== 'undefined' && window.ShapeCommunity && window.ShapeCommunity.createPost
+    && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const doShare = async () => {
+    if (sharedPostId || shareBusy || !canShare) return;
+    setShareBusy(true);
+    try {
+      const res = await window.ShapeCommunity.createPost(bsMealSharePayload(share));
+      // createCommunityPost returns { stored: 'local', … } WITHOUT throwing
+      // when the insert didn't reach Supabase — only a real stored row is a
+      // success (CodeRabbit: never a fake ✓ over a local fallback).
+      if (res && res.stored === 'supabase' && res.data && res.data.id) {
+        setSharedPostId(res.data.id);
+        window.__bsToast?.('On the wire → Community', 'ok');
+      } else {
+        window.__bsToast?.('Could not post — try again.', 'err');
+      }
+    } catch (e) {
+      window.__bsToast?.('Could not post — try again.', 'err');
+    }
+    setShareBusy(false);
+  };
+  const handleUndo = async () => {
+    // Undo retracts the shared POST (a retracted meal never leaves a ghost
+    // card). Gated on shareBusy — a fast Undo mid-post would orphan the
+    // just-created row (CodeRabbit). A failed delete is told honestly — the
+    // post stays deletable from the feed card's own menu; we never claim
+    // it's gone when it isn't. The log-side macro reversal is the
+    // pre-existing Undo gap — out of scope here (spec, review rounds).
+    if (shareBusy) return;
+    if (sharedPostId && window.ShapeCommunity?.remove) {
+      try { await window.ShapeCommunity.remove({ postId: sharedPostId }); }
+      catch (e) { window.__bsToast?.('Could not remove the post — delete it from the feed card.', 'err'); }
+    }
+    onUndo();
+  };
   const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
   const dayCal = DAY_BASE_CAL + (kcal || 0);
   const dayP = DAY_BASE_P + (p || 0);
@@ -4641,8 +4683,17 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
       <div style={{ padding: `22px ${t.padX}px 8px` }}>
         <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700 }}>Done →</button>
       </div>
+      {canShare && (
+        <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+          {sharedPostId ? (
+            <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>✓ On the wire · Community</div>
+          ) : (
+            <button onClick={doShare} disabled={shareBusy} style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: shareBusy ? t.INK50 : teal }}>{shareBusy ? 'Posting…' : 'Post to the wire →'}</button>
+          )}
+        </div>
+      )}
       <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-        <button onClick={onUndo} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50 }}>Undo</button>
+        <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, opacity: shareBusy ? 0.5 : 1 }}>Undo</button>
       </div>
     </BSPage>
   );
@@ -4854,7 +4905,8 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const SLOT_TIMES = { BFAST: _mt.BFAST, BREAKFAST: _mt.BFAST, LUNCH: _mt.LUNCH, SNACK: _mt.SNACK, DINR: _mt.DINNER, DINNER: _mt.DINNER };
   const schedTime = meal.time || SLOT_TIMES[String(meal.tag || '').toUpperCase()] || '';
   if (justLogged) {
-    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)} />;
+    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)}
+      share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
   }
 
   // Meals opened from the day log carry only macros — guard the rich fields.
@@ -8652,12 +8704,24 @@ function bsActivityFromPost(p) {
   const routeObj = (p.route && typeof p.route === 'object' && Array.isArray(p.route.points)) ? p.route : null;
   const at = String(p.workout || p.kind || '').toLowerCase();
   const isRun = route || /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at);
-  const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || !!p.source_provider;
+  // Shared meals (spec 2026-07-12) are activities too — metrics.kind 'meal'.
+  const isMeal = p.kind === 'meal';
+  const rm = p.rawMetrics || {};
+  const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || isMeal || !!p.source_provider;
   if (!isActivity) return null;
   // 3-up stat row: prefer the composer's workoutStats, else the sensor stats.
   // `fullStats` keeps EVERY stat (the detail page shows them all; the card 3-up).
   let statsRow = null, fullStats = null;
-  if (ws && ws.length) {
+  // Honest-absent macro read: a missing/malformed value renders NOTHING —
+  // never a fabricated 0 kcal / "0 g" (review round).
+  const mn = (v) => { if (v === undefined || v === null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
+  if (isMeal) {
+    // The kcal figure is the card hero; the plate (bsMealMenuLines) carries
+    // P/C/F — the detail page's fullStats lists whatever is really there.
+    const kcalN = mn(rm.kcal);
+    fullStats = [['Calories', kcalN != null ? `${kcalN} kcal` : null], ['Protein', mn(rm.p) != null ? `${mn(rm.p)} g` : null], ['Carbs', mn(rm.c) != null ? `${mn(rm.c)} g` : null], ['Fat', mn(rm.f) != null ? `${mn(rm.f)} g` : null]].filter((r) => r[1]);
+    statsRow = kcalN != null ? [['Calories', `${kcalN} kcal`]] : fullStats.slice(0, 1);
+  } else if (ws && ws.length) {
     fullStats = ws.map((s) => [String(s.label || s.k || s.key || '').trim(), String(s.value != null ? s.value : (s.v != null ? s.v : '')).trim()]).filter((r) => r[1]);
     statsRow = fullStats.slice(0, 3);
   } else if (hasSensor) {
@@ -8667,8 +8731,8 @@ function bsActivityFromPost(p) {
   if (!statsRow || !statsRow.length) statsRow = [['Activity', String(p.status || p.workout || 'Workout')]];
   const title = (() => {
     const s = String(p.status || '').trim();
-    if (s && !/^(workout|photo|video|link|note|article)$/i.test(s)) return s;
-    return isRun ? 'Logged a run' : 'Logged a workout';
+    if (s && !/^(workout|photo|video|link|note|article|meal)$/i.test(s)) return s;
+    return isMeal ? 'Logged a meal' : isRun ? 'Logged a run' : 'Logged a workout';
   })();
   return {
     real: true,
@@ -8680,7 +8744,9 @@ function bsActivityFromPost(p) {
     role: p.role || 'Client',
     // Coach attribution stamped on the post at publish (the author's own plan) —
     // honest: empty when self-coached, so the card's "Programmed by" row hides.
-    coach: (typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
+    // Meals suppress it here: the plate owns meal attribution ("From {coach}'s
+    // plan"), and "Programmed by" is training grammar.
+    coach: (!isMeal && typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
     program: (typeof p.program === 'string' && p.program.trim()) ? p.program.trim() : '',
     // PR delta stamped at publish (vs the author's prior best); empty until a
     // genuine new best exists — the card shows the number with no delta otherwise.
@@ -8692,7 +8758,19 @@ function bsActivityFromPost(p) {
     // Coach co-sign stamped on the post when one of the author's OWN coaches
     // reacted (metrics.cosign = {name, role}); null until that happens.
     cosign: (p.cosign && typeof p.cosign === 'object' && p.cosign.name) ? p.cosign : null,
-    typeLabel: isRun ? 'Run' : 'Workout',
+    typeLabel: isMeal ? 'Meal' : isRun ? 'Run' : 'Workout',
+    // The plate (spec 2026-07-12): the meal card's signature block — macros +
+    // AS PLANNED/ADJUSTED stamp + honest attribution. Null on every other card.
+    meal: isMeal ? {
+      // Nullable macros + tri-state planned (true/false/unknown) — the plate
+      // drops absent rows and omits the stamp when the state is unknown,
+      // never fabricating "0 g" or "Adjusted" (review round).
+      kcal: mn(rm.kcal), p: mn(rm.p), c: mn(rm.c), f: mn(rm.f),
+      planned: typeof rm.planned === 'boolean' ? rm.planned : null,
+      portion: (Number(rm.portion) > 0 && Number(rm.portion) !== 1) ? Number(rm.portion) : null,
+      recipeId: (typeof rm.recipeId === 'string' && rm.recipeId.trim()) ? rm.recipeId.trim() : '',
+      coach: (typeof rm.coach === 'string' && rm.coach.trim()) ? rm.coach.trim() : '',
+    } : null,
     title,
     body: p.note || '',
     created_at: p.created_at || null,
@@ -8732,13 +8810,18 @@ function bsActivityFromPost(p) {
 // row). Buckets are non-exclusive on purpose — a deadlift PR is also a
 // workout, a PR'd race also a run. Real cards: typeLabel 'Run' = endurance
 // (route, or the run/ride/swim regex in bsActivityFromPost); `delta` = a
-// genuine stamped new best. Demo cards carry kind 'pr'|'run'|'workout'.
+// genuine stamped new best; typeLabel 'Meal' = a shared meal (spec
+// 2026-07-12) — meals file under Nutrition ONLY (a meal is not a workout).
+// Demo cards carry kind 'pr'|'run'|'workout'.
 function bsFeedTypeMatch(a, t) {
   if (!a) return false;
   if (t === 'all') return true;
+  const isMeal = a.kind === 'meal' || a.typeLabel === 'Meal';
+  if (t === 'nutrition') return isMeal;
   if (t === 'prs') return a.kind === 'pr' || !!a.delta;
   const isRun = a.kind === 'run' || a.typeLabel === 'Run';
-  return t === 'runs' ? isRun : !isRun; // 'workouts' = every non-endurance activity
+  if (t === 'runs') return isRun;
+  return !isRun && !isMeal; // 'workouts' = every non-endurance, non-meal activity
 }
 
 // Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
@@ -12678,6 +12761,51 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat, flexShrink: 0 }}>›</span>
             </button>
           )}
+          {/* THE PLATE (spec 2026-07-12 §6) — the meal card's signature block,
+              in the Eat "Menu" grammar: a flanked mono rule, dot-leader macro
+              lines (P/C/F — the kcal figure IS the hero above, never repeated),
+              and a printed footer with the AS PLANNED/ADJUSTED stamp + honest
+              attribution. Guarded by a.meal — zero-render on every other card.
+              No new animation (reduced-motion/papers unaffected). */}
+          {a.meal && (() => {
+            // Honest-absent plate: rows come pre-filtered (bsMealMenuLines
+            // drops missing macros), the stamp is tri-state (unknown → no
+            // stamp), and the footer renders only when it has something true
+            // to say (review round — never "0 g", never a fabricated
+            // "Adjusted").
+            const plateRows = bsMealMenuLines(a.meal);
+            const stamp = a.meal.planned === true ? 'As planned' : a.meal.planned === false ? 'Adjusted' : null;
+            const stampLine = [stamp, a.meal.portion ? `${a.meal.portion}×` : null].filter(Boolean).join(' · ');
+            const attribution = a.meal.coach ? `From ${a.meal.coach}'s plan` : a.meal.recipeId ? 'Kitchen Card recipe' : null;
+            return (
+              <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 9px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
+                  <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The plate</span>
+                  <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+                </div>
+                {plateRows.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    {plateRows.map(([l, v]) => (
+                      <div key={l} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0' }}>
+                        <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk }}>{l}</span>
+                        <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)' }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 11.5, color: cardInk, letterSpacing: '0.04em' }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(stampLine || attribution) && (
+                  <div style={{ marginTop: 7, paddingTop: 7, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>{stampLine}</span>
+                    {attribution && (
+                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attribution}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
               NOT modified; it runs full-bleed edge-to-edge: the card content has
               a small 8px side gutter, so the outer wrapper's negative margins
@@ -14141,7 +14269,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {/* Activity-type filter — a real logged run files under Runs, a
                   stamped new best under PRs (buckets non-exclusive by design). */}
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `0 ${t.padX}px 4px` }}>
-                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']].map(([k, label]) =>
+                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition']].map(([k, label]) =>
                   bsSubTab({ key: k, on: feedType === k, color: TEALB, onClick: () => setFeedType(k), label }))}
               </div>
               {/* Community feed is a Strava-style activity stream of real logged
@@ -14180,7 +14308,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   // The base feed has cards but none match the type chip —
                   // honest filtered-empty, one tap back to All. (Demo mode
                   // never lands here: the sample set carries every bucket.)
-                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs' }[feedType] || 'activity';
+                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs', nutrition: 'meals' }[feedType] || 'activity';
                   return (
                     <div style={{ textAlign: 'center', padding: '32px 24px', color: muted }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: cardInk, letterSpacing: '-0.01em' }}>No {typeLabel} on the wire yet.</div>

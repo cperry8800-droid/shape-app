@@ -402,6 +402,33 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-12 — Meals on the wire: share-by-choice meal posts (#1686 spec · #1687 PR A)
+
+- **Spec #1686** (owner-approved direction + 3 review rounds): share by
+  CHOICE per meal (default off, never auto — no #1613-style auto-share for
+  meals, ever), the plate not the ledger, no +5 on meal shares, no calorie
+  leaderboards/lightest-plate framing anywhere ever, attribution only when
+  true, THE PLATE card distinct-but-in-grammar, the filter says NUTRITION on
+  both surfaces. `docs/superpowers/specs/2026-07-12-meal-share-feed-design.md`.
+- **#1687 (PR A, mobile + migration)**: `Post to the wire →` on BSMealLogged
+  (pending-guarded; Undo retracts the post by persisted id, failed delete
+  toasts honestly; signed-in only) · pure `mealShare.mjs` payload builder
+  (meal macros only, honest-absent recipeId/coach, skipAward always true;
+  9 tests, suite 601) · `createCommunityPost` gains non-persisted `skipAward`
+  (gate `!autoShare && !skipAward` — NOT autoShare, whose auto-post semantics
+  never touch a deliberate share) · **migration
+  `2026-07-12-meal-share-no-award.sql` — ⚠ OWNER applies** (the RPC returns
+  without inserting for meal posts; covers the web route path) ·
+  bsActivityFromPost meal branch (kcal = the card hero) · **THE PLATE** on
+  BSActivityCard (Menu grammar: flanked rule, dot-leader P/C/F, AS
+  PLANNED/ADJUSTED stamp, "From {coach}'s plan"/Kitchen Card attribution;
+  "Programmed by" suppressed on meals) · **Nutrition** chip joins the #1684
+  row (meals file under Nutrition ONLY). Verb = LOCKED IN via the existing
+  nutrition bucket — zero verb-system changes.
+- **PR B (web) follows**: bucketsFor meal branch + post-card macro plate +
+  MEALS tab renamed NUTRITION; merges only after the migration is applied +
+  verified live.
+
 ### 2026-07-12 — The feed learns to file: activity-type filters, both surfaces (#1684)
 
 - Closes the 2026-07-11 audit finding (real posts only appeared under
