@@ -6,8 +6,8 @@
 
 Nutrition is half the daily loop and socially invisible. Every proof-of-work
 card on the community feed is training — workouts, runs, PRs — while the Eat
-side (the meal logger "Correct the Record", real food search #1648, barcode
-#1662, the Kitchen Card catalogue #1627) produces nothing a coach can co-sign
+side (the meal logger "Correct the Record", real food search #1648, the
+barcode flow #1662, the Kitchen Card catalogue #1627) produces nothing to co-sign
 or a member can react to. The web dashboard's demo feed has modeled the answer
 for weeks (the sheet-pan-salmon meal card + a MEALS filter tab) but no real
 writer exists on either surface, and the reaction grammar already reserved a
@@ -33,6 +33,15 @@ people.
 5. **Coach/plan attribution only when true** (the honest-absent rule): "From
    {coach}'s plan" or a Kitchen Card recipe link renders ONLY when the logged
    meal actually came from the assigned plan or a catalogue recipe.
+6. **The meal card is VERY distinct — but in the house grammar** (owner,
+   2026-07-12): it borrows the Eat "Menu" / Kitchen Card language (serif
+   dish name, dot-leader lines, a printed menu-footer macro rule) so a meal
+   reads as a course on a menu, not a workout with different numbers — while
+   sharing the activity card's chrome (header, tier chip, reaction row).
+7. **The filter says "Nutrition"** on BOTH surfaces (owner, 2026-07-12): the
+   app chip row gains **Nutrition**, and the web MEALS tab is RENAMED
+   **NUTRITION** (the web card tags already read NUTRITION — the tab
+   catches up).
 
 ## The share moment (mobile, `BSMealLogged`)
 
