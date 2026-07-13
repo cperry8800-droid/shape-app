@@ -771,7 +771,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Spec #1692 + build #1693 (merged a663b938): a member\'s OWN activity renders as a canvas-drawn 1080×1920 fixed-dark brand PNG (workout/run w/ the REAL route polyline · PR delta · meal THE PLATE via bsMealMenuLines) fired through the OS share sheet AS A FILE → Instagram offers Stories (the Strava pattern). Pure tested shareCard.mjs (bsShareCardModel honest-absent · bsWrapText w/ oversized-token ellipsis · bsFitRoute zero-spread→null); desktop → PNG download; abort silent; no uploads/analytics', status: 'done' },
         { label: 'Entry points: OWN real cards\' Share → a link/image chooser — ONE shared BSShareChooser on the feed/profile card AND the Session details page (review round: the detail page is a spec-named entry point; BSPostSheetShell gained a z override to clear the detail\'s z-99990 layer)', status: 'done' },
         { label: 'OWNER on-device pass: share a real activity → Share as image → the OS sheet offers Instagram Stories → the card posts clean (fixed-dark on every paper; route cards draw the real polyline)', status: 'manual' },
-        { label: 'Shelf (PR B later): web dashboard parity + the native instagram-stories:// deep-link once the iOS build exists', status: 'pending' },
+        { label: 'PR B — web dashboard parity (spec #1700 · build #1701): canonical shareCard.mjs + mealShare.mjs in public/newdesign (the dashSignals pattern — website ES module → window.ShapeShareCard, mobile import, Node tests); bsHeroStatIndex = the ONE hero-promotion rule both surfaces share; feed-card SHARE + Session details modal open the link/image chooser on OWN real posts; uid-keyed tier-line cache w/ honest role-only fallback; desktop → PNG download', status: 'done' },
+        { label: 'Shelf: the native instagram-stories:// deep-link once the iOS build exists', status: 'pending' },
       ],
     },
     {

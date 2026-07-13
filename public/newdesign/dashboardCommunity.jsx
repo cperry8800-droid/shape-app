@@ -61,7 +61,7 @@ function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
   );
 }
 
-function SessionDetailsModal({ p, onClose }) {
+function SessionDetailsModal({ p, onClose, onShareImage }) {
   const mono = "'JetBrains Mono', monospace";
   const s = p.session || {};
   const m = s.metrics || {};
@@ -110,7 +110,15 @@ function SessionDetailsModal({ p, onClose }) {
       <div style={{ width: "100%", maxWidth: 560, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Session details</span>
-          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Share (own posts only — the caller gates): the Session details
+                surface is a named share entry point, twinning the mobile
+                detail page (web-parity spec 2026-07-13). */}
+            {onShareImage && (
+              <button type="button" onClick={onShareImage} aria-label="Share" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.55)", cursor: "pointer", fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", lineHeight: 1, padding: 2 }}>Share ↗</button>
+            )}
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
+          </div>
         </div>
         <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", color: INK, marginTop: 10 }}>{s.title || "Activity"}</div>
         <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.55)", marginTop: 5 }}>{p.who} · {typeLabel}</div>
@@ -376,6 +384,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         video: (m && m.video_url) || null,
         isLive: true,
         session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+        // Share-card pass-throughs (web-parity spec 2026-07-13): the raw
+        // values the card model needs, all honest-absent — a post without
+        // them shares a minimal card, never a fabricated one.
+        createdAt: p.created_at || null,
+        route: (p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length >= 2) ? p.route.points : null,
+        delta: (typeof m.delta === 'string' && m.delta.trim()) ? m.delta.trim() : '',
       };
     };
     (async () => {
@@ -557,6 +571,98 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     );
   }
 
+  // ── Share as image (web-parity spec 2026-07-13) ─────────────────────────
+  // My own tier, resolved lazily for the card's tier line (the share is
+  // own-only, so only MY tier is ever needed). Coach roles read the coach
+  // ladder; a failed fetch degrades to the role-only line — never blocks.
+  // Cache KEYED BY THE AUTHENTICATED USER ID (spec review round): an account
+  // switch in a live tab never reuses the prior account's tier, and an
+  // unauthenticated resolve is never cached at all. The cache holds the
+  // in-flight PROMISE and the uid comes from the LOCAL session (no network),
+  // so the chooser's open-time prefetch leaves the image tap's await a
+  // microtask — navigator.share keeps its transient activation (CodeRabbit).
+  const shareMyTier = async (role) => {
+    let uid = null;
+    try {
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (sb) { const { data } = await sb.auth.getSession(); uid = (data && data.session && data.session.user && data.session.user.id) || null; }
+    } catch (e) {}
+    if (!uid) return null;
+    const r = String(role || "").toLowerCase();
+    const key = uid + ":" + r;
+    const cache = window.__shapeShareTier || (window.__shapeShareTier = {});
+    if (cache[key] === undefined) {
+      cache[key] = (async () => {
+        if (r === "trainer" || r === "nutritionist" || r === "dietitian") {
+          const res = await fetch("/api/coach/score?role=" + (r === "trainer" ? "trainer" : "nutritionist"), { credentials: "same-origin" });
+          if (!res.ok) return null;
+          const d = await res.json();
+          return typeof d.current_tier === "string" ? d.current_tier : null;
+        }
+        const res = await fetch("/api/client/score", { credentials: "same-origin" });
+        if (!res.ok) return null;
+        const d = await res.json();
+        return (d.current_tier && d.current_tier.name) || null;
+      })().catch(() => null);
+    }
+    return cache[key];
+  };
+
+  // Build the card model from the SAME mapped post the card just drew and
+  // render + share through the canonical renderer (window.ShapeShareCard —
+  // the shells' module loader; callers gate on it existing, so a
+  // stale-cached shell never offers the row).
+  const shareAsImage = async (p) => {
+    const SC = window.ShapeShareCard;
+    if (!SC) return;
+    const tier = await shareMyTier(p.role);
+    const stats = (p.session && Array.isArray(p.session.stats)) ? p.session.stats : [];
+    const isRun = Array.isArray(p.buckets) && p.buckets.indexOf("run") >= 0;
+    const hero = stats[SC.bsHeroStatIndex(stats, { isRun })] || null;
+    const model = SC.bsShareCardModel({
+      who: p.who,
+      tierLine: tier ? tier + " · " + (p.role || "Member") : (p.role || ""),
+      title: p.title || "",
+      heroStat: hero,
+      stats,
+      delta: p.delta || "",
+      meal: p.meal || null,
+      routePoints: p.route || null,
+      dateLine: p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "",
+    });
+    const r = await SC.bsShareCardImage(model);
+    // 'downloaded' shows no alert — the browser's own download UI confirms;
+    // share-sheet abort is silent by contract. Only real failures speak.
+    if (!r.ok) { try { window.alert("Could not render the card — try again."); } catch (e) {} }
+  };
+
+  // The link/image chooser — mirrors the mobile BSShareChooser's two rows.
+  // Mounted only on OWN real posts (the callers gate); sits ABOVE the
+  // Session details modal (z 120) so both entry points share it.
+  function ShareChooserModal({ p, onShareLink, onClose }) {
+    // Warm the tier the moment the chooser opens: the image tap's own await
+    // then resolves from the promise cache in a microtask, so the OS share
+    // sheet opens inside the tap's transient activation (CodeRabbit).
+    React.useEffect(() => { shareMyTier(p.role); }, []);
+    const rows = [
+      ["Share link →", () => { onClose(); onShareLink(); }],
+      ["Share as image →", () => { onClose(); shareAsImage(p); }],
+    ];
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 130, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "18vh 18px" }}>
+        <div style={{ width: "100%", maxWidth: 360, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: "14px 18px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Share</span>
+            <button type="button" onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
+          </div>
+          {rows.map(([label, fn], i) => (
+            <button type="button" key={label} onClick={fn} style={{ display: "flex", alignItems: "center", width: "100%", minHeight: 48, background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "0", color: INK, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "left", padding: "0 2px" }}>{label}</button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ✉ Send a live post into a real 1:1 DM (same RPCs the app uses); the
   // recipient sees it in their chat (app + site widget).
   function SendPostModal({ post, onClose }) {
@@ -618,6 +724,11 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     const [likeCount, setLikeCount] = React.useState(p.likes);
     const [sendOpen, setSendOpen] = React.useState(false);
     const [sessionOpen, setSessionOpen] = React.useState(false);
+    // Share-as-image chooser (web-parity spec 2026-07-13): OWN real posts
+    // only (the EDIT/DELETE gate), and only when the shell's module loader
+    // delivered the renderer — a stale-cached shell keeps plain link share.
+    const [shareOpen, setShareOpen] = React.useState(false);
+    const canShareImage = !!(p.isMe && p.isLive && p.id && window.ShapeShareCard);
     const [showReplies, setShowReplies] = React.useState(false);
     const [draft, setDraft] = React.useState("");
     const [replies, setReplies] = React.useState([]);
@@ -744,7 +855,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ✉ SEND
           </button>
-          <button onClick={onShare} aria-label="Share"
+          <button onClick={() => { if (canShareImage) setShareOpen(true); else onShare(); }} aria-label="Share"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             SHARE
@@ -774,7 +885,8 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           )}
         </div>
         {sendOpen && <SendPostModal post={p} onClose={() => setSendOpen(false)} />}
-        {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} />}
+        {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} onShareImage={canShareImage ? () => setShareOpen(true) : null} />}
+        {shareOpen && <ShareChooserModal p={p} onShareLink={onShare} onClose={() => setShareOpen(false)} />}
 
         {showReplies && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
