@@ -433,6 +433,25 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Audit PERF-2: the accountability cron's per-client N+1 batched
+
+- **Closes audit finding PERF-2** (`docs/SECURITY-AUDIT-2026-06-30.md` §5):
+  `/api/cron/score-accountability` ran **3 SELECTs per client** (kept
+  sessions · recent assigned workouts · active daily habits) — ~3N read
+  round-trips per daily run. Now the candidate reads are **batched per chunk
+  of 50 clients** (`.in('client_id', ids)` ×3, `Promise.all`, grouped in
+  memory) and the per-user loop drives off the groups — ~50× fewer read
+  round-trips, bounded per query so PostgREST's row cap can't truncate a
+  batch.
+- **Semantics unchanged where they matter**: every per-row SECURITY DEFINER
+  RPC call (`award_session_kept` / `apply_obligation_penalty` /
+  `settle_commitment`) is untouched — the fairness guards (recency · pause ·
+  −30/wk cap · 0 floor · idempotency) all live in the RPCs, which were never
+  the N+1. Same windows, same never-shaming notification. Fail-open is now
+  **per chunk** for the batched reads and stays **per user** for the RPC loop.
+- Verified: `tsc --noEmit` 0 errors · `npm test` 622. War Room: PERF-2
+  registered done in the audit checklist.
+
 ### 2026-07-13 — Per-endpoint paid-feature enforcement: requireMembership() in every gated route (security P2)
 
 - **Closes the War Room P2** ("Per-endpoint paid-feature enforcement beyond

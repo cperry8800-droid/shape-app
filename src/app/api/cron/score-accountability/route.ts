@@ -91,105 +91,147 @@ async function run(request: Request) {
   let rewards = 0;
   let commitments = 0;
 
-  for (const uid of clientIds) {
+  // The candidate reads are BATCHED per chunk of clients (audit PERF-2: the old
+  // shape ran 3 SELECTs PER CLIENT — ~3N round-trips). One chunked `.in()` query
+  // per table, grouped in memory, then the per-user RPC loop drives off the
+  // groups. Chunk size keeps each result set safely under PostgREST's row cap
+  // (3-day workout window / 21-day session window / active habits per member).
+  const CHUNK = 50;
+  const groupBy = <T,>(rows: T[], key: (r: T) => string): Map<string, T[]> => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const k = key(r);
+      const arr = m.get(k);
+      if (arr) arr.push(r);
+      else m.set(k, [r]);
+    }
+    return m;
+  };
+
+  for (let at = 0; at < clientIds.length; at += CHUNK) {
+    const ids = clientIds.slice(at, at + CHUNK);
+
+    type SessRow = { id: string; client_id: string };
+    type WoRow = { id: string; client_id: string; scheduled_date: string };
+    type HabitRow = { id: string; user_id: string };
+    let sessBy: Map<string, SessRow[]>;
+    let wosBy: Map<string, WoRow[]>;
+    let habitsBy: Map<string, HabitRow[]>;
     try {
-      evaluated += 1;
-      const dipped: string[] = [];
-      let dipTotal = 0;
+      const [sessRes, wosRes, habitsRes] = await Promise.all([
+        // (1) Kept sessions → +12. There is NO session PENALTY: a session's only
+        // "kept" signal is the coach marking it 'completed', so a lingering
+        // 'confirmed' is coach bookkeeping, not a client miss — penalizing it
+        // would be a false debit.
+        admin
+          .from('sessions')
+          .select('id, client_id')
+          .in('client_id', ids)
+          .eq('status', 'completed')
+          .gte('scheduled_at', sessionFloor.toISOString()),
+        // (2) Assigned workouts (published, day past) in the recent window.
+        admin
+          .from('client_workouts')
+          .select('id, client_id, scheduled_date')
+          .in('client_id', ids)
+          .eq('status', 'published')
+          .gte('scheduled_date', recentDate)
+          .lt('scheduled_date', today),
+        // (4) Active daily DO-habits.
+        admin
+          .from('user_habits')
+          .select('id, user_id')
+          .in('user_id', ids)
+          .eq('type', 'do')
+          .eq('cadence', 'daily')
+          .is('archived_at', null),
+      ]);
+      sessBy = groupBy((sessRes.data || []) as SessRow[], (r) => r.client_id);
+      wosBy = groupBy((wosRes.data || []) as WoRow[], (r) => r.client_id);
+      habitsBy = groupBy((habitsRes.data || []) as HabitRow[], (r) => r.user_id);
+    } catch {
+      // Fail-open per chunk — a bad batch read can't abort the whole run.
+      continue;
+    }
 
-      const penalize = async (kind: string, refId: string | null, day: string, label: string) => {
-        const { data } = await admin.rpc('apply_obligation_penalty', {
-          p_uid: uid,
-          p_kind: kind,
-          p_ref_id: refId,
-          p_day: day,
-        });
-        const r = data as PenaltyResult;
-        if (r?.applied) {
-          penalties += 1;
-          dipTotal += Number(r.amount || 0);
-          dipped.push(label);
+    for (const uid of ids) {
+      try {
+        evaluated += 1;
+        const dipped: string[] = [];
+        let dipTotal = 0;
+
+        const penalize = async (kind: string, refId: string | null, day: string, label: string) => {
+          const { data } = await admin.rpc('apply_obligation_penalty', {
+            p_uid: uid,
+            p_kind: kind,
+            p_ref_id: refId,
+            p_day: day,
+          });
+          const r = data as PenaltyResult;
+          if (r?.applied) {
+            penalties += 1;
+            dipTotal += Number(r.amount || 0);
+            dipped.push(label);
+          }
+        };
+
+        // (1) Kept sessions → +12 (batched read above; per-row RPC guards unchanged).
+        for (const s of sessBy.get(uid) || []) {
+          const { data } = await admin.rpc('award_session_kept', { p_uid: uid, p_session_id: s.id });
+          if ((data as AwardResult)?.awarded) rewards += 1;
         }
-      };
 
-      // (1) Kept sessions → +12. There is NO session PENALTY: a session's only "kept"
-      // signal is the coach marking it 'completed', so a lingering 'confirmed' is coach
-      // bookkeeping, not a client miss — penalizing it would be a false debit.
-      const { data: sess } = await admin
-        .from('sessions')
-        .select('id')
-        .eq('client_id', uid)
-        .eq('status', 'completed')
-        .gte('scheduled_at', sessionFloor.toISOString());
-      for (const s of (sess || []) as Array<{ id: string }>) {
-        const { data } = await admin.rpc('award_session_kept', { p_uid: uid, p_session_id: s.id });
-        if ((data as AwardResult)?.awarded) rewards += 1;
-      }
+        // (2) Skipped assigned workouts (published, day past) in the recent window.
+        for (const w of wosBy.get(uid) || []) {
+          await penalize('workout', w.id, w.scheduled_date, 'a skipped workout');
+        }
 
-      // (2) Skipped assigned workouts (published, day past) in the recent window.
-      const { data: wos } = await admin
-        .from('client_workouts')
-        .select('id, scheduled_date')
-        .eq('client_id', uid)
-        .eq('status', 'published')
-        .gte('scheduled_date', recentDate)
-        .lt('scheduled_date', today);
-      for (const w of (wos || []) as Array<{ id: string; scheduled_date: string }>) {
-        await penalize('workout', w.id, w.scheduled_date, 'a skipped workout');
-      }
+        // (3) Missed weekly check-in for the just-completed ISO week.
+        await penalize('checkin', null, lastMonday, "last week's check-in");
 
-      // (3) Missed weekly check-in for the just-completed ISO week.
-      await penalize('checkin', null, lastMonday, "last week's check-in");
+        // (4) Broken streaks on active daily DO-habits (penalty day = yesterday).
+        for (const h of habitsBy.get(uid) || []) {
+          await penalize('habit', h.id, yesterday, 'a broken habit streak');
+        }
 
-      // (4) Broken streaks on active daily DO-habits (penalty day = yesterday).
-      const { data: habits } = await admin
-        .from('user_habits')
-        .select('id')
-        .eq('user_id', uid)
-        .eq('type', 'do')
-        .eq('cadence', 'daily')
-        .is('archived_at', null);
-      for (const h of (habits || []) as Array<{ id: string }>) {
-        await penalize('habit', h.id, yesterday, 'a broken habit streak');
-      }
+        // (5) Settle last week's commitment (voluntary stake — separate from penalties).
+        {
+          const { data } = await admin.rpc('settle_commitment', { p_user: uid, p_week: lastMonday });
+          const s = data as { settled?: boolean; met?: boolean; amount?: number } | null;
+          if (s?.settled) {
+            commitments += 1;
+            await createNotification(admin, {
+              userId: uid,
+              type: 'score_commitment',
+              title: s.met ? 'Commitment kept 💪' : 'Commitment came up short',
+              body: s.met
+                ? `You hit your weekly commitment — +${Math.abs(s.amount || 0)} pts. Set the next one.`
+                : "Last week's commitment didn't land. No worries — set a fresh one and earn it back.",
+              route: 'score',
+              data: { commitment: true, met: !!s.met, amount: s.amount },
+            });
+          }
+        }
 
-      // (5) Settle last week's commitment (voluntary stake — separate from penalties).
-      {
-        const { data } = await admin.rpc('settle_commitment', { p_user: uid, p_week: lastMonday });
-        const s = data as { settled?: boolean; met?: boolean; amount?: number } | null;
-        if (s?.settled) {
-          commitments += 1;
+        // One gentle, never-shaming heads-up when something actually dipped.
+        if (dipped.length) {
+          const reasons =
+            dipped.length === 1
+              ? dipped[0]
+              : `${dipped.slice(0, -1).join(', ')} and ${dipped[dipped.length - 1]}`;
           await createNotification(admin, {
             userId: uid,
-            type: 'score_commitment',
-            title: s.met ? 'Commitment kept 💪' : 'Commitment came up short',
-            body: s.met
-              ? `You hit your weekly commitment — +${Math.abs(s.amount || 0)} pts. Set the next one.`
-              : "Last week's commitment didn't land. No worries — set a fresh one and earn it back.",
+            type: 'score_accountability',
+            title: 'Your Shape Score dipped a little',
+            body: `${Math.abs(dipTotal)} pts came off for ${reasons}. No worries — jump back in and you'll earn it right back.`,
             route: 'score',
-            data: { commitment: true, met: !!s.met, amount: s.amount },
+            data: { accountability: true, total: dipTotal },
           });
         }
-      }
-
-      // One gentle, never-shaming heads-up when something actually dipped.
-      if (dipped.length) {
-        const reasons =
-          dipped.length === 1
-            ? dipped[0]
-            : `${dipped.slice(0, -1).join(', ')} and ${dipped[dipped.length - 1]}`;
-        await createNotification(admin, {
-          userId: uid,
-          type: 'score_accountability',
-          title: 'Your Shape Score dipped a little',
-          body: `${Math.abs(dipTotal)} pts came off for ${reasons}. No worries — jump back in and you'll earn it right back.`,
-          route: 'score',
-          data: { accountability: true, total: dipTotal },
-        });
-      }
-    } catch {
-      // Fail-open per user — a single bad user can't abort the batch.
-      continue;
+      } catch {
+        // Fail-open per user — a single bad user can't abort the batch.
+        continue;
+    }
     }
   }
 
