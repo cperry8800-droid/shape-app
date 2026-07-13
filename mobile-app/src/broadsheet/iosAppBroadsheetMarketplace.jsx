@@ -412,7 +412,7 @@ const BSM_DEMO_PLANS = [
   { id: 'demo-m2', tab: 'meal', name: 'Plant-Based Performance', coachName: 'Omar Hassan', providerRole: 'nutritionist', price: '$95', demo: true },
   { id: 'demo-m3', tab: 'meal', name: 'Gut-Health Reset Plan', coachName: 'Dr. Sarah Mitchell', providerRole: 'nutritionist', price: '$130', demo: true },
 ];
-function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCoach = null }) {
+function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCoach = null, onCoachConsumed = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
@@ -466,12 +466,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Deep-open a specific coach's Listing (a chat coach_invite card / any
   // openMarket dispatch carrying coachId): once the live providers land, find
   // the coach by role + provider id and open them directly. An unknown id
-  // (unpublished/removed listing) honestly stays on the directory.
+  // (unpublished/removed listing) honestly stays on the directory. ONE-SHOT:
+  // handling it (hit or miss) tells the shell to clear the target, so a later
+  // ordinary marketplace open can never replay a stale deep link.
   useEffectBSM2(() => {
     if (!initialCoach || !remoteCoaches) return;
     const pool = initialCoach.role === 'nutritionist' ? (remoteCoaches.Nutritionist || []) : (remoteCoaches.Trainer || []);
     const hit = pool.find((c) => Number(c.provider_id) === Number(initialCoach.providerId));
     if (hit) { setOpen(hit); setOpenNo(null); }
+    if (onCoachConsumed) onCoachConsumed();
   }, [initialCoach, remoteCoaches]);
 
   // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are

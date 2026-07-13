@@ -396,7 +396,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
-    if (loc.tab === 'market') setMarketRole((loc.detail && loc.detail.role) || null);
+    if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach(null); }
     if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
     if (loc.tab === 'me') setMeStart(loc.sub || '');
@@ -408,7 +408,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
   const goTrain    = () => { navPush(); setTab('train'); };
-  const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setTab('market'); };
+  const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setMarketCoach(null); setTab('market'); };
   const goScore    = () => { navPush(); setStoreView('score'); setTab('store'); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
@@ -691,7 +691,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
-    market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
+    market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,

@@ -2155,36 +2155,48 @@ function BSProAddClientSheet({ role, onClose }) {
   const [searching, setSearching] = useStateBSP(false);
   const [busyId, setBusyId] = useStateBSP(null);
   const [invited, setInvited] = useStateBSP({}); // userId -> true
+  // Synchronous invite lock — two taps in the same render see stale busyId
+  // state, so the ref is the authoritative in-flight/sent guard (state only
+  // drives the UI). Holds the active send's userId + every already-sent id.
+  const sendLockRef = React.useRef({ active: null, sent: {} });
   useEffectBSP(() => {
     let on = true;
     (async () => {
-      try { const r = await window.ShapeCoachLookup?.mine?.(); if (on) setMine(r || null); }
+      // Role-aware: a dual-role account must resolve THIS roster's provider
+      // row — a nutritionist invite carrying a trainer id opens nothing.
+      try { const r = await window.ShapeCoachLookup?.mine?.(role); if (on) setMine(r || null); }
       catch (e) { if (on) setMine(null); }
     })();
     return () => { on = false; };
-  }, []);
+  }, [role]);
   // Debounced live member search (search_shape_people — same source as the
-  // universal search); coaches filtered out (a roster holds clients).
+  // universal search); coaches filtered out (a roster holds clients). The
+  // request id guards against a slow older query resolving LAST and
+  // overwriting the current query's results.
+  const searchReqRef = React.useRef(0);
   useEffectBSP(() => {
     const query = q.trim();
+    const req = ++searchReqRef.current;
     if (query.length < 2) { setResults(null); setSearching(false); return undefined; }
     setSearching(true);
     const id = setTimeout(async () => {
-      try {
-        const people = await window.ShapeSearch?.people?.(query, 12);
-        setResults((Array.isArray(people) ? people : []).filter((p) => p.userId && p.userId !== myUid && p.role === 'client'));
-      } catch (e) { setResults([]); }
+      let people = [];
+      try { people = await window.ShapeSearch?.people?.(query, 12); } catch (e) { people = []; }
+      if (searchReqRef.current !== req) return; // a newer query owns the results
+      setResults((Array.isArray(people) ? people : []).filter((p) => p.userId && p.userId !== myUid && p.role === 'client'));
       setSearching(false);
     }, 300);
     return () => clearTimeout(id);
   }, [q]);
   const invite = async (p) => {
-    if (busyId || invited[p.userId]) return;
+    const lock = sendLockRef.current;
+    if (lock.active || lock.sent[p.userId] || invited[p.userId]) return;
     if (!mine) { window.__bsToast?.('Publish your marketplace listing first — the invite carries it.', 'warn'); return; }
+    lock.active = p.userId;
     setBusyId(p.userId);
     try {
-      const conv = await window.ShapeMessages.getOrCreateMemberConversation(p.userId);
-      const cid = conv && (conv.conversationId || conv.id || (conv.data && conv.data.conversationId));
+      const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
+      const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
       if (!cid) throw new Error('Could not open the conversation.');
       const verb = role === 'nutritionist' ? 'work with me' : 'train with me';
       await window.ShapeMessages.sendMessage({
@@ -2192,11 +2204,13 @@ function BSProAddClientSheet({ role, onClose }) {
         body: `Come ${verb} on Shape — my listing's attached.`,
         metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : 'Your coach') },
       });
+      lock.sent[p.userId] = true;
       setInvited((prev) => ({ ...prev, [p.userId]: true }));
       window.__bsToast?.('Invite sent ✓ — it lands in their chat', 'ok');
     } catch (e) {
       window.__bsToast?.(e?.message || 'Could not send the invite', 'err');
     }
+    lock.active = null;
     setBusyId(null);
   };
   const shareListing = async () => {
@@ -2240,7 +2254,7 @@ function BSProAddClientSheet({ role, onClose }) {
             </div>
             {invited[p.userId]
               ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>Invited ✓</span>
-              : <button onClick={() => invite(p)} disabled={busyId === p.userId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId === p.userId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId === p.userId ? 0.6 : 1 }}>{busyId === p.userId ? 'Sending…' : 'Invite'}</button>}
+              : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? 'Sending…' : 'Invite'}</button>}
           </div>
         ))}
         <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>↗ Share your listing link</button>

@@ -5164,15 +5164,19 @@ async function coachOwnerOf(providerId, role) {
 }
 // The signed-in coach's OWN marketplace identity (their provider row) — the
 // add-client invite stamps role + provider id so the invite card in the
-// member's chat can open the coach's Listing. Null when the account has no
-// provider row yet (application not approved / listing not published).
-async function myCoachIdentity() {
+// member's chat can open the coach's Listing. Pass the roster's role so a
+// dual-role account resolves the MATCHING provider row (a nutritionist invite
+// must never carry a trainer id); with no role it falls back to whichever row
+// exists. Null when the account has no provider row yet (application not
+// approved / listing not published).
+async function myCoachIdentity(role = null) {
   if (!supabase || !state.user?.id) return null;
-  for (const role of ['trainer', 'nutritionist']) {
+  const roles = role === 'trainer' || role === 'nutritionist' ? [role] : ['trainer', 'nutritionist'];
+  for (const r of roles) {
     try {
-      const table = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+      const table = r === 'nutritionist' ? 'nutritionists' : 'trainers';
       const { data } = await supabase.from(table).select('id, name').eq('owner_id', state.user.id).limit(1).maybeSingle();
-      if (data && data.id != null) return { role, providerId: Number(data.id), name: data.name || '' };
+      if (data && data.id != null) return { role: r, providerId: Number(data.id), name: data.name || '' };
     } catch (e) { /* next role */ }
   }
   return null;
