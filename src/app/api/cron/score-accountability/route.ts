@@ -94,9 +94,11 @@ async function run(request: Request) {
   // The candidate reads are BATCHED per chunk of clients (audit PERF-2: the old
   // shape ran 3 SELECTs PER CLIENT — ~3N round-trips). One chunked `.in()` query
   // per table, grouped in memory, then the per-user RPC loop drives off the
-  // groups. Chunk size keeps each result set safely under PostgREST's row cap
-  // (3-day workout window / 21-day session window / active habits per member).
+  // groups. A full-page result (ROWS_MAX) is treated as possible PostgREST
+  // truncation → the chunk is SKIPPED, never partially scored; every RPC is
+  // idempotent, so the next daily run simply retries the chunk.
   const CHUNK = 50;
+  const ROWS_MAX = 1000; // PostgREST db-max-rows default — the truncation tripwire
   const groupBy = <T,>(rows: T[], key: (r: T) => string): Map<string, T[]> => {
     const m = new Map<string, T[]>();
     for (const r of rows) {
@@ -128,7 +130,8 @@ async function run(request: Request) {
           .select('id, client_id')
           .in('client_id', ids)
           .eq('status', 'completed')
-          .gte('scheduled_at', sessionFloor.toISOString()),
+          .gte('scheduled_at', sessionFloor.toISOString())
+          .limit(ROWS_MAX),
         // (2) Assigned workouts (published, day past) in the recent window.
         admin
           .from('client_workouts')
@@ -136,7 +139,8 @@ async function run(request: Request) {
           .in('client_id', ids)
           .eq('status', 'published')
           .gte('scheduled_date', recentDate)
-          .lt('scheduled_date', today),
+          .lt('scheduled_date', today)
+          .limit(ROWS_MAX),
         // (4) Active daily DO-habits.
         admin
           .from('user_habits')
@@ -144,13 +148,29 @@ async function run(request: Request) {
           .in('user_id', ids)
           .eq('type', 'do')
           .eq('cadence', 'daily')
-          .is('archived_at', null),
+          .is('archived_at', null)
+          .limit(ROWS_MAX),
       ]);
+      // Supabase queries RESOLVE with `.error` set rather than throwing — an
+      // unchecked failure would group `data || []` and silently part-score the
+      // chunk (rewards/penalties missing while check-ins still apply). A read
+      // error OR a full page (possible silent truncation at the row cap) skips
+      // the whole chunk instead; the idempotent RPCs retry it next run.
+      if (sessRes.error || wosRes.error || habitsRes.error) {
+        console.error('[score-accountability] chunk read failed — skipping chunk:',
+          sessRes.error || wosRes.error || habitsRes.error);
+        continue;
+      }
+      if ([sessRes, wosRes, habitsRes].some((r) => (r.data || []).length >= ROWS_MAX)) {
+        console.error(`[score-accountability] chunk hit the ${ROWS_MAX}-row page bound (possible truncation) — skipping chunk`);
+        continue;
+      }
       sessBy = groupBy((sessRes.data || []) as SessRow[], (r) => r.client_id);
       wosBy = groupBy((wosRes.data || []) as WoRow[], (r) => r.client_id);
       habitsBy = groupBy((habitsRes.data || []) as HabitRow[], (r) => r.user_id);
-    } catch {
+    } catch (e) {
       // Fail-open per chunk — a bad batch read can't abort the whole run.
+      console.error('[score-accountability] chunk read threw — skipping chunk:', e);
       continue;
     }
 
