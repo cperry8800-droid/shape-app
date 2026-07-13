@@ -577,30 +577,35 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // ladder; a failed fetch degrades to the role-only line — never blocks.
   // Cache KEYED BY THE AUTHENTICATED USER ID (spec review round): an account
   // switch in a live tab never reuses the prior account's tier, and an
-  // unauthenticated resolve is never cached at all.
+  // unauthenticated resolve is never cached at all. The cache holds the
+  // in-flight PROMISE and the uid comes from the LOCAL session (no network),
+  // so the chooser's open-time prefetch leaves the image tap's await a
+  // microtask — navigator.share keeps its transient activation (CodeRabbit).
   const shareMyTier = async (role) => {
     let uid = null;
     try {
       const sb = window.shapeDb && window.shapeDb.client;
-      if (sb) { const { data } = await sb.auth.getUser(); uid = (data && data.user && data.user.id) || null; }
+      if (sb) { const { data } = await sb.auth.getSession(); uid = (data && data.session && data.session.user && data.session.user.id) || null; }
     } catch (e) {}
     if (!uid) return null;
     const r = String(role || "").toLowerCase();
     const key = uid + ":" + r;
     const cache = window.__shapeShareTier || (window.__shapeShareTier = {});
-    if (cache[key] !== undefined) return cache[key];
-    let tier = null;
-    try {
-      if (r === "trainer" || r === "nutritionist" || r === "dietitian") {
-        const res = await fetch("/api/coach/score?role=" + (r === "trainer" ? "trainer" : "nutritionist"), { credentials: "same-origin" });
-        if (res.ok) { const d = await res.json(); tier = typeof d.current_tier === "string" ? d.current_tier : null; }
-      } else {
+    if (cache[key] === undefined) {
+      cache[key] = (async () => {
+        if (r === "trainer" || r === "nutritionist" || r === "dietitian") {
+          const res = await fetch("/api/coach/score?role=" + (r === "trainer" ? "trainer" : "nutritionist"), { credentials: "same-origin" });
+          if (!res.ok) return null;
+          const d = await res.json();
+          return typeof d.current_tier === "string" ? d.current_tier : null;
+        }
         const res = await fetch("/api/client/score", { credentials: "same-origin" });
-        if (res.ok) { const d = await res.json(); tier = (d.current_tier && d.current_tier.name) || null; }
-      }
-    } catch (e) {}
-    cache[key] = tier;
-    return tier;
+        if (!res.ok) return null;
+        const d = await res.json();
+        return (d.current_tier && d.current_tier.name) || null;
+      })().catch(() => null);
+    }
+    return cache[key];
   };
 
   // Build the card model from the SAME mapped post the card just drew and
@@ -635,6 +640,10 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // Mounted only on OWN real posts (the callers gate); sits ABOVE the
   // Session details modal (z 120) so both entry points share it.
   function ShareChooserModal({ p, onShareLink, onClose }) {
+    // Warm the tier the moment the chooser opens: the image tap's own await
+    // then resolves from the promise cache in a microtask, so the OS share
+    // sheet opens inside the tap's transient activation (CodeRabbit).
+    React.useEffect(() => { shareMyTier(p.role); }, []);
     const rows = [
       ["Share link →", () => { onClose(); onShareLink(); }],
       ["Share as image →", () => { onClose(); shareAsImage(p); }],

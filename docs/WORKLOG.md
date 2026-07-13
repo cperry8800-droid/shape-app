@@ -433,6 +433,55 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — The share card PR B: web dashboard parity (#1700 spec · #1701 build)
+
+- **Closes the share-card wave's web half** (parent spec #1692's "PR B (later)"
+  candidate): members on the website dashboard fire their own activity as the
+  same story-ready **1080×1920 fixed-dark PNG** the app renders — desktop's
+  outcome is the **PNG download** (the renderer's existing fallback is the
+  web's primary path); share-capable browsers get the OS sheet.
+- **One renderer, one implementation** — `shareCard.mjs` + `mealShare.mjs`
+  MOVED to `public/newdesign/` as the canonical copies (the `dashSignals.js`
+  pattern): the six feed shells load them as **native ES modules** via a
+  one-line loader (`window.ShapeShareCard`, absolute `/newdesign/…` URL,
+  assigned before DOMContentLoaded — i.e. before babel runs the page code),
+  the mobile app imports them from `../../../public/newdesign/`, and the Node
+  tests import them directly. Mobile behavior unchanged (imports re-pointed
+  only).
+- **`bsHeroStatIndex`** — the mobile feed card's `_primIdx` hero-promotion
+  rule extracted into the canonical module (runs promote distance, lifts
+  load, digits+unit fallback); the mobile card refactors onto it and the web
+  feeds it the post's `workoutStats` with `isRun` from the #1684 bucket
+  (+2 test blocks, suite **622**).
+- **Web entry points** (`dashboardCommunity.jsx?v=20260713c` ×6 shells):
+  SHARE on an **OWN real post** (the `isMe && isLive && id` gate EDIT/DELETE
+  use) opens a link/image **chooser**; the **Session details modal** header
+  gains the same share (the mobile detail page's twin, chooser above the
+  modal at z 130). Everyone else's cards, demo cards, and signed-out preview
+  keep the direct link share byte-identically. `mapPost` passes through
+  `createdAt` · normalized `route.points` · stamped `metrics.delta`
+  (honest-absent).
+- **Tier line** — `TIER · ROLE` resolved lazily from my own score endpoint
+  (client vs coach ladder by role, dietitian → nutritionist), cache **keyed
+  by the authenticated user id** (spec review round — no cross-account
+  reuse), honest role-only fallback. A stale-cached shell (no module loader)
+  degrades to link-share-only.
+- **Spec review round (#1700, both fixed pre-merge):** the loader imports the
+  canonical absolute URL (a shell-relative path could silently 404 into the
+  degrade) + readiness by construction; the tier cache keyed by user id.
+  **Build review round (#1701, CodeRabbit Major — fixed):** awaiting the tier
+  FETCH inside the image tap could exhaust WebKit's **transient activation**
+  (navigator.share then falls through to the download path on share-capable
+  browsers) → the chooser **prefetches the tier on open**, the cache holds
+  the in-flight PROMISE (dedupe + microtask resolve on tap), and the uid
+  comes from the LOCAL session (`getSession`, no network on the tap path).
+- Verified: JSX parse ×2 · `npm test` 622 · PowerShell `/m/` build exit 0
+  (the re-pointed imports bundle) · LF · **branch-preview browser proof**
+  (the .mjs serves `application/javascript`, `window.ShapeShareCard` exposes
+  all six exports, and a full canvas draw produced a real 1 MB PNG with the
+  route polyline — screenshot-checked). Open: the native
+  `instagram-stories://` deep-link stays shelved until the iOS build.
+
 ### 2026-07-13 — The Work domain PR C: THE CROSSOVER — training × work reads, both surfaces (the wave closes)
 
 - **PR C of the work-domain wave** (spec #1694) — the differentiator: Shape
