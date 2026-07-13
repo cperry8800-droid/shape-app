@@ -13,6 +13,7 @@ import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../services/mealShare.mjs';
+import { bsShareCardModel, bsShareCardImage } from '../services/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -12627,6 +12628,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // (hero count-up, hero/separator rule draws, co-sign stamp) — later tasks
     // consume this same [railRef, railSeen] pair, they do not call the hook again.
     const [railRef, railSeen] = useBSSdInView();
+    // The share chooser (spec 2026-07-13) — link vs story-ready image; own
+    // real cards only (the Share button gates before opening this).
+    const [shareChoice, setShareChoice] = React.useState(false);
     const sdReduced = bsSdReduced();
     React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
     // Seed from the post's live like state; local toggles override. The kudos
@@ -12983,7 +12987,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('comment', 15)}<span>{commentCount}</span></button>
             <button
               aria-label="Share"
-              onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })}
+              onClick={() => {
+                // OWN real activities get the chooser (link vs the story-ready
+                // image — spec 2026-07-13); everyone else's cards keep the
+                // direct link share (rebroadcasting others' content as images
+                // is out of scope by spec).
+                const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+                if (a.real && a.userId && myUid && a.userId === myUid) { setShareChoice(true); return; }
+                bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null });
+              }}
               onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
               onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
@@ -13033,6 +13045,37 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             motion renders it finished. */}
         {!isLast && (
           <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+        )}
+        {shareChoice && (
+          <BSPostSheetShell title="Share" onClose={() => setShareChoice(false)}>
+            {[
+              ['Share link →', () => {
+                setShareChoice(false);
+                bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null });
+              }],
+              ['Share as image →', async () => {
+                setShareChoice(false);
+                // The model builds from the SAME values this card just drew —
+                // the image can never disagree with the card (spec 2026-07-13).
+                const model = bsShareCardModel({
+                  who: a.who,
+                  tierLine: `${tierDisplay} · ${(a.role || 'Client')}`,
+                  title,
+                  heroStat,
+                  stats,
+                  delta: prDelta || '',
+                  meal: a.meal || null,
+                  routePoints: (routeObj && routeObj.points) || null,
+                  dateLine: a.created_at ? new Date(a.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+                });
+                const r = await bsShareCardImage(model);
+                if (!r.ok) window.__bsToast?.('Could not render the card — try again.', 'err');
+                else if (r.mode === 'downloaded') window.__bsToast?.('Card saved as PNG', 'ok');
+              }],
+            ].map(([label, fn]) => (
+              <button key={label} onClick={fn} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 50, background: 'transparent', border: 0, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', textAlign: 'left', padding: '0 4px' }}>{label}</button>
+            ))}
+          </BSPostSheetShell>
         )}
       </div>
     );
