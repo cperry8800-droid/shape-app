@@ -1,5 +1,9 @@
 // mealShare.mjs — the share-by-choice meal post (spec 2026-07-12).
 //
+// CANONICAL COPY (web-parity spec 2026-07-13): lives in public/newdesign so
+// shareCard.mjs's relative import resolves in the browser too; the mobile
+// app imports it from ../../public/newdesign/, Node tests directly.
+//
 // Pure builders, no IO, unit-tested (tests/meal-share.test.mjs):
 //   bsMealSharePayload — the createCommunityPost payload for a shared meal.
 //   bsMealMenuLines    — the card's dot-leader macro rows (P / C / F; the

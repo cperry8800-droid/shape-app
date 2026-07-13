@@ -1,9 +1,9 @@
 // The share card (spec 2026-07-13) — pure helpers under test: the card model
-// (honest-absent — nothing fabricated), greedy wrap with ellipsis, and the
-// route aspect-fit. Run: node --test
+// (honest-absent — nothing fabricated), the shared hero-promotion rule,
+// greedy wrap with ellipsis, and the route aspect-fit. Run: node --test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bsShareCardModel, bsWrapText, bsFitRoute } from "../mobile-app/src/services/shareCard.mjs";
+import { bsShareCardModel, bsHeroStatIndex, bsWrapText, bsFitRoute } from "../public/newdesign/shareCard.mjs";
 
 // ── bsShareCardModel ─────────────────────────────────────────────────────────
 test("model type resolves: meal > pr (stamped delta) > workout", () => {
@@ -40,6 +40,21 @@ test("routes need 2+ finite points; junk filters out; absent stays null", () => 
 test("delta is honest-absent (null when blank); tier line uppercases", () => {
   assert.equal(bsShareCardModel({ delta: "  " }).delta, null);
   assert.equal(bsShareCardModel({ tierLine: "Tempo · Client" }).tierLine, "TEMPO · CLIENT");
+});
+
+// ── bsHeroStatIndex ──────────────────────────────────────────────────────────
+test("runs promote distance; lifts promote load", () => {
+  const runStats = [["Pace", "7:42/mi"], ["Distance", "8.4 mi"], ["Time", "1:04"]];
+  assert.equal(bsHeroStatIndex(runStats, { isRun: true }), 1);
+  const liftStats = [["Top set", "5 × 315"], ["Load", "315 lb"], ["Est. 1RM", "365 lb"]];
+  assert.equal(bsHeroStatIndex(liftStats), 1);
+});
+
+test("fallback: the first digits+unit value; else index 0; junk-safe", () => {
+  assert.equal(bsHeroStatIndex([["RPE", "8"], ["Volume", "12,400 lb"]]), 1);
+  assert.equal(bsHeroStatIndex([["Moves", "6"], ["RPE", "8"]]), 0);
+  assert.equal(bsHeroStatIndex([]), 0);
+  assert.equal(bsHeroStatIndex(null), 0);
 });
 
 // ── bsWrapText ───────────────────────────────────────────────────────────────

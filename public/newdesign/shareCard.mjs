@@ -2,6 +2,11 @@
 // rendered as a story-ready 1080×1920 branded PNG and fired through the OS
 // share sheet AS A FILE, so Instagram offers Stories (the Strava pattern).
 //
+// CANONICAL COPY (web-parity spec 2026-07-13, the dashSignals pattern — one
+// implementation, three consumers): the website shells load this file as a
+// native ES module (→ window.ShapeShareCard), the mobile app imports it from
+// ../../public/newdesign/, and the Node tests import it directly.
+//
 // Canvas-drawn on purpose — never a DOM screenshot (fonts, CORS-tainted
 // images, and paper themes make screenshots unreliable). The card is
 // FIXED-DARK brand grammar on every paper (launch precedent). The model
@@ -10,7 +15,8 @@
 // exist renders NOTHING — no zeros, no placeholders.
 //
 // Pure, unit-tested helpers (tests/share-card.test.mjs): bsShareCardModel,
-// bsWrapText, bsFitRoute. The draw + share orchestration are browser-only.
+// bsHeroStatIndex, bsWrapText, bsFitRoute. The draw + share orchestration
+// are browser-only.
 
 import { bsMealMenuLines } from './mealShare.mjs';
 
@@ -44,6 +50,18 @@ export function bsShareCardModel({
     routePoints: pts && pts.length >= 2 ? pts : null,
     dateLine: String(dateLine || '').trim(),
   };
+}
+
+// ── Pure: hero-stat promotion ────────────────────────────────────────────────
+// The ONE promotion rule both surfaces share (the mobile feed card's original
+// `_primIdx`): runs lead with distance, lifts with load; fallback = the first
+// value that reads as a measurement (digits + a unit); else the first stat.
+export function bsHeroStatIndex(stats, { isRun = false } = {}) {
+  const rows = Array.isArray(stats) ? stats : [];
+  const pat = isRun ? /dist/i : /load|weight/i;
+  let i = rows.findIndex((r) => Array.isArray(r) && pat.test(String(r[0] || '')));
+  if (i < 0) i = rows.findIndex((r) => Array.isArray(r) && /\d/.test(String(r[1])) && /(lb|kg|mi|km)\b/i.test(String(r[1])));
+  return i < 0 ? 0 : i;
 }
 
 // ── Pure: greedy word wrap with a caller-supplied measurer ───────────────────

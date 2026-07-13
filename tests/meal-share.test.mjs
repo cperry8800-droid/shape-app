@@ -4,7 +4,7 @@
 // unconditional. Run: node --test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bsMealSharePayload, bsMealMenuLines } from "../mobile-app/src/services/mealShare.mjs";
+import { bsMealSharePayload, bsMealMenuLines } from "../public/newdesign/mealShare.mjs";
 
 // ── bsMealSharePayload ───────────────────────────────────────────────────────
 test("payload carries the meal identity + rounded macros", () => {

@@ -12,8 +12,10 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
-import { bsMealSharePayload, bsMealMenuLines } from '../services/mealShare.mjs';
-import { bsShareCardModel, bsShareCardImage } from '../services/shareCard.mjs';
+// Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
+// the dashSignals pattern: website module + mobile import + Node tests).
+import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
+import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -12786,12 +12788,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // disclosure. Delta + coach rows are HONEST slots — they render only when the
     // post actually carries them (no fabricated "+10", no placeholder coach row).
     const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
-    const _primIdx = (() => {
-      const pat = isRunCard ? /dist/i : /load|weight/i;
-      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
-      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
-      return i < 0 ? 0 : i;
-    })();
+    // ONE promotion rule, both surfaces (web-parity spec 2026-07-13) — the
+    // shared bsHeroStatIndex is this card's original _primIdx, extracted.
+    const _primIdx = bsHeroStatIndex(stats, { isRun: isRunCard });
     const heroStat = stats[_primIdx] || null;
     const secStats = stats.filter((_, i) => i !== _primIdx);
     const detailsOpen = !!actDetailsOpen[key];
