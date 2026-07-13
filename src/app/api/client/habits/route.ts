@@ -89,7 +89,9 @@ export async function POST(req: Request) {
       .insert(domain ? { ...baseRow, domain } : baseRow)
       .select('*')
       .single();
-    if (ins.error && domain && /domain/i.test(ins.error.message || '')) {
+    // Undefined-column signatures: Postgres 42703, or PostgREST's PGRST204
+    // (column missing from the schema cache) — stable codes, not message text.
+    if (ins.error && domain && (ins.error.code === '42703' || ins.error.code === 'PGRST204')) {
       ins = await supabase.from('user_habits').insert(baseRow).select('*').single();
     }
     if (ins.error) return dbError(ins.error, 'habits write', 500);
