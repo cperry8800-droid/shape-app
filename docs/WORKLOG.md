@@ -433,6 +433,41 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Per-endpoint paid-feature enforcement: requireMembership() in every gated route (security P2)
+
+- **Closes the War Room P2** ("Per-endpoint paid-feature enforcement beyond
+  the proxy gate"). The edge proxy's membership gate deliberately FAILS OPEN
+  (a gate fault must never take down the API) — which made it a paywall, not
+  access control: a fail-open exception, matcher drift, or a route moved
+  outside the gated prefixes would serve paid features to a signed-in
+  non-member with no second line of defense.
+- **New `src/lib/require-membership.ts`** — `requireMembership(request)` runs
+  at the TOP of **every handler under the gated prefixes** (65 handlers /
+  47 route files: client · nutrition · ai · insights · calendar ·
+  conversations · messages; `ai/notify/cron` excluded — CRON_SECRET-authed,
+  no user session). Returns null (proceed) or the 401/402 the route returns.
+- **Zero steady-state cost — the proxy stamp.** After the edge gate verifies
+  a gated request it stamps **`x-shape-gate: member`** onto the forwarded
+  request headers (refreshed auth cookies carried over); the middleware
+  **strips any incoming value on every request** (the matcher covers all
+  gated paths), so the header is proxy-issued only — never caller-spoofable.
+  The route helper trusts the stamp as its fast path (a header read); the
+  full `computeMembership` re-check runs exactly when the stamp is absent —
+  i.e. when the proxy didn't do its job. Constants live in the edge-safe
+  `membership-core.ts`.
+- **Failure semantics mirror the proxy's availability call**: an enforcement
+  FAULT fails open with a loud log — two independent layers must now fault
+  simultaneously before a non-member reaches a paid feature, and a DB blip
+  still can't 500 the paid API. A verified non-member gets the same 402
+  `membership_required` either way.
+- **Gotcha caught in-diff:** `client/train/route.ts`, `nutrition/meal-log/
+  route.ts`, and `src/lib/supabase/middleware.ts` are **CRLF-tracked** (like
+  Pricing.html/Community.html) — the sweep initially LF-normalized them into
+  whole-file diffs; restored to CRLF so the diff is only the insertions.
+- Verified: `tsc --noEmit` 0 errors · `npm test` 622 · every gated route
+  imports the helper (grep-audited) · War Room gap flipped to the security
+  checklist as done.
+
 ### 2026-07-13 — The share card PR B: web dashboard parity (#1700 spec · #1701 build)
 
 - **Closes the share-card wave's web half** (parent spec #1692's "PR B (later)"

@@ -13,6 +13,7 @@ import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
 import { resolveVoiceWithDefault, voiceStyleForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ export const dynamic = 'force-dynamic';
 const MAX_TTS_CHARS = 2000;
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 

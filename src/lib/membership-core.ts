@@ -1,10 +1,19 @@
 // Edge-safe member entitlement logic — NO `next/headers` imports, so it's safe
-// to use from middleware (Edge runtime). Route-level helpers live in
-// `membership.ts`, which builds on this.
+// to use from middleware (Edge runtime). The route-level helper lives in
+// `require-membership.ts`, which builds on this.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
+
+// The proxy gate's verification stamp. After the edge gate verifies a gated
+// request's entitlement it stamps this request header for the route layer;
+// requireMembership() (require-membership.ts) trusts the stamp as its fast
+// path — no repeated entitlement queries. The middleware STRIPS any incoming
+// value on every request, so the header can only ever be proxy-issued —
+// never caller-supplied.
+export const GATE_STAMP_HEADER = 'x-shape-gate';
+export const GATE_STAMP_VALUE = 'member';
 
 // Mirrors getAdminEmails() in admin-access.ts (which can't be imported here —
 // that module pulls in the cookie-based server client).

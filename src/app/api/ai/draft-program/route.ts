@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -166,6 +167,8 @@ async function draftWithOpenAI(body: Required<Body>): Promise<Program | null> {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   // Cookie (web) OR Bearer (native app) — the native builder sends Bearer, so a
   // cookie-only client would 401 every mobile draft. currentUser handles both.
   const user = await currentUser(request);

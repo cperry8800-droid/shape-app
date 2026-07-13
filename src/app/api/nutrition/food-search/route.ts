@@ -15,11 +15,14 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { searchFoodsServer, lookupBarcodeServer } from '@/lib/food-search-server';
 import { bsValidBarcode } from '../../../../../mobile-app/src/services/foodSearch.mjs';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
