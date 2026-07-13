@@ -3833,7 +3833,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const ov = cGoals && cGoals.overall;
     const trM = (cGoals && cGoals.trainingMeta) || null;
     const nuM = (cGoals && cGoals.nutritionMeta) || null;
-    if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO GOALS SHARED YET" /> : emptyNote('No goals shared yet.'));
+    // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK
+    // station; a member sharing only work goals must not read as "none shared".
+    const wkM = (cGoals && cGoals.workMeta) || null;
+    if (!ov && !(trM && trM.title) && !(nuM && nuM.title) && !(wkM && wkM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO GOALS SHARED YET" /> : emptyNote('No goals shared yet.'));
     const goalDotRow = (label, value, c, i) => (
       <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{label}</span>
@@ -3872,6 +3875,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           <div style={{ marginTop: 4 }}>
             {goalDotRow('Nutrition', nuM.title, '#a07a2e', 1)}
             {nuM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{nuM.subtitle}</div>}
+          </div>
+        )}
+        {wkM && wkM.title && (
+          <div style={{ marginTop: 4 }}>
+            {goalDotRow('Work', wkM.title, t.BLUE, 2)}
+            {wkM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{wkM.subtitle}</div>}
           </div>
         )}
       </div>

@@ -45,6 +45,9 @@ function dgoDemoSrc() {
     ],
     overall: { why: "Lean enough to feel quick on the bike again, strong enough that nothing slips. Wedding's in July — but really it's about staying this person after." },
     weighIns: [], training: [], nutrition: [],
+    // The work domain (spec 2026-07-13) — a self-set work target demos beside
+    // the coach-set goals, mobile WORK-station parity.
+    work: [{ t: "Deep work 10 h/week", cur: 6, tgt: 10, sub: "focused hours · per week", cat: "skills" }],
     share: true,
   };
 }
@@ -339,6 +342,7 @@ function ClientGoalsPage() {
         overall: doc.overall || null,
         training: Array.isArray(doc.training) ? doc.training : null,
         nutrition: Array.isArray(doc.nutrition) ? doc.nutrition : null,
+        work: Array.isArray(doc.work) ? doc.work : null,
         weighIns,
         share: doc.share !== false,
       });

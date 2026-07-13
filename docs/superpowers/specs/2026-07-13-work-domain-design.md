@@ -14,9 +14,10 @@ free text — proof of demand with no structure behind it.
 
 ## Direction
 
-One wave, three PRs, riding existing systems end to end. No new tables; two
-small migrations (the career award RPC + ledger category, and the milestone
-exclusion on the generic post award).
+One wave, three PRs, riding existing systems end to end — **each PR carries
+its website parity** (owner call, 2026-07-13). No new tables; three small
+migrations (the habit `domain` column; the career award RPC + ledger
+category with the milestone exclusion on the generic post award).
 
 1. **PR A — the foundation:** work habits (suggestion chips + a `domain`
    stamp) + **THE WORK station** in The Contract.
@@ -42,6 +43,11 @@ existing +3 — work habits add vocabulary, not mechanics.
   through the habit encode/decode (and an unobtrusive domain toggle on the
   add sheet for hand-typed habits). Absent on everything else — honest-absent,
   never inferred from the name.
+- **Migration `2026-07-13-habit-domain.sql`** (additive, idempotent): a
+  nullable `domain` column on `user_habits` (CHECK `domain in ('work')`).
+  Code degrades cleanly pre-migration — the habits GET reads `select('*')`
+  and the create route retries without the column on an unknown-column
+  error, so deploy order never breaks habit creation.
 - Rows with the stamp show a small mono **WORK** tag in `t.BLUE` (slate — the
   domain's accent, distinct from trainer rust / nutritionist gold / brand
   teal), on the Habit Ledger and the home slate.
@@ -235,14 +241,17 @@ exist, the engine can compute what no one else can.
 
 ## Build plan
 
-- **PR A (mobile):** habit chips + domain stamp + WORK tag · THE WORK
-  station with templates. No migration.
-- **PR B (mobile + web + migration):** Milestone composer type · THE
-  APPOINTMENTS card · career verb bucket · MILESTONES chip both surfaces ·
-  `work-milestone-points` migration (owner applies) · legend/Record wiring.
-- **PR C (mobile):** `crossover.mjs` + tests · THE CROSSOVER Progress card.
-  No migration.
+- **PR A (mobile + web + migration):** habit chips + domain stamp + WORK tag
+  · THE WORK station with templates · the `habit-domain` migration (owner
+  applies) · **website parity**: the Habits page gains the work stamp + WORK
+  tag, and the Goals dashboard renders work targets through the same
+  `goalsFromDoc` path as training/nutrition.
+- **PR B (mobile + web + migration):** Milestone composer type BOTH surfaces
+  · THE APPOINTMENTS card · career verb bucket · MILESTONES chip both
+  surfaces · `work-milestone-points` migration (owner applies) ·
+  legend/Record wiring.
+- **PR C (mobile + web):** `crossover.mjs` + tests · THE CROSSOVER card on
+  the mobile Progress hub AND the website Progress dashboard. No migration.
 - Out of scope (v1): career coaching as a provider discipline; work-goal
-  coach surfaces beyond the shared-goals read; website Goals-page WORK parity
-  (follows the established web-parity follow-up pattern); Nora awareness of
-  work goals (rides the member-context block later if wanted).
+  coach surfaces beyond the shared-goals read; Nora awareness of work goals
+  (rides the member-context block later if wanted).

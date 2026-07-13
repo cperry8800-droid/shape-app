@@ -420,6 +420,49 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — The Work domain PR A: work habits + THE WORK station, both surfaces (#1694 spec)
+
+- **PR A of the work-domain wave** (spec
+  `docs/superpowers/specs/2026-07-13-work-domain-design.md`, #1694 — merged
+  after a CodeRabbit round of 8 findings, all fixed; owner additions during
+  the brainstorm: the work goal area, milestone Shape Score points, and
+  **website parity on every PR** of the wave — the spec's build plan is
+  amended accordingly in this PR).
+- **Work habits (mobile)**: the add-habit sheet gains a **WORK chip row**
+  (t.BLUE — *Deep work block · Read 20 min · Plan tomorrow's top 3 · Applied
+  to one job · Inbox zero by 5* / *No doom-scrolling at the desk · No email
+  after 8pm · No phone the first hour*) + a **Work habit toggle** for
+  hand-typed ones. Picking a work chip STAMPS `domain: 'work'` — never
+  inferred from the name; a plain chip clears it. The stamp rides the habit
+  encode/decode + server map; rows read a **Work ·** marker on the Habit
+  Ledger and the home slate tags **Work** in `t.BLUE` (the checkbox keeps
+  the do/avoid color). Same +3 as every habit — zero scoring change.
+- **Migration `2026-07-13-habit-domain.sql` — ⚠ OWNER applies**: nullable
+  `user_habits.domain` (CHECK `in ('work')`), additive + idempotent. Code
+  degrades cleanly pre-migration: the habits GET now reads `select('*')`
+  (migration-safe pattern) and the create route **retries without the
+  column** on an unknown-column error.
+- **THE WORK station (mobile Goals)**: a third station beside
+  Training/Nutrition — headline (`workMeta`, edited in the headline sheet
+  with a `t.BLUE` accent) over supporting targets (`work[]`), work templates
+  in the picker (*Promotion case · New role · Network · Certification ·
+  Deep work · Books · Ship the launch · Side project* under Career/Skills/
+  Projects), a Work anchor in the index, honest empty state. Rides the
+  existing `user_goals('client_goals')` doc + the same share-with-coaches
+  toggle; `saveGoal`/`deleteGoal` were already tab-generic.
+- **Website parity**: `goalsFromDoc` (dashSignals.js — the shared engine the
+  app imports too) folds `doc.work` targets through the SAME self-set
+  custom-goal path as training/nutrition, so the Goals dashboard renders
+  them with projections; the demo doc gains a work sample. The Habits page
+  (`clientHabits.jsx`) gains the work stamp on add (confirm-prompt, matching
+  its prompt-based flow), maps `domain` from the server, and tags **WORK**
+  (slate) on rows. Cache-busts: `dashSignals.js` + `dashGoals.jsx` +
+  `clientHabits.jsx` → `?v=20260713` across all 19 referencing pages
+  (byte-safe replace). *i18n note:* the new `home:tag.work` key falls back
+  to its English defaultValue pending the paused i18n rollout.
+- Next: **PR B** — THE APPOINTMENTS (milestones on the wire + the +25/mo
+  career award migration, both surfaces) · **PR C** — THE CROSSOVER.
+
 ### 2026-07-13 — The share card: activities as story-ready images (#1692 spec · #1693 build)
 
 - **Why**: the Share button sent text+URL — Instagram takes that only as a

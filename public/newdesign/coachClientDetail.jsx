@@ -424,7 +424,8 @@ function CoachClientDetailPage() {
 
 function GoalsCard({ data, teal, rust, gold }) {
   const G = data.goals;
-  const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta;
+  // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK station.
+  const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta, wkM = G.workMeta;
   const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginTop: 16 }}>{txt}</div>;
   const metaRow = (title, subtitle, c) => (
     <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
@@ -435,7 +436,7 @@ function GoalsCard({ data, teal, rust, gold }) {
       </div>
     </div>
   );
-  const hasAny = ov || (trM && trM.title) || (nuM && nuM.title);
+  const hasAny = ov || (trM && trM.title) || (nuM && nuM.title) || (wkM && wkM.title);
   return (
     <Card style={{ marginBottom: 16 }}>
       <CKSecHead>GOALS</CKSecHead>
@@ -466,6 +467,7 @@ function GoalsCard({ data, teal, rust, gold }) {
           })()}
           {trM && trM.title && <React.Fragment>{subHead("TRAINING")}{metaRow(trM.title, trM.subtitle, rust)}</React.Fragment>}
           {nuM && nuM.title && <React.Fragment>{subHead("NUTRITION")}{metaRow(nuM.title, nuM.subtitle, gold)}</React.Fragment>}
+          {wkM && wkM.title && <React.Fragment>{subHead("WORK")}{metaRow(wkM.title, wkM.subtitle, "#7aa7dc")}</React.Fragment>}
         </div>
       )}
     </Card>

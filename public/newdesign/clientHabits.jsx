@@ -17,6 +17,8 @@ function HabitRow({ h, onToggle, onRemove }) {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: done ? "rgba(242,237,228,0.6)" : INK, textDecoration: done ? "line-through" : "none" }}>
           {h.label}
+          {/* WORK domain tag (spec 2026-07-13) — slate, mobile parity */}
+          {h.domain === "work" && <span style={{ marginLeft: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 3, padding: "1px 5px", verticalAlign: "2px" }}>WORK</span>}
         </div>
         <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{h.sub}</div>
       </div>
@@ -68,6 +70,7 @@ function ClientHabitsPage() {
             sub: h.type === 'avoid' ? "Tap when you've avoided it today" : 'Keep the streak alive',
             points: 3,
             visibility: h.visibility || 'private',
+            domain: h.domain === 'work' ? 'work' : undefined,
             history: strip,
             today: hist.includes(today),
             _server: true,
@@ -102,20 +105,24 @@ function ClientHabitsPage() {
       : "New habit to do (e.g. “Meditate 10 min”)";
     const label = window.prompt(promptLabel);
     if (!label || !label.trim()) return;
+    // The work domain (spec 2026-07-13, mobile parity) — an explicit choice,
+    // never inferred from the name. Rides this page's prompt-based add flow.
+    const domain = window.confirm("Tag this as a WORK habit? (Work habits feed your work-domain insights — same +3 points either way.)") ? "work" : undefined;
     const localId = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) + "-" + Math.random().toString(36).slice(2, 6);
     const draft = {
       id: localId, type, label: label.trim(),
       sub: type === "dont" ? "Tap when you've avoided it today" : "Just added — start your streak today",
       points: 3,
       visibility,
+      domain,
       history: [false, false, false, false, false, false], today: false,
     };
     setHabits(hs => [...hs, draft]);
     if (synced) {
-      apiPost({ action: 'create', name: label.trim(), type: type === 'dont' ? 'avoid' : 'do', visibility })
+      apiPost({ action: 'create', name: label.trim(), type: type === 'dont' ? 'avoid' : 'do', visibility, domain })
         .then(d => {
           if (!d || !d.habit) return;
-          setHabits(hs => hs.map(h => h.id === localId ? { ...h, id: d.habit.id, _server: true } : h));
+          setHabits(hs => hs.map(h => h.id === localId ? { ...h, id: d.habit.id, domain: d.habit.domain === 'work' ? 'work' : domain, _server: true } : h));
         });
     }
   };
