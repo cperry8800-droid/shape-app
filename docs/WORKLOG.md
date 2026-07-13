@@ -442,9 +442,14 @@ changelog whenever something ships.
 - **Entry**: OWN real cards' Share → a link/image chooser
   (BSPostSheetShell); lands on community feed + profile activities
   automatically (both render BSActivityCard). Other members' cards keep
-  the direct link share (own-only per spec). Deviation noted: a dedicated
-  detail-page action deferred — the card hosts the action everywhere it
-  renders. Suite 611.
+  the direct link share (own-only per spec). **Review round (both fixed
+  pre-merge, `bdb04872`)**: the Session details page gained the share
+  action too (Codex P2 — the spec named it as an entry point; the chooser
+  extracted to ONE shared `BSShareChooser` for card + detail, and
+  `BSPostSheetShell` took a `z` override to clear the detail's z-99990
+  layer), and `bsWrapText` now ellipsizes a token wider than the column at
+  placement (CodeRabbit — no emitted line can overflow the card; regression
+  test). Suite 612.
 - **PR B candidates (later)**: web dashboard parity · native IG Stories
   deep-link once the iOS build exists.
 
