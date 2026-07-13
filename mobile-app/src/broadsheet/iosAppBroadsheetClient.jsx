@@ -8761,8 +8761,10 @@ function bsActivityFromPost(p) {
   const isRun = route || /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at);
   // Shared meals (spec 2026-07-12) are activities too — metrics.kind 'meal'.
   const isMeal = p.kind === 'meal';
+  // Work milestones (THE APPOINTMENTS, spec 2026-07-13) — metrics.kind 'milestone'.
+  const isMilestone = p.kind === 'milestone';
   const rm = p.rawMetrics || {};
-  const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || isMeal || !!p.source_provider;
+  const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || isMeal || isMilestone || !!p.source_provider;
   if (!isActivity) return null;
   // 3-up stat row: prefer the composer's workoutStats, else the sensor stats.
   // `fullStats` keeps EVERY stat (the detail page shows them all; the card 3-up).
@@ -8783,11 +8785,15 @@ function bsActivityFromPost(p) {
     const L = Array.isArray(p.labels) ? p.labels : [];
     statsRow = [[L[0] || 'Stat', p.statA], [L[1] || '', p.statB], [L[2] || '', p.statC]].filter((r) => r[1]);
   }
-  if (!statsRow || !statsRow.length) statsRow = [['Activity', String(p.status || p.workout || 'Workout')]];
+  // Milestones carry NO stat row — THE APPOINTMENTS block is the card body
+  // (a stamp + headline, not numbers); the generic fallback would fabricate
+  // an "Activity" stat.
+  if ((!statsRow || !statsRow.length) && !isMilestone) statsRow = [['Activity', String(p.status || p.workout || 'Workout')]];
+  if (isMilestone) statsRow = [];
   const title = (() => {
     const s = String(p.status || '').trim();
-    if (s && !/^(workout|photo|video|link|note|article|meal)$/i.test(s)) return s;
-    return isMeal ? 'Logged a meal' : isRun ? 'Logged a run' : 'Logged a workout';
+    if (s && !/^(workout|photo|video|link|note|article|meal|milestone)$/i.test(s)) return s;
+    return isMeal ? 'Logged a meal' : isMilestone ? 'Career milestone' : isRun ? 'Logged a run' : 'Logged a workout';
   })();
   return {
     real: true,
@@ -8801,7 +8807,7 @@ function bsActivityFromPost(p) {
     // honest: empty when self-coached, so the card's "Programmed by" row hides.
     // Meals suppress it here: the plate owns meal attribution ("From {coach}'s
     // plan"), and "Programmed by" is training grammar.
-    coach: (!isMeal && typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
+    coach: (!isMeal && !isMilestone && typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
     program: (typeof p.program === 'string' && p.program.trim()) ? p.program.trim() : '',
     // PR delta stamped at publish (vs the author's prior best); empty until a
     // genuine new best exists — the card shows the number with no delta otherwise.
@@ -8813,7 +8819,14 @@ function bsActivityFromPost(p) {
     // Coach co-sign stamped on the post when one of the author's OWN coaches
     // reacted (metrics.cosign = {name, role}); null until that happens.
     cosign: (p.cosign && typeof p.cosign === 'object' && p.cosign.name) ? p.cosign : null,
-    typeLabel: isMeal ? 'Meal' : isRun ? 'Run' : 'Workout',
+    typeLabel: isMeal ? 'Meal' : isMilestone ? 'Milestone' : isRun ? 'Run' : 'Workout',
+    // THE APPOINTMENTS block (spec 2026-07-13): stamp ALWAYS present (unknown
+    // normalizes to 'milestone' — the one-behavior contract), detail only when
+    // stored. Null on every other card.
+    milestone: isMilestone ? {
+      stamp: BS_MILESTONE_STAMPS.includes(rm.stamp) ? rm.stamp : 'milestone',
+      detail: (typeof rm.detail === 'string' && rm.detail.trim()) ? rm.detail.trim() : '',
+    } : null,
     // The plate (spec 2026-07-12): the meal card's signature block — macros +
     // AS PLANNED/ADJUSTED stamp + honest attribution. Null on every other card.
     meal: isMeal ? {
@@ -8873,10 +8886,14 @@ function bsFeedTypeMatch(a, t) {
   if (t === 'all') return true;
   const isMeal = a.kind === 'meal' || a.typeLabel === 'Meal';
   if (t === 'nutrition') return isMeal;
-  if (t === 'prs') return a.kind === 'pr' || !!a.delta;
+  // Work milestones (spec 2026-07-13) file under MILESTONES only — never
+  // workouts/PRs (a career "milestone" is not a training new-best).
+  const isMilestone = a.kind === 'milestone' || a.typeLabel === 'Milestone';
+  if (t === 'milestones') return isMilestone;
+  if (t === 'prs') return (a.kind === 'pr' || !!a.delta) && !isMilestone;
   const isRun = a.kind === 'run' || a.typeLabel === 'Run';
   if (t === 'runs') return isRun;
-  return !isRun && !isMeal; // 'workouts' = every non-endurance, non-meal activity
+  return !isRun && !isMeal && !isMilestone; // 'workouts' = every non-endurance, non-meal, non-milestone activity
 }
 
 // Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
@@ -8962,6 +8979,11 @@ function BSActivityBody({ it, c, INK, card }) {
 // "Log activity" composer — a Substack-style multi-type publisher on your own
 // Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
 // in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
+// THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens. The
+// composer defaults to 'milestone'; unknown values normalize to it at read.
+const BS_MILESTONE_STAMPS = ['promoted', 'shipped', 'certified', 'new_role', 'launched', 'milestone'];
+const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s : 'milestone').replace('_', ' ').toUpperCase();
+
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
@@ -8969,12 +8991,17 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
   const [kind, setKind] = useStateBSC(seedKind);
   const [title, setTitle] = useStateBSC(ed ? (ed.title || '') : '');
-  const [body, setBody] = useStateBSC(ed ? (ed.body || ed.note || '') : '');
+  // Milestone edits seed the detail line from the stored payload (their note
+  // is deliberately empty — metrics.detail is the storage, spec 2026-07-13).
+  const [body, setBody] = useStateBSC(ed ? ((ed.kind === 'milestone' && ed.milestone && ed.milestone.detail) || ed.body || ed.note || '') : '');
   const [photoUrl, setPhotoUrl] = useStateBSC(ed ? (ed.photo || '') : '');
   const [videoUrl, setVideoUrl] = useStateBSC(ed ? (ed.video || '') : '');
   const [linkUrl, setLinkUrl] = useStateBSC(ed && ed.link ? (ed.link.url || '') : '');
   const [woType, setWoType] = useStateBSC(ed && ed.activityType ? (ed.activityType.charAt(0).toUpperCase() + ed.activityType.slice(1)) : 'Strength');
   const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
+  // Milestone stamp (THE APPOINTMENTS) — one of the six canonical tokens.
+  const _edStamp = ed ? (ed.stamp || (ed.milestone && ed.milestone.stamp)) : null;
+  const [stamp, setStamp] = useStateBSC(BS_MILESTONE_STAMPS.includes(_edStamp) ? _edStamp : 'milestone');
   const [busy, setBusy] = useStateBSC(false);
   const [upBusy, setUpBusy] = useStateBSC(false);
   const [delBusy, setDelBusy] = useStateBSC(false);
@@ -8987,6 +9014,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
     { k: 'photo', label: 'Photo', icon: '◳' },
     { k: 'video', label: 'Video', icon: '▷' },
     { k: 'workout', label: 'Workout', icon: '⊿' },
+    { k: 'milestone', label: 'Milestone', icon: '◆' },
     { k: 'link', label: 'Link', icon: '↗' },
   ];
   const field = { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 13, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
@@ -9012,6 +9040,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
     : kind === 'photo' ? !!photoUrl
     : kind === 'video' ? !!videoUrl.trim()
     : kind === 'workout' ? !!(title.trim() || woA.trim() || woB.trim() || woC.trim())
+    : kind === 'milestone' ? !!title.trim()
     : !!linkUrl.trim()
   );
 
@@ -9035,6 +9064,13 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
         }
         const woTitle = title.trim() || (woType === 'Strength' && woA.trim() ? woA.trim() : woType);
         payload = { ...base, title: woTitle, note: body.trim(), activityType: woType.toLowerCase(), metrics: { kind: 'workout', workoutStats: stats, ...extra } };
+      } else if (kind === 'milestone') {
+        // THE APPOINTMENTS (spec 2026-07-13): stamp ALWAYS stored (canonical
+        // token, 'milestone' default), detail OMITTED when blank. skipAward
+        // keeps the generic +5 off — milestones earn via award_work_milestone.
+        const st = BS_MILESTONE_STAMPS.includes(stamp) ? stamp : 'milestone';
+        const detail = body.trim().slice(0, 140);
+        payload = { ...base, title: title.trim().slice(0, 80), note: '', activityType: 'milestone', skipAward: true, metrics: { kind: 'milestone', stamp: st, ...(detail ? { detail } : {}) } };
       } else {
         let u = linkUrl.trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
         const host = bsLinkHost(u);
@@ -9055,12 +9091,21 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
           if (kind !== 'workout') { editMetrics.workoutStats = null; editMetrics.lift = null; editMetrics.load = null; }
           if (kind !== 'link') editMetrics.link = null;
           if (kind !== 'video') editMetrics.video_url = null;
+          if (kind !== 'milestone') { editMetrics.stamp = null; editMetrics.detail = null; }
         }
         await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: editMetrics.video_url !== undefined ? editMetrics.video_url : (payload.metrics?.video_url || null), metrics: editMetrics, privacy: vis });
         window.__bsToast?.('Post updated', 'ok');
       } else {
-        await window.ShapeCommunity?.createPost?.(payload);
+        const res = await window.ShapeCommunity?.createPost?.(payload);
         window.__bsToast?.('Published to your profile', 'ok');
+        // Milestones: the +25 CAREER award — AWAITED (idempotent monthly
+        // dedupe; a failed call queues for the open-time catch-up). The chip
+        // shows ONLY on a real grant (a second same-month milestone posts
+        // fine and honestly shows nothing).
+        if (kind === 'milestone' && res && res.stored === 'supabase' && res.data && res.data.id) {
+          const g = await window.ShapeCareerAward?.claim?.(res.data.id);
+          if (g && g.granted) window.__bsToast?.('+25 · Career · Shape Score', 'ok');
+        }
       }
       onPosted && onPosted();
       onClose && onClose();
@@ -9091,7 +9136,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <span style={label}>{kind === 'link' ? 'Link title (optional)' : kind === 'workout' ? 'Session name' : 'Headline'}</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'workout' ? 'Upper Pull — Peak' : kind === 'link' ? 'What is this?' : 'Give it a title…'} style={field} />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={kind === 'milestone' ? 80 : undefined} placeholder={kind === 'workout' ? 'Upper Pull — Peak' : kind === 'link' ? 'What is this?' : kind === 'milestone' ? 'Promoted to Senior Engineer' : 'Give it a title…'} style={field} />
           </div>
 
           {kind === 'photo' && (
@@ -9142,9 +9187,21 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
             <div><span style={label}>Website / article URL</span><input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" style={field} inputMode="url" autoCapitalize="none" /></div>
           )}
 
+          {kind === 'milestone' && (
+            <div>
+              <span style={label}>Stamp</span>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {BS_MILESTONE_STAMPS.map((s) => (
+                  <button key={s} onClick={() => setStamp(s)} style={{ ...chip(stamp === s), fontSize: 9.5, padding: '7px 12px' }}>{bsMilestoneStampLabel(s)}</button>
+                ))}
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 8, letterSpacing: '0.04em' }}>A career milestone earns +25 Shape Score — once a month, whatever the visibility. No pay figures, ever.</div>
+            </div>
+          )}
+
           <div>
-            <span style={label}>{kind === 'workout' ? 'How it went' : kind === 'link' ? 'Why it matters' : 'Write something'}</span>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 5 : 3} placeholder={kind === 'note' ? 'Share an update, a thought, a lesson…' : 'Add a note (optional)…'} style={{ ...field, resize: 'vertical', minHeight: kind === 'note' ? 120 : 64, lineHeight: 1.5 }} />
+            <span style={label}>{kind === 'workout' ? 'How it went' : kind === 'link' ? 'Why it matters' : kind === 'milestone' ? 'Detail (optional)' : 'Write something'}</span>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 5 : 3} maxLength={kind === 'milestone' ? 140 : undefined} placeholder={kind === 'note' ? 'Share an update, a thought, a lesson…' : kind === 'milestone' ? 'One line on what it took…' : 'Add a note (optional)…'} style={{ ...field, resize: 'vertical', minHeight: kind === 'note' ? 120 : 64, lineHeight: 1.5 }} />
           </div>
         </div>
 
@@ -12919,6 +12976,25 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               </div>
             );
           })()}
+          {/* THE APPOINTMENTS (spec 2026-07-13) — the work-milestone card's
+              signature block, the old broadsheet appointments-column grammar:
+              a flanked mono rule, the STAMP as a squared heat chip, and the
+              detail line only when stored (honest-absent). The headline IS the
+              card title above — never repeated here. Guarded by a.milestone —
+              zero-render on every other card. No animation. */}
+          {a.milestone && (
+            <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 11px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
+                <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The appointments</span>
+                <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
+              </div>
+              <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, border: `1px solid ${bsTHexA(heat, 0.45)}`, borderRadius: 3, padding: '3px 8px' }}>{bsMilestoneStampLabel(a.milestone.stamp)}</span>
+                {a.milestone.detail && <span style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.45, color: cardInk, minWidth: 0 }}>{a.milestone.detail}</span>}
+              </div>
+            </div>
+          )}
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
               NOT modified; it runs full-bleed edge-to-edge: the card content has
               a small 8px side gutter, so the outer wrapper's negative margins
@@ -13126,6 +13202,7 @@ const COMMUNITY_ACTIVITIES = [
   { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], paceTrace: [548, 532, 540, 525, 538, 520, 528, 515, 524, 533, 512, 521, 530, 510, 519, 508, 517, 526, 506, 515, 524, 504, 513, 522, 502, 511, 519, 500, 509, 517], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
   { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Avg pace', '1:42/100m'], ['Best pace', '1:33/100m'], ['Time', '34:10'], ['Avg HR', '139 bpm'], ['Max HR', '158 bpm'], ['Calories', '410'], ['SWOLF', '38']], zones: [['Z1', 14], ['Z2', 48], ['Z3', 28], ['Z4', 9], ['Z5', 1]], trace: [118, 124, 131, 136, 134, 140, 138, 143, 141, 137, 144, 148, 145, 140, 146, 151, 148, 143, 149, 154, 150, 145, 151, 156, 152, 147, 153, 158, 155, 142], paceTrace: [108, 104, 106, 102, 105, 101, 103, 100, 102, 106, 99, 101, 104, 98, 100, 97, 99, 103, 96, 99, 102, 95, 98, 101, 94, 97, 100, 93, 96, 100], breakdown: { label: '500m splits', rows: [['Split 1', '1:46/100m', 'Build'], ['Split 2', '1:42/100m', 'Steady'], ['Split 3', '1:39/100m', 'Push'], ['Split 4', '1:34/100m', 'Sprint']] }, kudos: 19, replies: 2 },
   { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
+  { kind: 'milestone', typeLabel: 'Milestone', activityType: 'milestone', who: 'Jordan Ellis', role: 'Client', city: 'Brooklyn · NYC', tier: 'FORM', ago: '5h', body: '', title: 'Promoted to Staff Engineer', stats: [], milestone: { stamp: 'promoted', detail: 'Eighteen months of showing up — the gym discipline bled into the work.' }, kudos: 31, replies: 5 },
   { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 25 mi', stats: [['Distance', '25.1 mi'], ['Avg speed', '19.3 mph'], ['Time', '1:18:04'], ['Avg power', '241 W'], ['Max power', '612 W'], ['Avg HR', '148 bpm'], ['Max HR', '171 bpm'], ['Cadence', '89 rpm'], ['Elevation', '1,240 ft'], ['Calories', '1,180'], ['Max speed', '34.2 mph']], zones: [['Z1', 8], ['Z2', 22], ['Z3', 30], ['Z4', 28], ['Z5', 12]], trace: [126, 132, 140, 152, 161, 149, 138, 145, 158, 167, 154, 142, 150, 163, 170, 156, 144, 152, 165, 171, 158, 146, 154, 166, 169, 151, 140, 157, 168, 159], paceTrace: [17.2, 18.4, 21.0, 24.5, 22.1, 18.0, 16.4, 19.2, 23.6, 26.1, 21.4, 17.8, 19.6, 24.0, 27.2, 20.8, 16.9, 19.0, 23.1, 28.4, 22.6, 18.2, 20.1, 24.8, 26.6, 19.4, 16.2, 20.6, 25.4, 21.8], powerTrace: [198, 224, 268, 312, 286, 210, 182, 236, 298, 332, 274, 204, 244, 306, 348, 262, 190, 232, 296, 358, 284, 214, 252, 318, 336, 246, 186, 258, 322, 276], cadenceTrace: [84, 86, 88, 91, 90, 85, 83, 87, 90, 93, 89, 84, 88, 92, 94, 88, 83, 87, 91, 95, 90, 85, 89, 93, 94, 87, 82, 90, 94, 89], elevTrace: [120, 138, 172, 226, 290, 248, 196, 244, 318, 402, 356, 288, 232, 308, 396, 470, 412, 340, 286, 360, 452, 528, 470, 398, 462, 540, 480, 396, 312, 240], breakdown: { label: 'Intervals', rows: [['Climb 1', '6:24', '298 W'], ['Climb 2', '6:02', '312 W'], ['Climb 3', '5:48', '326 W']] }, kudos: 23, replies: 3 },
   { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '2h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
   { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
@@ -14397,7 +14474,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {/* Activity-type filter — a real logged run files under Runs, a
                   stamped new best under PRs (buckets non-exclusive by design). */}
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `0 ${t.padX}px 4px` }}>
-                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition']].map(([k, label]) =>
+                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition'], ['milestones', 'Milestones']].map(([k, label]) =>
                   bsSubTab({ key: k, on: feedType === k, color: TEALB, onClick: () => setFeedType(k), label }))}
               </div>
               {/* Community feed is a Strava-style activity stream of real logged
@@ -14434,9 +14511,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 }
                 if (!cards.length) {
                   // The base feed has cards but none match the type chip —
-                  // honest filtered-empty, one tap back to All. (Demo mode
-                  // never lands here: the sample set carries every bucket.)
-                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs', nutrition: 'meals' }[feedType] || 'activity';
+                  // honest filtered-empty, one tap back to All. (Demo carries
+                  // most buckets — Nutrition can land here signed-out.)
+                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs', nutrition: 'meals', milestones: 'milestones' }[feedType] || 'activity';
                   return (
                     <div style={{ textAlign: 'center', padding: '32px 24px', color: muted }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: cardInk, letterSpacing: '-0.01em' }}>No {typeLabel} on the wire yet.</div>
@@ -15315,6 +15392,7 @@ const SHAPE_SCORE_PROFILES = {
       { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
       { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
       { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
+      { name: 'Career milestone', pts: '+25', cap: 'Monthly', note: 'Log a work win — any visibility' },
       { name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
       { name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
       { name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },

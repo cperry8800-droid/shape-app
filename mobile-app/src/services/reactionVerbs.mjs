@@ -12,7 +12,7 @@
 
 export const BS_REACTION_VERBS = {
   strength:  'Spot',
-  pr:        'Beast',      // pr / milestone
+  pr:        'Beast',      // pr / milestone (a training new-best)
   run:       'Respect',    // run / endurance
   swim:      'Gliding',
   cycle:     'Watts',
@@ -20,6 +20,7 @@ export const BS_REACTION_VERBS = {
   nutrition: 'Locked in',
   sleep:     'Recharged',
   mobility:  'Centered',   // mobility / yoga
+  career:    'Onward',     // work milestone (THE APPOINTMENTS, spec 2026-07-13)
   sport:     'Props',      // default / fallback (sport / anything else)
 };
 
@@ -31,6 +32,10 @@ export const BS_REACTION_VERBS = {
 export function bsActivityBucket(raw) {
   const s = String(raw || '').toLowerCase().trim();
   if (!s) return 'sport';
+  // Work milestones stamp activity_type 'milestone' at the composer (spec
+  // 2026-07-13) — an exact token, never a name-content guess. Checked first
+  // so no later pattern can shadow it.
+  if (s === 'milestone') return 'career';
   if (/swim/.test(s)) return 'swim';
   if (/(cycl|\bbike\b|\bride\b|\bspin\b|watt|peloton)/.test(s)) return 'cycle';
   if (/(run|jog|sprint|\b5k\b|\b10k\b|marathon|endurance|cardio|condition|\brow\b|\berg\b|walk|hike|hiit)/.test(s)) return 'run';

@@ -5,6 +5,10 @@
 // identical across roles. Only the sidebar nav and (optional) chat widget
 // vary per role.
 
+// THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens,
+// mirroring the mobile composer; unknown values normalize to 'milestone'.
+const DC_MILESTONE_STAMPS = ["promoted", "shipped", "certified", "new_role", "launched", "milestone"];
+
 // ── Session-details graphs (website parity with the mobile app) ─────────────
 // Strava-style axis-labeled area charts driven by a post's REAL device metrics
 // (community_posts.metrics: hrTrace/paceTrace/cadenceTrace/elevTrace/powerTrace
@@ -203,6 +207,9 @@ function SessionDetailsModal({ p, onClose }) {
 function CommunityPage({ navItems, payoutCard, chatTabs }) {
   const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
   const [composerOpen, setComposerOpen] = React.useState(false);
+  // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
+  // actually granted (spec 2026-07-13; a same-month duplicate shows nothing).
+  const [careerToast, setCareerToast] = React.useState(false);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
@@ -268,6 +275,9 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       // Shared meals (spec 2026-07-12) file under NUTRITION only — a meal is
       // not a workout, and it never cross-files.
       if (m.kind === 'meal') return ['meal'];
+      // Work milestones (spec 2026-07-13) file under MILESTONES only — a
+      // career milestone is not a workout or a training PR.
+      if (m.kind === 'milestone') return ['milestone'];
       // Evidence gate = everything hasSession trusts below (trace/zone
       // metrics) + composer/provider markers + a stamped PR delta, so a
       // delta-only PR or a trace-bearing session never files as plain 'post'
@@ -313,6 +323,13 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           };
           return (meal.kcal != null || meal.p != null || meal.c != null || meal.f != null) ? meal : null;
         })(),
+        // THE APPOINTMENTS block (spec 2026-07-13): stamp ALWAYS present
+        // (unknown normalizes to 'milestone' — the one-behavior contract),
+        // detail only when stored.
+        milestone: m.kind === 'milestone' ? {
+          stamp: DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : 'milestone',
+          detail: (typeof m.detail === 'string' && m.detail.trim()) ? m.detail.trim() : '',
+        } : null,
         id: p.id || null,
         who: p.author_name || 'Shape member',
         role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
@@ -326,7 +343,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         // Meal posts pin the NUTRITION tag from metrics.kind — activity_type
         // defaults to 'workout' on this API, so it can't be trusted alone
         // (CodeRabbit: the visible pill must match the Nutrition bucket).
-        tag: m.kind === 'meal' ? 'NUTRITION' : tagFor(p.activity_type),
+        tag: m.kind === 'meal' ? 'NUTRITION' : m.kind === 'milestone' ? 'MILESTONE' : tagFor(p.activity_type),
         isMe: !!(uid && p.author_id === uid),
         video: (m && m.video_url) || null,
         isLive: true,
@@ -432,6 +449,27 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // headline, dot-leader macro lines, the AS PLANNED/ADJUSTED stamp + honest
   // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal');
   // the demo MealStat above stays untouched. Never day totals, never targets.
+  // THE APPOINTMENTS (spec 2026-07-13) — the work-milestone block: stamp chip
+  // (always present — the six canonical tokens, unknown normalizes to
+  // MILESTONE) + the detail line only when stored. Slate accent (#7aa7dc),
+  // the site's work-domain color.
+  function MilestoneStamp({ m }) {
+    const label = String(DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : "milestone").replace("_", " ").toUpperCase();
+    return (
+      <div style={{ margin: "10px 0 12px", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 12, padding: "11px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-hidden="true">
+          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.14)" }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>The appointments</span>
+          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.14)" }} />
+        </div>
+        <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.45)", borderRadius: 3, padding: "3px 8px" }}>{label}</span>
+          {m.detail && <span style={{ fontFamily: serif, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.45, color: "rgba(242,237,228,0.85)", minWidth: 0 }}>{m.detail}</span>}
+        </div>
+      </div>
+    );
+  }
+
   function MealPlate({ meal }) {
     // Honest-absent (CodeRabbit): mapPost delivers nullable macros + a
     // tri-state planned. Absent rows drop, the kcal headline renders only
@@ -646,6 +684,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           {p.kind === "streak"  && <StreakStat p={p} />}
         </>)}
         {p.meal && <MealPlate meal={p.meal} />}
+        {p.milestone && <MilestoneStamp m={p.milestone} />}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
         {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
         {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
@@ -934,7 +973,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               { label: "PRs",      kinds: ["pr"] },
               { label: "RUNS",     kinds: ["run"] },
               { label: "NUTRITION", kinds: ["meal"] },
-              { label: "MILESTONES", kinds: ["streak", "tier"] },
+              { label: "MILESTONES", kinds: ["streak", "tier", "milestone"] },
               { label: "POSTS",    kinds: ["post"] },
             ];
             const visible = feed.filter(p => {
@@ -1006,6 +1045,9 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         </div>
       </div>
       {chatTabs && <ChatWidget tabs={chatTabs} />}
+      {careerToast && (
+        <div role="status" style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em" }}>+25 · CAREER · SHAPE SCORE</div>
+      )}
       {composerOpen && (
         <PostComposer
           me={ME}
@@ -1048,16 +1090,41 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
             if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }
+            const isMs = post.kind === 'milestone' && post.milestone;
+            if (isMs) {
+              // THE APPOINTMENTS (spec 2026-07-13): stamp always stored, detail
+              // omitted when blank. The generic +5 is excluded server-side by
+              // the award_community_post milestone guard.
+              metrics.kind = 'milestone';
+              metrics.stamp = post.milestone.stamp;
+              if (post.milestone.detail) metrics.detail = post.milestone.detail;
+            }
             fetch('/api/community/feed', {
               method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                title: (post.body || '').trim() || (post.photo ? 'Photo' : post.video ? 'Video' : 'Post'),
-                note: post.body || '',
-                activityType: post.kind || 'workout',
+                title: isMs ? post.milestone.headline : ((post.body || '').trim() || (post.photo ? 'Photo' : post.video ? 'Video' : 'Post')),
+                note: isMs ? '' : (post.body || ''),
+                activityType: isMs ? 'milestone' : (post.kind || 'workout'),
                 privacy: 'community',
                 photoUrl: post.photo || '',
                 metrics: Object.keys(metrics).length ? metrics : undefined,
               }),
+            }).then(async (r) => {
+              if (!isMs || !r || !r.ok) return;
+              // The +25 CAREER award — AWAITED on the real post id (idempotent
+              // monthly dedupe; granted=false on a same-month duplicate, and
+              // the chip shows ONLY on a real grant).
+              try {
+                const j = await r.json();
+                const pid = j && j.post && j.post.id;
+                const sb = window.shapeDb && window.shapeDb.client;
+                if (!pid || !sb || !sb.rpc) return;
+                const { data } = await sb.rpc('award_work_milestone', { p_post_id: pid });
+                if (data && data.granted) {
+                  setCareerToast(true);
+                  setTimeout(() => setCareerToast(false), 3200);
+                }
+              } catch (e) {}
             }).catch(() => {});
           }}
         />
@@ -1073,11 +1140,16 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     { value: "workout", label: "Workout", tag: "STRENGTH" },
     { value: "run", label: "Run", tag: "RUNNING" },
     { value: "meal", label: "Meal", tag: "NUTRITION" },
+    { value: "milestone", label: "Milestone", tag: "MILESTONE" },
     { value: "video", label: "Video", tag: "" },
   ];
   const ed = editing || null;
   const [kind, setKind] = React.useState(ed ? (ed.kind || ((ed.video || ed.videoUrl) ? "video" : "post")) : "post");
   const [body, setBody] = React.useState(ed ? (ed.body || "") : "");
+  // THE APPOINTMENTS (spec 2026-07-13): a required headline + a canonical
+  // stamp; the textarea becomes the optional one-line detail. Mobile parity.
+  const [msHeadline, setMsHeadline] = React.useState("");
+  const [msStamp, setMsStamp] = React.useState("milestone");
   const [tag, setTag] = React.useState(ed ? (ed.tag || "") : "");
   const [photoUrl, setPhotoUrl] = React.useState(ed ? (ed.photo || ed.photoUrl || "") : "");
   const [photoBusy, setPhotoBusy] = React.useState(false);
@@ -1101,7 +1173,9 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     return () => { on = false; };
   }, [tagOpen, tagQuery]);
   const toggleTag = (m) => setTagged((prev) => prev.some((x) => x.userId === m.userId) ? prev.filter((x) => x.userId !== m.userId) : [...prev, m]);
-  const canSubmit = (body.trim().length > 0 || !!photoUrl || !!videoUrl || tagged.length > 0) && !photoBusy && !videoBusy;
+  const canSubmit = (kind === "milestone"
+    ? msHeadline.trim().length > 0
+    : (body.trim().length > 0 || !!photoUrl || !!videoUrl || tagged.length > 0)) && !photoBusy && !videoBusy;
   const uploadPhoto = async (file) => {
     const client = window.shapeDb && window.shapeDb.client;
     if (!client) throw new Error("Not connected.");
@@ -1149,6 +1223,11 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     if (!canSubmit) return;
     const k = KINDS.find(x => x.value === kind) || KINDS[0];
     const postPayload = { kind, body: body.trim(), tag: tag.trim() || k.tag || undefined, photo: photoUrl || undefined, video: videoUrl || undefined, mentions: tagged.length ? tagged : undefined };
+    if (kind === "milestone") {
+      const st = DC_MILESTONE_STAMPS.includes(msStamp) ? msStamp : "milestone";
+      postPayload.milestone = { headline: msHeadline.trim().slice(0, 80), stamp: st, detail: body.trim().slice(0, 140) };
+      postPayload.body = postPayload.milestone.headline; // the optimistic card leads with the headline
+    }
     if (ed) {
       // Edit mode: PATCH the existing post
       const patchMetrics = {};
@@ -1201,12 +1280,33 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
           })}
         </div>
 
+        {kind === "milestone" && (
+          <div style={{ marginBottom: 12 }}>
+            <input
+              value={msHeadline}
+              onChange={e => setMsHeadline(e.target.value)}
+              maxLength={80}
+              placeholder="Headline — e.g. Promoted to Senior Engineer"
+              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" }}
+            />
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {DC_MILESTONE_STAMPS.map(s => {
+                const on = msStamp === s;
+                return (
+                  <button key={s} onClick={() => setMsStamp(s)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", padding: "5px 10px", borderRadius: 999, cursor: "pointer", background: on ? "rgba(122,167,220,0.16)" : "rgba(242,237,228,0.04)", color: on ? "#7aa7dc" : "rgba(242,237,228,0.7)", border: "1px solid " + (on ? "rgba(122,167,220,0.4)" : "rgba(242,237,228,0.08)") }}>{s.replace("_", " ").toUpperCase()}</button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>+25 Shape Score — once a month, whatever the visibility. No pay figures, ever.</div>
+          </div>
+        )}
         <textarea
           value={body}
           onChange={e => setBody(e.target.value)}
           autoFocus
-          rows={5}
-          placeholder="What's on your mind? Share a PR, a workout, a meal, or a thought."
+          rows={kind === "milestone" ? 2 : 5}
+          maxLength={kind === "milestone" ? 140 : undefined}
+          placeholder={kind === "milestone" ? "One line on what it took (optional)…" : "What's on your mind? Share a PR, a workout, a meal, or a thought."}
           style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 14, lineHeight: 1.5, outline: "none", resize: "vertical" }}
         />
 

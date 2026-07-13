@@ -105,3 +105,12 @@ test("phase 2 — every palette pick is still text (no emoji)", () => {
     assert.match(w, /^[A-Za-z' ]+$/); // letters, apostrophe, space only
   }
 });
+
+test("work milestones read Onward (spec 2026-07-13) — exact token, never name-guessed", () => {
+  assert.equal(bsActivityBucket("milestone"), "career");
+  assert.equal(bsReactionVerb("career"), "Onward");
+  // The token is exact — a workout NAMED "milestone madness" is not a career post…
+  assert.equal(bsActivityBucket("milestone madness"), "sport");
+  // …and a training PR (isPR) still reads Beast, never Onward.
+  assert.equal(bsReactionType("strength", { isPR: true }), "pr");
+});
