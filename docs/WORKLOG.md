@@ -159,15 +159,18 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-13): THE WORK DOMAIN WAVE** — spec #1694 (owner adds:
-> work goal area · milestone Shape Score points · website parity every PR):
-> **PR A #1696 MERGED** (work habit chips + `domain:'work'` stamp + WORK
-> tags both surfaces · THE WORK station in The Contract · `habit-domain`
-> migration APPLIED+verified) · **PR B in review** (THE APPOINTMENTS —
-> Milestone composer + card + "Onward" verb + Milestones chip both
-> surfaces · the +25/mo career award migration ⚠ OWNER applies · awaited
-> claim + open-time catch-up · legend/Record wiring) · PR C THE CROSSOVER
-> next. Dated entries below.
+> **Latest (2026-07-13): THE WORK DOMAIN WAVE — COMPLETE** (brainstorm →
+> shipped in one day; owner adds: work goal area · milestone Shape Score
+> points · website parity on every PR). **Spec #1694 + PR A #1696 + PR B
+> #1697 + PR C #1698 all merged**; BOTH migrations (`habit-domain` ·
+> `work-milestone-points` incl. the month-bucket revision) **APPLIED +
+> verified live**; 20 review findings addressed across 4 CodeRabbit/Codex
+> rounds; suite **620**. Work habits (domain stamp + WORK tags) · THE WORK
+> station in The Contract · THE APPOINTMENTS milestones (+25 · CAREER,
+> once/month, never-lost claim) · THE CROSSOVER (training × work reads,
+> statistically gated) — all on BOTH surfaces. Session handoff:
+> **[`docs/HANDOFF-2026-07-13.md`](HANDOFF-2026-07-13.md)** (also covers
+> the share card #1692/#1693). Open: the OWNER on-device pass.
 >
 > **Prior (2026-07-13): THE SHARE CARD** — #1692 spec + #1693 build: a
 > member's OWN activity renders as a canvas-drawn 1080×1920 brand PNG
@@ -462,11 +465,25 @@ changelog whenever something ships.
   (`dashProgress.jsx?v=20260713`, slate `#7aa7dc` accent): same assembly,
   same shared read, exists ONLY when the read fired (live only, never a demo
   figure). `dashSignals.js?v=20260713b` across all referencing pages.
-- **The work-domain wave is CODE-COMPLETE**: #1694 spec · #1696 PR A (habits
+- **Review round (5 findings, all fixed pre-merge — `f63426d7` +
+  `91fd73e7`; merged `a52d75ff`):** Codex P2 — the card's raw same-origin
+  habits fetch dies on a NATIVE build → a new native-safe
+  **`window.ShapeHabitsData.list()`** (shapeBackend `getJsonOrDefault`,
+  Bearer on native); CodeRabbit — the observation copy moved into
+  **`crossoverCopy`** in dashSignals (words AND numbers share the no-drift
+  guarantee; +1 binding test) which also fixed the garbled negative-sleep
+  sentence once for both surfaces; a sleep-only read spells out its subject
+  ("Your work habits…" — no dangling "They"); loop-based span min/max (no
+  `Math.max.apply` RangeError on unbounded input); `npm test` switched to
+  glob discovery (`node --test "tests/**/*.test.mjs"` — the bare `tests/`
+  form fails on Windows). Suite **620**.
+- **The work-domain wave is COMPLETE**: #1694 spec · #1696 PR A (habits
   + THE WORK station) · #1697 PR B (THE APPOINTMENTS + the +25/mo career
-  award) · PR C (this). Open: the owner on-device pass (work chips → WORK
-  tags · THE WORK station · a milestone post → "Onward" · the +25 chip ·
-  the crossover card once data accrues) + the revised PR B migration re-run.
+  award) · #1698 PR C (this) — all merged; both migrations applied +
+  verified live (incl. the PR B month-bucket re-run). Open: the owner
+  on-device pass (work chips → WORK tags · THE WORK station · a milestone
+  post → "Onward" + the +25 chip · the crossover card once ~3 weeks of
+  work-habit data accrues).
 
 ### 2026-07-13 — The Work domain PR B: THE APPOINTMENTS — milestones on the wire + the +25 career award, both surfaces
 
@@ -517,9 +534,20 @@ changelog whenever something ships.
   "Career milestone +25 · Monthly" joins the mobile earn list + the website
   Score legend (`score.jsx?v=22`); `Career` added to both Record label twins
   (`scoreHistory.mjs` + `.ts`) so the by-source bars pick it up.
+- **Review round (4 findings, all fixed — `ef7f4bd3`; merged `5822c065`):**
+  Codex **P1** — the award bucketed its month from `now()`, so a catch-up
+  claim retried after month rollover credited the NEW month and consumed its
+  slot → the RPC now selects the post's `created_at` during shape validation
+  and buckets from THAT timestamp in the member's tz (**migration revised —
+  owner RE-RAN it; verified live ×5 checks** incl. buckets-from-post-date +
+  anon=f/authd=t). Codex P2 + CodeRabbit Major (same gap) — the WEB claim had
+  no retry: it now mirrors mobile (a failed `award_work_milestone` queues the
+  post id in `localStorage` and a Community-page-load catch-up re-fires it —
+  the never-lost guarantee holds on both surfaces). CodeRabbit nit — the
+  three canonical stamp lists (SQL · `BS_MILESTONE_STAMPS` ·
+  `DC_MILESTONE_STAMPS`) carry KEEP-IN-SYNC cross-references.
 - Verified: JSX parse ×4 · `node --check` ×3 · `tsc --noEmit` clean ·
-  `npm test` 613 · PowerShell `/m/` build exit 0 · LF. Next: **PR C — THE
-  CROSSOVER.**
+  `npm test` 613 · PowerShell `/m/` build exit 0 · LF.
 
 ### 2026-07-13 — The Work domain PR A: work habits + THE WORK station, both surfaces (#1694 spec)
 
@@ -561,8 +589,14 @@ changelog whenever something ships.
   `clientHabits.jsx` → `?v=20260713` across all 19 referencing pages
   (byte-safe replace). *i18n note:* the new `home:tag.work` key falls back
   to its English defaultValue pending the paused i18n rollout.
-- Next: **PR B** — THE APPOINTMENTS (milestones on the wire + the +25/mo
-  career award migration, both surfaces) · **PR C** — THE CROSSOVER.
+- **Review round (2 findings, both fixed — `965961c6`; merged `404986d5`;
+  migration APPLIED + verified live):** Codex P2 — a member sharing ONLY
+  work goals read as "no goals shared yet" to their coach → the shared-goals
+  block renders the WORK headline + counts `workMeta` toward the emptiness
+  check on BOTH surfaces (the mobile Case File + the website client page,
+  `coachClientDetail.jsx?v=20260713`); CodeRabbit — the pre-migration create
+  retry branches on stable error codes (`42703`/`PGRST204`), not message
+  text.
 
 ### 2026-07-13 — The share card: activities as story-ready images (#1692 spec · #1693 build)
 
