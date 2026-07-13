@@ -1245,11 +1245,14 @@
     }
     if (read && read.sleep) {
       var sl = read.sleep;
+      // "They" only when the training row rendered above and introduced the
+      // subject — a sleep-only read spells it out (no dangling pronoun).
+      var subj = rows.length ? 'They' : 'Your work habits';
       rows.push({
         k: 'Sleep',
         text: sl.gap > 0
-          ? 'They land ' + Math.abs(sl.gap) + ' pts more often after 7+ hours of sleep — guard the bedtime.'
-          : 'They land ' + Math.abs(sl.gap) + ' pts more often on short-sleep days — worth watching over the next few weeks.',
+          ? subj + ' land ' + Math.abs(sl.gap) + ' pts more often after 7+ hours of sleep — guard the bedtime.'
+          : subj + ' land ' + Math.abs(sl.gap) + ' pts more often on short-sleep days — worth watching over the next few weeks.',
         sub: '7h+ days ' + sl.pA + '% · short days ' + sl.pB + '%',
       });
     }

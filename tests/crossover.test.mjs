@@ -87,6 +87,11 @@ test("crossoverCopy binds the computed numbers into shared wording (no drift)", 
   assert.ok(rows[0].text.includes("34 pts more often on days you train"));
   assert.equal(rows[0].sub, "Training days 80% · rest days 46%");
   assert.ok(rows[1].text.includes("15 pts more often on short-sleep days"));
+  assert.ok(rows[1].text.startsWith("They land")); // training row introduced the subject
+  // A sleep-only read spells the subject out — no dangling pronoun.
+  const solo = crossoverCopy({ training: null, sleep: { gap: 20, pA: 70, pB: 50, nA: 10, nB: 10 } });
+  assert.equal(solo.length, 1);
+  assert.ok(solo[0].text.startsWith("Your work habits land"));
   assert.deepEqual(crossoverCopy({ training: null, sleep: null }), []);
   assert.deepEqual(crossoverCopy(null), []);
 });
