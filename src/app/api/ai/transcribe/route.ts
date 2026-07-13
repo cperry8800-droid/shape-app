@@ -12,11 +12,14 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { transcribeAudio, hasOpenAIKey } from '@/lib/ai';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Sign in to use voice input.' }, { status: 401 });
 

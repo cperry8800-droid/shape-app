@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,8 @@ async function uploadAttachment(
 }
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Sign in to send a note to your coach.' }, { status: 401 });
   const supabase = await clientForRequest(request);

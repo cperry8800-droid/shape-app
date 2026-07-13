@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError, cleanText } from '@/lib/request-utils';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireMembership(req);
+  if (denied) return denied;
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -47,6 +50,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireMembership(req);
+  if (denied) return denied;
   const { id } = await params;
   const supabase = await createClient();
   const {

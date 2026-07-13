@@ -9,12 +9,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError } from '@/lib/request-utils';
+import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
 type CompletionRow = { habit_id: string; done_on: string };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -62,6 +65,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await requireMembership(req);
+  if (denied) return denied;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

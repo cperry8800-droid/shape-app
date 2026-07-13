@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { buildLiftSeries, summarizeLift } from '@/lib/e1rm';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ function num(v: unknown): number {
 }
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   // Auth runs OUTSIDE the fail-soft block below so an auth-helper failure can never
   // be masked as a 200 empty success (the endpoint's authentication contract).
   const supabase = await clientForRequest(request);

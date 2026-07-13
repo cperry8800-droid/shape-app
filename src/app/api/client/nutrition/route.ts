@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,9 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const supabase = await createClient();
   const {
     data: { user },

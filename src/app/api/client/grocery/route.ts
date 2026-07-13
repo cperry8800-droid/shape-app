@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
+import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,9 @@ function parseIngredientString(raw: string): { item: string; qty: string } {
 type IngredientLike = string | { item?: unknown; qty?: unknown; category?: unknown };
 type MealPayload = { name?: unknown; ingredients?: unknown };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const supabase = await createClient();
   const {
     data: { user },

@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,6 +72,8 @@ function mapRepeatDow(payload: Record<string, unknown> | null): number[] | null 
 }
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);

@@ -5,7 +5,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
-import { computeMembership } from '@/lib/membership-core';
+import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
 import { checkRateLimit, jwtSub } from '@/lib/rate-limit';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
@@ -88,6 +88,10 @@ export async function updateSession(request: NextRequest) {
   // Footer) can read it via `headers()` and decide whether to render.
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set('x-pathname', request.nextUrl.pathname);
+  // The membership-gate stamp is proxy-issued ONLY — strip any incoming value
+  // on every request (the matcher covers every gated /api path) so an
+  // external caller can never spoof the routes' requireMembership fast path.
+  forwardedHeaders.delete(GATE_STAMP_HEADER);
   // Global Privacy Control: recognize the opt-out signal so it's honored
   // platform-wide (CCPA + state laws require this regardless of sale/share).
   if (request.headers.get('sec-gpc') === '1') forwardedHeaders.set('x-gpc-optout', '1');
@@ -217,8 +221,18 @@ export async function updateSession(request: NextRequest) {
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
       const { isMember } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null);
       if (!isMember) return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
+      // Verified — stamp the request for the route layer so requireMembership
+      // (the per-endpoint half of this gate) passes without re-querying.
+      // Rebuilding the response drops any cookies Supabase refreshed above,
+      // so carry them over (the portal-redirect pattern below).
+      forwardedHeaders.set(GATE_STAMP_HEADER, GATE_STAMP_VALUE);
+      const stamped = NextResponse.next({ request: { headers: forwardedHeaders } });
+      response.cookies.getAll().forEach((cookie) => stamped.cookies.set(cookie));
+      response = stamped;
     } catch {
-      /* fail open */
+      /* fail open — requireMembership() in the route re-checks when the stamp
+         is absent, so a gate fault degrades to the route-layer check, not to
+         an open door */
     }
   }
 

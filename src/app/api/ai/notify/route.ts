@@ -20,11 +20,14 @@ import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 

@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireMembership } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,9 @@ const DISC_ORDER: Array<[key: string, label: string]> = [
   ['recovery', 'Recovery'],
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const supabase = await createClient();
   const {
     data: { user },

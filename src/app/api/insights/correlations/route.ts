@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 import { computeCorrelations, type SnapshotPoint } from '@/lib/correlations';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,8 @@ function clampWindow(raw: string | null): number {
 }
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const url = new URL(request.url);
   const targetUserId = url.searchParams.get('user_id');
   const windowDays = clampWindow(url.searchParams.get('window'));

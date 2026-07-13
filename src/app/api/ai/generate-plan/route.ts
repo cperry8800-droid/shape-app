@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 
@@ -230,6 +231,8 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
 }
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   // Gate the OpenAI proxy behind an authenticated session — the plan
   // generator is only reached from signed-in coach surfaces, and an open
   // endpoint would let anyone burn the server's OpenAI key.

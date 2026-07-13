@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,8 @@ function pnum(v: unknown): number {
 }
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);
 

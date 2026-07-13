@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { requireMembership } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,8 @@ type ActivityRow = {
 };
 
 export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
@@ -99,6 +102,8 @@ function num(v: unknown): number | null {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
