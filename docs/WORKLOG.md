@@ -433,6 +433,31 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Coach calendar "Mark complete" is real (sessions status write) + honest booking reschedule
+
+- **Closes the goals-flow wave follow-up**: the coach calendar event sheet's
+  "Mark complete" only fired a fake `Logged ✓` toast — nothing was written, so
+  the accountability cron's kept-session read (`sessions.status='completed'` →
+  `award_session_kept` +12) could never fire from the calendar. Now a live
+  coaching booking viewed by its coach carries a real **Mark complete** →
+  `POST /api/sessions/manage {action:'complete'}` (the route re-checks coach
+  ownership server-side), honest success/failure toasts, and a month reload;
+  an already-completed booking reads **Completed ✓** and maps to the calendar's
+  `done` row state.
+- **Wiring**: `_bsMapServerCalEvent` now carries `sessionId` / `status` /
+  `reschedulable` (the calendar GET always sent them; the mobile map dropped
+  them); `manageSession` (shapeBackend) forwards `date`/`time` for the
+  reschedule action.
+- **Honest reschedule**: the sheet's date picker used to toast a fake
+  "Rescheduled" on ANY live non-editable row. Now a coach's still-active
+  booking really moves (`action:'reschedule'`, same wall-clock slot on the new
+  date — server-validated + the client is notified via the route's existing
+  `session_rescheduled` notification), a video booking keeps a **Join →**
+  secondary, and rows that can't be moved (a client's live booking, completed
+  sessions, derived plan events) hide the Reschedule button instead of lying.
+  Signed-out demo behavior unchanged.
+- Verified: JSX parse + `node --check` · `npm test` 0 fail · LF.
+
 ### 2026-07-13 — The share card PR B: web dashboard parity (#1700 spec · #1701 build)
 
 - **Closes the share-card wave's web half** (parent spec #1692's "PR B (later)"

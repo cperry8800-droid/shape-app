@@ -227,8 +227,14 @@ function _bsMapServerCalEvent(ev, t) {
     title: ev.title || '',
     sub: ev.sub || '',
     accent: accents[ev.kind] || t.RUST,
-    state: ev.status === 'done' ? 'done' : undefined,
+    state: ev.status === 'done' || ev.status === 'completed' ? 'done' : undefined,
     meetingUrl: ev.meetingUrl || null,
+    // Live coaching bookings (source 'session') carry their sessions-table id +
+    // status so the event sheet can write real completes/reschedules through
+    // /api/sessions/manage instead of toasting.
+    sessionId: ev.sessionId || null,
+    status: ev.status || null,
+    reschedulable: ev.reschedulable !== false,
   };
 }
 
@@ -619,6 +625,25 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {} }) {
   const t = useBSCal();
   const canDelete = live && event.editable && event.source === 'event';
+  // A live coaching booking (the sessions table) viewed by its coach: the
+  // complete/reschedule actions write through /api/sessions/manage (the route
+  // re-checks coach ownership server-side). The accountability cron reads
+  // status='completed' (award_session_kept), so Mark complete is a real signal.
+  const coachSession = live && event.source === 'session' && !!event.sessionId
+    && (role === 'trainer' || role === 'nutritionist');
+  const [busy, setBusy] = useStateBSCal(false);
+  const markComplete = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'complete' });
+      window.__bsToast?.('Session marked complete ✓', 'ok');
+      onClose(); onChanged();
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not mark complete', 'err');
+      setBusy(false);
+    }
+  };
   const removeEvent = async () => {
     if (!(await window.bsAskConfirm({
       title: 'Delete this event?',
@@ -636,13 +661,26 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
     }
   };
   const dateRef = useRefBSCal(null);
+  // Who can actually move this entry: an owner-editable calendar event, a
+  // coach's still-active booking (the manage route rejects completed ones),
+  // or the signed-out demo. A client's live booking hides the button — only
+  // the coach can move a real session, and a fake "Rescheduled" toast lied.
+  const canReschedule = !live
+    || (event.editable && event.source === 'event')
+    || (coachSession && event.reschedulable !== false && event.status !== 'completed');
   const reschedule = async (newDate) => {
     if (!newDate || newDate === event.date) return;
-    const isLive = live && event.editable && event.source === 'event';
-    if (isLive) {
+    const isLiveEvent = live && event.editable && event.source === 'event';
+    if (isLiveEvent) {
       try { await window.ShapeCalendar?.update?.({ id: event.id, date: newDate }); window.__bsToast?.('Rescheduled', 'ok'); onClose(); onChanged(); }
       catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
-    } else {
+    } else if (coachSession) {
+      // Real booking move — same wall-clock slot on the new date; the server
+      // validates coach ownership + that the session is still active/upcoming.
+      const time = /^\d{1,2}:\d{2}$/.test(String(event.time || '')) ? event.time : undefined;
+      try { await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time }); window.__bsToast?.('Rescheduled ✓', 'ok'); onClose(); onChanged(); }
+      catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
+    } else if (!live) {
       window.__bsToast?.('Rescheduled', 'ok'); onClose();
     }
   };
@@ -674,17 +712,28 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
 
       {/* Actions */}
       <div style={{ padding: `16px 14px calc(84px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
-        {(isWorkout || isMeal) && (
-          <button onClick={() => {
-            if (role !== 'trainer' && isWorkout) { try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} onClose(); }
-            else { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }
-          }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
+        {coachSession ? (
+          event.status === 'completed'
+            ? <button onClick={onClose} style={primaryBtn(t)}>Completed ✓</button>
+            : <button onClick={markComplete} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Marking…' : 'Mark complete'}</button>
+        ) : (
+          <>
+            {(isWorkout || isMeal) && (
+              <button onClick={() => {
+                if (role !== 'trainer' && isWorkout) { try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} onClose(); }
+                else { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }
+              }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
+            )}
+            {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.('No meeting link yet — your coach will add one.', 'warn'); } }} style={primaryBtn(t)}>Join consult →</button>}
+            {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
+            {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
+          </>
         )}
-        {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.('No meeting link yet — your coach will add one.', 'warn'); } }} style={primaryBtn(t)}>Join consult →</button>}
-        {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
-        {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
+        {coachSession && event.meetingUrl && event.status !== 'completed' && (
+          <button onClick={() => { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} }} style={secondaryBtn(t)}>Join →</button>
+        )}
         <input type="date" ref={dateRef} defaultValue={event.date || ''} onChange={(e) => reschedule(e.target.value)} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
-        <button onClick={() => { const el = dateRef.current; if (el) { try { el.showPicker ? el.showPicker() : el.click(); } catch (e2) { el.click(); } } }} style={secondaryBtn(t)}>Reschedule</button>
+        {canReschedule && <button onClick={() => { const el = dateRef.current; if (el) { try { el.showPicker ? el.showPicker() : el.click(); } catch (e2) { el.click(); } } }} style={secondaryBtn(t)}>Reschedule</button>}
         {canDelete && <button onClick={removeEvent} style={secondaryBtn(t)}>Delete</button>}
       </div>
     </div>
