@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
@@ -5182,6 +5183,47 @@ async function myCoachIdentity(role = null) {
   return null;
 }
 window.ShapeCoachLookup = { ownerOf: coachOwnerOf, mine: myCoachIdentity };
+
+// ─── Adjust → full program regeneration (spec #1707) ─────────────────────────
+// On the coach Adjust page's Apply, the trainer's adjustment rewrites the
+// client's REAL upcoming rows so every surface reads the same adjusted plan.
+// The pure planner (adjustRegen.mjs) decides WHAT changes; the transactional
+// regenerate_client_workouts RPC applies it atomically (never both plans,
+// never zero). Pre-migration (RPC absent) this degrades to detail+note only.
+async function applyAdjustRegeneration({ clientId, adjustment } = {}) {
+  if (!supabase || !state.user?.id || !clientId) return { changed: false, degraded: true };
+  // Next generation from the client's program record (coach-readable).
+  let gen = 1;
+  try {
+    const { data } = await supabase.from('client_programs').select('detail').eq('user_id', clientId).maybeSingle();
+    gen = (Number(data?.detail?.training?.gen) || 0) + 1;
+  } catch (e) { /* first generation */ }
+  // RLS scopes this read to the caller's own authored rows for this client.
+  const { data: rows, error: readErr } = await supabase
+    .from('client_workouts')
+    .select('id, title, description, kind, payload, scheduled_date')
+    .eq('client_id', clientId)
+    .not('trainer_id', 'is', null)
+    .limit(400);
+  if (readErr) throw readErr;
+  // UTC date — matches the RPC's strictly-future validation basis.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const plan = bsAdjustRegen({ rows: rows || [], adjustment, todayISO, gen });
+  if (!plan.changed) return { changed: false, gen: gen - 1 };
+  const { data, error } = await supabase.rpc('regenerate_client_workouts', {
+    p_client_id: clientId,
+    p_delete_ids: plan.deleteIds,
+    p_inserts: plan.inserts,
+    p_repeat_patches: plan.repeatPatches,
+  });
+  if (error) {
+    // RPC not deployed yet — honest degrade to today's detail+note behavior.
+    if (error.code === 'PGRST202' || error.code === '42883') return { changed: false, degraded: true };
+    throw error;
+  }
+  return { changed: true, gen, capped: !!plan.capped, result: data || null };
+}
+window.ShapeAdjustRegen = { apply: applyAdjustRegeneration };
 
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a

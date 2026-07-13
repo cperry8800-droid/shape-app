@@ -207,10 +207,16 @@ function ClientNutritionPage() {
   const hasPlan = days.length > 0;
   const todayDow = dnuTodayDow();
 
-  // Resolve the picked day's meals + targets; fall back to demo today.
+  // Resolve the picked day's meals + targets; fall back to demo today. The
+  // nutritionist's live Adjust override (plan.meals.coachTargets — the same
+  // detail.nutrition the mobile Eat hero reads) outranks the menu's authored
+  // day targets: it is the CURRENT prescription (spec #1707 parity fix).
   const pickedDay = days.find((d) => d.dow === pickedDow) || days[pickedDow] || null;
   const meals = dnuDayMeals(pickedDay);
-  const targets = dnuDayTargets(pickedDay) || { kcal: 2200, p: 175, c: 240, f: 70 };
+  const coachTargets = live && plan && plan.meals && plan.meals.coachTargets && plan.meals.coachTargets.kcal
+    ? { kcal: Number(plan.meals.coachTargets.kcal) || 0, p: Number(plan.meals.coachTargets.p) || 0, c: Number(plan.meals.coachTargets.c) || 0, f: Number(plan.meals.coachTargets.f) || 0 }
+    : null;
+  const targets = coachTargets || dnuDayTargets(pickedDay) || { kcal: 2200, p: 175, c: 240, f: 70 };
 
   // Ledger from the logged snapshot (only meaningful for today).
   const todaySnap = live ? (nutri && nutri.today) : DNU_DEMO.today;

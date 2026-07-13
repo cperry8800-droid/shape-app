@@ -109,6 +109,9 @@ export async function GET(request: Request) {
       kind: w.kind,
       // Self-authored (member-built) when there's no coach behind the row.
       selfAuthored: w.trainer_id === null,
+      // Adjust-regeneration generation stamp (spec #1707) — the deck skips
+      // display-time scaling for rows the regeneration already rewrote.
+      adjustGen: Number((payload as Record<string, unknown> | null)?.adjustGen) || null,
       program: mapProgram(payload),
       repeatDow: mapRepeatDow(payload),
       scheduledDate: w.scheduled_date ?? null,
@@ -142,6 +145,25 @@ export async function GET(request: Request) {
     .limit(1);
 
   const mp = (mpRows ?? [])[0] ?? null;
+
+  // Coach Adjust target override (client_programs.detail.nutrition) — the
+  // mobile Eat hero already reads it directly; exposing it here closes the
+  // website half of the drift (spec #1707 companion fix).
+  const { data: progRow } = await supabase
+    .from('client_programs')
+    .select('detail')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const nutriDetail = (progRow?.detail as Record<string, unknown> | null)?.nutrition as Record<string, unknown> | undefined;
+  const coachTargets = nutriDetail && Number(nutriDetail.calories)
+    ? {
+        kcal: Number(nutriDetail.calories) || 0,
+        p: Number(nutriDetail.protein) || 0,
+        c: Number(nutriDetail.carbs) || 0,
+        f: Number(nutriDetail.fat) || 0,
+        updatedAt: typeof nutriDetail.updatedAt === 'string' ? nutriDetail.updatedAt : null,
+      }
+    : null;
   const mealDays = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
     ? (mp.payload as Record<string, unknown>).days
     : [];
@@ -172,6 +194,9 @@ export async function GET(request: Request) {
       coach: nuName,
       weekStart: mp?.week_start ?? null,
       days: mealDays,
+      // The nutritionist's live Adjust targets — when present these are the
+      // CURRENT prescription and outrank the menu's authored day targets.
+      coachTargets,
     },
   });
 }
