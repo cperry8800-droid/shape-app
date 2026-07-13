@@ -74,8 +74,8 @@ which firm. That's the card's native grammar.
 
 - The Log-activity sheet (note / photo / video / workout / link) gains a
   **Milestone** type: a **stamp picker** (*PROMOTED · SHIPPED · CERTIFIED ·
-  NEW ROLE · LAUNCHED*, or plain *MILESTONE*), a required headline, an
-  optional one-line detail.
+  NEW ROLE · LAUNCHED*, or plain *MILESTONE*), a required headline (trimmed,
+  ≤ 80 chars), an optional one-line detail (trimmed, ≤ 140 chars).
 - **No organization field and no compensation fields exist at all.** Money is
   this domain's calories: no salary, comp, or revenue figures anywhere, ever —
   no field to put them in, and no comparison framing on any surface.
@@ -84,12 +84,20 @@ which firm. That's the card's native grammar.
 
 ### Storage & card
 
-- Rides `community_posts.metrics` — `{ kind: 'milestone', stamp }` — plus
-  `activity_type: 'milestone'`. **No new table.**
+- Rides `community_posts.metrics` — `{ kind: 'milestone', stamp, detail }` —
+  plus `activity_type: 'milestone'`. **No new table.**
+- **The stamp contract (one behavior, both surfaces):** `stamp` is ALWAYS
+  stored — one of the six canonical tokens `promoted · shipped · certified ·
+  new_role · launched · milestone`. The composer defaults to `milestone`,
+  and an unknown or missing value normalizes to `milestone` at write AND at
+  read, so mobile and web can never diverge. (Honest-absent applies to the
+  DETAIL line, not the stamp — every milestone carries a stamp.)
+- **`detail` round-trips:** the optional one-liner persists in the payload —
+  trimmed, capped at 140 chars, OMITTED entirely when blank — and the card
+  reads it back from storage (covered by persistence tests).
 - The card renders in the wire grammar: **THE APPOINTMENTS** eyebrow, the
-  stamp as a squared chip, serif headline, optional detail line, the standard
-  reaction row. Honest-absent: no stamp is forced (plain MILESTONE is the
-  default), absent detail renders nothing.
+  stamp as a squared chip (MILESTONE is the quiet default), serif headline,
+  the detail line only when stored, the standard reaction row.
 - **Reaction verb:** a new `career` bucket → **"Onward"**, keyed off
   `metrics.kind === 'milestone'` (never name regex); Props stays the
   fallback. One unified count, as always.
@@ -101,22 +109,40 @@ which firm. That's the card's native grammar.
 
 - **Migration `2026-07-13-work-milestone-points.sql`:**
   - Widen the `score_ledger` category CHECK with **`career`**.
-  - **`award_work_milestone(p_post_id)`** — SECURITY DEFINER, self-scoped:
-    verifies the post exists, the caller authored it, and
-    `metrics->>'kind' = 'milestone'`; grants **+25** with
-    `source_kind 'work_milestone'` and a deterministic
-    `source_id = md5('work_milestone:' || uid || ':' || <YYYY-MM in the
-    member's own tz via shape_user_tz>)` — so the existing dedupe index caps
-    it at **one award per calendar month**, idempotently. EXECUTE revoked
-    from public, anon AND authenticated as appropriate (the standing revoke
-    lesson), verified live after apply.
+  - **`award_work_milestone(p_post_id)`** — SECURITY DEFINER (pinned
+    `search_path = public`), self-scoped to `auth.uid()`, returning
+    **`granted boolean`**:
+    - **Validates the FULL milestone shape server-side** — the post exists,
+      `author_id = auth.uid()`, `metrics->>'kind' = 'milestone'`, the stamp
+      is one of the six canonical tokens, and the title is non-empty within
+      the length caps. A malformed or non-milestone post earns nothing.
+      (Stated honestly: every milestone is self-reported by nature — a forged
+      milestone-shaped row can never mint MORE than the composer's own
+      legitimate ceiling of one +25 per month; the cap is the economic
+      defense, the shape check keeps garbage rows from qualifying.)
+    - Grants **+25**, `source_kind 'work_milestone'`, deterministic
+      `source_id = md5('work_milestone:' || uid || ':' || <YYYY-MM in the
+      member's own tz via shape_user_tz>)`, inserted with
+      **`ON CONFLICT (user_id, source_kind, source_id) DO NOTHING`** — a
+      second milestone in the same month is a **successful no-op returning
+      `granted = false`**, never a unique-violation error; the post itself
+      always succeeds.
+    - **Exact privileges:** `REVOKE EXECUTE ... FROM PUBLIC, anon;
+      GRANT EXECUTE ... TO authenticated;` (members must be able to call it;
+      anonymous must not) — verified live after apply.
   - **`award_community_post` excludes milestone posts** (both checks —
     `activity_type` and `metrics->>'kind'` — the exact meal-share pattern),
     so a public milestone never double-dips the +5.
-- The client fires the RPC fire-and-forget after the milestone post lands;
-  the confirmation shows **"+25 · CAREER · SHAPE SCORE" only when actually
-  granted** (the meal-logger +10 pattern). A second milestone in the same
-  month posts fine and honestly shows no award chip.
+- **The award call is AWAITED, never fire-and-forget** (it's the only award
+  path): after the post insert succeeds the client awaits the RPC — safe to
+  retry because the monthly dedupe makes it idempotent. If the call fails
+  (network/backgrounded), a **catch-up pass on next app open** re-fires it
+  for the member's own current-month milestone post (the
+  `award_my_goal_milestones` open-time catch-up precedent), so the member
+  can never permanently lose the award. The confirmation shows
+  **"+25 · CAREER · SHAPE SCORE" only on `granted = true`** (the meal-logger
+  +10 pattern). A second milestone in the same month posts fine and honestly
+  shows no award chip.
 - The award attaches to **logging**, not visibility — Public, Profile, and
   Just-me milestones all earn identically, so points never coerce sharing.
 - Legend & Record: `career: 'Career milestones'` joins `CATEGORY_LABELS`;
@@ -134,14 +160,33 @@ exist, the engine can compute what no one else can.
 - **Pure tested module** (`crossover.mjs`, the weekend-split sibling): takes
   PRE-BUCKETED days — `{ workHabitScheduled, workHabitDone, trained,
   sleepHours }` — and reports two associations: work-habit completion on
-  **training days vs rest days**, and across **sleep bands** (< 6.5h / ≥ 7h).
-- **Honest floors** (below which it renders NOTHING): ≥ 3 weeks of span,
-  ≥ 8 scheduled work-habit days on each side of a comparison, and a
-  statistical gate in the weekend-split shape (gap ≥ threshold AND ≥ 1.65·SE)
-  so a lucky week can't mint a false insight.
-- **Phrasing is never-shaming, observation + move:** *"Your deep-work habit
-  lands 31% more often on days you train — protect the morning session."*
-  Either direction reports neutrally; noise reports nothing.
+  **training days vs rest days**, and across **sleep bands**.
+- **The statistic, exactly** (so PR C's tests are deterministic):
+  - Only days with **≥ 1 scheduled work habit** enter any comparison; the
+    per-side **completion rate** `p = done / scheduled` uses **scheduled
+    work-habit days as the denominator**.
+  - **Training split:** a training day is a day with a real workout signal
+    (`workout_minutes > 0` on the snapshot, or a logged session); all other
+    qualifying days are rest days.
+  - **Sleep split:** short = `sleepHours < 6.5`, long = `sleepHours ≥ 7`;
+    days in **[6.5, 7) are EXCLUDED** (a deliberate separation band); days
+    with **missing/invalid sleep data are excluded from the sleep
+    comparison only** (they still count in the training split).
+  - **Gap** = `pA − pB` in percentage points. **SE** is the two-proportion
+    standard error `sqrt(pA(1−pA)/nA + pB(1−pB)/nB)` (n = scheduled days
+    per side). **The insight fires only when |gap| ≥ 12 pp AND
+    |gap| ≥ 1.65·SE.**
+  - **Floors** (below which the module returns null and the card renders
+    NOTHING): span ≥ 21 days AND ≥ 8 scheduled work-habit days on EACH side
+    of the comparison.
+- **Phrasing is never-shaming, observation + move — and the copy is a
+  TEMPLATE:** the percentage and direction bind to the COMPUTED result
+  (gap rounded to a whole number, direction from its sign), e.g. *"Your
+  deep-work habit lands {gap}% more often on days you train — protect the
+  morning session."* No result → the card renders nothing at all; a live
+  surface never shows a fabricated figure (the values in this document are
+  illustrative only). Either direction reports neutrally; noise reports
+  nothing.
 - **Surface:** a **THE CROSSOVER** card on the Progress hub's Overall tab.
   Ships honest-empty and lights up as data accrues. Member-only in v1 (no
   coach surface).
@@ -152,8 +197,8 @@ exist, the engine can compute what no one else can.
   visibility.
 - **No comparison framing** — no compensation figures, no milestone
   leaderboards, no "who got promoted faster," ever.
-- **Honest-absent** — missing stamp/detail/data renders nothing; the award
-  chip shows only when granted.
+- **Honest-absent** — missing detail/data renders nothing (every milestone
+  carries a stamp by contract); the award chip shows only when granted.
 - **Never-shaming** — the crossover reads are observations with a move, not
   verdicts.
 - **Real-signal scoring** — the one new earn is rarity-capped; everything
@@ -168,16 +213,24 @@ exist, the engine can compute what no one else can.
    templates; saved goals round-trip through `user_goals('client_goals')`
    and appear to a coach only when the share toggle is on.
 3. Logging a milestone (any visibility) grants +25 ONCE per calendar month in
-   the member's tz; the chip renders only on a real grant; a public milestone
-   earns no +5 post award; the ledger row reads category `career`.
-4. Milestone cards render THE APPOINTMENTS grammar with the chosen stamp,
-   react with "Onward," and file under the MILESTONES chip on both surfaces —
-   and under no other type chip.
+   the member's tz; the AWAITED RPC returns `granted = false` (never an
+   error) on a same-month duplicate, and a failed call is re-fired by the
+   open-time catch-up; the chip renders only on `granted = true`; a public
+   milestone earns no +5 post award; the ledger row reads category `career`;
+   the RPC rejects malformed/non-milestone posts and is callable by
+   `authenticated` only (not PUBLIC/anon — verified live).
+4. Milestone cards render THE APPOINTMENTS grammar with the stored stamp
+   (unknown/missing values normalize to MILESTONE identically on both
+   surfaces), round-trip the optional detail line through storage, react
+   with "Onward," and file under the MILESTONES chip on both surfaces — and
+   under no other type chip.
 5. No surface anywhere accepts or displays compensation figures.
 6. THE CROSSOVER renders nothing until its floors are met; with sufficient
-   data it reports the training-day and sleep-band associations with
-   never-shaming copy; suite covers the floors, the gate, and both
-   directions.
+   data it reports the training-day and sleep-band associations per the
+   exact statistic above (deterministic test vectors cover the floors, the
+   12 pp + 1.65·SE gate, the [6.5, 7) sleep exclusion band, missing-value
+   handling, and both directions); rendered copy binds the computed gap —
+   never an illustrative figure.
 7. Score legend + The Record show the career category accurately.
 
 ## Build plan
