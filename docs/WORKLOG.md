@@ -159,7 +159,17 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-12b): MEALS ON THE WIRE — COMPLETE both surfaces** —
+> **Latest (2026-07-13): THE SHARE CARD** — #1692 spec + #1693 build: a
+> member's OWN activity renders as a canvas-drawn 1080×1920 brand PNG
+> (workout/run w/ real route polyline · PR delta · meal THE PLATE) fired
+> through the OS share sheet AS A FILE → Instagram offers Stories (the
+> Strava pattern). Own-only v1; honest-absent stats; desktop → PNG
+> download. Also 2026-07-13: **#1691** freehand-logger share + plan-true
+> coach attribution + the stale calendar War Room gap removed. Open: the
+> on-device share pass (IG Stories flow) · PR B later (web parity + native
+> IG deep-link once the iOS build exists).
+>
+> **Prior (2026-07-12b): MEALS ON THE WIRE — COMPLETE both surfaces** —
 > #1686 spec (3 review rounds) · #1687 PR A (share-by-choice on BSMealLogged
 > + THE PLATE card + Nutrition chip + the no-award migration) · #1688 PR B
 > (web NUTRITION tab + MealPlate). **Migration APPLIED + verified live**
@@ -409,6 +419,34 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-13 — The share card: activities as story-ready images (#1692 spec · #1693 build)
+
+- **Why**: the Share button sent text+URL — Instagram takes that only as a
+  DM; Stories/feed are image-only. The Strava pattern: every PR screenshot
+  is an ad. Spec `docs/superpowers/specs/2026-07-13-share-card-image-design.md`
+  (owner pick, "lets do 1"; CodeRabbit was rate-limited on the spec PR —
+  merged on the owner's review).
+- **#1693 — shareCard.mjs**: canvas-drawn **1080×1920** brand card (never a
+  DOM screenshot), fixed-dark wire grammar on every paper. Pure tested
+  helpers: `bsShareCardModel` (honest-absent: empty rows drop, hero never
+  repeats, delta null when blank, routes need 2+ finite points),
+  `bsWrapText`, `bsFitRoute` (zero-spread → null — never a fake line from
+  one GPS spot). Types: workout/run (hero + registers + the REAL route
+  polyline, teal glow), PR (stamped delta), meal (THE PLATE via
+  bsMealMenuLines — meal-wave guardrails verbatim).
+- **bsShareCardImage**: fonts best-effort → toBlob → File →
+  `navigator.canShare({files})` → OS sheet (Instagram offers Stories);
+  desktop → PNG download; abort silent; failure honest toast. No uploads,
+  no analytics — nothing leaves the device beyond the share sheet's file.
+- **Entry**: OWN real cards' Share → a link/image chooser
+  (BSPostSheetShell); lands on community feed + profile activities
+  automatically (both render BSActivityCard). Other members' cards keep
+  the direct link share (own-only per spec). Deviation noted: a dedicated
+  detail-page action deferred — the card hosts the action everywhere it
+  renders. Suite 611.
+- **PR B candidates (later)**: web dashboard parity · native IG Stories
+  deep-link once the iOS build exists.
 
 ### 2026-07-12 — Meals on the wire: share-by-choice meal posts (#1686 spec · #1687 PR A)
 
