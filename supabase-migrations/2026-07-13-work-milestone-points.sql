@@ -35,6 +35,7 @@ set search_path = public
 as $$
 declare
   v_uid uuid := auth.uid();
+  v_created timestamptz;
   v_tz text;
   v_month text;
   v_source uuid;
@@ -44,21 +45,26 @@ begin
     return jsonb_build_object('granted', false, 'reason', 'unauthenticated');
   end if;
   -- Validate the FULL milestone shape: the caller's own post, stamped
-  -- kind 'milestone', a canonical stamp token, and a real bounded headline.
-  if not exists (
-    select 1 from public.community_posts
+  -- kind 'milestone', a canonical stamp token (keep this list in sync with
+  -- BS_MILESTONE_STAMPS in iosAppBroadsheetClient.jsx and
+  -- DC_MILESTONE_STAMPS in dashboardCommunity.jsx), and a real bounded
+  -- headline.
+  select created_at into v_created from public.community_posts
     where id = p_post_id
       and author_id = v_uid
       and coalesce(metrics->>'kind', '') = 'milestone'
       and coalesce(metrics->>'stamp', '') in ('promoted','shipped','certified','new_role','launched','milestone')
-      and length(btrim(coalesce(title, ''))) between 1 and 120
-  ) then
+      and length(btrim(coalesce(title, ''))) between 1 and 120;
+  if v_created is null then
     return jsonb_build_object('granted', false, 'reason', 'not_a_milestone');
   end if;
-  -- One award per calendar month, bucketed in the member's OWN timezone
-  -- (shape_user_tz returns a validated IANA name or null → UTC fallback).
+  -- One award per calendar month, bucketed from the POST'S OWN created_at in
+  -- the member's timezone (shape_user_tz → validated IANA name, UTC
+  -- fallback). Never now(): a claim retried after month rollover (the
+  -- catch-up path) credits the month the milestone was LOGGED — it can't
+  -- silently consume the new month's slot (Codex P1).
   v_tz := public.shape_user_tz(v_uid);
-  v_month := to_char(case when v_tz is null then now() else (now() at time zone v_tz) end, 'YYYY-MM');
+  v_month := to_char(v_created at time zone coalesce(v_tz, 'UTC'), 'YYYY-MM');
   v_source := md5('work_milestone:' || v_uid::text || ':' || v_month)::uuid;
   insert into public.score_ledger (user_id, category, source_kind, source_id, delta, note)
     values (v_uid, 'career', 'work_milestone', v_source, 25, 'Career milestone')

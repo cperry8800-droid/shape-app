@@ -8981,6 +8981,11 @@ function BSActivityBody({ it, c, INK, card }) {
 // in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
 // THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens. The
 // composer defaults to 'milestone'; unknown values normalize to it at read.
+// KEEP IN SYNC with the SQL allowlist in award_work_milestone
+// (supabase-migrations/2026-07-13-work-milestone-points.sql) and
+// DC_MILESTONE_STAMPS in public/newdesign/dashboardCommunity.jsx — a token
+// missing from any one of the three fails silently (the server rejects a
+// client-offered stamp, or vice versa).
 const BS_MILESTONE_STAMPS = ['promoted', 'shipped', 'certified', 'new_role', 'launched', 'milestone'];
 const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s : 'milestone').replace('_', ' ').toUpperCase();
 

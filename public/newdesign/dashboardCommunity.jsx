@@ -7,6 +7,9 @@
 
 // THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens,
 // mirroring the mobile composer; unknown values normalize to 'milestone'.
+// KEEP IN SYNC with the SQL allowlist in award_work_milestone
+// (supabase-migrations/2026-07-13-work-milestone-points.sql) and
+// BS_MILESTONE_STAMPS in mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx.
 const DC_MILESTONE_STAMPS = ["promoted", "shipped", "certified", "new_role", "launched", "milestone"];
 
 // ── Session-details graphs (website parity with the mobile app) ─────────────
@@ -210,6 +213,31 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
   // actually granted (spec 2026-07-13; a same-month duplicate shows nothing).
   const [careerToast, setCareerToast] = React.useState(false);
+  // The web claim mirrors mobile's ShapeCareerAward: a failed call queues the
+  // post id so the page-load catch-up below re-fires it — the +25 can never
+  // be permanently lost on either surface (the RPC's monthly dedupe makes
+  // retries safe, and it buckets by the post's own date).
+  const claimCareerAward = React.useCallback(async (pid, showToast) => {
+    const sb = window.shapeDb && window.shapeDb.client;
+    if (!pid || !sb || !sb.rpc) return;
+    try {
+      const { data, error } = await sb.rpc('award_work_milestone', { p_post_id: pid });
+      if (error) throw error;
+      try { localStorage.removeItem('shape.careerAwardPending'); } catch (e) {}
+      if (showToast && data && data.granted) {
+        setCareerToast(true);
+        setTimeout(() => setCareerToast(false), 3200);
+      }
+    } catch (e) {
+      try { localStorage.setItem('shape.careerAwardPending', String(pid)); } catch (e2) {}
+    }
+  }, []);
+  React.useEffect(() => {
+    // Open-time catch-up for a claim that failed on a previous visit.
+    let pending = null;
+    try { pending = localStorage.getItem('shape.careerAwardPending'); } catch (e) { return; }
+    if (pending) claimCareerAward(pending, false);
+  }, [claimCareerAward]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
@@ -1113,17 +1141,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               if (!isMs || !r || !r.ok) return;
               // The +25 CAREER award — AWAITED on the real post id (idempotent
               // monthly dedupe; granted=false on a same-month duplicate, and
-              // the chip shows ONLY on a real grant).
+              // the chip shows ONLY on a real grant). A failed claim queues
+              // for the open-time catch-up (mobile parity).
               try {
                 const j = await r.json();
                 const pid = j && j.post && j.post.id;
-                const sb = window.shapeDb && window.shapeDb.client;
-                if (!pid || !sb || !sb.rpc) return;
-                const { data } = await sb.rpc('award_work_milestone', { p_post_id: pid });
-                if (data && data.granted) {
-                  setCareerToast(true);
-                  setTimeout(() => setCareerToast(false), 3200);
-                }
+                if (pid) await claimCareerAward(pid, true);
               } catch (e) {}
             }).catch(() => {});
           }}
