@@ -32,17 +32,24 @@ require it directly — the surfaces can never drift):
   `tests/meal-share.test.mjs`).
 - **Web loads it once per shell** via a one-line native module loader —
   deterministic, no reliance on babel-standalone passing dynamic `import()`
-  through:
+  through. The import uses the **canonical absolute URL** (never
+  shell-relative — review round) so it can't mis-resolve from any document
+  path:
 
   ```html
   <script type="module">
-    import * as SC from './shareCard.mjs?v=20260713';
+    import * as SC from '/newdesign/shareCard.mjs?v=20260713';
     window.ShapeShareCard = SC;
   </script>
   ```
 
-  `dashboardCommunity.jsx` consumes `window.ShapeShareCard` and **degrades
-  honestly when it's absent** (a stale-cached shell without the loader): the
+  **Readiness is by construction, not by snapshot** (review round): module
+  scripts finish executing before `DOMContentLoaded`, which is when
+  babel-standalone transforms and runs the `text/babel` page code — so the
+  global exists before any consumer renders. Belt-and-braces,
+  `dashboardCommunity.jsx` reads `window.ShapeShareCard` **per render**
+  (never captured once at load) and **degrades honestly when it's absent**
+  (a stale-cached shell without the loader, or a failed module fetch): the
   chooser simply doesn't offer the image row — the link share always works.
 
 ## Entry points (mirrors mobile exactly)
@@ -69,10 +76,12 @@ already reads them), and the stamped `metrics.delta` string):
 - `who` / role — the card's own author line.
 - **`tierLine`** — `TIER · ROLE` when my tier resolves, else `ROLE` alone
   (honest-absent). Share is own-only, so only MY tier is ever needed: one
-  lazy fetch at first share, cached on `window` — coaches via
-  `/api/coach/score?role=…` (`current_tier` string, coach ladder), members
-  via `/api/client/score` (`current_tier.name`). A failed fetch degrades to
-  the role-only line, never blocks the share.
+  lazy fetch at first share — coaches via `/api/coach/score?role=…`
+  (`current_tier` string, coach ladder), members via `/api/client/score`
+  (`current_tier.name`). The cache is **keyed by the authenticated user id**
+  (review round — an account switch inside a live tab must never reuse the
+  prior account's tier; unauthenticated resolves are never cached). A failed
+  fetch degrades to the role-only line, never blocks the share.
 - **Hero promotion is extracted, not re-implemented**: new pure
   **`bsHeroStat(stats, { isRun })`** exported from `shareCard.mjs` — the
   mobile card's `_primIdx` rule verbatim (runs promote `/dist/i`, lifts
