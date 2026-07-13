@@ -458,6 +458,28 @@ changelog whenever something ships.
   Signed-out demo behavior unchanged.
 - Verified: JSX parse + `node --check` · `npm test` 0 fail · LF.
 
+### 2026-07-13 — Beat layers L + M: signal lock + static calm (owner picks off the backgrounds board)
+
+- **The last two optional beat layers ship** (backgrounds board frames L + M —
+  the "K" waveform bed shipped #1683): **L · signal lock** — four tiny teal
+  bars beside the tuning dial's ruler (heights 5/7/9/11, staggered 0.22s) that
+  light exactly while the needle sits on the station (`bsWireLockOn` shares
+  the dial's 13s `bsWireTune` timeline, lit 44–58%); **M · static calm** —
+  34 sparse static flecks (`BSWireStatic`, seeded-LCG positions — same field
+  every launch, no Math.random) that shimmer while the needle hunts and
+  settle to near-nothing once it locks (`bsWireFlick`, settled from 42%).
+- Both layers ride the beat AND `BSWireHold` (the mirror contract from
+  #1682); the lock lives inside `BSWireDial` so both surfaces inherit it.
+  **Timing note (by construction):** the ~3.5s beat shows a slice of the
+  shared 13s cycle — the lock/settle payoff lands on the HOLD and slow
+  boots, same as the needle's station landing.
+- **Reduced motion**: bars LIT (locked) + static settled (0.05) — both
+  browser-verified via `emulateMedia` on the built bundle, along with the
+  live composition (34 dots + 4 bars beside the dial, x 334–348 @ 390w — no
+  edge clipping).
+- Decorative only (aria-hidden, pointer-events none); stage machinery
+  untouched. No route/migration.
+
 ### 2026-07-13 — The share card PR B: web dashboard parity (#1700 spec · #1701 build)
 
 - **Closes the share-card wave's web half** (parent spec #1692's "PR B (later)"
