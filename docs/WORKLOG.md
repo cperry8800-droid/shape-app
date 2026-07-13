@@ -433,6 +433,61 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Adjust → FULL program regeneration: the coach's changes rewrite the real rows (spec #1707)
+
+- **Closes the War Room P2** ("Adjust → full program/plan regeneration"). The
+  coach Adjust page's Apply used to write `detail.training` + the note while
+  the mobile deck applied it at DISPLAY time only — the calendar, website, and
+  coach views all showed the unadjusted plan, and the *sessions/week* +
+  *weeks remaining* steppers were decorative. Now Apply **regenerates the
+  client's real upcoming coach-authored `client_workouts` rows**, so every
+  surface reads the same adjusted plan from the same rows.
+- **Migration `2026-07-13-adjust-regeneration.sql` — ⚠ OWNER applies** (raw
+  link on the PR): **`regenerate_client_workouts`** — transactional SECURITY
+  DEFINER RPC (deletes + inserts + repeat patches commit atomically; caller
+  must be the client's active training coach; every id re-validated in-body
+  as the caller's own, strictly-future row; inserts FORCED onto the caller's
+  trainer row; 200/200/50 bounds) + `notify_on_client_workout` amended to
+  skip while the transaction-local `shape.adjust_regen` flag is set — ONE
+  note per Apply, never a per-row notification storm. EXECUTE revoked from
+  public/anon (the #1459 grant lesson). **Pre-migration Apply degrades to
+  today's detail+note behavior** (PGRST202 detected).
+- **Pure `mobile-app/src/services/adjustRegen.mjs`** (+
+  `tests/adjust-regen.test.mjs`, 10 vectors — suite **632**): the planner
+  emits `{inserts, deleteIds, repeatPatches}` under the spec's invariants —
+  **base-load scaling** (`baseL` preserved on first regeneration; deload →
+  progress re-derives from base, repeated identical Applies are a no-op by
+  construction), **stable deterministic weekday remapping** (a weekday still
+  in the new split STAYS PUT; displaced days map onto unused split days
+  ascending; overflow deletes), **strict-future scope** (today's row — maybe
+  in progress/logged — never touched), **rest days patch weekly-repeat
+  sources too** (an emptied repeat deletes — nothing resurrects), **weeks
+  horizon** trims/extends (182-row cap, `program.week` bumps on extension).
+  The scaling constants moved HERE as the one source of truth —
+  `bsClientWeekDemo` imports them (its local copy died).
+- **Row-scoped double-scale guard**: regenerated rows carry
+  `payload.adjustGen`; the plan route + deck thread it and
+  `bsApplyTrainAdjust` skips display scaling only for rows matching
+  `detail.training.gen` — a row Assigned after the regeneration keeps
+  today's display behavior. `detail.training` gains `gen` only when the RPC
+  actually committed.
+- **Wiring**: new `window.ShapeAdjustRegen.apply` (shapeBackend — reads the
+  coach's own authored rows under RLS, runs the planner, calls the RPC,
+  UTC-date basis matching the RPC's validation); `BSProAdjustProgram.apply()`
+  regenerates BEFORE writing detail/note, aborts honestly on failure, and
+  toasts when the extension hits the row cap.
+- **Website nutrition-targets parity** (the spec's companion fix): the plan
+  route now exposes `meals.coachTargets` from the same `detail.nutrition`
+  the mobile Eat hero reads; `dashNutri.jsx` prefers it over the menu's
+  authored day targets (`?v=20260713` on ClientApp + ClientNutri). Nutrition
+  stays the target-override model by design — menu regeneration would
+  fabricate food the nutritionist never wrote.
+- Verified: `npm test` **632** · `tsc --noEmit` 0 · JSX/module parses ×5 ·
+  PowerShell `/m/` build exit 0 · migration column/guard shapes validated
+  read-only against prod (client_workouts types · trainer RLS policies ·
+  is_discipline_coach_on_client contract). War Room: P2 flipped done + the
+  OWNER migration item registered.
+
 ### 2026-07-13 — Coach roster ＋ADD → the real add-client flow (invite with your listing attached)
 
 - **Closes the Coach Ledger wave follow-up**: the roster's ＋ADD (and the

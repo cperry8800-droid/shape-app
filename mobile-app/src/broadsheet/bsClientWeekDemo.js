@@ -1,3 +1,7 @@
+// Load scaling + intensity constants come from the adjust-regeneration
+// module — the ONE source both the display path and the row rewrite share.
+import { bsScaleLoad, BS_ADJUST_SCALE } from '../services/adjustRegen.mjs';
+
 // ═══════════════════════════════════════════════════════════
 // SHARED CLIENT DEMO WEEK — single source of truth
 // ═══════════════════════════════════════════════════════════
@@ -238,14 +242,6 @@ export function bsEmptyTrainProgram(t) {
 
 // Scale a parsed load string ("185 lb", "24 kg", "BW", "—") by a factor, rounding
 // to the nearest 5 for barbell-ish numbers. Non-numeric loads pass through.
-function bsScaleLoad(load, scale) {
-  const s = String(load == null ? '' : load);
-  if (scale === 1 || !/\d/.test(s)) return s;
-  return s.replace(/\d+(?:\.\d+)?/, (n) => {
-    const v = Number(n) * scale;
-    return String(v >= 20 ? Math.round(v / 5) * 5 : Math.round(v));
-  });
-}
 // Nudge a shown RPE in a meta string ("52 min · RPE 8" → "52 min · RPE 7").
 function bsAdjustRpeMeta(meta, adj) {
   if (!adj) return meta;
@@ -266,7 +262,7 @@ const BS_SPLIT_TAG = { 'Push day': 'PUSH', 'Pull day': 'PULL', 'Legs day': 'LEGS
 export function bsApplyTrainAdjust(program, training, t) {
   if (!Array.isArray(program) || !training || !training.updatedAt) return program;
   const intensity = training.intensity || 'maintain';
-  const scale = intensity === 'deload' ? 0.85 : intensity === 'progress' ? 1.025 : 1;
+  const scale = BS_ADJUST_SCALE[intensity] ?? 1;
   const rpeAdj = intensity === 'deload' ? -1 : 0;
   const intensityLabel = intensity === 'deload' ? 'Deload · lighter' : intensity === 'progress' ? 'Progress · nudge up' : 'Maintain';
   const days = Array.isArray(training.days) ? training.days : null;
@@ -279,6 +275,13 @@ export function bsApplyTrainAdjust(program, training, t) {
       return { ...day, tag: 'REST', tagColor: t.GREEN, accent: t.GREEN, kicker: 'The Recovery', title: 'Rest day.', headline: 'Coach-set rest.', meta: 'No session · 0 min', moves: [], total: '0 sessions', copy: 'Your coach scheduled recovery today — walk, mobility, sleep.', coachLine: note || 'Recovery is part of the plan.', coachAdjust: true, intensityLabel: null };
     }
     if (!hasMoves) return day;
+    // A row the regeneration already rewrote (spec #1707) carries a matching
+    // generation stamp — its loads are baked from base, so display scaling
+    // would double-apply. Keep the banner/labels only. Rows without the stamp
+    // (e.g. Assigned after the regeneration) keep today's display behavior.
+    if (training.gen != null && day.adjustGen != null && Number(day.adjustGen) === Number(training.gen)) {
+      return { ...day, coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
+    }
     const next = { ...day, moves: day.moves.map((m) => ({ ...m, l: bsScaleLoad(m.l, scale) })), meta: bsAdjustRpeMeta(day.meta, rpeAdj), coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
     // Re-theme by the coach split focus (keep the day's actual moves).
     if (cd && cd !== 'Rest' && day.tag !== 'COND' && BS_SPLIT_TAG[cd]) {

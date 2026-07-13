@@ -2657,15 +2657,36 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     }))) return;
     setStatus('saving');
     try {
-      // 1) Persist the adjustment to the client's coach-writable program record.
+      // 1a) TRAINING: regenerate the client's REAL upcoming rows first
+      //     (spec #1707) — the deck, calendar, and website then read the same
+      //     adjusted plan from the same rows. A regeneration failure aborts
+      //     honestly (detail/note only land after the rows do); pre-migration
+      //     it degrades to the detail+note behavior below.
+      let regenGen = null;
+      if (!isNutri && clientUid && window.ShapeAdjustRegen?.apply) {
+        const regen = await window.ShapeAdjustRegen.apply({ clientId: clientUid, adjustment: { intensity, sessions, weeks, days } });
+        // Keep the generation whenever the regeneration path ran (changed OR
+        // a no-op re-apply returning the CURRENT gen) so the display guard
+        // never lapses on already-baked rows; only the degraded
+        // (pre-migration) path leaves gen absent.
+        if (regen?.gen != null && regen.gen > 0) regenGen = regen.gen;
+        if (regen?.changed && regen.capped) window.__bsToast?.('Extension hit the plan bound — trimmed to fit.', 'warn');
+      }
+      // 1b) Persist the adjustment to the client's coach-writable program record.
       //    This is what actually "takes effect" — the client app reads it back
       //    and reflects it on their Train / Eat tabs. Only on Apply, never on tap.
       if (clientUid && window.ShapeProgramApi?.set) {
         const now = new Date().toISOString();
         const detail = isNutri
           ? { nutrition: { calories, protein, carbs, fat, meals, refeed, restrictions, note: body, updatedAt: now } }
-          : { training: { intensity, sessions, weeks, focus, days, note: body, updatedAt: now } };
-        try { await window.ShapeProgramApi.set({ userId: clientUid, detail }); } catch (e) {}
+          : { training: { intensity, sessions, weeks, focus, days, note: body, updatedAt: now, ...(regenGen != null ? { gen: regenGen } : {}) } };
+        try { await window.ShapeProgramApi.set({ userId: clientUid, detail }); }
+        catch (e) {
+          // After a real row rewrite the gen stamp MUST land (it's the
+          // display double-scale guard) — surface the failure honestly
+          // instead of sending the note over a half-applied adjustment.
+          if (regenGen != null) throw e;
+        }
       }
       // 2) Deliver the note to the client's 1:1 thread.
       if (clientUid && window.ShapeMessages?.getOrCreateMemberConversation) {

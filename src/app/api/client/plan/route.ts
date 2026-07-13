@@ -109,6 +109,9 @@ export async function GET(request: Request) {
       kind: w.kind,
       // Self-authored (member-built) when there's no coach behind the row.
       selfAuthored: w.trainer_id === null,
+      // Adjust-regeneration generation stamp (spec #1707) — the deck skips
+      // display-time scaling for rows the regeneration already rewrote.
+      adjustGen: Number((payload as Record<string, unknown> | null)?.adjustGen) || null,
       program: mapProgram(payload),
       repeatDow: mapRepeatDow(payload),
       scheduledDate: w.scheduled_date ?? null,
@@ -142,6 +145,37 @@ export async function GET(request: Request) {
     .limit(1);
 
   const mp = (mpRows ?? [])[0] ?? null;
+
+  // Coach Adjust target override (client_programs.detail.nutrition) — the
+  // mobile Eat hero already reads it directly; exposing it here closes the
+  // website half of the drift (spec #1707 companion fix).
+  const { data: progRow } = await supabase
+    .from('client_programs')
+    .select('detail')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const nutriDetail = (progRow?.detail as Record<string, unknown> | null)?.nutrition as Record<string, unknown> | undefined;
+  // A partial/invalid override must return null, never fabricated zeroes —
+  // every field validates as a finite non-negative number or the override
+  // doesn't exist (the honest-absent contract).
+  const asTarget = (value: unknown): number | null => {
+    if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const tKcal = asTarget(nutriDetail?.calories);
+  const tP = asTarget(nutriDetail?.protein);
+  const tC = asTarget(nutriDetail?.carbs);
+  const tF = asTarget(nutriDetail?.fat);
+  const coachTargets = tKcal != null && tKcal > 0 && tP != null && tC != null && tF != null
+    ? {
+        kcal: tKcal,
+        p: tP,
+        c: tC,
+        f: tF,
+        updatedAt: typeof nutriDetail?.updatedAt === 'string' ? nutriDetail.updatedAt : null,
+      }
+    : null;
   const mealDays = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
     ? (mp.payload as Record<string, unknown>).days
     : [];
@@ -172,6 +206,9 @@ export async function GET(request: Request) {
       coach: nuName,
       weekStart: mp?.week_start ?? null,
       days: mealDays,
+      // The nutritionist's live Adjust targets — when present these are the
+      // CURRENT prescription and outrank the menu's authored day targets.
+      coachTargets,
     },
   });
 }
