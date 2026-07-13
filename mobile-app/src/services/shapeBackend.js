@@ -4570,6 +4570,12 @@ async function careerAwardCatchUp() {
 }
 window.ShapeCareerAward = { claim: claimCareerAward, catchUp: careerAwardCatchUp };
 
+// Native-safe habits read (Bearer on native, cookie on the /m/ web build) —
+// consumers must not raw-fetch the same-origin path, which targets the
+// WebView origin on a native build (Codex P2, #1698). Used by the crossover
+// card; returns the route's { habits } payload or null.
+window.ShapeHabitsData = { list: () => getJsonOrDefault('/api/client/habits', null) };
+
 // Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
 // +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count
 // (idempotent — same pattern as award_my_goal_milestones). Returns [{ day, points }]

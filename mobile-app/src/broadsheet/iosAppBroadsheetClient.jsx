@@ -24238,7 +24238,9 @@ function BSCrossoverCard({ isSelf }) {
       try {
         const [prog, habRes] = await Promise.all([
           window.ShapeProgress?.progress?.(),
-          fetch('/api/client/habits', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          // Native-safe read (Bearer on native) — a raw same-origin fetch
+          // targets the WebView origin on a native build (Codex P2, #1698).
+          window.ShapeHabitsData?.list?.() ?? null,
         ]);
         const habits = ((habRes && habRes.habits) || []).filter((h) => h && h.domain === 'work');
         if (!alive || !habits.length) return;
@@ -24264,23 +24266,10 @@ function BSCrossoverCard({ isSelf }) {
   }, [isSelf]);
   if (!isSelf || !read) return null;
   const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
-  // Never-shaming, observation + move — either direction reports neutrally.
-  const rows = [
-    read.training && {
-      k: 'Training',
-      text: read.training.gap > 0
-        ? `Your work habits land ${Math.abs(read.training.gap)} pts more often on days you train — protect the session.`
-        : `Your work habits land ${Math.abs(read.training.gap)} pts less often on days you train — leave room for the desk on session days.`,
-      sub: `Training days ${read.training.pA}% · rest days ${read.training.pB}%`,
-    },
-    read.sleep && {
-      k: 'Sleep',
-      text: read.sleep.gap > 0
-        ? `They land ${Math.abs(read.sleep.gap)} pts more often after 7+ hours of sleep — guard the bedtime.`
-        : `They land ${Math.abs(read.sleep.gap)} pts more often on short-sleep days — watch that one another few weeks.`,
-      sub: `7h+ days ${read.sleep.pA}% · short days ${read.sleep.pB}%`,
-    },
-  ].filter(Boolean);
+  // Words + numbers both come from the shared engine (crossoverCopy) — the
+  // web widget renders the identical rows, so the wording can never drift.
+  const rows = (window.DashSignals && window.DashSignals.crossoverCopy) ? window.DashSignals.crossoverCopy(read) : [];
+  if (!rows.length) return null;
   return (
     <div style={{ marginBottom: 22 }}>
       <BSTStationHead heat={heat} INK={t.INK} label="The crossover" meta="Work × body" />

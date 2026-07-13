@@ -79,3 +79,14 @@ test("empty/garbage input is a silent null pair", () => {
   assert.deepEqual(crossoverRead(null), { training: null, sleep: null });
   assert.deepEqual(crossoverRead([{ workHabitScheduled: 1 }]), { training: null, sleep: null }); // no date
 });
+
+test("crossoverCopy binds the computed numbers into shared wording (no drift)", () => {
+  const { crossoverCopy } = DashSignals;
+  const rows = crossoverCopy({ training: { gap: 34, pA: 80, pB: 46, nA: 12, nB: 12 }, sleep: { gap: -15, pA: 50, pB: 65, nA: 10, nB: 9 } });
+  assert.equal(rows.length, 2);
+  assert.ok(rows[0].text.includes("34 pts more often on days you train"));
+  assert.equal(rows[0].sub, "Training days 80% · rest days 46%");
+  assert.ok(rows[1].text.includes("15 pts more often on short-sleep days"));
+  assert.deepEqual(crossoverCopy({ training: null, sleep: null }), []);
+  assert.deepEqual(crossoverCopy(null), []);
+});

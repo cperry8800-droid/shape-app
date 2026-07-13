@@ -501,19 +501,9 @@ function ClientProgressPage() {
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#7aa7dc", paddingLeft: 24 }}>
         <span className="dash-eyebrow" style={{ color: "#7aa7dc" }}>The crossover · work × body</span>
         <div style={{ marginTop: 12 }}>
-          {[crossover.training && {
-            k: "Training",
-            text: crossover.training.gap > 0
-              ? `Your work habits land ${Math.abs(crossover.training.gap)} pts more often on days you train — protect the session.`
-              : `Your work habits land ${Math.abs(crossover.training.gap)} pts less often on days you train — leave room for the desk on session days.`,
-            sub: `Training days ${crossover.training.pA}% · rest days ${crossover.training.pB}%`,
-          }, crossover.sleep && {
-            k: "Sleep",
-            text: crossover.sleep.gap > 0
-              ? `They land ${Math.abs(crossover.sleep.gap)} pts more often after 7+ hours of sleep — guard the bedtime.`
-              : `They land ${Math.abs(crossover.sleep.gap)} pts more often on short-sleep days — watch that one another few weeks.`,
-            sub: `7h+ days ${crossover.sleep.pA}% · short days ${crossover.sleep.pB}%`,
-          }].filter(Boolean).map((r, i) => (
+          {/* Words + numbers both from the shared engine (crossoverCopy) —
+              the mobile card renders the identical rows, no wording drift. */}
+          {(window.DashSignals.crossoverCopy(crossover) || []).map((r, i) => (
             <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 16.5, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{r.text}</div>
               <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{r.sub}</div>

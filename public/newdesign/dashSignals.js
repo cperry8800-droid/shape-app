@@ -1185,12 +1185,14 @@
       return x && x.d && Number(x.workHabitScheduled) >= 1;
     });
     if (!list.length) return { training: null, sleep: null };
-    var times = [];
+    // Loop min/max — Math.max.apply over a huge array can RangeError; this
+    // is the one shared implementation, so don't assume callers cap `days`.
+    var minT = Infinity, maxT = -Infinity;
     for (var i = 0; i < list.length; i++) {
       var t = new Date(list[i].d).getTime();
-      if (isFinite(t)) times.push(t);
+      if (isFinite(t)) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
     }
-    var spanDays = times.length ? Math.round((Math.max.apply(null, times) - Math.min.apply(null, times)) / 86400000) + 1 : 0;
+    var spanDays = maxT >= minT ? Math.round((maxT - minT) / 86400000) + 1 : 0;
     var side = function (subset) {
       var sched = 0, done = 0;
       for (var j = 0; j < subset.length; j++) {
@@ -1224,6 +1226,36 @@
     };
   }
 
+  // The card copy for a crossover read — the words AND the numbers come from
+  // ONE place so web + mobile can never drift on wording (the same guarantee
+  // crossoverRead gives the statistic). Never-shaming, observation + move;
+  // either direction reports neutrally. Returns [{ k, text, sub }] — empty
+  // when nothing fired (the caller renders nothing).
+  function crossoverCopy(read) {
+    var rows = [];
+    if (read && read.training) {
+      var tr = read.training;
+      rows.push({
+        k: 'Training',
+        text: tr.gap > 0
+          ? 'Your work habits land ' + Math.abs(tr.gap) + ' pts more often on days you train — protect the session.'
+          : 'Your work habits land ' + Math.abs(tr.gap) + ' pts less often on days you train — leave room for the desk on session days.',
+        sub: 'Training days ' + tr.pA + '% · rest days ' + tr.pB + '%',
+      });
+    }
+    if (read && read.sleep) {
+      var sl = read.sleep;
+      rows.push({
+        k: 'Sleep',
+        text: sl.gap > 0
+          ? 'They land ' + Math.abs(sl.gap) + ' pts more often after 7+ hours of sleep — guard the bedtime.'
+          : 'They land ' + Math.abs(sl.gap) + ' pts more often on short-sleep days — worth watching over the next few weeks.',
+        sub: '7h+ days ' + sl.pA + '% · short days ' + sl.pB + '%',
+      });
+    }
+    return rows;
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
@@ -1246,6 +1278,7 @@
     goalsFromDoc: goalsFromDoc,
     goalDateLabel: goalDateLabel,
     crossoverRead: crossoverRead,
+    crossoverCopy: crossoverCopy,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
 });
