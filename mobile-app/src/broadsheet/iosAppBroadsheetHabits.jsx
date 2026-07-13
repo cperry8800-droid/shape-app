@@ -102,6 +102,7 @@ function _bsDecodeHabits(v) {
         visibility,
         public: visibility === 'public',
         pts: Number.isFinite(h.pts) ? h.pts : undefined,
+        domain: h.domain === 'work' ? 'work' : undefined,
         history,
       };
     });
@@ -114,6 +115,7 @@ function _bsEncodeHabits(arr) {
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : (h.public ? 'public' : 'private'),
     public: h.visibility === 'public' || !!h.public,
     pts: Number.isFinite(h.pts) ? h.pts : undefined,
+    domain: h.domain === 'work' ? 'work' : undefined,
     history: h.history || [],
   })));
 }
@@ -294,6 +296,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
       <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
+          {habit.domain === 'work' && <span style={{ color: t.BLUE }}>Work · </span>}
           {done ? (isAvoid ? '✓ Stayed clean' : '✓ Kept') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
@@ -437,6 +440,10 @@ function BSHabitGrid({ habits }) {
 const _BS_HABIT_SUGGEST = {
   do: ['Cold shower', 'Read 10 pages', 'Stretch', 'Meditate 5 min', 'Water 3L', 'Take vitamins', '10k steps', 'Morning sunlight', 'Sleep by 10:30', '5 min journal'],
   avoid: ['No soda', 'No snooze', 'No skipping breakfast', 'No takeout', 'No screens 1h pre-bed', 'No smoking', 'No added sugar', 'No alcohol weekdays', 'No phone in bed'],
+  // The work domain (spec 2026-07-13) — picking one of these STAMPS the habit
+  // domain:'work' (never inferred from the name).
+  workDo: ['Deep work block', 'Read 20 min', 'Plan tomorrow’s top 3', 'Applied to one job', 'Inbox zero by 5'],
+  workAvoid: ['No doom-scrolling at the desk', 'No email after 8pm', 'No phone the first hour'],
 };
 
 // Bottom-sheet add flow — do / avoid variant, suggestion chips, points stepper.
@@ -446,11 +453,15 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
   const onAccentInk = isAvoid ? '#2b0d07' : '#04201d';
   const [name, setName] = useStateBSH('');
   const [pts, setPts] = useStateBSH(5);
+  // domain:'work' — set by the work chips or the WORK toggle; a plain chip or
+  // hand-typed habit stays domain-less (honest-absent, never name-inferred).
+  const [domain, setDomain] = useStateBSH('');
   const inputRef = React.useRef(null);
   React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
   const suggestions = _BS_HABIT_SUGGEST[isAvoid ? 'avoid' : 'do'];
+  const workSuggestions = _BS_HABIT_SUGGEST[isAvoid ? 'workAvoid' : 'workDo'];
   const canAdd = name.trim().length > 0;
-  const add = () => { if (!canAdd) return; onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts }); };
+  const add = () => { if (!canAdd) return; onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts, domain: domain || undefined }); };
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
@@ -468,7 +479,20 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
           {suggestions.map(s => (
-            <button key={s} onClick={() => setName(s)} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{s}</button>
+            <button key={s} onClick={() => { setName(s); setDomain(''); }} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{s}</button>
+          ))}
+        </div>
+        {/* WORK — the work-domain chips (t.BLUE); picking one stamps domain:'work'.
+            The toggle covers hand-typed work habits. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+          <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: t.BLUE }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Work</span>
+          <span aria-hidden style={{ flex: 1 }} />
+          <button onClick={() => setDomain(d => d === 'work' ? '' : 'work')} aria-pressed={domain === 'work'} style={{ background: 'transparent', border: `1px solid ${domain === 'work' ? t.BLUE : t.RULE}`, borderRadius: 999, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: domain === 'work' ? t.BLUE : t.INK50 }}>{domain === 'work' ? '✓ Work habit' : 'Work habit'}</button>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
+          {workSuggestions.map(s => (
+            <button key={s} onClick={() => { setName(s); setDomain('work'); }} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.BLUE}55`, background: `${t.BLUE}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{s}</button>
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }}>
@@ -499,6 +523,7 @@ function _bsMapServerHabits(rows) {
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private',
     public: h.visibility === 'public',
     pts: Number.isFinite(h.pts) ? h.pts : undefined,
+    domain: h.domain === 'work' ? 'work' : undefined,
     history: Array.isArray(h.history) ? h.history : [],
   }));
 }
@@ -544,17 +569,18 @@ function _bsUseServerHabits(tweaks, setTweak) {
     return next;
   });
 
-  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private', pts }) => {
+  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private', pts, domain }) => {
     const cleanName = String(name || '').trim();
     if (!cleanName) return;
     const ptsVal = Number.isFinite(pts) ? pts : undefined;
+    const dom = domain === 'work' ? 'work' : undefined;
     if (useServer) {
-      apiAction({ action: 'create', name: cleanName, type, cadence, visibility, pts: ptsVal })
-        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, pts: ptsVal, history: [] }])]); })
+      apiAction({ action: 'create', name: cleanName, type, cadence, visibility, pts: ptsVal, domain: dom })
+        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, pts: ptsVal, domain: (d.habit.domain === 'work' ? 'work' : dom), history: [] }])]); })
         .catch(() => window.__bsToast?.('Could not add habit', 'err'));
       return;
     }
-    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', pts: ptsVal, history: [] }]);
+    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', pts: ptsVal, domain: dom, history: [] }]);
   };
 
   const upsert = (h) => {
@@ -641,7 +667,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   React.useEffect(() => { loadReminders(); }, [loadReminders]);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
-  const onCreate = ({ name, type, pts }) => { create({ name, type, pts, visibility: 'private' }); setAdding(null); };
+  const onCreate = ({ name, type, pts, domain }) => { create({ name, type, pts, domain, visibility: 'private' }); setAdding(null); };
   return (
     <BSPage>
       <BSDetailHeader

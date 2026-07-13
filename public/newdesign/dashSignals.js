@@ -310,7 +310,9 @@
         history: weightSeriesIn(rawWeighIns, oUnit),
       });
     }
-    var legacy = [].concat(Array.isArray(src.training) ? src.training : [], Array.isArray(src.nutrition) ? src.nutrition : []);
+    // Work-domain targets (spec 2026-07-13) ride the same self-set custom-goal
+    // path as training/nutrition targets — no special engine treatment.
+    var legacy = [].concat(Array.isArray(src.training) ? src.training : [], Array.isArray(src.nutrition) ? src.nutrition : [], Array.isArray(src.work) ? src.work : []);
     for (var l2 = 0; l2 < legacy.length; l2++) {
       var lg = legacy[l2];
       if (!lg || !lg.t || lg.tgt == null || !isFinite(Number(lg.tgt))) continue;

@@ -19,9 +19,12 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
+  // select('*') keeps the read migration-safe — the optional `domain` column
+  // (2026-07-13-habit-domain.sql) rides along once applied, and the route
+  // works identically before it.
   const { data: habits, error: habitsErr } = await supabase
     .from('user_habits')
-    .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
+    .select('*')
     .eq('user_id', user.id)
     .is('archived_at', null)
     .order('sort_order', { ascending: true })
@@ -76,13 +79,21 @@ export async function POST(req: Request) {
     const visibility = ['private', 'friends', 'public'].includes(String((body as { visibility?: unknown }).visibility || ''))
       ? String((body as { visibility?: unknown }).visibility)
       : 'private';
-    const { data, error } = await supabase
+    // Optional life-domain stamp (spec 2026-07-13) — 'work' is the only value;
+    // anything else is dropped. Pre-migration (no `domain` column yet) the
+    // insert retries without it, so habit creation never breaks on deploy order.
+    const domain = (body as { domain?: unknown }).domain === 'work' ? 'work' : null;
+    const baseRow: Record<string, unknown> = { user_id: user.id, name, type, cadence, visibility };
+    let ins = await supabase
       .from('user_habits')
-      .insert({ user_id: user.id, name, type, cadence, visibility })
-      .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
+      .insert(domain ? { ...baseRow, domain } : baseRow)
+      .select('*')
       .single();
-    if (error) return dbError(error, 'habits write', 500);
-    return NextResponse.json({ habit: { ...data, history: [] } });
+    if (ins.error && domain && /domain/i.test(ins.error.message || '')) {
+      ins = await supabase.from('user_habits').insert(baseRow).select('*').single();
+    }
+    if (ins.error) return dbError(ins.error, 'habits write', 500);
+    return NextResponse.json({ habit: { ...ins.data, history: [] } });
   }
 
   if (action === 'update') {

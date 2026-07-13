@@ -2834,7 +2834,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const selDayHabits = (() => {
     const ptsOf = (h) => (typeof window !== 'undefined' && window._bsHabitPts) ? window._bsHabitPts(h) : (h.pts || 5);
     if (_homeHabitsDec && _homeHabitsDec.length) {
-      return _homeHabitsDec.map(h => ({ id: h.id, name: h.name, type: h.type, pts: ptsOf(h), done: (h.history || []).includes(_homeHabitsDateKey), live: true }));
+      return _homeHabitsDec.map(h => ({ id: h.id, name: h.name, type: h.type, domain: h.domain, pts: ptsOf(h), done: (h.history || []).includes(_homeHabitsDateKey), live: true }));
     }
     // Signed in with no habits yet → empty (the card shows "add your first one");
     // the demo habit set is the signed-out preview only.
@@ -3360,13 +3360,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const openHabits = selDayHabits.filter(h => !h.done);
         openHabits.slice(0, 3).forEach((h) => {
           const avoid = h.type === 'avoid';
+          const isWork = h.domain === 'work';
           const pillC = avoid ? t.RUST : t.GREEN;
           const avoidWord = tr('home:tag.avoid', { defaultValue: 'Avoid' });
           const doWord = tr('home:tag.do', { defaultValue: 'Do' });
+          const workWord = tr('home:tag.work', { defaultValue: 'Work' });
           rows.push({
             key: `habit-${h.id || h.name}`,
             time: '',
-            tag: avoid ? avoidWord : doWord, tagColor: pillC,
+            // Work-domain habits tag WORK in slate blue (spec 2026-07-13); the
+            // checkbox keeps the do/avoid color, so nothing is lost.
+            tag: isWork ? workWord : (avoid ? avoidWord : doWord), tagColor: isWork ? t.BLUE : pillC,
             title: h.name,
             status: tr('home:habit.pts', { defaultValue: '+{pts} pts', pts: Math.round(h.pts) }),
             right: (
@@ -16241,6 +16245,9 @@ const BS_GOAL_CATS = [
   { id: 'wellbeing',   label: 'Wellbeing',  group: 'training' },
   { id: 'composition', label: 'Body comp',  group: 'nutrition' },
   { id: 'nutrition',   label: 'Nutrition',  group: 'nutrition' },
+  { id: 'career',      label: 'Career',     group: 'work' },
+  { id: 'skills',      label: 'Skills',     group: 'work' },
+  { id: 'projects',    label: 'Projects',   group: 'work' },
 ];
 const BS_GOAL_TEMPLATES = [
   { cat: 'cardio', t: 'Run a marathon',          cur: 0,   tgt: 26.2, sub: 'miles · 26.2',                 pct: false, weeksOut: 26 },
@@ -16272,6 +16279,14 @@ const BS_GOAL_TEMPLATES = [
   { cat: 'nutrition', t: 'Cook at home 5×/week', cur: 0,   tgt: 5,    sub: 'meals · per week',             pct: false, weeksOut: 8 },
   { cat: 'nutrition', t: 'Cut added sugar',      cur: 0,   tgt: 100,  sub: '% reduction from baseline',    pct: true,  weeksOut: 8 },
   { cat: 'nutrition', t: '85% protein adherence', cur: 0,  tgt: 85,   sub: '% · days on target',           pct: true,  weeksOut: 8 },
+  { cat: 'career',   t: 'Make the promotion case', cur: 0, tgt: 100,  sub: '% · case built & delivered',   pct: true,  weeksOut: 12 },
+  { cat: 'career',   t: 'Land a new role',       cur: 0,   tgt: 20,   sub: 'quality applications sent',    pct: false, weeksOut: 12 },
+  { cat: 'career',   t: 'Grow the network',      cur: 0,   tgt: 12,   sub: 'real conversations · quarter', pct: false, weeksOut: 12 },
+  { cat: 'skills',   t: 'Earn the certification', cur: 0,  tgt: 100,  sub: '% · study plan complete',      pct: true,  weeksOut: 16 },
+  { cat: 'skills',   t: 'Deep work 10 h/week',   cur: 0,   tgt: 10,   sub: 'focused hours · per week',     pct: false, weeksOut: 8 },
+  { cat: 'skills',   t: 'Read 12 books',         cur: 0,   tgt: 12,   sub: 'books · steady pace',          pct: false, weeksOut: 26 },
+  { cat: 'projects', t: 'Ship the launch',       cur: 0,   tgt: 100,  sub: '% · scoped, built, live',      pct: true,  weeksOut: 10 },
+  { cat: 'projects', t: 'Start the side project', cur: 0,  tgt: 100,  sub: '% · to first real user',       pct: true,  weeksOut: 16 },
 ];
 const BS_GOALS_DEFAULT = {
   share: true,
@@ -16293,6 +16308,7 @@ const BS_GOALS_DEFAULT = {
   // Editable headline (title + subtitle) for the Training / Nutrition dashboards.
   trainingMeta: { title: 'Hold the line', subtitle: 'Keep every lift while the weight comes off.', coach: 'Jordan Chen' },
   nutritionMeta: { title: 'Fuel the cut', subtitle: 'Eat for the lift, not against it.', coach: 'Dr. Maya Patel' },
+  workMeta: { title: 'Sharpen the saw', subtitle: 'Strong body, sharp work — same discipline.' },
   training: [
     { t: 'Reach Peak tier', cur: 1284, tgt: 5000, sub: '3,716 points to go · +100/wk lands Peak in ~37 weeks', cat: 'strength' },
     { t: 'Squat 1.5× bodyweight', cur: 135, tgt: 175, sub: '40 lb to go · +5 lb every 3 weeks gets there by Aug 15', cat: 'strength' },
@@ -16301,6 +16317,10 @@ const BS_GOALS_DEFAULT = {
   nutrition: [
     { t: '85% protein adherence', cur: 82, tgt: 85, sub: '30d rolling · hit target 6 of 7 days', pct: true, cat: 'nutrition' },
     { t: 'Hit 150g protein daily', cur: 120, tgt: 150, sub: 'g protein · per day', cat: 'nutrition' },
+  ],
+  work: [
+    { t: 'Deep work 10 h/week', cur: 6, tgt: 10, sub: 'focused hours · per week', cat: 'skills' },
+    { t: 'Ship the launch', cur: 40, tgt: 100, sub: '% · scoped, built, live', pct: true, cat: 'projects' },
   ],
 };
 // Empty goals for a SIGNED-IN account with nothing set yet — zeroed, NOT the demo
@@ -16311,7 +16331,8 @@ const BS_GOALS_EMPTY = {
   overall: { title: '', by: null, unit: 'kg', start: 0, startMonth: '', now: 0, target: 0, weighIns: [], why: '' },
   trainingMeta: { title: '', subtitle: '' },
   nutritionMeta: { title: '', subtitle: '' },
-  training: [], nutrition: [],
+  workMeta: { title: '', subtitle: '' },
+  training: [], nutrition: [], work: [],
 };
 function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (Number(w) || 0) * 7); return d.toISOString().slice(0, 10); }
 function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
@@ -16523,7 +16544,7 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
   const [readRef, readSeen] = useBSSdInView();
   // "One goal, many terms": the station target-lists cap at 3 visible rows with
   // a show-more expander so the page never reads as a pile of competing goals.
-  const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false });
+  const [showAllTargets, setShowAllTargets] = useStateBSC({ training: false, nutrition: false, work: false });
   const TGT_CAP = 3;
   // Shared station furniture (Training + Nutrition render the same anatomy).
   const stationMotto = (meta) => (meta.title || meta.subtitle) ? (
@@ -16595,8 +16616,10 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
     ]);
   const trainGoals = Array.isArray(data.training) ? data.training : [];
   const nutrGoals = Array.isArray(data.nutrition) ? data.nutrition : [];
+  const workGoals = Array.isArray(data.work) ? data.work : [];
   const trainingMeta = data.trainingMeta || {};
   const nutritionMeta = data.nutritionMeta || {};
+  const workMeta = data.workMeta || {};
   const goalMeta = (g) => (g.pct ? `${g.cur ?? 0}/${g.tgt ?? 100}%` : `${g.cur ?? 0} → ${g.tgt ?? ''}`.trim());
   const breathDot = (
     <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 99, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.2)}`, ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2400ms ease-in-out infinite' }) }} />
@@ -16697,6 +16720,26 @@ function BSGoalsContract({ overall, data, heat, onLog, onEditTargets, onOpenProg
           {tgtExpander('nutrition', nutrGoals)}
           <button onClick={() => onAddGoal('nutrition')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a nutrition target</button>
           <BSOLRow t={t} text="The full nutrition record" meta="→" metaColor={heat} onPress={onOpenProgress} />
+        </div>
+      </div>
+
+      {/* WORK station — the work/career domain (spec 2026-07-13). Same station
+          anatomy as Training/Nutrition, minus the coach credit (no work-coach
+          concept — the domain is member-self-serve). Its accent is t.BLUE where
+          per-station accents appear (the headline sheet); the station chrome
+          follows the page heat like its siblings. */}
+      <div ref={refs.work} style={{ scrollMarginTop: 56 }}>
+        <BSOLHead heat={heat} label="Work" t={t} right={<BSOLAct heat={heat} label="Edit" onClick={() => onEditHeadline('work')} t={t} />} />
+        <div style={{ padding: `2px ${t.padX}px 0` }}>
+          {/* Station motto — a byline, not another goal. */}
+          {stationMotto(workMeta)}
+          {tgtEyebrow()}
+          {workGoals.length === 0 && <BSTRedact INK={t.INK} label="No work targets yet" />}
+          {(showAllTargets.work ? workGoals : workGoals.slice(0, TGT_CAP)).map((g, i) => (
+            <BSOLRow key={`wg-${i}`} t={t} text={g.t || 'Target'} sub={g.sub || null} meta={goalMeta(g)} onPress={() => onEditGoal('work', i)} />
+          ))}
+          {tgtExpander('work', workGoals)}
+          <button onClick={() => onAddGoal('work')} style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, padding: '12px 14px', background: 'transparent', border: `1.5px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 6, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ color: heat, fontSize: 13, lineHeight: 1 }}>＋</span> Add a work target</button>
         </div>
       </div>
 
@@ -18088,7 +18131,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [editPrimary, setEditPrimary] = useStateBSC(false); // in-place primary-goal chips
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   // Anchor refs — the index scrolls to each station (no tab views).
-  const refRead = React.useRef(null), refTrain = React.useRef(null), refNutr = React.useRef(null), refWeek = React.useRef(null);
+  const refRead = React.useRef(null), refTrain = React.useRef(null), refNutr = React.useRef(null), refWork = React.useRef(null), refWeek = React.useRef(null);
   const jump = (r) => { try { r.current?.scrollIntoView({ behavior: bsSdReduced() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {} };
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   // Live "Your plans" + "This week targets" for the Contract (null →
@@ -18179,8 +18222,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           m.overall = (doc.overall && typeof doc.overall === 'object') ? { ...prev.overall, ...doc.overall } : prev.overall;
           m.trainingMeta = (doc.trainingMeta && typeof doc.trainingMeta === 'object') ? { ...prev.trainingMeta, ...doc.trainingMeta } : prev.trainingMeta;
           m.nutritionMeta = (doc.nutritionMeta && typeof doc.nutritionMeta === 'object') ? { ...prev.nutritionMeta, ...doc.nutritionMeta } : prev.nutritionMeta;
+          m.workMeta = (doc.workMeta && typeof doc.workMeta === 'object') ? { ...prev.workMeta, ...doc.workMeta } : prev.workMeta;
           m.training = Array.isArray(doc.training) ? doc.training : prev.training;
           m.nutrition = Array.isArray(doc.nutrition) ? doc.nutrition : prev.nutrition;
+          m.work = Array.isArray(doc.work) ? doc.work : prev.work;
         }
         if (Array.isArray(weigh) && weigh.length) {
           m.overall = { ...m.overall, weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
@@ -18194,6 +18239,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const overall = data.overall || (loggedIn ? BS_GOALS_EMPTY.overall : BS_GOALS_DEFAULT.overall);
   const trainingMeta = data.trainingMeta || (loggedIn ? BS_GOALS_EMPTY.trainingMeta : BS_GOALS_DEFAULT.trainingMeta);
   const nutritionMeta = data.nutritionMeta || (loggedIn ? BS_GOALS_EMPTY.nutritionMeta : BS_GOALS_DEFAULT.nutritionMeta);
+  const workMeta = data.workMeta || (loggedIn ? BS_GOALS_EMPTY.workMeta : BS_GOALS_DEFAULT.workMeta);
   const goals = Array.isArray(data[listTab]) ? data[listTab] : [];
   const saveGoal = (g) => { const arr = goals.slice(); if (editing === 'new') arr.push(g); else arr[editing] = g; persist({ ...data, [listTab]: arr }); setEditing(null); };
   const deleteGoal = () => { const arr = goals.filter((_, i) => i !== editing); persist({ ...data, [listTab]: arr }); setEditing(null); };
@@ -18223,7 +18269,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
 
       {/* Anchor index — replaces the tab views; items scroll, nothing is hidden. */}
       <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', gap: 18, borderBottom: `1px solid ${t.HAIR}` }}>
-        {[['The goal', refRead], ['Training', refTrain], ['Nutrition', refNutr], ['Week', refWeek]].map(([l, r]) => (
+        {[['The goal', refRead], ['Training', refTrain], ['Nutrition', refNutr], ['Work', refWork], ['Week', refWeek]].map(([l, r]) => (
           <button key={l} onClick={() => jump(r)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 12px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{l}</button>
         ))}
       </div>
@@ -18237,7 +18283,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         onEditGoal={(tab, i) => { setListTab(tab); setEditing(i); }}
         onEditHeadline={(tab) => setEditHeadline(tab)}
         plans={livePlans} weekTargets={liveWeek} train={liveTrain}
-        refs={{ read: refRead, train: refTrain, nutr: refNutr, week: refWeek }} />
+        refs={{ read: refRead, train: refTrain, nutr: refNutr, work: refWork, week: refWeek }} />
 
       {/* Share with coaches — applies to the whole ledger */}
       <div style={{ margin: `24px ${t.padX}px 0`, padding: '16px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -18299,7 +18345,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       )}
       {logWeigh && <BSWeighInSheet overall={overall} onClose={() => setLogWeigh(false)} onSave={logWeighIn} />}
       {editOverall && <BSOverallEditSheet overall={overall} onClose={() => setEditOverall(false)} onSave={(g) => { persist({ ...data, overall: g }); setEditOverall(false); }} />}
-      {editHeadline && <BSHeadlineEditSheet meta={editHeadline === 'training' ? trainingMeta : nutritionMeta} accent={editHeadline === 'training' ? t.RUST : '#d8a23a'} onClose={() => setEditHeadline(null)} onSave={(m) => { persist({ ...data, [editHeadline + 'Meta']: m }); setEditHeadline(null); }} />}
+      {editHeadline && <BSHeadlineEditSheet meta={editHeadline === 'training' ? trainingMeta : editHeadline === 'work' ? workMeta : nutritionMeta} accent={editHeadline === 'training' ? t.RUST : editHeadline === 'work' ? t.BLUE : '#d8a23a'} onClose={() => setEditHeadline(null)} onSave={(m) => { persist({ ...data, [editHeadline + 'Meta']: m }); setEditHeadline(null); }} />}
       {editing != null && <BSGoalEditSheet tab={listTab} goal={editing === 'new' ? null : (data[listTab] || [])[editing]} onClose={() => setEditing(null)} onSave={saveGoal} onDelete={deleteGoal} />}
       <BSFooter right="Goals" />
     </BSPage>
