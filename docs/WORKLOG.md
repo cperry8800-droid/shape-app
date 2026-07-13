@@ -450,6 +450,17 @@ changelog whenever something ships.
   "Adjusted"), attribution only when true. Open: on-device pass (share a
   real meal → both feeds · Undo retracts · LOCKED IN verb · Nutrition
   chip/tab · score unchanged by the share).
+- **#1691 (2026-07-13) — the freehand logger inherits the share**:
+  BSLogMealFlow's "Logged." screen gains the same `Post to the wire →`
+  (spec parity: default off · real-success gate · honest toasts; planned =
+  hasPlanned && !dirty; coach attribution only for plan meals; post-portion
+  macros). No un-log on this screen → no Undo coupling (the post stays
+  owner-deletable from its feed card). Same PR: the War Room **"Calendar
+  events still demo" Loop gap was STALE and is removed** — /api/calendar
+  already synthesizes assigned workouts (dated + undated onto the current
+  week, Home parity, `d41facca`) + the weekly menu on real dates, and
+  BSCalendarScreen renders server events for every signed-in month (demo =
+  signed-out only). Verified in code before removing.
 
 ### 2026-07-12 — The feed learns to file: activity-type filters, both surfaces (#1684)
 
