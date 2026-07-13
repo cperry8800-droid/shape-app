@@ -1160,6 +1160,70 @@
     };
   }
 
+  // ── THE CROSSOVER (spec 2026-07-13) — training × work-habit reads ────────
+  // The work-domain differentiator: does the member's work-habit completion
+  // move with training and sleep? ONE implementation for all three consumers
+  // (website <script>, mobile via window.DashSignals, Node tests) — the spec
+  // named a crossover.mjs; it lives here so the surfaces can never drift.
+  //
+  // Input: pre-bucketed days [{ d:'YYYY-MM-DD', workHabitScheduled,
+  // workHabitDone, trained, sleepHours }]. The exact statistic (deterministic
+  // by spec):
+  //  • only days with ≥1 scheduled work habit enter any comparison
+  //  • completion rate p = Σdone / Σscheduled per side
+  //  • training day = `trained` truthy; sleep bands short <6.5h / long ≥7h,
+  //    days in [6.5, 7) EXCLUDED (separation band); missing/invalid sleep is
+  //    excluded from the sleep comparison ONLY
+  //  • gap = (pA − pB) in percentage points; SE = the two-proportion standard
+  //    error with n = scheduled work-habit DAYS per side; the read fires only
+  //    when |gap| ≥ 12 pp AND |gap| ≥ 1.65·SE
+  //  • floors: span ≥ 21 days AND ≥ 8 scheduled days on EACH side
+  // Returns { training: {gap,pA,pB,nA,nB}|null, sleep: {…}|null } — null
+  // renders NOTHING (honest-absent; never a fabricated figure).
+  function crossoverRead(days) {
+    var list = (Array.isArray(days) ? days : []).filter(function (x) {
+      return x && x.d && Number(x.workHabitScheduled) >= 1;
+    });
+    if (!list.length) return { training: null, sleep: null };
+    var times = [];
+    for (var i = 0; i < list.length; i++) {
+      var t = new Date(list[i].d).getTime();
+      if (isFinite(t)) times.push(t);
+    }
+    var spanDays = times.length ? Math.round((Math.max.apply(null, times) - Math.min.apply(null, times)) / 86400000) + 1 : 0;
+    var side = function (subset) {
+      var sched = 0, done = 0;
+      for (var j = 0; j < subset.length; j++) {
+        var s = Number(subset[j].workHabitScheduled) || 0;
+        done += Math.min(Number(subset[j].workHabitDone) || 0, s);
+        sched += s;
+      }
+      return sched > 0 ? { p: done / sched, n: subset.length } : null;
+    };
+    var compare = function (a, b) {
+      if (spanDays < 21 || !a || !b || a.n < 8 || b.n < 8) return null;
+      var gap = (a.p - b.p) * 100;
+      var se = Math.sqrt((a.p * (1 - a.p)) / a.n + (b.p * (1 - b.p)) / b.n) * 100;
+      if (Math.abs(gap) < 12 || Math.abs(gap) < 1.65 * se) return null;
+      return { gap: Math.round(gap), pA: Math.round(a.p * 100), pB: Math.round(b.p * 100), nA: a.n, nB: b.n };
+    };
+    var sleepOf = function (x) {
+      if (x.sleepHours === null || x.sleepHours === undefined || x.sleepHours === '') return NaN;
+      var h = Number(x.sleepHours);
+      return isFinite(h) ? h : NaN;
+    };
+    return {
+      training: compare(
+        side(list.filter(function (x) { return !!x.trained; })),
+        side(list.filter(function (x) { return !x.trained; }))
+      ),
+      sleep: compare(
+        side(list.filter(function (x) { var h = sleepOf(x); return isFinite(h) && h >= 7; })),
+        side(list.filter(function (x) { var h = sleepOf(x); return isFinite(h) && h < 6.5; }))
+      ),
+    };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
@@ -1181,6 +1245,7 @@
     goalBrief: goalBrief,
     goalsFromDoc: goalsFromDoc,
     goalDateLabel: goalDateLabel,
+    crossoverRead: crossoverRead,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
 });

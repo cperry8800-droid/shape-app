@@ -24219,6 +24219,81 @@ function BSWeekendsCard({ isSelf }) {
   );
 }
 
+// BSCrossoverCard — THE CROSSOVER (spec 2026-07-13): the work-domain
+// differentiator. Assembles pre-bucketed days CLIENT-SIDE from the cached
+// progress series (trained = workout minutes that day; sleep hours) + the
+// member's work-domain habits (scheduled from creation day forward, done from
+// the completion history), then reads window.DashSignals.crossoverRead — the
+// ONE implementation the website and the Node tests share. Below the module's
+// floors (span ≥ 21d · ≥ 8 scheduled days per side · the 12pp + 1.65·SE gate)
+// it renders NOTHING, and the copy binds the COMPUTED gap — never an
+// illustrative figure (honest-absent).
+function BSCrossoverCard({ isSelf }) {
+  const t = useBS();
+  const [read, setRead] = React.useState(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.DashSignals?.crossoverRead) return;
+    let alive = true;
+    (async () => {
+      try {
+        const [prog, habRes] = await Promise.all([
+          window.ShapeProgress?.progress?.(),
+          fetch('/api/client/habits', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        const habits = ((habRes && habRes.habits) || []).filter((h) => h && h.domain === 'work');
+        if (!alive || !habits.length) return;
+        const volume = (prog && prog.series && Array.isArray(prog.series.volume)) ? prog.series.volume : [];
+        const sleep = (prog && prog.series && Array.isArray(prog.series.sleep)) ? prog.series.sleep : [];
+        const trainedBy = new Map(volume.map((r) => [r.date, Number(r.value) > 0]));
+        const sleepBy = new Map(sleep.map((r) => [r.date, Number(r.value)]));
+        const days = [];
+        const now = new Date();
+        for (let i = 89; i >= 0; i--) {
+          const d = new Date(now); d.setDate(d.getDate() - i);
+          const key = d.toLocaleDateString('en-CA'); // the member's LOCAL day — matches habit done_on + snapshot_date
+          const scheduled = habits.filter((h) => String(h.created_at || '').slice(0, 10) <= key).length;
+          if (!scheduled) continue;
+          const done = habits.reduce((a, h) => a + ((Array.isArray(h.history) && h.history.includes(key)) ? 1 : 0), 0);
+          days.push({ d: key, workHabitScheduled: scheduled, workHabitDone: done, trained: !!trainedBy.get(key), sleepHours: sleepBy.has(key) ? sleepBy.get(key) : null });
+        }
+        const r = window.DashSignals.crossoverRead(days);
+        if (alive && r && (r.training || r.sleep)) setRead(r);
+      } catch (e) {}
+    })();
+    return () => { alive = false; };
+  }, [isSelf]);
+  if (!isSelf || !read) return null;
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  // Never-shaming, observation + move — either direction reports neutrally.
+  const rows = [
+    read.training && {
+      k: 'Training',
+      text: read.training.gap > 0
+        ? `Your work habits land ${Math.abs(read.training.gap)} pts more often on days you train — protect the session.`
+        : `Your work habits land ${Math.abs(read.training.gap)} pts less often on days you train — leave room for the desk on session days.`,
+      sub: `Training days ${read.training.pA}% · rest days ${read.training.pB}%`,
+    },
+    read.sleep && {
+      k: 'Sleep',
+      text: read.sleep.gap > 0
+        ? `They land ${Math.abs(read.sleep.gap)} pts more often after 7+ hours of sleep — guard the bedtime.`
+        : `They land ${Math.abs(read.sleep.gap)} pts more often on short-sleep days — watch that one another few weeks.`,
+      sub: `7h+ days ${read.sleep.pA}% · short days ${read.sleep.pB}%`,
+    },
+  ].filter(Boolean);
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <BSTStationHead heat={heat} INK={t.INK} label="The crossover" meta="Work × body" />
+      {rows.map((r, i) => (
+        <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? `1px solid ${bsTHexA(t.INK, 0.09)}` : 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{r.text}</div>
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }}>{r.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // The `embedded` (Me → Stats) mode died with the Route Card profile — both
 // remaining consumers are full-page. Full chrome only.
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
@@ -24325,6 +24400,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
     <div>
       {registers(oRegs, oRegRef, oRegSeen)}
       <BSWeekendsCard isSelf={signedIn} />
+      <BSCrossoverCard isSelf={signedIn} />
       {station('The trend', activeTrend.unit ? activeTrend.unit.toUpperCase() : null, (
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginBottom: 4 }}>
