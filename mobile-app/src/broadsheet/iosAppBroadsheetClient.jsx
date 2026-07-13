@@ -2093,7 +2093,11 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
                       name: mealTitle, kcal, p: P, c: C, f: F, portion,
                       planned: hasPlanned && !dirty,
                       recipeId: (meal && meal.recipeId) || '',
-                      coach: (hasPlanned && coach && coach.name) || '',
+                      // Attribution comes from the meal's OWN plan coach (stamped
+                      // by bsHomeLiveWeek from /api/client/plan), never the
+                      // DM-thread `coach` state — that resolver can name a
+                      // different person or still be in flight (review P2).
+                      coach: (hasPlanned && meal && meal.coach) || '',
                     }));
                     if (res && res.stored === 'supabase' && res.data && res.data.id) {
                       setSharedPostId(res.data.id);
@@ -2548,6 +2552,10 @@ function bsHomeLiveWeek(plan, t) {
           hero: meal.hero || meal.brief || `${meal.title || 'Meal'}.`, brief: meal.brief || '',
           ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
           steps: meal.steps || [], coachNote: meal.coachNote || '',
+          // The plan's OWN assigning nutritionist — the meal share's honest
+          // attribution source (review P2: the DM-thread coach can be a
+          // different person, a trainer, or unresolved at tap time).
+          coach: (plan.meals && plan.meals.coach) || '',
         });
       });
     }
