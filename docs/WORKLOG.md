@@ -433,6 +433,36 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Coach roster ＋ADD → the real add-client flow (invite with your listing attached)
+
+- **Closes the Coach Ledger wave follow-up**: the roster's ＋ADD (and the
+  empty-roster CTA) dispatched `shape:openProSettings` — a placeholder that
+  dumped the coach on the settings hub. Now it opens **`BSProAddClientSheet`**
+  (both roles, role-heat, the monthly-offer sheet shell + portal).
+- **Honest model** — a client joins a roster by SUBSCRIBING; a coach can't
+  unilaterally link someone. So the sheet offers the two real growth moves:
+  **(1) Invite a member on Shape** — debounced live member search
+  (`search_shape_people`, clients only, self excluded) → a real 1:1 DM
+  (`getOrCreateMemberConversation` + `sendMessage`) stamped
+  `metadata {kind:'coach_invite', role, providerId, name}`; **(2) Share your
+  listing link** (native share / clipboard). The invite needs the coach's own
+  provider row — new **`ShapeCoachLookup.mine()`** (owner→provider) — and the
+  sheet says so honestly when the account has no listing yet (application
+  pending) instead of sending a card that opens nothing.
+- **The member's chat renders a tappable invitation card** ("{Coach} ·
+  Trainer/Nutritionist · Invitation · View listing →", role-heat frame) that
+  deep-opens the coach's marketplace **Listing** (the #1634 conversion page):
+  `shape:openMarket` now carries `{role, coachId}` → the shell's new
+  `marketCoach` → `BSMarketplaceScreen initialCoach` → once live providers
+  load, the matching coach's Listing opens directly (an unknown/unpublished
+  id honestly stays on the directory). Card mapped on **all thread paths**
+  (both shapeBackend mappers, the coach-thread remap passthrough, and the
+  open-thread realtime append — the #1514 live-boost lesson).
+- Verified: JSX parse ×3 + `node --check` (shapeBackend) · `npm test` 622 ·
+  PowerShell `/m/` build exit 0 · LF. No migration, no new route (rides the
+  existing conversations/messages rails + RLS). War Room: registered done
+  under Marketplace & coach profiles.
+
 ### 2026-07-13 — Audit PERF-2: the accountability cron's per-client N+1 batched
 
 - **Closes audit finding PERF-2** (`docs/SECURITY-AUDIT-2026-06-30.md` §5):

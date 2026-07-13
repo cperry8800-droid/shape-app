@@ -1650,6 +1650,9 @@ function conversationToThread(conversation, messages = []) {
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
       boost: (message.metadata && message.metadata.kind === 'live_boost' && (message.metadata.activity === 'cooking' || message.metadata.activity === 'workout')) ? message.metadata.activity : null,
+      coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
+        ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
+        : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -1687,6 +1690,9 @@ function memberThreadFromRow(row, messages = []) {
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
       boost: (message.metadata && message.metadata.kind === 'live_boost' && (message.metadata.activity === 'cooking' || message.metadata.activity === 'workout')) ? message.metadata.activity : null,
+      coachInvite: (message.metadata && message.metadata.kind === 'coach_invite' && message.metadata.providerId != null)
+        ? { role: message.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(message.metadata.providerId), name: String(message.metadata.name || 'Your coach') }
+        : null,
     })),
     updatedAt: row.last_message_at,
   };
@@ -5156,7 +5162,22 @@ async function coachOwnerOf(providerId, role) {
     return (data && data.owner_id) || null;
   } catch (e) { return null; }
 }
-window.ShapeCoachLookup = { ownerOf: coachOwnerOf };
+// The signed-in coach's OWN marketplace identity (their provider row) — the
+// add-client invite stamps role + provider id so the invite card in the
+// member's chat can open the coach's Listing. Null when the account has no
+// provider row yet (application not approved / listing not published).
+async function myCoachIdentity() {
+  if (!supabase || !state.user?.id) return null;
+  for (const role of ['trainer', 'nutritionist']) {
+    try {
+      const table = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+      const { data } = await supabase.from(table).select('id, name').eq('owner_id', state.user.id).limit(1).maybeSingle();
+      if (data && data.id != null) return { role, providerId: Number(data.id), name: data.name || '' };
+    } catch (e) { /* next role */ }
+  }
+  return null;
+}
+window.ShapeCoachLookup = { ownerOf: coachOwnerOf, mine: myCoachIdentity };
 
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a

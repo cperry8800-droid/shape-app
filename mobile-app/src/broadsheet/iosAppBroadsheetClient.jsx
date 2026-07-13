@@ -369,6 +369,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [pendingTrainStart, setPendingTrainStart] = useStateBSC(false); // one-shot: auto-launch the live session, then cleared so it doesn't re-fire on remount
   const [storeView, setStoreView] = useStateBSC('store');
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
+  const [marketCoach, setMarketCoach] = useStateBSC(null); // { role, providerId } — deep-open a coach's Listing (e.g. a chat coach_invite card)
   const [identityVersion, setIdentityVersion] = useStateBSC(0); // bumped on profile save → re-render avatars now
   const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
   const [showScoreIntro, setShowScoreIntro] = useStateBSC(false); // first-run "how Shape Score works" explainer
@@ -475,8 +476,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // coaches"). Settings is a full-screen takeover, so close it first.
   React.useEffect(() => {
     // Honor the dispatcher's detail.role (e.g. a waitlist-invite notification, or
-    // the Pricing "browse coaches" link) so the marketplace opens pre-filtered.
-    const open = (e) => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null); setTab('market'); };
+    // the Pricing "browse coaches" link) so the marketplace opens pre-filtered —
+    // and detail.coachId (a chat coach_invite card) so it opens that coach's
+    // Listing directly once the live providers load.
+    const open = (e) => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null);
+      setMarketCoach((typeof e?.detail?.role === 'string' && e?.detail?.coachId != null)
+        ? { role: e.detail.role, providerId: Number(e.detail.coachId) }
+        : null);
+      setTab('market');
+    };
     window.addEventListener('shape:openMarket', open);
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
@@ -681,7 +691,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
-    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
+    market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => setStoreView('score')} />,
@@ -13366,7 +13376,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null })),
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null, coachInvite: m.coachInvite || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -15170,7 +15180,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null }]);
+        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
@@ -15288,6 +15298,19 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                         <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
                       </span>
                       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
+                    </button>
+                  )}
+                  {m.coachInvite && (
+                    // A coach's roster invite — tapping opens their marketplace
+                    // Listing (the conversion page) via the openMarket deep link.
+                    <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: m.coachInvite.role, coachId: m.coachInvite.providerId } })); } catch (e2) {} }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${(m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST)}66`, borderRadius: 10, cursor: 'pointer' }}>
+                      <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST}1f`, border: `1px solid ${(m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST)}55`, color: m.coachInvite.role === 'nutritionist' ? '#a07a2e' : t.RUST, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✦</span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.coachInvite.name}</span>
+                        <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.coachInvite.role === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · Invitation</span>
+                      </span>
+                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>View listing →</span>
                     </button>
                   )}
                 </div>

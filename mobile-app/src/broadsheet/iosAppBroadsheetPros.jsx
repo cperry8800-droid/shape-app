@@ -1923,8 +1923,11 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   const [trackRef, trackSeen] = useSdInView();
 
   const [expanded, setExpanded] = useStateBSP(false);
+  const [showAdd, setShowAdd] = useStateBSP(false);
 
-  const goGrowRoster = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
+  // ＋ADD used to punt to the settings hub — it now opens the real add-client
+  // sheet (invite a member with your listing attached, or share the link).
+  const goGrowRoster = () => setShowAdd(true);
 
   const SEVCOL = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' };
   const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
@@ -2125,9 +2128,130 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         )}
       </div>
       <BSFooter left={footerLeft} right={footerRight} />
+      {showAdd && <BSProAddClientSheet role={role} onClose={() => setShowAdd(false)} />}
     </BSPage>
   );
 }
+
+// ═══ ADD A CLIENT — the roster's ＋ADD sheet ═══════════════════════════════
+// Honest model: a client joins a roster by SUBSCRIBING to the coach — a coach
+// can't unilaterally link someone. So ＋ADD offers the two real growth moves:
+// (1) invite a member on Shape — a real 1:1 DM stamped metadata
+//     {kind:'coach_invite', role, providerId, name} that renders as a tappable
+//     card in their chat and opens this coach's marketplace Listing (the
+//     conversion page), and
+// (2) share the coach's public listing link outside Shape.
+// The invite needs the coach's own provider row (ShapeCoachLookup.mine) so the
+// card can deep-link; without one (application not approved yet) the sheet
+// says so honestly instead of sending a card that opens nothing.
+function BSProAddClientSheet({ role, onClose }) {
+  const t = useBS();
+  const heat = bsProHeat(t, role);
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const [mine, setMine] = useStateBSP(undefined); // undefined = loading · null = no provider row
+  const [q, setQ] = useStateBSP('');
+  const [results, setResults] = useStateBSP(null); // null = idle · [] = no matches
+  const [searching, setSearching] = useStateBSP(false);
+  const [busyId, setBusyId] = useStateBSP(null);
+  const [invited, setInvited] = useStateBSP({}); // userId -> true
+  useEffectBSP(() => {
+    let on = true;
+    (async () => {
+      try { const r = await window.ShapeCoachLookup?.mine?.(); if (on) setMine(r || null); }
+      catch (e) { if (on) setMine(null); }
+    })();
+    return () => { on = false; };
+  }, []);
+  // Debounced live member search (search_shape_people — same source as the
+  // universal search); coaches filtered out (a roster holds clients).
+  useEffectBSP(() => {
+    const query = q.trim();
+    if (query.length < 2) { setResults(null); setSearching(false); return undefined; }
+    setSearching(true);
+    const id = setTimeout(async () => {
+      try {
+        const people = await window.ShapeSearch?.people?.(query, 12);
+        setResults((Array.isArray(people) ? people : []).filter((p) => p.userId && p.userId !== myUid && p.role === 'client'));
+      } catch (e) { setResults([]); }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [q]);
+  const invite = async (p) => {
+    if (busyId || invited[p.userId]) return;
+    if (!mine) { window.__bsToast?.('Publish your marketplace listing first — the invite carries it.', 'warn'); return; }
+    setBusyId(p.userId);
+    try {
+      const conv = await window.ShapeMessages.getOrCreateMemberConversation(p.userId);
+      const cid = conv && (conv.conversationId || conv.id || (conv.data && conv.data.conversationId));
+      if (!cid) throw new Error('Could not open the conversation.');
+      const verb = role === 'nutritionist' ? 'work with me' : 'train with me';
+      await window.ShapeMessages.sendMessage({
+        conversationId: cid,
+        body: `Come ${verb} on Shape — my listing's attached.`,
+        metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : 'Your coach') },
+      });
+      setInvited((prev) => ({ ...prev, [p.userId]: true }));
+      window.__bsToast?.('Invite sent ✓ — it lands in their chat', 'ok');
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not send the invite', 'err');
+    }
+    setBusyId(null);
+  };
+  const shareListing = async () => {
+    if (!myUid) { window.__bsToast?.('Sign in to share your listing.', 'warn'); return; }
+    const url = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: 'My Shape listing', url }); return; }
+      await navigator.clipboard.writeText(url);
+      window.__bsToast?.('Listing link copied ✓', 'ok');
+    } catch (e) { /* user cancelled the share sheet — silent */ }
+  };
+  const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
+  const sheet = (
+    <div onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a client" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: heat }}>Grow your roster</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>Add a client.</div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.6 }}>Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.</div>
+        {mine === null && (
+          <div style={{ marginTop: 12, padding: '10px 12px', borderLeft: `3px solid ${t.AMBER || heat}`, background: t.PAPER2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+            No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved.
+          </div>
+        )}
+        <label style={{ display: 'block', marginTop: 14 }}>
+          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>Invite a member on Shape</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members by name…" autoComplete="off"
+            style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+        </label>
+        {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Searching…</div>}
+        {!searching && results && results.length === 0 && (
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>No members match — share your listing link instead.</div>
+        )}
+        {!searching && (results || []).map((p) => (
+          <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
+            {FA
+              ? <FA size={34} c={teal} initial={(p.name || 'M').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()} photo={p.avatar || undefined} showRank={false} />
+              : <span style={{ width: 34, height: 34, borderRadius: 10, background: teal, color: '#06110e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Member</div>
+            </div>
+            {invited[p.userId]
+              ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>Invited ✓</span>
+              : <button onClick={() => invite(p)} disabled={busyId === p.userId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId === p.userId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId === p.userId ? 0.6 : 1 }}>{busyId === p.userId ? 'Sending…' : 'Invite'}</button>}
+          </div>
+        ))}
+        <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>↗ Share your listing link</button>
+        <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Close</button>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 function BSTrainerClients() {
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
