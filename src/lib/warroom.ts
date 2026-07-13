@@ -766,6 +766,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The share card (2026-07-13)',
+      items: [
+        { label: 'Spec #1692 + build #1693 (merged a663b938): a member\'s OWN activity renders as a canvas-drawn 1080×1920 fixed-dark brand PNG (workout/run w/ the REAL route polyline · PR delta · meal THE PLATE via bsMealMenuLines) fired through the OS share sheet AS A FILE → Instagram offers Stories (the Strava pattern). Pure tested shareCard.mjs (bsShareCardModel honest-absent · bsWrapText w/ oversized-token ellipsis · bsFitRoute zero-spread→null); desktop → PNG download; abort silent; no uploads/analytics', status: 'done' },
+        { label: 'Entry points: OWN real cards\' Share → a link/image chooser — ONE shared BSShareChooser on the feed/profile card AND the Session details page (review round: the detail page is a spec-named entry point; BSPostSheetShell gained a z override to clear the detail\'s z-99990 layer)', status: 'done' },
+        { label: 'OWNER on-device pass: share a real activity → Share as image → the OS sheet offers Instagram Stories → the card posts clean (fixed-dark on every paper; route cards draw the real polyline)', status: 'manual' },
+        { label: 'Shelf (PR B later): web dashboard parity + the native instagram-stories:// deep-link once the iOS build exists', status: 'pending' },
+      ],
+    },
+    {
+      section: 'The Work domain (2026-07-13)',
+      items: [
+        { label: 'Spec #1694 (owner-directed: work goal area · milestone Shape Score points · website parity on every PR; 8 CodeRabbit findings fixed in-spec): Shape grows a work/career domain — habits + THE WORK station + THE APPOINTMENTS milestones + THE CROSSOVER, one wave, 3 PRs, each with web parity', status: 'done' },
+        { label: 'PR A #1696 (merged 404986d5): work habit chips + a Work-habit toggle STAMP domain:\'work\' (never name-inferred; same +3 as every habit) · WORK tags (t.BLUE) on the Habit Ledger + home slate + the website Habits page · THE WORK station in The Contract (workMeta + work[] targets, Career/Skills/Projects templates, rides client_goals + the share toggle; shared work goals render on the coach Case File + web client page — review round) · web goalsFromDoc folds doc.work', status: 'done' },
+        { label: 'Migration 2026-07-13-habit-domain.sql APPLIED + verified live: nullable user_habits.domain CHECK in (\'work\'); code degrades pre-migration (habits GET select(\'*\'), create retries on 42703/PGRST204)', status: 'done' },
+        { label: 'PR B #1697 (merged 5822c065) — THE APPOINTMENTS: Milestone composer BOTH surfaces (stamp picker PROMOTED/SHIPPED/CERTIFIED/NEW ROLE/LAUNCHED/MILESTONE · headline ≤80 · detail ≤140 omitted when blank · NO org/compensation fields EVER — money is this domain\'s calories) · the card block both surfaces · career reaction bucket → "Onward" (exact activity_type token) · Milestones chip (app) / MILESTONES tab (web) · legend + The Record wiring both twins', status: 'done' },
+        { label: 'Migration 2026-07-13-work-milestone-points.sql APPLIED + RE-RUN + verified live (×5 checks): career ledger category · award_work_milestone (+25, SECURITY DEFINER, FULL shape validation, ON CONFLICT DO NOTHING → same-month duplicate = granted:false no-op, month bucketed from the POST\'s created_at in member tz — the Codex P1 revision, anon=f/authd=t) · award_community_post milestone exclusion (no +5 double-dip). The claim is AWAITED with a localStorage catch-up on BOTH surfaces — the +25 can never be permanently lost; the chip shows ONLY on granted:true', status: 'done' },
+        { label: 'PR C #1698 (merged a52d75ff) — THE CROSSOVER: crossoverRead + crossoverCopy in dashSignals.js (ONE implementation — web script · mobile via window.DashSignals · Node tests): p=Σdone/Σscheduled per side, fires only at |gap|≥12pp AND ≥1.65·SE (two-proportion, n=scheduled days/side), sleep bands <6.5h vs ≥7h w/ [6.5,7) excluded, floors span≥21d + ≥8 days/side → below any of it NOTHING renders; mobile BSCrossoverCard (Progress Overall; habits via the native-safe window.ShapeHabitsData.list()) + a conditional web Progress widget; 7 test vectors, suite 620', status: 'done' },
+        { label: 'OWNER on-device pass: add a work habit from the chips → WORK tag (ledger + home slate) · THE WORK station on Goals (templates + share toggle → coach Case File) · post a milestone → THE APPOINTMENTS card + "Onward" + Milestones chip + the "+25 · Career · Shape Score" chip (once/month; Just-me earns too) · the crossover card lights up after ~3 weeks of work-habit data', status: 'manual' },
+      ],
+    },
+    {
       section: 'Community feed & chat',
       items: [
         { label: 'Chat tab rebuilt as role-aware "The feed." (Shape / own role / Community)', status: 'done' },
