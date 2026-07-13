@@ -155,13 +155,25 @@ export async function GET(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle();
   const nutriDetail = (progRow?.detail as Record<string, unknown> | null)?.nutrition as Record<string, unknown> | undefined;
-  const coachTargets = nutriDetail && Number(nutriDetail.calories)
+  // A partial/invalid override must return null, never fabricated zeroes —
+  // every field validates as a finite non-negative number or the override
+  // doesn't exist (the honest-absent contract).
+  const asTarget = (value: unknown): number | null => {
+    if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const tKcal = asTarget(nutriDetail?.calories);
+  const tP = asTarget(nutriDetail?.protein);
+  const tC = asTarget(nutriDetail?.carbs);
+  const tF = asTarget(nutriDetail?.fat);
+  const coachTargets = tKcal != null && tKcal > 0 && tP != null && tC != null && tF != null
     ? {
-        kcal: Number(nutriDetail.calories) || 0,
-        p: Number(nutriDetail.protein) || 0,
-        c: Number(nutriDetail.carbs) || 0,
-        f: Number(nutriDetail.fat) || 0,
-        updatedAt: typeof nutriDetail.updatedAt === 'string' ? nutriDetail.updatedAt : null,
+        kcal: tKcal,
+        p: tP,
+        c: tC,
+        f: tF,
+        updatedAt: typeof nutriDetail?.updatedAt === 'string' ? nutriDetail.updatedAt : null,
       }
     : null;
   const mealDays = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)

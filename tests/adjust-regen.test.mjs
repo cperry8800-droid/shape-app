@@ -20,12 +20,13 @@ const adj = (over = {}) => ({ intensity: 'maintain', sessions: 4, weeks: 4, days
 const run = (rows, a, gen = 1) => bsAdjustRegen({ rows, adjustment: a, todayISO: TODAY, gen });
 
 test('deload bakes baseL and scales loads from it', () => {
-  const r = run([row('a', '2026-07-14')], adj({ intensity: 'deload' }));
+  const r = run([{ ...row('a', '2026-07-14'), playlist_id: 'pl-1' }], adj({ intensity: 'deload' }));
   assert.equal(r.changed, true);
   const m = r.inserts[0].payload.exercises[0];
   assert.equal(m.baseL, '100 lb');
   assert.equal(m.load, '85 lb'); // 100 × 0.85, plate-rounded
   assert.equal(r.inserts[0].payload.adjustGen, 1);
+  assert.equal(r.inserts[0].playlist_id, 'pl-1'); // attached soundtrack survives
   assert.deepEqual(r.deleteIds, ['a']);
 });
 

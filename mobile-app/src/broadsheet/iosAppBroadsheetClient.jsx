@@ -3765,7 +3765,7 @@ function bsBuildTrainProgram(workouts, t) {
       accent: ACCENTS[i % ACCENTS.length],
       time: w.time || '',
       timeLabel,
-      adjustGen: w.adjustGen ?? null,
+      adjustGen: w.adjustGen ?? (w.payload && w.payload.adjustGen) ?? null,
       headline: w.title || 'Workout',
       meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : 'Programmed by your coach.'),

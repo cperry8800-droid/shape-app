@@ -5201,9 +5201,10 @@ async function applyAdjustRegeneration({ clientId, adjustment } = {}) {
   // RLS scopes this read to the caller's own authored rows for this client.
   const { data: rows, error: readErr } = await supabase
     .from('client_workouts')
-    .select('id, title, description, kind, payload, scheduled_date')
+    .select('id, title, description, kind, payload, playlist_id, scheduled_date')
     .eq('client_id', clientId)
     .not('trainer_id', 'is', null)
+    .eq('status', 'published')
     .limit(400);
   if (readErr) throw readErr;
   // UTC date — matches the RPC's strictly-future validation basis.

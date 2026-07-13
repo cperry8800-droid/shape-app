@@ -189,6 +189,7 @@ export function bsAdjustRegen({ rows, adjustment, todayISO, gen }) {
       description: row.description || '',
       kind: row.kind === 'template' ? 'template' : 'custom',
       scheduled_date: newDate,
+      playlist_id: row.playlist_id || null,
       payload,
     });
   };

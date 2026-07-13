@@ -63,8 +63,10 @@ begin
     raise exception 'no trainer profile for this account' using errcode = '42501';
   end if;
 
-  -- Bounds (the Assign flow's own materialization cap).
-  if coalesce(array_length(p_delete_ids, 1), 0) > 200
+  -- Bounds: deletes match the client's 400-row read (every survivor's old id
+  -- lands here, so the delete leg legitimately outnumbers the inserts);
+  -- inserts stay at the Assign flow's materialization cap.
+  if coalesce(array_length(p_delete_ids, 1), 0) > 400
      or jsonb_array_length(coalesce(p_inserts, '[]')) > 200
      or jsonb_array_length(coalesce(p_repeat_patches, '[]')) > 50 then
     raise exception 'regeneration set too large' using errcode = '22023';
