@@ -632,14 +632,20 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   const coachSession = live && event.source === 'session' && !!event.sessionId
     && (role === 'trainer' || role === 'nutritionist');
   const [busy, setBusy] = useStateBSCal(false);
-  // One runner for the booking actions (confirm / complete): global-guarded
-  // like the ShapeCalendar calls in this file, busy-locked, honest toasts.
+  // The ONE guarded door to /api/sessions/manage from this sheet — global
+  // checked like the ShapeCalendar calls in this file; confirm/complete and
+  // the coach reschedule all pass through it so the guard can never drift.
+  const callManageSession = (payload) => {
+    if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
+    return window.ShapeSessions.manageSession(payload);
+  };
+  // One runner for the booking actions (confirm / complete): busy-locked,
+  // honest toasts.
   const runSessionAction = async (action, okMsg) => {
     if (busy) return;
     setBusy(true);
     try {
-      if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
-      await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action });
+      await callManageSession({ sessionId: event.sessionId, action });
       window.__bsToast?.(okMsg, 'ok');
       onClose(); onChanged();
     } catch (e) {
@@ -684,8 +690,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       // gated by the button — a stray onChange must not reach the server.
       const time = /^\d{1,2}:\d{2}$/.test(String(event.time || '')) ? event.time : undefined;
       try {
-        if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
-        await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time });
+        await callManageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time });
         window.__bsToast?.('Rescheduled ✓', 'ok'); onClose(); onChanged();
       }
       catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
@@ -732,7 +737,12 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
             ? <button onClick={onClose} style={primaryBtn(t)}>Completed ✓</button>
             : event.status === 'confirmed'
               ? <button onClick={() => runSessionAction('complete', 'Session marked complete ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Marking…' : 'Mark complete'}</button>
-              : <button onClick={() => runSessionAction('confirm', 'Booking confirmed ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Confirming…' : 'Confirm booking'}</button>
+              : event.status === 'requested'
+                ? <button onClick={() => runSessionAction('confirm', 'Booking confirmed ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Confirming…' : 'Confirm booking'}</button>
+                // Terminal/unknown states (declined/cancelled shouldn't reach the
+                // calendar — its GET filters to requested/confirmed/completed, but
+                // never offer an action on one): plain close.
+                : <button onClick={onClose} style={primaryBtn(t)}>Done</button>
         ) : (
           <>
             {(isWorkout || isMeal) && (
