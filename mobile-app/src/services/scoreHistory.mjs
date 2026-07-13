@@ -21,6 +21,7 @@ export const RECORD_CATEGORY_LABELS = {
   adherence: 'Check-ins',
   habits: 'Habits',
   prs: 'PRs',
+  career: 'Career',
   community: 'Community',
   endorsements: 'Endorsements',
   radio: 'Radio',

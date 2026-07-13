@@ -159,7 +159,17 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-13): THE SHARE CARD** — #1692 spec + #1693 build: a
+> **Latest (2026-07-13): THE WORK DOMAIN WAVE** — spec #1694 (owner adds:
+> work goal area · milestone Shape Score points · website parity every PR):
+> **PR A #1696 MERGED** (work habit chips + `domain:'work'` stamp + WORK
+> tags both surfaces · THE WORK station in The Contract · `habit-domain`
+> migration APPLIED+verified) · **PR B in review** (THE APPOINTMENTS —
+> Milestone composer + card + "Onward" verb + Milestones chip both
+> surfaces · the +25/mo career award migration ⚠ OWNER applies · awaited
+> claim + open-time catch-up · legend/Record wiring) · PR C THE CROSSOVER
+> next. Dated entries below.
+>
+> **Prior (2026-07-13): THE SHARE CARD** — #1692 spec + #1693 build: a
 > member's OWN activity renders as a canvas-drawn 1080×1920 brand PNG
 > (workout/run w/ real route polyline · PR delta · meal THE PLATE) fired
 > through the OS share sheet AS A FILE → Instagram offers Stories (the
@@ -419,6 +429,59 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-13 — The Work domain PR B: THE APPOINTMENTS — milestones on the wire + the +25 career award, both surfaces
+
+- **PR B of the work-domain wave** (spec #1694). Old broadsheets ran an
+  *Appointments* column — who was promoted, who joined which firm; Shape's
+  wire gets one. Work milestones are share-by-choice posts with their own
+  card grammar, verb, filter, and a rarity-capped Shape Score earn.
+- **Composer (mobile)**: the Log-activity sheet gains a **Milestone** type —
+  stamp picker (*PROMOTED · SHIPPED · CERTIFIED · NEW ROLE · LAUNCHED ·
+  MILESTONE*, canonical tokens in `BS_MILESTONE_STAMPS`), required headline
+  (≤80), optional detail (≤140, OMITTED when blank). Stores
+  `metrics {kind:'milestone', stamp, detail}` + `activity_type 'milestone'`
+  + `skipAward` (the +5 never fires client-side; the RPC guard covers the
+  web path). **No organization field and no compensation fields exist at
+  all** — money is this domain's calories.
+- **Migration `2026-07-13-work-milestone-points.sql` — ⚠ OWNER applies**:
+  `career` joins the score_ledger category CHECK; **`award_work_milestone
+  (p_post_id)`** (SECURITY DEFINER, self-scoped, returns `granted`) validates
+  the FULL milestone shape server-side (caller-owned post · kind · canonical
+  stamp · real bounded title), grants **+25** with a per-month deterministic
+  source_id (member tz via shape_user_tz) — `ON CONFLICT DO NOTHING`, so a
+  same-month duplicate is a successful no-op returning `granted=false`;
+  EXECUTE revoked from PUBLIC/anon, granted to authenticated;
+  `award_community_post` excludes milestones (the meal-guard pattern — no
+  +5 double-dip).
+- **Award wiring**: the claim is **AWAITED** at post time
+  (`window.ShapeCareerAward.claim` — the toast "+25 · Career · Shape Score"
+  shows ONLY on `granted=true`); a failed call queues the post id in
+  localStorage and the **open-time catch-up** re-fires it on session resolve
+  (the goal-milestone precedent) — the award can never be permanently lost.
+- **Card**: **THE APPOINTMENTS** block on BSActivityCard (flanked mono rule ·
+  the stamp as a squared heat chip · the detail line only when stored — the
+  headline IS the card title, never repeated); milestones carry NO stat row
+  (no fabricated "Activity" stat); "Programmed by" suppressed (training
+  grammar). New **`career` reaction bucket → "Onward"** keyed off the exact
+  `activity_type 'milestone'` token (never name regex — "milestone madness"
+  the workout still reads Props; a training PR still reads Beast; +1 test,
+  suite 613). **Milestones chip** joins the feed type row; `bsFeedTypeMatch`
+  files milestones under MILESTONES only (never workouts/PRs); demo set
+  gains one milestone card.
+- **Website parity** (`dashboardCommunity.jsx?v=20260713b` ×6 shells):
+  composer Milestone kind (headline + stamp chips + detail), `bucketsFor`
+  milestone branch, MILESTONE tag pinned by `metrics.kind`, career
+  milestones join the existing **MILESTONES** tab, `MilestoneStamp` block on
+  the card, and the **awaited award on the real post id** with a
+  granted-only toast.
+- **Legend/Record**: `career: 'Career milestones'` in the score API labels;
+  "Career milestone +25 · Monthly" joins the mobile earn list + the website
+  Score legend (`score.jsx?v=22`); `Career` added to both Record label twins
+  (`scoreHistory.mjs` + `.ts`) so the by-source bars pick it up.
+- Verified: JSX parse ×4 · `node --check` ×3 · `tsc --noEmit` clean ·
+  `npm test` 613 · PowerShell `/m/` build exit 0 · LF. Next: **PR C — THE
+  CROSSOVER.**
 
 ### 2026-07-13 — The Work domain PR A: work habits + THE WORK station, both surfaces (#1694 spec)
 

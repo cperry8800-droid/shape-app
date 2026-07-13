@@ -74,6 +74,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   adherence: 'Plan adherence',
   habits: 'Habits',
   prs: 'PRs hit',
+  career: 'Career milestones',
   community: 'Community',
   endorsements: 'Coach endorsements',
   radio: 'Radio participation',

@@ -304,6 +304,7 @@ function ScoreActivity() {
               ["Consistency", "Daily steps", "+3 at your goal", "1 / 5k"],
               ["Coaching", "Coach session kept", "marked complete", "12"],
               ["Progress", "New PR", "a personal best", "12"],
+              ["Progress", "Career milestone", "log a work win · max once a month", "25"],
               ["Progress", "Goal milestone", "25 / 50 / 75 / 100%", "50–200"],
               ["Progress", "New tier reached", "one-time bonus", "500–4k"],
               ["Community", "Community post", "share to the feed", "5"],

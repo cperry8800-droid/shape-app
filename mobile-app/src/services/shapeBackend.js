@@ -455,6 +455,7 @@ async function getCurrentSession() {
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
   if (user) { try { window.ShapeStepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit Shape Steps points for completed days (idempotent; no-op pre-migration)
+  if (user) { try { window.ShapeCareerAward?.catchUp?.().catch(() => {}); } catch (e) {} } // re-fire a milestone +25 that failed at post time (idempotent monthly dedupe; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);
@@ -4533,6 +4534,41 @@ async function awardMomentumBonus() {
   } catch (e) { return null; }
 }
 window.ShapeMomentum = { check: awardMomentumBonus };
+
+// Career milestone +25 (spec 2026-07-13): award_work_milestone validates the
+// full milestone shape server-side and dedupes ONE award per calendar month in
+// the member's own tz — a same-month duplicate returns { granted: false },
+// never an error. The claim is AWAITED at post time; a failed call (network /
+// backgrounded / pre-migration) queues the post id so the open-time catch-up
+// re-fires it — the member can never permanently lose the award.
+const CAREER_AWARD_PENDING_KEY = 'shape.careerAwardPending';
+async function claimCareerAward(postId) {
+  if (!supabase || !postId) return { granted: false };
+  try {
+    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: postId });
+    if (error) throw error;
+    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    if (data && data.granted) invalidateClientMetrics();
+    return data || { granted: false };
+  } catch (e) {
+    try { localStorage.setItem(CAREER_AWARD_PENDING_KEY, String(postId)); } catch (e2) {}
+    return { granted: false, pending: true };
+  }
+}
+async function careerAwardCatchUp() {
+  if (!supabase || !state.user?.id) return null;
+  let pending = null;
+  try { pending = localStorage.getItem(CAREER_AWARD_PENDING_KEY); } catch (e) { return null; }
+  if (!pending) return null;
+  try {
+    const { data, error } = await supabase.rpc('award_work_milestone', { p_post_id: pending });
+    if (error) return null; // still unreachable/pre-migration — keep the queue for next open
+    try { localStorage.removeItem(CAREER_AWARD_PENDING_KEY); } catch (e) {}
+    if (data && data.granted) invalidateClientMetrics();
+    return data;
+  } catch (e) { return null; }
+}
+window.ShapeCareerAward = { claim: claimCareerAward, catchUp: careerAwardCatchUp };
 
 // Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
 // +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count

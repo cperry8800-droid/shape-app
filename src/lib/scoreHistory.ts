@@ -13,7 +13,7 @@ const RANGE_BUCKET: Record<RangeKey, 'day' | 'week'> = { '1w': 'day', '1m': 'day
 
 export const RECORD_CATEGORY_LABELS: Record<string, string> = {
   workouts: 'Workouts', nutrition: 'Nutrition', adherence: 'Check-ins', habits: 'Habits',
-  prs: 'PRs', community: 'Community', endorsements: 'Endorsements', radio: 'Radio',
+  prs: 'PRs', career: 'Career', community: 'Community', endorsements: 'Endorsements', radio: 'Radio',
   referrals: 'Referrals', other: 'Other',
 };
 
