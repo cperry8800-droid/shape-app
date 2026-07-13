@@ -1723,6 +1723,12 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const [barcodeStatus, setBarcodeStatus] = useStateBSC('idle'); // idle | looking | invalid | notfound | error
   const [logged, setLogged] = useStateBSC(false);
   const [award, setAward] = useStateBSC(null);         // {awarded, points} | null — set after log resolves
+  // Share-by-choice (spec 2026-07-12), freehand-logger parity with
+  // BSMealLogged: per-meal, default off, never auto; only a real Supabase row
+  // counts as shared. This screen has no un-log, so there's no Undo coupling —
+  // a shared post stays owner-deletable from its feed card.
+  const [sharedPostId, setSharedPostId] = useStateBSC(null);
+  const [shareBusy, setShareBusy] = useStateBSC(false);
   const [coach, setCoach] = useStateBSC(null);         // {name, role} | null — resolved linked nutritionist/coach
   const [showAddFood, setShowAddFood] = useStateBSC(false);
   const [photoOpen, setPhotoOpen] = useStateBSC(false); // dispatch disclosures
@@ -2069,6 +2075,46 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         <div style={{ padding: `22px ${t.padX}px 8px` }}>
           <button onClick={onClose} style={{ ...primaryBtn, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '0', textTransform: 'none' }}>Done →</button>
         </div>
+        {signedIn && typeof window !== 'undefined' && window.ShapeCommunity?.createPost && (
+          <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+            {sharedPostId ? (
+              <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>✓ On the wire · Community</div>
+            ) : (
+              <button
+                disabled={shareBusy}
+                onClick={async () => {
+                  if (sharedPostId || shareBusy) return;
+                  setShareBusy(true);
+                  try {
+                    // The plate, not the ledger: this meal's post-portion macros
+                    // only. planned = a plan meal logged untouched; attribution
+                    // only when the meal really came from the plan/catalogue.
+                    const res = await window.ShapeCommunity.createPost(bsMealSharePayload({
+                      name: mealTitle, kcal, p: P, c: C, f: F, portion,
+                      planned: hasPlanned && !dirty,
+                      recipeId: (meal && meal.recipeId) || '',
+                      // Attribution comes from the meal's OWN plan coach (stamped
+                      // by bsHomeLiveWeek from /api/client/plan), never the
+                      // DM-thread `coach` state — that resolver can name a
+                      // different person or still be in flight (review P2).
+                      coach: (hasPlanned && meal && meal.coach) || '',
+                    }));
+                    if (res && res.stored === 'supabase' && res.data && res.data.id) {
+                      setSharedPostId(res.data.id);
+                      window.__bsToast?.('On the wire → Community', 'ok');
+                    } else {
+                      window.__bsToast?.('Could not post — try again.', 'err');
+                    }
+                  } catch (e) {
+                    window.__bsToast?.('Could not post — try again.', 'err');
+                  }
+                  setShareBusy(false);
+                }}
+                style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: shareBusy ? t.INK50 : teal }}
+              >{shareBusy ? 'Posting…' : 'Post to the wire →'}</button>
+            )}
+          </div>
+        )}
         <div style={{ textAlign: 'center', paddingBottom: 28 }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, letterSpacing: '0' }}>← Back</button>
         </div>
@@ -2506,6 +2552,10 @@ function bsHomeLiveWeek(plan, t) {
           hero: meal.hero || meal.brief || `${meal.title || 'Meal'}.`, brief: meal.brief || '',
           ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
           steps: meal.steps || [], coachNote: meal.coachNote || '',
+          // The plan's OWN assigning nutritionist — the meal share's honest
+          // attribution source (review P2: the DM-thread coach can be a
+          // different person, a trainer, or unresolved at tap time).
+          coach: (plan.meals && plan.meals.coach) || '',
         });
       });
     }

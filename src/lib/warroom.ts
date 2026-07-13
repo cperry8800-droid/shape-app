@@ -148,7 +148,6 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Train deck now reflects coach Adjust (bsApplyTrainAdjust over client_programs.detail.training): intensity scales loads + shown RPE, the weekly split re-themes days + sets coach rest days, the note rides onto the day — the live session/preview inherit the scaled moves. Banner still summarizes. Remaining: full per-day exercise authoring (coach can\'t yet write new moves, only tune)', status: 'in-progress', priority: 'P3' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
-      { task: 'Calendar events still demo — home tab now builds day log / week dots / up-next cards from the real assigned plan; the month calendar should read the same source', status: 'not-started', priority: 'P2' },
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
       { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
