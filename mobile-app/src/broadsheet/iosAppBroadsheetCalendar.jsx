@@ -632,15 +632,18 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   const coachSession = live && event.source === 'session' && !!event.sessionId
     && (role === 'trainer' || role === 'nutritionist');
   const [busy, setBusy] = useStateBSCal(false);
-  const markComplete = async () => {
+  // One runner for the booking actions (confirm / complete): global-guarded
+  // like the ShapeCalendar calls in this file, busy-locked, honest toasts.
+  const runSessionAction = async (action, okMsg) => {
     if (busy) return;
     setBusy(true);
     try {
-      await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'complete' });
-      window.__bsToast?.('Session marked complete ✓', 'ok');
+      if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
+      await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action });
+      window.__bsToast?.(okMsg, 'ok');
       onClose(); onChanged();
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not mark complete', 'err');
+      window.__bsToast?.(e?.message || 'Could not update the booking', 'err');
       setBusy(false);
     }
   };
@@ -674,12 +677,20 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
     if (isLiveEvent) {
       try { await window.ShapeCalendar?.update?.({ id: event.id, date: newDate }); window.__bsToast?.('Rescheduled', 'ok'); onClose(); onChanged(); }
       catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
-    } else if (coachSession) {
+    } else if (coachSession && event.reschedulable !== false && event.status !== 'completed') {
       // Real booking move — same wall-clock slot on the new date; the server
       // validates coach ownership + that the session is still active/upcoming.
+      // Re-checks the canReschedule terms because the hidden date input isn't
+      // gated by the button — a stray onChange must not reach the server.
       const time = /^\d{1,2}:\d{2}$/.test(String(event.time || '')) ? event.time : undefined;
-      try { await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time }); window.__bsToast?.('Rescheduled ✓', 'ok'); onClose(); onChanged(); }
+      try {
+        if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
+        await window.ShapeSessions.manageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time });
+        window.__bsToast?.('Rescheduled ✓', 'ok'); onClose(); onChanged();
+      }
       catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
+    } else if (coachSession) {
+      window.__bsToast?.('This booking can’t be moved.', 'warn');
     } else if (!live) {
       window.__bsToast?.('Rescheduled', 'ok'); onClose();
     }
@@ -713,9 +724,15 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {/* Actions */}
       <div style={{ padding: `16px 14px calc(84px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, display: 'flex', gap: 8 }}>
         {coachSession ? (
+          // The confirm → complete lifecycle: a REQUESTED booking must be
+          // confirmed first (Codex P1 — completing straight from requested
+          // would let the cron award a session that was never confirmed);
+          // only a CONFIRMED one offers Mark complete.
           event.status === 'completed'
             ? <button onClick={onClose} style={primaryBtn(t)}>Completed ✓</button>
-            : <button onClick={markComplete} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Marking…' : 'Mark complete'}</button>
+            : event.status === 'confirmed'
+              ? <button onClick={() => runSessionAction('complete', 'Session marked complete ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Marking…' : 'Mark complete'}</button>
+              : <button onClick={() => runSessionAction('confirm', 'Booking confirmed ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Confirming…' : 'Confirm booking'}</button>
         ) : (
           <>
             {(isWorkout || isMeal) && (
