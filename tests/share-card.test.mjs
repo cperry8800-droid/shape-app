@@ -62,6 +62,17 @@ test("empty text wraps to no lines; a single huge word still returns a line", ()
   assert.equal(lines.length, 1);
 });
 
+test("an oversized token ellipsizes to fit — no line ever exceeds maxWidth", () => {
+  const one = bsWrapText("supercalifragilistic", 100, measure, 1);
+  assert.ok(one[0].endsWith("…"));
+  assert.ok(measure(one[0]) <= 100);
+  // Mid-text oversized tokens fit too, without eating neighboring words.
+  const mid = bsWrapText("hi supercalifragilistic yo", 100, measure, 3);
+  assert.deepEqual(mid.map((l) => measure(l) <= 100), [true, true, true]);
+  assert.equal(mid[0], "hi");
+  assert.equal(mid[2], "yo");
+});
+
 // ── bsFitRoute ───────────────────────────────────────────────────────────────
 test("aspect-fits and centers points into the box", () => {
   const fit = bsFitRoute([[0, 0], [10, 5]], { x: 100, y: 200, w: 100, h: 100 });

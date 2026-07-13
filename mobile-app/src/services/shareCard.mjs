@@ -52,13 +52,22 @@ export function bsShareCardModel({
 export function bsWrapText(text, maxWidth, measure, maxLines = 2) {
   const words = String(text || '').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
+  // A single token wider than maxWidth ellipsizes to fit — no emitted line may
+  // ever measure past the card's column.
+  const fit = (w) => {
+    if (measure(w) <= maxWidth) return w;
+    let cut = w;
+    while (cut && measure(`${cut}…`) > maxWidth) cut = cut.slice(0, -1).trimEnd();
+    return `${cut}…`;
+  };
   const lines = [];
   let line = '';
   for (const w of words) {
-    const probe = line ? `${line} ${w}` : w;
-    if (measure(probe) <= maxWidth || !line) { line = probe; continue; }
+    if (!line) { line = fit(w); continue; }
+    const probe = `${line} ${w}`;
+    if (measure(probe) <= maxWidth) { line = probe; continue; }
     lines.push(line);
-    line = w;
+    line = fit(w);
     if (lines.length === maxLines) break;
   }
   if (lines.length < maxLines && line) { lines.push(line); line = ''; }

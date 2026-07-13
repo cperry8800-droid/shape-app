@@ -8497,12 +8497,12 @@ async function bsRepostPost({ postId, who, title, body }) {
     metrics: { kind: 'note', repostOf: { postId: postId || null, who: who || '', title: title || '', body: String(body || '').slice(0, 240) } },
   });
 }
-function BSPostSheetShell({ title, onClose, INK, BG, children }) {
+function BSPostSheetShell({ title, onClose, INK, BG, z, children }) {
   const t = useBS();
   const ink = INK || t.INK, bg = BG || t.PAPER;
   const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const sheet = (
-    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'absolute', inset: 0, zIndex: 245, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'absolute', inset: 0, zIndex: z || 245, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div style={{ background: bg, borderRadius: '18px 18px 0 0', border: `1px solid ${bsTHexA(ink, 0.14)}`, borderBottom: 0, padding: '15px 16px calc(18px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(ink, 0.6) }}>{title}</span>
@@ -12130,6 +12130,45 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
 // Full-screen activity detail — the post + every stat/breakdown + who reacted +
 // the whole comments thread + a sticky composer. Opened from "Session details"
 // (stats focus) or the comment icon (comments focus → autofocus the composer).
+// The share chooser (spec 2026-07-13) — link vs the story-ready image. ONE
+// implementation for every surface that hosts it (the feed/profile card AND
+// the Session details page), so the rendered image can never disagree across
+// entry points. Callers gate on own-real-card BEFORE mounting this.
+function BSShareChooser({ who, tierDisplay, role, title, body, postId, heroStat, stats, delta, meal, routePoints, createdAt, z, onClose }) {
+  const t = useBS();
+  return (
+    <BSPostSheetShell title="Share" z={z} onClose={onClose}>
+      {[
+        ['Share link →', () => {
+          onClose();
+          bsSharePostExternal({ who, title, body, postId: postId || null });
+        }],
+        ['Share as image →', async () => {
+          onClose();
+          // The model builds from the SAME values the host surface just drew —
+          // the image can never disagree with the card (spec 2026-07-13).
+          const model = bsShareCardModel({
+            who,
+            tierLine: `${tierDisplay} · ${(role || 'Client')}`,
+            title,
+            heroStat,
+            stats,
+            delta: delta || '',
+            meal: meal || null,
+            routePoints: routePoints || null,
+            dateLine: createdAt ? new Date(createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+          });
+          const r = await bsShareCardImage(model);
+          if (!r.ok) window.__bsToast?.('Could not render the card — try again.', 'err');
+          else if (r.mode === 'downloaded') window.__bsToast?.('Card saved as PNG', 'ok');
+        }],
+      ].map(([label, fn]) => (
+        <button key={label} onClick={fn} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 50, background: 'transparent', border: 0, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', textAlign: 'left', padding: '0 4px' }}>{label}</button>
+      ))}
+    </BSPostSheetShell>
+  );
+}
+
 function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onClose, onReact, onProfile, onOpenLikers, draft, setDraft, onSend }) {
   const t = useBS();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1);
@@ -12144,6 +12183,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
   const [splitsOpen, setSplitsOpen] = React.useState(false); // → the full Splits page
+  // Share-as-image from the detail page too (spec 2026-07-13 flow — the
+  // detail page is a named entry point). Same own-real-card gate as the
+  // feed card's Share button; everyone else's detail page shows no action.
+  const [shareOpen, setShareOpen] = React.useState(false);
+  const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const canShareCard = !!(a && a.real && a.userId && myUid && a.userId === myUid);
   // Comments present when the page OPENED cascade in; ones sent while it's open
   // (yours, or a live append) show instantly — no boot delay on fresh replies.
   const commentsAtOpen = React.useRef(comments.length);
@@ -12255,9 +12300,19 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
+          {!isComments && canShareCard && (
+            <button onClick={() => setShareOpen(true)} aria-label="Share" style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
+          )}
+          <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
         </div>
       </div>
+      {shareOpen && (
+        <BSShareChooser
+          who={d.who} tierDisplay={d.tierDisplay} role={d.role} title={d.title} body={a.body} postId={a.postId}
+          heroStat={d.heroStat} stats={d.detailStats} delta={d.prDelta || ''} meal={a.meal || null}
+          routePoints={(d.routeObj && d.routeObj.points) || null} createdAt={a.created_at}
+          z={99995} onClose={() => setShareOpen(false)} />
+      )}
       {/* scroll body */}
       <div ref={bodyRef} className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px' }}>
         {/* author */}
@@ -13047,35 +13102,11 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
         )}
         {shareChoice && (
-          <BSPostSheetShell title="Share" onClose={() => setShareChoice(false)}>
-            {[
-              ['Share link →', () => {
-                setShareChoice(false);
-                bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null });
-              }],
-              ['Share as image →', async () => {
-                setShareChoice(false);
-                // The model builds from the SAME values this card just drew —
-                // the image can never disagree with the card (spec 2026-07-13).
-                const model = bsShareCardModel({
-                  who: a.who,
-                  tierLine: `${tierDisplay} · ${(a.role || 'Client')}`,
-                  title,
-                  heroStat,
-                  stats,
-                  delta: prDelta || '',
-                  meal: a.meal || null,
-                  routePoints: (routeObj && routeObj.points) || null,
-                  dateLine: a.created_at ? new Date(a.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '',
-                });
-                const r = await bsShareCardImage(model);
-                if (!r.ok) window.__bsToast?.('Could not render the card — try again.', 'err');
-                else if (r.mode === 'downloaded') window.__bsToast?.('Card saved as PNG', 'ok');
-              }],
-            ].map(([label, fn]) => (
-              <button key={label} onClick={fn} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 50, background: 'transparent', border: 0, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', textAlign: 'left', padding: '0 4px' }}>{label}</button>
-            ))}
-          </BSPostSheetShell>
+          <BSShareChooser
+            who={a.who} tierDisplay={tierDisplay} role={a.role} title={title} body={a.body} postId={a.postId}
+            heroStat={heroStat} stats={stats} delta={prDelta || ''} meal={a.meal || null}
+            routePoints={(routeObj && routeObj.points) || null} createdAt={a.created_at}
+            onClose={() => setShareChoice(false)} />
         )}
       </div>
     );
