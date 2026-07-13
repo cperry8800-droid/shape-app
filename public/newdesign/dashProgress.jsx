@@ -385,6 +385,40 @@ function ClientProgressPage() {
   }, [reloadKey]);
   const live = source === "live";
 
+  // THE CROSSOVER (spec 2026-07-13) — mobile parity: assemble pre-bucketed
+  // days from the progress series (trained = workout minutes that day; sleep
+  // hours) + the member's work-domain habits, read through the ONE shared
+  // implementation (DashSignals.crossoverRead — website, mobile, and tests).
+  // Below the module's floors it stays null and the widget never renders —
+  // live only, and the copy binds the COMPUTED gap (never a demo figure).
+  const [crossover, setCrossover] = React.useState(null);
+  React.useEffect(() => {
+    if (!live || !progress || !(window.DashSignals && window.DashSignals.crossoverRead)) return;
+    let on = true;
+    (async () => {
+      const hj = await fetch("/api/client/habits", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const habits = ((hj && hj.habits) || []).filter((h) => h && h.domain === "work");
+      if (!on || !habits.length) return;
+      const volume = (progress.series && Array.isArray(progress.series.volume)) ? progress.series.volume : [];
+      const sleep = (progress.series && Array.isArray(progress.series.sleep)) ? progress.series.sleep : [];
+      const trainedBy = new Map(volume.map((r) => [r.date, Number(r.value) > 0]));
+      const sleepBy = new Map(sleep.map((r) => [r.date, Number(r.value)]));
+      const days = [];
+      const now = new Date();
+      for (let i = 89; i >= 0; i--) {
+        const d = new Date(now); d.setDate(d.getDate() - i);
+        const key = d.toLocaleDateString("en-CA"); // the member's LOCAL day — matches habit done_on + snapshot_date
+        const scheduled = habits.filter((h) => String(h.created_at || "").slice(0, 10) <= key).length;
+        if (!scheduled) continue;
+        const done = habits.reduce((a, h) => a + ((Array.isArray(h.history) && h.history.includes(key)) ? 1 : 0), 0);
+        days.push({ d: key, workHabitScheduled: scheduled, workHabitDone: done, trained: !!trainedBy.get(key), sleepHours: sleepBy.has(key) ? sleepBy.get(key) : null });
+      }
+      const r = window.DashSignals.crossoverRead(days);
+      if (on && r && (r.training || r.sleep)) setCrossover(r);
+    })();
+    return () => { on = false; };
+  }, [live, progress]);
+
   // ── Comparisons (live → honest states; demo dataset signed out) ──
   const weightCmp = live
     ? dprCompare(progress && (progress.weightSeries || (progress.series && progress.series.weight)))
@@ -460,6 +494,24 @@ function ClientProgressPage() {
   // + milestones (right column) become individual widgets; the check-in kit + photo timeline are
   // conditional fulls.
   const progressWidgets = [
+    // THE CROSSOVER — conditional: exists only when the shared read fired
+    // (work habits + enough data past the statistical floors). Slate accent
+    // (#7aa7dc), the work domain's color.
+    crossover ? { key: "crossover", title: "The crossover · work × body", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#7aa7dc", paddingLeft: 24 }}>
+        <span className="dash-eyebrow" style={{ color: "#7aa7dc" }}>The crossover · work × body</span>
+        <div style={{ marginTop: 12 }}>
+          {/* Words + numbers both from the shared engine (crossoverCopy) —
+              the mobile card renders the identical rows, no wording drift. */}
+          {(window.DashSignals.crossoverCopy(crossover) || []).map((r, i) => (
+            <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16.5, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{r.text}</div>
+              <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{r.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) } : null,
     { key: "weight", title: "Weight · then vs today", size: "half", render: () => (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>

@@ -430,6 +430,44 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — The Work domain PR C: THE CROSSOVER — training × work reads, both surfaces (the wave closes)
+
+- **PR C of the work-domain wave** (spec #1694) — the differentiator: Shape
+  holds both halves of the data, so the engine can say what no one else can:
+  *does work-habit completion move with training and sleep?*
+- **One implementation, three consumers** (spec deviation, noted): the spec
+  named a `crossover.mjs`; the computation lives in **`dashSignals.js` →
+  `crossoverRead(days)`** instead — the shared engine the website loads as a
+  script, the mobile app imports via `window.DashSignals`, and Node tests
+  require directly — so the surfaces can never drift.
+- **The exact statistic** (deterministic per spec): only days with ≥1
+  scheduled work habit enter; completion rate `p = Σdone/Σscheduled` per
+  side; training day = a real workout signal; sleep bands short <6.5h /
+  long ≥7h with **[6.5, 7) EXCLUDED** and missing sleep excluded from the
+  sleep comparison only; `gap = pA−pB` in pp with the two-proportion SE
+  (n = scheduled days per side); **fires only at |gap| ≥ 12pp AND ≥
+  1.65·SE**; floors span ≥ 21d + ≥ 8 scheduled days per side — below any of
+  it the read is null and the card renders NOTHING.
+  `tests/crossover.test.mjs` (6 vectors: floors · the gate · the exclusion
+  band · missing values · both directions · garbage input; suite **619**).
+- **Mobile — `BSCrossoverCard`** on the Progress hub Overall tab (the
+  weekends card's sibling): assembles pre-bucketed days CLIENT-SIDE from the
+  cached progress series (volume → trained; sleep hours) + the member's
+  `domain:'work'` habits (scheduled from creation day, done from the
+  completion history, LOCAL en-CA day keys), then renders never-shaming
+  observation + move copy binding the COMPUTED gap (*"Your work habits land
+  {gap} pts more often on days you train — protect the session."*) with an
+  honest mono register underneath. Signed-in only.
+- **Website — a conditional THE CROSSOVER widget** on the Progress dashboard
+  (`dashProgress.jsx?v=20260713`, slate `#7aa7dc` accent): same assembly,
+  same shared read, exists ONLY when the read fired (live only, never a demo
+  figure). `dashSignals.js?v=20260713b` across all referencing pages.
+- **The work-domain wave is CODE-COMPLETE**: #1694 spec · #1696 PR A (habits
+  + THE WORK station) · #1697 PR B (THE APPOINTMENTS + the +25/mo career
+  award) · PR C (this). Open: the owner on-device pass (work chips → WORK
+  tags · THE WORK station · a milestone post → "Onward" · the +25 chip ·
+  the crossover card once data accrues) + the revised PR B migration re-run.
+
 ### 2026-07-13 — The Work domain PR B: THE APPOINTMENTS — milestones on the wire + the +25 career award, both surfaces
 
 - **PR B of the work-domain wave** (spec #1694). Old broadsheets ran an

@@ -1160,6 +1160,105 @@
     };
   }
 
+  // ── THE CROSSOVER (spec 2026-07-13) — training × work-habit reads ────────
+  // The work-domain differentiator: does the member's work-habit completion
+  // move with training and sleep? ONE implementation for all three consumers
+  // (website <script>, mobile via window.DashSignals, Node tests) — the spec
+  // named a crossover.mjs; it lives here so the surfaces can never drift.
+  //
+  // Input: pre-bucketed days [{ d:'YYYY-MM-DD', workHabitScheduled,
+  // workHabitDone, trained, sleepHours }]. The exact statistic (deterministic
+  // by spec):
+  //  • only days with ≥1 scheduled work habit enter any comparison
+  //  • completion rate p = Σdone / Σscheduled per side
+  //  • training day = `trained` truthy; sleep bands short <6.5h / long ≥7h,
+  //    days in [6.5, 7) EXCLUDED (separation band); missing/invalid sleep is
+  //    excluded from the sleep comparison ONLY
+  //  • gap = (pA − pB) in percentage points; SE = the two-proportion standard
+  //    error with n = scheduled work-habit DAYS per side; the read fires only
+  //    when |gap| ≥ 12 pp AND |gap| ≥ 1.65·SE
+  //  • floors: span ≥ 21 days AND ≥ 8 scheduled days on EACH side
+  // Returns { training: {gap,pA,pB,nA,nB}|null, sleep: {…}|null } — null
+  // renders NOTHING (honest-absent; never a fabricated figure).
+  function crossoverRead(days) {
+    var list = (Array.isArray(days) ? days : []).filter(function (x) {
+      return x && x.d && Number(x.workHabitScheduled) >= 1;
+    });
+    if (!list.length) return { training: null, sleep: null };
+    // Loop min/max — Math.max.apply over a huge array can RangeError; this
+    // is the one shared implementation, so don't assume callers cap `days`.
+    var minT = Infinity, maxT = -Infinity;
+    for (var i = 0; i < list.length; i++) {
+      var t = new Date(list[i].d).getTime();
+      if (isFinite(t)) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
+    }
+    var spanDays = maxT >= minT ? Math.round((maxT - minT) / 86400000) + 1 : 0;
+    var side = function (subset) {
+      var sched = 0, done = 0;
+      for (var j = 0; j < subset.length; j++) {
+        var s = Number(subset[j].workHabitScheduled) || 0;
+        done += Math.min(Number(subset[j].workHabitDone) || 0, s);
+        sched += s;
+      }
+      return sched > 0 ? { p: done / sched, n: subset.length } : null;
+    };
+    var compare = function (a, b) {
+      if (spanDays < 21 || !a || !b || a.n < 8 || b.n < 8) return null;
+      var gap = (a.p - b.p) * 100;
+      var se = Math.sqrt((a.p * (1 - a.p)) / a.n + (b.p * (1 - b.p)) / b.n) * 100;
+      if (Math.abs(gap) < 12 || Math.abs(gap) < 1.65 * se) return null;
+      return { gap: Math.round(gap), pA: Math.round(a.p * 100), pB: Math.round(b.p * 100), nA: a.n, nB: b.n };
+    };
+    var sleepOf = function (x) {
+      if (x.sleepHours === null || x.sleepHours === undefined || x.sleepHours === '') return NaN;
+      var h = Number(x.sleepHours);
+      return isFinite(h) ? h : NaN;
+    };
+    return {
+      training: compare(
+        side(list.filter(function (x) { return !!x.trained; })),
+        side(list.filter(function (x) { return !x.trained; }))
+      ),
+      sleep: compare(
+        side(list.filter(function (x) { var h = sleepOf(x); return isFinite(h) && h >= 7; })),
+        side(list.filter(function (x) { var h = sleepOf(x); return isFinite(h) && h < 6.5; }))
+      ),
+    };
+  }
+
+  // The card copy for a crossover read — the words AND the numbers come from
+  // ONE place so web + mobile can never drift on wording (the same guarantee
+  // crossoverRead gives the statistic). Never-shaming, observation + move;
+  // either direction reports neutrally. Returns [{ k, text, sub }] — empty
+  // when nothing fired (the caller renders nothing).
+  function crossoverCopy(read) {
+    var rows = [];
+    if (read && read.training) {
+      var tr = read.training;
+      rows.push({
+        k: 'Training',
+        text: tr.gap > 0
+          ? 'Your work habits land ' + Math.abs(tr.gap) + ' pts more often on days you train — protect the session.'
+          : 'Your work habits land ' + Math.abs(tr.gap) + ' pts less often on days you train — leave room for the desk on session days.',
+        sub: 'Training days ' + tr.pA + '% · rest days ' + tr.pB + '%',
+      });
+    }
+    if (read && read.sleep) {
+      var sl = read.sleep;
+      // "They" only when the training row rendered above and introduced the
+      // subject — a sleep-only read spells it out (no dangling pronoun).
+      var subj = rows.length ? 'They' : 'Your work habits';
+      rows.push({
+        k: 'Sleep',
+        text: sl.gap > 0
+          ? subj + ' land ' + Math.abs(sl.gap) + ' pts more often after 7+ hours of sleep — guard the bedtime.'
+          : subj + ' land ' + Math.abs(sl.gap) + ' pts more often on short-sleep days — worth watching over the next few weeks.',
+        sub: '7h+ days ' + sl.pA + '% · short days ' + sl.pB + '%',
+      });
+    }
+    return rows;
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
@@ -1181,6 +1280,8 @@
     goalBrief: goalBrief,
     goalsFromDoc: goalsFromDoc,
     goalDateLabel: goalDateLabel,
+    crossoverRead: crossoverRead,
+    crossoverCopy: crossoverCopy,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
 });
