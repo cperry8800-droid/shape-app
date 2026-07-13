@@ -171,6 +171,10 @@ function ensureWireStyles() {
   .bs-wire-tape { position:absolute; top:0; left:0; width:200%; height:100%; animation: bsWireTape 16s linear infinite; will-change: transform; }
   @keyframes bsWireTune { 0%,12%{ left:18%; } 38%,58%{ left:63%; } 84%,100%{ left:18%; } }
   .bs-wire-needle { position:absolute; top:-4px; bottom:4px; left:63%; width:1.5px; background:linear-gradient(180deg, #34d6c5, rgba(52,214,197,0.15)); box-shadow:0 0 7px rgba(46,224,196,0.6); animation: bsWireTune 13s ease-in-out infinite; }
+  @keyframes bsWireLockOn { 0%,32%{ opacity:0.15; } 44%,58%{ opacity:1; } 84%,100%{ opacity:0.15; } }
+  .bs-wire-lock-bar { width:2.5px; background:rgba(52,214,197,0.6); box-shadow:0 0 4px rgba(46,224,196,0.4); opacity:0.15; animation: bsWireLockOn 13s ease-in-out infinite; will-change: opacity; }
+  @keyframes bsWireFlick { 0%,6%{ opacity:0.45; } 8%,12%{ opacity:0.1; } 14%,20%{ opacity:0.4; } 22%,30%{ opacity:0.12; } 32%,36%{ opacity:0.35; } 42%,100%{ opacity:0.05; } }
+  .bs-wire-static-dot { position:absolute; width:1.5px; height:1.5px; background:rgba(242,237,228,0.5); animation: bsWireFlick 13s linear infinite; will-change: opacity; }
   @keyframes bsWireFloat { 0%, 100%{ transform:translateY(4px); } 50%{ transform:translateY(-5px); } }
   .bs-wire-mark-float { position:relative; animation: bsWireFloat 6.5s ease-in-out infinite; will-change: transform; }
   @keyframes bsWireHalo { 0%, 100%{ opacity:0.3; } 50%{ opacity:0.8; } }
@@ -199,6 +203,8 @@ function ensureWireStyles() {
     .bs-wire-mark-float{ animation:none!important; transform:none!important; }
     .bs-wire-mark-halo{ animation:none!important; opacity:0.5!important; }
     .bs-wire-tape{ animation:none!important; transform:none!important; }
+    .bs-wire-lock-bar{ animation:none!important; opacity:1!important; }
+    .bs-wire-static-dot{ animation:none!important; opacity:0.05!important; }
   }`;
   const el = document.createElement('style');
   el.textContent = css;
@@ -275,11 +281,45 @@ function BSWireWaveform() {
   );
 }
 
+// The static calm — the "M" add-on (owner pick from the background board,
+// 2026-07-12): sparse static flecks that shimmer while the needle hunts and
+// settle to near-nothing once it locks — the whole screen tunes in. Seeded-
+// deterministic positions (same field every launch, no Math.random); the
+// bsWireFlick timeline shares the dial's 13s tune cycle. Decorative
+// (aria-hidden); reduced motion renders the settled state (no static).
+const BS_WIRE_STATIC_DOTS = (() => {
+  let s = 31 >>> 0;
+  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const dots = [];
+  for (let i = 0; i < 34; i++) {
+    dots.push({
+      left: (4 + rand() * 92).toFixed(1),
+      top: (4 + rand() * 88).toFixed(1),
+      delay: (rand() * 1.4).toFixed(2),
+    });
+  }
+  return dots;
+})();
+
+function BSWireStatic() {
+  ensureWireStyles();
+  return (
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      {BS_WIRE_STATIC_DOTS.map((d, i) => (
+        <span key={i} className="bs-wire-static-dot" style={{ left: `${d.left}%`, top: `${d.top}%`, animationDelay: `${d.delay}s` }} />
+      ))}
+    </div>
+  );
+}
+
 // The tuning dial — "ON AIR" (owner pick from the background board,
 // 2026-07-11): a frequency ruler with a teal needle gliding between stations
 // while the app tunes in — Shape Radio's presence on the launch, at whisper
-// volume. Decorative (aria-hidden); reduced motion parks the needle on the
-// station (the class's resting `left`).
+// volume. The "L" signal-lock add-on (owner pick, 2026-07-12) rides here too:
+// four tiny bars beside the ruler that light as the needle lands — the same
+// 13s bsWireTune timeline, lit exactly while the needle sits on the station.
+// Decorative (aria-hidden); reduced motion parks the needle on the station
+// (the class's resting `left`) with the lock bars LIT (locked).
 function BSWireDial() {
   ensureWireStyles();
   const dialMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
@@ -297,6 +337,11 @@ function BSWireDial() {
           {ticks}
         </svg>
         <div className="bs-wire-needle" />
+        <div style={{ position: 'absolute', right: -26, bottom: 4, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+          {[5, 7, 9, 11].map((h, i) => (
+            <span key={h} className="bs-wire-lock-bar" style={{ height: h, animationDelay: `${(i * 0.22).toFixed(2)}s` }} />
+          ))}
+        </div>
       </div>
       <div style={{ marginTop: 9, textAlign: 'center', fontFamily: dialMono, fontSize: 7, fontWeight: 700, letterSpacing: '0.34em', textTransform: 'uppercase', color: 'rgba(52,214,197,0.55)' }}>On air</div>
     </div>
@@ -691,6 +736,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
         <BSWireGround />
         <BSWireWaveform />
+        <BSWireStatic />
         <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
           <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
         </div>
@@ -1498,6 +1544,7 @@ function BSWireHold() {
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
       <BSWireGround />
       <BSWireWaveform />
+      <BSWireStatic />
       <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
         <span>The Shape Community</span><span>Vol. 1 · No. 1</span>
       </div>

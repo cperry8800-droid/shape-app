@@ -3530,12 +3530,17 @@ window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
-async function manageSession({ sessionId, action } = {}) {
+async function manageSession({ sessionId, action, date, time } = {}) {
+  // reschedule carries the new wall-clock ({ date: 'YYYY-MM-DD', time?: 'HH:MM' });
+  // the other actions send only { sessionId, action }.
+  const body = { sessionId, action };
+  if (date) body.date = date;
+  if (time) body.time = time;
   const res = await fetch(sessionsApiUrl(), {
     method: 'POST',
     credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ sessionId, action }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Could not update session.');

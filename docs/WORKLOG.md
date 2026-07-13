@@ -468,6 +468,53 @@ changelog whenever something ships.
   imports the helper (grep-audited) · War Room gap flipped to the security
   checklist as done.
 
+### 2026-07-13 — Coach calendar "Mark complete" is real (sessions status write) + honest booking reschedule
+
+- **Closes the goals-flow wave follow-up**: the coach calendar event sheet's
+  "Mark complete" only fired a fake `Logged ✓` toast — nothing was written, so
+  the accountability cron's kept-session read (`sessions.status='completed'` →
+  `award_session_kept` +12) could never fire from the calendar. Now a live
+  coaching booking viewed by its coach carries a real **Mark complete** →
+  `POST /api/sessions/manage {action:'complete'}` (the route re-checks coach
+  ownership server-side), honest success/failure toasts, and a month reload;
+  an already-completed booking reads **Completed ✓** and maps to the calendar's
+  `done` row state.
+- **Wiring**: `_bsMapServerCalEvent` now carries `sessionId` / `status` /
+  `reschedulable` (the calendar GET always sent them; the mobile map dropped
+  them); `manageSession` (shapeBackend) forwards `date`/`time` for the
+  reschedule action.
+- **Honest reschedule**: the sheet's date picker used to toast a fake
+  "Rescheduled" on ANY live non-editable row. Now a coach's still-active
+  booking really moves (`action:'reschedule'`, same wall-clock slot on the new
+  date — server-validated + the client is notified via the route's existing
+  `session_rescheduled` notification), a video booking keeps a **Join →**
+  secondary, and rows that can't be moved (a client's live booking, completed
+  sessions, derived plan events) hide the Reschedule button instead of lying.
+  Signed-out demo behavior unchanged.
+- Verified: JSX parse + `node --check` · `npm test` 0 fail · LF.
+
+### 2026-07-13 — Beat layers L + M: signal lock + static calm (owner picks off the backgrounds board)
+
+- **The last two optional beat layers ship** (backgrounds board frames L + M —
+  the "K" waveform bed shipped #1683): **L · signal lock** — four tiny teal
+  bars beside the tuning dial's ruler (heights 5/7/9/11, staggered 0.22s) that
+  light exactly while the needle sits on the station (`bsWireLockOn` shares
+  the dial's 13s `bsWireTune` timeline, lit 44–58%); **M · static calm** —
+  34 sparse static flecks (`BSWireStatic`, seeded-LCG positions — same field
+  every launch, no Math.random) that shimmer while the needle hunts and
+  settle to near-nothing once it locks (`bsWireFlick`, settled from 42%).
+- Both layers ride the beat AND `BSWireHold` (the mirror contract from
+  #1682); the lock lives inside `BSWireDial` so both surfaces inherit it.
+  **Timing note (by construction):** the ~3.5s beat shows a slice of the
+  shared 13s cycle — the lock/settle payoff lands on the HOLD and slow
+  boots, same as the needle's station landing.
+- **Reduced motion**: bars LIT (locked) + static settled (0.05) — both
+  browser-verified via `emulateMedia` on the built bundle, along with the
+  live composition (34 dots + 4 bars beside the dial, x 334–348 @ 390w — no
+  edge clipping).
+- Decorative only (aria-hidden, pointer-events none); stage machinery
+  untouched. No route/migration.
+
 ### 2026-07-13 — The share card PR B: web dashboard parity (#1700 spec · #1701 build)
 
 - **Closes the share-card wave's web half** (parent spec #1692's "PR B (later)"
