@@ -61,7 +61,11 @@
   // renders for a real, non-zero count — never a placeholder number.
   function unreadCount() {
     try {
-      if (!window.clientChatTabs) return null;
+      // clientChatTabs on the marketing pages is the STATIC DEMO thread set
+      // (clientChatThreads.jsx) - its unread numbers are fiction. Only count
+      // threads a live, session-backed surface has stamped with __live=true
+      // (nothing does yet on the marketing site, so no badge shows there).
+      if (!window.clientChatTabs || window.clientChatTabs.__live !== true) return null;
       return window.clientChatTabs.reduce(function (total, tab) {
         return total + (tab.threads || []).reduce(function (sum, thread) {
           return sum + (Number(thread.unread) || 0);
