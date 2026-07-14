@@ -3026,6 +3026,62 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return compact;
   })();
 
+  // ★ THE LEAD, rail edition (concept B — owner pick off the 2026-07-13 home
+  // board): the page's single elevated moment now threads INLINE on the
+  // slate's rail — at its time slot when the lead is the workout or a meal
+  // (timeLabel), at the rail's head when it's untimed (engine / habits / done
+  // leads). The BSPlate chrome died with the pick; head, sub, compact move
+  // list, meal macros, CTAs, and the hero-home tour anchor carry over
+  // verbatim from the old standalone plate.
+  const _leadBlock = (timeLabel) => !todayDirective ? null : (
+    <div data-tour="hero-home" style={{ padding: `11px ${t.padX}px 13px`, borderBottom: `1px solid ${t.HAIR}` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>
+          {timeLabel
+            ? `${timeLabel} · ${tr('home:lead.railHeader', { defaultValue: 'Your move' })}`
+            : (todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' }))}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_dowShort(_now)} {_now.getDate()}</span>
+      </div>
+      <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
+      {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+      {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
+        <div style={{ marginTop: 9 }}>
+          {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
+            <div
+              key={`lead-${n}-${i}`}
+              onClick={() => setShowWorkoutPreview(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
+              role="button"
+              tabIndex={0}
+              aria-label={tr('home:lead.openWorkoutPreview', { defaultValue: '{name} — open workout preview', name })}
+              style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+              </div>
+              {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+            </div>
+          ))}
+        </div>
+      )}
+      {todayDirective.leadMeal && todayDirective.leadMeal.kcal > 0 && (
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
+          {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
+        </div>
+      )}
+      {todayDirective.cta && (
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+          {todayDirective.leadIsWorkout && (
+            <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
   // Do not add a plate. If it can't be a row, it lives on a tab and gets at
   // most a row-door.
@@ -3166,57 +3222,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
 
-      {/* ★ THE LEAD — the single elevated hero, the ONLY BSPlate on the page.
-          One right action for today: the signal engine's top flag when it has
-          one, else the plan's next move. Lead=workout carries the compact
-          3-move list + the first-person CTA + a quiet mono PREVIEW → link into
-          the existing workout preview. Lead=meal carries title + macros + its
-          CTA. Done-state ("You kept your word today.") still renders — the
-          fold is never empty. */}
-      {todayDirective && (
-        <BSPlate c={todayDirective.c} tick bracket pad="13px 18px 13px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' })}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_dowShort(_now)} {_now.getDate()}</span>
-          </div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
-          {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
-          {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
-            <div style={{ marginTop: 9 }}>
-              {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
-                <div
-                  key={`lead-${n}-${i}`}
-                  onClick={() => setShowWorkoutPreview(true)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={tr('home:lead.openWorkoutPreview', { defaultValue: '{name} — open workout preview', name })}
-                  style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
-                  </div>
-                  {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
-                </div>
-              ))}
-            </div>
-          )}
-          {todayDirective.leadMeal && todayDirective.leadMeal.kcal > 0 && (
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
-              {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
-            </div>
-          )}
-          {todayDirective.cta && (
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
-              {todayDirective.leadIsWorkout && (
-                <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
-              )}
-            </div>
-          )}
-        </BSPlate>
-      )}
+      {/* ★ THE LEAD renders INSIDE the slate's rail now (concept B) — see
+          _leadBlock above. Timed leads (workout / meal) thread at their slot;
+          untimed leads (engine / habits / done) sit at the rail's head. The
+          fold is never empty: the done-state block still renders. */}
 
       {/* The day's plan beneath the move. The slate header below (its kicker
           shows upNextLabel on non-today views) is the single label surface now —
@@ -3288,13 +3297,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         selMeals.forEach((m) => {
           const logged = !!mealLogged[m.id];
           const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
+          // The lead meal IS the inline lead block at its slot (concept B) —
+          // never a second row for the same subject.
+          if (isLead) { rows.push({ key: 'slate-lead', time: fmtAt(mealMinutes(m)), _min: mealMinutes(m), lead: true }); return; }
           rows.push({
             key: `meal-${m.id}`,
             time: fmtAt(mealMinutes(m)),
+            _min: mealMinutes(m),
             tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
             title: m.title,
             status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : ''}`.replace(/ · $/, ''),
-            right: isLead ? 'lead' : mealTick(m, logged),
+            right: mealTick(m, logged),
             onOpen: () => setPreviewMeal(m),
             ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
           });
@@ -3309,14 +3322,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // label: selWorkout.title verbatim, and breaks silently the moment that
         // coupling drifts).
         const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
-        if (selWorkout) {
+        if (selWorkout && workoutIsLead) {
+          // The lead workout IS the inline lead block at its slot (concept B).
+          rows.push({ key: 'slate-lead', time: fmtAt(WORKOUT_AT), _min: WORKOUT_AT, lead: true });
+        } else if (selWorkout) {
           rows.push({
             key: 'slate-training',
             time: fmtAt(WORKOUT_AT),
+            _min: WORKOUT_AT,
             tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: rust,
             title: selWorkout.title,
             status: _wkShortMeta,
-            right: workoutIsLead ? 'lead' : (
+            right: (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
                 <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
@@ -3403,6 +3420,34 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // own block inside the run-sheet (owner request) — meals/training stay
         // unlabeled (their time + tag columns already identify them).
         const firstHabitIdx = sortedRows.findIndex((r) => String(r.key).startsWith('habit-'));
+        // ── NOW tick (concept B, today only): sits between the last passed
+        // timed row and the first upcoming one. Rows without a real `_min`
+        // (coach pushes, habits, rest day) never anchor it, and untimed rows
+        // sort after timed ones, so the marker can never land inside the
+        // habits block.
+        const nowMin = _now.getHours() * 60 + _now.getMinutes();
+        const isTodayView = selIdx === todayIdx;
+        let nowIdx = -1;
+        if (isTodayView) {
+          nowIdx = sortedRows.findIndex((r) => typeof r._min === 'number' && r._min > nowMin);
+          if (nowIdx === -1) {
+            let lastTimed = -1;
+            sortedRows.forEach((r, i) => { if (typeof r._min === 'number') lastTimed = i; });
+            nowIdx = lastTimed === -1 ? -1 : lastTimed + 1;
+          }
+        }
+        const nowMarker = isTodayView && nowIdx !== -1 ? (
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9, padding: `6px ${t.padX}px`, minHeight: 24 }} aria-label={`${tr('home:slate.now', { defaultValue: 'Now' })}, ${fmtAt(nowMin)}`}>
+            <span aria-hidden style={{ position: 'absolute', left: 4, top: '50%', width: 9, height: 9, marginTop: -4.5, borderRadius: '50%', background: teal }}>
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: teal, ...(bsSdReduced() ? { opacity: 0.2 } : { animation: 'bsHomeNowPulse 2.4s ease-in-out infinite' }) }} />
+            </span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('home:slate.now', { defaultValue: 'Now' })} · {fmtAt(nowMin)}</span>
+            <span aria-hidden style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${teal}55, transparent)` }} />
+          </div>
+        ) : null;
+        const renderRow = (r, i) => (r.lead
+          ? <React.Fragment key="slate-lead">{_leadBlock(r.time)}</React.Fragment>
+          : <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />);
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -3415,12 +3460,30 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <div style={{ padding: `0 ${t.padX}px 4px` }}>
               <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
             </div>
-            <div>
+            <div style={{ position: 'relative' }}>
+              {/* THE RAIL (concept B): one heat line threading the day — the
+                  inline lead + the NOW tick anchor to it. Sits inside the rows'
+                  left gutter (t.padX ≥ 18 at every density), so nothing shifts. */}
+              {sortedRows.length > 0 && (
+                <span aria-hidden style={{ position: 'absolute', left: 8, top: 2, bottom: 6, width: 2, background: `linear-gradient(180deg, ${teal}, ${teal}22)` }} />
+              )}
+              {todayDirective && !todayDirective.leadIsWorkout && !todayDirective.heroMealId && _leadBlock(null)}
               {sortedRows.length === 0 ? (
                 <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{tr('home:slate.empty', { defaultValue: 'Nothing scheduled for today.' })}</div>
-              ) : (firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx)).map((r, i) => (
-                <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
-              ))}
+              ) : (() => {
+                const pre = firstHabitIdx === -1 ? sortedRows : sortedRows.slice(0, firstHabitIdx);
+                return (
+                  <>
+                    {pre.map((r, i) => (
+                      <React.Fragment key={`slot-${r.key}`}>
+                        {i === nowIdx && nowMarker}
+                        {renderRow(r, i)}
+                      </React.Fragment>
+                    ))}
+                    {nowIdx === pre.length && nowMarker}
+                  </>
+                );
+              })()}
               {/* The tour's hero-habits anchor is THIS sub-block — narrowed from
                   the whole slate (the spotlight used to swallow the meal +
                   training rows too) to just the habits head, rows, and states. */}
@@ -11820,6 +11883,7 @@ function bsInjectBsHomeCss() {
       @keyframes bsHomeRowIn { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
       @keyframes bsHomeIndexIn { 0% { opacity: 0; } 100% { opacity: 1; } }
       @keyframes bsHomeSliverIn { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+      @keyframes bsHomeNowPulse { 0%, 100% { transform: scale(1); opacity: 0.22; } 50% { transform: scale(2); opacity: 0.5; } }
     }
   `;
   document.head.appendChild(el);
