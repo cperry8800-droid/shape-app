@@ -63,9 +63,18 @@ over verbatim. This is the #1575 "Meter" page re-clothed, not re-plumbed.
 - Set rows: done rows dim with a teal ✓; the ACTIVE row carries a 3px teal
   spine + bold figures; pending rows quiet mono. (Row tap selects the set —
   the band's readout follows the selection.)
-- `＋ ADD SET` text-action · the START-SET CTA (color: owner pick from the
-  board's C-1..C-4 strip; **pending — build defaults to C-4 bright teal
-  `#34d6c5` with dark ink text**, one-line change when picked) ·
+- **Full set editing (owner requirement — nothing today's grid can do gets
+  lost):** EVERY row's weight / reps / RPE figures are tap-to-edit in place
+  (numeric keyboard, same state writes as today's underline inputs — done,
+  active, and pending rows alike); the band's big readout is the same state,
+  so an edit in either place reflects in both. `＋ ADD SET` appends (existing
+  handler); the SELECTED row carries a quiet `× REMOVE` text-action on its
+  right (rust) that deletes that set — never shown on done rows with logged
+  data unless tapped through the existing confirm primitive
+  (`window.bsAskConfirm`), so a logged set can't vanish on a stray tap.
+- The START-SET CTA (color: owner pick from the board's C-1..C-4 strip;
+  **pending — build defaults to C-4 bright teal `#34d6c5` with dark ink
+  text**, one-line change when picked) ·
   `← PREVIOUS` (quiet ink) / `NEXT: {exercise} →` (teal) text-actions.
 - Feel/effort review + share block: unchanged (quiet form, two-tier rule).
 
