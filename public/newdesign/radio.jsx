@@ -461,7 +461,7 @@ function RadioPage() {
           content: url('/shape-logo-white.png');
         }
         .radio-page footer .shape-footer-grid img.shape-brand-logo {
-          content: url('/shape-logo-new-white.png?v=4');
+          content: url('/shape-logo-nav-white.png');
         }
       `}</style>
     </div>

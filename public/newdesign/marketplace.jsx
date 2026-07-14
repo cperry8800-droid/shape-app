@@ -544,7 +544,7 @@ function FeaturedCity() {
 
 function Marketplace() {
   const [tab, setTab] = useS("Trainer");
-  const bgSrc = tab === "Trainer" ? "/Training%202.png" : "/Nutrition%203.png";
+  const bgSrc = tab === "Trainer" ? "/Training-2.webp" : "/Nutrition-3.webp";
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: `url('${bgSrc}')`, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9, transition: "background-image 0.4s ease" }} />
