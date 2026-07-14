@@ -307,6 +307,7 @@
   "fx.footRadioOn": "— hiệu ứng hiển thị trên mọi màn hình khi radio đang phát",
   "fx.footRadioOff": "— bật Shape Radio từ Trang chủ để xem hiệu ứng",
   "fx.tapPreview": "Radio tắt — chạm một chế độ để xem trước",
+  "fx.offHint": "Hiệu ứng tắt — chạm một chế độ để xem trước",
   "fx.footTapPreview": "— chạm một chế độ để xem trước · chạy khi radio phát",
   "fx.footPreview": "— đang xem trước trong vài giây",
   "fx.footReduced": "— chế độ giảm chuyển động đang bật nên hiệu ứng tắt",

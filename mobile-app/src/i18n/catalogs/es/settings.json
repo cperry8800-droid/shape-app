@@ -307,6 +307,7 @@
   "fx.footRadioOn": "— los efectos se muestran sobre cada pantalla mientras suena la radio",
   "fx.footRadioOff": "— enciende Shape Radio desde Inicio para ver el efecto",
   "fx.tapPreview": "Radio apagada: toca un modo para previsualizarlo",
+  "fx.offHint": "Efectos apagados: toca un modo para previsualizarlo",
   "fx.footTapPreview": "— toca un modo para previsualizarlo · se activa siempre que suena la radio",
   "fx.footPreview": "— vista previa durante unos segundos",
   "fx.footReduced": "— la reducción de movimiento está activada, los efectos permanecen apagados",

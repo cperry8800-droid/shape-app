@@ -307,6 +307,7 @@
   "fx.footRadioOn": "— les effets s'affichent par-dessus chaque écran pendant la diffusion",
   "fx.footRadioOff": "— activez Shape Radio depuis l'Accueil pour voir l'effet",
   "fx.tapPreview": "Radio éteinte — touchez un mode pour l'aperçu",
+  "fx.offHint": "Effets désactivés — touchez un mode pour l'aperçu",
   "fx.footTapPreview": "— touchez un mode pour l'aperçu · actif dès que la radio joue",
   "fx.footPreview": "— aperçu pendant quelques secondes",
   "fx.footReduced": "— la réduction des animations est activée, les effets restent désactivés",

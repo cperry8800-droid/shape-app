@@ -307,6 +307,7 @@
   "fx.footRadioOn": "— efektler radyo çalarken her ekranın üzerinde görünür",
   "fx.footRadioOff": "— efekti görmek için Ana Sayfadan Shape Radio'yu aç",
   "fx.tapPreview": "Radyo kapalı — önizleme için bir moda dokun",
+  "fx.offHint": "Efektler kapalı — önizleme için bir moda dokun",
   "fx.footTapPreview": "— önizleme için bir moda dokun · radyo çaldığında çalışır",
   "fx.footPreview": "— birkaç saniye önizleniyor",
   "fx.footReduced": "— hareketi azaltma açık, efektler kapalı kalır",

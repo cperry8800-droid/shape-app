@@ -307,6 +307,7 @@
   "fx.footRadioOn": "— efek muncul di atas setiap layar saat radio diputar",
   "fx.footRadioOff": "— nyalakan Shape Radio dari Beranda untuk melihat efeknya",
   "fx.tapPreview": "Radio mati — ketuk mode untuk pratinjau",
+  "fx.offHint": "Efek mati — ketuk mode untuk pratinjau",
   "fx.footTapPreview": "— ketuk mode untuk pratinjau · berjalan saat radio menyala",
   "fx.footPreview": "— pratinjau selama beberapa detik",
   "fx.footReduced": "— gerakan dikurangi aktif, efek tetap mati",

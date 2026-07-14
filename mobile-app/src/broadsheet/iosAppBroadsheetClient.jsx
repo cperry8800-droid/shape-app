@@ -22431,6 +22431,24 @@ const BS_ACCENT_SWATCH = {
   rose: ['#b8285f','#f2749f'], white: ['#ffffff','#ffffff'], black: ['#000000','#000000'],
 };
 
+// Mirrors makePalette's ink-override contrast guard (WCAG relative luminance,
+// fallback below 3:1) so an ink PREVIEW tile can never render an unreadable
+// combination the applied theme would silently correct — the tile shows the
+// ink that will actually apply.
+function bsInkPreviewHex(sw, paperHex, paperInk) {
+  if (!sw) return paperInk;
+  try {
+    const rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const lum = ([r, g, b]) => {
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const la = lum(rgb(sw)), lb = lum(rgb(paperHex));
+    const contrast = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    return contrast < 3 ? paperInk : sw;
+  } catch (e) { return sw; }
+}
+
 // Texture options — KEEP-IN-SYNC with makeTexture in iosAppBroadsheet.jsx and
 // the Tweaks-panel texture list in iosAppBroadsheetMain.jsx.
 const BS_TEXTURE_OPTS = [
@@ -23832,7 +23850,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   <OptCell key={k} on={!customOn && (tweaks.inkOverride || 'default') === k} onClick={() => setTweak('inkOverride', k)}
                     label={tr('settings:' + ik, { defaultValue: lbl })}>
                     <span style={{ position: 'absolute', inset: 0, background: paperEntry[2], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: sw || paperEntry[3] }}>Aa</span>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: bsInkPreviewHex(sw, paperEntry[2], paperEntry[3]) }}>Aa</span>
                     </span>
                   </OptCell>
                 ))}
@@ -23844,7 +23862,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   display: 'flex', flexDirection: 'column', minWidth: 0, background: 'transparent',
                 }}>
                   <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, background: paperEntry[2], overflow: 'hidden', flexShrink: 0 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? tweaks.inkOverride : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? bsInkPreviewHex(tweaks.inkOverride, paperEntry[2], paperEntry[3]) : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
                     {customOn && (
                       <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: t.ACCENT, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
                     )}
@@ -23862,7 +23880,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 </label>
               </OptGrid>
               <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
-                {tr('settings:ink.contrastNote', { defaultValue: "An ink that can't read on this paper falls back automatically." })}
+                {tr('settings:ink.contrastNote', { defaultValue: "An ink that can't be read on this paper falls back automatically." })}
               </div>
             </>
           );
@@ -23928,7 +23946,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div>
           <BSEyebrow color={t.ACCENT}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? tr('settings:fx.active', { mode: r.fxMode, defaultValue: 'Active · {mode}' }) : tr('settings:fx.tapPreview', { defaultValue: 'Radio off — tap a mode to preview' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{(() => {
+            // The subtitle interpolates the LOCALIZED mode label (never the raw
+            // key), and only claims "Active" when effects are actually on.
+            const fxModeLabel = {
+              subtle: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),
+              immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
+              hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
+            }[r.fxMode];
+            if (r.radioOn && fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
+            if (r.radioOn) return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
+            return tr('settings:fx.tapPreview', { defaultValue: 'Radio off — tap a mode to preview' });
+          })()}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
