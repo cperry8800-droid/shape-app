@@ -206,12 +206,21 @@ function eventsFor(role, t) {
 // ═══════════════════════════════════════════════════════════
 // Map a server /api/calendar event (date 'YYYY-MM-DD', time 'HH:MM') to the
 // component's shape ({ day, time, dur, kind, title, sub, accent, ... }).
-const _BS_CAL_ACCENTS = (t) => ({
-  WORKOUT: t.AMBER, TRN: t.AMBER, SES: t.AMBER, SESSION: t.AMBER,
-  MEAL: t.BLUE, CHECKIN: t.GREEN, CHK: t.GREEN,
-  CONSULT: t.RUST, CON: t.RUST, REVIEW: t.RUST, PLAN: t.RUST, ADMIN: t.RUST, ADM: t.RUST,
-  REST: t.INK50,
-});
+// One kind → color map, on the HOUSE tokens (owner-approved calendar pass,
+// 2026-07-13): training rust · meals teal · check-in blue · consult/plan gold —
+// the same language the home slate tags and the day-list spines speak, so the
+// grid dots, legend, and rows can never disagree. The calendar's old private
+// palette (workout amber / meals blue / check-in green) died here.
+const bsCalTeal = (t) => (t.isLight ? '#0a8f87' : '#34d6c5');
+const _BS_CAL_ACCENTS = (t) => {
+  const teal = bsCalTeal(t);
+  return {
+    WORKOUT: t.RUST, TRN: t.RUST, SES: t.RUST, SESSION: t.RUST,
+    MEAL: teal, CHECKIN: t.BLUE, CHK: t.BLUE,
+    CONSULT: t.AMBER, CON: t.AMBER, REVIEW: t.AMBER, PLAN: t.AMBER, ADMIN: t.AMBER, ADM: t.AMBER,
+    REST: t.INK50,
+  };
+};
 function _bsMapServerCalEvent(ev, t) {
   const [, , dd] = (ev.date || '').split('-');
   const accents = _BS_CAL_ACCENTS(t);
@@ -460,7 +469,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 // ────────── MONTH VIEW
 function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const teal = bsCalTeal(t);
   const MONTHS3 = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const prevAbbr = MONTHS3[(viewMonth + 11) % 12];
   const nextAbbr = MONTHS3[(viewMonth + 1) % 12];
@@ -485,6 +494,11 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 
   const monthTotal = events.length;
   const doneCount = events.filter(e => e.state === 'done').length;
+  // Display color resolves through the ONE kind map (house tokens) with the
+  // event's stored accent as the fallback — demo arrays keep their authored
+  // accents in data, but every rendered dot/spine speaks the house language.
+  const kindAccent = _BS_CAL_ACCENTS(t);
+  const accentOf = (e) => kindAccent[e.kind] || e.accent || t.RUST;
 
   return (
     <>
@@ -506,36 +520,30 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         ))}
       </div>
 
-      {/* Grid — clean, compact day cells */}
+      {/* Grid — UNBOXED (owner-approved pass, 2026-07-13): the 31 bordered
+          cells die for hairline week rows of bare day numerals + kind dots.
+          Selected day = a filled accent disc; today (unselected) = an accent
+          numeral. The per-cell count numeral is gone — the dots carry the
+          kinds visually, and the aria-label carries the count. */}
       <div style={{ padding: `0 ${t.padX}px` }}>
         {weeks.map((row, ri) => (
-          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
             {row.map((d, ci) => {
-              if (d == null) return <div key={ci} />;
+              if (d == null) return <div key={ci} aria-hidden />;
               const isToday = d === visualToday;
               const isSel = d === selDay;
               const dayEv = eventsByDay[d] || [];
-              const dotsAccents = dayEv.slice(0, 4).map(e => e.accent);
+              const dotsAccents = dayEv.slice(0, 4).map(accentOf);
               return (
-                <button key={ci} onClick={() => setSelDay(d)} style={{
-                  borderRadius: 4, position: 'relative',
-                  border: isSel ? `1.5px solid ${teal}` : isToday ? `1px solid ${teal}88` : `1px solid ${t.HAIR}`,
-                  background: isSel ? `${teal}1c` : t.PAPER2,
-                  color: t.INK, boxSizing: 'border-box', overflow: 'hidden',
-                  aspectRatio: '1 / 1', padding: '5px 5px 4px', textAlign: 'left', cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 3,
-                  fontFamily: t.DISPLAY,
-                }}>
-                  {isSel && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: teal }} />}
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2 }}>
-                    <span style={{ fontWeight: t.W.display, fontSize: 14, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isToday ? teal : t.INK }}>{d}</span>
-                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50, letterSpacing: '0.02em' }}>{dayEv.length}</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 2.5, height: 5, overflow: 'hidden' }}>
+                <button key={ci} type="button" onClick={() => setSelDay(d)}
+                  aria-label={`${monthName} ${d}${dayEv.length ? `, ${dayEv.length} ${dayEv.length === 1 ? 'item' : 'items'}` : ''}${isSel ? ', selected' : ''}${isToday ? ', today' : ''}`}
+                  style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '7px 0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 13, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', background: isSel ? teal : 'transparent', color: isSel ? t.PAPER : (isToday ? teal : t.INK70) }}>{d}</span>
+                  <span style={{ display: 'flex', gap: 2.5, height: 4, overflow: 'hidden' }}>
                     {dotsAccents.map((c, k) => (
-                      <span key={k} style={{ width: 4.5, height: 4.5, borderRadius: 1, background: c, display: 'inline-block', flex: '0 0 auto' }} />
+                      <span key={k} style={{ width: 4, height: 3.5, borderRadius: 1, background: c, display: 'inline-block', flex: '0 0 auto' }} />
                     ))}
-                  </div>
+                  </span>
                 </button>
               );
             })}
@@ -543,19 +551,27 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         ))}
       </div>
 
-      {/* Legend */}
-      <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
-        {[['Workout', t.AMBER], ['Meals', t.BLUE], ['Check-in', t.GREEN], ['Consult', t.RUST]].map(([l, c]) => (
+      {/* Legend — derived from the SAME kind map the dots + spines resolve
+          through, so the three can never disagree. */}
+      <div style={{ padding: `10px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+        {[['Training', 'TRN'], ['Meals', 'MEAL'], ['Check-in', 'CHECKIN'], ['Consult', 'CONSULT']].map(([l, k]) => (
           <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: c, display: 'inline-block' }} />{l}
+            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: kindAccent[k], display: 'inline-block' }} />{l}
           </span>
         ))}
       </div>
 
-      {/* Month tally — items this month, done vs ahead */}
+      {/* Month register — figure-over-label columns (was a one-line tally) */}
       {monthTotal > 0 && (
-        <div style={{ padding: `0 ${t.padX}px 14px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-          {monthTotal} this month · <span style={{ color: teal, fontWeight: 800 }}>{doneCount} done</span> · {monthTotal - doneCount} ahead
+        <div style={{ margin: `4px ${t.padX}px 14px`, borderTop: `2px solid ${t.INK}`, paddingTop: 8, display: 'flex' }}>
+          {/* "Open", not "Ahead" — a browsed past month's never-completed
+              events are open items, not upcoming ones. */}
+          {[[monthTotal, 'This month', t.INK], [doneCount, 'Done', teal], [monthTotal - doneCount, 'Open', t.INK]].map(([v, l, c]) => (
+            <div key={l} style={{ flex: 1 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, letterSpacing: '-0.03em', color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{v}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -594,10 +610,10 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                       <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? `${e.dur} MIN` : ''}</div>
                     </div>
                     <div style={{ minWidth: 0, display: 'flex', alignItems: 'stretch', gap: 11 }}>
-                      <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: e.accent, flex: '0 0 auto' }} />
+                      <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: accentOf(e), flex: '0 0 auto' }} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: e.accent, textTransform: 'uppercase' }}>{e.kind}</span>
+                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: accentOf(e), textTransform: 'uppercase' }}>{e.kind}</span>
                           {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>✓ DONE</span>}
                           {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>● NOW</span>}
                           {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>UP NEXT</span>}
