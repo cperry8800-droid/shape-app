@@ -24,9 +24,9 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string; seg: string }> {
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string; seg: string; video: unknown }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
@@ -44,6 +44,10 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       // Self-authored segment row (a run/ride/swim leg or a Hyrox station) — the
       // free descriptor the deck renders in place of a load ("10 mi · Z2").
       seg: e.seg != null ? String(e.seg) : '',
+      // The trainer's per-exercise form clip ({url,type,name} from the #1577
+      // ＋CLIP rails) rides through untouched — the live session's ▶ How-to
+      // chip gates on it (honest-absent when the block carries none).
+      video: e.video ?? null,
     }));
 }
 
