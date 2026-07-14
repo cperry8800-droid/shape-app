@@ -450,6 +450,34 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Cockpit/Split PR B: the meal logger + "Logged." join the instrument (the wave closes)
+
+- **The logger** (`BSLogMealFlow`): the band docks the header (× Cancel ·
+  LOG MEAL · time), the meal title (Saira caps, cream), the **one-tap "Ate it
+  as planned" as the band's glowing primary row** (pristine gating verbatim;
+  adjusted → the ↺ reset line, cream hairline), and **the live tally** —
+  glowing THIS-MEAL kcal + P/C/F + `DAY {so-far}/{target}` (honest `—`
+  targets), updating as the record below is corrected. **THE TALLY station
+  dissolved** (no duplicated register); `DayTotals` died with it. Below the
+  teal seam: CORRECT THE RECORD unchanged, DISPATCH's note goes underline
+  grammar; the sticky log bar's CTA → the C-1 ink press block (clipped).
+- **Both "Logged." confirmations** (the flow's own + the shared
+  `BSMealLogged`): the filed stamp — `MEAL · FILED {time}` eyebrow, the giant
+  glowing kcal, `KCAL · {p}P · LOGGED ✓`, DAY SO FAR registers (teal cal ·
+  amber protein) + a 10-segment strip on the day fraction, the +10 award chip
+  in-band only when granted → seam → the ink Done CTA on paper. **← Back /
+  ← Undo ride the band's universal top-left slot** (the bottom copies died).
+- **Honesty fix folded in**: `BSMealLogged`'s hardcoded day bases (1568 kcal /
+  118P) rendered to SIGNED-IN members too — its DAY SO FAR block is now
+  signed-out preview only (this shared confirmation has no live day feed; the
+  flow's own confirmation carries the real `daySoFar`/`dayTargets`).
+- Browser-verified on the dev server: preview → LOG NOW → the band + live
+  tally → one-tap → the filed stamp (screenshot-checked against the board).
+- Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+  The Cockpit/Split wave is CODE-COMPLETE (spec #1719 · PR A session · PR B
+  food) — open: the owner on-device pass (papers × reduced motion × a real
+  coached plan with a form clip · a real day's targets on the logger band).
+
 ### 2026-07-14 — Cockpit/Split PR A: the live session becomes the instrument (spec #1719)
 
 - **The Split ships on the session player** (owner picks off the round-2
