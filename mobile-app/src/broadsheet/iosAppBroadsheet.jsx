@@ -1492,20 +1492,21 @@ function BSPhone({ children }) {
 }
 
 // Expose
-// Shared compact "Back" button — ONE consistent size/style for page-level back
-// navigation across the app (top-left of a page header). Replaces the many ad-hoc
-// inline variants (pills, heavy 1px-ink boxes, borderless text) so they all match.
+// Shared compact "Back" — ONE consistent style for page-level back navigation
+// across the app: a plain mono "← BACK" text-action (owner call 2026-07-13:
+// no button chrome/bubble on any back control). Replaces the many ad-hoc
+// inline variants so they all match.
 function BSBackButton({ onClick, label = 'Back', style }) {
   const t = useBS();
   return (
     <button onClick={onClick} aria-label={label} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 7,
-      padding: '4px 9px', cursor: 'pointer', color: t.INK,
-      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em',
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      background: 'transparent', border: 0,
+      padding: '8px 2px', cursor: 'pointer', color: t.INK,
+      fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em',
       textTransform: 'uppercase', lineHeight: 1, flexShrink: 0, ...style,
     }}>
-      <span aria-hidden style={{ fontSize: 12, lineHeight: 1, marginTop: -1 }}>‹</span>{label}
+      <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>{label}
     </button>
   );
 }
