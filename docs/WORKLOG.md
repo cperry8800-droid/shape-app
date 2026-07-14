@@ -159,7 +159,24 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-13): THE WORK DOMAIN WAVE — COMPLETE** (brainstorm →
+> **Latest (2026-07-13 evening): THE DESIGN REFRESH — 5 PRs, all merged**
+> (owner-driven from on-device screenshots): **#1709** splash clean ground
+> (ticker/waveform/static pattern behind the mark deleted) · **#1711** every
+> back button app-wide → the plain mono **← BACK** text-action · **#1710**
+> home = **Concept B "The Rail"** (owner pick off a 4-concept board — lead
+> inline at its time slot on a 2px teal rail, breathing NOW tick on a live
+> minute clock, unboxed week strip kept) · **#1712** calendar month view
+> unboxed on the house kind-colors (all three roles via the shared
+> BSCalendarScreen) · **#1713 ⚠ SAIRA IS NOW `t.DISPLAY`** (the wordmark's
+> face on every title; the bundled variable-font weights were declared
+> static 100–400 — fixed to `font-weight: 100 900`, so real bold at every
+> title weight). Session handoff:
+> **[`docs/HANDOFF-2026-07-13b.md`](HANDOFF-2026-07-13b.md)** (also covers
+> the same-day coach-tools sweep #1702–#1708). Open: the OWNER on-device
+> pass (splash · ← BACK · home rail · calendar both account types · Saira
+> titles across papers).
+>
+> **Prior (2026-07-13): THE WORK DOMAIN WAVE — COMPLETE** (brainstorm →
 > shipped in one day; owner adds: work goal area · milestone Shape Score
 > points · website parity on every PR). **Spec #1694 + PR A #1696 + PR B
 > #1697 + PR C #1698 all merged**; BOTH migrations (`habit-domain` ·
