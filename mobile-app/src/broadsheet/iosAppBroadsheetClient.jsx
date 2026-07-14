@@ -14183,11 +14183,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
           <BSHeaderTools onProfile={onProfile} />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
-          <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-            {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
-          </h1>
+        <div style={{ minWidth: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
+            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
+              {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
+            </h1>
+          </div>
+          {/* The feed's viewing lens rides the title row, right-aligned (owner
+              call 2026-07-14) — page-level control, out of the chip stack. */}
+          {tab === 'feed' && filter === 'COMMUNITY' && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, paddingBottom: 2 }}>
+              {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
+              {bsSubTab({ key: 'following', on: feedMode === 'following', color: TEALB, onClick: () => switchFeedMode('following'), label: 'Following' })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -14560,15 +14570,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* Viewing lens: UNIVERSAL (everyone's public activity) / FOLLOWING
-                  (people you follow, incl. their followers-tier posts). */}
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `2px ${t.padX}px 4px` }}>
-                {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
-                {bsSubTab({ key: 'following', on: feedMode === 'following', color: TEALB, onClick: () => switchFeedMode('following'), label: 'Following' })}
-              </div>
-              {/* Activity-type filter — a real logged run files under Runs, a
-                  stamped new best under PRs (buckets non-exclusive by design). */}
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: `0 ${t.padX}px 4px` }}>
+              {/* The UNIVERSAL/FOLLOWING lens moved up onto the Community title
+                  row (owner call 2026-07-14) — the feed body carries only the
+                  type chips, distributed evenly across the full row width. */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `2px ${t.padX}px 4px` }}>
                 {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition'], ['milestones', 'Milestones']].map(([k, label]) =>
                   bsSubTab({ key: k, on: feedType === k, color: TEALB, onClick: () => setFeedType(k), label }))}
               </div>
@@ -22881,11 +22886,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   // Line icons for the section cards.
   const HubCard = ({ icon, title, summary, onClick, accent, last }) => (
+    // No left spine — rows sit flush at the left margin (owner call 2026-07-14);
+    // the accent survives on the title color (Account actions stays rust).
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 13,
-      padding: '13px 2px 13px 11px', cursor: 'pointer', textAlign: 'left',
+      padding: '13px 2px', cursor: 'pointer', textAlign: 'left',
       border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`,
-      borderLeft: `3px solid ${accent || bsTHexA(t.INK, 0.16)}`, background: 'transparent',
+      background: 'transparent',
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: accent || t.INK, letterSpacing: '-0.02em' }}>{title}</span>

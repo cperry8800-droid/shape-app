@@ -450,6 +450,21 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Feed header + Settings polish (owner screenshots, round 2)
+
+- **Settings hub rows sit flush left**: the 3px accent spine on `HubCard`
+  (2026-06-12 instrument pass) dies with its 11px left inset — titles start at
+  the page gutter; the accent survives on the title color (Account actions
+  stays rust).
+- **Feed type chips distribute evenly**: the All/Workouts/Runs/PRs/Nutrition/
+  Milestones row goes `justify-content: space-between` across the full width
+  (was left-packed on a fixed gap).
+- **The UNIVERSAL/FOLLOWING lens moved onto the Community title row**,
+  right-aligned beside the serif title (owner: "these need to be somewhere
+  else") — it's a page-level viewing lens, not a content filter, so it leaves
+  the chip stack; renders only on the COMMUNITY filter view where it applies.
+- Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+
 ### 2026-07-14 — Universal back-button placement (one spot, app-wide)
 
 - **THE RULE (owner call: "universal placing for the back buttons"):** the back
