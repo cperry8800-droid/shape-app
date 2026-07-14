@@ -455,10 +455,53 @@
     if (tries > 60) { openFallbackPanel(); return; }
     window.setTimeout(function () { waitAndOpen(tries + 1); }, 80);
   }
+  // On deployed pages the JSX is precompiled (scripts/build-newdesign.mjs) and
+  // window.Babel does not exist — load the compiled files from the injected
+  // window.__ndCompiled manifest instead. async=false keeps insertion order
+  // (they share globals top-to-bottom, same as the babel path).
+  function bootCompiledChat() {
+    var map = window.__ndCompiled;
+    var names = ["pageShell.jsx", "clientChatThreads.jsx", "chatWidget.jsx"];
+    var pending = 0;
+    function mountWhenReady() {
+      try {
+        var r = document.getElementById("shape-rich-chat-root");
+        if (r && window.ChatWidget) ReactDOM.createRoot(r).render(React.createElement(window.ChatWidget, { tabs: window.clientChatTabs }));
+      } catch (e) {}
+    }
+    names.forEach(function (name) {
+      var stem = name.replace(/\.jsx$/, "");
+      // Already on the page (as its compiled nd/<stem>.js or any src of the
+      // same stem)? Re-evaling would redeclare shared top-level consts.
+      var existing = document.querySelectorAll("script[src]");
+      for (var i = 0; i < existing.length; i++) {
+        var base = (existing[i].getAttribute("src") || "").split("?")[0].split("/").pop();
+        if (base === stem + ".js" || base === name) return;
+      }
+      var sc = document.createElement("script");
+      sc.src = map[name];
+      sc.async = false;
+      sc.setAttribute("data-shape-chat", name);
+      pending++;
+      sc.onload = sc.onerror = function () { if (--pending === 0) mountWhenReady(); };
+      document.body.appendChild(sc);
+    });
+    if (pending === 0) mountWhenReady();
+    waitAndOpen(0);
+  }
   function openRichChat() {
     if (typeof window.__openChat === "function") { flushOpen(); return; }
     if (chatBootStarted) { waitAndOpen(0); return; }
     chatBootStarted = true;
+    if (window.__ndCompiled && window.React && window.ReactDOM) {
+      if (!document.getElementById("shape-rich-chat-root")) {
+        var ndRoot = document.createElement("div");
+        ndRoot.id = "shape-rich-chat-root";
+        document.body.appendChild(ndRoot);
+      }
+      try { bootCompiledChat(); } catch (e) { openFallbackPanel(); }
+      return;
+    }
     if (!(window.Babel && window.Babel.transformScriptTags && window.React && window.ReactDOM)) {
       openFallbackPanel();
       return;

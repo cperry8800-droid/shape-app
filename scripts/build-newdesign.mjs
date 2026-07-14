@@ -71,6 +71,18 @@ const STANDALONE_TAG = /[ \t]*<script[^>]*@babel\/standalone[^>]*><\/script>\r?\
 const pages = fs.readdirSync(ND).filter((f) => f.endsWith('.html'));
 let pagesTouched = 0, inlineBlocks = 0, externalTags = 0;
 
+// Pass 1: compile every externally-referenced .jsx up front, so the manifest
+// injected below is COMPLETE on every page (not just files seen so far).
+for (const page of pages) {
+  const html = fs.readFileSync(path.join(ND, page), 'utf8');
+  BABEL_TAG.lastIndex = 0;
+  for (const m of html.matchAll(BABEL_TAG)) {
+    const src = /src="([^"?]+)(?:\?[^"]*)?"/.exec(m[1]);
+    if (src) compileExternal(src[1]);
+  }
+}
+
+// Pass 2: rewrite the pages.
 for (const page of pages) {
   const abs = path.join(ND, page);
   const html = fs.readFileSync(abs, 'utf8');
@@ -95,6 +107,14 @@ for (const page of pages) {
   });
   // No text/babel left on the page — the standalone compiler can go.
   next = next.replace(STANDALONE_TAG, '');
+  // Lazy loaders (globalChatButton's rich-chat boot) inject .jsx at runtime
+  // and previously relied on window.Babel. Publish the compiled-file map so
+  // they can load the precompiled equivalents instead (they fall back to the
+  // Babel path when this manifest is absent, i.e. in local dev).
+  const manifest = JSON.stringify(Object.fromEntries(
+    [...compiledExternal].map(([jsx, e]) => [jsx, `/newdesign/${e.out}?v=${e.v}`])
+  ));
+  next = next.replace(/<script defer src="nd\//, `<script>window.__ndCompiled=${manifest};</script>\n<script defer src="nd/`);
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
   if (!CHECK) fs.writeFileSync(abs, next);
   pagesTouched++;
