@@ -569,7 +569,7 @@ function BSNowPlaying({ onOpen }) {
           <BSBeatRing bpm={r.LIVE.bpm} color={t.INK} size={28} paused={r.paused} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 900, letterSpacing: '-0.025em',
+              fontFamily: t.DISPLAY, fontSize: 15, fontWeight: t.W.display, letterSpacing: '-0.025em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.title}</div>
@@ -673,7 +673,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
           }}>♪</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
+              fontFamily: t.DISPLAY, fontSize: 16, fontWeight: t.W.display, letterSpacing: '-0.02em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.title}</div>

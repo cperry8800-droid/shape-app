@@ -450,6 +450,30 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Owner-screenshot polish batch ×7 (thin titles · flush slate · sheet + chrome)
+
+- **Saira follow-through — two titles that missed the #1716 tier**: the radio
+  now-playing bar's track title (the LIVE bar was hardcoded **900**, muted 700)
+  and the chat masthead's tab title ("Community", 700) now read `t.W.display`.
+- **Home slate goes fully flush-left**: the 44px time column is gone for EVERY
+  row (meals + training + coach pushes — habits already dropped it in #1715);
+  a row's time rides its right-side meta instead ("12:40 PM · 620 kcal" — the
+  meal slot label moved out of the meta into aria-only). Row objects KEEP their
+  `time` field — `bsHomeSlateSort` orders by the displayed string — only the
+  rendered column died; the NOW tick (anchored off `_min`) is unaffected. The
+  DO/AVOID/WORK tag tick + label step up (15×2 / 8.5px, was 13×2 / 7.5) and the
+  DAILY HABITS sub-head 8.5 → 9.5 (owner: "make these a little larger").
+- **Step-goal sheet joins the form grammar** (the weigh-in sheet's Open Ledger
+  set): gradient ledger rule under "Set your *goal.*", the boxed PAPER2 stepper
+  plate dies for a bare underline figure between squared 44px ± steppers,
+  squared preset chips (+`aria-pressed`), Cancel → underlined text-action,
+  Save → the clipped accent CTA. Logic/validation verbatim.
+- **Profile masthead corners match every other page**: the ⌕ ✎ ⚙ circles drop
+  their 0.06-alpha ink tint for the transparent paper ground (Terrain + Signal,
+  both masthead variants; `BSSearchCorner`'s `ink` variant follows).
+- **Steps history range tabs** (Week / Month / 3 Months) spaced out (gap 30 → 44).
+- Verified: JSX parse ×2 · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+
 ### 2026-07-13 — Header font thinned (Saira weight tier 700 → 600/650)
 
 - **Owner call ("thin out the header font"):** Saira (the display face since
