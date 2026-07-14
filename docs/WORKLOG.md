@@ -159,7 +159,35 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-14): THE DOING-SCREENS + APPEARANCE DAY — 7 PRs, all
+> **Latest (2026-07-14 evening): THE WEBSITE PERF + DESIGN-REVIEW WAVE — 6
+> PRs, all merged** (`main` at `2809bf64`). Owner asked for a design/flow
+> review + "reduce the delay": the root cause of slow page switches was
+> in-browser Babel compiling ~100–300KB JSX per navigation on dev-build
+> React. **#1726 the JSX precompile pipeline** —
+> `scripts/build-newdesign.mjs` in the Vercel buildCommand (the `/m/`
+> precedent) compiles 73 shared jsx + 50 inline blocks → deferred scripts in
+> `public/newdesign/nd/` (gitignored), strips Babel, `?v`=content-hash,
+> `window.__ndCompiled` manifest for the rich-chat lazy boot; CI `--check`
+> gate; **Marketplace LCP 956→273ms**. **#1727 perf diet** — production
+> React ×73 (SRI), 5–6MB heroes → 67–95KB WebP, logos → 3–4KB nav copies,
+> hover-prefetch. **#1725** dropdown close grace 500→150ms. **#1728 the CLS
+> fix** — the shared footer painted at viewport top before `#root` filled,
+> then dropped ~5,000px (the whole 0.71); `mountSiteFooter` reserves the
+> first viewport; **CLS 0.712→0.001**; + the honest chat badge (fake
+> hardcoded "24" dies; only `clientChatTabs.__live` threads count). **#1729
+> design fixes** — mobile redirect HOME-only w/ a slim GET IT banner (deep
+> links now render on phones) · SHAPE ◂ RADIO typeset (PNG dropped) ·
+> Marketplace toggle contrast · nav links 13px/0.78. **#1730 (mobile)** —
+> owner pick A off the concept board: Community's six-chip type row → mono
+> **ALL ▾** select on the role-chip row; UNIVERSAL/FOLLOWING lens
+> 10.5px/800, baseline-aligned. Gotcha for next time: **17** newdesign HTML
+> files are CRLF-tracked (not 2) — `git ls-files --eol` before any sed
+> sweep. Session handoff:
+> **[`docs/HANDOFF-2026-07-14b.md`](HANDOFF-2026-07-14b.md)**. Open: the
+> OWNER on-deploy pass (page-switch feel · deep-link banner on a phone ·
+> Community ALL ▾ + lens on device).
+>
+> **Prior (2026-07-14): THE DOING-SCREENS + APPEARANCE DAY — 7 PRs, all
 > merged** (`main` at `95949d7a`). **The Cockpit/Split wave** — the owner's
 > "entirely new, less analog" DOING screens, picked off an iterated concept
 > board: spec **#1719** · **#1720** the live session becomes the instrument
