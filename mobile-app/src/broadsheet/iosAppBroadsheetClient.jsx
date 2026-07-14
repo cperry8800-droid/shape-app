@@ -3113,7 +3113,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
         </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 0', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
       </div>
       <div style={{ padding: `0 ${t.padX}px 12px` }}>
         {/* Calendar rule with a heat needle over the selected day — the #1622
@@ -3132,7 +3132,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
             return (
               <button type="button" key={idx} onClick={() => setSelIdx(idx)}
-                aria-label={`${date.toLocaleDateString(_dateLoc, { weekday: 'long' })} ${date.getDate()}${on ? ', selected' : ''}${today ? ', today' : ''}`}
+                aria-label={`${date.toLocaleDateString(_dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}${on ? `, ${tr('home:aria.selected', { defaultValue: 'selected' })}` : ''}${today ? `, ${tr('home:aria.today', { defaultValue: 'today' })}` : ''}`}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{date.toLocaleDateString(_dateLoc, { weekday: 'narrow' }).toUpperCase()}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, letterSpacing: '-0.04em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: on || today ? t.INK : t.INK50 }}>{date.getDate()}</span>
@@ -3410,7 +3410,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ {tr('home:section.slate', { defaultValue: "Today's slate" })}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{upNextLabel}</span>
               </span>
-              <button onClick={() => goEat()} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 0', color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('common:nav.eat', { defaultValue: 'Eat' })} →</button>
+              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: teal, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('common:nav.eat', { defaultValue: 'Eat' })} →</button>
             </div>
             <div style={{ padding: `0 ${t.padX}px 4px` }}>
               <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
