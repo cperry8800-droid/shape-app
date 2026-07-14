@@ -81,10 +81,10 @@ function ShapeWord({ color, weight = 500, size = 18, letter = "0.01em", variant 
     }
   }
   const src = v === "white"
-    ? "/shape-logo-new-white.png?v=4"
+    ? "/shape-logo-nav-white.png"
     : v === "black"
-    ? "/shape-logo-new-black.png?v=4"
-    : "/shape-logo-new-white.png?v=4";
+    ? "/shape-logo-nav-black.png"
+    : "/shape-logo-nav-white.png";
   const h = Math.round(size * 1.8);
   return (
     <img src={src} alt="Shape" style={{ height: h, width: "auto", display: "inline-block", verticalAlign: "middle" }} />
