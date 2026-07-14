@@ -68,3 +68,6 @@ next-env.d.ts
 .claude/skills/higgsfield-marketplace-cards
 .claude/skills/higgsfield-product-photoshoot
 .claude/skills/higgsfield-soul-id
+
+# Deploy-time newdesign JSX precompile output (scripts/build-newdesign.mjs)
+/public/newdesign/nd
