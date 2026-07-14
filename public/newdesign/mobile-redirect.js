@@ -25,7 +25,14 @@
     // first paint — content lays out below it (no layout shift).
     var bar = document.createElement('div');
     bar.id = 'shape-app-banner';
-    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;background:#10100e;border-bottom:1px solid rgba(46,224,196,0.4);padding:4px 6px 4px 14px;';
+    // Fixed 48px tall: pageShell's .shape-header is fixed at top:0 (z 60) and
+    // would paint over an in-flow banner — the style below shifts that header
+    // down by exactly the banner height while the banner exists.
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;height:48px;box-sizing:border-box;background:#10100e;border-bottom:1px solid rgba(46,224,196,0.4);padding:0 6px 0 14px;';
+    var headerOffset = document.createElement('style');
+    headerOffset.id = 'shape-app-banner-offset';
+    headerOffset.textContent = '@media (max-width: 760px){ header.shape-header{ top: 48px !important; } }';
+    document.head.appendChild(headerOffset);
     var label = document.createElement('a');
     label.href = '/newdesign/GetApp.html';
     label.style.cssText = "flex:1;display:inline-flex;align-items:center;gap:8px;min-height:44px;color:#f2ede4;text-decoration:none;font-family:'JetBrains Mono',Consolas,monospace;font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;";
@@ -44,6 +51,7 @@
     close.addEventListener('click', function () {
       try { sessionStorage.setItem('shapeAppBannerDismissed', '1'); } catch (e) {}
       if (bar.parentNode) bar.parentNode.removeChild(bar);
+      if (headerOffset.parentNode) headerOffset.parentNode.removeChild(headerOffset);
     });
     bar.appendChild(label);
     bar.appendChild(close);
