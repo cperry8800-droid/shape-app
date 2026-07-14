@@ -450,6 +450,17 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Header font thinned (Saira weight tier 700 → 600/650)
+
+- **Owner call ("thin out the header font"):** Saira (the display face since
+  #1713) is a variable font and reads heavier than Space Grotesk did at the
+  same number — the default **"bold" display-weight tier** thins to
+  `display: 600 · displayHeavy: 650` (`makeWeights`, one token — every
+  `t.W.display` title app-wide follows), and `BSDetailHeader`'s page title
+  (the 26-page shared header) drops its hardcoded 700 for the token. The
+  "regular" tier (300/400) + mono eyebrows unchanged; the Settings →
+  Appearance display-weight toggle keeps working.
+
 ### 2026-07-13 — Home + Today polish batch (owner screenshots ×4)
 
 - **Habit rows sit flush left** (`BSSlateRow`): untimed rows (the DAILY HABITS

@@ -292,10 +292,13 @@ function makeTexture(textureKey = 'none', inkRGB = '15,14,12', isLight = true) {
 }
 
 // ─── Display weight ────────────────────────────────────────
+// Saira (the display face since #1713) is a variable font and reads heavier
+// than Space Grotesk did at the same number — the default "bold" tier thins
+// to 600/650 (owner call 2026-07-13: "thin out the header font").
 function makeWeights(weightKey = 'bold') {
   return weightKey === 'regular'
     ? { display: 300, displayHeavy: 400, eyebrow: 400 }
-    : { display: 700, displayHeavy: 700, eyebrow: 600 };
+    : { display: 600, displayHeavy: 650, eyebrow: 600 };
 }
 
 // ─── Theme context ─────────────────────────────────────────

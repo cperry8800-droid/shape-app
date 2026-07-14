@@ -20851,7 +20851,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: 700, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
         {trailing}
       </div>
     </div>
