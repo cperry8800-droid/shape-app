@@ -2611,6 +2611,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   })();
   const nowTime = `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`;
   const fmtDate = (idx) => `${_monShort(weekDates[idx])} ${weekDates[idx].getDate()}`;
+  // The slate's NOW tick tracks the wall clock while Home stays open — a
+  // once-a-minute state tick (same-value setState bails out, so off-minute
+  // firings are free). Render-time `_now` alone goes stale between renders.
+  const [bsNowMin, setBsNowMin] = useStateBSC(_now.getHours() * 60 + _now.getMinutes());
+  React.useEffect(() => {
+    const id = setInterval(() => { const d = new Date(); setBsNowMin(d.getHours() * 60 + d.getMinutes()); }, 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // The REAL assigned plan (same /api/client/plan the Train + Eat tabs read).
   // When any plan exists the day log / dots / up-next cards build from it;
@@ -3055,7 +3063,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               role="button"
               tabIndex={0}
               aria-label={tr('home:lead.openWorkoutPreview', { defaultValue: '{name} — open workout preview', name })}
-              style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+              style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', minHeight: 44, gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
@@ -3072,10 +3080,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       )}
       {todayDirective.cta && (
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={todayDirective.cta[1]} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
           {todayDirective.leadIsWorkout && (
-            <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
+            <button onClick={() => setShowWorkoutPreview(true)} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, minWidth: 44, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
           )}
         </div>
       )}
@@ -3425,7 +3433,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // (coach pushes, habits, rest day) never anchor it, and untimed rows
         // sort after timed ones, so the marker can never land inside the
         // habits block.
-        const nowMin = _now.getHours() * 60 + _now.getMinutes();
+        const nowMin = bsNowMin;
         const isTodayView = selIdx === todayIdx;
         let nowIdx = -1;
         if (isTodayView) {
