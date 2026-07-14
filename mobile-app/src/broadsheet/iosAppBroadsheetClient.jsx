@@ -3817,11 +3817,14 @@ function bsBuildTrainProgram(workouts, t) {
     }
     const moves = (w.exercises || []).map((e, j) => {
       // Segment rows (a run/ride/swim leg or a Hyrox station) show their free
-      // descriptor as the scheme line, with no load column.
-      if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '' };
+      // descriptor as the scheme line, with no load column. `video` = the
+      // trainer's form clip — threaded through so the live session's ▶ How-to
+      // chip can reach it (it was dropped here, making the chip unreachable
+      // on real coached plans — CodeRabbit P2 on the Cockpit PR).
+      if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
-      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—' };
+      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—', video: e.video || null };
     });
     const isSelf = !!w.selfAuthored;
     const prog = w.program && w.program.id ? w.program : null;
@@ -21195,6 +21198,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             ...entry,
             actualReps: field === 'reps' ? value : (entry.actualReps ?? other.reps),
             actualLoad: field === 'load' ? value : (entry.actualLoad ?? other.load),
+            // A logged set stays editable in place (Cockpit/Split spec) — an
+            // RPE correction must land on the log too, not just the input.
+            rpe: field === 'rpe' ? value : entry.rpe,
           }
         : entry
     )));
@@ -21241,13 +21247,14 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     if (activeSetKey && activeSetKey.indexOf(`${moveIdx}-`) === 0) { setActiveSetKey(null); setSetStartedAt(null); }
   };
   // The trainer's form clip for the current move (coach plan block.video —
-  // the #1577 ＋CLIP rails; effMoves spreads the whole move so `video` rides
-  // in when the plan carries one). Honest-absent: no clip → no chip.
+  // the #1577 ＋CLIP rails; the plan route + deck builder thread `video`
+  // through). Honest-absent: no clip → no chip. http(s)-only — a stored
+  // javascript:/data: URL must never reach <video src> or window.open (the
+  // member_playlists safeMusicUrl lesson).
   const clip = (() => {
     const v = move && move.video;
-    if (!v) return null;
-    if (typeof v === 'string') return v.trim() ? { url: v.trim() } : null;
-    return v.url ? v : null;
+    const url = typeof v === 'string' ? v.trim() : (v && typeof v.url === 'string' ? v.url.trim() : '');
+    return /^https?:\/\//i.test(url) ? { url } : null;
   })();
   const [clipOpen, setClipOpen] = useStateBSC(false);
   // Open session: append a fresh blank move and jump to it.
@@ -21515,7 +21522,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           // readout). The dotted underlines died with the redesign: pending =
           // hairline, active = solid heat, done = bare dimmed figures.
           const cell = (field, ph) => (
-            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" disabled={done} aria-label={`Set ${i + 1} ${field}`}
+            // Logged sets stay editable in place (a mis-entered load/reps/RPE
+            // corrects without delete-and-relog — updateSetInput patches the
+            // captured log row); they read dimmed, not locked.
+            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" aria-label={`Set ${i + 1} ${field}`}
               style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
