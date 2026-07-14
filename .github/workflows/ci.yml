@@ -49,6 +49,12 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Compile gate for the website JSX: the Vercel buildCommand precompiles
+      # public/newdesign at deploy (scripts/build-newdesign.mjs), so a JSX file
+      # that doesn't compile must fail the PR here, not the deploy.
+      - name: Newdesign JSX precompile (check)
+        run: node scripts/build-newdesign.mjs --check
+
       - name: Build
         run: npx next build
         env:
