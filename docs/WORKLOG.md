@@ -450,6 +450,47 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Cockpit/Split PR A: the live session becomes the instrument (spec #1719)
+
+- **The Split ships on the session player** (owner picks off the round-2
+  concept board: Direction A Cockpit · A-3 Split · C-1 ink CTA): a full-bleed
+  **fixed-dark instrument band** (`#0b0f0f` on every paper — deliberate
+  literals, the same machine everywhere, like the launch wire) docked above
+  the paper ledger, split by the **3px teal seam**. Presentation-only — every
+  handler, award, and honest-data rule verbatim (#1575's Meter re-clothed).
+- **The band**: ✕ End · **ELAPSED wall clock** (owner add; the existing 1s
+  tick) with a breathing glow dot · session title + real `EX n/N · SETS d/T`
+  eyebrow (the fabricated "w/ Jordan" byline did NOT carry into the new
+  chrome) · **per-exercise segment strip** (lit = done, outlined = now) ·
+  the exercise title in Saira caps · **the current-set readout — big glowing
+  mono figures that ARE the inputs** (load/reps/rpe, one state with the
+  table below) + the start/log ✓ · **REST: countdown + a bar that FILLS as
+  the rest runs** (owner add; +30s / Skip text-actions) · the HR zone strip
+  (or the quiet connect pill). Band heat = `bsLiveEffort` on the bright ramp
+  (browser-proven: logging an RPE-8 set swung the whole band to ember).
+- **The paper ledger**: cue + LAST + suggested-load + plate math unchanged;
+  the set table drops its dotted underlines (pending = hairline, active =
+  3px heat spine + solid heat underline, done = bare dimmed ✓ rows — every
+  row stays tap-to-edit in place); **× Remove set** joins ＋ Add set (acts on
+  the current pending set, else the last; confirm-gated via bsAskConfirm on
+  logged sets; hidden at one set); the CTA goes **C-1 ink** (`t.INK`/`t.PAPER`
+  press block); prev/next → text-actions (quiet ink / teal underline).
+- **▶ How-to form clip**: when a plan move carries the coach's `video` (the
+  #1577 ＋CLIP rails ride through effMoves), a hairline chip under the title
+  opens a dark portal sheet player (`role=dialog`, open-externally fallback).
+  Honest-absent — no clip, no chip (the demo plan carries none).
+- **Browser-verified on the dev server** (light + dark papers): elapsed
+  ticks · rest 2:00→1:38 with the fill at 33% and growing · heat ember ·
+  remove 5→4 / add back to 5 · band↔table one-state sync (typed "170 lb" in
+  the band, the active row followed). *Local-harness note:* the production
+  bundle crashes React #130 at app entry when served by an ad-hoc static
+  server with an HTML 404-fallback — **clean main crashes identically**, so
+  it's a serving artifact, not this diff; CI + the Vercel preview are the
+  bundle gates.
+- Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+  Open: PR B (meal logger + Logged. in the Split grammar) · the owner
+  on-device pass (papers × reduced motion × a real coached plan with a clip).
+
 ### 2026-07-14 — Feed header + Settings polish (owner screenshots, round 2)
 
 - **Settings hub rows sit flush left**: the 3px accent spine on `HubCard`

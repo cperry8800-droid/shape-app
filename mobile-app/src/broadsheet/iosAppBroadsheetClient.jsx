@@ -21205,6 +21205,51 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
     setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: String(move.rpe || '8') } }));
   };
+  // Remove a set from the CURRENT exercise (Cockpit/Split spec — full set
+  // editing). Pending sets remove instantly; a LOGGED set goes through the
+  // confirm primitive first (its logged reps/load leave the session with it).
+  // Keys above the removed index shift down so `${moveIdx}-${setIdx}` stays
+  // dense; a running set-capture on this move resets (never a stale key).
+  const removeSet = async (setIdx) => {
+    if (move.sets <= 1) return;
+    const k = `${moveIdx}-${setIdx}`;
+    if (completed[k]) {
+      const ok = window.bsAskConfirm
+        ? await window.bsAskConfirm({ title: 'Remove this set?', message: `Set ${setIdx + 1} is already logged — removing it deletes its reps/load from this session.`, confirmLabel: 'Remove set' })
+        : true;
+      if (!ok) return;
+    }
+    const shiftKeys = (obj) => {
+      const out = {};
+      Object.entries(obj || {}).forEach(([key, v]) => {
+        const dash = key.indexOf('-');
+        const mi = Number(key.slice(0, dash)); const si = Number(key.slice(dash + 1));
+        if (mi !== moveIdx) { out[key] = v; return; }
+        if (si === setIdx) return;
+        out[`${mi}-${si > setIdx ? si - 1 : si}`] = v;
+      });
+      return out;
+    };
+    setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: Math.max(1, m.sets - 1) } : m)));
+    setSetInputs(shiftKeys);
+    setCompleted(shiftKeys);
+    setSetLogs((prev) => prev
+      .filter((e) => e.key !== k)
+      .map((e) => (e.moveIndex === moveIdx && e.setNumber > setIdx + 1
+        ? { ...e, setNumber: e.setNumber - 1, key: `${moveIdx}-${e.setNumber - 2}` }
+        : e)));
+    if (activeSetKey && activeSetKey.indexOf(`${moveIdx}-`) === 0) { setActiveSetKey(null); setSetStartedAt(null); }
+  };
+  // The trainer's form clip for the current move (coach plan block.video —
+  // the #1577 ＋CLIP rails; effMoves spreads the whole move so `video` rides
+  // in when the plan carries one). Honest-absent: no clip → no chip.
+  const clip = (() => {
+    const v = move && move.video;
+    if (!v) return null;
+    if (typeof v === 'string') return v.trim() ? { url: v.trim() } : null;
+    return v.url ? v : null;
+  })();
+  const [clipOpen, setClipOpen] = useStateBSC(false);
   // Open session: append a fresh blank move and jump to it.
   const addMove = () => {
     setMoves((ms) => {
@@ -21316,84 +21361,116 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const plates = bsPlates(activeLoad);
   const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
   const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
+  // ═══ THE BAND tokens — the fixed-dark instrument (Cockpit/Split spec,
+  // 2026-07-14). #0b0f0f on EVERY paper — the same machine everywhere, like
+  // the launch wire — so these are deliberate literals, not theme tokens.
+  // Heat inside the band = the #1575 live-effort engine on the BRIGHT ramp
+  // base (the deep light-paper teal has no glow headroom on near-black).
+  const bandHeat = (!bsSdReduced() && effort) ? BS_EFFORT_RAMP[effort.zone] : '#38e0cc';
+  const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
+  const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
+  const moveAllDone = (i) => Array.from({ length: moves[i].sets }).every((_, si) => completed[`${i}-${si}`]);
   return (
     <BSPage noSwipe>
-      {/* Header — End / Live timer / set count */}
-      <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: heat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} /> Live · {fmt(elapsedSec)}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
-      </div>
-
-      {/* Effort meter — with a live HR strap, a Z1→Z5 zone strip + needle; the
-          page heat tracks the current zone. Without one, the Connect pill. */}
-      {hrmOn && hrNow ? (
-        <div style={{ padding: `10px ${t.padX}px 0` }} aria-label={`${hrNow} beats per minute, zone ${effort?.zone || 1} effort`}>
-          <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
-            <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: t.INK, left: `${Math.min(97, Math.max(1, (hrNow / BS_EFFORT_HRMAX) * 100))}%`, transition: 'left 1.2s ease' }} />
-          </div>
-          <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-            <span style={{ color: t.INK50 }}>Z1</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: heat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {hrNow} bpm · {effort?.label || 'Z1'} effort</span>
-            <span style={{ color: t.INK50 }}>Z5</span>
-          </div>
+      {/* ═══ THE BAND — live numbers only; the paper ledger below the seam
+          carries the work. Scan-line + segments are decorative (aria-hidden). */}
+      <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
+        {/* End · overall workout time (owner add — wall clock since start) */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>✕ End</button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: bandHeat, ...heatTrans }}>
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: bandHeat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(bandHeat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
+            Elapsed · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
+          </span>
         </div>
-      ) : (
-        <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'center' }}>
-          <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
-            {bsFeedIcon('heart', 11)} Connect HR monitor
-          </button>
+        {/* Session line — real figures only */}
+        <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || 'Live session'}</span>
+          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>Ex {moveIdx + 1}/{moves.length} · Sets {doneSets}/{totalSets}</span>
         </div>
-      )}
-
-      {/* Rest — a zero-box register; the rule drains as time counts down. */}
-      {restEnd && restLeft > 0 && (
-        <div style={{ margin: `12px ${t.padX}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>
-              <span aria-hidden style={{ width: 8, height: 2, background: heat, ...heatTrans }} />Rest
-            </span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Set {restAfterSet} of {move.sets} · done</span>
-          </div>
-          <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 42, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(restLeft)}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>of {fmt(restTotal)}</span>
-            {hrmOn && hrNow ? <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{hrNow} bpm · come down to Z2</span> : null}
-          </div>
-          <div aria-hidden style={{ marginTop: 10, height: 2, background: t.HAIR }}>
-            <div style={{ height: 2, background: heat, width: `${Math.round(Math.max(0, Math.min(1, restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', gap: 18, alignItems: 'center' }}>
-            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>+30 sec</button>
-            <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', padding: '11px 18px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', borderRadius: 5, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
-          </div>
+        {/* Segment strip — one per exercise; lit = done, outlined = now */}
+        <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
+          {moves.map((_, i) => (
+            <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: moveAllDone(i) ? bandHeat : BAND.hair, boxShadow: moveAllDone(i) ? `0 0 8px ${bsTHexA(bandHeat, 0.55)}` : 'none', outline: i === moveIdx ? `1px solid ${bsTHexA(bandHeat, 0.7)}` : 'none', outlineOffset: 1, ...heatTrans }} />
+          ))}
         </div>
-      )}
-
-      {/* Title + progress */}
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{title || 'Live session'}</div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>w/ Jordan · {Math.round(pct * 100)}% complete · ~{minLeft} min left</div>
-        <div aria-hidden style={{ marginTop: 12, height: 2, background: t.HAIR }}>
-          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: heat, transition: bsSdReduced() ? 'none' : 'width .5s ease, background-color 1.2s ease' }} />
+        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{Math.round(pct * 100)}% · ~{minLeft} min left</div>
+        {/* Exercise title (+ open-session rename) + the trainer form clip */}
+        <div style={{ position: 'relative', marginTop: 14 }}>
+          {openMode ? (
+            <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder="Name this move…" style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05, background: 'transparent', border: 0, borderBottom: `1px solid ${BAND.hair}`, outline: 'none', padding: '2px 0 8px' }} />
+          ) : (
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>{move.m}</div>
+          )}
+          {clip && (
+            <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ How-to · form clip</button>
+          )}
         </div>
-      </div>
-
-
-      {/* Current exercise */}
-      <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 800, ...heatTrans }}>Exercise {moveIdx + 1} of {moves.length}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{move.sets} × {move.reps}</span>
-      </div>
-      <div style={{ padding: `4px ${t.padX}px 0` }}>
-        {openMode ? (
-          <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder="Name this move…" style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1, background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.INK, 0.25)}`, outline: 'none', padding: '2px 0 8px' }} />
+        {/* Current-set readout — the big figures ARE the inputs */}
+        {activeIdx != null ? (
+          <div style={{ position: 'relative', marginTop: 14 }}>
+            <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>Set {String(activeIdx + 1).padStart(2, '0')}{activeRunning ? ' · Live' : ' · Up'}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 8 }}>
+              {/* Load values can carry their unit ("165 lb" — the athlete's own
+                  text), so the label reads LOAD (not LB) and the size leaves
+                  room for the unit token without clipping. */}
+              {[['load', 'load'], ['reps', 'reps'], ['rpe', 'rpe']].map(([field, lab]) => (
+                <div key={field} style={{ flex: 1, minWidth: 0 }}>
+                  <input value={(setInputs[activeKey] && setInputs[activeKey][field]) ?? ''} onChange={(e) => updateSetInput(activeIdx, field, e.target.value)} placeholder="—" inputMode="decimal" aria-label={`Set ${activeIdx + 1} ${lab}`}
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: `1.5px solid ${bsTHexA(bandHeat, 0.6)}`, background: 'transparent', color: bandHeat, textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, padding: '0 0 6px', fontFamily: t.MONO, fontSize: 21, fontWeight: 800, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderRadius: 0, ...heatTrans }} />
+                  <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{lab}</div>
+                </div>
+              ))}
+              <button onClick={() => logSet(activeIdx)} aria-label={activeRunning ? `Log set ${activeIdx + 1}` : `Start set ${activeIdx + 1}`} style={{ flexShrink: 0, width: 34, height: 34, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
+            </div>
+          </div>
         ) : (
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{move.m}<span style={{ color: heat, ...heatTrans }}>.</span></div>
+          <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>All sets logged ✓</div>
         )}
-        {!openMode && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
+        {/* Rest — countdown + a bar that FILLS as the rest runs (owner add) */}
+        {restEnd && restLeft > 0 && (
+          <div style={{ position: 'relative', marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ ...bandEyebrow, color: BAND.dim }}>Rest · set {restAfterSet} done</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 24, fontWeight: 800, color: bandHeat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, lineHeight: 1, ...heatTrans }}>{fmt(restLeft)}<span style={{ fontSize: 9, color: BAND.dim35, textShadow: 'none' }}> / {fmt(restTotal)}</span></span>
+            </div>
+            <div aria-hidden style={{ marginTop: 9, height: 4, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 2, background: bandHeat, boxShadow: `0 0 10px ${bsTHexA(bandHeat, 0.6)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
+            </div>
+            <div style={{ marginTop: 4, display: 'flex', gap: 16, alignItems: 'center' }}>
+              <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>+30 sec</button>
+              {hrmOn && hrNow ? <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{hrNow} bpm · come down</span> : null}
+              <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: bandHeat, ...heatTrans }}>Skip rest →</button>
+            </div>
+          </div>
+        )}
+        {/* HR — zone strip with a live strap; the quiet connect pill without */}
+        {hrmOn && hrNow ? (
+          <div style={{ position: 'relative', marginTop: 13 }} aria-label={`${hrNow} beats per minute, zone ${effort?.zone || 1} effort`}>
+            <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
+              <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: BAND.cream, left: `${Math.min(97, Math.max(1, (hrNow / BS_EFFORT_HRMAX) * 100))}%`, transition: 'left 1.2s ease' }} />
+            </div>
+            <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', ...bandEyebrow, fontSize: 8 }}>
+              <span style={{ color: BAND.dim35 }}>Z1</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: bandHeat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {hrNow} bpm · {effort?.label || 'Z1'} effort</span>
+              <span style={{ color: BAND.dim35 }}>Z5</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', marginTop: 13, display: 'flex' }}>
+            <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${BAND.hair}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: BAND.dim }}>
+              {bsFeedIcon('heart', 11)} Connect HR monitor
+            </button>
+          </div>
+        )}
+      </div>
+      {/* The seam — the ONE band/paper boundary (Cockpit/Split signature) */}
+      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
+
+      {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        {!openMode && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
 
@@ -21433,12 +21510,16 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           const done = completed[k];
           const isActive = i === activeIdx;
           const ri = setInputs[k] || { reps: '', load: String(move.l || ''), rpe: '' };
+          // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
+          // editing — done, active, pending alike share state with the band's
+          // readout). The dotted underlines died with the redesign: pending =
+          // hairline, active = solid heat, done = bare dimmed figures.
           const cell = (field, ph) => (
             <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" disabled={done} aria-label={`Set ${i + 1} ${field}`}
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px dotted ${bsTHexA(t.INK, 0.3)}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
+              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
               {cell('load', 'lb')}
               {cell('reps', '—')}
@@ -21449,28 +21530,33 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         })}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+          {/* Remove targets the current pending set (else the last set, confirm-
+              gated when logged) — spec's full-set-editing contract; hidden at
+              one set (an exercise never drops to zero). */}
+          {move.sets > 1 && <button onClick={() => removeSet(activeIdx != null ? activeIdx : move.sets - 1)} aria-label="Remove a set from this exercise" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>× Remove set</button>}
           {openMode && <button onClick={addMove} aria-label="Add another move" style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add move</button>}
         </div>
         {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
 
-      {/* Primary log CTA */}
+      {/* Primary log CTA — C-1 INK press block (owner pick "do black");
+          t.INK/t.PAPER inverts cleanly on dark papers. */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         {activeIdx != null ? (
-          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
           </button>
         ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.GREEN, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
           </button>
         )}
       </div>
 
-      {/* Prev / next */}
-      <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
-        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ padding: '13px 16px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.4 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← Previous</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: moveIdx >= moves.length - 1 ? t.INK50 : t.INK, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', opacity: moveIdx >= moves.length - 1 ? 0.5 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? `Next: ${moves[moveIdx + 1].m}` : 'Last exercise'}</button>
+      {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
+      <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>← Previous</button>
+        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>Next: {moves[moveIdx + 1].m} →</span> : 'Last exercise'}</button>
       </div>
 
       {/* Queue */}
@@ -21552,6 +21638,26 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       <div style={{ padding: `18px ${t.padX}px 90px` }}>
         <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
+
+      {/* Trainer form-clip player — a dark portal sheet over the session (the
+          band's ▶ How-to chip opens it; renders only when the plan move
+          actually carries a coach clip). */}
+      {clipOpen && clip && (() => {
+        const sheet = (
+          <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={`Trainer form clip for ${move.m}`} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ How-to · {move.m}</span>
+                <button onClick={() => setClipOpen(false)} aria-label="Close the form clip" style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>× Close</button>
+              </div>
+              <video src={clip.url} controls playsInline autoPlay style={{ width: '100%', maxHeight: '55vh', display: 'block', background: '#000', borderRadius: 6 }} />
+              <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Open externally ↗</button>
+            </div>
+          </div>
+        );
+        const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
+        return target ? createPortal(sheet, target) : sheet;
+      })()}
     </BSPage>
   );
 }
