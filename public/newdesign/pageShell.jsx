@@ -37,6 +37,22 @@ function Logo({ variant = "black", size = 28 }) {
   return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
 }
 
+// Typeset Shape Radio wordmark for the nav — replaces the washed-out PNG
+// (near-invisible over the dark mast). Live dot + teal RADIO give it real
+// presence at AA contrast; pure text, one less image request.
+function RadioWordmark() {
+  return (
+    <a href="/newdesign/Radio.html" aria-label="Shape Radio"
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", padding: "6px 0", lineHeight: 1 }}>
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: TEAL_BRIGHT, boxShadow: `0 0 8px ${TEAL_BRIGHT}` }} />
+      <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+        <span style={{ color: "rgba(245,239,225,0.92)" }}>Shape</span>
+        <span style={{ color: TEAL_BRIGHT }}> ◂ Radio</span>
+      </span>
+    </a>
+  );
+}
+
 function NavDropdown({ label, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef(null);
@@ -45,7 +61,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.6)", fontFamily: sans, fontWeight: 400, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 13, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.78)", fontFamily: sans, fontWeight: 400, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
         {label}<span style={{ fontSize: 9, opacity: 0.5, lineHeight: 1 }}>▾</span>
       </a>
       {/* Invisible hover bridge — fills the gap between trigger and panel so the
@@ -346,7 +362,7 @@ function Header({ active }) {
   // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.6)", fontFamily: sans, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+      <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.04em", textTransform: "lowercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.78)", fontFamily: sans, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
     </div>
   );
   return (
@@ -394,17 +410,13 @@ function Header({ active }) {
               ) : null}
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
-              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block" }} />
-              </a>
+              <RadioWordmark />
             </>
           ) : (
             <>
-              <a href="/newdesign/Login.html" style={{ fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.55)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
+              <a href="/newdesign/Login.html" style={{ fontSize: 13, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.78)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
-              <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block" }} />
-              </a>
+              <RadioWordmark />
             </>
           )}
         </div>
