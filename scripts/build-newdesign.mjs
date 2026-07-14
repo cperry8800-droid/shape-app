@@ -82,13 +82,22 @@ for (const page of pages) {
   }
 }
 
+// Lazy loaders (globalChatButton's rich-chat boot) inject .jsx at runtime and
+// previously relied on window.Babel. Publish the compiled-file map so they can
+// load the precompiled equivalents (they fall back to the Babel path when the
+// manifest is absent, i.e. in local dev). Built once — pass 1 made it complete.
+const ND_MANIFEST = `<script>window.__ndCompiled=${JSON.stringify(Object.fromEntries(
+  [...compiledExternal].map(([jsx, e]) => [jsx, `/newdesign/${e.out}?v=${e.v}`])
+))};</script>`;
+
 // Pass 2: rewrite the pages.
 for (const page of pages) {
   const abs = path.join(ND, page);
   const html = fs.readFileSync(abs, 'utf8');
-  // Also visit pages that load the standalone compiler without any text/babel
-  // tags (dead weight) — the strip below removes it for them too.
-  if (!html.includes('text/babel') && !html.includes('@babel/standalone')) continue;
+  // Visit pages that load the standalone compiler without any text/babel tags
+  // (dead weight — the strip below removes it), and pages that only carry the
+  // chat button (they still need the manifest for the rich-chat lazy boot).
+  if (!html.includes('text/babel') && !html.includes('@babel/standalone') && !html.includes('globalChatButton.js')) continue;
   BABEL_TAG.lastIndex = 0;
   const crlf = html.includes('\r\n');
   let i = 0;
@@ -107,14 +116,14 @@ for (const page of pages) {
   });
   // No text/babel left on the page — the standalone compiler can go.
   next = next.replace(STANDALONE_TAG, '');
-  // Lazy loaders (globalChatButton's rich-chat boot) inject .jsx at runtime
-  // and previously relied on window.Babel. Publish the compiled-file map so
-  // they can load the precompiled equivalents instead (they fall back to the
-  // Babel path when this manifest is absent, i.e. in local dev).
-  const manifest = JSON.stringify(Object.fromEntries(
-    [...compiledExternal].map(([jsx, e]) => [jsx, `/newdesign/${e.out}?v=${e.v}`])
-  ));
-  next = next.replace(/<script defer src="nd\//, `<script>window.__ndCompiled=${manifest};</script>\n<script defer src="nd/`);
+  // Manifest: before the first compiled script, or into <head> on pages that
+  // carry only the chat button (GetApp, consultation) so the rich-chat boot
+  // can find the compiled bundles there too.
+  if (next.includes('<script defer src="nd/')) {
+    next = next.replace(/<script defer src="nd\//, `${ND_MANIFEST}\n<script defer src="nd/`);
+  } else if (next.includes('globalChatButton.js')) {
+    next = next.replace(/<\/head>/, `${ND_MANIFEST}</head>`);
+  }
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
   if (!CHECK) fs.writeFileSync(abs, next);
   pagesTouched++;

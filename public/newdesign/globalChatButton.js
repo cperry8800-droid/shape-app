@@ -483,7 +483,10 @@
       sc.async = false;
       sc.setAttribute("data-shape-chat", name);
       pending++;
-      sc.onload = sc.onerror = function () { if (--pending === 0) mountWhenReady(); };
+      sc.onload = function () { if (--pending === 0) mountWhenReady(); };
+      // A 404'd bundle means the rich widget can never mount — surface the
+      // fallback panel right away instead of waiting out waitAndOpen's poll.
+      sc.onerror = function () { --pending; openFallbackPanel(); };
       document.body.appendChild(sc);
     });
     if (pending === 0) mountWhenReady();
