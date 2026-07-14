@@ -98,6 +98,10 @@ function makeRadioTrackPayload(track) {
 
 const BSRadioContext = createContextBR(null);
 
+// The valid light-effects intensities — a persisted value outside this set
+// (or a future rename) falls back to 'off' instead of rendering nothing odd.
+const BS_FX_MODE_KEYS = ['off', 'subtle', 'immersive', 'hologram'];
+
 function BSRadioProvider({ children }) {
   // Persisted radio preference (device-level localStorage) so the "Want music
   // while you move?" prompt is asked ONCE — after the user answers it (play or
@@ -112,8 +116,15 @@ function BSRadioProvider({ children }) {
   const [trackIdx, setTrackIdx]     = useStateBR(0);
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
-  // Light-effects intensity: 'off' | 'subtle' | 'immersive' | 'hologram'
-  const [fxMode, setFxMode]         = useStateBR('off');
+  // Light-effects intensity: 'off' | 'subtle' | 'immersive' | 'hologram' —
+  // persisted device-level (like the radio pref) so the pick survives relaunch.
+  const _fxPref = safeReadRadioJSON('shape.radio.fx', null); // { mode } | null
+  const [fxMode, setFxModeState]    = useStateBR(BS_FX_MODE_KEYS.includes(_fxPref?.mode) ? _fxPref.mode : 'off');
+  function setFxMode(mode) {
+    const next = BS_FX_MODE_KEYS.includes(mode) ? mode : 'off';
+    setFxModeState(next);
+    try { window.localStorage && window.localStorage.setItem('shape.radio.fx', JSON.stringify({ mode: next })); } catch {}
+  }
   const [trackFeedback, setTrackFeedbackState] = useStateBR(() => safeReadRadioJSON('shape.radio.feedback', {}));
   const [musicLibraries, setMusicLibrariesState] = useStateBR(() => safeReadRadioJSON('shape.radio.musicLibraries', { spotify: [], apple: [] }));
 

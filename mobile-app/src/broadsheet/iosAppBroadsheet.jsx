@@ -75,6 +75,10 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
     forest:    { paper: '#0f231a', paper2: '#163021', paper3: '#1e3d2a', ink: '#e3efe2', inkRGB: '227,239,226', light: false },
     slate:     { paper: '#212834', paper2: '#2b3340', paper3: '#36404e', ink: '#dce4ef', inkRGB: '220,228,239', light: false },
     plum:      { paper: '#251630', paper2: '#311e40', paper3: '#3e2752', ink: '#ebdff2', inkRGB: '235,223,242', light: false },
+    rose:      { paper: '#ead9d7', paper2: '#e1cbc8', paper3: '#d4b8b4', ink: '#241014', inkRGB: '36,16,20',    light: true  },
+    mist:      { paper: '#dde4e9', paper2: '#d1dae1', paper3: '#c1ccd5', ink: '#121a20', inkRGB: '18,26,32',    light: true  },
+    cocoa:     { paper: '#241812', paper2: '#2e2018', paper3: '#3a2a20', ink: '#efe2d3', inkRGB: '239,226,211', light: false },
+    midnight:  { paper: '#0e1226', paper2: '#151a33', paper3: '#1d2342', ink: '#e3e7f7', inkRGB: '227,231,247', light: false },
   };
   const P = PAPERS[paperMode] || PAPERS.dark;
   const isLight = P.light;
@@ -112,6 +116,8 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
     rust:  { light: '#a8331b', dark: '#e06547' },
     green: { light: '#2f6b3a', dark: '#5fb16e' },
     teal:  { light: '#0a8f87', dark: '#34d6c5' },
+    violet:{ light: '#6d3fc4', dark: '#a78bfa' },
+    rose:  { light: '#b8285f', dark: '#f2749f' },
     white: { light: '#ffffff', dark: '#ffffff' },
     black: { light: '#000000', dark: '#000000' },
   };
@@ -201,9 +207,10 @@ function makeTexture(textureKey = 'none', inkRGB = '15,14,12', isLight = true) {
     case 'vignette':
       return `radial-gradient(ellipse 110% 85% at 50% 50%, transparent 40%, ${a(isLight ? 0.28 : 0.40)} 100%)`;
     case 'watermark': {
-      // Repeating diagonal "SHAPE" wordmark, very faint
-      const op = isLight ? 0.10 : 0.14;
-      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><g transform='rotate(-22 160 160)' fill='rgba(${inkRGB},${op})' font-family='Georgia,serif' font-weight='700' font-size='56' font-style='italic' text-anchor='middle'><text x='160' y='180'>SHAPE</text></g></svg>`;
+      // Repeating diagonal SHAPE wordmark, very faint — heavy sans (the closest
+      // system face to the Saira wordmark; data-URI SVG can't reach bundled fonts)
+      const op = isLight ? 0.09 : 0.13;
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><g transform='rotate(-22 160 160)' fill='rgba(${inkRGB},${op})' font-family='Arial Black,Helvetica Neue,sans-serif' font-weight='900' font-size='48' letter-spacing='6' text-anchor='middle'><text x='160' y='176'>SHAPE</text></g></svg>`;
       const url = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
       return `${url} 0 0/320px 320px`;
     }
@@ -285,6 +292,20 @@ function makeTexture(textureKey = 'none', inkRGB = '15,14,12', isLight = true) {
               radial-gradient(ellipse 200px 140px at 30% 30%, ${a(0.06)}, transparent 70%),
               radial-gradient(ellipse 200px 140px at 70% 70%, ${a(0.06)}, transparent 70%)`;
     }
+    case 'contour':
+      // Topographic contour rings — two offset ring fields (the Terrain language)
+      return `repeating-radial-gradient(circle at 22% 18%, transparent 0 21px, ${a(isLight ? 0.10 : 0.14)} 21px 22px),
+              repeating-radial-gradient(circle at 78% 72%, transparent 0 27px, ${a(isLight ? 0.08 : 0.11)} 27px 28px)`;
+    case 'checker':
+      // Quiet checkerboard — alternating ink-alpha squares
+      return `repeating-conic-gradient(${a(isLight ? 0.05 : 0.07)} 0% 25%, transparent 0% 50%) 0 0/32px 32px`;
+    case 'sunburst':
+      // Deco sunburst — rays fanning down from above the masthead
+      return `repeating-conic-gradient(from 0deg at 50% -12%, ${a(isLight ? 0.07 : 0.10)} 0deg 5deg, transparent 5deg 11deg)`;
+    case 'scales':
+      // Fish-scale scallop — two half-offset arc rows
+      return `radial-gradient(circle at 50% 0, transparent 12px, ${a(isLight ? 0.12 : 0.16)} 12.5px 13.5px, transparent 14.5px) 0 0/26px 26px,
+              radial-gradient(circle at 50% 0, transparent 12px, ${a(isLight ? 0.12 : 0.16)} 12.5px 13.5px, transparent 14.5px) 13px 13px/26px 26px`;
     case 'none':
     default:
       return null;
@@ -1475,6 +1496,8 @@ function BSPhone({ children }) {
           : t.paperMode === 'steel' ? '#2a2d33'
           : t.paperMode === 'bone' ? '#2a2418'
           : t.paperMode === 'sage' ? '#1e2415'
+          : t.paperMode === 'rose' ? '#2e1418'
+          : t.paperMode === 'mist' ? '#161d24'
           : '#1a1612')
         : (t.paperMode === 'teal' ? '#021f1a'
           : t.paperMode === 'blueprint' ? '#04132b'
@@ -1483,6 +1506,8 @@ function BSPhone({ children }) {
           : t.paperMode === 'forest' ? '#06140e'
           : t.paperMode === 'slate' ? '#0a0e14'
           : t.paperMode === 'plum' ? '#120819'
+          : t.paperMode === 'cocoa' ? '#140c07'
+          : t.paperMode === 'midnight' ? '#060814'
           : '#0a0907'),
       boxShadow: '0 30px 80px rgba(0,0,0,0.35), inset 0 0 0 2px rgba(255,255,255,0.04)',
       position: 'relative',
@@ -1664,4 +1689,6 @@ Object.assign(window, {
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
+  // The settings texture picker paints live pattern-preview tiles with this.
+  bsMakeTexture: makeTexture,
 });

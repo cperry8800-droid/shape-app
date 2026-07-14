@@ -450,6 +450,52 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Appearance pickers redesigned (uniform preview tiles) + 4 papers · 2 accents · 4 patterns + the fx picker learns to preview
+
+- **One uniform option cell for EVERY appearance picker** (owner call: "make
+  these all the same size") — papers, textures, accents, ink, display weight,
+  text size, and the light-effects modes all render the same footprint now: a
+  38px **live preview band** over a mono label bar, 3-up grid, `aria-pressed`,
+  active = ink frame + accent ✓ tick. The preview band is real, not
+  decorative: paper tiles paint the actual paper hex with "Aa" in that
+  paper's ink, **texture tiles paint the actual `makeTexture` CSS over the
+  current paper** (patterns are visible BEFORE applying — `bsMakeTexture`
+  window-exposed from the chrome; honors the Tweaks-panel tint override),
+  accent tiles show the hex that will apply on the current paper's light/dark
+  side, ink tiles render "Aa" in the candidate ink on the current paper (+ a
+  new honest footnote naming the auto-fallback contrast guard), weight/size
+  tiles show "Aa" at the real weight/scale. The old mixed grammar (flex
+  pills · Swatch chips · inline ink buttons) died.
+- **4 new papers** — Rose · Mist (light), Cocoa · Midnight (dark) → 18 total;
+  **2 new accents** — Violet · Rose (light/dark pairs); **Teal joins the ink
+  presets**; the custom-ink cell is now the same tile (the whole cell is the
+  color input). New papers carry desktop-preview bezel tints; `BS_PAPER_OPTS`
+  now holds the swatch hexes (KEEP-IN-SYNC with `PAPERS` in makePalette).
+- **4 new textures** — **Contour** (topographic rings, the Terrain language) ·
+  **Checker** · **Sunburst** (deco conic rays) · **Scales** (fish-scale
+  scallop) → 25; the **watermark cleans up** (heavy sans wordmark treatment
+  replaces the italic Georgia — closer to the Saira mark; data-URI SVG can't
+  reach bundled fonts). Tweaks-panel paper + texture lists synced.
+- **The BPM effects picker ("Syncs to BPM") redesigned + the feature
+  improved**: the 2×2 cards go to the same option-cell grammar (glyph + a
+  3-bar **intensity meter** — Off/Subtle/Immersive/Hologram read as a
+  ladder); **tap-to-preview** — picking a mode flashes the REAL
+  `RadioEffects` overlay for ~6s (portaled over the phone surface) so the
+  choice is visible with radio off (browser-proven: "PREVIEW · 132 BPM"
+  island + honest "— previewing" footer); **`fxMode` finally persists**
+  (`shape.radio.fx`, seeded on boot like the radio pref — it used to reset
+  to Off every launch; reload-proven); and **reduced motion now outranks the
+  fx opt-in** (`BSRadioFx` returns null + the picker says so honestly).
+- **i18n**: 17 new keys × all 13 locales (LLM translations, flagged for the
+  standing human review; `ink.teal` reuses each locale's own `accent.teal`
+  word) — catalog-parity suite green.
+- **Paper-adaptation check**: new papers/accents ride the existing palette
+  pipeline (ink-override contrast ≥3 fallback + mono-accent flip guards
+  cover them); browser-verified end-to-end on **Midnight + Violet + Contour**
+  (dark) and **Rose + Scales** (light) — chrome, ticker, slate, tab bar, and
+  bezel all follow. Verified: JSX parse ×4 · PowerShell `/m/` build exit 0 ·
+  `npm test` 632 · LF.
+
 ### 2026-07-14 — Cockpit/Split PR B: the meal logger + "Logged." join the instrument (the wave closes)
 
 - **The logger** (`BSLogMealFlow`): the band docks the header (× Cancel ·
