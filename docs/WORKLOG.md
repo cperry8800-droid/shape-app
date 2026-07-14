@@ -450,6 +450,57 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Universal back-button placement (one spot, app-wide)
+
+- **THE RULE (owner call: "universal placing for the back buttons"):** the back
+  button sits on its OWN ROW, flush LEFT at the page gutter, DIRECTLY BELOW the
+  masthead row (logo + Vol·No + corners); the page's eyebrow/meta may share that
+  row on the right. Never inside the masthead row, never top-right, never
+  bottom. Documented on `BSBackButton` (chrome); `BSDetailHeader` and the new
+  **`onBack` slot on `BSMasthead` + `BSPageHeader`** are the canonical
+  implementations — new pages use one of those, never an ad-hoc copy.
+- **Deviants moved to the slot** (all were top-right or in the mast row): the
+  coach Grocery Lists + action-queue mastheads and the Client-preview /
+  Public-profile / Notifications settings pages (`trailing={<BSBackButton/>}` →
+  `onBack`), The Queue review header + the Adjust/Schedule action head (columns
+  swapped — back left, eyebrow right), the coach public-profile header (back
+  left · Edit right; the eyebrow gets its own line), the **calendar month page**
+  (back moved out of the trailing corner cluster into the onBack slot), the
+  **marketplace directory** (out of the mast row's right cluster → its own row),
+  and the **Shape Sets** page (the bordered `← Radio` pill died for the plain
+  mono grammar, own row, flush left, CREAM on the fixed-dark page).
+- Already compliant, untouched: BSDetailHeader's 26 pages, the client direct
+  sites (Library/meal preview/workout preview/profiles/chat thread), coach
+  Soundtracks + draft editor, the marketplace Listing/availability backs, the
+  calendar overlay's takeover dismiss, and the auth flow's in-form step-backs
+  (wire-form grammar, not page headers). Month-nav `‹ APR` controls are not
+  back buttons.
+- Verified: JSX parse ×5 · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+
+### 2026-07-14 — Owner-screenshot polish batch ×7 (thin titles · flush slate · sheet + chrome)
+
+- **Saira follow-through — two titles that missed the #1716 tier**: the radio
+  now-playing bar's track title (the LIVE bar was hardcoded **900**, muted 700)
+  and the chat masthead's tab title ("Community", 700) now read `t.W.display`.
+- **Home slate goes fully flush-left**: the 44px time column is gone for EVERY
+  row (meals + training + coach pushes — habits already dropped it in #1715);
+  a row's time rides its right-side meta instead ("12:40 PM · 620 kcal" — the
+  meal slot label moved out of the meta into aria-only). Row objects KEEP their
+  `time` field — `bsHomeSlateSort` orders by the displayed string — only the
+  rendered column died; the NOW tick (anchored off `_min`) is unaffected. The
+  DO/AVOID/WORK tag tick + label step up (15×2 / 8.5px, was 13×2 / 7.5) and the
+  DAILY HABITS sub-head 8.5 → 9.5 (owner: "make these a little larger").
+- **Step-goal sheet joins the form grammar** (the weigh-in sheet's Open Ledger
+  set): gradient ledger rule under "Set your *goal.*", the boxed PAPER2 stepper
+  plate dies for a bare underline figure between squared 44px ± steppers,
+  squared preset chips (+`aria-pressed`), Cancel → underlined text-action,
+  Save → the clipped accent CTA. Logic/validation verbatim.
+- **Profile masthead corners match every other page**: the ⌕ ✎ ⚙ circles drop
+  their 0.06-alpha ink tint for the transparent paper ground (Terrain + Signal,
+  both masthead variants; `BSSearchCorner`'s `ink` variant follows).
+- **Steps history range tabs** (Week / Month / 3 Months) spaced out (gap 30 → 44).
+- Verified: JSX parse ×2 · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+
 ### 2026-07-13 — Header font thinned (Saira weight tier 700 → 600/650)
 
 - **Owner call ("thin out the header font"):** Saira (the display face since

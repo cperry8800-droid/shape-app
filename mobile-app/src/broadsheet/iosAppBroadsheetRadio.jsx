@@ -569,7 +569,7 @@ function BSNowPlaying({ onOpen }) {
           <BSBeatRing bpm={r.LIVE.bpm} color={t.INK} size={28} paused={r.paused} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 900, letterSpacing: '-0.025em',
+              fontFamily: t.DISPLAY, fontSize: 15, fontWeight: t.W.display, letterSpacing: '-0.025em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.title}</div>
@@ -673,7 +673,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
           }}>♪</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
+              fontFamily: t.DISPLAY, fontSize: 16, fontWeight: t.W.display, letterSpacing: '-0.02em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.title}</div>
@@ -1203,16 +1203,20 @@ function BSShapeSetsScreen({ onBack }) {
 
       <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', zIndex: 1, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div style={{ minHeight: '100%', boxSizing: 'border-box', paddingBottom: 80 + 28, display: 'flex', flexDirection: 'column' }}>
-          {/* HEADER — masthead like other mobile pages: Vol·No + back, then eyebrow + serif title */}
+          {/* HEADER — masthead like other mobile pages: Vol·No row, then the
+              universal back row (← RADIO, plain mono text-action flush left —
+              the bordered pill died with the placement sweep), eyebrow, title. */}
           <div style={{ padding: `50px ${t.padX}px 0` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
-              </div>
-              <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM, padding: '6px 12px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>← Radio</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
             </div>
-            <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Section · Music</div>
+            <div style={{ marginTop: 12 }}>
+              <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>
+                <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Radio
+              </button>
+            </div>
+            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Section · Music</div>
             <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></h1>
           </div>
 

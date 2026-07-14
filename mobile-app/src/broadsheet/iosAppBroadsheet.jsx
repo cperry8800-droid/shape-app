@@ -632,7 +632,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -696,6 +696,14 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         {trailing}
       </div>
 
+      {/* Universal back slot — ← BACK on its own row, flush left, directly
+          under the masthead row (never top-right; see BSBackButton's rule). */}
+      {onBack && (
+        <div style={{ position: 'relative', zIndex: 1, marginBottom: title ? 6 : 0 }}>
+          <BSBackButton onClick={onBack} />
+        </div>
+      )}
+
       {title && (
         <div style={{
           fontFamily: t.DISPLAY, fontWeight: t.W.display,
@@ -735,7 +743,7 @@ function BSMastRow({ trailing = null, size = 16, style = null }) {
 }
 
 // Compact page header (non-masthead, for inner tabs)
-function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, titleSize = 34 }) {
+function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
   const t = useBS();
   return (
     <div style={{ padding: `64px ${t.padX}px 14px` }}>
@@ -748,6 +756,12 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, t
         </div>
         {trailing}
       </div>
+      {/* Universal back slot — own row, flush left, under the masthead row. */}
+      {onBack && (
+        <div style={{ marginTop: 12 }}>
+          <BSBackButton onClick={onBack} />
+        </div>
+      )}
       {kicker && (
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 600 }}>
           {kicker}
@@ -1499,6 +1513,12 @@ function BSPhone({ children }) {
 // across the app: a plain mono "← BACK" text-action (owner call 2026-07-13:
 // no button chrome/bubble on any back control). Replaces the many ad-hoc
 // inline variants so they all match.
+// THE UNIVERSAL PLACEMENT RULE (owner call 2026-07-14): the back button sits
+// on its OWN ROW, flush LEFT at the page gutter, DIRECTLY BELOW the masthead
+// row (logo + Vol·No + corners). The page's eyebrow/meta may share that row on
+// the right. Never inside the masthead row, never top-right, never bottom.
+// BSDetailHeader (client) and BSMasthead/BSPageHeader's `onBack` slot are the
+// canonical implementations — new pages use one of those, not an ad-hoc copy.
 function BSBackButton({ onClick, label = 'Back', style }) {
   const t = useBS();
   return (

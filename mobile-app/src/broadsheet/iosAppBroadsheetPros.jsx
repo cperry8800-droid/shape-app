@@ -246,15 +246,16 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
   return (
     <BSPage>
-      {/* ── Ledger header — mast row (46px inset, no corner cluster) + THE QUEUE
-          eyebrow + ← BACK, serif "Workout review." (heat italic), status meta. ── */}
+      {/* ── Ledger header — mast row (46px inset, no corner cluster), then the
+          universal back row (← BACK left · THE QUEUE eyebrow right), serif
+          "Workout review." (heat italic), status meta. ── */}
       <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <BSBackButton onClick={onBack} />
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
             THE QUEUE <span style={{ color: `${t.INK}80` }}>· {sessions.length} ITEMS</span>
           </div>
-          <BSBackButton onClick={onBack} />
         </div>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
           {isNutri ? 'Client' : 'Workout'} <i style={{ color: heat, fontStyle: 'italic' }}>review.</i>
@@ -633,7 +634,6 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
     if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
   };
-  const backBtn = <BSBackButton onClick={onBack} />;
   const heatInk = t.isLight ? '#fff' : '#04201d';       // text on the teal action CTA
   const uline = { width: '100%', boxSizing: 'border-box', padding: '7px 0 9px', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, outline: 'none', background: 'transparent', '--bs-uline-ink': `${t.INK}40`, '--bs-accent': heat };
   const tabItem = (k, label, count) => {
@@ -651,7 +651,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
-      <BSMasthead title="Grocery Lists" leftKicker={isNutri ? 'Nutrition delivery' : 'Meal support'} rightKicker={`${all.length} lists`} trailing={backBtn} />
+      <BSMasthead title="Grocery Lists" leftKicker={isNutri ? 'Nutrition delivery' : 'Meal support'} rightKicker={`${all.length} lists`} onBack={onBack} />
 
       {/* Verdict lead — the whole queue on one line, heat = role */}
       <div style={{ padding: `8px ${t.padX}px 0` }}>
@@ -774,9 +774,6 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
     },
   };
   const cfg = configs[type] || configs.pr;
-  const backBtn = (
-    <BSBackButton onClick={onBack} />
-  );
   // Grocery Lists → dedicated, real (owner-scoped) lists the coach builds for
   // themselves or a client, then sends to that client. Role-accented.
   if (type === 'grocery') return <BSProGroceryLists t={t} accent={accent} isNutri={isNutri} onBack={onBack} />;
@@ -786,7 +783,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         title={cfg.title}
         leftKicker={cfg.kicker}
         rightKicker={cfg.meta}
-        trailing={<BSBackButton onClick={onBack} />}
+        onBack={onBack}
       />
       <BSSection title={cfg.title} meta="Action queue" />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
@@ -2326,7 +2323,7 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   if (!client) return null;
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<BSBackButton onClick={onBack} />} />
+      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} onBack={onBack} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSFacetAvatar size={36} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
@@ -2493,9 +2490,10 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   return (
     <div style={{ paddingTop: 46 }}>
       {bsProMastRow()}
+      {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <BSBackButton onClick={onBack} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
       </div>
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
@@ -6369,7 +6367,7 @@ function BSProPublicProfilePage({ role = 'trainer', name = 'Profile', onBack }) 
       <BSPageHeader
         kicker="Profile settings"
         title={<>Public<br/>profile.</>}
-        trailing={<BSBackButton onClick={onBack} />}
+        onBack={onBack}
       />
       <BSSection title="Profile live" meta="Visible on marketplace" />
       <div style={{ padding: `0 ${t.padX}px 16px`, borderTop: `2px solid ${t.INK}` }}>
@@ -6413,7 +6411,7 @@ function BSProNotificationsPage({ onBack }) {
       <BSPageHeader
         kicker="Settings"
         title={<>Notifications.</>}
-        trailing={<BSBackButton onClick={onBack} />}
+        onBack={onBack}
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -6703,15 +6701,14 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `46px ${t.padX}px 0` }}>
-        {/* Edit + Back own the right corner here — logo-only masthead. */}
+        {/* Logo-only masthead, then the universal back row — ← BACK left,
+            Edit right (owner call 2026-07-14); the eyebrow gets its own line. */}
         <div style={{ marginBottom: 12 }}>{bsProMastRow(false)}</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5, minWidth: 0 }}>{D.eyebrow}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
-            <BSBackButton onClick={onBack} />
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <BSBackButton onClick={onBack} />
+          <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', flexShrink: 0 }}>Edit</button>
         </div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5 }}>{D.eyebrow}</div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 1.0, letterSpacing: '-0.03em' }}>{D.head} <span style={{ fontStyle: 'italic', color: accent }}>{D.accentWord}</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{D.sub}</div>
       </div>

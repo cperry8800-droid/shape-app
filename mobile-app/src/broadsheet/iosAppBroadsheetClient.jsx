@@ -192,12 +192,13 @@ const BS_HEADER_AVATAR = 34; // canonical top-header avatar (+ paired search/pen
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
 function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null }) {
   const t = useBS();
-  // `ink` matches the profile mastheads' pencil/gear chrome (tinted fill +
-  // 0.3-alpha border + 14px glyph) so the corner buttons read as one set.
+  // `ink` matches the profile mastheads' pencil/gear chrome (0.3-alpha border +
+  // 14px glyph) so the corner buttons read as one set. Fill stays transparent —
+  // paper ground, same as every other page's corners (owner call 2026-07-14).
   const g = ink ? 14 : Math.max(13, Math.round(size * 0.44));
   return (
     <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
-      style={{ width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${ink ? bsTHexA(ink, 0.3) : t.RULE}`, background: ink ? bsTHexA(ink, 0.06) : 'transparent', color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+      style={{ width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${ink ? bsTHexA(ink, 0.3) : t.RULE}`, background: 'transparent', color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
       <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ink ? 2.2 : 2.4} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
     </button>
   );
@@ -3310,11 +3311,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           if (isLead) { rows.push({ key: 'slate-lead', time: fmtAt(mealMinutes(m)), _min: mealMinutes(m), lead: true }); return; }
           rows.push({
             key: `meal-${m.id}`,
+            // `time` still feeds bsHomeSlateSort (rows order by the displayed
+            // string) — it just doesn't render as a column anymore; the row's
+            // schedule reads from the right-side meta below (owner call 2026-07-14).
             time: fmtAt(mealMinutes(m)),
             _min: mealMinutes(m),
             tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
             title: m.title,
-            status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : ''}`.replace(/ · $/, ''),
+            status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null].filter(Boolean).join(' · '),
             right: mealTick(m, logged),
             onOpen: () => setPreviewMeal(m),
             ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
@@ -3340,7 +3344,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             _min: WORKOUT_AT,
             tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: rust,
             title: selWorkout.title,
-            status: _wkShortMeta,
+            status: [fmtAt(WORKOUT_AT), _wkShortMeta].filter(Boolean).join(' · '),
             right: (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
@@ -3369,7 +3373,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const isMeal = it.kind === 'meal';
           const meta = isMeal
             ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
-            : [p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
+            : [p.time, p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
           rows.push({
             key: `coach-${it.id}`,
             time: p.time || '',
@@ -3426,7 +3430,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const sortedRows = bsHomeSlateSort(rows);
         // A quiet sub-head before the first habit row, so habits read as their
         // own block inside the run-sheet (owner request) — meals/training stay
-        // unlabeled (their time + tag columns already identify them).
+        // unlabeled (their tag column already identifies them).
         const firstHabitIdx = sortedRows.findIndex((r) => String(r.key).startsWith('habit-'));
         // ── NOW tick (concept B, today only): sits between the last passed
         // timed row and the first upcoming one. Rows without a real `_min`
@@ -3455,7 +3459,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         ) : null;
         const renderRow = (r, i) => (r.lead
           ? <React.Fragment key="slate-lead">{_leadBlock(r.time)}</React.Fragment>
-          : <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />);
+          : <BSSlateRow key={r.key} index={i} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />);
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -3498,13 +3502,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <div data-tour="hero-habits">
               {firstHabitIdx !== -1 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: `13px ${t.padX}px 3px` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.GREEN }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{habitsDone}/{selDayHabits.length}</span>
                   <span aria-hidden style={{ flex: 1, height: 1, background: t.HAIR }} />
                 </div>
               )}
               {firstHabitIdx !== -1 && sortedRows.slice(firstHabitIdx).map((r, j) => (
-                <BSSlateRow key={r.key} index={firstHabitIdx + j} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+                <BSSlateRow key={r.key} index={firstHabitIdx + j} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
               ))}
               {openHabits.length > 3 && (
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
@@ -10364,10 +10368,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
               </button>
             </div>
@@ -10385,7 +10389,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
@@ -11093,10 +11097,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
@@ -11114,7 +11118,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
@@ -14181,7 +14185,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
-          <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
+          <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
             {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
           </h1>
         </div>
@@ -17094,24 +17098,27 @@ function BSStepGoalSheet({ value, accent, onClose, onSave }) {
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Daily step goal</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Set your <span style={{ fontStyle: 'italic', color: accent }}>goal.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '10px 12px' }}>
-          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) - 500)} aria-label="Decrease goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>−</button>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK }}>Set your <span style={{ fontStyle: 'italic', color: accent }}>goal.</span></div>
+        <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
+        {/* Goal register — bare underline figure between squared ± steppers (the
+            weigh-in sheet's Open Ledger form grammar; the boxed plate died). */}
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) - 500)} aria-label="Decrease goal" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>−</button>
           <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
-            <input value={txt} onChange={(e) => setTxt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(num); }} inputMode="numeric" pattern="[0-9]*" aria-label="Daily step goal" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', border: 0, borderBottom: `1.5px solid ${bsTHexA(accent, 0.5)}`, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', padding: '0 0 2px' }} />
-            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>steps / day · tap to type</div>
+            <input value={txt} onChange={(e) => setTxt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(num); }} inputMode="numeric" pattern="[0-9]*" aria-label="Daily step goal" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', border: 0, borderBottom: `1.5px solid ${bsTHexA(accent, 0.5)}`, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: t.W.display, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', padding: '0 0 4px' }} />
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>steps / day · tap to type</div>
           </div>
-          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) + 500)} aria-label="Increase goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>+</button>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) + 500)} aria-label="Increase goal" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>+</button>
         </div>
-        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {PRESETS.map((p) => (
-            <button key={p} onClick={() => setNum(p)} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 52, borderRadius: 10, border: `1px solid ${num === p ? accent : t.RULE}`, background: num === p ? `${accent}1f` : 'transparent', color: num === p ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700 }}>{p / 1000}k</button>
+            <button key={p} onClick={() => setNum(p)} aria-pressed={num === p} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 52, borderRadius: 6, border: `1px solid ${num === p ? accent : t.RULE}`, background: num === p ? `${accent}1f` : 'transparent', color: num === p ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: t.W.display }}>{p / 1000}k</button>
           ))}
         </div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: ok ? t.INK50 : rust, fontWeight: 600 }}>{ok ? 'Every ring fills toward this' : 'Enter 1,000–50,000'}</div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => ok && onSave(num)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
+          <button onClick={() => ok && onSave(num)} disabled={!ok} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
         </div>
       </div>
     </div>
@@ -17393,7 +17400,7 @@ function BSStepsHistory({ onClose }) {
               </button>
             </div>
             {/* range — minimal underline tabs */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 30, borderBottom: `1px solid ${hair}`, marginBottom: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 44, borderBottom: `1px solid ${hair}`, marginBottom: 22 }}>
               {RANGES.map(([r, label]) => (
                 <button key={r} onClick={() => setRange(r)} style={{ background: 'transparent', border: 0, padding: '0 0 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: range === r ? t.INK : t.INK50, borderBottom: `1.5px solid ${range === r ? accent : 'transparent'}`, marginBottom: -1 }}>{label}</button>
               ))}
@@ -17628,7 +17635,7 @@ function BSProgressDoor({ onOpen }) {
 // press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
 // non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
 // a custom control cell (24px meal ghost-tick / 24px habit checkbox, uniform) rendered as-is.
-function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
+function BSSlateRow({ tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
   const tr = useShapeTr();
   const isLead = right === 'lead';
@@ -17672,9 +17679,9 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         // Last track is auto, NOT fixed — the meal/habit ticks (24px, uniform) can't
         // shrink below content, so a fixed track would overflow the row's right gutter
         // and clip at the screen edge. Tight left columns keep the meta from clipping.
-        // UNTIMED rows (habits) drop the time column entirely so their tag + name
-        // sit flush left (owner call 2026-07-13) instead of hanging on a blank gutter.
-        display: 'grid', gridTemplateColumns: time ? '44px 50px 1fr auto auto' : '50px 1fr auto auto', alignItems: 'center', gap: 7,
+        // The time column is GONE for every row (owner call 2026-07-14) — tag + name
+        // sit flush at the left gutter; a row's time rides its right-side meta instead.
+        display: 'grid', gridTemplateColumns: '50px 1fr auto auto', alignItems: 'center', gap: 7,
         width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
@@ -17682,10 +17689,9 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
       }}
     >
-      {time ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time}</span> : null}
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <span aria-hidden style={{ width: 13, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
+        <span aria-hidden style={{ width: 15, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
       </span>
       <span style={{ minWidth: 0, overflow: 'hidden' }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
