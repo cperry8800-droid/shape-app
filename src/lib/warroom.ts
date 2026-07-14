@@ -833,6 +833,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Design refresh — splash · back buttons · home rail · calendar · Saira (2026-07-13)',
+      items: [
+        { label: 'Splash clean ground (#1709): the wire beat + BSWireHold drop ALL texture behind the mark (ticker dashes · K waveform bed · M static flecks — components deleted with their keyframes); floating haloed mark on the clean dark gradient; ON AIR dial (incl. L lock bars) + loading readout kept; BSWireGround survives on wall/invite/auth/provider-apply only', status: 'done' },
+        { label: 'Back buttons app-wide → plain mono "← BACK" text-action (#1711, owner call): the shared BSBackButton (BSDetailHeader\'s 26 pages + ~20 direct sites) lost its bordered chip; 7 ad-hoc bubbles stripped (calendar month · Shape Sets · Nora sheet pill · day-brief boxed CTA · meal-logger serif back · Session-details circled ‹ pair); month-nav ‹ APR controls + the Steps header\'s bare ‹ deliberately untouched; type="button" per CodeRabbit', status: 'done' },
+        { label: 'Home = Concept B "The Rail" (#1710, owner pick off a 4-concept board, kept the week strip): 2px teal rail threads the slate; THE LEAD renders INLINE at its time slot via _leadBlock (standalone BSPlate + the "↑ lead" echo row are gone — Home carries zero plates); breathing NOW tick between passed/upcoming rows on a once-a-minute clock (reduced-motion static); THIS WEEK strip unboxed to the #1622 calendar-rule grammar; Month view/Eat chips → text-actions w/ 44px areas + localized aria states', status: 'done' },
+        { label: 'Calendar month view unboxed (#1712, owner-approved before/after preview; ALL THREE ROLES via the shared BSCalendarScreen): hairline week rows of bare numerals + kind dots (selected = filled accent disc, per-cell count numeral dead — aria carries it); _BS_CAL_ACCENTS moved onto the house tokens (training/sessions RUST · meals TEAL · check-ins BLUE · consults/plans/admin GOLD) with grid dots + legend + day-list spines all resolving through accentOf; month tally → figure-over-label register (This month · Done · Open)', status: 'done' },
+        { label: 'SAIRA is the app\'s display face (#1713, owner call "lets do saira"): DISPLAY_BS → Saira (Space Grotesk fallback) + the client module\'s 12 per-component SERIF/SANS aliases; the bundled Saira woff2s are VARIABLE fonts (wght 100–900) but fonts.css declared static 100–400 → replaced with 3 variable-weight blocks so 600–800 titles get real bold (zero new assets). JetBrains Mono / Newsreader / body stack untouched', status: 'done' },
+        { label: 'On-device pass (Black/Sage/Cream × reduced motion): clean splash beat + hold · ← BACK sweep across detail pages · home rail (lead at its slot, NOW tick placement, meal ticks + habit check-off unchanged) · calendar month on client AND coach accounts (dots/legend/spines agree) · Saira titles at small sizes (13–15px card titles) + heavy weights on Black paper', status: 'manual' },
+      ],
+    },
+    {
       section: 'Wearables & health integrations',
       items: [
         { label: 'Strava connect / sync / import (mobile + web)', status: 'done' },
