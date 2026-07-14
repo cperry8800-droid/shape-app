@@ -3079,12 +3079,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
         </div>
       )}
+      {/* ONE text-action in the lead's accent (owner call 2026-07-13: the boxed
+          CTA + the Preview link opened the SAME workout preview — the box look
+          dies and the redundant Preview → link dies with it). */}
       {todayDirective.cta && (
-        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={todayDirective.cta[1]} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
-          {todayDirective.leadIsWorkout && (
-            <button onClick={() => setShowWorkoutPreview(true)} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, minWidth: 44, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
-          )}
+        <div style={{ marginTop: 4 }}>
+          <button onClick={todayDirective.cta[1]} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.cta[0]}</button>
         </div>
       )}
     </div>
@@ -3640,7 +3640,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               : tr('home:steps.toGo', { defaultValue: '{count, number} to go', count: Math.max(0, stepsToday.goal - stepsToday.val) });
         return (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px` }}>
+            {/* The doors join the index above as stacked dot-leader rows (owner
+                call 2026-07-13) — the 2×2 boxed shelf is gone. */}
+            <div style={{ padding: `0 ${t.padX}px 12px` }}>
               <BSShelfDoor c={teal} eyebrow={tr('home:door.steps', { defaultValue: 'Steps' })} figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
               <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
               <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
@@ -17670,7 +17672,9 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         // Last track is auto, NOT fixed — the meal/habit ticks (24px, uniform) can't
         // shrink below content, so a fixed track would overflow the row's right gutter
         // and clip at the screen edge. Tight left columns keep the meta from clipping.
-        display: 'grid', gridTemplateColumns: '44px 50px 1fr auto auto', alignItems: 'center', gap: 7,
+        // UNTIMED rows (habits) drop the time column entirely so their tag + name
+        // sit flush left (owner call 2026-07-13) instead of hanging on a blank gutter.
+        display: 'grid', gridTemplateColumns: time ? '44px 50px 1fr auto auto' : '50px 1fr auto auto', alignItems: 'center', gap: 7,
         width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
@@ -17678,7 +17682,7 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
       }}
     >
-      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
+      {time ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time}</span> : null}
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <span aria-hidden style={{ width: 13, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
@@ -17763,13 +17767,12 @@ function BSHomeBulletin({ label, detail, onOpen }) {
   );
 }
 
-// BSShelfDoor — one door in the INSIDE. shelf (fills its grid column, 82h; the
-// shelf is a 2×2 grid, no horizontal scroll). Native
-// button (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
-// PROGRESS 4-tick row). `pct` (0–100), when a number, draws a 2px bottom
-// progress sliver at that width. Press feedback scale(0.97) 120ms; the scale
-// transition is skipped under prefers-reduced-motion (transform still applies
-// instantly on press for a11y/testing, just without the animated transition).
+// BSShelfDoor — one door in the INSIDE. index (owner call 2026-07-13: the
+// boxed 2×2 tiles die for the SAME dot-leader index-row grammar as the
+// SESSIONS / AVG KCAL rows above them — one continuous ledger). Native button
+// (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
+// PROGRESS 4-tick row). `pct` (0–100), when a number, fills the row's bottom
+// hairline to that width — the old door sliver carried onto the rule itself.
 function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
   const t = useBS();
   const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
@@ -17785,29 +17788,25 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
       type="button" onClick={onOpen} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
       onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
       style={{
-        position: 'relative', width: '100%', height: 82, boxSizing: 'border-box',
-        borderRadius: 8, border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.03),
-        padding: '11px 13px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        textAlign: 'left', cursor: 'pointer', overflow: 'hidden',
-        transform: pressed ? 'scale(0.97)' : 'scale(1)',
-        ...(reduced ? null : { transition: 'transform 120ms ease' }),
+        position: 'relative', width: '100%', minHeight: 44, boxSizing: 'border-box',
+        border: 0, borderBottom: `1px solid ${t.HAIR}`, borderRadius: 0,
+        background: pressed ? t.PAPER2 : 'transparent', padding: '10px 0 11px',
+        display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
+        textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+        ...(reduced ? null : { transition: 'background 120ms ease' }),
       }}
     >
-      <span aria-hidden style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 12px 12px 0', borderColor: `transparent ${accent} transparent transparent`, opacity: 0.7 }} />
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>
-      <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+      <span aria-hidden style={{ borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.25)}`, transform: 'translateY(3px)', minWidth: 12 }} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
         {typeof figure === 'string' || typeof figure === 'number'
-          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{figure}</span>
+          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{figure}</span>
           : figure}
+        {status ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span> : null}
       </span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span>
-        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: accent, marginLeft: 'auto' }}>›</span>
-      </span>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: accent, textAlign: 'right' }}>›</span>
       {hasPct && (
-        <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: bsTHexA(t.INK, 0.08) }}>
-          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsHomeSliverIn 400ms cubic-bezier(.4,0,.2,1) both' }) }} />
-        </span>
+        <span aria-hidden style={{ position: 'absolute', left: 0, bottom: -1, height: 2, width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsHomeSliverIn 400ms cubic-bezier(.4,0,.2,1) both' }) }} />
       )}
     </button>
   );
@@ -18041,19 +18040,20 @@ function BSTodayCard() {
   const Gauge = ({ label, val, set, c }) => {
     const pct = Math.max(0, Math.min(1, (val || 0) / 10));
     return (
-      <div style={{ marginBottom: 6 }}>
+      <div style={{ marginBottom: 2 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}><span aria-hidden style={{ display: 'inline-block', width: 10, height: 3, background: c, marginRight: 7, verticalAlign: '2px' }} />{label}</span>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
         </div>
-        {/* gauge track (fill + segment ticks + end-anchor) inside a 34px tap row
-            (track stays centered; still comfortably over the 24px tap floor) */}
+        {/* gauge track (bare hairline fill + segment ticks + end-anchor) inside a
+            34px tap row — squared, frameless (the Open Ledger pass); still
+            comfortably over the 24px tap floor */}
         <div style={{ position: 'relative', height: 34 }}>
-          <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 9, borderRadius: 999, background: t.HAIR, border: `1px solid ${t.RULE}`, overflow: 'hidden' }}>
+          <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 5, background: bsTHexA(t.INK, 0.09), overflow: 'hidden' }}>
             <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
           </div>
           {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} aria-hidden style={{ position: 'absolute', left: `${((i + 1) / 10) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 1, height: 9, background: t.PAPER, opacity: 0.55 }} />
+            <div key={i} aria-hidden style={{ position: 'absolute', left: `${((i + 1) / 10) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 1, height: 5, background: t.PAPER, opacity: 0.55 }} />
           ))}
           {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
           <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
@@ -18077,30 +18077,28 @@ function BSTodayCard() {
   const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
   const hydDisplay = t.isMetric ? `${L(cur)} / ${L(hydTarget)} L` : `${Math.round(cur * 33.814)} / ${Math.round(hydTarget * 33.814)} oz`;
 
-  // ── un-boxed page layout — each block is its own slim instrument plate
-  // (clipped notch + accent spine), staggered in. Plain function (not a JSX
-  // component) so React keeps the DOM nodes stable across re-renders and the
-  // one-shot entrances never replay on a gauge tap.
-  const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
-  const plate = (key, c, i, body, pad = '10px 14px 11px 18px') => (
-    <div key={key} style={{ position: 'relative', marginBottom: 10, ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${80 + i * 85}ms both` }) }}>
-      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clipN(10), background: bsTHexA(t.INK, 0.09) }} />
-      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clipN(9), background: bsTHexA(t.INK, 0.02) }} />
-      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: c }} />
-      <div style={{ position: 'relative', padding: pad }}>{body}</div>
+  // ── Open Ledger stations (owner call 2026-07-13: the tinted clipped plates
+  // die) — each block is a zero-box station on a hairline rule; the accent
+  // rides each eyebrow's tick and the gauge fills, never a fill or a frame.
+  // Plain function (not a JSX component) so React keeps the DOM nodes stable
+  // across re-renders and the one-shot entrances never replay on a gauge tap.
+  const station = (key, c, i, body) => (
+    <div key={key} style={{ padding: '11px 0 12px', borderBottom: `1px solid ${t.HAIR}`, ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${80 + i * 85}ms both` }) }}>
+      {body}
     </div>
   );
+  const tick = (c) => <span aria-hidden style={{ display: 'inline-block', width: 10, height: 3, background: c, marginRight: 7, verticalAlign: '2px' }} />;
   return (
     <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
       {showForm ? (
         <>
-          {plate('energy', teal, 0, <Gauge label={tr('home:today.energy', { defaultValue: 'Energy' })} val={energy} set={setEnergy} c={teal} />, '10px 14px 5px 18px')}
-          {plate('hunger', amber, 1, <Gauge label={tr('home:today.hunger', { defaultValue: 'Hunger' })} val={hunger} set={setHunger} c={amber} />, '10px 14px 5px 18px')}
+          {station('energy', teal, 0, <Gauge label={tr('home:today.energy', { defaultValue: 'Energy' })} val={energy} set={setEnergy} c={teal} />)}
+          {station('hunger', amber, 1, <Gauge label={tr('home:today.hunger', { defaultValue: 'Hunger' })} val={hunger} set={setHunger} c={amber} />)}
           {/* SLEEP — device-first hours (read-only snapshot when a wearable synced) */}
-          {plate('sleep', blue, 2, (
+          {station('sleep', blue, 2, (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{tr('home:today.sleepLastNight', { defaultValue: 'Sleep · last night' })}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{tick(blue)}{tr('home:today.sleepLastNight', { defaultValue: 'Sleep · last night' })}</span>
                 {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
               </div>
               {sleepSynced ? (
@@ -18116,17 +18114,17 @@ function BSTodayCard() {
                 // not synced → manual hours chips: stay visible, selectable, tap-again to clear
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={tr('home:today.hoursOfSleep', { defaultValue: '{h} hours of sleep', h })} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={tr('home:today.hoursOfSleep', { defaultValue: '{h} hours of sleep', h })} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 0, border: 0, borderBottom: `2px solid ${sel ? blue : t.HAIR}`, background: 'transparent', color: sel ? blue : t.INK70, cursor: 'pointer', padding: '7px 0 6px', fontFamily: t.MONO, fontSize: 10, fontWeight: sel ? 800 : 700 }}>{h}</button>
                   ); })}
                 </div>
               )}
             </>
           ))}
-          {plate('rested', blue, 3, <Gauge label={tr('home:today.rested', { defaultValue: 'Rested' })} val={rested} set={setRested} c={blue} />, '10px 14px 5px 18px')}
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginBottom: 10, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? tr('home:today.saving', { defaultValue: 'Saving…' }) : tr('home:today.logToday', { defaultValue: 'Log today' })}</button>
+          {station('rested', blue, 3, <Gauge label={tr('home:today.rested', { defaultValue: 'Rested' })} val={rested} set={setRested} c={blue} />)}
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ margin: '14px 0 4px', width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '11px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? tr('home:today.saving', { defaultValue: 'Saving…' }) : tr('home:today.logToday', { defaultValue: 'Log today' })}</button>
         </>
       ) : (
-        plate('summary', teal, 0, (
+        station('summary', teal, 0, (
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5, minWidth: 0 }}>{tr('home:today.energy', { defaultValue: 'Energy' })} <b style={{ color: teal }}>{energy ?? '—'}</b> · {tr('home:today.hunger', { defaultValue: 'Hunger' })} <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · {tr('home:today.sleep', { defaultValue: 'Sleep' })} <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · {tr('home:today.rested', { defaultValue: 'Rested' })} <b style={{ color: blue }}>{rested}</b></> : null} · {tr('home:today.loggedInline', { defaultValue: 'logged ✓' })}</div>
             <button onClick={() => setEditing(true)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>{tr('home:action.edit', { defaultValue: 'Edit' })}</button>
@@ -18134,11 +18132,11 @@ function BSTodayCard() {
         ))
       )}
 
-      {/* HYDRATION — its own plate, STAYS LIVE whether or not the check-in is logged */}
-      {plate('hydration', teal, showForm ? 5 : 1, (
+      {/* HYDRATION — its own station, STAYS LIVE whether or not the check-in is logged */}
+      {station('hydration', teal, showForm ? 5 : 1, (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{tr('home:today.hydration', { defaultValue: 'Hydration' })}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{tick(teal)}{tr('home:today.hydration', { defaultValue: 'Hydration' })}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
           </div>
           {/* dot progress — one dot ≈ one quick-add glass */}
@@ -18152,7 +18150,7 @@ function BSTodayCard() {
             {chips.map(([lab, d]) => (
               <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)', border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
             ))}
-            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label={tr('home:today.undoWater', { defaultValue: 'Undo last water' })} style={{ width: 44, borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label={tr('home:today.undoWater', { defaultValue: 'Undo last water' })} style={{ width: 44, borderRadius: 0, border: 0, borderBottom: `2px solid ${(lastDelta && !hydBusy) ? t.RULE : t.HAIR}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
           </div>
         </>
       ))}

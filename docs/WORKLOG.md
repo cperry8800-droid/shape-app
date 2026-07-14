@@ -433,6 +433,32 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Home + Today polish batch (owner screenshots ×4)
+
+- **Habit rows sit flush left** (`BSSlateRow`): untimed rows (the DAILY HABITS
+  block) drop the 44px time column entirely — the DO/AVOID tag + name start at
+  the page gutter instead of hanging on a blank time gutter. Timed rows
+  unchanged.
+- **The lead's CTA row is ONE text-action** (`_leadBlock`): the boxed tinted
+  "I'll train today →" button and the "Preview →" link both opened the SAME
+  workout preview (`setShowWorkoutPreview`) — the box look dies (plain mono
+  text-action in the lead's accent, 44px hit area) and the redundant Preview
+  link dies with it.
+- **The Today check-in page joins the Open Ledger** (`BSTodayCard` — the
+  "How are you." page): the tinted clipped plates die for zero-box stations on
+  hairline rules — accent ticks ride the ENERGY/HUNGER/SLEEP/RESTED/HYDRATION
+  eyebrows, the gauges become bare squared hairline tracks with heat fills
+  (segment ticks + end-knob kept, 34px tap rows kept), the sleep hour chips +
+  hydration undo go underline-style, LOG TODAY keeps the clipped teal CTA (the
+  page's one action). Data flow, optimistic writes, and honest gating verbatim.
+- **The INSIDE. doors join the index** (`BSShelfDoor`): the boxed 2×2 tile
+  shelf (STEPS · GOAL · PROGRESS · SHOP LIST) becomes stacked **dot-leader
+  index rows** in the same grammar as the SESSIONS/AVG KCAL rows above — 86px
+  mono label · dotted leader · figure + status · accent chevron; the old
+  bottom progress sliver now fills the row's own hairline (`pct`). One
+  component, all four doors (BSMeGoalCard + BSProgressDoor inherit).
+- Verified: JSX parse · PowerShell `/m/` build exit 0 · LF.
+
 ### 2026-07-13 — Saira is the app's display face (owner call: "lets do saira")
 
 - **`DISPLAY_BS` → `'Saira', 'Space Grotesk', …`** — every page/card title now
