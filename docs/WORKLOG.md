@@ -433,6 +433,40 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Splash clean ground (#1709) + Home clean-up pass (owner on-device looks)
+
+- **Splash (#1709):** the wire beat + `BSWireHold` drop the whole texture field
+  behind the triangles (owner: "remove the background image/pattern behind the
+  triangles") — the drifting dash ticker, the K waveform bed, and the M static
+  flecks are gone from the splash; the floating haloed mark now sits on the
+  clean dark gradient. Kept: the community plate, the ON AIR dial (incl. the L
+  lock bars), the loading readout. `BSWireWaveform`/`BSWireStatic` + their
+  keyframes died with their last callers; `BSWireGround` stays on the
+  wall/invite/auth/provider-application pages (splash-only change).
+- **Home — Concept B, "The Rail" (this PR; owner picked B off the home concept
+  board, "but still want the week calendar view"):** the lead + slate become
+  ONE rail-threaded run-sheet — a 2px teal rail runs the slate's left gutter;
+  **the lead threads INLINE at its time slot** (a workout/meal lead renders the
+  full lead block — serif head, compact moves, macros, CTAs, the hero-home tour
+  anchor — in sequence at its time; the old "↑ lead" echo row is gone); untimed
+  leads (engine / habits / the done-state) sit at the rail's head; a **breathing
+  NOW tick** (reduced-motion → static) marks the current time between passed
+  and upcoming timed rows, today only. The lead's `BSPlate` chrome died with
+  the pick — Home now carries zero plates.
+  Plus the strip the owner kept: the THIS-WEEK boxed day tiles die for the
+  **#1622 calendar-rule grammar** (typographic day columns + activity dots
+  under the section rule, accent needle over the selected day, localized aria
+  states), and the two section-head chips (**Month view →** · **Eat →**) quiet
+  to plain accent text-actions (44px hit areas). Door shelf untouched.
+- Verified per PR: JSX parse · PowerShell `/m/` build exit 0 · LF; CodeRabbit
+  round 1 (hit areas + localized aria) fixed in-PR.
+- **Back buttons app-wide (#1711):** every back control is the plain mono
+  **← BACK** text-action now (owner call) — the shared `BSBackButton` (behind
+  `BSDetailHeader`'s 26 pages + ~20 direct sites) drops its bordered chip, and
+  the ad-hoc bubbles (calendar month, Shape Sets, Nora sheet pill, day-brief
+  boxed CTA, meal-logger serif back, Session-details circled `‹` pair) strip
+  to the same grammar. Month-nav `‹ APR` controls untouched (not back buttons).
+
 ### 2026-07-13 — Adjust → FULL program regeneration: the coach's changes rewrite the real rows (spec #1707)
 
 - **Closes the War Room P2** ("Adjust → full program/plan regeneration"). The
