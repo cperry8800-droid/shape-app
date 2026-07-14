@@ -56,16 +56,36 @@
     } catch (e) {}
   }
 
+  // Real unread total from the loaded chat threads, or null while unknown
+  // (signed-out, or before the app populates clientChatTabs). The badge only
+  // renders for a real, non-zero count — never a placeholder number.
   function unreadCount() {
     try {
-      if (!window.clientChatTabs) return 24;
+      // clientChatTabs on the marketing pages is the STATIC DEMO thread set
+      // (clientChatThreads.jsx) - its unread numbers are fiction. Only count
+      // threads a live, session-backed surface has stamped with __live=true
+      // (nothing does yet on the marketing site, so no badge shows there).
+      if (!window.clientChatTabs || window.clientChatTabs.__live !== true) return null;
       return window.clientChatTabs.reduce(function (total, tab) {
         return total + (tab.threads || []).reduce(function (sum, thread) {
           return sum + (Number(thread.unread) || 0);
         }, 0);
       }, 0);
     } catch (err) {
-      return 24;
+      return null;
+    }
+  }
+
+  function syncUnreadBadge(button) {
+    if (!button) return;
+    var el = button.querySelector(".shape-global-chat-count");
+    if (!el) return;
+    var n = unreadCount();
+    if (n && n > 0) {
+      el.textContent = n > 99 ? "99+" : String(n);
+      el.style.display = "";
+    } else {
+      el.style.display = "none";
     }
   }
 
@@ -603,8 +623,9 @@
       '<path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>',
       "</svg>",
       "<span>Chat</span>",
-      '<span class="shape-global-chat-count">' + unreadCount() + "</span>"
+      '<span class="shape-global-chat-count" style="display:none"></span>'
     ].join("");
+    syncUnreadBadge(button);
 
     button.addEventListener("click", function () {
       // Open the full rich ChatWidget (loads it if the page doesn't
@@ -617,10 +638,13 @@
 
     var observer = new MutationObserver(function () {
       syncVisibility(button);
+      // clientChatTabs arrives when the app mounts (async) — keep the badge
+      // honest as threads load/read-states change.
+      syncUnreadBadge(button);
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    window.addEventListener("pageshow", function () { syncVisibility(button); });
+    window.addEventListener("pageshow", function () { syncVisibility(button); syncUnreadBadge(button); });
 
     // The chat panel does NOT auto-reopen across navigation — it was staying open
     // and blocking the page. Each page starts with just the bubble; the panel

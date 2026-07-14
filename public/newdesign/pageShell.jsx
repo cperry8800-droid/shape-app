@@ -641,6 +641,13 @@ Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
   try {
     var el = document.getElementById('site-footer');
     if (el && !el.getAttribute('data-mounted') && window.ReactDOM && window.ReactDOM.createRoot) {
+      // The footer mounts from the FIRST page script, long before the page's
+      // own app fills #root — on slow connections it painted alone at the top
+      // of the viewport, then got shoved thousands of px down when the app
+      // mounted (a 0.71 layout shift, the site's whole CLS). Reserve the first
+      // viewport for the app so the footer always starts below the fold.
+      var appRoot = document.getElementById('root');
+      if (appRoot && !appRoot.style.minHeight) appRoot.style.minHeight = '100vh';
       el.setAttribute('data-mounted', '1');
       window.ReactDOM.createRoot(el).render(<React.Fragment><ShapeMobileStyles /><Footer /></React.Fragment>);
     }
