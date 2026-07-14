@@ -830,9 +830,9 @@ function BSRadioScreen({ onBack }) {
               Vol. 1 · No. 1
             </div>
           </div>
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            padding: '6px 12px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
+          <button onClick={onBack} style={{
+            padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
+            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
           }}>← Back</button>
         </div>
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>

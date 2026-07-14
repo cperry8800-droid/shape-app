@@ -308,9 +308,9 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       {onBack && (
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          padding: '6px 12px', background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
+        <button onClick={onBack} style={{
+          padding: '8px 2px', background: 'transparent', color: t.INK, border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
         }}>← Back</button>
       )}
       {(() => {

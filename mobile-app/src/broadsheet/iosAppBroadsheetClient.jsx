@@ -2129,7 +2129,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
           </div>
         )}
         <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, letterSpacing: '0' }}>← Back</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>← Back</button>
         </div>
       </BSPage>
     );
@@ -5412,10 +5412,10 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
       )}
 
       {/* Back CTA */}
-      <div style={{ padding: `22px ${t.padX}px 18px` }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
-          fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
+      <div style={{ padding: `22px ${t.padX}px 18px`, textAlign: 'center' }}>
+        <button onClick={onBack} style={{
+          padding: '10px 12px', border: 0, background: 'transparent', color: t.INK,
+          fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
         }}>← Back to menu</button>
       </div>
 
@@ -11681,7 +11681,7 @@ function BSNoraProfile({ onClose }) {
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: t.PAPER_BG, color: t.INK, overflowY: 'auto' }}>
       <div style={{ padding: `46px ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={onClose} style={{ background: bsTHexA(t.INK, 0.06), border: `1px solid ${bsTHexA(t.INK, 0.18)}`, color: t.INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
         </div>
         {/* identity — the live ring + dot overflow the avatar box, so pad the
@@ -12377,7 +12377,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
+          <button onClick={onClose} aria-label="Back" style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
           {!isComments && canShareCard && (
             <button onClick={() => setShareOpen(true)} aria-label="Share" style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
