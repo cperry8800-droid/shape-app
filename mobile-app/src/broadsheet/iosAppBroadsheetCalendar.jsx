@@ -211,8 +211,9 @@ function eventsFor(role, t) {
 // the same language the home slate tags and the day-list spines speak, so the
 // grid dots, legend, and rows can never disagree. The calendar's old private
 // palette (workout amber / meals blue / check-in green) died here.
+const bsCalTeal = (t) => (t.isLight ? '#0a8f87' : '#34d6c5');
 const _BS_CAL_ACCENTS = (t) => {
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const teal = bsCalTeal(t);
   return {
     WORKOUT: t.RUST, TRN: t.RUST, SES: t.RUST, SESSION: t.RUST,
     MEAL: teal, CHECKIN: t.BLUE, CHK: t.BLUE,
@@ -468,7 +469,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 // ────────── MONTH VIEW
 function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const teal = bsCalTeal(t);
   const MONTHS3 = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const prevAbbr = MONTHS3[(viewMonth + 11) % 12];
   const nextAbbr = MONTHS3[(viewMonth + 1) % 12];
@@ -550,11 +551,12 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         ))}
       </div>
 
-      {/* Legend — the house kind colors (one language with the day list below) */}
+      {/* Legend — derived from the SAME kind map the dots + spines resolve
+          through, so the three can never disagree. */}
       <div style={{ padding: `10px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
-        {[['Training', t.RUST], ['Meals', teal], ['Check-in', t.BLUE], ['Consult', t.AMBER]].map(([l, c]) => (
+        {[['Training', 'TRN'], ['Meals', 'MEAL'], ['Check-in', 'CHECKIN'], ['Consult', 'CONSULT']].map(([l, k]) => (
           <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: c, display: 'inline-block' }} />{l}
+            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: kindAccent[k], display: 'inline-block' }} />{l}
           </span>
         ))}
       </div>
@@ -562,7 +564,9 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       {/* Month register — figure-over-label columns (was a one-line tally) */}
       {monthTotal > 0 && (
         <div style={{ margin: `4px ${t.padX}px 14px`, borderTop: `2px solid ${t.INK}`, paddingTop: 8, display: 'flex' }}>
-          {[[monthTotal, 'This month', t.INK], [doneCount, 'Done', teal], [monthTotal - doneCount, 'Ahead', t.INK]].map(([v, l, c]) => (
+          {/* "Open", not "Ahead" — a browsed past month's never-completed
+              events are open items, not upcoming ones. */}
+          {[[monthTotal, 'This month', t.INK], [doneCount, 'Done', teal], [monthTotal - doneCount, 'Open', t.INK]].map(([v, l, c]) => (
             <div key={l} style={{ flex: 1 }}>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, letterSpacing: '-0.03em', color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{v}</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
