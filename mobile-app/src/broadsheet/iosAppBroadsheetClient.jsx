@@ -14214,7 +14214,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               call 2026-07-14) — page-level control, out of the chip stack.
               flexWrap: on narrow phones (≲375px) the lens drops to its own line
               under the title instead of squeezing it (CodeRabbit P2).
-              Custom buttons, not bsSubTab (owner call 2026-07-15): bigger/
+              Custom buttons, not bsSubTab (owner call 2026-07-14 evening): bigger/
               bolder for presence, text hugging the button bottom so the labels
               sit on the Community title's baseline instead of floating. */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
@@ -14596,7 +14596,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div inert={subHidden} style={bsSubStyle(0)}>
-          {/* One control strip (owner pick 2026-07-15, option A off the board):
+          {/* One control strip (owner pick 2026-07-14 evening, option A off the board):
               role chips left, and on COMMUNITY the type filter is a compact
               ALL ▾ select on the row's right end — the six-chip row is gone. */}
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: filter === 'COMMUNITY' ? 'space-between' : 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
@@ -14620,7 +14620,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
               {/* The type filter lives in the ALL ▾ select on the role-chip
-                  row now (owner pick 2026-07-15) — no chip row in the body. */}
+                  row now (owner pick 2026-07-14 evening) — no chip row in the body. */}
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
