@@ -14183,7 +14183,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
           <BSHeaderTools onProfile={onProfile} />
         </div>
-        <div style={{ minWidth: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
@@ -14191,7 +14191,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
-              call 2026-07-14) — page-level control, out of the chip stack. */}
+              call 2026-07-14) — page-level control, out of the chip stack.
+              flexWrap: on narrow phones (≲375px) the lens drops to its own line
+              under the title instead of squeezing it (CodeRabbit P2). */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, paddingBottom: 2 }}>
               {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
