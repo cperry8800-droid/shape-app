@@ -450,6 +450,33 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — Universal back-button placement (one spot, app-wide)
+
+- **THE RULE (owner call: "universal placing for the back buttons"):** the back
+  button sits on its OWN ROW, flush LEFT at the page gutter, DIRECTLY BELOW the
+  masthead row (logo + Vol·No + corners); the page's eyebrow/meta may share that
+  row on the right. Never inside the masthead row, never top-right, never
+  bottom. Documented on `BSBackButton` (chrome); `BSDetailHeader` and the new
+  **`onBack` slot on `BSMasthead` + `BSPageHeader`** are the canonical
+  implementations — new pages use one of those, never an ad-hoc copy.
+- **Deviants moved to the slot** (all were top-right or in the mast row): the
+  coach Grocery Lists + action-queue mastheads and the Client-preview /
+  Public-profile / Notifications settings pages (`trailing={<BSBackButton/>}` →
+  `onBack`), The Queue review header + the Adjust/Schedule action head (columns
+  swapped — back left, eyebrow right), the coach public-profile header (back
+  left · Edit right; the eyebrow gets its own line), the **calendar month page**
+  (back moved out of the trailing corner cluster into the onBack slot), the
+  **marketplace directory** (out of the mast row's right cluster → its own row),
+  and the **Shape Sets** page (the bordered `← Radio` pill died for the plain
+  mono grammar, own row, flush left, CREAM on the fixed-dark page).
+- Already compliant, untouched: BSDetailHeader's 26 pages, the client direct
+  sites (Library/meal preview/workout preview/profiles/chat thread), coach
+  Soundtracks + draft editor, the marketplace Listing/availability backs, the
+  calendar overlay's takeover dismiss, and the auth flow's in-form step-backs
+  (wire-form grammar, not page headers). Month-nav `‹ APR` controls are not
+  back buttons.
+- Verified: JSX parse ×5 · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+
 ### 2026-07-14 — Owner-screenshot polish batch ×7 (thin titles · flush slate · sheet + chrome)
 
 - **Saira follow-through — two titles that missed the #1716 tier**: the radio

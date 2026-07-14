@@ -314,14 +314,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
 
   // Serif page title removed (owner request) — the mast row + Calendar kicker carry the page.
 
+  // Back moved OUT of the trailing corner into BSPageHeader's universal back
+  // slot (own row, flush left, under the mast — owner call 2026-07-14).
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {onBack && (
-        <button onClick={onBack} style={{
-          padding: '8px 2px', background: 'transparent', color: t.INK, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-        }}>← Back</button>
-      )}
       {(() => {
         // The real self avatar — initials · photo · tier color · live dot —
         // rendered exactly like every other page header. The self helpers already
@@ -347,6 +343,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       <BSPageHeaderCal
         kicker="Section · Calendar"
         trailing={trailing}
+        onBack={onBack}
       />
 
       {useServer && (

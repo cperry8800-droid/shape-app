@@ -573,7 +573,6 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
           {window.BSFacetAvatar ? (
             <window.BSFacetAvatar
               size={34}
@@ -589,8 +588,12 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
           ) : null}
           </div>
         </div>
+        {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
+        <div style={{ marginTop: 12 }}>
+          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, padding: '8px 2px', lineHeight: 1 }}><span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Back</button>
+        </div>
         {/* The Classifieds eyebrow — the marketplace is the paper's listings section */}
-        <div style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 7 }}>
           <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: teal }} />
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>The classifieds</span>
         </div>
