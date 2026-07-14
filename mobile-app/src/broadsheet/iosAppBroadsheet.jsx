@@ -1499,7 +1499,7 @@ function BSPhone({ children }) {
 function BSBackButton({ onClick, label = 'Back', style }) {
   const t = useBS();
   return (
-    <button onClick={onClick} aria-label={label} style={{
+    <button type="button" onClick={onClick} aria-label={label} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       background: 'transparent', border: 0,
       padding: '8px 2px', cursor: 'pointer', color: t.INK,
