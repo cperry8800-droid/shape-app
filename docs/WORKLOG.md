@@ -466,8 +466,18 @@ changelog whenever something ships.
   the ad-hoc bubbles (calendar month, Shape Sets, Nora sheet pill, day-brief
   boxed CTA, meal-logger serif back, Session-details circled `‹` pair) strip
   to the same grammar. Month-nav `‹ APR` controls untouched (not back buttons).
-
-### 2026-07-13 — Adjust → FULL program regeneration: the coach's changes rewrite the real rows (spec #1707)
+- **Calendar month view unboxed (this PR; owner approved the before/after
+  preview):** the 31 bordered day cells die for **hairline week rows** of bare
+  numerals + kind dots (selected day = a filled accent disc, today = an accent
+  numeral, min 44px targets, aria carries the per-day item count); the
+  per-cell **count numeral is gone** (the dots already carry it); the dot
+  colors move onto the **house tokens** via the ONE `_BS_CAL_ACCENTS` map —
+  training rust · meals teal · check-in blue · consult/plan gold (the old
+  private workout-amber/meals-blue/check-in-green palette died) — resolved at
+  render (`accentOf`) so the grid dots, legend, AND the day-list spines can
+  never disagree (live server events + demo arrays alike); and the month
+  tally line becomes a **figure-over-label register** (This month · Done ·
+  Ahead, done in teal). Event data, taps, and the event sheets unchanged.
 
 - **Closes the War Room P2** ("Adjust → full program/plan regeneration"). The
   coach Adjust page's Apply used to write `detail.training` + the note while
