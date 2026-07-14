@@ -312,6 +312,8 @@
   "fx.footPreview": "— vista previa durante unos segundos",
   "fx.footReduced": "— la reducción de movimiento está activada, los efectos permanecen apagados",
   "fx.previewChip": "VISTA PREVIA",
+  "fx.color": "Color",
+  "fx.colorCycle": "Ciclo",
   "ticker.title": "Ticker de inicio",
   "ticker.shownMeta": "{shown} de {total} visibles",
   "ticker.moveUp": "Subir",

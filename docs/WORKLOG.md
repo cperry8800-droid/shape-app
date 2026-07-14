@@ -450,6 +450,53 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-14 — The hologram DJ gets real: "The Booth" (owner pick, option B) + an fx color picker
+
+- **`RadioHologramDJ` rebuilt as THE BOOTH** (owner round: "a more realistic
+  looking hologram" → previews on the concept board → "do the Booth" /
+  "option B"). The smiley stick figure dies for a **bottom-anchored close-up
+  with a properly-proportioned volumetric bust**: an oversized console spans
+  the screen's bottom edge (two large spinning perspective platters w/ tone
+  arms + a live 3-fader mixer) and a featureless light-form DJ rises behind
+  it — head/jaw, neck, headphones, real shoulders, left hand working the left
+  platter (scratch wobble on the kick), the right an open raised hand
+  (fingers and all) pumping. `preserveAspectRatio="xMidYMax slice"` pins the
+  booth to the screen bottom on any phone height.
+- **Hologram treatment**: scanline banding (kept), **chromatic double-image**
+  (fixed cyan/magenta ghost clones so the RGB split reads on any tint),
+  **deterministic glitch-slice bursts** (~every 3.7s, seeded from t — no
+  Math.random), flicker, smooth float (the old every-frame whole-figure jitter
+  dies), EQ towers behind. All drawn in `currentColor` inside one `<g>` so the
+  `<use>` layers retint; per-mount SVG ids via `React.useId` (the #1518
+  duplicate-id lesson). Still pure SVG/CSS — no new deps; overlay opacity
+  stays quiet over content.
+- **NEW: the fx COLOR picker** (owner add) — Settings → Light effects gains a
+  Color grid in the option-cell grammar: **Cycle** (the drifting 18s palette,
+  default) · **Accent** (follows the app accent on the current paper) · seven
+  fixed tints. Persisted with the mode in `shape.radio.fx` `{mode, color}`
+  (validated on read); `RadioEffects` takes a `tint` prop that pins EVERY
+  layer (glow/bloom/island/DJ); picking a color re-fires the settings preview.
+  Browser-proven: picking Rose pinned the live overlay to `#f2749f`.
+  Labels reuse existing catalog keys; 2 new keys (`fx.color`, `fx.colorCycle`)
+  × 13 locales — parity suite green.
+- **Concept-board round**: published live beat-synced boards (round 2: Resident
+  / Booth / Wireframe / Projection + the smiley reference; round 3 lead: the
+  realistic one) at claude.ai/code/artifact/43b02089-2757-47b8-ac67-2126e028b5e7.
+  *Gotcha for reuse: a rAF loop keyed off `performance.now()` captured at
+  module eval can see a FIRST timestamp slightly earlier → negative t →
+  `FX[Math.floor(-ε)]` undefined kills the loop — clamp `ms = max(0, now-start)`
+  (the app's own `cycleColor` already guards this).*
+- **Browser-verified in-app** (dev server): with radio playing + Hologram mode,
+  the figure renders over Home (raised hand, platters, island bar, edge glow)
+  at the quiet overlay opacity; the settings tap-to-preview path mounts/clears
+  it. Verified: JSX parse · PowerShell `/m/` build exit 0 · `npm test` 632 · LF.
+- **Also answered live (owner ask "do these toggles actually change anything?")**:
+  the Settings → Home ticker toggles ARE fully wired for a signed-in member —
+  hide/show + ↑↓ order write `user_goals('client_ticker')` and the Home strip
+  filters/orders by the same keys on mount. In the signed-out preview they
+  don't stick (no account row; Home reloads defaults) — that's the state the
+  demo shows. Follow-up candidate if wanted: localStorage mirror for the demo.
+
 ### 2026-07-14 — Appearance pickers redesigned (uniform preview tiles) + 4 papers · 2 accents · 4 patterns + the fx picker learns to preview
 
 - **One uniform option cell for EVERY appearance picker** (owner call: "make

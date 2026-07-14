@@ -312,6 +312,8 @@
   "fx.footPreview": "— previewing for a few seconds",
   "fx.footReduced": "— reduced motion is on, so effects stay off",
   "fx.previewChip": "PREVIEW",
+  "fx.color": "Color",
+  "fx.colorCycle": "Cycle",
   "ticker.title": "Home ticker",
   "ticker.shownMeta": "{shown} of {total} shown",
   "ticker.moveUp": "Move up",

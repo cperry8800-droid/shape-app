@@ -101,6 +101,10 @@ const BSRadioContext = createContextBR(null);
 // The valid light-effects intensities — a persisted value outside this set
 // (or a future rename) falls back to 'off' instead of rendering nothing odd.
 const BS_FX_MODE_KEYS = ['off', 'subtle', 'immersive', 'hologram'];
+// Valid fx colors: the cycling palette, the app accent, or a fixed hex.
+function bsValidFxColor(c) {
+  return c === 'cycle' || c === 'accent' || /^#[0-9a-fA-F]{6}$/.test(String(c || ''));
+}
 
 function BSRadioProvider({ children }) {
   // Persisted radio preference (device-level localStorage) so the "Want music
@@ -116,14 +120,24 @@ function BSRadioProvider({ children }) {
   const [trackIdx, setTrackIdx]     = useStateBR(0);
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
-  // Light-effects intensity: 'off' | 'subtle' | 'immersive' | 'hologram' —
-  // persisted device-level (like the radio pref) so the pick survives relaunch.
-  const _fxPref = safeReadRadioJSON('shape.radio.fx', null); // { mode } | null
+  // Light-effects intensity ('off' | 'subtle' | 'immersive' | 'hologram') +
+  // color ('cycle' | 'accent' | '#rrggbb') — persisted device-level (like the
+  // radio pref) so the pick survives relaunch.
+  const _fxPref = safeReadRadioJSON('shape.radio.fx', null); // { mode, color } | null
   const [fxMode, setFxModeState]    = useStateBR(BS_FX_MODE_KEYS.includes(_fxPref?.mode) ? _fxPref.mode : 'off');
+  const [fxColor, setFxColorState]  = useStateBR(bsValidFxColor(_fxPref?.color) ? _fxPref.color : 'cycle');
+  function persistFx(mode, color) {
+    try { window.localStorage && window.localStorage.setItem('shape.radio.fx', JSON.stringify({ mode, color })); } catch {}
+  }
   function setFxMode(mode) {
     const next = BS_FX_MODE_KEYS.includes(mode) ? mode : 'off';
     setFxModeState(next);
-    try { window.localStorage && window.localStorage.setItem('shape.radio.fx', JSON.stringify({ mode: next })); } catch {}
+    persistFx(next, fxColor);
+  }
+  function setFxColor(color) {
+    const next = bsValidFxColor(color) ? color : 'cycle';
+    setFxColorState(next);
+    persistFx(fxMode, next);
   }
   const [trackFeedback, setTrackFeedbackState] = useStateBR(() => safeReadRadioJSON('shape.radio.feedback', {}));
   const [musicLibraries, setMusicLibrariesState] = useStateBR(() => safeReadRadioJSON('shape.radio.musicLibraries', { spotify: [], apple: [] }));
@@ -227,7 +241,7 @@ function BSRadioProvider({ children }) {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused,
     trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
-    fxMode, setFxMode,
+    fxMode, setFxMode, fxColor, setFxColor,
     trackFeedback, setTrackFeedback, addTrackComment,
     musicLibraries, saveTrackToLibrary, isTrackSaved,
     LIVE: BS_LIVE_STATION,

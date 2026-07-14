@@ -312,6 +312,8 @@
   "fx.footPreview": "— birkaç saniye önizleniyor",
   "fx.footReduced": "— hareketi azaltma açık, efektler kapalı kalır",
   "fx.previewChip": "ÖNİZLEME",
+  "fx.color": "Renk",
+  "fx.colorCycle": "Döngü",
   "ticker.title": "Ana sayfa şeridi",
   "ticker.shownMeta": "{total} üzerinden {shown} gösteriliyor",
   "ticker.moveUp": "Yukarı taşı",
