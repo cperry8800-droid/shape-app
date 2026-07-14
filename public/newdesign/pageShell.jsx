@@ -24,10 +24,10 @@ function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
 }
 
 function Logo({ variant = "black", size = 28 }) {
-  const src = variant === "white" ? "/shape-logo-new-white.png?v=4"
-    : variant === "black" ? "/shape-logo-new-black.png?v=4"
-    : variant === "teal" ? "/shape-logo-new-teal-white.png?v=1"
-    : "/shape-logo-new-white.png?v=4";
+  const src = variant === "white" ? "/shape-logo-nav-white.png"
+    : variant === "black" ? "/shape-logo-nav-black.png"
+    : variant === "teal" ? "/shape-logo-nav-teal-white.png"
+    : "/shape-logo-nav-white.png";
   // New logo has the play-icon stacked above the SHAPE wordmark (aspect ~1.87:1), not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   const h = Math.round(size * 1.8);
@@ -356,7 +356,7 @@ function Header({ active }) {
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 44px", gap: 20 }}>
         <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0, marginLeft: 16 }}>
-          <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -436,7 +436,7 @@ function Footer({ logoHeight = 64 } = {}) {
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, paddingBottom: 36, textAlign: "center" }}>
-          <img src="/shape-logo-new-white.png?v=4" alt="Shape" style={{ height: logoHeight, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
@@ -1392,4 +1392,30 @@ Object.assign(window, { ShapeHomeCards });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
+})();
+
+// ── Hover prefetch ────────────────────────────────────────────────────────────
+// The site is an MPA: each nav is a full page load. Prefetch the destination
+// document on first hover/touch of an internal link so the HTML is already in
+// the cache by the click (the shared compiled scripts are cache-hits anyway).
+(function () {
+  try {
+    if (navigator.connection && navigator.connection.saveData) return;
+    var seen = {};
+    document.addEventListener("mouseover", function (e) {
+      var a = e.target && e.target.closest && e.target.closest("a[href]");
+      if (!a) return;
+      var href = a.getAttribute("href") || "";
+      if (href.indexOf("://") !== -1 && a.origin !== location.origin) return;
+      if (href.charAt(0) === "#" || href.indexOf("javascript:") === 0 || !/\.html(\?|#|$)/.test(a.pathname || href)) return;
+      var key = a.pathname;
+      if (seen[key]) return;
+      seen[key] = 1;
+      var l = document.createElement("link");
+      l.rel = "prefetch";
+      l.as = "document";
+      l.href = a.href;
+      document.head.appendChild(l);
+    }, { passive: true, capture: true });
+  } catch (e) {}
 })();
