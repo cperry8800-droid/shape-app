@@ -159,7 +159,34 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-13 evening): THE DESIGN REFRESH — 5 PRs, all merged**
+> **Latest (2026-07-14): THE DOING-SCREENS + APPEARANCE DAY — 7 PRs, all
+> merged** (`main` at `95949d7a`). **The Cockpit/Split wave** — the owner's
+> "entirely new, less analog" DOING screens, picked off an iterated concept
+> board: spec **#1719** · **#1720** the live session becomes the instrument
+> (fixed-dark band `#0b0f0f`/`#f4ede0`/signal-teal `#38e0cc` + 3px teal seam
+> over the paper ledger; ELAPSED clock · REST countdown w/ FILLING bar ·
+> glowing editable set readout · ✕/＋ set editing · ▶ How-to form-clip chip
+> w/ http(s) guard · band heat = `bsLiveEffort`) · **#1721** the meal logger
+> + both "Logged." confirmations join (one-tap in-band · live tally · filed
+> stamp · THE TALLY dissolved · BSMealLogged's fabricated day-bases →
+> preview-only). Plus the owner-screenshot rounds: **#1717** polish ×7 + THE
+> UNIVERSAL BACK PLACEMENT (own row, flush left, below the mast — documented
+> on BSBackButton; `onBack` slots on BSMasthead/BSPageHeader) · **#1718**
+> Settings hub rows flush + feed chips justified + the UNIVERSAL/FOLLOWING
+> lens onto the Community title row. Then **#1722** the APPEARANCE PICKERS
+> rebuilt on ONE uniform preview-tile grammar (OptCell/OptGrid — live paper/
+> pattern/accent/ink tiles; 4 new papers Rose·Mist·Cocoa·Midnight, accents
+> Violet·Rose, patterns Contour·Checker·Sunburst·Scales; fx tap-to-preview +
+> `shape.radio.fx` persistence + reduced-motion honesty) and **#1723** the
+> HOLOGRAM DJ becomes **"The Booth"** (owner pick, option B off the live
+> board: realistic volumetric bust behind an oversized bottom console) + an
+> **fx COLOR picker** (Cycle · Accent · 7 tints). Session handoff:
+> **[`docs/HANDOFF-2026-07-14.md`](HANDOFF-2026-07-14.md)**. Open: the OWNER
+> on-device pass (cockpit bands × papers × reduced motion × a real coached
+> plan w/ a form clip · the new papers/patterns · the Booth + Color picks
+> surviving relaunch · ticker toggles signed-in).
+>
+> **Prior (2026-07-13 evening): THE DESIGN REFRESH — 5 PRs, all merged**
 > (owner-driven from on-device screenshots): **#1709** splash clean ground
 > (ticker/waveform/static pattern behind the mark deleted) · **#1711** every
 > back button app-wide → the plain mono **← BACK** text-action · **#1710**
@@ -450,7 +477,7 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-07-14 — The hologram DJ gets real: "The Booth" (owner pick, option B) + an fx color picker
+### 2026-07-14 — The hologram DJ gets real: "The Booth" (owner pick, option B) + an fx color picker (#1723, `95949d7a`)
 
 - **`RadioHologramDJ` rebuilt as THE BOOTH** (owner round: "a more realistic
   looking hologram" → previews on the concept board → "do the Booth" /
@@ -497,7 +524,7 @@ changelog whenever something ships.
   don't stick (no account row; Home reloads defaults) — that's the state the
   demo shows. Follow-up candidate if wanted: localStorage mirror for the demo.
 
-### 2026-07-14 — Appearance pickers redesigned (uniform preview tiles) + 4 papers · 2 accents · 4 patterns + the fx picker learns to preview
+### 2026-07-14 — Appearance pickers redesigned (uniform preview tiles) + 4 papers · 2 accents · 4 patterns + the fx picker learns to preview (#1722, `01c4f38b`)
 
 - **One uniform option cell for EVERY appearance picker** (owner call: "make
   these all the same size") — papers, textures, accents, ink, display weight,
