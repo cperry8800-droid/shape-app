@@ -1406,7 +1406,7 @@ Object.assign(window, { ShapeHomeCards });
       var a = e.target && e.target.closest && e.target.closest("a[href]");
       if (!a) return;
       var href = a.getAttribute("href") || "";
-      if (href.indexOf("://") !== -1 && a.origin !== location.origin) return;
+      if (a.origin !== location.origin) return;
       if (href.charAt(0) === "#" || href.indexOf("javascript:") === 0 || !/\.html(\?|#|$)/.test(a.pathname || href)) return;
       var key = a.pathname;
       if (seen[key]) return;
