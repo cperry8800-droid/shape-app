@@ -312,6 +312,8 @@
   "fx.footPreview": "— e dey preview for small seconds",
   "fx.footReduced": "— reduce motion don on, so effects go stay off",
   "fx.previewChip": "PREVIEW",
+  "fx.color": "Color",
+  "fx.colorCycle": "Cycle",
   "ticker.title": "Home ticker",
   "ticker.shownMeta": "{shown} of {total} dey show",
   "ticker.moveUp": "Move up",

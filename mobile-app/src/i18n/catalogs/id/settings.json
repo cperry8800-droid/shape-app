@@ -312,6 +312,8 @@
   "fx.footPreview": "— pratinjau selama beberapa detik",
   "fx.footReduced": "— gerakan dikurangi aktif, efek tetap mati",
   "fx.previewChip": "PRATINJAU",
+  "fx.color": "Warna",
+  "fx.colorCycle": "Siklus",
   "ticker.title": "Ticker beranda",
   "ticker.shownMeta": "{shown} dari {total} ditampilkan",
   "ticker.moveUp": "Naik",

@@ -312,6 +312,8 @@
   "fx.footPreview": "— aperçu pendant quelques secondes",
   "fx.footReduced": "— la réduction des animations est activée, les effets restent désactivés",
   "fx.previewChip": "APERÇU",
+  "fx.color": "Couleur",
+  "fx.colorCycle": "Cycle",
   "ticker.title": "Bandeau d'accueil",
   "ticker.shownMeta": "{shown} sur {total} affichés",
   "ticker.moveUp": "Monter",

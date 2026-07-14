@@ -312,6 +312,8 @@
   "fx.footPreview": "— Vorschau für ein paar Sekunden",
   "fx.footReduced": "— reduzierte Bewegung ist aktiv, Effekte bleiben aus",
   "fx.previewChip": "VORSCHAU",
+  "fx.color": "Farbe",
+  "fx.colorCycle": "Wechselnd",
   "ticker.title": "Start-Ticker",
   "ticker.shownMeta": "{shown} von {total} sichtbar",
   "ticker.moveUp": "Nach oben",

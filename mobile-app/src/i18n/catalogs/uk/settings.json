@@ -312,6 +312,8 @@
   "fx.footPreview": "— перегляд кілька секунд",
   "fx.footReduced": "— увімкнено зменшення руху, ефекти залишаються вимкненими",
   "fx.previewChip": "ПЕРЕГЛЯД",
+  "fx.color": "Колір",
+  "fx.colorCycle": "Цикл",
   "ticker.title": "Тікер на Головній",
   "ticker.shownMeta": "{shown} з {total} показано",
   "ticker.moveUp": "Вгору",

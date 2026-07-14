@@ -312,6 +312,8 @@
   "fx.footPreview": "— đang xem trước trong vài giây",
   "fx.footReduced": "— chế độ giảm chuyển động đang bật nên hiệu ứng tắt",
   "fx.previewChip": "XEM TRƯỚC",
+  "fx.color": "Màu",
+  "fx.colorCycle": "Xoay vòng",
   "ticker.title": "Bảng tin trang chủ",
   "ticker.shownMeta": "{shown} trong {total} được hiển thị",
   "ticker.moveUp": "Di chuyển lên",

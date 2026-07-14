@@ -243,16 +243,26 @@ function BSMeCorner({ size = BS_HEADER_AVATAR }) {
 // corner — window-exposed because the chrome module can't import client components.
 window.BSMastCorner = BSMeCorner;
 
+// The fx color pick → the tint RadioEffects pins every layer to. 'cycle'
+// (default) returns null = the drifting palette; 'accent' follows the app
+// accent on the CURRENT paper; a hex is itself.
+function bsFxTint(fxColor, t) {
+  if (!fxColor || fxColor === 'cycle') return null;
+  if (fxColor === 'accent') return t.ACCENT;
+  return /^#[0-9a-fA-F]{6}$/.test(fxColor) ? fxColor : null;
+}
+
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
 function BSRadioFx() {
   const r = useBSRadio();
+  const t = useBS();
   if (bsSdReduced()) return null; // the OS reduced-motion signal outranks the fx opt-in
   if (!r.radioOn || r.paused) return null;
   if (!r.fxMode || r.fxMode === 'off') return null;
   if (typeof RadioEffects !== 'function') return null;
   const label = `${r.LIVE.show.toUpperCase()} · ${r.LIVE.bpm} BPM`;
-  return <RadioEffects mode={r.fxMode} label={label} />;
+  return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} />;
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
@@ -23972,6 +23982,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           const radioLive = r.radioOn && !r.paused;
           setFxPreview(k !== 'off' && !radioLive && !fxReduced ? k : null);
         };
+        // Picking a color re-fires the preview so the tint is visible at once
+        // (live overlay recolors on its own when radio is playing).
+        const pickFxColor = (k) => {
+          r.setFxColor(k);
+          const radioLive = r.radioOn && !r.paused;
+          if (r.fxMode !== 'off' && !radioLive && !fxReduced) setFxPreview(r.fxMode);
+        };
         return (
       <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
@@ -24018,6 +24035,30 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           })}
         </div>
 
+        {/* Color — the fx tint (owner add 2026-07-14): cycle (the drifting
+            palette) · accent (follows the app accent) · fixed tints. Same
+            uniform option-cell grammar; labels reuse existing catalog keys. */}
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 14, marginBottom: 8, fontWeight: 700 }}>
+          {tr('settings:fx.color', { defaultValue: 'Color' })}
+        </div>
+        <OptGrid>
+          {[
+            ['cycle', tr('settings:fx.colorCycle', { defaultValue: 'Cycle' }), 'linear-gradient(90deg, #0ac5a8, #e37a5a 35%, #d9b26a 65%, #8c6fa8)'],
+            ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' }), t.ACCENT],
+            ['#0ac5a8', tr('settings:accent.teal', { defaultValue: 'Teal' }), '#0ac5a8'],
+            ['#e37a5a', tr('settings:accent.rust', { defaultValue: 'Rust' }), '#e37a5a'],
+            ['#d9b26a', tr('settings:accent.amber', { defaultValue: 'Amber' }), '#d9b26a'],
+            ['#8c6fa8', tr('settings:accent.violet', { defaultValue: 'Violet' }), '#8c6fa8'],
+            ['#5b8df9', tr('settings:accent.blue', { defaultValue: 'Blue' }), '#5b8df9'],
+            ['#f2749f', tr('settings:accent.rose', { defaultValue: 'Rose' }), '#f2749f'],
+            ['#f2ede4', tr('settings:ink.cream', { defaultValue: 'Cream' }), '#f2ede4'],
+          ].map(([k, label, swatch]) => (
+            <OptCell key={k} on={(r.fxColor || 'cycle') === k} onClick={() => pickFxColor(k)} label={label}>
+              <span style={{ position: 'absolute', inset: 0, background: swatch }} />
+            </OptCell>
+          ))}
+        </OptGrid>
+
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, lineHeight: 1.5 }}>
           {fxReduced
             ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
@@ -24036,7 +24077,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           timer, never rendered while the live overlay (BSRadioFx) is active. */}
       {fxPreview && !(r.radioOn && !r.paused) && typeof RadioEffects === 'function' && createPortal((
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
-          <RadioEffects mode={fxPreview} label={`${tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} · ${r.LIVE.bpm} BPM`} />
+          <RadioEffects mode={fxPreview} label={`${tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} · ${r.LIVE.bpm} BPM`} tint={bsFxTint(r.fxColor, t)} />
         </div>
       ), document.getElementById('bs-phone-surface') || document.body)}
 

@@ -312,6 +312,8 @@
   "fx.footPreview": "— предпросмотр несколько секунд",
   "fx.footReduced": "— включено уменьшение движения, эффекты остаются выключенными",
   "fx.previewChip": "ПРЕДПРОСМОТР",
+  "fx.color": "Цвет",
+  "fx.colorCycle": "Цикл",
   "ticker.title": "Тикер на Главной",
   "ticker.shownMeta": "{shown} из {total} показано",
   "ticker.moveUp": "Вверх",
