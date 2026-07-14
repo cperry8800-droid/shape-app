@@ -247,6 +247,7 @@ window.BSMastCorner = BSMeCorner;
 // only while radio is on, not paused, and fxMode != 'off'.
 function BSRadioFx() {
   const r = useBSRadio();
+  if (bsSdReduced()) return null; // the OS reduced-motion signal outranks the fx opt-in
   if (!r.radioOn || r.paused) return null;
   if (!r.fxMode || r.fxMode === 'off') return null;
   if (typeof RadioEffects !== 'function') return null;
@@ -22400,14 +22401,67 @@ const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', '
 function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (key || 'medium')) || BS_TEXT_SIZE_OPTS[1])[1]; }
 
 // Paper modes — one source for the swatch grid AND the subtitle fallback label
-// (adding/renaming a mode can't desync the two).
-const BS_PAPER_OPTS = [['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']];
+// (adding/renaming a mode can't desync the two). Entries are
+// [key, label, paper hex, ink hex]; the hexes paint the picker's preview tiles
+// and are KEEP-IN-SYNC with PAPERS in iosAppBroadsheet.jsx makePalette (the
+// applied source of truth).
+const BS_PAPER_OPTS = [
+  ['light','Cream','#f5f0e6','#0f0e0c'], ['white','White','#ffffff','#0f0f10'],
+  ['dark','Black','#0f0e0c','#f5f0e6'], ['teal','Teal','#063d34','#f1ece0'],
+  ['manila','Manila','#d9c089','#221806'], ['blueprint','Blueprint','#0a2a52','#dbe7ff'],
+  ['carbon','Carbon','#000000','#c9cfd6'], ['steel','Steel','#c2c7cd','#15181c'],
+  ['bone','Bone','#ece4d3','#1a160e'], ['oxblood','Oxblood','#3a1418','#f0dfd2'],
+  ['sage','Sage','#d4d9c6','#1b2015'], ['forest','Forest','#0f231a','#e3efe2'],
+  ['slate','Slate','#212834','#dce4ef'], ['plum','Plum','#251630','#ebdff2'],
+  ['rose','Rose','#ead9d7','#241014'], ['mist','Mist','#dde4e9','#121a20'],
+  ['cocoa','Cocoa','#241812','#efe2d3'], ['midnight','Midnight','#0e1226','#e3e7f7'],
+];
 function bsPaperLabel(key) { return (BS_PAPER_OPTS.find(([k]) => k === key) || BS_PAPER_OPTS[0])[1]; }
 
 // Accent options — English fallback labels for the appearance subtitle; the
 // live labels come from the settings:accent.* catalog (same keys the swatches use).
-const BS_ACCENT_OPTS = [['blue','Blue'],['amber','Amber'],['rust','Rust'],['green','Green'],['teal','Teal'],['white','White'],['black','Black']];
+const BS_ACCENT_OPTS = [['blue','Blue'],['amber','Amber'],['rust','Rust'],['green','Green'],['teal','Teal'],['violet','Violet'],['rose','Rose'],['white','White'],['black','Black']];
 function bsAccentLabel(key) { return (BS_ACCENT_OPTS.find(([k]) => k === key) || BS_ACCENT_OPTS[0])[1]; }
+// Swatch display pairs [light-paper hex, dark-paper hex] — KEEP-IN-SYNC with
+// `accents` in iosAppBroadsheet.jsx makePalette so the tile shows the hex that
+// will actually apply on the current paper.
+const BS_ACCENT_SWATCH = {
+  blue: ['#1c4ed8','#5b8df9'], amber: ['#c8881a','#e3a544'], rust: ['#a8331b','#e06547'],
+  green: ['#2f6b3a','#5fb16e'], teal: ['#0a8f87','#34d6c5'], violet: ['#6d3fc4','#a78bfa'],
+  rose: ['#b8285f','#f2749f'], white: ['#ffffff','#ffffff'], black: ['#000000','#000000'],
+};
+
+// Mirrors makePalette's ink-override contrast guard (WCAG relative luminance,
+// fallback below 3:1) so an ink PREVIEW tile can never render an unreadable
+// combination the applied theme would silently correct — the tile shows the
+// ink that will actually apply.
+function bsInkPreviewHex(sw, paperHex, paperInk) {
+  if (!sw) return paperInk;
+  try {
+    const rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const lum = ([r, g, b]) => {
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const la = lum(rgb(sw)), lb = lum(rgb(paperHex));
+    const contrast = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    return contrast < 3 ? paperInk : sw;
+  } catch (e) { return sw; }
+}
+
+// Texture options — KEEP-IN-SYNC with makeTexture in iosAppBroadsheet.jsx and
+// the Tweaks-panel texture list in iosAppBroadsheetMain.jsx.
+const BS_TEXTURE_OPTS = [
+  ['none','None'],['newsprint','Newsprint'],['ledger','Ledger'],
+  ['grid','Grid'],['dotgrid','Dot grid'],['foxed','Foxed'],
+  ['vignette','Vignette'],['watermark','Watermark'],
+  ['linen','Linen'],['crosshatch','Crosshatch'],['pinstripe','Pinstripe'],
+  ['halftone','Halftone'],['kraft','Kraft'],['blueprint','Blueprint'],
+  ['graph','Graph'],['stains','Stains'],['cardboard','Cardboard'],
+  ['concrete','Concrete'],['risograph','Risograph'],['parchment','Parchment'],
+  ['dotmap','Dot map'],['contour','Contour'],['checker','Checker'],
+  ['sunburst','Sunburst'],['scales','Scales'],
+];
 
 // i18n bridge for this (separately-bundled) client module: read translations off
 // window.ShapeI18n and re-render when the locale changes (ShapeLocale is the signal).
@@ -22478,6 +22532,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [appearTab, setAppearTab] = useStateBSC('paper');
   const [showLightFx, setShowLightFx] = useStateBSC(false);
+  // Light-fx tap-to-preview: picking a mode flashes the REAL overlay for a few
+  // seconds so the choice is visible even while radio is off. When radio is
+  // actively playing, BSRadioFx already renders it live — no second overlay.
+  const [fxPreview, setFxPreview] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!fxPreview) return;
+    const tm = setTimeout(() => setFxPreview(null), 6000);
+    return () => clearTimeout(tm);
+  }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
@@ -22963,15 +23026,31 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return { ...a, twoFactor };
   });
 
-  // Appearance / Effects controls — render natively
-  const Pill = ({ on, onClick, children, color }) => (
-    <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: '10px 11px', cursor: 'pointer',
-      border: `1px solid ${on ? t.INK : t.RULE}`,
-      background: on ? t.INK : 'transparent',
-      color: on ? t.PAPER : t.INK,
-      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-    }}>{children}</button>
+  // Appearance controls — ONE uniform option cell for every picker (papers,
+  // textures, accents, ink, weight, text size) so each grid renders identical
+  // footprints (owner call 2026-07-14: "make these all the same size").
+  // Anatomy: a live 38px preview band over a mono label bar; active = ink
+  // frame + an accent ✓ tick on the band.
+  const OptGrid = ({ children }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>{children}</div>
+  );
+  const OptCell = ({ on, onClick, label, title, children }) => (
+    <button onClick={onClick} aria-pressed={on} title={title || label} style={{
+      position: 'relative', padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
+      borderRadius: t.RADIUS_SM, border: `1px solid ${on ? t.INK : t.RULE}`,
+      boxShadow: on ? `inset 0 0 0 1px ${t.INK}` : 'none',
+      background: 'transparent', display: 'flex', flexDirection: 'column', minWidth: 0,
+    }}>
+      <span aria-hidden="true" style={{ position: 'relative', display: 'block', width: '100%', height: 38, background: t.PAPER2, overflow: 'hidden', flexShrink: 0 }}>
+        {children}
+        {on && (
+          <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: t.ACCENT, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
+        )}
+      </span>
+      <span style={{ display: 'block', width: '100%', padding: '5px 3px 6px', borderTop: `1px solid ${on ? t.INK : t.HAIR}`,
+        fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+        color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    </button>
   );
 
   const Toggle = ({ on, onClick }) => (
@@ -22982,17 +23061,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       transition: 'background 140ms ease',
     }}>
       <span style={{ width: 17, height: 17, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
-    </button>
-  );
-
-  const Swatch = ({ k, color, label }) => (
-    <button onClick={() => setTweak('accentKey', k)} style={{ borderRadius: t.RADIUS_SM,
-      flex: 1, padding: 5, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-      border: `1px solid ${tweaks.accentKey === k ? t.INK : t.RULE}`,
-      background: tweaks.accentKey === k ? t.PAPER2 : 'transparent',
-    }}>
-      <span style={{ width: 20, height: 20, background: color, border: `1px solid ${t.INK}` }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
     </button>
   );
 
@@ -23710,100 +23778,125 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
 
         {appearTab === 'paper' && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {BS_PAPER_OPTS.map(([k,l]) => (
-            <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{tr('settings:paper.' + k, { defaultValue: l })}</Pill>
+        <OptGrid>
+          {BS_PAPER_OPTS.map(([k, l, paperHex, inkHex]) => (
+            <OptCell key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}
+              label={tr('settings:paper.' + k, { defaultValue: l })}>
+              <span style={{ position: 'absolute', inset: 0, background: paperHex, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: inkHex, letterSpacing: '-0.01em' }}>Aa</span>
+              </span>
+            </OptCell>
           ))}
-        </div>
+        </OptGrid>
         )}
 
         {appearTab === 'texture' && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[
-            ['none','None'],['newsprint','Newsprint'],['ledger','Ledger'],
-            ['grid','Grid'],['dotgrid','Dot grid'],['foxed','Foxed'],
-            ['vignette','Vignette'],['watermark','Watermark'],
-            ['linen','Linen'],['crosshatch','Crosshatch'],['pinstripe','Pinstripe'],
-            ['halftone','Halftone'],['kraft','Kraft'],['blueprint','Blueprint'],
-            ['graph','Graph'],['stains','Stains'],['cardboard','Cardboard'],
-            ['concrete','Concrete'],['risograph','Risograph'],['parchment','Parchment'],
-            ['dotmap','Dot map'],
-          ].map(([k,l]) => (
-            <Pill key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{tr('settings:texture.' + k, { defaultValue: l })}</Pill>
-          ))}
-        </div>
+        <OptGrid>
+          {BS_TEXTURE_OPTS.map(([k, l]) => {
+            // Live pattern tile — the REAL makeTexture CSS over the current
+            // paper, so a pattern is visible before it's applied. Honors the
+            // texture-tint override (Tweaks panel) the same way BSProvider does.
+            const txHex = tweaks.textureColor && tweaks.textureColor !== 'auto' && /^#[0-9a-fA-F]{6}$/.test(tweaks.textureColor) ? tweaks.textureColor : null;
+            const txRGB = txHex ? [1, 3, 5].map(i => parseInt(txHex.slice(i, i + 2), 16)).join(',') : t.inkRGB;
+            const tex = k !== 'none' && typeof window.bsMakeTexture === 'function'
+              ? window.bsMakeTexture(k, txRGB, t.isLight) : null;
+            return (
+              <OptCell key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}
+                label={tr('settings:texture.' + k, { defaultValue: l })}>
+                <span style={{ position: 'absolute', inset: 0, background: tex ? `${tex}, ${t.PAPER}` : t.PAPER }}>
+                  {k === 'none' && (
+                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>—</span>
+                  )}
+                </span>
+              </OptCell>
+            );
+          })}
+        </OptGrid>
         )}
 
         {appearTab === 'accent' && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <Swatch k="blue"  color="#1e7ad6" label={tr('settings:accent.blue', { defaultValue: 'Blue' })} />
-          <Swatch k="amber" color="#d99033" label={tr('settings:accent.amber', { defaultValue: 'Amber' })} />
-          <Swatch k="rust"  color="#b83d2c" label={tr('settings:accent.rust', { defaultValue: 'Rust' })} />
-          <Swatch k="green" color="#2f7d4f" label={tr('settings:accent.green', { defaultValue: 'Green' })} />
-          <Swatch k="teal"  color="#0a8f87" label={tr('settings:accent.teal', { defaultValue: 'Teal' })} />
-          <Swatch k="white" color="#ffffff" label={tr('settings:accent.white', { defaultValue: 'White' })} />
-          <Swatch k="black" color="#000000" label={tr('settings:accent.black', { defaultValue: 'Black' })} />
-        </div>
+        <OptGrid>
+          {BS_ACCENT_OPTS.map(([k, l]) => {
+            const sw = BS_ACCENT_SWATCH[k] || BS_ACCENT_SWATCH.blue;
+            return (
+              <OptCell key={k} on={tweaks.accentKey === k} onClick={() => setTweak('accentKey', k)}
+                label={tr('settings:accent.' + k, { defaultValue: l })}>
+                <span style={{ position: 'absolute', inset: 0, background: sw[t.isLight ? 0 : 1] }} />
+              </OptCell>
+            );
+          })}
+        </OptGrid>
         )}
 
-        {appearTab === 'ink' && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {[
+        {appearTab === 'ink' && (() => {
+          const paperEntry = BS_PAPER_OPTS.find(([pk]) => pk === (tweaks.paperMode || 'light')) || BS_PAPER_OPTS[0];
+          const inkPresets = [
             ['default', null,        'Default',  'ink.default'],
             ['#0f0e0c', '#0f0e0c',   'Charcoal', 'ink.charcoal'],
             ['#f5f0e6', '#f5f0e6',   'Cream',    'ink.cream'],
             ['#1c4ed8', '#1c4ed8',   'Blue',     'ink.blue'],
+            ['#0a8f87', '#0a8f87',   'Teal',     'ink.teal'],
             ['#a8331b', '#a8331b',   'Rust',     'ink.rust'],
             ['#2f6b3a', '#2f6b3a',   'Green',    'ink.green'],
             ['#c8881a', '#c8881a',   'Amber',    'ink.amber'],
             ['#5a2b8a', '#5a2b8a',   'Plum',     'ink.plum'],
-          ].map(([k, sw, lbl, ik]) => {
-            const on = (tweaks.inkOverride || 'default') === k;
-            const inkLabel = tr('settings:' + ik, { defaultValue: lbl });
-            return (
-              <button
-                key={k}
-                onClick={() => setTweak('inkOverride', k)}
-                title={inkLabel}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '6px 10px', borderRadius: t.RADIUS_SM,
-                  border: `1px solid ${on ? t.INK : t.RULE}`,
-                  background: on ? t.INK : 'transparent',
-                  color: on ? t.PAPER : t.INK,
-                  fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-                  cursor: 'pointer', textTransform: 'uppercase',
-                }}
-              >
-                {sw ? <span style={{ width: 10, height: 10, borderRadius: '50%', background: sw, border: `1px solid ${on ? t.PAPER : t.RULE}` }} /> : null}
-                {inkLabel}
-              </button>
-            );
-          })}
-          {/* Custom hex picker */}
-          <label style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '4px 8px 4px 4px', borderRadius: t.RADIUS_SM,
-            border: `1px solid ${t.RULE}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK,
-          }}>
-            <input
-              type="color"
-              value={(tweaks.inkOverride && tweaks.inkOverride !== 'default') ? tweaks.inkOverride : (t.isLight ? '#0f0e0c' : '#f5f0e6')}
-              onChange={(e) => setTweak('inkOverride', e.target.value)}
-              style={{ width: 22, height: 22, border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
-            />
-            {tr('settings:ink.custom', { defaultValue: 'Custom' })}
-          </label>
-        </div>
-        )}
+          ];
+          const customOn = !!tweaks.inkOverride && !inkPresets.some(([k]) => k === tweaks.inkOverride);
+          const customLabel = tr('settings:ink.custom', { defaultValue: 'Custom' });
+          return (
+            <>
+              <OptGrid>
+                {inkPresets.map(([k, sw, lbl, ik]) => (
+                  <OptCell key={k} on={!customOn && (tweaks.inkOverride || 'default') === k} onClick={() => setTweak('inkOverride', k)}
+                    label={tr('settings:' + ik, { defaultValue: lbl })}>
+                    <span style={{ position: 'absolute', inset: 0, background: paperEntry[2], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: bsInkPreviewHex(sw, paperEntry[2], paperEntry[3]) }}>Aa</span>
+                    </span>
+                  </OptCell>
+                ))}
+                {/* Custom hex — same cell footprint; the whole tile IS the color input */}
+                <label title={customLabel} style={{
+                  position: 'relative', cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
+                  borderRadius: t.RADIUS_SM, border: `1px solid ${customOn ? t.INK : t.RULE}`,
+                  boxShadow: customOn ? `inset 0 0 0 1px ${t.INK}` : 'none',
+                  display: 'flex', flexDirection: 'column', minWidth: 0, background: 'transparent',
+                }}>
+                  <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, background: paperEntry[2], overflow: 'hidden', flexShrink: 0 }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? bsInkPreviewHex(tweaks.inkOverride, paperEntry[2], paperEntry[3]) : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
+                    {customOn && (
+                      <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: t.ACCENT, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
+                    )}
+                  </span>
+                  <span style={{ display: 'block', width: '100%', padding: '5px 3px 6px', borderTop: `1px solid ${customOn ? t.INK : t.HAIR}`,
+                    fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                    color: customOn ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customLabel}</span>
+                  <input
+                    type="color"
+                    aria-label={customLabel}
+                    value={(tweaks.inkOverride && tweaks.inkOverride !== 'default') ? tweaks.inkOverride : (t.isLight ? '#0f0e0c' : '#f5f0e6')}
+                    onChange={(e) => setTweak('inkOverride', e.target.value)}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                  />
+                </label>
+              </OptGrid>
+              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
+                {tr('settings:ink.contrastNote', { defaultValue: "An ink that can't be read on this paper falls back automatically." })}
+              </div>
+            </>
+          );
+        })()}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>{tr('settings:appearance.displayWeight', { defaultValue: 'Display weight' })}</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {['regular','bold'].map(k => (
-            <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{tr('settings:weight.' + k, { defaultValue: k })}</Pill>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 14, marginBottom: 7, fontWeight: 800 }}>{tr('settings:appearance.displayWeight', { defaultValue: 'Display weight' })}</div>
+        <OptGrid>
+          {[['regular', 300], ['bold', 650]].map(([k, w]) => (
+            <OptCell key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}
+              label={tr('settings:weight.' + k, { defaultValue: k })}>
+              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: w, color: t.INK }}>Aa</span>
+              </span>
+            </OptCell>
           ))}
-        </div>
+        </OptGrid>
 
       </div>
       )}
@@ -23815,10 +23908,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <BSEyebrow color={t.ACCENT}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSEyebrow>
         <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:a11y.textSize', { defaultValue: 'Text size' })}</div>
         <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:a11y.textSizeSub', { size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }), defaultValue: 'Scales the whole app · {size}' })}</div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          {BS_TEXT_SIZE_OPTS.map(([k, l]) => (
-            <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{tr('settings:textsize.' + k, { defaultValue: l })}</Pill>
-          ))}
+        <div style={{ marginTop: 12 }}>
+          <OptGrid>
+            {BS_TEXT_SIZE_OPTS.map(([k, l], i) => (
+              <OptCell key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}
+                label={tr('settings:textsize.' + k, { defaultValue: l })}>
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: [11, 13.5, 16][i] || 13.5, fontWeight: t.W.display, color: t.INK }}>Aa</span>
+                </span>
+              </OptCell>
+            ))}
+          </OptGrid>
         </div>
       </div>
 
@@ -23846,64 +23946,99 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div>
           <BSEyebrow color={t.ACCENT}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? tr('settings:fx.active', { mode: r.fxMode, defaultValue: 'Active · {mode}' }) : tr('settings:fx.previewOnly', { defaultValue: 'Radio off — preview only' })}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{(() => {
+            // The subtitle interpolates the LOCALIZED mode label (never the raw
+            // key), and only claims "Active" when effects are actually on.
+            const fxModeLabel = {
+              subtle: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),
+              immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
+              hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
+            }[r.fxMode];
+            if (r.radioOn && fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
+            if (r.radioOn) return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
+            return tr('settings:fx.tapPreview', { defaultValue: 'Radio off — tap a mode to preview' });
+          })()}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
         </span>
       </button>
-      {showLightFx && (
+      {showLightFx && (() => {
+        // Reduced motion outranks the fx opt-in (BSRadioFx returns null too) —
+        // the picker says so honestly instead of applying a dead setting.
+        const fxReduced = bsSdReduced();
+        const pickFx = (k) => {
+          r.setFxMode(k);
+          const radioLive = r.radioOn && !r.paused;
+          setFxPreview(k !== 'off' && !radioLive && !fxReduced ? k : null);
+        };
+        return (
       <div style={{ padding: `14px ${t.padX}px 18px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
           {tr('settings:fx.syncsToBpm', { defaultValue: 'Syncs to BPM' })}
         </div>
 
-        {/* 2×2 grid of mode cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {/* Intensity ladder — 4 uniform cells in the appearance option-cell
+            grammar: glyph + a 3-bar intensity meter over a label bar. Tap =
+            apply + a ~6s live preview overlay (visible even with radio off). */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
           {[
-            { k: 'off',       glyph: '○',  title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
-            { k: 'subtle',    glyph: '◐',  title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
-            { k: 'immersive', glyph: '◉',  title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Bg bloom · button halos' }) },
-            { k: 'hologram',  glyph: '⟠',  title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
+            { k: 'off',       glyph: '○', lvl: 0, title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
+            { k: 'subtle',    glyph: '◐', lvl: 1, title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
+            { k: 'immersive', glyph: '◉', lvl: 2, title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Bg bloom · button halos' }) },
+            { k: 'hologram',  glyph: '⟠', lvl: 3, title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
           ].map(m => {
             const active = r.fxMode === m.k;
             return (
-              <button
-                key={m.k}
-                onClick={() => r.setFxMode(m.k)}
-                style={{ borderRadius: t.RADIUS_SM,
-                  textAlign: 'left', cursor: 'pointer', padding: '8px 10px 9px',
-                  border: `1px solid ${active ? t.INK : t.RULE}`,
-                  background: active ? t.PAPER2 : 'transparent',
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  borderLeft: active ? `4px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
-                  paddingLeft: active ? 7 : 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK }}>{m.glyph}</span>
-                  {active && (
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>
-                  )}
-                </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>
-                  {m.title}
-                </div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 10, color: t.INK70, fontWeight: 500, lineHeight: 1.25 }}>
-                  {m.sub}
-                </div>
+              <button key={m.k} onClick={() => pickFx(m.k)} aria-pressed={active} style={{
+                position: 'relative', padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'left',
+                borderRadius: t.RADIUS_SM, border: `1px solid ${active ? t.INK : t.RULE}`,
+                boxShadow: active ? `inset 0 0 0 1px ${t.INK}` : 'none',
+                background: 'transparent', display: 'flex', flexDirection: 'column', minWidth: 0,
+              }}>
+                <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: 38, background: t.PAPER2, padding: '0 10px', boxSizing: 'border-box', flexShrink: 0 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: active ? t.ACCENT : t.INK }}>{m.glyph}</span>
+                  <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 16 }}>
+                    {[0, 1, 2].map(i => (
+                      <span key={i} style={{ width: 4, height: 6 + i * 5, borderRadius: 1, boxSizing: 'border-box',
+                        background: i < m.lvl ? t.ACCENT : 'transparent',
+                        border: i < m.lvl ? 0 : `1px solid ${t.RULE}` }} />
+                    ))}
+                  </span>
+                </span>
+                <span style={{ display: 'block', width: '100%', padding: '6px 10px 8px', borderTop: `1px solid ${active ? t.INK : t.HAIR}`, boxSizing: 'border-box' }}>
+                  <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{m.title}</span>
+                    {active && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: t.ACCENT, flexShrink: 0 }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>}
+                  </span>
+                  <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.sub}</span>
+                </span>
               </button>
             );
           })}
         </div>
 
         <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, lineHeight: 1.5 }}>
-          {r.radioOn
-            ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
-            : tr('settings:fx.footRadioOff', { defaultValue: '— turn on Shape Radio from Home to see the effect' })}
+          {fxReduced
+            ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
+            : fxPreview
+              ? tr('settings:fx.footPreview', { defaultValue: '— previewing for a few seconds' })
+              : r.radioOn
+                ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
+                : tr('settings:fx.footTapPreview', { defaultValue: '— tap a mode to preview it · runs whenever radio plays' })}
         </div>
       </div>
-      )}
+        );
+      })()}
+
+      {/* Light-fx tap-to-preview overlay — the REAL RadioEffects for a beat,
+          portaled over the phone surface. Decorative only; cleared by the 6s
+          timer, never rendered while the live overlay (BSRadioFx) is active. */}
+      {fxPreview && !(r.radioOn && !r.paused) && typeof RadioEffects === 'function' && createPortal((
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
+          <RadioEffects mode={fxPreview} label={`${tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} · ${r.LIVE.bpm} BPM`} />
+        </div>
+      ), document.getElementById('bs-phone-surface') || document.body)}
 
       {/* Home ticker — choose which stats show on the home strip + reorder. */}
       <SectionHead title={tr('settings:ticker.title', { defaultValue: 'Home ticker' })} meta={tr('settings:ticker.shownMeta', { shown: BS_TICKER_METRICS.length - tickerPrefs.hidden.length, total: BS_TICKER_METRICS.length, defaultValue: '{shown} of {total} shown' })} />

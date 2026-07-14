@@ -1991,7 +1991,7 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
 
       <Section label="Paper">
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']].map(([k,l]) => (
+          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum'],['rose','Rose'],['mist','Mist'],['cocoa','Cocoa'],['midnight','Midnight']].map(([k,l]) => (
             <Btn key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Btn>
           ))}
         </div>
@@ -1999,7 +1999,7 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
 
       <Section label="Accent">
         <div style={{ display: 'flex', gap: 4 }}>
-          {['blue','amber','rust','green','teal','white','black'].map(k => <Btn key={k} on={tweaks.accentKey === k} onClick={() => setTweak('accentKey', k)}>{k}</Btn>)}
+          {['blue','amber','rust','green','teal','violet','rose','white','black'].map(k => <Btn key={k} on={tweaks.accentKey === k} onClick={() => setTweak('accentKey', k)}>{k}</Btn>)}
         </div>
       </Section>
 
@@ -2031,7 +2031,8 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
             ['halftone','Halftone'],['kraft','Kraft'],['blueprint','Blueprint'],
             ['graph','Graph'],['stains','Stains'],['cardboard','Cardboard'],
             ['concrete','Concrete'],['risograph','Risograph'],['parchment','Parchment'],
-            ['dotmap','Dot map'],
+            ['dotmap','Dot map'],['contour','Contour'],['checker','Checker'],
+            ['sunburst','Sunburst'],['scales','Scales'],
           ].map(([k,l]) =>
             <Btn key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}>{l}</Btn>
           )}
