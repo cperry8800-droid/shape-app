@@ -433,6 +433,28 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Splash clean ground (#1709) + Home clean-up pass (owner on-device looks)
+
+- **Splash (#1709):** the wire beat + `BSWireHold` drop the whole texture field
+  behind the triangles (owner: "remove the background image/pattern behind the
+  triangles") — the drifting dash ticker, the K waveform bed, and the M static
+  flecks are gone from the splash; the floating haloed mark now sits on the
+  clean dark gradient. Kept: the community plate, the ON AIR dial (incl. the L
+  lock bars), the loading readout. `BSWireWaveform`/`BSWireStatic` + their
+  keyframes died with their last callers; `BSWireGround` stays on the
+  wall/invite/auth/provider-application pages (splash-only change).
+- **Home (this PR — owner: "make home screen page possibly look a little
+  cleaner"):** the THIS-WEEK strip's 7 boxed day tiles die for the **#1622
+  Train/Eat calendar-rule grammar** — typographic day columns (narrow weekday ·
+  date · the activity-dot row) under the section's ink→accent rule, now carrying
+  day ticks + an accent needle over the selected day; today reads via an ink
+  date, selected via the accent letter + needle (both named in the aria-label).
+  And the two bordered/tinted section-head chips (**Month view →** on THIS WEEK,
+  **Eat →** on TODAY'S SLATE) quiet to the house header text-action (plain
+  accent mono, matching `BSTrackHeader`'s verb style). Lead plate + door shelf
+  deliberately untouched (the page's one plate; instrument doors by design).
+- Verified per PR: JSX parse · PowerShell `/m/` build exit 0 · LF.
+
 ### 2026-07-13 — Adjust → FULL program regeneration: the coach's changes rewrite the real rows (spec #1707)
 
 - **Closes the War Room P2** ("Adjust → full program/plan regeneration"). The
