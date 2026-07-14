@@ -14213,11 +14213,22 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {/* The feed's viewing lens rides the title row, right-aligned (owner
               call 2026-07-14) — page-level control, out of the chip stack.
               flexWrap: on narrow phones (≲375px) the lens drops to its own line
-              under the title instead of squeezing it (CodeRabbit P2). */}
+              under the title instead of squeezing it (CodeRabbit P2).
+              Custom buttons, not bsSubTab (owner call 2026-07-15): bigger/
+              bolder for presence, text hugging the button bottom so the labels
+              sit on the Community title's baseline instead of floating. */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, paddingBottom: 2 }}>
-              {bsSubTab({ key: 'universal', on: feedMode === 'universal', color: TEALB, onClick: () => switchFeedMode('universal'), label: 'Universal' })}
-              {bsSubTab({ key: 'following', on: feedMode === 'following', color: TEALB, onClick: () => switchFeedMode('following'), label: 'Following' })}
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexShrink: 0 }}>
+              {[['universal', 'Universal'], ['following', 'Following']].map(([k, label]) => {
+                const on = feedMode === k;
+                return (
+                  <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
+                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 2px 4px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: on ? TEALB : t.INK70, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {label}
+                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: TEALB }} />}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -14585,20 +14596,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div inert={subHidden} style={bsSubStyle(0)}>
-          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
+          {/* One control strip (owner pick 2026-07-15, option A off the board):
+              role chips left, and on COMMUNITY the type filter is a compact
+              ALL ▾ select on the row's right end — the six-chip row is gone. */}
+          <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: filter === 'COMMUNITY' ? 'space-between' : 'center', alignItems: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 10 }}>
+              {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
+            </div>
+            {filter === 'COMMUNITY' && (
+              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                <select value={feedType} onChange={(e) => setFeedType(e.target.value)} aria-label="Filter by activity type"
+                  style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 24px 7px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer' }}>
+                  {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition'], ['milestones', 'Milestones']].map(([k, label]) => (
+                    <option key={k} value={k}>{label}</option>
+                  ))}
+                </select>
+                <span aria-hidden style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: TEALB, pointerEvents: 'none' }}>▾</span>
+              </span>
+            )}
           </div>
           </div>
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* The UNIVERSAL/FOLLOWING lens moved up onto the Community title
-                  row (owner call 2026-07-14) — the feed body carries only the
-                  type chips, distributed evenly across the full row width. */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `2px ${t.padX}px 4px` }}>
-                {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition'], ['milestones', 'Milestones']].map(([k, label]) =>
-                  bsSubTab({ key: k, on: feedType === k, color: TEALB, onClick: () => setFeedType(k), label }))}
-              </div>
+              {/* The type filter lives in the ALL ▾ select on the role-chip
+                  row now (owner pick 2026-07-15) — no chip row in the body. */}
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
