@@ -40,7 +40,7 @@
 <!-- Single-page client dashboard: every tab module is loaded + compiled ONCE here,
      then the router below swaps the active page client-side on #hash change — no
      full reload, no Babel recompile per tab. Shared chrome -->
-<script type="text/babel" src="pageShell.jsx?v=20260714b2"></script>
+<script type="text/babel" src="pageShell.jsx?v=20260714c"></script>
 <script type="text/babel" src="chatWidget.jsx?v=20260710"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
@@ -103,6 +103,6 @@ function ClientApp() {
 ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);
 window.ShapeDashTour && window.ShapeDashTour.init('client');
 </script>
-<script src="globalChatButton.js?v=20260714" defer></script>
+<script src="globalChatButton.js?v=20260714b" defer></script>
 </body>
 </html>
