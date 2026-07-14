@@ -239,10 +239,10 @@ function MarketplaceHero({ tab, setTab }) {
                 style={{
                   flex: 1, padding: "28px 0", background: "transparent", border: 0, cursor: "pointer",
                   fontFamily: serif, fontSize: "clamp(28px, 3.4vw, 44px)", letterSpacing: "-0.025em", fontWeight: 300, textAlign: "left",
-                  color: active ? INK : "rgba(242,237,228,0.32)",
+                  color: active ? INK : "rgba(242,237,228,0.66)", textShadow: "0 1px 18px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.45)",
                   position: "relative",
                 }}>
-                <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: active ? TEAL : "rgba(242,237,228,0.3)", display: "block", marginBottom: 8 }}>
+                <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: active ? TEAL : "rgba(242,237,228,0.55)", display: "block", marginBottom: 8 }}>
                   {t === "Trainer" ? "01" : "02"} · {t === "Trainer" ? "Training" : "Nutrition"}
                 </span>
                 {t === "Trainer" ? "Trainers" : "Nutritionists"}
