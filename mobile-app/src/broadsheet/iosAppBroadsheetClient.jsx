@@ -7750,7 +7750,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
 function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, ownerPhoto, onClose, onOpenProfile }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   const [list, setList] = useStateBSC(null);
   const [avatars, setAvatars] = useStateBSC({});
   const [group, setGroup] = useStateBSC('all'); // all | coaches | members
@@ -7971,7 +7971,7 @@ function bsInjectFollowChipCss() {
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips' }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
   // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
   // Default 'chips' keeps the shipped instrument-chip look (coach Signal profile).
@@ -8176,7 +8176,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
 function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const reduced = bsSdReduced();
   // Route Card identity head — the rail's origin. Eyebrow demotes to ink-alphas
   // (identity is weight, not color); the serif name's period is the head's only
@@ -8284,7 +8284,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const COOK = '#d8a23a';
   const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
   const showDot = activity ? true : (online === undefined ? live : online);
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   // The gem's inner window is dark on dark papers (keeps the established look) but
   // on a LIGHT paper a black gem reads as a blob and dark initials vanish — so on
@@ -8442,7 +8442,7 @@ function bsLinkHref(key, val) {
 }
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
   // pieces (kickers, link pills) keep the page gutter.
@@ -9045,7 +9045,7 @@ function bsProfileCardFromPost(p, ownerRole) {
 // cards · workout stats · metric) — shared by both profile feeds.
 function BSActivityBody({ it, c, INK, card }) {
   const tt = useBS();
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const TEAL = tt.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <>
@@ -9076,7 +9076,7 @@ const BS_MILESTONE_STAMPS = ['promoted', 'shipped', 'certified', 'new_role', 'la
 const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s : 'milestone').replace('_', ' ').toUpperCase();
 
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
   const ed = editPost || null;
   const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
@@ -9322,7 +9322,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 }
 
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const [bio, setBio] = useStateBSC(init.bio || '');
   const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
@@ -9822,7 +9822,7 @@ function BSActivityLogCta({ isSelf, accent, onClick, ledger = false, INK = '#f2e
 // never colors running text — every glyph resolves from t.INK alphas so AA holds
 // on all 14 papers. Spec: docs/superpowers/specs/2026-07-04-terrain-profile-route-card-design.md
 const BST_MONO = "'JetBrains Mono', monospace";
-const BST_SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+const BST_SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
 // A rail "station" head — a 6×1.5px heat tick + a mono uppercase eyebrow, with
 // an optional right-aligned meta note. Draws no box.
 function BSTStationHead({ heat, INK, label, meta }) {
@@ -9889,7 +9889,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). Heat = the member's TIER color (`c`).
   const BG = tTheme.PAPER_BG, INK = tTheme.INK;
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
@@ -10775,7 +10775,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
@@ -18539,7 +18539,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
   const t = useBS();
   // Follow the paper theme so the card reads on light papers too (was fixed cream).
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace";
+  const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace";
   // Signed in → real points + REAL composite bars (honest '—' when a pillar is
   // too sparse to score); the demo 1284 / 88·74·62·92 is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);

@@ -7,7 +7,7 @@ import { bsSwipeIntent } from '../services/swipeIntent.mjs';
 // and border style can flow through the whole app from one Tweaks panel.
 //
 // Type system:
-//   DISPLAY_BS = Space Grotesk (headers, mastheads, section labels)
+//   DISPLAY_BS = Saira (headers, mastheads, section labels — the wordmark face; Space Grotesk fallback)
 //   BODY_BS    = native system stack (body copy, controls, rows)
 //   MONO_BS    = JetBrains Mono (eyebrows, times, tags)
 //   No serifs. No script. This is the contract.
@@ -21,7 +21,7 @@ const {
 } = React;
 
 // ─── Type stacks ───────────────────────────────────────────
-const DISPLAY_BS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+const DISPLAY_BS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
 const BODY_BS    = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const MONO_BS    = "'JetBrains Mono', ui-monospace, monospace";
 

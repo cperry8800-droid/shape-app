@@ -433,6 +433,25 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-13 — Saira is the app's display face (owner call: "lets do saira")
+
+- **`DISPLAY_BS` → `'Saira', 'Space Grotesk', …`** — every page/card title now
+  speaks the wordmark's face (the splash logotype the owner picked), Space
+  Grotesk kept as the fallback. The 12 per-component `SERIF`/`SANS` aliases of
+  the same literal in the client module follow the swap (one sed, same stack).
+- **The bundled Saira was already a VARIABLE font (wght 100–900)** — the
+  original `fonts.css` declared its three subset files (font-22/23/24.woff2)
+  at static weights 100–400 only, so 600–800 titles would have rendered
+  browser-faux-bold. The 12 static blocks are replaced by **3 variable-weight
+  blocks** (`font-weight: 100 900`, same files, same unicode-ranges) — real
+  bold, zero new assets, no bundle-size change. (Verified via fontTools: fvar
+  wght 100–900; the woff2 flag-encodes known table tags, so a naive byte-scan
+  for 'fvar' false-negatives — recorded so the next font check doesn't repeat
+  it.)
+- JetBrains Mono (instrument voice), Newsreader (editorial serif), and the
+  system body stack deliberately untouched. Cyrillic (ru/uk) falls back the
+  same as before (neither Saira nor Space Grotesk carry it).
+
 ### 2026-07-13 — Splash clean ground (#1709) + Home clean-up pass (owner on-device looks)
 
 - **Splash (#1709):** the wire beat + `BSWireHold` drop the whole texture field
