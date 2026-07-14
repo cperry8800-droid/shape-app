@@ -72,9 +72,9 @@ over verbatim. This is the #1575 "Meter" page re-clothed, not re-plumbed.
   right (rust) that deletes that set — never shown on done rows with logged
   data unless tapped through the existing confirm primitive
   (`window.bsAskConfirm`), so a logged set can't vanish on a stray tap.
-- The START-SET CTA (color: owner pick from the board's C-1..C-4 strip;
-  **pending — build defaults to C-4 bright teal `#34d6c5` with dark ink
-  text**, one-line change when picked) ·
+- The START-SET CTA — **owner pick: C-1 INK, the press block.** Implemented
+  as `t.INK` ground / `t.PAPER` text (black-on-cream on light papers,
+  inverting cleanly on dark papers where t.INK is cream) ·
   `← PREVIOUS` (quiet ink) / `NEXT: {exercise} →` (teal) text-actions.
 - Feel/effort review + share block: unchanged (quiet form, two-tier rule).
 
@@ -129,7 +129,6 @@ teal shifts with `bsLiveEffort` exactly as the page accent does today.
 
 ## Open
 
-- **CTA color** — owner pick from the board strip (C-1 ink · C-2 rust ·
-  C-3 ember · C-4 bright teal). Default C-4 until picked.
+- ~~CTA color~~ — **picked 2026-07-14: C-1 INK** ("do black").
 - Owner on-device pass after both PRs (Black/Sage/Cream × reduced motion ×
   a real coached plan with a form clip).
