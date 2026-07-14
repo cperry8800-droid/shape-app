@@ -121,24 +121,22 @@ function BSRadioProvider({ children }) {
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
   // Light-effects intensity ('off' | 'subtle' | 'immersive' | 'hologram') +
-  // color ('cycle' | 'accent' | '#rrggbb') — persisted device-level (like the
-  // radio pref) so the pick survives relaunch.
-  const _fxPref = safeReadRadioJSON('shape.radio.fx', null); // { mode, color } | null
-  const [fxMode, setFxModeState]    = useStateBR(BS_FX_MODE_KEYS.includes(_fxPref?.mode) ? _fxPref.mode : 'off');
-  const [fxColor, setFxColorState]  = useStateBR(bsValidFxColor(_fxPref?.color) ? _fxPref.color : 'cycle');
-  function persistFx(mode, color) {
-    try { window.localStorage && window.localStorage.setItem('shape.radio.fx', JSON.stringify({ mode, color })); } catch {}
-  }
-  function setFxMode(mode) {
-    const next = BS_FX_MODE_KEYS.includes(mode) ? mode : 'off';
-    setFxModeState(next);
-    persistFx(next, fxColor);
-  }
-  function setFxColor(color) {
-    const next = bsValidFxColor(color) ? color : 'cycle';
-    setFxColorState(next);
-    persistFx(fxMode, next);
-  }
+  // color ('cycle' | 'accent' | '#rrggbb') — ONE state object persisted from
+  // an effect, so mode and color can never clobber each other's stored value
+  // no matter how callers interleave the setters (stale-closure guard).
+  const [fx, setFx] = useStateBR(() => {
+    const s = safeReadRadioJSON('shape.radio.fx', null); // { mode, color } | null
+    return {
+      mode: BS_FX_MODE_KEYS.includes(s?.mode) ? s.mode : 'off',
+      color: bsValidFxColor(s?.color) ? s.color : 'cycle',
+    };
+  });
+  useEffectBR(() => {
+    try { window.localStorage && window.localStorage.setItem('shape.radio.fx', JSON.stringify(fx)); } catch {}
+  }, [fx]);
+  const fxMode = fx.mode, fxColor = fx.color;
+  const setFxMode = (mode) => setFx(prev => ({ ...prev, mode: BS_FX_MODE_KEYS.includes(mode) ? mode : 'off' }));
+  const setFxColor = (color) => setFx(prev => ({ ...prev, color: bsValidFxColor(color) ? color : 'cycle' }));
   const [trackFeedback, setTrackFeedbackState] = useStateBR(() => safeReadRadioJSON('shape.radio.feedback', {}));
   const [musicLibraries, setMusicLibrariesState] = useStateBR(() => safeReadRadioJSON('shape.radio.musicLibraries', { spotify: [], apple: [] }));
 
