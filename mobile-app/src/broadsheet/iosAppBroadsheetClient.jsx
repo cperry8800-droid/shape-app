@@ -2042,20 +2042,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   };
   const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
 
-  const DayTotals = ({ compact }) => (
-    <div style={{ marginTop: compact ? 0 : 14, paddingTop: compact ? 0 : 12, borderTop: compact ? 0 : `1px solid ${t.HAIR}` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{compact ? 'Day so far' : 'After logging · day total'}</div>
-      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {[['Calories', dayCal, CAL_GOAL, teal], ['Protein', dayP, P_GOAL, t.RUST]].map(([l, v, goal, c]) => (
-          <div key={l}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal != null ? goal : '—'}</span></div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            {goal != null && <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // (DayTotals dissolved with THE TALLY station — the band carries the day
+  // readout now, honest `—` when targets are unknown, same derivations.)
 
   const LedgerHead = ({ label, accent = teal, extra = null }) => (
     <div style={{ padding: `16px ${t.padX}px 0` }}>
@@ -2068,26 +2056,47 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   );
 
   if (logged) {
+    const calFrac = CAL_GOAL ? Math.max(0, Math.min(1, dayCal / CAL_GOAL)) : null;
     return (
       <BSPage mast={false}>
-        <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-          <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55` }}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#04201d" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+        {/* THE BAND — the filed stamp (Cockpit/Split spec 2026-07-14). Fixed
+            #0b0f0f on every paper; the paper below the teal seam carries the
+            actions. Same instrument literals as the live session's band. */}
+        <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 18px`, overflow: 'hidden' }}>
+          <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>Back</button>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · Filed {logTime}</span>
           </div>
-          <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · {logTime}</div>
-          {award && award.awarded && (
-            <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 999, border: `1px solid ${teal}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, animation: 'bsAwardIn 180ms ease-out' }}>
-              +{award.points != null ? award.points : 10} · Nutrition · Shape Score
+          <div style={{ position: 'relative', textAlign: 'center', marginTop: 30 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {P}P · Logged ✓</div>
+            {award && award.awarded && (
+              <div style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 5, border: '1px solid rgba(56,224,204,0.5)', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#38e0cc', animation: 'bsAwardIn 180ms ease-out' }}>
+                +{award.points != null ? award.points : 10} · Nutrition · Shape Score
+              </div>
+            )}
+            <style>{`@keyframes bsAwardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { [style*="bsAwardIn"] { animation: none !important; } }`}</style>
+          </div>
+          <div style={{ position: 'relative', marginTop: 24, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>Day so far</div>
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(56,224,204,0.35)' }}>{dayCal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'} KCAL</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#e8a13c', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(232,161,60,0.3)' }}>{dayP}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {P_GOAL != null ? P_GOAL : '—'} P</span></span>
             </div>
-          )}
-          <style>{`@keyframes bsAwardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { [style*="bsAwardIn"] { animation: none !important; } }`}</style>
+            {calFrac != null && (
+              <div aria-hidden style={{ marginTop: 11, display: 'flex', gap: 4 }}>
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: (i + 0.5) / 10 <= calFrac ? '#38e0cc' : 'rgba(244,237,224,0.14)', boxShadow: (i + 0.5) / 10 <= calFrac ? '0 0 8px rgba(56,224,204,0.5)' : 'none' }} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ padding: `26px ${t.padX}px 0` }}>
-          <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px"><DayTotals compact /></BSPlate>
-        </div>
+        {/* The seam — the ONE band/paper boundary */}
+        <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
         <div style={{ padding: `22px ${t.padX}px 8px` }}>
-          <button onClick={onClose} style={{ ...primaryBtn, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '0', textTransform: 'none' }}>Done →</button>
+          <button onClick={onClose} style={{ ...primaryBtn, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Done →</button>
         </div>
         {signedIn && typeof window !== 'undefined' && window.ShapeCommunity?.createPost && (
           <div style={{ textAlign: 'center', paddingBottom: 4 }}>
@@ -2129,54 +2138,55 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
             )}
           </div>
         )}
-        <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>← Back</button>
-        </div>
       </BSPage>
     );
   }
 
   return (
     <BSPage mast={false}>
-      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>× Cancel</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log meal</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{logTime}</span>
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <BSEyebrow color={t.INK50}>{mealEyebrow}</BSEyebrow>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{mealTitle}<span style={{ color: teal }}>.</span></div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{plannedLine}</div>
-      </div>
-
-      {/* Pristine planned meal → one-tap plate. Adjusted → reset row. Free log → neither. */}
-      {hasPlanned && !dirty && (
-        <div style={{ padding: `14px ${t.padX}px 4px` }}>
-          <button onClick={doLog} style={{ position: 'relative', width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}>
-            <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', background: teal }} />
-            <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'rgba(4,32,29,0.45)' }} />
-            <span aria-hidden style={{ position: 'absolute', left: 9, top: 15, width: 6, height: 6, borderRadius: 1.5, background: '#04201d', boxShadow: '0 0 9px rgba(4,32,29,0.5)', animation: 'bsPlatePulse 2.6s ease-in-out infinite' }} />
-            <span aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: '1.5px solid rgba(4,32,29,0.6)', borderBottom: '1.5px solid rgba(4,32,29,0.6)' }} />
-            <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '15px 16px 15px 22px', color: '#04201d' }}>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
-                <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
-              </span>
-              <span style={{ fontSize: 20, fontWeight: 700 }}>✓</span>
-            </span>
-            <style>{`@keyframes bsPlatePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { [style*="bsPlatePulse"] { animation: none !important; } }`}</style>
-          </button>
+      {/* ═══ THE BAND — the one-tap + the live tally (Cockpit/Split spec,
+          2026-07-14). Fixed #0b0f0f on every paper; CORRECT THE RECORD +
+          DISPATCH stay paper below the teal seam. THE TALLY station
+          dissolved — the band IS the tally now. */}
+      <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 16px`, overflow: 'hidden' }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f4ede0' }}>× Cancel</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Log meal</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(244,237,224,0.55)' }}>{logTime}</span>
         </div>
-      )}
-      {hasPlanned && dirty && (
-        <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <button onClick={resetToPlan} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span aria-hidden style={{ fontSize: 13, color: coachAccent }}>↺</span>
+        <div style={{ position: 'relative', marginTop: 16 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{mealEyebrow}</div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: '#f4ede0', lineHeight: 1.05 }}>{mealTitle}</div>
+          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)', fontWeight: 700 }}>{plannedLine}</div>
+        </div>
+        {/* Pristine planned meal → the glowing one-tap. Adjusted → the reset
+            line. Free log → neither (unchanged gating). */}
+        {hasPlanned && !dirty && (
+          <button onClick={doLog} style={{ position: 'relative', width: '100%', marginTop: 14, textAlign: 'left', border: '1.5px solid #38e0cc', borderRadius: 8, background: 'rgba(56,224,204,0.08)', boxShadow: '0 0 18px rgba(56,224,204,0.18)', padding: '13px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>One tap</span>
+              <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 15, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#38e0cc', textShadow: '0 0 12px rgba(56,224,204,0.4)' }}>Ate it as planned</span>
+            </span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#38e0cc', flexShrink: 0 }}>✓</span>
+          </button>
+        )}
+        {hasPlanned && dirty && (
+          <button onClick={resetToPlan} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 14, textAlign: 'left', padding: '10px 12px', borderRadius: 5, border: '1px solid rgba(244,237,224,0.25)', background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.7)' }}>
+            <span aria-hidden style={{ fontSize: 13, color: '#38e0cc' }}>↺</span>
             <span>Adjusted — reset to plan</span>
           </button>
+        )}
+        {/* The live tally — THIS MEAL + the day, glowing (updates as the
+            record below is corrected) */}
+        <div style={{ position: 'relative', marginTop: 16, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 22, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(56,224,204,0.4)' }}>{kcal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> KCAL</span></span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>{P}P · {C}C · {F}F</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>DAY {dayCal}<span style={{ color: 'rgba(244,237,224,0.35)' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'}</span></span>
         </div>
-      )}
+      </div>
+      {/* The seam — the ONE band/paper boundary */}
+      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
 
       {/* REGISTER 1 — Correct the record */}
       <LedgerHead label="Correct the record" />
@@ -2211,7 +2221,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         <>
           <LedgerHead label={`Dispatch to ${coachName}`} accent={coachAccent} extra={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Optional</span>} />
           <div style={{ padding: `10px ${t.padX}px 4px` }}>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', boxSizing: 'border-box', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, outline: 'none', resize: 'vertical' }} />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 0 9px', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, fontStyle: 'italic', outline: 'none', resize: 'vertical' }} />
             <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
               {[['photo', '⊡ Photo', photoOpen, () => { setPhotoOpen((v) => !v); setVoiceOpen(false); }, !!photo],
                 ['voice', '● Voice', voiceOpen, () => { setVoiceOpen((v) => !v); setPhotoOpen(false); }, !!voiceMemo]].map(([k, label, open, onTap, attached]) => (
@@ -2298,25 +2308,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
         </>
       )}
 
-      {/* REGISTER 3 — The tally */}
-      <LedgerHead label="The tally" />
-      <div style={{ padding: `10px ${t.padX}px 4px` }}>
-        <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px">
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>This meal</span>
-            <span><span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{kcal}</span> <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, textTransform: 'uppercase', letterSpacing: '0.1em' }}>kcal</span></span>
-          </div>
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            {[['Pro', P, t.RUST], ['Carb', C, teal], ['Fat', F, t.AMBER]].map(([l, v, c]) => (
-              <div key={l}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums' }}>{v}<span style={{ fontSize: 11, color: t.INK50 }}>g</span></div>
-              </div>
-            ))}
-          </div>
-          <DayTotals />
-        </BSPlate>
-      </div>
+      {/* THE TALLY station dissolved — the band carries THIS MEAL + the day
+          live (Cockpit/Split spec); no duplicated register on paper. */}
 
       {/* Reserve height for the sticky ledger bar so content never hides behind it. */}
       <div style={{ height: 96 }} />
@@ -2325,7 +2318,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       {createPortal((
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5200, background: t.PAPER2, borderTop: `1px solid ${t.RULE}`, boxShadow: '0 -8px 22px rgba(0,0,0,0.12)', padding: `12px ${t.padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{kcal} KCAL · {P}P</span>
-          <button onClick={doLog} disabled={signedIn && kcal <= 0} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 18px', borderRadius: t.RADIUS_SM, border: 0, cursor: (signedIn && kcal <= 0) ? 'default' : 'pointer', opacity: (signedIn && kcal <= 0) ? 0.45 : 1, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{ctaLabel}</button>
+          <button onClick={doLog} disabled={signedIn && kcal <= 0} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 18px', borderRadius: t.RADIUS_SM, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', border: 0, cursor: (signedIn && kcal <= 0) ? 'default' : 'pointer', opacity: (signedIn && kcal <= 0) ? 0.45 : 1, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{ctaLabel}</button>
         </div>
       ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body)}
 
@@ -4806,32 +4799,47 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
     }
     onUndo();
   };
+  // Day-so-far demo bases are the SIGNED-OUT preview only — a signed-in
+  // member gets no fabricated day figures here (this shared confirmation has
+  // no live day feed; the log-meal flow's own confirmation carries the real
+  // ones). Honest absence over invented numbers.
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
   const dayCal = DAY_BASE_CAL + (kcal || 0);
   const dayP = DAY_BASE_P + (p || 0);
+  const calFrac = Math.max(0, Math.min(1, dayCal / CAL_GOAL));
   return (
     <BSPage>
-      <div style={{ padding: `84px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-        <div style={{ width: 84, height: 84, borderRadius: 999, background: teal, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 44px ${teal}55`, color: '#04201d', fontSize: 34, fontWeight: 700 }}>✓</div>
-        <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {p}P · {time}</div>
-      </div>
-      <div style={{ padding: `26px ${t.padX}px 0` }}>
-        <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px">
-          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Day so far</div>
-          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {[['Calories', dayCal, CAL_GOAL, teal], ['Protein', dayP, P_GOAL, t.RUST]].map(([l, v, goal, c]) => (
-              <div key={l}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal}</span></div>
-                <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c }}>{v}</div>
-                <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
-              </div>
-            ))}
+      {/* THE BAND — the filed stamp (Cockpit/Split spec 2026-07-14) */}
+      <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 18px`, overflow: 'hidden' }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: shareBusy ? 'default' : 'pointer', opacity: shareBusy ? 0.5 : 1, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>Undo</button>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · Filed {time}</span>
+        </div>
+        <div style={{ position: 'relative', textAlign: 'center', marginTop: 28 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p}P · Logged ✓</div>
+        </div>
+        {!loggedIn && (
+          <div style={{ position: 'relative', marginTop: 22, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>Day so far</div>
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(56,224,204,0.35)' }}>{dayCal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {CAL_GOAL} KCAL</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#e8a13c', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(232,161,60,0.3)' }}>{dayP}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {P_GOAL} P</span></span>
+            </div>
+            <div aria-hidden style={{ marginTop: 11, display: 'flex', gap: 4 }}>
+              {Array.from({ length: 10 }).map((_, i) => (
+                <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: (i + 0.5) / 10 <= calFrac ? '#38e0cc' : 'rgba(244,237,224,0.14)', boxShadow: (i + 0.5) / 10 <= calFrac ? '0 0 8px rgba(56,224,204,0.5)' : 'none' }} />
+              ))}
+            </div>
           </div>
-        </BSPlate>
+        )}
       </div>
+      {/* The seam — the ONE band/paper boundary */}
+      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
       <div style={{ padding: `22px ${t.padX}px 8px` }}>
-        <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700 }}>Done →</button>
+        <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Done →</button>
       </div>
       {canShare && (
         <div style={{ textAlign: 'center', paddingBottom: 4 }}>
@@ -4842,9 +4850,7 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
           )}
         </div>
       )}
-      <div style={{ textAlign: 'center', paddingBottom: 28 }}>
-        <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK50, opacity: shareBusy ? 0.5 : 1 }}>Undo</button>
-      </div>
+      {/* Undo moved to the band's universal top-left slot (2026-07-14). */}
     </BSPage>
   );
 }
