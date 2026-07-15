@@ -12079,6 +12079,7 @@ function bsAvgHFrac(splits) { return splits.reduce((a, s) => a + s.hFrac, 0) / s
 // (onOpen) → the full Splits page. `big` renders per-bar index labels + taller.
 function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
   const [ref, seen] = useBSSdInView();
+  const tr = useShapeTr();
   const reduced = bsSdReduced();
   if (!data || !Array.isArray(data.splits) || data.splits.length === 0) return null;
   const { splits, bestIdx } = data;
@@ -12091,7 +12092,7 @@ function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
         role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined}
         onClick={interactive ? onOpen : undefined}
         onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
-        aria-label={interactive ? 'Open full splits breakdown' : undefined}
+        aria-label={interactive ? tr('session:chart.splitsAriaOpen', { defaultValue: 'Open full splits breakdown' }) : undefined}
         style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap, height: H, cursor: interactive ? 'pointer' : 'default', minHeight: interactive ? 44 : undefined }}>
         <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: `${bsAvgHFrac(splits) * 100}%`, height: 1, background: bsTHexA(t.INK, 0.18) }} />
         {splits.map((s, i) => (
@@ -12107,7 +12108,7 @@ function BSSdPaceBars({ data, t, muted, heat, big = false, onOpen }) {
         ))}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Vs this session&apos;s avg</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:chart.vsSessionAvg', { defaultValue: "Vs this session's avg" })}</span>
         {[1, 2, 3, 4, 5].map((z) => {
           const n = splits.filter((s) => s.zone === z).length;
           if (!n) return null;
@@ -12213,6 +12214,7 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
 // fabricated). Same stretched-viewBox geometry as BSActivityRoutePreview.
 function BSSdRoute({ route, heat, t }) {
   const [ref, seen] = useBSSdInView();
+  const tr = useShapeTr();
   const reduced = bsSdReduced();
   const pts = (route && Array.isArray(route.points)) ? route.points : [];
   if (pts.length < 2) return null;
@@ -12225,7 +12227,7 @@ function BSSdRoute({ route, heat, t }) {
     <div ref={ref}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), margin: '20px 0 8px' }}>
         <span aria-hidden style={{ width: 6, height: 1.5, background: heat, marginLeft: -15 }} />
-        <span>Route · GPS</span>
+        <span>{tr('session:chart.routeGps', { defaultValue: 'Route · GPS' })}</span>
       </div>
       <div style={{ position: 'relative' }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden style={{ width: '100%', height: 96, display: 'block' }}>
@@ -12234,8 +12236,8 @@ function BSSdRoute({ route, heat, t }) {
         </svg>
         <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${sx}% - 2px), 0px), calc(100% - 5px))`, top: `min(max(calc(${sy}% - 2px), 0px), calc(100% - 5px))`, width: 5, height: 5, border: `1.2px solid ${t.INK}`, background: 'transparent' }} />
         {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.18)}`, ...(reduced ? null : { animation: 'bsSdPop 340ms ease 1240ms both' }) }} />}
-        <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>START</span>
-        <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>END</span>
+        <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>{tr('session:chart.start', { defaultValue: 'START' })}</span>
+        <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>{tr('session:chart.end', { defaultValue: 'END' })}</span>
       </div>
       {caption ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{caption}</div> : null}
     </div>
@@ -12249,6 +12251,7 @@ function BSSdRoute({ route, heat, t }) {
 // from a real pace trace (bsSdNeedle returns null otherwise).
 function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }) {
   const [ref, seen] = useBSSdInView();
+  const tr = useShapeTr();
   const reduced = bsSdReduced();
   const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i;
   // Units sit in a fixed-width column (widest unit in the register, mono ch)
@@ -12264,7 +12267,7 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
         const needle = isPace ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
         const ghost = (!isPace && hrRe.test(String(k))) ? ghostFor(k) : null;
         return (
-          <div key={`${k}-${i}`} aria-label={needle ? `${k}: ${u.num}${u.unit ? ' ' + u.unit : ''} — average between ${needle.lo} and ${needle.hi}` : undefined} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
+          <div key={`${k}-${i}`} aria-label={needle ? tr('session:ledger.needleAria', { defaultValue: '{label}: {value} — average between {lo} and {hi}', label: k, value: `${u.num}${u.unit ? ' ' + u.unit : ''}`, lo: needle.lo, hi: needle.hi }) : undefined} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
             {ghost && (
               <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 0, bottom: 8, width: 132, height: 'calc(100% - 16px)', opacity: seen ? 0.11 : 0, transition: 'opacity 700ms ease 650ms' }}>
                 <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
@@ -12327,14 +12330,15 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
 // entry points. Callers gate on own-real-card BEFORE mounting this.
 function BSShareChooser({ who, tierDisplay, role, title, body, postId, heroStat, stats, delta, meal, routePoints, createdAt, z, onClose }) {
   const t = useBS();
+  const tr = useShapeTr();
   return (
-    <BSPostSheetShell title="Share" z={z} onClose={onClose}>
+    <BSPostSheetShell title={tr('session:action.share', { defaultValue: 'Share' })} z={z} onClose={onClose}>
       {[
-        ['Share link →', () => {
+        [tr('session:share.link', { defaultValue: 'Share link →' }), () => {
           onClose();
           bsSharePostExternal({ who, title, body, postId: postId || null });
         }],
-        ['Share as image →', async () => {
+        [tr('session:share.image', { defaultValue: 'Share as image →' }), async () => {
           onClose();
           // The model builds from the SAME values the host surface just drew —
           // the image can never disagree with the card (spec 2026-07-13).
@@ -12347,11 +12351,11 @@ function BSShareChooser({ who, tierDisplay, role, title, body, postId, heroStat,
             delta: delta || '',
             meal: meal || null,
             routePoints: routePoints || null,
-            dateLine: createdAt ? new Date(createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+            dateLine: createdAt ? new Date(createdAt).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric', year: 'numeric' }) : '',
           });
           const r = await bsShareCardImage(model);
-          if (!r.ok) window.__bsToast?.('Could not render the card — try again.', 'err');
-          else if (r.mode === 'downloaded') window.__bsToast?.('Card saved as PNG', 'ok');
+          if (!r.ok) window.__bsToast?.(tr('session:share.renderError', { defaultValue: 'Could not render the card — try again.' }), 'err');
+          else if (r.mode === 'downloaded') window.__bsToast?.(tr('session:share.savedPng', { defaultValue: 'Card saved as PNG' }), 'ok');
         }],
       ].map(([label, fn]) => (
         <button key={label} onClick={fn} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 50, background: 'transparent', border: 0, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', textAlign: 'left', padding: '0 4px' }}>{label}</button>
@@ -12362,6 +12366,7 @@ function BSShareChooser({ who, tierDisplay, role, title, body, postId, heroStat,
 
 function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onClose, onReact, onProfile, onOpenLikers, draft, setDraft, onSend }) {
   const t = useBS();
+  const tr = useShapeTr();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1);
   const tc = d.tc, a = d.a;
   // Neutral ink tone — the stats sections (heads, tiles, charts, splits) read
@@ -12458,8 +12463,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const isRideSport = /ride|bike|cycl|spin|watt|peloton/.test(sport);
   const isSwimSport = /swim/.test(sport);
   const paceCfg = isRideSport
-    ? { label: 'Speed', invert: false, fmt: (v) => `${Number(v).toFixed(1)}`, chip: 'Top', chipRe: /max.*speed|top.*speed/i }
-    : { label: 'Pace', invert: true, fmt: fmtPaceSec, chip: 'Fastest', chipRe: null };
+    ? { label: tr('session:chart.speed', { defaultValue: 'Speed' }), invert: false, fmt: (v) => `${Number(v).toFixed(1)}`, chip: tr('session:chart.top', { defaultValue: 'Top' }), chipRe: /max.*speed|top.*speed/i }
+    : { label: tr('session:chart.pace', { defaultValue: 'Pace' }), invert: true, fmt: fmtPaceSec, chip: tr('session:chart.fastest', { defaultValue: 'Fastest' }), chipRe: null };
   const paceChipStat = paceCfg.chipRe ? allStats.find(([k]) => paceCfg.chipRe.test(k)) : bestPaceStat;
   const powerStat = allStats.find(([k]) => /power|watt/i.test(k)) || null;
   // Per-split model (provider splits preferred, trace fallback) for the pace bar
@@ -12489,10 +12494,10 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onClose} aria-label="Back" style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
+          <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
           {!isComments && canShareCard && (
-            <button onClick={() => setShareOpen(true)} aria-label="Share" style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
+            <button onClick={() => setShareOpen(true)} aria-label={tr('session:action.share', { defaultValue: 'Share' })} style={{ marginLeft: 'auto', width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           )}
           <span style={{ marginLeft: (!isComments && canShareCard) ? 0 : 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
         </div>
@@ -12514,7 +12519,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK }}>{d.who}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3 }}>{d.tierDisplay}</span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{d.ago} ago{d.city ? ` · ${d.city}` : ''} · {d.role || 'Client'}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
           </div>
         </div>
         {/* author hairline — a hard "filed-by" cut between the byline and the
@@ -12541,7 +12546,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                   {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
                   {d.prDelta && (
                     <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2, whiteSpace: 'nowrap', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 720ms both' }) }}>
-                      <span style={{ color: heat }}>↑</span> PR {d.prDelta}
+                      <span style={{ color: heat }}>↑</span> {tr('session:detail.pr', { defaultValue: 'PR' })} {d.prDelta}
                     </span>
                   )}
                 </div>
@@ -12555,14 +12560,14 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>{tr('session:detail.cosigned', { defaultValue: 'co-signed · {role}', role: String(d.coSign.role).toLowerCase() === 'nutritionist' ? tr('session:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('session:role.coach', { defaultValue: 'Coach' }) })}</span>
               </button>
             </div>
           )}
           {(d.routeObj && Array.isArray(d.routeObj.points) && d.routeObj.points.length >= 2) ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
-            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label={tr('session:chart.gpsNotRecordedAria', { defaultValue: 'GPS not recorded' })}>
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>GPS · Not recorded</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>{tr('session:chart.gpsNotRecorded', { defaultValue: 'GPS · Not recorded' })}</span>
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
             </div>
           )}
@@ -12572,7 +12577,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             const { primary, secondary } = bsSdRankStats(summaryStats);
             return (
               <>
-                {secHead('Summary')}
+                {secHead(tr('session:detail.summary', { defaultValue: 'Summary' }))}
                 <BSSdLedger primary={primary} secondary={secondary} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />
               </>
             );
@@ -12587,7 +12592,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {hasSplitsPage && (
               <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
                 <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Splits · Full breakdown ›</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('session:chart.splitsFullBreakdown', { defaultValue: 'Splits · Full breakdown ›' })}</span>
               </button>
             )}
           </>
@@ -12595,7 +12600,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* POWER — watts over distance (rides, when a power meter is present). */}
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
-            {secHead('Power')}
+            {secHead(tr('session:chart.power', { defaultValue: 'Power' }))}
             <BSSdTrace vals={d.powerTrace} color="#d8b25a" fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="w" />
           </>
         )}
@@ -12603,7 +12608,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             then time-in-zone as LABELED horizontal bars. Avg HR leads in Summary. */}
         {!isComments && ((Array.isArray(d.trace) && d.trace.length > 1) || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
-            {secHead('Heart rate')}
+            {secHead(tr('session:chart.heartRate', { defaultValue: 'Heart rate' }))}
             {Array.isArray(d.trace) && d.trace.length > 1 && <BSSdTrace vals={d.trace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="hr" height={116} t={t} muted={muted} distanceMi={distanceMi} zoneGrad markMax unit="bpm" />}
             {Array.isArray(d.zones) && d.zones.length > 0 && <BSSdZoneCells zones={d.zones} t={t} muted={muted} />}
           </>
@@ -12620,7 +12625,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           const bestIdx = perf.indexOf(Math.max(...perf));
           return (
             <>
-              {secHead(d.breakdown.label || 'Working sets')}
+              {secHead(d.breakdown.label || tr('session:chart.workingSets', { defaultValue: 'Working sets' }))}
               <BSSdBars rows={rows} perf={perf} bestIdx={bestIdx} heat={heat} t={t} muted={muted} />
             </>
           );
@@ -12629,17 +12634,17 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             Splits (owner call: no area chart here). Buckets the distance-uniform
             trace by mile (segment buckets when distance is unknown/marathon+). */}
         {!isComments && hasCadGraph && (() => {
-          const tr = d.cadenceTrace;
+          const cadTrace = d.cadenceTrace;
           const miles = distanceMi ? Math.round(distanceMi) : 0;
           const perMile = miles >= 2 && miles <= 15;
-          const nb = Math.max(2, Math.min(perMile ? miles : 6, tr.length));
+          const nb = Math.max(2, Math.min(perMile ? miles : 6, cadTrace.length));
           const buckets = Array.from({ length: nb }, (_, b) => {
-            const s = Math.floor((b * tr.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * tr.length) / nb));
-            const seg = tr.slice(s, e);
+            const s = Math.floor((b * cadTrace.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * cadTrace.length) / nb));
+            const seg = cadTrace.slice(s, e);
             return seg.reduce((a, v) => a + v, 0) / seg.length;
           });
           const cadUnit = (cadStat && bsSdSplitUnit(cadStat[1]).unit) || 'spm';
-          const cRows = buckets.map((v, b) => [perMile ? `Mi ${b + 1}` : `Seg ${b + 1}`, `${Math.round(v)} ${cadUnit}`, '']);
+          const cRows = buckets.map((v, b) => [perMile ? tr('session:chart.mileLabel', { defaultValue: 'Mi {n}', n: b + 1 }) : tr('session:chart.segLabel', { defaultValue: 'Seg {n}', n: b + 1 }), `${Math.round(v)} ${cadUnit}`, '']);
           // Cadence clusters tightly (e.g. 168–186), so bars spread on the
           // min→max range — raw v/max would render every bar near-identical.
           const mn = Math.min(...buckets), spread = Math.max(Math.max(...buckets) - mn, 1);
@@ -12647,7 +12652,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           const cBest = buckets.indexOf(Math.max(...buckets));
           return (
             <>
-              {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
+              {secHead(tr('session:chart.cadence', { defaultValue: 'Cadence' }), cadStat ? headChip(tr('session:chart.avgValue', { defaultValue: 'avg {value}', value: cadStat[1] })) : null)}
               <BSSdBars rows={cRows} perf={cPerf} bestIdx={cBest} heat={heat} t={t} muted={muted} />
             </>
           );
@@ -12656,7 +12661,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             in a slate tone so it reads as terrain. */}
         {!isComments && hasElevGraph && (
           <>
-            {secHead('Elevation', elevStat ? headChip(`+${elevStat[1]} gain`) : null)}
+            {secHead(tr('session:chart.elevation', { defaultValue: 'Elevation' }), elevStat ? headChip(tr('session:chart.gainValue', { defaultValue: '+{value} gain', value: elevStat[1] })) : null)}
             <BSSdTrace vals={d.elevTrace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="ft" />
           </>
         )}
@@ -12664,7 +12669,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             thread. No workout stats here; those live on Session details. */}
         {isComments && (
           <>
-            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>Reactions · <BSSdCountUp text={String(count)} duration={620} delay={140} /></span></div>
+            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>{tr('session:detail.reactions', { defaultValue: 'Reactions' })} · <BSSdCountUp text={String(count)} duration={620} delay={140} /></span></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', ...(sdReduced || liked ? null : { '--sd-glow': bsTHexA(accent, 0.38), animation: 'bsSdPrBreath 2600ms ease-in-out 900ms infinite' }) }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · <span key={count} style={{ display: 'inline-block', ...(sdReduced ? null : { animation: 'bsSdPop 340ms cubic-bezier(.2,1.4,.4,1)' }) }}>{count}</span></span></button>
               {facepile.length > 0 && (
@@ -12674,12 +12679,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                       <BSFacetAvatar size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                     </span>
                   ))}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, ...(sdReduced ? null : { animation: `bsSdFadeUp 380ms ease ${240 + facepile.length * 70}ms both` }) }}>Who reacted ›</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, ...(sdReduced ? null : { animation: `bsSdFadeUp 380ms ease ${240 + facepile.length * 70}ms both` }) }}>{tr('session:detail.whoReacted', { defaultValue: 'Who reacted ›' })}</span>
                 </button>
               )}
             </div>
-            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>Comments · <BSSdCountUp text={String(comments.length)} duration={620} delay={220} /></span></div>
-            {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 180ms both' }) }}>No comments yet — be the first.</div>}
+            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>{tr('session:detail.comments', { defaultValue: 'Comments' })} · <BSSdCountUp text={String(comments.length)} duration={620} delay={220} /></span></div>
+            {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 180ms both' }) }}>{tr('session:detail.noComments', { defaultValue: 'No comments yet — be the first.' })}</div>}
             {comments.map((c, i) => (
               <div key={c.id ?? c.ts ?? `${c.who || 'c'}·${i}`} style={(sdReduced || i >= commentsAtOpen.current) ? null : { animation: `bsSdFadeUp 420ms ease ${180 + Math.min(i, 9) * 80}ms both` }}>
                 <BSFeedComment c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />
@@ -12691,8 +12696,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
       {/* sticky composer — comments page only */}
       {isComments && (
       <div style={{ flexShrink: 0, borderTop: `1px solid ${hair}`, padding: '10px 14px calc(12px + env(safe-area-inset-bottom,0px))', display: 'grid', gridTemplateColumns: '1fr 62px', gap: 8, alignItems: 'center', background: t.PAPER }}>
-        <input ref={composerRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }} placeholder="Add a comment…" style={{ minWidth: 0, height: 42, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 16px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-        <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>Send</button>
+        <input ref={composerRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }} placeholder={tr('session:detail.commentPlaceholder', { defaultValue: 'Add a comment…' })} style={{ minWidth: 0, height: 42, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 16px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+        <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>{tr('session:action.send', { defaultValue: 'Send' })}</button>
       </div>
       )}
       {splitsOpen && <BSSplitsPage d={d} paceData={paceData} heat={heat} t={t} onClose={() => setSplitsOpen(false)} />}
@@ -12704,6 +12709,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
 // The Splits — max-depth per-lap breakdown. Portals over the session-details
 // overlay; ← BACK returns. Columns render only when the stream exists.
 function BSSplitsPage({ d, paceData, heat, t, onClose }) {
+  const tr = useShapeTr();
   const muted = bsTHexA(t.INK, 0.55), hair = bsTHexA(t.INK, 0.1);
   const accent = heat || (t.isLight ? '#0a8f87' : '#34d6c5');
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
@@ -12717,20 +12723,20 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>The splits</span>
-        {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>Estimated · from trace</span>}
+        <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('session:splits.title', { defaultValue: 'The splits' })}</span>
+        {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:splits.estimatedFromTrace', { defaultValue: 'Estimated · from trace' })}</span>}
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || 'Session'}<span style={{ color: accent }}>.</span></div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${d.ago} ago` : ''}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{d.title || tr('session:splits.sessionFallback', { defaultValue: 'Session' })}<span style={{ color: accent }}>.</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, margin: '4px 0 16px' }}>{d.who}{d.ago ? ` · ${tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}` : ''}</div>
         <BSSdPaceBars data={paceData} t={t} muted={muted} heat={accent} big />
         <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: gridCols, columnGap: 12, alignItems: 'center' }}>
-          <span style={{ ...col, textAlign: 'left' }}>Split</span>
-          <span style={col}>Pace</span>
+          <span style={{ ...col, textAlign: 'left' }}>{tr('session:splits.colSplit', { defaultValue: 'Split' })}</span>
+          <span style={col}>{tr('session:chart.pace', { defaultValue: 'Pace' })}</span>
           {anyHr && <span style={col}>HR</span>}
-          {anyCad && <span style={col}>Cad</span>}
-          {anyElev && <span style={col}>Elev</span>}
+          {anyCad && <span style={col}>{tr('session:splits.colCad', { defaultValue: 'Cad' })}</span>}
+          {anyElev && <span style={col}>{tr('session:splits.colElev', { defaultValue: 'Elev' })}</span>}
           {s.map((x, i) => {
             const best = i === paceData.bestIdx;
             return (
