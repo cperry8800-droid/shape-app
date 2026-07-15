@@ -236,7 +236,7 @@ function LvCrest({ d, size = 40 }) {
 
 // Portrait helper — face-cropped Unsplash. Members add their own; falls
 // back to the generative crest when absent or hidden.
-const lvPortraitURL = (id, s = 360) => !id ? "" : (/^https?:|^data:/.test(String(id)) ? String(id) : `https://images.unsplash.com/photo-${id}?w=${s}&h=${s}&fit=crop&crop=faces&q=72&auto=format`);
+const lvPortraitURL = (id, s = 360) => !id ? "" : (/^https?:|^data:|^\//.test(String(id)) ? String(id) : `https://images.unsplash.com/photo-${id}?w=${s}&h=${s}&fit=crop&crop=faces&q=72&auto=format`);
 
 // Circular masked portrait with a tier-tinted duotone wash + ring.
 // editable → shows an "add/replace" affordance for own-profile.

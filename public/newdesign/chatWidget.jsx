@@ -42,13 +42,13 @@ if (typeof document !== "undefined" && !document.getElementById("cw-av-pulse")) 
 // Demo/preview faces — so seeded people (no real account) show real photos in
 // preview mode, demonstrating avatars on chat bubbles + profiles. Real members
 // (with a userId) use their own photo/initials, never these.
-const CW_DEMO_FACES = ["1544005313-94ddf0286df2", "1499996860823-5214fcc65f8f", "1507003211169-0a1dd7228f2d", "1500648767791-00dcc994a43e", "1438761681033-6461ffad8d80", "1487412720507-e7ab37603c6f", "1517841905240-472988babdf9", "1534528741775-53994a69daeb", "1531123897727-8f129e1688ce", "1463453091185-61582044d556", "1492562080023-ab3db95bfbce", "1573497019940-1c28c88b4f3e"];
+const CW_DEMO_FACES = ["/newdesign/faces/member-01.jpg", "/newdesign/faces/member-02.jpg", "/newdesign/faces/member-03.jpg", "/newdesign/faces/member-04.jpg", "/newdesign/faces/member-05.jpg", "/newdesign/faces/member-06.jpg", "/newdesign/faces/member-07.jpg", "/newdesign/faces/member-08.jpg", "/newdesign/faces/member-09.jpg", "/newdesign/faces/member-10.jpg", "/newdesign/faces/member-11.jpg", "/newdesign/faces/member-12.jpg"];
 function cwDemoFace(name) {
   const n = String(name || "").trim();
   if (!n || n === "You" || n.charAt(0) === "#") return null;
   if (n === "Nora") return "/nora-avatar.png"; // Shape's concierge — real avatar, not a stock face
   let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
-  return `https://images.unsplash.com/photo-${CW_DEMO_FACES[h % CW_DEMO_FACES.length]}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
+  return CW_DEMO_FACES[h % CW_DEMO_FACES.length];
 }
 // Stable per-name tier for people we have no live points for (demo/seeded
 // threads) — same deterministic hash the mobile app uses. Coaches climb the
