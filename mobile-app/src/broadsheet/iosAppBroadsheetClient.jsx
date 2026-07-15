@@ -1568,7 +1568,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
   // tokens follow the selected UI language (i18n date-locale rule).
   const _wd = new Date();
-  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+  const _dateLoc = bsDateLocale();
   const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
   const wkTimeLabel = (() => {
@@ -2598,7 +2598,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
   // Weekday/month tokens follow the selected UI language (i18n date-locale rule);
   // the composed dateline layout is preserved.
-  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+  const _dateLoc = bsDateLocale();
   const _dowShort = (d) => d.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _monShort = (d) => d.toLocaleDateString(_dateLoc, { month: 'short' });
   const _now = new Date();
@@ -8584,7 +8584,13 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
 // Is this a directly-playable video file (vs. an external watch link)?
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
-function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+// The active app locale for Intl date/number formatting — the i18n switch's
+// intlLocale (falls back to the raw current code, then the platform default).
+// Centralizes the expression the Home surface had inlined twice (#1595 nit).
+function bsDateLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }); }
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
