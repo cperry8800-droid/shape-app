@@ -40,7 +40,7 @@
   "screen.back": "← Geri",
   "screen.channel": "Kanal",
   "screen.coachPlaylist": "Koç çalma listesi",
-  "screen.fromCoach": "{name}'den · {bpm} BPM",
+  "screen.fromCoach": "Koç: {name} · {bpm} BPM",
   "screen.live247": "CANLI · 24/7",
   "screen.liveChannel": "Canlı kanal",
   "screen.liveStationMeta": "Canlı istasyon - {bpm} BPM - {count, plural, one {# şu an dinliyor} other {# şu an dinliyor}}",
@@ -53,7 +53,7 @@
   "screen.stationBpm": "İstasyon BPM",
   "screen.stop": "Durdur",
   "sets.comingSoon": "Çok yakında",
-  "sets.introA": "Doğrudan",
-  "sets.introB": ", amiral gemimiz mekândan yayınlanan sanal bir konser serisi. Harekete göre mikslenen DJ'ler ve canlı performanslar — pistin üzerinde yakalanıp Shape Radio üzerinden yayınlanıyor.",
+  "sets.introA": "Sanal konser serimiz, ",
+  "sets.introB": " adlı amiral mekânımızdan doğrudan yayınlanıyor. Harekete göre mikslenen DJ'ler ve canlı performanslar — pistte kaydedilip Shape Radio üzerinden yayınlanıyor.",
   "sets.liveFrom": "Canlı yayın:"
 }
