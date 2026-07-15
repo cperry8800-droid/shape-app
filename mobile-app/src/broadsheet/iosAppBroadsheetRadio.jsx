@@ -17,6 +17,23 @@ import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
 const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
 
+// The i18n translator for this module. Mirrors client.jsx's useShapeTr —
+// self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
+// doesn't depend on another file's copy or its load order.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+// Active app locale for Intl date/number formatting (falls back to the browser
+// default when i18n isn't ready).
+function radioLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+
 // ═══════════════════════════════════════════════════════════
 // Data
 // ═══════════════════════════════════════════════════════════
@@ -372,6 +389,7 @@ function BSStageLight({ color, opacity = 0.18, paused = false }) {
 function BSRadioPrompt() {
   const t = useBS();
   const r = useBSRadio();
+  const tr = useShapeTr();
   const [choice, setChoice] = useStateBR('on'); // pre-select the recommended "play Radio" option
   const isLight = !!t.isLight;
 
@@ -421,13 +439,13 @@ function BSRadioPrompt() {
         </div>
         <div style={{ marginTop: 18, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 12 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> Live now · Ad-free
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> {tr('radio:prompt.liveNow', { defaultValue: 'Live now · Ad-free' })}
           </div>
           <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.035em', lineHeight: 0.96, color: t.INK }}>
-            Want music<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>while you move?</span>
+            {tr('radio:prompt.title', { defaultValue: 'Want music' })}<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>{tr('radio:prompt.titleAccent', { defaultValue: 'while you move?' })}</span>
           </h1>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
-            Radio will stream in the background — on your workouts, meal preps, or whenever the app is open. Always ad-free. You can pause anytime.
+            {tr('radio:prompt.body', { defaultValue: 'Radio will stream in the background — on your workouts, meal preps, or whenever the app is open. Always ad-free. You can pause anytime.' })}
           </div>
         </div>
       </div>
@@ -441,16 +459,16 @@ function BSRadioPrompt() {
         <PromptChoice
           on={choice === 'on'}
           onClick={() => setChoice('on')}
-          title="Yes, play Radio."
-          meta="PLAYS IN APP · AD-FREE · PAUSE ANYTIME"
+          title={tr('radio:prompt.choiceOnTitle', { defaultValue: 'Yes, play Radio.' })}
+          meta={tr('radio:prompt.choiceOnMeta', { defaultValue: 'PLAYS IN APP · AD-FREE · PAUSE ANYTIME' })}
           icon={<div style={{ width: 18, height: 16 }}><BSEQ bars={5} height={16} gap={2} color="#ffffff" paused={false} /></div>}
           accent
         />
         <PromptChoice
           on={choice === 'off'}
           onClick={() => setChoice('off')}
-          title="Keep it muted."
-          meta="START SILENT · TURN ON ANYTIME FROM HOME"
+          title={tr('radio:prompt.choiceOffTitle', { defaultValue: 'Keep it muted.' })}
+          meta={tr('radio:prompt.choiceOffMeta', { defaultValue: 'START SILENT · TURN ON ANYTIME FROM HOME' })}
           icon={<span style={{ fontSize: 20, color: t.INK, opacity: 0.7, lineHeight: 1 }}>⏸</span>}
         />
       </div>
@@ -471,9 +489,9 @@ function BSRadioPrompt() {
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em',
             textTransform: 'uppercase', fontWeight: 700,
           }}
-        >Continue →</button>
+        >{tr('radio:prompt.continue', { defaultValue: 'Continue →' })}</button>
         <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          Change anytime in settings
+          {tr('radio:prompt.changeAnytime', { defaultValue: 'Change anytime in settings' })}
         </div>
       </div>
 
@@ -545,10 +563,11 @@ const bsNpClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 1
 function BSNowPlaying({ onOpen }) {
   const t = useBS();
   const r = useBSRadio();
+  const tr = useShapeTr();
   if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onOpen={onOpen} />;
 
-  const tr = radioNowPlayingDisplay(r.nowPlaying);
-  const homeFeedback = (tr.hasTrack && r.trackFeedback[makeRadioTrackKey({ a: tr.title, b: tr.artist })]) || { vote: null, comments: [] };
+  const np = radioNowPlayingDisplay(r.nowPlaying);
+  const homeFeedback = (np.hasTrack && r.trackFeedback[makeRadioTrackKey({ a: np.title, b: np.artist })]) || { vote: null, comments: [] };
 
   return (
     <div onClick={onOpen} style={{
@@ -582,8 +601,8 @@ function BSNowPlaying({ onOpen }) {
             Shape Radio
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none', minWidth: 0 }}>
-            <span style={{ color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.LIVE.listeners.toLocaleString()} listening</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
+            <span style={{ color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('radio:nowPlaying.listening', { count: r.LIVE.listeners, defaultValue: '{count, plural, one {# listening} other {# listening}}' })}</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
           </span>
         </div>
 
@@ -595,12 +614,12 @@ function BSNowPlaying({ onOpen }) {
               fontFamily: t.DISPLAY, fontSize: 15, fontWeight: t.W.display, letterSpacing: '-0.025em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.title}</div>
+            }}>{np.title}</div>
             <div style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK70, marginTop: 2, fontWeight: 900,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.artist}</div>
+            }}>{np.artist}</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
@@ -612,8 +631,8 @@ function BSNowPlaying({ onOpen }) {
               return (
                 <button
                   key={item.key}
-                  aria-label={item.key === 'like' ? 'Like song' : 'Dislike song'}
-                  onClick={(e) => { e.stopPropagation(); r.setTrackFeedback({ a: tr.title, b: tr.artist }, item.key); }}
+                  aria-label={item.key === 'like' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
+                  onClick={(e) => { e.stopPropagation(); r.setTrackFeedback({ a: np.title, b: np.artist }, item.key); }}
                   style={{
                     width: 24,
                     height: 26,
@@ -661,7 +680,8 @@ function BSNowPlaying({ onOpen }) {
 function BSNowPlayingMuted({ onTurnOn, onOpen }) {
   const t = useBS();
   const r = useBSRadio();
-  const tr = radioNowPlayingDisplay(r.nowPlaying);
+  const tr = useShapeTr();
+  const np = radioNowPlayingDisplay(r.nowPlaying);
 
   return (
     <div onClick={onOpen} style={{
@@ -679,11 +699,11 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none' }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, border: `1px solid ${t.INK50}`, background: 'transparent', flex: 'none' }} />
-            Shape Radio · Muted
+            Shape Radio · {tr('radio:nowPlaying.muted', { defaultValue: 'Muted' })}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-            <span>{r.LIVE.listeners.toLocaleString()} listening</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
+            <span>{tr('radio:nowPlaying.listening', { count: r.LIVE.listeners, defaultValue: '{count, plural, one {# listening} other {# listening}}' })}</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
           </span>
         </div>
 
@@ -699,12 +719,12 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
               fontFamily: t.DISPLAY, fontSize: 16, fontWeight: t.W.display, letterSpacing: '-0.02em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.title}</div>
+            }}>{np.title}</div>
             <div style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK50, marginTop: 2, fontWeight: 600,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.artist}</div>
+            }}>{np.artist}</div>
           </div>
 
           {/* Tune in — replaces the pause/play button */}
@@ -713,7 +733,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
             background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
             whiteSpace: 'nowrap',
-          }}>▶ Tune in</button>
+          }}>▶ {tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
         </div>
       </div>
       </div>
@@ -729,9 +749,10 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
+  const tr = useShapeTr();
   const onLive = true;
   const playlist = null;
-  const tr = radioNowPlayingDisplay(r.nowPlaying);
+  const np = radioNowPlayingDisplay(r.nowPlaying);
   // Station tempo — the live now-playing payload carries no per-track BPM, so this
   // is the STATION's nominal BPM (labeled as such), used as the HR-match target.
   const stationBpm = r.LIVE.bpm;
@@ -746,7 +767,7 @@ function BSRadioScreen({ onBack }) {
   const isSynced = hrmConnected && syncDelta <= 4;
   // HR sync stage machine: off → free (connected) → matching → synced
   const hrStage = !hrmConnected ? 'off' : (matching ? (isSynced ? 'synced' : 'matching') : 'free');
-  const hrStatus = { off: 'Not connected', free: liveHr != null ? 'Live' : 'Free', matching: 'Matching…', synced: 'In sync' }[hrStage];
+  const hrStatus = { off: tr('radio:hr.notConnected', { defaultValue: 'Not connected' }), free: liveHr != null ? tr('radio:hr.live', { defaultValue: 'Live' }) : tr('radio:hr.free', { defaultValue: 'Free' }), matching: tr('radio:hr.matching', { defaultValue: 'Matching…' }), synced: tr('radio:hr.inSync', { defaultValue: 'In sync' }) }[hrStage];
   // Real readings stream in as shape:hrm events while a monitor is connected.
   // These events only ever come from a real device (demo mode never emits), so
   // connected:false means the monitor dropped — fully disconnect the card
@@ -850,16 +871,16 @@ function BSRadioScreen({ onBack }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>
-              Vol. 1 · No. 1
+              {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
             </div>
           </div>
           <button onClick={onBack} style={{
             padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-          }}>← Back</button>
+          }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
         </div>
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
-          Section · Music
+          {tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}
         </div>
         <div style={{
           marginTop: 17,
@@ -893,7 +914,7 @@ function BSRadioScreen({ onBack }) {
           {/* On air + active listeners — sits high at the top-left of the box */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-            {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
+            {onLive ? tr('radio:screen.onAir', { count: r.LIVE.listeners, defaultValue: 'On Air · {count, number}' }) : tr('radio:screen.coachPlaylist', { defaultValue: 'Coach Playlist' })}
           </div>
 
           {/* Now playing — centered hero */}
@@ -905,20 +926,20 @@ function BSRadioScreen({ onBack }) {
               <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / stationBpm).toFixed(3)}s ease-out infinite` }} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{stationBpm}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: TEAL, fontWeight: 700, marginTop: 2 }}>Station BPM</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: TEAL, fontWeight: 700, marginTop: 2 }}>{tr('radio:screen.stationBpm', { defaultValue: 'Station BPM' })}</div>
               </div>
             </div>
 
             {/* Now playing label + track */}
             <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
-              Now Playing
+              {tr('radio:screen.nowPlaying', { defaultValue: 'Now Playing' })}
             </div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
-              {onLive ? tr.title : playlist.name}
+              {onLive ? np.title : playlist.name}
             </div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
-              {onLive ? tr.artist : `From ${playlist.by} · ${playlist.bpm} BPM`}
+              {onLive ? np.artist : tr('radio:screen.fromCoach', { name: playlist.by, bpm: playlist.bpm, defaultValue: 'From {name} · {bpm} BPM' })}
             </div>
           </div>
 
@@ -929,7 +950,7 @@ function BSRadioScreen({ onBack }) {
 
           {/* Scrubber */}
           {(() => {
-            const total = (() => { const p = String(tr.len || '0:00').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); })();
+            const total = (() => { const p = String(np.len || '0:00').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); })();
             const elapsed = Math.round(total * 0.46);
             const remain = Math.max(0, total - elapsed);
             const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
@@ -955,9 +976,9 @@ function BSRadioScreen({ onBack }) {
               fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-              {r.paused ? '▶  Resume' : '❚❚  Pause'}
+              {r.paused ? `▶  ${tr('radio:screen.resume', { defaultValue: 'Resume' })}` : `❚❚  ${tr('radio:screen.pause', { defaultValue: 'Pause' })}`}
             </button>
-            <button onClick={() => r.setRadioPreference(false)} aria-label="Stop" style={{ borderRadius: 12,
+            <button onClick={() => r.setRadioPreference(false)} aria-label={tr('radio:screen.stop', { defaultValue: 'Stop' })} style={{ borderRadius: 12,
               width: 46, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
               fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -972,7 +993,7 @@ function BSRadioScreen({ onBack }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
-                Heart-rate sync
+                {tr('radio:hr.title', { defaultValue: 'Heart-rate sync' })}
               </span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: hrStage === 'off' ? CREAM50 : TEAL }}>
                 {hrStatus}
@@ -981,7 +1002,7 @@ function BSRadioScreen({ onBack }) {
 
             <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Station</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>{tr('radio:hr.station', { defaultValue: 'Station' })}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{stationBpm}</div>
               </div>
               {hrStage === 'off' ? (
@@ -994,7 +1015,7 @@ function BSRadioScreen({ onBack }) {
                       <line x1="1.5" y1="11" x2="20.5" y2="11" stroke={CREAM50} strokeWidth="1" />
                     </svg>
                   </div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Awaiting signal</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>{tr('radio:hr.awaitingSignal', { defaultValue: 'Awaiting signal' })}</div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
@@ -1004,12 +1025,12 @@ function BSRadioScreen({ onBack }) {
                     <div style={{ position: 'absolute', left: `${Math.max(6, Math.min(94, 58 + signedDelta * 0.9))}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}`, transition: 'left 0.24s linear' }} />
                   </div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: isSynced ? TEAL : CREAM50, fontWeight: 700 }}>
-                    {isSynced ? 'In sync' : `${signedDelta > 0 ? '+' : ''}${signedDelta} BPM`}
+                    {isSynced ? tr('radio:hr.inSync', { defaultValue: 'In sync' }) : tr('radio:hr.deltaBpm', { delta: `${signedDelta > 0 ? '+' : ''}${signedDelta}`, defaultValue: '{delta} BPM' })}
                   </div>
                 </div>
               )}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: liveHr != null ? TEAL : CREAM50, fontWeight: 700 }}>{liveHr != null ? 'You · live' : 'You'}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: liveHr != null ? TEAL : CREAM50, fontWeight: 700 }}>{liveHr != null ? tr('radio:hr.youLive', { defaultValue: 'You · live' }) : tr('radio:hr.you', { defaultValue: 'You' })}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : youHr}</div>
               </div>
             </div>
@@ -1021,7 +1042,7 @@ function BSRadioScreen({ onBack }) {
                   border: `1px solid ${t.isLight ? '#0a8f87' : CREAM25}`, background: t.isLight ? '#0a8f8714' : 'transparent', color: t.isLight ? '#0a8f87' : CREAM,
                   padding: '11px', cursor: 'pointer',
                   fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
-                }}>Connect monitor</button>
+                }}>{tr('radio:hr.connectMonitor', { defaultValue: 'Connect monitor' })}</button>
               ) : (
                 <>
                   <button onClick={() => setMatching(m => !m)} style={{ borderRadius: 11, flex: 1,
@@ -1033,9 +1054,9 @@ function BSRadioScreen({ onBack }) {
                     fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
                   }}>
                     <span style={{ fontSize: 10 }}>{matching ? '◉' : '○'}</span>
-                    {matching ? (isSynced ? 'In sync' : 'Matching beat') : 'Match my BPM'}
+                    {matching ? (isSynced ? tr('radio:hr.inSync', { defaultValue: 'In sync' }) : tr('radio:hr.matchingBeat', { defaultValue: 'Matching beat' })) : tr('radio:hr.matchMyBpm', { defaultValue: 'Match my BPM' })}
                   </button>
-                  <button onClick={disconnectHrm} aria-label="Disconnect monitor" style={{ borderRadius: 11, width: 44,
+                  <button onClick={disconnectHrm} aria-label={tr('radio:hr.disconnectMonitor', { defaultValue: 'Disconnect monitor' })} style={{ borderRadius: 11, width: 44,
                     border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
@@ -1055,7 +1076,7 @@ function BSRadioScreen({ onBack }) {
         <div style={{ padding: `14px ${t.padX}px 18px`, borderBottom: `1px solid ${RULE_DK}` }}>
           {/* Section eyebrow */}
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 12 }}>
-            Nora · DJ preview
+            Nora · {tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })}
           </div>
           {/* Canvas — shown when Nora is on */}
           {noraOn && (
@@ -1065,7 +1086,7 @@ function BSRadioScreen({ onBack }) {
                 <img src={`${import.meta.env.BASE_URL}nora-avatar.png`} alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
               )}
               <div aria-hidden style={{ position: 'absolute', top: 10, left: 10, fontFamily: t.MONO, fontWeight: 600, fontSize: 11, letterSpacing: '0.12em', color: '#2ee0c4' }}>
-                ● LIVE · NORA <span style={{ opacity: 0.6 }}>(preview)</span>
+                ● {tr('radio:nora.liveLabel', { defaultValue: 'LIVE' })} · NORA <span style={{ opacity: 0.6 }}>({tr('radio:nora.preview', { defaultValue: 'preview' })})</span>
               </div>
             </div>
           )}
@@ -1082,20 +1103,20 @@ function BSRadioScreen({ onBack }) {
             fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
           }}>
             <span style={{ fontSize: 13 }}>{noraOn ? '◉' : '○'}</span>
-            {noraOn ? 'Hide Nora' : 'Watch Nora (preview)'}
+            {noraOn ? tr('radio:nora.hide', { defaultValue: 'Hide Nora' }) : tr('radio:nora.watch', { defaultValue: 'Watch Nora (preview)' })}
           </button>
         </div>
 
         {/* CHANNEL */}
-        <DarkSection title="Channel" meta="Live channel" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
+        <DarkSection title={tr('radio:screen.channel', { defaultValue: 'Channel' })} meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {false && (
         <DarkSection title="Channels" meta={onLive ? 'Live · always on' : 'Coach · sent to you'} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         )}
         <DarkChannelRow
           active={onLive} onClick={() => r.setChannel('live')}
-          eyebrow="LIVE · 24/7" eyebrowColor={TEAL}
+          eyebrow={tr('radio:screen.live247', { defaultValue: 'LIVE · 24/7' })} eyebrowColor={TEAL}
           title={r.LIVE.show}
-          meta={`Live station - ${r.LIVE.bpm} BPM - ${r.LIVE.listeners.toLocaleString()} listening now`}
+          meta={tr('radio:screen.liveStationMeta', { bpm: r.LIVE.bpm, count: r.LIVE.listeners, defaultValue: 'Live station - {bpm} BPM - {count, plural, one {# listening now} other {# listening now}}' })}
           right={<BSEQ bars={5} color={TEAL} height={28} gap={2} paused={r.paused || !onLive} />}
           t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
         />
@@ -1124,11 +1145,11 @@ function BSRadioScreen({ onBack }) {
           display: 'flex', alignItems: 'center', gap: 12, padding: `14px ${t.padX}px`,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live from Club Shape</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} Club Shape</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>What Shape Radio is · concert series · coach playlists</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>{tr('radio:screen.setsSubtitle', { defaultValue: 'What Shape Radio is · concert series · coach playlists' })}</div>
           </div>
-          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>About →</span>
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{tr('radio:screen.about', { defaultValue: 'About →' })}</span>
         </button>
 
 
@@ -1200,6 +1221,7 @@ function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, r
 // Shape venue background (the same image the website radio page uses).
 function BSShapeSetsScreen({ onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const TEAL = t.ACCENT;
   const RUST = t.RUST || '#c0533b';
   const CREAM = '#f4ede0', CREAM70 = 'rgba(244,237,224,0.74)', CREAM50 = 'rgba(244,237,224,0.5)';
@@ -1232,14 +1254,14 @@ function BSShapeSetsScreen({ onBack }) {
           <div style={{ padding: `50px ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>
                 <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Radio
               </button>
             </div>
-            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Section · Music</div>
+            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}</div>
             <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></h1>
           </div>
 
@@ -1250,10 +1272,10 @@ function BSShapeSetsScreen({ onBack }) {
             <div style={{ textAlign: 'center', width: '100%' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 18 }}>
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>Live from <span style={{ fontStyle: 'italic', color: TEAL }}>Club Shape</span></span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} <span style={{ fontStyle: 'italic', color: TEAL }}>Club Shape</span></span>
               </div>
-              <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>A virtual concert series broadcast straight from <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.</p>
-              <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Coming soon</div>
+              <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>{tr('radio:sets.introA', { defaultValue: 'A virtual concert series broadcast straight from' })} <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>{tr('radio:sets.introB', { defaultValue: ', our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.' })}</p>
+              <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingSoon', { defaultValue: 'Coming soon' })}</div>
             </div>
           </div>
         </div>
