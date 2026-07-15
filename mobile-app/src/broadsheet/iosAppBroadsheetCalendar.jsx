@@ -765,7 +765,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       {/* Body */}
       {isWorkout && <BSEventWorkoutBody event={event} role={role} />}
       {isMeal    && <BSEventMealBody event={event} />}
-      {isConsult && <BSEventConsultBody event={event} role={role} />}
+      {isConsult && <BSEventConsultBody event={event} role={role} live={live} />}
       {isCheck   && <BSEventCheckBody event={event} />}
       {!isWorkout && !isMeal && !isConsult && !isCheck && <BSEventGenericBody event={event} />}
 
@@ -854,7 +854,7 @@ function BSEventWorkoutBody({ event, role }) {
   const moves = detail
     ? detail.moves.map((m, j) => ({ n: String(j + 1).padStart(2, '0'), m: m.name, s: m.scheme || '—', l: cardio ? '' : (m.load || '—') }))
     : null;
-  const durLabel = event.dur ? `${event.dur}m` : (metaParts[0] || '—');
+  const durLabel = event.dur ? tr('calendar:unit.durMin', { min: event.dur, defaultValue: '{min}m' }) : (metaParts[0] || '—');
   // Honest register — never a fabricated figure (RPE was defaulting to '8' on
   // events with no authored detail, e.g. a coach's live booking).
   const stats = cardio
@@ -976,13 +976,13 @@ function BSEventMealBody({ event }) {
   );
 }
 
-function BSEventConsultBody({ event, role }) {
+function BSEventConsultBody({ event, role, live = false }) {
   const t = useBSCal();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // The agenda + last-consult notes are authored DEMO content — never show them
   // on a real (server) event, where they'd read as fabricated client data.
-  const isDemo = event.source !== 'event';
+  const isDemo = !live;
   const agenda = isDemo ? ['Macro update for cut phase', 'Sleep review · last 7 nights', 'Restaurant strategy for weekend'] : [];
   return (
     <>
