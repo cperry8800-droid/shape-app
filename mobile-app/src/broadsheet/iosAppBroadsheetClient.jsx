@@ -8281,15 +8281,18 @@ function BSChannelIcon({ name, size = 20 }) {
 // Demo/preview faces — so the seed community (people with no real account) shows
 // real photos in preview mode, demonstrating that avatars appear on bubbles +
 // profiles. Real members (with a userId) never use these; they show their own
-// photo or initials. Reuses the same Unsplash faces as the presence rail.
-const BS_DEMO_FACES = ['1544005313-94ddf0286df2', '1499996860823-5214fcc65f8f', '1507003211169-0a1dd7228f2d', '1500648767791-00dcc994a43e', '1438761681033-6461ffad8d80', '1487412720507-e7ab37603c6f', '1517841905240-472988babdf9', '1534528741775-53994a69daeb', '1531123897727-8f129e1688ce', '1463453091185-61582044d556', '1492562080023-ab3db95bfbce', '1573497019940-1c28c88b4f3e'];
-const BS_DEMO_FACE_BY_NAME = { 'Priya Shah': '1544005313-94ddf0286df2', 'Drew Oyelaran': '1499996860823-5214fcc65f8f', 'Casey Morgan': '1507003211169-0a1dd7228f2d', 'Devon Wells': '1500648767791-00dcc994a43e', 'Maya Okafor': '1438761681033-6461ffad8d80', 'Sofia Park': '1487412720507-e7ab37603c6f' };
+// photo or initials. Self-hosted AI portraits (served from /m/faces/), the same
+// consistent set as the presence rail below.
+const BS_FACE_BASE = `${import.meta.env.BASE_URL}faces/`;
+const bsFaceUrl = (slug) => slug ? `${BS_FACE_BASE}${slug}.jpg` : null;
+const BS_DEMO_FACES = ['member-01', 'member-02', 'member-03', 'member-04', 'member-05', 'member-06', 'member-07', 'member-08', 'member-09', 'member-10', 'member-11', 'member-12'];
+const BS_DEMO_FACE_BY_NAME = { 'Priya Shah': 'member-03', 'Drew Oyelaran': 'member-02', 'Casey Morgan': 'member-10', 'Devon Wells': 'member-01', 'Maya Okafor': 'maya', 'Sofia Park': 'member-12' };
 function bsDemoFace(name) {
   const n = String(name || '').trim();
   if (!n || n === 'You' || n.charAt(0) === '#') return null;
-  let id = BS_DEMO_FACE_BY_NAME[n];
-  if (!id) { let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0; id = BS_DEMO_FACES[h % BS_DEMO_FACES.length]; }
-  return `https://images.unsplash.com/photo-${id}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
+  let slug = BS_DEMO_FACE_BY_NAME[n];
+  if (!slug) { let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0; slug = BS_DEMO_FACES[h % BS_DEMO_FACES.length]; }
+  return bsFaceUrl(slug);
 }
 // Stable per-channel accent so channels are visually distinct.
 const BS_CHANNEL_PALETTE = ['#34d6c5', '#d8a23a', '#8a5cf6', '#e0518a', '#5fae7e', '#c0533b', '#4a9fe0', '#a07a2e'];
@@ -14203,18 +14206,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // no rail (honest — never fabricated people). Pulsing ring = ONLINE; the corner
   // DOT marks who's ACTIVE: 'workout' → teal dot, 'cooking' → amber dot.
   const TRAINING_NOW = [
-    { name: 'Priya Shah',    tier: 'peak',   live: true, activity: 'workout', photo: '1544005313-94ddf0286df2' },
-    { name: 'Drew Oyelaran', tier: 'legend', live: true,                      photo: '1499996860823-5214fcc65f8f' },
-    { name: 'Casey Morgan',  tier: 'form',   live: true, activity: 'workout', photo: '1507003211169-0a1dd7228f2d' },
-    { name: 'Devon Wells',   tier: 'tempo',  live: true,                      photo: '1500648767791-00dcc994a43e' },
-    { name: 'Maya Okafor',   tier: 'legend', live: true, activity: 'workout', role: 'trainer', photo: '1438761681033-6461ffad8d80' },
-    { name: 'Sofia Park',    tier: 'base',   live: true, activity: 'cooking', photo: '1487412720507-e7ab37603c6f' },
-    { name: 'Leo Marchetti', tier: 'form',   live: true, activity: 'workout', photo: '1502685104226-ee32379fefbe' },
-    { name: 'Aisha Bello',   tier: 'peak',   live: true, activity: 'cooking', role: 'nutritionist', photo: '1534528741775-53994a69daeb' },
-    { name: 'Noah Kim',      tier: 'tempo',  live: true,                      photo: '1506794778202-cad84cf45f1d' },
-    { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
+    { name: 'Priya Shah',    tier: 'peak',   live: true, activity: 'workout', photo: 'member-03' },
+    { name: 'Drew Oyelaran', tier: 'legend', live: true,                      photo: 'member-02' },
+    { name: 'Casey Morgan',  tier: 'form',   live: true, activity: 'workout', photo: 'member-10' },
+    { name: 'Devon Wells',   tier: 'tempo',  live: true,                      photo: 'member-01' },
+    { name: 'Maya Okafor',   tier: 'legend', live: true, activity: 'workout', role: 'trainer', photo: 'maya' },
+    { name: 'Sofia Park',    tier: 'base',   live: true, activity: 'cooking', photo: 'member-12' },
+    { name: 'Leo Marchetti', tier: 'form',   live: true, activity: 'workout', photo: 'member-05' },
+    { name: 'Aisha Bello',   tier: 'peak',   live: true, activity: 'cooking', role: 'nutritionist', photo: 'member-08' },
+    { name: 'Noah Kim',      tier: 'tempo',  live: true,                      photo: 'member-11' },
+    { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: 'member-06' },
   ];
-  const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
+  const bsDemoPhoto = (v) => !v ? null : (/^https?:|^data:|^\//.test(v) ? v : bsFaceUrl(v));
   // Auth-gated FIRST: signed in → only real active members (or none); signed-out
   // preview → only the demo cast (realActive is never surfaced in preview, even if
   // activeNow populated it on mount).
@@ -14276,7 +14279,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {railPeople.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
-              const pPhoto = p.photoUrl || bsUnsplash(p.photo);
+              const pPhoto = p.photoUrl || bsDemoPhoto(p.photo);
               const railProfile = { who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) };
               // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
               // cheer them on while they're at it; otherwise straight to the profile.
