@@ -7,7 +7,7 @@ import { IntlMessageFormat } from 'intl-messageformat';
 import { ACTIVE_LOCALES } from '../mobile-app/src/i18n/locales.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'mobile-app', 'src', 'i18n', 'catalogs');
-const NS = ['common', 'onboarding', 'settings', 'score', 'home', 'profile', 'session', 'feed', 'marketplace', 'radio', 'calendar', 'habits'];
+const NS = ['common', 'onboarding', 'settings', 'score', 'home', 'profile', 'session', 'feed', 'marketplace', 'radio', 'calendar', 'habits', 'store'];
 
 function load(loc, ns) {
   const p = join(root, loc, `${ns}.json`);
