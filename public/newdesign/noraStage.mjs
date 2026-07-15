@@ -44,7 +44,11 @@ export class NoraStage {
     const vrm = gltf.userData.vrm;
     VRMUtils.removeUnnecessaryVertices(gltf.scene);
     VRMUtils.combineSkeletons(gltf.scene);
-    vrm.scene.rotation.y = Math.PI;            // face the camera
+    // Face the camera. rotateVRM0 normalizes a legacy VRM0 model to the VRM1
+    // orientation (a no-op for a VRM1 model), so any avatar we swap in lands the
+    // same way. three-vrm loads our VRM1 already fronting the +Z camera — the old
+    // unconditional `rotation.y = Math.PI` spun it 180° and showed only its back.
+    VRMUtils.rotateVRM0(vrm);
     this.scene.add(vrm.scene);
     this.vrm = vrm;
     return vrm;
