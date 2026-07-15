@@ -7,7 +7,7 @@
   "chart.elevation": "Высота",
   "chart.end": "КОНЕЦ",
   "chart.fastest": "Быстрейший",
-  "chart.gainValue": "+{value} набор",
+  "chart.gainValue": "+{value} набора высоты",
   "chart.gpsNotRecorded": "GPS · Не записано",
   "chart.gpsNotRecordedAria": "GPS не записан",
   "chart.heartRate": "Пульс",

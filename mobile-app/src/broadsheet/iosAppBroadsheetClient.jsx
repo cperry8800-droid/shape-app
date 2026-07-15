@@ -12519,7 +12519,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               <span style={{ fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK }}>{d.who}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3 }}>{d.tierDisplay}</span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''} · {d.role || 'Client'}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{tr('session:detail.ago', { defaultValue: '{time} ago', time: d.ago })}{d.city ? ` · ${d.city}` : ''}{d.role ? ` · ${d.role}` : ''}</div>
           </div>
         </div>
         {/* author hairline — a hard "filed-by" cut between the byline and the
@@ -12634,13 +12634,13 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             Splits (owner call: no area chart here). Buckets the distance-uniform
             trace by mile (segment buckets when distance is unknown/marathon+). */}
         {!isComments && hasCadGraph && (() => {
-          const tr = d.cadenceTrace;
+          const cadTrace = d.cadenceTrace;
           const miles = distanceMi ? Math.round(distanceMi) : 0;
           const perMile = miles >= 2 && miles <= 15;
-          const nb = Math.max(2, Math.min(perMile ? miles : 6, tr.length));
+          const nb = Math.max(2, Math.min(perMile ? miles : 6, cadTrace.length));
           const buckets = Array.from({ length: nb }, (_, b) => {
-            const s = Math.floor((b * tr.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * tr.length) / nb));
-            const seg = tr.slice(s, e);
+            const s = Math.floor((b * cadTrace.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * cadTrace.length) / nb));
+            const seg = cadTrace.slice(s, e);
             return seg.reduce((a, v) => a + v, 0) / seg.length;
           });
           const cadUnit = (cadStat && bsSdSplitUnit(cadStat[1]).unit) || 'spm';
