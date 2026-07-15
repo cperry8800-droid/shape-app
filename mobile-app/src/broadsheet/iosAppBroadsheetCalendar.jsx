@@ -8,6 +8,22 @@ const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSU
 const { useState: useStateBSCal, useEffect: useEffectBSCal, useContext: useContextBSCal, createContext: createContextBSCal, useRef: useRefBSCal } = React;
 const { useBS: useBSCal, BSPage: BSPageCal, BSPageHeader: BSPageHeaderCal, BSAvatar: BSAvatarCal, BSEyebrow: BSEyebrowCal, BSSection: BSSectionCal, BSTag: BSTagCal, BSFooter: BSFooterCal } = window;
 
+// The i18n translator for this module. Mirrors client.jsx's useShapeTr —
+// self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
+// doesn't depend on another file's copy or its load order.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+// Active app locale for Intl date/number formatting (month/weekday names, etc.).
+function calLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+
 // Shared schedule formatting — keeps the calendar in sync with the day-log and
 // meal previews. Meal events carry a `slot` (BFAST/LUNCH/SNACK/DINNER) and read
 // the client's meal-time preference (window.ShapeMealTimes, set in Settings), so
@@ -66,6 +82,7 @@ function useBSSheet() {
 
 function BSSheetHost({ children, onDismiss, z }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const [mounted, setMounted] = useStateBSCal(false);
   useEffectBSCal(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   return (
@@ -88,7 +105,7 @@ function BSSheetHost({ children, onDismiss, z }) {
               background: 'transparent', border: 0, color: t.INK,
               fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
               fontWeight: 700, cursor: 'pointer', padding: 6, display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>← Back</button>
+            }}>{tr('calendar:cta.back', { defaultValue: '← Back' })}</button>
             <div style={{ width: 36, height: 3, background: t.INK, opacity: 0.4, borderRadius: 999 }} />
           </div>
         </div>
@@ -249,6 +266,7 @@ function _bsMapServerCalEvent(ev, t) {
 
 function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const isLoggedInNow = () => !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [loggedIn, setLoggedIn] = useStateBSCal(isLoggedInNow);
   const _today = new Date();
@@ -310,7 +328,8 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   // any month, the demo set on the demo month, and nothing on a logged-out
   // non-demo month (the demo events are only authored for May 2026).
   const monthEvents = (useServer || isDemoMonth) ? events : [];
-  const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth];
+  // Month name localizes via Intl (calLocale) — never a translated English array.
+  const monthName = new Date(viewYear, viewMonth, 1).toLocaleDateString(calLocale(), { month: 'long' });
 
   // Serif page title removed (owner request) — the mast row + Calendar kicker carry the page.
 
@@ -341,7 +360,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   return (
     <BSPageCal>
       <BSPageHeaderCal
-        kicker="Section · Calendar"
+        kicker={tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
         trailing={trailing}
         onBack={onBack}
       />
@@ -351,7 +370,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
           <button onClick={() => setShowAdd(true)} style={{
             width: '100%', padding: '11px 0', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>+ Add to calendar</button>
+          }}>{tr('calendar:cta.addToCalendar', { defaultValue: '+ Add to calendar' })}</button>
         </div>
       )}
 
@@ -371,7 +390,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         onNext={() => { let m = viewMonth + 1, y = viewYear; if (m > 11) { m = 0; y += 1; } setViewMonth(m); setViewYear(y); }}
       />
 
-      <BSFooterCal left="The Shape Daily · Calendar" right={`${monthName} · ${viewYear}`} />
+      <BSFooterCal left={tr('calendar:footer.left', { defaultValue: 'The Shape Daily · Calendar' })} right={`${monthName} · ${viewYear}`} />
       {showAdd && (
         <BSCalAddSheet
           year={viewYear} month={viewMonth} day={selDay}
@@ -386,6 +405,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
 // Add-event bottom sheet (writes to /api/calendar via ShapeCalendar.create).
 function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const KINDS = ['WORKOUT', 'MEAL', 'CHECKIN', 'CONSULT', 'REVIEW', 'PLAN', 'REST', 'ADMIN'];
   const [kind, setKind] = useStateBSCal('WORKOUT');
   const [title, setTitle] = useStateBSCal('');
@@ -397,7 +417,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
   const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
 
   const save = async () => {
-    if (!title.trim()) { window.__bsToast?.('Add a title', 'err'); return; }
+    if (!title.trim()) { window.__bsToast?.(tr('calendar:add.needTitle', { defaultValue: 'Add a title' }), 'err'); return; }
     setBusy(true);
     try {
       await window.ShapeCalendar.create({
@@ -405,10 +425,10 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
         date: dateStr, time: /^\d{1,2}:\d{2}$/.test(time) ? time : undefined,
         durationMin: dur ? Number(dur) : undefined,
       });
-      window.__bsToast?.('Added to calendar', 'ok');
+      window.__bsToast?.(tr('calendar:add.added', { defaultValue: 'Added to calendar' }), 'ok');
       onSaved?.();
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not save', 'err');
+      window.__bsToast?.(e?.message || tr('calendar:add.couldNotSave', { defaultValue: 'Could not save' }), 'err');
     } finally {
       setBusy(false);
     }
@@ -418,7 +438,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
     <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={ph} type={type}
       style={{ width: '100%', height: 46, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.BODY || t.DISPLAY, fontSize: 15, outline: 'none', boxSizing: 'border-box' }} />
   );
-  const niceDate = (() => { const d = new Date(dateStr + 'T00:00:00'); return isNaN(d) ? dateStr : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); })();
+  const niceDate = (() => { const d = new Date(dateStr + 'T00:00:00'); return isNaN(d) ? dateStr : d.toLocaleDateString(calLocale(), { weekday: 'long', month: 'short', day: 'numeric' }); })();
 
   return createPortal((
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -428,32 +448,32 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>Add to calendar</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>{tr('calendar:add.title', { defaultValue: 'Add to calendar' })}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{niceDate}</div>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} aria-label={tr('calendar:cta.close', { defaultValue: 'Close' })} style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 9 }}>Type</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 9 }}>{tr('calendar:add.type', { defaultValue: 'Type' })}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, marginBottom: 18 }}>
           {KINDS.map(k => {
             const on = k === kind;
             return (
               <button key={k} onClick={() => setKind(k)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 2px 7px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent' }}>
                 <span style={{ fontSize: 17, lineHeight: 1, filter: on ? 'none' : 'grayscale(0.4)' }}>{_BS_CAL_KIND_ICON[k] || '✦'}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', color: on ? t.INK : t.INK50 }}>{k}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', color: on ? t.INK : t.INK50 }}>{tr('calendar:kind.' + k.toLowerCase(), { defaultValue: k })}</span>
               </button>
             );
           })}
         </div>
         <div style={{ display: 'grid', gap: 9, marginBottom: 18 }}>
-          {input(title, setTitle, 'Title (e.g. Upper Push)')}
-          {input(sub, setSub, 'Details (optional)')}
+          {input(title, setTitle, tr('calendar:add.phTitle', { defaultValue: 'Title (e.g. Upper Push)' }))}
+          {input(sub, setSub, tr('calendar:add.phDetails', { defaultValue: 'Details (optional)' }))}
           <div style={{ display: 'flex', gap: 9 }}>
-            {input(time, setTime, 'Time HH:MM', 'text')}
-            {input(dur, setDur, 'Min', 'number')}
+            {input(time, setTime, tr('calendar:add.phTime', { defaultValue: 'Time HH:MM' }), 'text')}
+            {input(dur, setDur, tr('calendar:add.phMin', { defaultValue: 'Min' }), 'number')}
           </div>
         </div>
-        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? 'Saving…' : 'Add to calendar →'}</button>
+        <button onClick={save} disabled={busy} style={{ width: '100%', padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.65 : 1 }}>{busy ? tr('calendar:add.saving', { defaultValue: 'Saving…' }) : tr('calendar:add.submit', { defaultValue: 'Add to calendar →' })}</button>
       </div>
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
@@ -466,10 +486,15 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 // ────────── MONTH VIEW
 function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const teal = bsCalTeal(t);
-  const MONTHS3 = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const prevAbbr = MONTHS3[(viewMonth + 11) % 12];
-  const nextAbbr = MONTHS3[(viewMonth + 1) % 12];
+  // Month abbreviations localize via Intl (calLocale); the mono style uppercases.
+  const monthAbbr = (m) => new Date(viewYear, ((m % 12) + 12) % 12, 1).toLocaleDateString(calLocale(), { month: 'short' });
+  const prevAbbr = monthAbbr(viewMonth + 11);
+  const nextAbbr = monthAbbr(viewMonth + 1);
+  // Weekday header letters — Monday-first, localized narrow names via Intl
+  // (Jan 1 2024 is a Monday). No translated weekday array.
+  const dowNarrow = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(calLocale(), { weekday: 'narrow', timeZone: 'UTC' }));
   // Compute first-of-month DOW (Mon=0..Sun=6) and days-in-month for any year/month
   const firstJsDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun..6=Sat
   const firstDow = (firstJsDow + 6) % 7; // shift to Mon=0
@@ -505,14 +530,14 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
           <span style={{ fontStyle: 'italic', color: teal }}>{monthName}</span> <span>{viewYear}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={onPrev} aria-label="Previous month" style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
-          <button onClick={onNext} aria-label="Next month" style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
+          <button onClick={onPrev} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {prevAbbr}</button>
+          <button onClick={onNext} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
         </div>
       </div>
 
       {/* DOW header — single letters */}
       <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
-        {['M','T','W','T','F','S','S'].map((d, i) => (
+        {dowNarrow.map((d, i) => (
           <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, fontWeight: 700, textAlign: 'center' }}>{d}</div>
         ))}
       </div>
@@ -533,7 +558,10 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
               const dotsAccents = dayEv.slice(0, 4).map(accentOf);
               return (
                 <button key={ci} type="button" onClick={() => setSelDay(d)}
-                  aria-label={`${monthName} ${d}${dayEv.length ? `, ${dayEv.length} ${dayEv.length === 1 ? 'item' : 'items'}` : ''}${isSel ? ', selected' : ''}${isToday ? ', today' : ''}`}
+                  aria-label={[`${monthName} ${d}`,
+                    ...(dayEv.length ? [tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })] : []),
+                    ...(isSel ? [tr('calendar:aria.selected', { defaultValue: 'selected' })] : []),
+                    ...(isToday ? [tr('calendar:aria.today', { defaultValue: 'today' })] : [])].join(', ')}
                   style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '7px 0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                   <span style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 13, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', background: isSel ? teal : 'transparent', color: isSel ? t.PAPER : (isToday ? teal : t.INK70) }}>{d}</span>
                   <span style={{ display: 'flex', gap: 2.5, height: 4, overflow: 'hidden' }}>
@@ -551,9 +579,9 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       {/* Legend — derived from the SAME kind map the dots + spines resolve
           through, so the three can never disagree. */}
       <div style={{ padding: `10px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
-        {[['Training', 'TRN'], ['Meals', 'MEAL'], ['Check-in', 'CHECKIN'], ['Consult', 'CONSULT']].map(([l, k]) => (
-          <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: kindAccent[k], display: 'inline-block' }} />{l}
+        {[['training', 'Training', 'TRN'], ['meals', 'Meals', 'MEAL'], ['checkin', 'Check-in', 'CHECKIN'], ['consult', 'Consult', 'CONSULT']].map(([ks, dv, k]) => (
+          <span key={ks} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: kindAccent[k], display: 'inline-block' }} />{tr('calendar:legend.' + ks, { defaultValue: dv })}
           </span>
         ))}
       </div>
@@ -563,8 +591,8 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         <div style={{ margin: `4px ${t.padX}px 14px`, borderTop: `2px solid ${t.INK}`, paddingTop: 8, display: 'flex' }}>
           {/* "Open", not "Ahead" — a browsed past month's never-completed
               events are open items, not upcoming ones. */}
-          {[[monthTotal, 'This month', t.INK], [doneCount, 'Done', teal], [monthTotal - doneCount, 'Open', t.INK]].map(([v, l, c]) => (
-            <div key={l} style={{ flex: 1 }}>
+          {[[monthTotal, tr('calendar:register.thisMonth', { defaultValue: 'This month' }), t.INK], [doneCount, tr('calendar:register.done', { defaultValue: 'Done' }), teal], [monthTotal - doneCount, tr('calendar:register.open', { defaultValue: 'Open' }), t.INK]].map(([v, l, c], ri2) => (
+            <div key={ri2} style={{ flex: 1 }}>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, letterSpacing: '-0.03em', color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{v}</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
             </div>
@@ -575,21 +603,22 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       {/* Day reader (inline — replaces the old week-strip drilldown) */}
       {(() => {
         const dayEv = (eventsByDay[selDay] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
-        const dowFull = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
-        const selDow = dowFull[(new Date(viewYear, viewMonth, selDay).getDay() + 6) % 7];
+        // Localized weekday + short month via Intl (the mono style uppercases).
+        const selDow = new Date(viewYear, viewMonth, selDay).toLocaleDateString(calLocale(), { weekday: 'short' });
+        const selMonShort = new Date(viewYear, viewMonth, 1).toLocaleDateString(calLocale(), { month: 'short' });
         return (
           <>
             <div style={{ padding: `14px ${t.padX}px 10px`, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>
-                <span style={{ color: teal }}>▍</span> Day · {selDow} {monthName.slice(0,3)} {selDay}
+                <span style={{ color: teal }}>▍</span> {tr('calendar:day.label', { defaultValue: 'Day' })} · {selDow} {selMonShort} {selDay}
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                {dayEv.length} {dayEv.length === 1 ? 'item' : 'items'}
+                {tr('calendar:day.items', { count: dayEv.length, defaultValue: '{count, plural, one {# item} other {# items}}' })}
               </div>
             </div>
             {dayEv.length === 0 ? (
               <div style={{ padding: `4px ${t.padX}px 18px`, fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
-                — Nothing logged —
+                — {tr('calendar:empty.nothingLogged', { defaultValue: 'Nothing logged' })} —
               </div>
             ) : (
               <div style={{ padding: `0 ${t.padX}px 18px` }}>
@@ -604,16 +633,16 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                   }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: done ? t.INK50 : t.INK, letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
                       {bsCalTimeLabel(e)}
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? `${e.dur} MIN` : ''}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? tr('calendar:unit.min', { min: e.dur, defaultValue: '{min} MIN' }) : ''}</div>
                     </div>
                     <div style={{ minWidth: 0, display: 'flex', alignItems: 'stretch', gap: 11 }}>
                       <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: accentOf(e), flex: '0 0 auto' }} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: accentOf(e), textTransform: 'uppercase' }}>{e.kind}</span>
-                          {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>✓ DONE</span>}
-                          {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>● NOW</span>}
-                          {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>UP NEXT</span>}
+                          {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.done', { defaultValue: '✓ DONE' })}</span>}
+                          {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>{tr('calendar:state.now', { defaultValue: '● NOW' })}</span>}
+                          {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>{tr('calendar:state.upNext', { defaultValue: 'UP NEXT' })}</span>}
                         </div>
                         <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: done ? t.INK50 : t.INK, lineHeight: 1.12, textDecoration: done ? 'line-through' : 'none' }}>{e.title}</div>
                         {e.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, marginTop: 2, letterSpacing: '-0.005em' }}>{e.sub}</div>}
@@ -637,6 +666,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
 // ═══════════════════════════════════════════════════════════
 function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {} }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const canDelete = live && event.editable && event.source === 'event';
   // A live coaching booking (the sessions table) viewed by its coach: the
   // complete/reschedule actions write through /api/sessions/manage (the route
@@ -649,7 +679,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   // checked like the ShapeCalendar calls in this file; confirm/complete and
   // the coach reschedule all pass through it so the guard can never drift.
   const callManageSession = (payload) => {
-    if (!window.ShapeSessions?.manageSession) throw new Error('Session actions unavailable — try reloading.');
+    if (!window.ShapeSessions?.manageSession) throw new Error(tr('calendar:msg.sessionUnavailable', { defaultValue: 'Session actions unavailable — try reloading.' }));
     return window.ShapeSessions.manageSession(payload);
   };
   // One runner for the booking actions (confirm / complete): busy-locked,
@@ -662,24 +692,24 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       window.__bsToast?.(okMsg, 'ok');
       onClose(); onChanged();
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not update the booking', 'err');
+      window.__bsToast?.(e?.message || tr('calendar:msg.couldNotUpdate', { defaultValue: 'Could not update the booking' }), 'err');
       setBusy(false);
     }
   };
   const removeEvent = async () => {
     if (!(await window.bsAskConfirm({
-      title: 'Delete this event?',
+      title: tr('calendar:confirm.deleteTitle', { defaultValue: 'Delete this event?' }),
       name: event.title || event.name,
-      message: 'This permanently removes it from the calendar. This can’t be undone.',
-      confirmLabel: 'Delete event',
+      message: tr('calendar:confirm.deleteMessage', { defaultValue: 'This permanently removes it from the calendar. This can’t be undone.' }),
+      confirmLabel: tr('calendar:confirm.deleteLabel', { defaultValue: 'Delete event' }),
     }))) return;
     try {
       await window.ShapeCalendar?.remove?.(event.id);
-      window.__bsToast?.('Removed', 'ok');
+      window.__bsToast?.(tr('calendar:msg.removed', { defaultValue: 'Removed' }), 'ok');
       onClose();
       onChanged();
     } catch (e) {
-      window.__bsToast?.('Could not remove', 'err');
+      window.__bsToast?.(tr('calendar:msg.couldNotRemove', { defaultValue: 'Could not remove' }), 'err');
     }
   };
   const dateRef = useRefBSCal(null);
@@ -694,8 +724,8 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
     if (!newDate || newDate === event.date) return;
     const isLiveEvent = live && event.editable && event.source === 'event';
     if (isLiveEvent) {
-      try { await window.ShapeCalendar?.update?.({ id: event.id, date: newDate }); window.__bsToast?.('Rescheduled', 'ok'); onClose(); onChanged(); }
-      catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
+      try { await window.ShapeCalendar?.update?.({ id: event.id, date: newDate }); window.__bsToast?.(tr('calendar:msg.rescheduled', { defaultValue: 'Rescheduled' }), 'ok'); onClose(); onChanged(); }
+      catch (e) { window.__bsToast?.(e?.message || tr('calendar:msg.couldNotReschedule', { defaultValue: 'Could not reschedule' }), 'err'); }
     } else if (coachSession && event.reschedulable !== false && event.status !== 'completed') {
       // Real booking move — same wall-clock slot on the new date; the server
       // validates coach ownership + that the session is still active/upcoming.
@@ -704,13 +734,13 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       const time = /^\d{1,2}:\d{2}$/.test(String(event.time || '')) ? event.time : undefined;
       try {
         await callManageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time });
-        window.__bsToast?.('Rescheduled ✓', 'ok'); onClose(); onChanged();
+        window.__bsToast?.(tr('calendar:msg.rescheduledDone', { defaultValue: 'Rescheduled ✓' }), 'ok'); onClose(); onChanged();
       }
-      catch (e) { window.__bsToast?.(e?.message || 'Could not reschedule', 'err'); }
+      catch (e) { window.__bsToast?.(e?.message || tr('calendar:msg.couldNotReschedule', { defaultValue: 'Could not reschedule' }), 'err'); }
     } else if (coachSession) {
-      window.__bsToast?.('This booking can’t be moved.', 'warn');
+      window.__bsToast?.(tr('calendar:msg.cannotMove', { defaultValue: 'This booking can’t be moved.' }), 'warn');
     } else if (!live) {
-      window.__bsToast?.('Rescheduled', 'ok'); onClose();
+      window.__bsToast?.(tr('calendar:msg.rescheduled', { defaultValue: 'Rescheduled' }), 'ok'); onClose();
     }
   };
   const isWorkout = event.kind === 'TRN' || event.kind === 'SES' || event.kind === 'WORKOUT';
@@ -724,7 +754,7 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       <div style={{ padding: `18px ${t.padX}px 18px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
           <BSTagCal color={event.accent}>{event.kind}</BSTagCal>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `May ${event.day}`} · {bsCalTimeLabel(event)}{event.dur ? ` · ${event.dur}m` : ''}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: t.INK70, fontWeight: 600 }}>{(event.date ? new Date(event.date + 'T00:00:00') : new Date(2026, 4, event.day)).toLocaleDateString(calLocale(), { month: 'short', day: 'numeric' })} · {bsCalTimeLabel(event)}{event.dur ? ` · ${tr('calendar:unit.durMin', { min: event.dur, defaultValue: '{min}m' })}` : ''}</span>
         </div>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 40, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>
           {event.title}
@@ -747,34 +777,34 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
           // would let the cron award a session that was never confirmed);
           // only a CONFIRMED one offers Mark complete.
           event.status === 'completed'
-            ? <button onClick={onClose} style={primaryBtn(t)}>Completed ✓</button>
+            ? <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.completed', { defaultValue: 'Completed ✓' })}</button>
             : event.status === 'confirmed'
-              ? <button onClick={() => runSessionAction('complete', 'Session marked complete ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Marking…' : 'Mark complete'}</button>
+              ? <button onClick={() => runSessionAction('complete', tr('calendar:msg.sessionComplete', { defaultValue: 'Session marked complete ✓' }))} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? tr('calendar:cta.marking', { defaultValue: 'Marking…' }) : tr('calendar:cta.markComplete', { defaultValue: 'Mark complete' })}</button>
               : event.status === 'requested'
-                ? <button onClick={() => runSessionAction('confirm', 'Booking confirmed ✓')} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? 'Confirming…' : 'Confirm booking'}</button>
+                ? <button onClick={() => runSessionAction('confirm', tr('calendar:msg.bookingConfirmed', { defaultValue: 'Booking confirmed ✓' }))} disabled={busy} style={{ ...primaryBtn(t), opacity: busy ? 0.6 : 1 }}>{busy ? tr('calendar:cta.confirming', { defaultValue: 'Confirming…' }) : tr('calendar:cta.confirmBooking', { defaultValue: 'Confirm booking' })}</button>
                 // Terminal/unknown states (declined/cancelled shouldn't reach the
                 // calendar — its GET filters to requested/confirmed/completed, but
                 // never offer an action on one): plain close.
-                : <button onClick={onClose} style={primaryBtn(t)}>Done</button>
+                : <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.done', { defaultValue: 'Done' })}</button>
         ) : (
           <>
             {(isWorkout || isMeal) && (
               <button onClick={() => {
                 if (role !== 'trainer' && isWorkout) { try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} onClose(); }
-                else { onClose(); window.__bsToast?.('Logged ✓', 'ok'); }
-              }} style={primaryBtn(t)}>{role === 'trainer' ? 'Mark complete' : (isMeal ? 'Log meal' : 'Start session →')}</button>
+                else { onClose(); window.__bsToast?.(tr('calendar:msg.logged', { defaultValue: 'Logged ✓' }), 'ok'); }
+              }} style={primaryBtn(t)}>{role === 'trainer' ? tr('calendar:cta.markComplete', { defaultValue: 'Mark complete' }) : (isMeal ? tr('calendar:cta.logMeal', { defaultValue: 'Log meal' }) : tr('calendar:cta.startSession', { defaultValue: 'Start session →' }))}</button>
             )}
-            {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.('No meeting link yet — your coach will add one.', 'warn'); } }} style={primaryBtn(t)}>Join consult →</button>}
-            {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.('Submitted check-in', 'ok'); }} style={primaryBtn(t)}>Submit check-in</button>}
-            {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>Done</button>}
+            {isConsult && <button onClick={() => { if (event.meetingUrl) { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} onClose(); } else { onClose(); window.__bsToast?.(tr('calendar:msg.noMeetingLink', { defaultValue: 'No meeting link yet — your coach will add one.' }), 'warn'); } }} style={primaryBtn(t)}>{tr('calendar:cta.joinConsult', { defaultValue: 'Join consult →' })}</button>}
+            {isCheck   && <button onClick={() => { onClose(); window.__bsToast?.(tr('calendar:msg.submittedCheckin', { defaultValue: 'Submitted check-in' }), 'ok'); }} style={primaryBtn(t)}>{tr('calendar:cta.submitCheckin', { defaultValue: 'Submit check-in' })}</button>}
+            {!isWorkout && !isMeal && !isConsult && !isCheck && <button onClick={onClose} style={primaryBtn(t)}>{tr('calendar:cta.done', { defaultValue: 'Done' })}</button>}
           </>
         )}
         {coachSession && event.meetingUrl && event.status !== 'completed' && (
-          <button onClick={() => { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} }} style={secondaryBtn(t)}>Join →</button>
+          <button onClick={() => { try { window.open(event.meetingUrl, '_blank', 'noopener'); } catch (e) {} }} style={secondaryBtn(t)}>{tr('calendar:cta.join', { defaultValue: 'Join →' })}</button>
         )}
         <input type="date" ref={dateRef} defaultValue={event.date || ''} onChange={(e) => reschedule(e.target.value)} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
-        {canReschedule && <button onClick={() => { const el = dateRef.current; if (el) { try { el.showPicker ? el.showPicker() : el.click(); } catch (e2) { el.click(); } } }} style={secondaryBtn(t)}>Reschedule</button>}
-        {canDelete && <button onClick={removeEvent} style={secondaryBtn(t)}>Delete</button>}
+        {canReschedule && <button onClick={() => { const el = dateRef.current; if (el) { try { el.showPicker ? el.showPicker() : el.click(); } catch (e2) { el.click(); } } }} style={secondaryBtn(t)}>{tr('calendar:cta.reschedule', { defaultValue: 'Reschedule' })}</button>}
+        {canDelete && <button onClick={removeEvent} style={secondaryBtn(t)}>{tr('calendar:cta.delete', { defaultValue: 'Delete' })}</button>}
       </div>
     </div>
   );
@@ -808,6 +838,7 @@ function BSEventStatRegister({ t, items, accent }) {
 
 function BSEventWorkoutBody({ event, role }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // Pull the REAL session for this event by title (shared week → BS_CLIENT_WORKOUTS),
   // so a Z2 run shows run segments — not barbell rows. Falls back gracefully when
@@ -827,8 +858,8 @@ function BSEventWorkoutBody({ event, role }) {
   // Honest register — never a fabricated figure (RPE was defaulting to '8' on
   // events with no authored detail, e.g. a coach's live booking).
   const stats = cardio
-    ? [['DUR', durLabel], ['DIST', dist || '—'], ['ZONE', zone || '—'], ['KCAL', kcal || '—']]
-    : [['DUR', durLabel], ['MOVES', moves ? String(moves.length) : '—'], ['RPE', rpe || '—'], ['KCAL', kcal || '—']];
+    ? [[tr('calendar:stat.dur', { defaultValue: 'DUR' }), durLabel], [tr('calendar:stat.dist', { defaultValue: 'DIST' }), dist || '—'], [tr('calendar:stat.zone', { defaultValue: 'ZONE' }), zone || '—'], [tr('calendar:stat.kcal', { defaultValue: 'KCAL' }), kcal || '—']]
+    : [[tr('calendar:stat.dur', { defaultValue: 'DUR' }), durLabel], [tr('calendar:stat.moves', { defaultValue: 'MOVES' }), moves ? String(moves.length) : '—'], [tr('calendar:stat.rpe', { defaultValue: 'RPE' }), rpe || '—'], [tr('calendar:stat.kcal', { defaultValue: 'KCAL' }), kcal || '—']];
   const isCoach = role === 'trainer' || role === 'nutritionist';
 
   return (
@@ -840,7 +871,7 @@ function BSEventWorkoutBody({ event, role }) {
       {detail && detail.note && (
         <div style={{ padding: `10px ${t.padX}px 0` }}>
           <div style={{ borderLeft: `3px solid ${event.accent || teal}`, padding: '2px 0 2px 11px' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>Coach’s cue</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{tr('calendar:label.coachCue', { defaultValue: 'Coach’s cue' })}</div>
             <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.005em' }}>{detail.note}</div>
           </div>
         </div>
@@ -849,7 +880,7 @@ function BSEventWorkoutBody({ event, role }) {
       {/* The card / the session — dot-leader ledger rows */}
       {moves ? (
         <>
-          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {cardio ? 'The session' : 'The card'}</div>
+          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {cardio ? tr('calendar:label.theSession', { defaultValue: 'The session' }) : tr('calendar:label.theCard', { defaultValue: 'The card' })}</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
             {moves.map((r, i) => (
               <div key={i} style={{ borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: `${t.rowY + 2}px 0` }}>
@@ -866,7 +897,7 @@ function BSEventWorkoutBody({ event, role }) {
       ) : (
         <div style={{ padding: `14px ${t.padX}px 4px` }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
-            {event.sub ? `${event.sub} — ` : ''}{isCoach ? 'the full log lands here once the session is done; manage the client from Clients → their Case File.' : 'open the Train tab for the full session card.'}
+            {event.sub ? `${event.sub} — ` : ''}{isCoach ? tr('calendar:body.coachNoDetail', { defaultValue: 'the full log lands here once the session is done; manage the client from Clients → their Case File.' }) : tr('calendar:body.clientNoDetail', { defaultValue: 'open the Train tab for the full session card.' })}
           </div>
         </div>
       )}
@@ -878,6 +909,7 @@ function BSEventWorkoutBody({ event, role }) {
 
 function BSEventMealBody({ event }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // Read what the event tells us (sub e.g. "620 kcal · 48P") and derive the rest so
   // the macros stay consistent with THIS meal's title — never a contradictory plate.
@@ -891,10 +923,10 @@ function BSEventMealBody({ event }) {
     carbN = Math.round((rem * 0.65) / 4);
   }
   const macros = [
-    ['KCAL', kcalN != null ? String(kcalN) : '—'],
-    ['PRO',  proN != null ? `${proN}g` : '—'],
-    ['CARB', carbN != null ? `${carbN}g` : '—'],
-    ['FAT',  fatN != null ? `${fatN}g` : '—'],
+    [tr('calendar:stat.kcal', { defaultValue: 'KCAL' }), kcalN != null ? String(kcalN) : '—'],
+    [tr('calendar:stat.pro', { defaultValue: 'PRO' }),  proN != null ? `${proN}g` : '—'],
+    [tr('calendar:stat.carb', { defaultValue: 'CARB' }), carbN != null ? `${carbN}g` : '—'],
+    [tr('calendar:stat.fat', { defaultValue: 'FAT' }),  fatN != null ? `${fatN}g` : '—'],
   ];
   const pCal = (proN || 0) * 4, cCal = (carbN || 0) * 4, fCal = (fatN || 0) * 9;
   const totCal = pCal + cCal + fCal;
@@ -918,9 +950,9 @@ function BSEventMealBody({ event }) {
             <span style={{ width: `${(fCal / totCal) * 100}%`, background: t.RUST }} />
           </div>
           <div style={{ display: 'flex', gap: 14, marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-            <span><span style={{ color: teal }}>●</span> {Math.round(pCal / totCal * 100)}% Pro</span>
-            <span><span style={{ color: t.AMBER }}>●</span> {Math.round(cCal / totCal * 100)}% Carb</span>
-            <span><span style={{ color: t.RUST }}>●</span> {Math.round(fCal / totCal * 100)}% Fat</span>
+            <span><span style={{ color: teal }}>●</span> {tr('calendar:split.pro', { pct: Math.round(pCal / totCal * 100), defaultValue: '{pct}% Pro' })}</span>
+            <span><span style={{ color: t.AMBER }}>●</span> {tr('calendar:split.carb', { pct: Math.round(cCal / totCal * 100), defaultValue: '{pct}% Carb' })}</span>
+            <span><span style={{ color: t.RUST }}>●</span> {tr('calendar:split.fat', { pct: Math.round(fCal / totCal * 100), defaultValue: '{pct}% Fat' })}</span>
           </div>
         </div>
       )}
@@ -928,7 +960,7 @@ function BSEventMealBody({ event }) {
       {/* On the plate */}
       {plate.length > 0 && (
         <>
-          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> On the plate</div>
+          <div style={{ padding: `14px ${t.padX}px 2px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {tr('calendar:label.onThePlate', { defaultValue: 'On the plate' })}</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
             {plate.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: `${t.rowY + 2}px 0` }}>
@@ -946,6 +978,7 @@ function BSEventMealBody({ event }) {
 
 function BSEventConsultBody({ event, role }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // The agenda + last-consult notes are authored DEMO content — never show them
   // on a real (server) event, where they'd read as fabricated client data.
@@ -954,19 +987,19 @@ function BSEventConsultBody({ event, role }) {
   return (
     <>
       <div style={{ padding: `18px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800, marginBottom: 4 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> Agenda</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800, marginBottom: 4 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {tr('calendar:label.agenda', { defaultValue: 'Agenda' })}</div>
         {agenda.length ? agenda.map((a, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: '9px 0' }}>
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>{a}</span>
           </div>
         )) : (
-          <div style={{ padding: '9px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>No agenda attached · set one when booking</div>
+          <div style={{ padding: '9px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('calendar:empty.noAgenda', { defaultValue: 'No agenda attached · set one when booking' })}</div>
         )}
       </div>
       {isDemo && (
         <>
-          <div style={{ padding: `18px ${t.padX}px 8px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> Notes from last consult</div>
+          <div style={{ padding: `18px ${t.padX}px 8px`, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 800 }}><span aria-hidden style={{ width: 10, height: 2, background: event.accent || teal, display: 'inline-block' }} /> {tr('calendar:label.lastConsultNotes', { defaultValue: 'Notes from last consult' })}</div>
           <div style={{ padding: `0 ${t.padX}px 18px` }}>
             <div style={{ borderLeft: `3px solid ${event.accent || teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
               “Cut went well into week 5. Energy held. Add 200 kcal to refeed Saturdays — avoid mid-cut plateau.”
@@ -981,13 +1014,14 @@ function BSEventConsultBody({ event, role }) {
 
 function BSEventCheckBody({ event }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   return (
     <>
-      <div style={{ padding: `18px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>▍ Quick form</div>
+      <div style={{ padding: `18px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>▍ {tr('calendar:label.quickForm', { defaultValue: 'Quick form' })}</div>
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {['Sleep (hrs)','Energy (1–10)','Soreness (1–10)','RPE this week (1–10)'].map((q, i) => (
+        {[['check.sleep', 'Sleep (hrs)'], ['check.energy', 'Energy (1–10)'], ['check.soreness', 'Soreness (1–10)'], ['check.rpe', 'RPE this week (1–10)']].map(([qk, qd], i) => (
           <div key={i}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 }}>{q}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 }}>{tr('calendar:' + qk, { defaultValue: qd })}</div>
             <input placeholder="—" style={{ borderRadius: t.RADIUS_SM, width: '100%', background: 'transparent', border: 0, borderBottom: `1px solid ${t.INK}`, padding: '10px 0', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none' }} />
           </div>
         ))}
@@ -999,10 +1033,11 @@ function BSEventCheckBody({ event }) {
 
 function BSEventGenericBody({ event }) {
   const t = useBSCal();
+  const tr = useShapeTr();
   return (
     <>
       <div style={{ padding: `22px ${t.padX}px`, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5 }}>
-        A scheduled item on the diary. Tap reschedule to move it to another day.
+        {tr('calendar:body.generic', { defaultValue: 'A scheduled item on the diary. Tap reschedule to move it to another day.' })}
       </div>
       <div style={{ height: 6 }} />
     </>
