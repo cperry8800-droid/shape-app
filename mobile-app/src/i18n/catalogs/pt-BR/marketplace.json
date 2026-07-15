@@ -142,7 +142,7 @@
   "panel.typeCheckout": "Pagamento",
   "panel.typeMessage": "Mensagem",
   "panel.yourNote": "Sua nota",
-  "pkg.included": "{count} incluído(s)",
+  "pkg.included": "{count, plural, one {# incluído} other {# incluídos}}",
   "pkg.monthly": "Mensal",
   "pkg.oneTime": "Avulso",
   "plan.mealPlans": "Planos alimentares",

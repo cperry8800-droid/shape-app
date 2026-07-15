@@ -22,6 +22,11 @@ function useShapeTr() {
     return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
   };
 }
+// Active app locale for Intl date/number formatting (mirrors client.jsx's
+// bsDateLocale — falls back to the browser default when i18n isn't ready).
+function bsmLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
 // Localized role word (Trainer / Nutritionist) — the fixed UI vocabulary the
 // code emits from a boolean, matching the feed's roleTag.* pattern. The
 // underlying provider_role value stays English; only the displayed word maps.
@@ -1209,7 +1214,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
   const startPad = new Date(y, mo, 1).getDay();
   const daysInMonth = new Date(y, mo + 1, 0).getDate();
   const isoOf = (d) => `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  const monthLabel = new Date(y, mo, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthLabel = new Date(y, mo, 1).toLocaleDateString(bsmLocale(), { month: 'long', year: 'numeric' });
   const nav = (dir) => { setSelIso(null); setYm(([yy, mm]) => (mm + dir < 0 ? [yy - 1, 11] : mm + dir > 11 ? [yy + 1, 0] : [yy, mm + dir])); };
   const daySlots = selIso ? (byDay.get(selIso) || []) : [];
   const first = (coach.name || '').split(' ')[0];
@@ -1251,7 +1256,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
           <div style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: roleColor }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{new Date(`${selIso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · {tr('marketplace:cal.introFree', { defaultValue: 'intro is free' })}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{new Date(`${selIso}T00:00:00`).toLocaleDateString(bsmLocale(), { weekday: 'long', month: 'short', day: 'numeric' })} · {tr('marketplace:cal.introFree', { defaultValue: 'intro is free' })}</span>
             </div>
             {daySlots.map((s, i) => (
               <button key={`${s.iso}-${s.time}`} onClick={() => onPick(s)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
@@ -1616,7 +1621,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[
             [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
-            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount ? Number(coach.sessionCount).toLocaleString() : '—'],
+            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
             [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
             [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
           ].map(([l, v]) => (
