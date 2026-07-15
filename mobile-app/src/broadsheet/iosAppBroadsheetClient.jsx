@@ -1568,7 +1568,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
   // tokens follow the selected UI language (i18n date-locale rule).
   const _wd = new Date();
-  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+  const _dateLoc = bsDateLocale();
   const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
   const wkTimeLabel = (() => {
@@ -2598,7 +2598,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
   // Weekday/month tokens follow the selected UI language (i18n date-locale rule);
   // the composed dateline layout is preserved.
-  const _dateLoc = (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+  const _dateLoc = bsDateLocale();
   const _dowShort = (d) => d.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _monShort = (d) => d.toLocaleDateString(_dateLoc, { month: 'short' });
   const _now = new Date();
@@ -7997,6 +7997,7 @@ function bsInjectFollowChipCss() {
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips' }) {
+  const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
   // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
@@ -8065,7 +8066,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     if (stats.isFollowing) setStats((s) => ({ ...s, isFollowing: false, followers: Math.max(0, s.followers - 1) }));
     else if (stats.isPending) setStats((s) => ({ ...s, isPending: false }));
     try { const s = await window.ShapeFollows.toggle(uid); setStats(s); }
-    catch (e) { setStats(prev); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); }
+    catch (e) { setStats(prev); window.__bsToast?.(e?.message || tr('profile:follow.updateError', { defaultValue: 'Could not update follow.' }), 'err'); }
     finally { setBusy(false); }
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
@@ -8091,10 +8092,10 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', border: 0,
         background: fs === 'follow' ? bsTHexA(c, 0.14) : 'transparent', borderRadius: fs === 'follow' ? 3 : 0,
         color: fs === 'requested' ? bsTHexA(INK, 0.55) : INK,
-      }}>{fs === 'following' ? <>Following <span style={{ color: c }}>✓</span></> : fs === 'requested' ? 'Requested' : '＋ Follow'}</button>
+      }}>{fs === 'following' ? <>{tr('profile:follow.following', { defaultValue: 'Following' })} <span style={{ color: c }}>✓</span></> : fs === 'requested' ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.follow', { defaultValue: '＋ Follow' })}</button>
     ) : null;
     const msgAction = (!isSelf && typeof onMessage === 'function') ? (
-      <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 44, padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), lineHeight: 1 }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>Message</span></button>
+      <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 44, padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), lineHeight: 1 }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>{tr('profile:action.message', { defaultValue: 'Message' })}</span></button>
     ) : null;
     const statLine = (
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, justifyContent: center ? 'center' : 'flex-start' }}>
@@ -8102,7 +8103,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         {seg(stats.following, 'Following', () => openList('following'))}{dot}
         {seg(postsShown, 'Posts', () => onOpenPosts && onOpenPosts(), true)}
         {isSelf && reqCount > 0 && (
-          <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{reqCount} request{reqCount === 1 ? '' : 's'} <span style={{ color: c }}>›</span></span></button>
+          <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:follow.requestCount', { count: reqCount, defaultValue: '{count, plural, one {# request} other {# requests}}' })} <span style={{ color: c }}>›</span></span></button>
         )}
       </div>
     );
@@ -8147,7 +8148,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         color: fs === 'follow' ? '#06110e' : fs === 'following' ? c : bsTHexA(INK, 0.6),
         border: `1px solid ${fs === 'requested' ? bsTHexA(INK, 0.25) : c}`,
         borderLeft: `3px solid ${fs === 'requested' ? bsTHexA(INK, 0.35) : c}`,
-      }}>{fs === 'following' ? '✓ Following' : fs === 'requested' ? 'Requested' : '＋ Follow'}</button>
+      }}>{fs === 'following' ? '✓ ' + tr('profile:follow.following', { defaultValue: 'Following' }) : fs === 'requested' ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.follow', { defaultValue: '＋ Follow' })}</button>
       {/* Message → the profile host's handler (it dismisses the profile overlay
           BEFORE opening the real 1:1 — same handoff as the profiles' big
           Message CTA). Rendered wherever a live handler exists; the HOST decides
@@ -8158,7 +8159,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           ...faBase, cursor: 'pointer',
           background: bsTHexA(INK, 0.05), color: INK,
           border: `1px solid ${bsTHexA(INK, 0.28)}`, borderLeft: `3px solid ${bsTHexA(INK, 0.55)}`,
-        }}>✉ Message</button>
+        }}>✉ {tr('profile:action.message', { defaultValue: 'Message' })}</button>
       )}
     </div>
   ) : null;
@@ -8172,7 +8173,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
-        }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
+        }}>{tr('profile:follow.requestCount', { count: reqCount, defaultValue: '{count, plural, one {# request} other {# requests}}' })}</button>
       )}
       {!title && actions}
     </div>
@@ -8468,6 +8469,7 @@ function bsLinkHref(key, val) {
 }
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false }) {
+  const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
@@ -8496,7 +8498,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {pinned && (
           <div style={{ marginBottom: 16, borderLeft: `3px solid ${c}`, paddingLeft: 12 }}>
-            <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Pinned · {pinned.kind || 'Highlight'}</div>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {pinned.kind || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</div>
             <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
             {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.7), margin: '6px 0 0' }}>{pinned.note}</p>}
             {pinned.metric && <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 8 }}>{pinned.metric}</div>}
@@ -8504,9 +8506,9 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
         )}
         {embed && (
           <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
-            <Kick>{(cu.song && cu.song.label) ? cu.song.label : 'Profile song'}</Kick>
+            <Kick>{(cu.song && cu.song.label) ? cu.song.label : tr('profile:extras.profileSong', { defaultValue: 'Profile song' })}</Kick>
             <div style={{ marginTop: 8, ...bx, borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
-              <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} />
+              <iframe title={tr('profile:extras.profileSong', { defaultValue: 'Profile song' })} src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} />
             </div>
           </div>
         )}
@@ -8545,7 +8547,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
       {pinned && (
         <div style={{ marginBottom: 16, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.3)}`, borderRadius: 16, padding: bleed ? `15px ${bleed}px` : '15px 17px', ...bxCard }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ Pinned · {pinned.kind || 'Highlight'}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ {tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {pinned.kind || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</span>
           </div>
           <div style={{ fontFamily: SERIF, fontSize: 21, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{pinned.title}</div>
           {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '7px 0 0' }}>{pinned.note}</p>}
@@ -8584,7 +8586,13 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
 // Is this a directly-playable video file (vs. an external watch link)?
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
-function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+// The active app locale for Intl date/number formatting — the i18n switch's
+// intlLocale (falls back to the raw current code, then the platform default).
+// Centralizes the expression the Home surface had inlined twice (#1595 nit).
+function bsDateLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }); }
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
@@ -9102,6 +9110,7 @@ const BS_MILESTONE_STAMPS = ['promoted', 'shipped', 'certified', 'new_role', 'la
 const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s : 'milestone').replace('_', ' ').toUpperCase();
 
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
+  const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
   const ed = editPost || null;
@@ -9127,12 +9136,12 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
-    { k: 'note', label: 'Note', icon: '✎' },
-    { k: 'photo', label: 'Photo', icon: '◳' },
-    { k: 'video', label: 'Video', icon: '▷' },
-    { k: 'workout', label: 'Workout', icon: '⊿' },
-    { k: 'milestone', label: 'Milestone', icon: '◆' },
-    { k: 'link', label: 'Link', icon: '↗' },
+    { k: 'note', label: tr('profile:log.type.note', { defaultValue: 'Note' }), icon: '✎' },
+    { k: 'photo', label: tr('profile:log.type.photo', { defaultValue: 'Photo' }), icon: '◳' },
+    { k: 'video', label: tr('profile:log.type.video', { defaultValue: 'Video' }), icon: '▷' },
+    { k: 'workout', label: tr('profile:log.type.workout', { defaultValue: 'Workout' }), icon: '⊿' },
+    { k: 'milestone', label: tr('profile:log.type.milestone', { defaultValue: 'Milestone' }), icon: '◆' },
+    { k: 'link', label: tr('profile:log.type.link', { defaultValue: 'Link' }), icon: '↗' },
   ];
   const field = { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 13, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
   const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 8, display: 'block' };
@@ -9146,9 +9155,9 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
       let url;
       if (asVideo) { const r = await window.ShapeCoachMedia?.upload?.(file); url = r?.url; }
       else { url = await window.ShapeCommunity?.uploadPhoto?.(file); }
-      if (!url) throw new Error('Upload failed.');
+      if (!url) throw new Error(tr('profile:log.uploadFailed', { defaultValue: 'Upload failed.' }));
       setUrl(url);
-    } catch (err) { window.__bsToast?.(err?.message || 'Upload failed.', 'err'); }
+    } catch (err) { window.__bsToast?.(err?.message || tr('profile:log.uploadFailed', { defaultValue: 'Upload failed.' }), 'err'); }
     finally { setUpBusy(false); }
   };
 
@@ -9211,22 +9220,22 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
           if (kind !== 'milestone') { editMetrics.stamp = null; editMetrics.detail = null; }
         }
         await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: editMetrics.video_url !== undefined ? editMetrics.video_url : (payload.metrics?.video_url || null), metrics: editMetrics, privacy: vis });
-        window.__bsToast?.('Post updated', 'ok');
+        window.__bsToast?.(tr('profile:log.postUpdated', { defaultValue: 'Post updated' }), 'ok');
       } else {
         const res = await window.ShapeCommunity?.createPost?.(payload);
-        window.__bsToast?.('Published to your profile', 'ok');
+        window.__bsToast?.(tr('profile:log.published', { defaultValue: 'Published to your profile' }), 'ok');
         // Milestones: the +25 CAREER award — AWAITED (idempotent monthly
         // dedupe; a failed call queues for the open-time catch-up). The chip
         // shows ONLY on a real grant (a second same-month milestone posts
         // fine and honestly shows nothing).
         if (kind === 'milestone' && res && res.stored === 'supabase' && res.data && res.data.id) {
           const g = await window.ShapeCareerAward?.claim?.(res.data.id);
-          if (g && g.granted) window.__bsToast?.('+25 · Career · Shape Score', 'ok');
+          if (g && g.granted) window.__bsToast?.(tr('profile:log.careerAward', { defaultValue: '+25 · Career · Shape Score' }), 'ok');
         }
       }
       onPosted && onPosted();
       onClose && onClose();
-    } catch (err) { window.__bsToast?.(err?.message || 'Could not publish.', 'err'); setBusy(false); }
+    } catch (err) { window.__bsToast?.(err?.message || tr('profile:log.publishError', { defaultValue: 'Could not publish.' }), 'err'); setBusy(false); }
   };
 
   const chip = (on) => ({ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? INK : bsTHexA(INK, 0.7), fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' });
@@ -9236,8 +9245,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{ed ? 'Edit' : 'Publish'}</div>
-            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>{ed ? <>Edit <span style={{ fontStyle: 'italic', color: TEAL }}>post.</span></> : <>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></>}</div>
+            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{ed ? tr('profile:log.eyebrowEdit', { defaultValue: 'Edit' }) : tr('profile:log.eyebrowPublish', { defaultValue: 'Publish' })}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>{ed ? <>{tr('profile:log.titleEditPre', { defaultValue: 'Edit' })} <span style={{ fontStyle: 'italic', color: TEAL }}>{tr('profile:log.titleEditAccent', { defaultValue: 'post.' })}</span></> : <>{tr('profile:log.titlePublishPre', { defaultValue: 'Log' })} <span style={{ fontStyle: 'italic', color: TEAL }}>{tr('profile:log.titlePublishAccent', { defaultValue: 'activity.' })}</span></>}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', padding: 4 }}>×</button>
         </div>
@@ -9252,94 +9261,94 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <span style={label}>{kind === 'link' ? 'Link title (optional)' : kind === 'workout' ? 'Session name' : 'Headline'}</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={kind === 'milestone' ? 80 : undefined} placeholder={kind === 'workout' ? 'Upper Pull — Peak' : kind === 'link' ? 'What is this?' : kind === 'milestone' ? 'Promoted to Senior Engineer' : 'Give it a title…'} style={field} />
+            <span style={label}>{kind === 'link' ? tr('profile:log.field.linkTitle', { defaultValue: 'Link title (optional)' }) : kind === 'workout' ? tr('profile:log.field.sessionName', { defaultValue: 'Session name' }) : tr('profile:log.field.headline', { defaultValue: 'Headline' })}</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={kind === 'milestone' ? 80 : undefined} placeholder={kind === 'workout' ? tr('profile:log.ph.workoutTitle', { defaultValue: 'Upper Pull — Peak' }) : kind === 'link' ? tr('profile:log.ph.linkTitle', { defaultValue: 'What is this?' }) : kind === 'milestone' ? tr('profile:log.ph.milestoneTitle', { defaultValue: 'Promoted to Senior Engineer' }) : tr('profile:log.ph.headline', { defaultValue: 'Give it a title…' })} style={field} />
           </div>
 
           {kind === 'photo' && (
             <div>
-              <span style={label}>Photo</span>
+              <span style={label}>{tr('profile:log.type.photo', { defaultValue: 'Photo' })}</span>
               <input ref={photoRef} type="file" accept="image/*" onChange={(e) => onFile(e, setPhotoUrl, false)} style={{ display: 'none' }} />
               {photoUrl
                 ? <div style={{ position: 'relative' }}><img src={photoUrl} alt="" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover', borderRadius: 13 }} /><button onClick={() => setPhotoUrl('')} style={removeBtn}>×</button></div>
-                : <button onClick={() => photoRef.current && photoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? 'Uploading…' : '＋ Choose photo'}</button>}
+                : <button onClick={() => photoRef.current && photoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:log.choosePhoto', { defaultValue: '＋ Choose photo' })}</button>}
             </div>
           )}
 
           {kind === 'video' && (
             <div>
-              <span style={label}>Video</span>
+              <span style={label}>{tr('profile:log.type.video', { defaultValue: 'Video' })}</span>
               <input ref={videoRef} type="file" accept="video/*" onChange={(e) => onFile(e, setVideoUrl, true)} style={{ display: 'none' }} />
               {videoUrl
                 ? (bsIsDirectVideoUrl(videoUrl)
                     ? <div style={{ position: 'relative' }}><video src={videoUrl} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 280, borderRadius: 13, background: '#000' }} /><button onClick={() => setVideoUrl('')} style={removeBtn}>×</button></div>
                     : <div style={{ ...field, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{videoUrl}</span><button onClick={() => setVideoUrl('')} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), cursor: 'pointer', fontSize: 16 }}>×</button></div>)
                 : <>
-                    <button onClick={() => videoRef.current && videoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? 'Uploading…' : '＋ Upload video'}</button>
-                    <div style={{ marginTop: 10 }}><span style={label}>…or paste a video link</span><input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtube.com/…" style={field} /></div>
+                    <button onClick={() => videoRef.current && videoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : tr('profile:log.uploadVideo', { defaultValue: '＋ Upload video' })}</button>
+                    <div style={{ marginTop: 10 }}><span style={label}>{tr('profile:log.orPasteVideoLink', { defaultValue: '…or paste a video link' })}</span><input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtube.com/…" style={field} /></div>
                   </>}
             </div>
           )}
 
           {kind === 'workout' && (
             <>
-              <div><span style={label}>Type</span><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{['Strength', 'Run', 'Ride', 'Conditioning', 'Mobility'].map((w) => <button key={w} onClick={() => setWoType(w)} style={{ ...chip(woType === w), fontSize: 9.5, padding: '7px 12px' }}>{w}</button>)}</div></div>
+              <div><span style={label}>{tr('profile:log.field.type', { defaultValue: 'Type' })}</span><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{['Strength', 'Run', 'Ride', 'Conditioning', 'Mobility'].map((w) => <button key={w} onClick={() => setWoType(w)} style={{ ...chip(woType === w), fontSize: 9.5, padding: '7px 12px' }}>{tr('profile:log.wo.' + w.toLowerCase(), { defaultValue: w })}</button>)}</div></div>
               {(() => {
                 // Strength captures a structured Lift + Load so the card can lead
                 // with the load and light up an honest PR delta vs the last best.
                 const f = woType === 'Strength'
-                  ? [['Lift', 'Deadlift', woA, setWoA], ['Load', '245 lb', woB, setWoB], ['Top set', '1×3', woC, setWoC]]
-                  : [['Duration', '52 min', woA, setWoA], ['Dist / Vol', '5 km', woB, setWoB], ['Effort', 'RPE 8', woC, setWoC]];
+                  ? [[tr('profile:log.field.lift', { defaultValue: 'Lift' }), tr('profile:log.ph.lift', { defaultValue: 'Deadlift' }), woA, setWoA], [tr('profile:log.field.load', { defaultValue: 'Load' }), '245 lb', woB, setWoB], [tr('profile:log.field.topSet', { defaultValue: 'Top set' }), '1×3', woC, setWoC]]
+                  : [[tr('profile:log.field.duration', { defaultValue: 'Duration' }), '52 min', woA, setWoA], [tr('profile:log.field.distVol', { defaultValue: 'Dist / Vol' }), '5 km', woB, setWoB], [tr('profile:log.field.effort', { defaultValue: 'Effort' }), 'RPE 8', woC, setWoC]];
                 return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {f.map(([lab, ph, val, set]) => <div key={lab}><span style={label}>{lab}</span><input value={val} onChange={(e) => set(e.target.value)} placeholder={ph} style={field} /></div>)}
               </div>
                 );
               })()}
-              {woType === 'Strength' && <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 6, letterSpacing: '0.04em' }}>Load leads the card; a new PR vs your last best lights up automatically.</div>}
+              {woType === 'Strength' && <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 6, letterSpacing: '0.04em' }}>{tr('profile:log.strengthHint', { defaultValue: 'Load leads the card; a new PR vs your last best lights up automatically.' })}</div>}
             </>
           )}
 
           {kind === 'link' && (
-            <div><span style={label}>Website / article URL</span><input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" style={field} inputMode="url" autoCapitalize="none" /></div>
+            <div><span style={label}>{tr('profile:log.field.linkUrl', { defaultValue: 'Website / article URL' })}</span><input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" style={field} inputMode="url" autoCapitalize="none" /></div>
           )}
 
           {kind === 'milestone' && (
             <div>
-              <span style={label}>Stamp</span>
+              <span style={label}>{tr('profile:log.field.stamp', { defaultValue: 'Stamp' })}</span>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {BS_MILESTONE_STAMPS.map((s) => (
-                  <button key={s} onClick={() => setStamp(s)} style={{ ...chip(stamp === s), fontSize: 9.5, padding: '7px 12px' }}>{bsMilestoneStampLabel(s)}</button>
+                  <button key={s} onClick={() => setStamp(s)} style={{ ...chip(stamp === s), fontSize: 9.5, padding: '7px 12px' }}>{tr('profile:log.stamp.' + s, { defaultValue: bsMilestoneStampLabel(s) })}</button>
                 ))}
               </div>
-              <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 8, letterSpacing: '0.04em' }}>A career milestone earns +25 Shape Score — once a month, whatever the visibility. No pay figures, ever.</div>
+              <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 8, letterSpacing: '0.04em' }}>{tr('profile:log.milestoneHint', { defaultValue: 'A career milestone earns +25 Shape Score — once a month, whatever the visibility. No pay figures, ever.' })}</div>
             </div>
           )}
 
           <div>
-            <span style={label}>{kind === 'workout' ? 'How it went' : kind === 'link' ? 'Why it matters' : kind === 'milestone' ? 'Detail (optional)' : 'Write something'}</span>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 5 : 3} maxLength={kind === 'milestone' ? 140 : undefined} placeholder={kind === 'note' ? 'Share an update, a thought, a lesson…' : kind === 'milestone' ? 'One line on what it took…' : 'Add a note (optional)…'} style={{ ...field, resize: 'vertical', minHeight: kind === 'note' ? 120 : 64, lineHeight: 1.5 }} />
+            <span style={label}>{kind === 'workout' ? tr('profile:log.field.howItWent', { defaultValue: 'How it went' }) : kind === 'link' ? tr('profile:log.field.whyItMatters', { defaultValue: 'Why it matters' }) : kind === 'milestone' ? tr('profile:log.field.detailOptional', { defaultValue: 'Detail (optional)' }) : tr('profile:log.field.writeSomething', { defaultValue: 'Write something' })}</span>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 5 : 3} maxLength={kind === 'milestone' ? 140 : undefined} placeholder={kind === 'note' ? tr('profile:log.ph.note', { defaultValue: 'Share an update, a thought, a lesson…' }) : kind === 'milestone' ? tr('profile:log.ph.milestoneDetail', { defaultValue: 'One line on what it took…' }) : tr('profile:log.ph.noteOptional', { defaultValue: 'Add a note (optional)…' })} style={{ ...field, resize: 'vertical', minHeight: kind === 'note' ? 120 : 64, lineHeight: 1.5 }} />
           </div>
         </div>
 
         {/* Visibility — Public (profile + feed) · Profile (profile only, everyone) · Just me (private) */}
         <div style={{ marginTop: 16 }}>
-          <span style={label}>Visibility</span>
+          <span style={label}>{tr('profile:log.field.visibility', { defaultValue: 'Visibility' })}</span>
           <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
             {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
-              <button key={val} onClick={() => setVis(val)} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lab}</button>
+              <button key={val} onClick={() => setVis(val)} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
             ); })}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
-            {vis === 'public' ? 'Shows on your profile + the community feed' : vis === 'profile' ? 'Shows on your profile to everyone — not in the feed' : 'Only you can see this'}
+            {vis === 'public' ? tr('profile:log.vis.publicDesc', { defaultValue: 'Shows on your profile + the community feed' }) : vis === 'profile' ? tr('profile:log.vis.profileDesc', { defaultValue: 'Shows on your profile to everyone — not in the feed' }) : tr('profile:log.vis.privateDesc', { defaultValue: 'Only you can see this' })}
           </div>
         </div>
 
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           {ed && ed.postId && (
-            <button onClick={async () => { if (!(await window.bsAskConfirm({ title: 'Delete this post?', message: 'This permanently removes the post and its photo/video, likes, and comments.', confirmLabel: 'Delete post' }))) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
+            <button onClick={async () => { if (!(await window.bsAskConfirm({ title: tr('profile:log.deleteTitle', { defaultValue: 'Delete this post?' }), message: tr('profile:log.deleteMessage', { defaultValue: 'This permanently removes the post and its photo/video, likes, and comments.' }), confirmLabel: tr('profile:log.deleteConfirm', { defaultValue: 'Delete post' }) }))) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.(tr('profile:log.postDeleted', { defaultValue: 'Post deleted' }), 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || tr('profile:log.deleteError', { defaultValue: 'Could not delete.' }), 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? tr('profile:log.deleting', { defaultValue: 'Deleting…' }) : tr('profile:log.deleteConfirm', { defaultValue: 'Delete post' })}</button>
           )}
-          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? 'Saving…' : 'Publishing…') : (ed ? 'Save changes →' : 'Publish →')}</button>
+          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : tr('profile:log.publishing', { defaultValue: 'Publishing…' })) : (ed ? tr('profile:log.saveChanges', { defaultValue: 'Save changes →' }) : tr('profile:log.publishCta', { defaultValue: 'Publish →' }))}</button>
         </div>
       </div>
     </div>,
@@ -9570,6 +9579,7 @@ function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify'
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
 function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const muted = bsTHexA(INK, 0.55), hair = bsTHexA(INK, 0.1);
   // bleed = the host body's side padding: playlist cards break out of it to run
@@ -9592,16 +9602,16 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
   const icon = (glyph, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{glyph}</button>;
 
   const saveToLibrary = async (pl) => {
-    if (!signedIn) { window.__bsToast?.('Sign in to save playlists.', 'info'); return; }
-    try { await window.ShapePlaylists.add({ name: pl.name, url: pl.url, cover: pl.cover, trackCount: pl.track_count, meta: pl.meta, isPublic: false, savedFrom: pl.user_id || null }); window.__bsToast?.('Saved to your library', 'ok'); }
-    catch (e) { window.__bsToast?.(e.message || 'Could not save.', 'error'); }
+    if (!signedIn) { window.__bsToast?.(tr('profile:playlists.signInToSave', { defaultValue: 'Sign in to save playlists.' }), 'info'); return; }
+    try { await window.ShapePlaylists.add({ name: pl.name, url: pl.url, cover: pl.cover, trackCount: pl.track_count, meta: pl.meta, isPublic: false, savedFrom: pl.user_id || null }); window.__bsToast?.(tr('profile:playlists.savedToLibrary', { defaultValue: 'Saved to your library' }), 'ok'); }
+    catch (e) { window.__bsToast?.(e.message || tr('profile:playlists.saveError', { defaultValue: 'Could not save.' }), 'error'); }
   };
   const togglePublic = async (pl) => {
     setItems((prev) => prev.map((x) => x.id === pl.id ? { ...x, is_public: !x.is_public } : x));
     try { await window.ShapePlaylists.update(pl.id, { is_public: !pl.is_public }); } catch (e) { load(); }
   };
   const removeIt = async (pl) => {
-    if (!(await window.bsAskConfirm({ title: 'Remove this playlist?', name: pl.name, message: 'This removes the saved playlist from your profile. You can add it again later.', confirmLabel: 'Remove playlist' }))) return;
+    if (!(await window.bsAskConfirm({ title: tr('profile:playlists.removeTitle', { defaultValue: 'Remove this playlist?' }), name: pl.name, message: tr('profile:playlists.removeMessage', { defaultValue: 'This removes the saved playlist from your profile. You can add it again later.' }), confirmLabel: tr('profile:playlists.removeConfirm', { defaultValue: 'Remove playlist' }) }))) return;
     setItems((prev) => prev.filter((x) => x.id !== pl.id));
     try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); }
   };
@@ -9609,22 +9619,22 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
   // ── Ledger variant (Terrain) — zero-box hairline rows, line-only heat. ──
   if (ledger) {
     const glyph = (g, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ minWidth: 44, minHeight: 44, flexShrink: 0, background: 'transparent', border: 0, color: bsTHexA(INK, 0.55), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{g}</button>;
-    const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>Open ↗</span></a>;
+    const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:action.open', { defaultValue: 'Open' })} ↗</span></a>;
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ width: 6, height: 1.5, background: accent }} />
-            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Your library' : 'Music'}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{isSelf ? tr('profile:playlists.yourLibrary', { defaultValue: 'Your library' }) : tr('profile:tab.music', { defaultValue: 'Music' })}</div>
           </div>
-          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>＋ Add playlist</span></button>}
+          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:playlists.addPlaylist', { defaultValue: '＋ Add playlist' })}</span></button>}
         </div>
         {items === null ? (
-          <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
+          <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>{tr('profile:playlists.loading', { defaultValue: 'Loading…' })}</div>
         ) : items.length === 0 ? (
           <div style={{ marginTop: 12 }}>
-            <BSTRedact INK={INK} label={isSelf ? 'No playlists yet' : 'No public playlists'} />
-            {isSelf && <div style={{ display: 'flex', justifyContent: 'center' }}><button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>＋ Add your first</span></button></div>}
+            <BSTRedact INK={INK} label={isSelf ? tr('profile:playlists.noneYet', { defaultValue: 'No playlists yet' }) : tr('profile:playlists.nonePublic', { defaultValue: 'No public playlists' })} />
+            {isSelf && <div style={{ display: 'flex', justifyContent: 'center' }}><button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>{tr('profile:playlists.addFirst', { defaultValue: '＋ Add your first' })}</span></button></div>}
           </div>
         ) : (
           <div style={{ marginTop: 6 }}>
@@ -9634,24 +9644,24 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
                   <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', background: pl.cover ? `center/cover no-repeat url(${pl.cover})` : bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.1)}`, color: bsTHexA(INK, 0.55), display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, textDecoration: 'none' }}>{pl.cover ? '' : '♪'}</a>
                   <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
-                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsProviderLabel(pl.provider)}{pl.track_count ? ` · ${pl.track_count} tracks` : ''}{isSelf ? (pl.is_public ? ' · Public' : ' · Private') : ''}</div>
+                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsProviderLabel(pl.provider)}{pl.track_count ? ' · ' + tr('profile:playlists.trackCount', { count: pl.track_count, defaultValue: '{count, plural, one {# track} other {# tracks}}' }) : ''}{isSelf ? (pl.is_public ? ' · ' + tr('profile:playlists.public', { defaultValue: 'Public' }) : ' · ' + tr('profile:playlists.private', { defaultValue: 'Private' })) : ''}</div>
                   </a>
                   {openLink(pl.url)}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 6, marginLeft: 52 }}>
                   {isSelf ? (
                     <>
-                      <button onClick={() => togglePublic(pl)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>{pl.is_public ? <><span style={{ color: accent }}>◉</span> Public</> : '○ Private'}</button>
+                      <button onClick={() => togglePublic(pl)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>{pl.is_public ? <><span style={{ color: accent }}>◉</span> {tr('profile:playlists.public', { defaultValue: 'Public' })}</> : <>○ {tr('profile:playlists.private', { defaultValue: 'Private' })}</>}</button>
                       <span style={{ marginLeft: 'auto' }} />
-                      {glyph('✉', 'Send to member', () => { if (!pl.is_public) { window.__bsToast?.('Make it public first to share.', 'info'); return; } setSendFor(pl); })}
-                      {glyph('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
-                      {glyph('×', 'Remove', () => removeIt(pl))}
+                      {glyph('✉', tr('profile:playlists.sendToMember', { defaultValue: 'Send to member' }), () => { if (!pl.is_public) { window.__bsToast?.(tr('profile:playlists.makePublicFirst', { defaultValue: 'Make it public first to share.' }), 'info'); return; } setSendFor(pl); })}
+                      {glyph('↗', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {glyph('×', tr('profile:action.remove', { defaultValue: 'Remove' }), () => removeIt(pl))}
                     </>
                   ) : (
                     <>
                       <span style={{ marginLeft: 'auto' }} />
-                      {glyph('＋', 'Save to my library', () => saveToLibrary(pl))}
-                      {glyph('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {glyph('＋', tr('profile:playlists.saveToMyLibrary', { defaultValue: 'Save to my library' }), () => saveToLibrary(pl))}
+                      {glyph('↗', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
                     </>
                   )}
                 </div>
@@ -9667,16 +9677,16 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{isSelf ? 'Your library' : 'Playlists'}</div>
-        {isSelf && <button onClick={() => setAdding(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(accent, 0.12), border: `1px solid ${bsTHexA(accent, 0.45)}`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>＋ Add playlist</button>}
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{isSelf ? tr('profile:playlists.yourLibrary', { defaultValue: 'Your library' }) : tr('profile:playlists.playlists', { defaultValue: 'Playlists' })}</div>
+        {isSelf && <button onClick={() => setAdding(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(accent, 0.12), border: `1px solid ${bsTHexA(accent, 0.45)}`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:playlists.addPlaylist', { defaultValue: '＋ Add playlist' })}</button>}
       </div>
       {items === null ? (
         <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
       ) : items.length === 0 ? (
         <div style={{ ...card, padding: bleed ? `20px ${bleed}px` : '20px 16px', textAlign: 'center', ...bxCard }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: INK }}>{isSelf ? 'No playlists yet.' : 'No public playlists.'}</div>
-          <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: muted, lineHeight: 1.45 }}>{isSelf ? 'Add your Spotify or Apple Music playlists — keep them private or share them with the community.' : 'When they make a playlist public, it shows up here.'}</div>
-          {isSelf && <button onClick={() => setAdding(true)} style={{ ...pill(true), marginTop: 12 }}>＋ Add your first</button>}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: INK }}>{isSelf ? tr('profile:playlists.emptyTitle', { defaultValue: 'No playlists yet.' }) : tr('profile:playlists.emptyTitlePublic', { defaultValue: 'No public playlists.' })}</div>
+          <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: muted, lineHeight: 1.45 }}>{isSelf ? tr('profile:playlists.emptySelfSub', { defaultValue: 'Add your Spotify or Apple Music playlists — keep them private or share them with the community.' }) : tr('profile:playlists.emptyOtherSub', { defaultValue: 'When they make a playlist public, it shows up here.' })}</div>
+          {isSelf && <button onClick={() => setAdding(true)} style={{ ...pill(true), marginTop: 12 }}>{tr('profile:playlists.addFirst', { defaultValue: '＋ Add your first' })}</button>}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -9689,25 +9699,25 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
                   <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
                     <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted }}>
-                      <span style={{ color: pc }}>{bsProviderLabel(pl.provider)}</span>{pl.track_count ? ` · ${pl.track_count} tracks` : ''}{pl.meta ? ` · ${pl.meta}` : ''}{isSelf && !pl.is_public ? ' · Private' : ''}
+                      <span style={{ color: pc }}>{bsProviderLabel(pl.provider)}</span>{pl.track_count ? ' · ' + tr('profile:playlists.trackCount', { count: pl.track_count, defaultValue: '{count, plural, one {# track} other {# tracks}}' }) : ''}{pl.meta ? ` · ${pl.meta}` : ''}{isSelf && !pl.is_public ? ' · ' + tr('profile:playlists.private', { defaultValue: 'Private' }) : ''}
                     </div>
                   </a>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10 }}>
                   {isSelf ? (
                     <>
-                      <button onClick={() => togglePublic(pl)} style={pill(pl.is_public)}>{pl.is_public ? '◉ Public' : '○ Private'}</button>
+                      <button onClick={() => togglePublic(pl)} style={pill(pl.is_public)}>{pl.is_public ? '◉ ' + tr('profile:playlists.public', { defaultValue: 'Public' }) : '○ ' + tr('profile:playlists.private', { defaultValue: 'Private' })}</button>
                       <span style={{ marginLeft: 'auto' }} />
-                      {icon('✉', 'Send to member', () => { if (!pl.is_public) { window.__bsToast?.('Make it public first to share.', 'info'); return; } setSendFor(pl); })}
-                      {icon('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
-                      {icon('×', 'Remove', () => removeIt(pl))}
+                      {icon('✉', tr('profile:playlists.sendToMember', { defaultValue: 'Send to member' }), () => { if (!pl.is_public) { window.__bsToast?.(tr('profile:playlists.makePublicFirst', { defaultValue: 'Make it public first to share.' }), 'info'); return; } setSendFor(pl); })}
+                      {icon('↗', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {icon('×', tr('profile:action.remove', { defaultValue: 'Remove' }), () => removeIt(pl))}
                     </>
                   ) : (
                     <>
-                      <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ ...pill(false), textDecoration: 'none' }}>▶ Open</a>
+                      <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ ...pill(false), textDecoration: 'none' }}>▶ {tr('profile:action.open', { defaultValue: 'Open' })}</a>
                       <span style={{ marginLeft: 'auto' }} />
-                      {icon('＋', 'Save to my library', () => saveToLibrary(pl))}
-                      {icon('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {icon('＋', tr('profile:playlists.saveToMyLibrary', { defaultValue: 'Save to my library' }), () => saveToLibrary(pl))}
+                      {icon('↗', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
                     </>
                   )}
                 </div>
@@ -9912,6 +9922,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const hasMessage = typeof onMessage === 'function';
   const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
+  const tr = useShapeTr();
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). Heat = the member's TIER color (`c`).
   const BG = tTheme.PAPER_BG, INK = tTheme.INK;
@@ -10288,7 +10299,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
     const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
     const span = Math.abs(tg - s);
-    return { arc: [[realGoal.startMonth || 'Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
+    return { arc: [[realGoal.startMonth || tr('profile:ridge.start', { defaultValue: 'Start' }), fmt(s), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), fmt(n), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
   })() : null;
   // Per-aspect climb config — real data on your own profile where we have it,
   // demo fallback otherwise (so every aspect tab always renders a ridgeline).
@@ -10298,11 +10309,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
       let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
       const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
-      return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], ['Now', `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
+      return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
     }
     if (aspect === 'streak') {
       const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
-      return { arc: [['Start', 'Day 0', 'start'], ['Now', `${s} days`, 'now'], ['Goal', `${target} days`, 'target']], pct: Math.max(0.04, Math.min(0.98, target ? s / target : 0)), summit: `${target}-day streak` };
+      return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), 'Day 0', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${s} days`, 'now'], [tr('profile:ridge.goal', { defaultValue: 'Goal' }), `${target} days`, 'target']], pct: Math.max(0.04, Math.min(0.98, target ? s / target : 0)), summit: `${target}-day streak` };
     }
     if (aspect === 'bodyfat') {
       const k = climbProgress && climbProgress.kpis;
@@ -10311,9 +10322,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const tg = (realGoal && Number(realGoal.bodyFatTarget)) || Math.max(8, Math.round(n - 4));
         const fmt = (v) => `${Math.round(v * 10) / 10}%`;
         const span = Math.abs(s - tg) || 1;
-        return { arc: [['Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']], pct: Math.max(0.04, Math.min(0.98, Math.abs(s - n) / span)), summit: `${fmt(tg)} body fat` };
+        return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), fmt(s), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), fmt(n), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), fmt(tg), 'target']], pct: Math.max(0.04, Math.min(0.98, Math.abs(s - n) / span)), summit: `${fmt(tg)} body fat` };
       }
-      return { arc: [['Start', '22%', 'start'], ['Now', '17%', 'now'], ['Target', '12%', 'target']], pct: 0.5, summit: '12% body fat' };
+      return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), '22%', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), '17%', 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), '12%', 'target']], pct: 0.5, summit: '12% body fat' };
     }
     if (aspect === 'strength') {
       const prs = climbProgress && Array.isArray(climbProgress.prs) ? climbProgress.prs : null;
@@ -10323,15 +10334,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const now = `${Math.round(pr.best)} ${unit}${pr.bestReps ? ` × ${pr.bestReps}` : ''}`;
         const tg = Math.round(pr.best * 1.1);
         const moveName = String(pr.move || 'Top lift').replace(/\b\w/g, (x) => x.toUpperCase());
-        return { arc: [[moveName, 'Logged', 'start'], ['Now', now, 'now'], ['Target', `${tg} ${unit}`, 'target']], pct: 0.62, summit: `${tg} ${unit}` };
+        return { arc: [[moveName, tr('profile:terrain.logged', { defaultValue: 'Logged' }), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), now, 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), `${tg} ${unit}`, 'target']], pct: 0.62, summit: `${tg} ${unit}` };
       }
-      if (signedInSelf) return { arc: [['Start', '—', 'start'], ['Now', 'No lifts yet', 'now'], ['Target', 'Log a lift', 'target']], pct: 0.05, summit: 'Log your first lift' };
-      return { arc: [['Bar-only squat', 'Started', 'start'], ['Now', '245 lb × 5', 'now'], ['Target', '1.5×BW', 'target']], pct: 0.55, summit: '1.5× bodyweight' };
+      if (signedInSelf) return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), '—', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), tr('profile:terrain.noLiftsYet', { defaultValue: 'No lifts yet' }), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), tr('profile:terrain.logALift', { defaultValue: 'Log a lift' }), 'target']], pct: 0.05, summit: tr('profile:terrain.logFirstLift', { defaultValue: 'Log your first lift' }) };
+      return { arc: [['Bar-only squat', 'Started', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), '245 lb × 5', 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), '1.5×BW', 'target']], pct: 0.55, summit: '1.5× bodyweight' };
     }
     // weight (default)
     if (realArc) return realArc;
-    if (signedInSelf) return { arc: [['Start', '—', 'start'], ['Now', 'No goal set', 'now'], ['Target', 'Set a goal', 'target']], pct: 0.05, summit: 'Set a goal' };
-    return { arc: (person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
+    if (signedInSelf) return { arc: [[tr('profile:ridge.start', { defaultValue: 'Start' }), '—', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), tr('profile:terrain.noGoalSet', { defaultValue: 'No goal set' }), 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), tr('profile:terrain.setAGoal', { defaultValue: 'Set a goal' }), 'target']], pct: 0.05, summit: tr('profile:terrain.setAGoal', { defaultValue: 'Set a goal' }) };
+    return { arc: (person.arc || [['Feb ’25', 'Started', 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), `${progressPct}% there`, 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
   };
   const climbTabs = CLIMB_SOURCES.filter((s) => climbShown.includes(s.key));
   const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : (climbTabs[0] && climbTabs[0].key) || 'weight';
@@ -10354,7 +10365,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const heroPctLabel = Math.round(heroPct * 100);
   const curLevel = _HLNM[_hlIdx] || tierName;
   // Coached-by band — real program phase + linked coach on your own profile.
-  const blockEff = (isSelf && prog && prog.trainingPhase) ? 'Current phase' : block;
+  const blockEff = (isSelf && prog && prog.trainingPhase) ? tr('profile:terrain.currentPhase', { defaultValue: 'Current phase' }) : block;
   const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
   const coachNameEff = coachReal ? coachReal.name : coachName;
   const coachInitEff = coachReal ? coachReal.init : coachInit;
@@ -10388,10 +10399,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
               </button>
             </div>
@@ -10409,7 +10420,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
@@ -10480,12 +10491,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
               {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
               {showCoachLink && (
-                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
+                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={tr('profile:terrain.viewProfileAria', { name: coachNameEff, defaultValue: "View {name}'s profile" })} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
                   <span style={{ color: c, fontFamily: MONO, fontWeight: 900, fontSize: 11 }}>✓</span>
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ fontFamily: SANS, fontWeight: 800, fontSize: 12.5, color: INK }}>{coachNameEff}</span>
-                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 1 }}>coached by · {(coachReal && coachReal.role) === 'nutritionist' ? 'nutritionist' : 'trainer'}</span>
+                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 1 }}>{tr('profile:terrain.coachedBy', { defaultValue: 'coached by' })} · {(coachReal && coachReal.role) === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' })}</span>
                   </span>
                   <span style={{ color: c, fontFamily: MONO, fontSize: 12 }}>›</span>
                 </button>
@@ -10504,7 +10515,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             const cats = signedInSelf
               ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
               : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
-            const compRows = cats.map(([k, v]) => [k, v == null ? '—' : String(v), '']);
+            const compRows = cats.map(([k, v]) => [tr('profile:terrain.comp.' + k.toLowerCase(), { defaultValue: k }), v == null ? '—' : String(v), '']);
             const compPerf = cats.map(([, v]) => (v == null ? 0 : Number(v)));
             const bestIdx = compPerf.some((v) => v > 0) ? compPerf.indexOf(Math.max(...compPerf)) : -1;
             return (
@@ -10513,7 +10524,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 3 }}>
                   <span style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
                   <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>pts</span>
-                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 2, whiteSpace: 'nowrap' }}>{nextT ? `${toNextPts.toLocaleString()} to ${nextT[0]}` : 'Top of the ladder'} <span style={{ color: c }}>›</span></span>
+                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 2, whiteSpace: 'nowrap' }}>{nextT ? tr('profile:ladder.toNext', { pts: toNextPts, tier: nextT[0], defaultValue: '{pts, number} to {tier}' }) : tr('profile:ladder.top', { defaultValue: 'Top of the ladder' })} <span style={{ color: c }}>›</span></span>
                 </div>
                 <div aria-hidden style={{ height: 2, margin: '11px 0 12px', background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 350ms both' }) }} />
                 <BSSdBars rows={compRows} perf={compPerf} bestIdx={bestIdx} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still />
@@ -10531,19 +10542,19 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           <div style={{ margin: '4px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
               <span style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
-              <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), padding: '0 8px' }}>Private record</span>
+              <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), padding: '0 8px' }}>{tr('profile:terrain.privateRecord', { defaultValue: 'Private record' })}</span>
               <span style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
             </div>
-            <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', color: bsTHexA(INK, 0.7), lineHeight: 1.5, textAlign: 'center' }}>{live && live.visibility === 'friends' ? `${first} shares their terrain with friends — connect to see the full climb.` : `${first} keeps their terrain private.`}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', color: bsTHexA(INK, 0.7), lineHeight: 1.5, textAlign: 'center' }}>{live && live.visibility === 'friends' ? tr('profile:terrain.privateFriends', { name: first, defaultValue: '{name} shares their terrain with friends — connect to see the full climb.' }) : tr('profile:terrain.privateOnly', { name: first, defaultValue: '{name} keeps their terrain private.' })}</div>
           </div>
         ) : (
           <>
             <div ref={activityRef} />
             <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={8} active={tab} onPick={setTab} tabs={[
-              { key: 'activity', label: 'Activity' },
-              { key: 'signals', label: 'Signals' },
-              { key: 'climb', label: 'Climb' },
-              { key: 'playlists', label: 'Music' },
+              { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
+              { key: 'signals', label: tr('profile:tab.signals', { defaultValue: 'Signals' }) },
+              { key: 'climb', label: tr('profile:tab.climb', { defaultValue: 'Climb' }) },
+              { key: 'playlists', label: tr('profile:tab.music', { defaultValue: 'Music' }) },
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
@@ -10554,13 +10565,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {/* THE CLIMB — the ascent inked straight on the paper (no box, no
                 wash). Heat route draws start → now; target stays a hollow circle. */}
             <div style={{ marginBottom: 28 }}>
-              <BSTStationHead heat={c} INK={INK} label="The climb" meta={`Member since ${since}`} />
+              <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.theClimb', { defaultValue: 'The climb' })} meta={tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })} />
               {climbTabs.length > 1 && (
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{s.label}</span></button>
+                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
                   ); })}
-                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} title={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>}
                 </div>
@@ -10568,12 +10579,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
                 <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Show on your climb</div>
-                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>Done</span></button>}
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.showOnClimb', { defaultValue: 'Show on your climb' })}</div>
+                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>}
                   </div>
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     {CLIMB_SOURCES.map((s) => { const on = climbShown.includes(s.key); return (
-                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{on ? '✓ ' : '＋ '}{s.label}</span></button>
+                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{on ? '✓ ' : '＋ '}{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
                     ); })}
                   </div>
                 </div>
@@ -10611,7 +10622,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {(goal || bio) && (
               <div style={{ marginBottom: 26 }}>
                 <div aria-hidden style={{ height: 2, marginBottom: 12, background: `linear-gradient(90deg, ${INK}, ${c} 70%, transparent)`, transformOrigin: 'left', ...((bsSdReduced() || !tabFresh) ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
-                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>The why</div>
+                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.theWhy', { defaultValue: 'The why' })}</div>
                 <div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 8, color: INK }}>{goal || bio}</div>
               </div>
             )}
@@ -10624,7 +10635,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               // A REAL present week renders (even an all-zero week — honest zeros
               // are data, matching the streak); only a genuinely absent week redacts.
               const hasWeek = !signedInSelf || !!(realSig && Array.isArray(realSig.week) && realSig.week.length);
-              const discRows = disciplinesEff.map(([label, val]) => [label, String(Math.round(val * 100)), '']);
+              const discRows = disciplinesEff.map(([label, val]) => [tr('profile:terrain.disc.' + String(label).toLowerCase(), { defaultValue: label }), String(Math.round(val * 100)), '']);
               const discPerf = disciplinesEff.map(([, val]) => Math.round(val * 100));
               const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
               const discBest = hasDisc ? discPerf.indexOf(Math.max(...discPerf)) : -1;
@@ -10632,27 +10643,27 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               return (<>
               {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory */}
               <div style={{ marginBottom: 26 }}>
-                <BSTStationHead heat={c} INK={INK} label="Living signals" meta={hasWeek ? 'today ↑' : null} />
+                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.livingSignals', { defaultValue: 'Living signals' })} meta={hasWeek ? tr('profile:terrain.todayUp', { defaultValue: 'today ↑' }) : null} />
                 <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
                   <div style={{ flex: 'none' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Day streak</div>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
                       <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{streakEff}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>days</span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>{tr('profile:terrain.days', { defaultValue: 'days' })}</span>
                     </div>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>Weekly momentum</div>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>{tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}</div>
                     {hasWeek ? (<>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
-                    </>) : <BSTRedact INK={INK} label="No sessions this week" />}
+                    </>) : <BSTRedact INK={INK} label={tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })} />}
                   </div>
                 </div>
                 {hasTraj ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}>
                     <div style={{ flex: 'none' }}>
-                      <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Trajectory</div>
+                      <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
                         <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)}</span>
                         <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>lb</span>
@@ -10661,18 +10672,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }} aria-hidden>
                       <path d={sparkPath} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
                     </svg>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>16-wk recomp</div>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{tr('profile:terrain.recomp', { defaultValue: '16-wk recomp' })}</div>
                   </div>
-                ) : <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}><BSTRedact INK={INK} label="Trajectory · no weigh-ins yet" /></div>}
+                ) : <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}><BSTRedact INK={INK} label={tr('profile:terrain.trajectoryNoWeighIns', { defaultValue: 'Trajectory · no weigh-ins yet' })} /></div>}
               </div>
 
               <div style={{ marginBottom: 26 }}>
-                <BSTStationHead heat={c} INK={INK} label="Disciplines · strata" />
-                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still /> : <BSTRedact INK={INK} label="Not enough logged yet" />}
+                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.disciplinesStrata', { defaultValue: 'Disciplines · strata' })} />
+                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still /> : <BSTRedact INK={INK} label={tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })} />}
               </div>
 
               <div style={{ marginBottom: 28 }}>
-                <BSTStationHead heat={c} INK={INK} label="Key lifts" />
+                <BSTStationHead heat={c} INK={INK} label={tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })} />
                 {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(String(val)); return (
                   <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
@@ -10680,18 +10691,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 15, color: INK, fontVariantNumeric: 'tabular-nums', flex: 'none' }}>{u.num}</span>
                     {u.unit ? <span style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.55), flex: 'none', width: 16 }}>{u.unit}</span> : null}
                   </div>
-                ); }) : <BSTRedact INK={INK} label="Lifts · not on record" />}
+                ); }) : <BSTRedact INK={INK} label={tr('profile:terrain.liftsNotOnRecord', { defaultValue: 'Lifts · not on record' })} />}
               </div>
               </>);
             })()}
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
-                  <BSTRedact INK={INK} label={isSelf ? 'Nothing logged yet' : 'No activity on record'} />
+                  <BSTRedact INK={INK} label={isSelf ? tr('profile:terrain.nothingLogged', { defaultValue: 'Nothing logged yet' }) : tr('profile:terrain.noActivityRecord', { defaultValue: 'No activity on record' })} />
                 )}
                 {feedEff.map((a, i) => (
                   /* Card breaks out of the tab body's 8px gutter (margin '0 -8px')
@@ -10722,7 +10733,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {!isSelf && hasMessage && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, padding: '14px 20px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 28%)` }}>
           <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>Message {first} <span style={{ color: c }}>→</span></span>
+            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>{tr('profile:terrain.messageName', { name: first, defaultValue: 'Message {name}' })} <span style={{ color: c }}>→</span></span>
           </button>
         </div>
       )}
@@ -10800,6 +10811,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const hasMessage = typeof onMessage === 'function';
   const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
+  const tr = useShapeTr();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
@@ -10875,7 +10887,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     ['Client workouts', _ringVal(ringLive && ringLive.clientWorkouts, sigilToNext - 0.1)],
     ['Own activity', _ringVal(ringLive && ringLive.ownActivity, sigilToNext + 0.02)],
   ];
-  const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
+  const roleLabel = isNutri ? tr('profile:coach.roleNutri', { defaultValue: 'Nutritionist · RD' }) : tr('profile:coach.roleTrainer', { defaultValue: 'Trainer · CPT' });
   // Real bio/goal shows on your own profile; the demo fallback is suppressed when
   // signed-in (own) — the section hides if you haven't written one.
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
@@ -10886,13 +10898,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const monthlyPkg = (commerce && Array.isArray(commerce.packages) && commerce.packages.find((p) => p.type === 'Subscription')) || { type: 'Subscription', name: 'Monthly coaching', price: `$${isNutri ? 240 : 200}`, unit: '/ month', perks: ['Custom programming', 'Weekly check-ins', 'Daily chat'] };
   const doSubscribe = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('subscribe')) return;
-    try { const r = await window.ShapePayments?.startCheckout?.({ item: monthlyPkg, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || 'Checkout setup needed.', 'info'); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not start checkout.', 'err'); }
+    try { const r = await window.ShapePayments?.startCheckout?.({ item: monthlyPkg, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || tr('profile:coach.checkoutSetupNeeded', { defaultValue: 'Checkout setup needed.' }), 'info'); }
+    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
   const doBookIntro = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
-    try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(`Intro requested — ${first} will follow up.`, 'ok'); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not book.', 'err'); }
+    try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(tr('profile:coach.introRequested', { name: first, defaultValue: 'Intro requested — {name} will follow up.' }), 'ok'); }
+    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.bookError', { defaultValue: 'Could not book.' }), 'err'); }
   };
   // First-dibs "Book now" is the per-role ONE-TIME purchase (trainer session /
   // nutritionist meal plan), NOT the monthly subscription — website parity (#1498).
@@ -10902,8 +10914,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // webhook flips the waitlist row to booked for either.
   const doBookOneTime = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
-    try { const r = await window.ShapePayments?.startCheckout?.({ item: { type: 'One-time', name: isNutri ? 'Meal plan' : 'Booking' }, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || 'Checkout setup needed.', 'info'); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not start checkout.', 'err'); }
+    try { const r = await window.ShapePayments?.startCheckout?.({ item: { type: 'One-time', name: isNutri ? 'Meal plan' : 'Booking' }, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || tr('profile:coach.checkoutSetupNeeded', { defaultValue: 'Checkout setup needed.' }), 'info'); }
+    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
   // ── Waiting list — only relevant when this coach is effectively at capacity.
   // The marketplace's commerce.coach carries the real DB row (at_capacity /
@@ -10930,10 +10942,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
   const wlWithdraw = async () => {
     if (wlBusy.current) return;
-    if (!wl?.entryId) { window.__bsToast?.('Refreshing your spot — try again in a moment.'); return; }
+    if (!wl?.entryId) { window.__bsToast?.(tr('profile:coach.refreshingSpot', { defaultValue: 'Refreshing your spot — try again in a moment.' })); return; }
     wlBusy.current = true;
     try { await window.ShapeWaitlist.withdraw(wl.entryId); setWl(null); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not update the waiting list.', 'err'); }
+    catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.waitlistUpdateError', { defaultValue: 'Could not update the waiting list.' }), 'err'); }
     finally { wlBusy.current = false; }
   };
   const wlJoin = async () => {
@@ -10943,7 +10955,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     try {
       const r = await window.ShapeWaitlist.join({ providerId: capacityProviderId, providerRole: capacityProviderRole });
       setWl({ status: r.status, position: r.position, entryId: r.entryId || null });
-    } catch (e) { window.__bsToast?.(e?.message || 'Could not join the waiting list.', 'err'); }
+    } catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.waitlistJoinError', { defaultValue: 'Could not join the waiting list.' }), 'err'); }
     finally { wlBusy.current = false; }
   };
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
@@ -10965,7 +10977,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       .then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d && Array.isArray(d.reviews) && d.reviews.length) setLiveReviews(d.reviews); }).catch(() => {});
     return () => { on = false; };
   }, [name]);
-  const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
+  const disLabel = isNutri ? tr('profile:coach.practiceFocus', { defaultValue: 'Practice focus' }) : tr('profile:coach.coachingFocus', { defaultValue: 'Coaching focus' });
   // Own signed-in profile zeroes the demo sub-data (no live source yet); viewing
   // others / signed-out keeps the illustrative example.
   const disciplines = ownZero ? [] : (isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]]);
@@ -11016,7 +11028,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     try {
       const url = await window.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
       if (url) bsOpenCheckout(url);
-    } catch (e) { window.__bsToast?.((e && e.message) || 'Could not start checkout.', 'err'); }
+    } catch (e) { window.__bsToast?.((e && e.message) || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
   // Own signed-in profile shows only your real published plans (never the demo
   // catalogue) — empty until you publish; others / signed-out keep demo.
@@ -11117,10 +11129,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={onOpenSettings} aria-label={tr('profile:terrain.settingsAria', { defaultValue: 'Settings' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
@@ -11138,7 +11150,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             {isSelf
               ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
@@ -11147,7 +11159,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <BSBackButton onClick={onBack} />
-            <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
+            <Kick col={c}>{isNutri ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:coach.coach', { defaultValue: 'Coach' })}</Kick>
           </div>
         </>
         )}
@@ -11162,7 +11174,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         {/* progress readout — % to next tier (the ring legend now lives in
             profile settings → "Your Signal · what the rings mean", coach-only) */}
         <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{_sigTop ? 'Top of the ladder' : <>{Math.round(sigilToNext * 100)}% to <span style={{ color: TEAL, fontWeight: 800 }}>{sigilNextTier}</span></>}</div>
+          <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{_sigTop ? tr('profile:ladder.top', { defaultValue: 'Top of the ladder' }) : <>{tr('profile:coach.pctToNext', { pct: Math.round(sigilToNext * 100), defaultValue: '{pct}% to' })} <span style={{ color: TEAL, fontWeight: 800 }}>{sigilNextTier}</span></>}</div>
         </div>
 
         {/* name block */}
@@ -11190,20 +11202,20 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{tr('profile:coach.reviewCount', { count: liveReviews && liveReviews.length ? liveReviews.length : reviewCount, defaultValue: '{count, plural, one {# review} other {# reviews}}' })}</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>{tr('profile:coach.respondsWithinHours', { defaultValue: 'Responds within hours' })}</div></div>
         </div>
 
         {isPrivate ? (
-          <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their profile with friends — connect to see more.` : `${first} keeps their profile private — only name and tier are shown.`}</div></div>
+          <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' }) : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</div></div>
         ) : (
         <>
           <div ref={activityRef} style={{ marginTop: 22 }}>
             <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
-              { key: 'activity', label: 'Activity' },
-              { key: 'about', label: 'About' },
-              { key: 'coaching', label: 'Coaching' },
-              { key: 'playlists', label: 'Music' },
-              { key: 'reviews', label: 'Reviews' },
+              { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
+              { key: 'about', label: tr('profile:tab.about', { defaultValue: 'About' }) },
+              { key: 'coaching', label: tr('profile:tab.coaching', { defaultValue: 'Coaching' }) },
+              { key: 'playlists', label: tr('profile:tab.music', { defaultValue: 'Music' }) },
+              { key: 'reviews', label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }) },
             ]} />
           </div>
           {tab === 'playlists' && (
@@ -11215,7 +11227,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {/* philosophy — hidden on your own signed-in profile until you write one */}
           {philosophy ? (
           <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
-            <Kick>{isNutri ? 'Practice philosophy' : 'Coaching philosophy'}</Kick>
+            <Kick>{isNutri ? tr('profile:coach.practicePhilosophy', { defaultValue: 'Practice philosophy' }) : tr('profile:coach.coachingPhilosophy', { defaultValue: 'Coaching philosophy' })}</Kick>
             <div style={{ fontFamily: SERIF, fontSize: 23, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.18, color: bsTHexA(INK, 0.92), marginTop: 8 }}>“{philosophy}”</div>
           </div>
           ) : null}
@@ -11230,14 +11242,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               ); })}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Set your focus in Customize</div>
+            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.setFocusInCustomize', { defaultValue: 'Set your focus in Customize' })}</div>
             )}
           </div>
 
           {/* track record — hidden on your own signed-in profile until there's data */}
           {lifts.length ? (
           <div style={{ marginTop: 24 }}>
-            <Kick>Track record</Kick>
+            <Kick>{tr('profile:coach.trackRecord', { defaultValue: 'Track record' })}</Kick>
             <div style={{ display: 'flex', gap: 9, margin: '12px -22px 0' }}>
               {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
@@ -11246,19 +11258,19 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
 
           {/* certifications */}
           <div style={{ marginTop: 28 }}>
-            <Kick>Certifications</Kick>
+            <Kick>{tr('profile:coach.certifications', { defaultValue: 'Certifications' })}</Kick>
             {certs.length ? (
             <div style={{ ...card, padding: 4, margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
               {certs.map(([abbr, body, year], i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.07)}` : 'none' }}>
                   <span style={{ fontFamily: MONO, fontSize: 12, color: c, minWidth: 78 }}>{abbr}</span>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{body}</div><div style={{ fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.45), marginTop: 2 }}>{year}</div></div>
-                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEAL }}>✓ Verified</span>
+                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEAL }}>{tr('profile:coach.verified', { defaultValue: '✓ Verified' })}</span>
                 </div>
               ))}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>No certifications added yet</div>
+            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.noCerts', { defaultValue: 'No certifications added yet' })}</div>
             )}
           </div>
 
@@ -11271,50 +11283,50 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               join/waiting are quiet rounded cards, matching the surrounding chrome. */}
           {!isSelf && atCapacity && wl?.status === 'invited' && (
             <BSPlate c={tTheme.GREEN} tick style={{ margin: '24px -22px 0' }}>
-              <Kick col={tTheme.GREEN}>You're invited</Kick>
-              <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{first} has room for you.</div>
+              <Kick col={tTheme.GREEN}>{tr('profile:coach.youreInvited', { defaultValue: "You're invited" })}</Kick>
+              <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{tr('profile:coach.hasRoom', { name: first, defaultValue: '{name} has room for you.' })}</div>
               {/* Book now = the one-time purchase; the normal Work-with block is hidden
                   at capacity, so the invited state must also carry the subscription
                   path (mirrors the website invited CTA trio, #1498). */}
-              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book now</button>
+              <button onClick={doBookOneTime} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookNow', { defaultValue: 'Book now' })}</button>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe /mo</button>
-                <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Decline</button>
+                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+                <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.decline', { defaultValue: 'Decline' })}</button>
               </div>
             </BSPlate>
           )}
           {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
             <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
-              <Kick col={tTheme.RUST}>On the waiting list</Kick>
-              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>You're #{wl.position} in line. {first} will invite you when a spot opens.</div>
-              <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Leave the list</button>
+              <Kick col={tTheme.RUST}>{tr('profile:coach.onWaitingList', { defaultValue: 'On the waiting list' })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.inLine', { pos: wl.position, name: first, defaultValue: "You're #{pos} in line. {name} will invite you when a spot opens." })}</div>
+              <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.leaveList', { defaultValue: 'Leave the list' })}</button>
             </div>
           )}
           {!isSelf && atCapacity && !wl && (
             <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
-              <Kick col={tTheme.RUST}>At capacity</Kick>
-              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{first} isn't taking new clients right now. Join the waiting list to be first in line.</div>
-              <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Join the waiting list</button>
+              <Kick col={tTheme.RUST}>{tr('profile:coach.atCapacity', { defaultValue: 'At capacity' })}</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{tr('profile:coach.atCapacityBody', { name: first, defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line." })}</div>
+              <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
             </div>
           )}
           {!isSelf && !atCapacity && (
             <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
-              <Kick col={c}>Work with {first}</Kick>
+              <Kick col={c}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
               <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: c }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
-                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe</button>
-                <button onClick={doBookIntro} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book intro · Free</button>
+                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
+                <button onClick={doBookIntro} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
               </div>
             </div>
           )}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
-            <Kick>{isNutri ? 'Work with ' + first : 'Train with ' + first}</Kick>
+            <Kick>{isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })}</Kick>
             {/* category sub-tabs */}
             <div style={{ display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto' }} className="bs-hide-scroll">
               {offerCats.map((ct) => { const on = offerTab === ct; return (
-                <button key={ct} onClick={() => setOfferTab(ct)} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{ct}</button>
+                <button key={ct} onClick={() => setOfferTab(ct)} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('profile:coach.cat.' + String(ct).toLowerCase(), { defaultValue: ct })}</button>
               ); })}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
@@ -11324,12 +11336,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <div key={i} style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
                   {buyable
-                    ? <button onClick={() => buyPlan(pl)} style={{ flex: 'none', borderRadius: 999, border: 0, background: c, color: '#0c0a08', padding: '9px 14px', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {price}</button>
+                    ? <button onClick={() => buyPlan(pl)} style={{ flex: 'none', borderRadius: 999, border: 0, background: c, color: '#0c0a08', padding: '9px 14px', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('profile:coach.buy', { defaultValue: 'Buy' })} · {price}</button>
                     : <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>}
                 </div>
                 );
               }) : (
-                <div style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Publish your first plan to list it here</div>
+                <div style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' })}</div>
               )}
             </div>
           </div>
@@ -11344,7 +11356,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               : reviews.map((r) => [...r, 10, null]);
             return (
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>{tr('profile:tab.reviews', { defaultValue: 'Reviews' })}</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
                 {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
                   const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
@@ -11363,11 +11375,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (
-                <div style={{ ...card, padding: '15px 20px', margin: '0 -22px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+                <div style={{ ...card, padding: '15px 20px', margin: '0 -22px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? tr('profile:coach.nothingLogged', { defaultValue: 'Nothing logged yet — tap ＋ Log activity to post your first update.' }) : tr('profile:coach.noActivity', { defaultValue: 'No activity yet.' })}</div>
               )}
               {coachFeedEff.map((a, i) => (
                 /* Full-BLEED card — breaks out of the coach body's 22px side
@@ -11393,8 +11405,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
       {!isSelf && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onMsg(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
-            <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
+            <button onClick={() => onMsg(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{tr('profile:action.message', { defaultValue: 'Message' })}</button>
+            <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })} →</button>
           </div>
         </div>
       )}
