@@ -13,6 +13,30 @@ import { createPortal } from 'react-dom';
 
 const { useState: useStateBSH } = React;
 
+// The i18n translator for this module. Mirrors client.jsx's useShapeTr —
+// self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
+// doesn't depend on another file's copy or its load order.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+// Active app locale for Intl date/number formatting.
+function habitsLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+// Localized weekday labels via Intl. dow = JS day-of-week (0=Sun … 6=Sat);
+// 2023-01-01 was a Sunday, so Date.UTC(2023,0,1+dow) lands on that weekday.
+function _bsDowShort(dow) {
+  return new Date(Date.UTC(2023, 0, 1 + dow)).toLocaleDateString(habitsLocale(), { weekday: 'short', timeZone: 'UTC' });
+}
+function _bsDowNarrow(dow) {
+  return new Date(Date.UTC(2023, 0, 1 + dow)).toLocaleDateString(habitsLocale(), { weekday: 'narrow', timeZone: 'UTC' });
+}
+
 const _bsHabitsToday = '2026-05-14';
 
 // ── Date helpers (anchored at "today") ────────────────────
@@ -41,12 +65,10 @@ function _bsDowLetter(yyyymmdd) {
   const idx = (js + 6) % 7;
   return _BS_DOW_LETTERS[idx];
 }
-// 3-letter day label (Mon-first) for the grid header.
-const _BS_DOW3 = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+// Short day label for the grid header — localized via Intl (no hardcoded list).
 function _bsDow3(yyyymmdd) {
   const [y, m, d] = yyyymmdd.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return _BS_DOW3[(dt.getUTCDay() + 6) % 7];
+  return _bsDowShort(new Date(Date.UTC(y, m - 1, d)).getUTCDay());
 }
 // Compute current streak: longest run of consecutive days ending at today
 // or yesterday (so an unchecked-today habit doesn't lose its streak yet).
@@ -122,6 +144,8 @@ function _bsEncodeHabits(arr) {
 
 // Small chrome-less time picker — opens native time input on tap
 const _BS_HABIT_GRID_DAYS = ['THU', 'FRI', 'SAT', 'SUN', 'MON', 'TUE', 'WED'];
+// Same demo window as a day-of-week list (Thu…Wed) so the grid header localizes via Intl.
+const _BS_HABIT_GRID_DOW = [4, 5, 6, 0, 1, 2, 3];
 const _BS_HABIT_DEMO_ROWS = [
   { id: 'demo_sleep', type: 'do', name: 'Sleep 7+ hours', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 3 },
   { id: 'demo_steps', type: 'do', name: '10,000 steps', pattern: [1, 1, 1, 1, 0, 1, 2], pts: 3 },
@@ -217,6 +241,7 @@ function _bsBellIcon(filled, color) {
 // reads it; the device schedules a local notification). Gentle by design.
 function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   const t = useBS();
+  const tr = useShapeTr();
   const r = reminder || {};
   const c = accent;
   const [on, setOn] = React.useState(!!reminder && r.enabled !== false);
@@ -227,7 +252,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
     try {
       if (!on || !days.length) await window.ShapeHabitReminders?.remove?.(habit.id);
       else await window.ShapeHabitReminders?.set?.({ habitId: habit.id, label: habit.name, time, days, enabled: true });
-    } catch (e) { window.__bsToast?.('Could not save reminder', 'err'); }
+    } catch (e) { window.__bsToast?.(tr('habits:reminder.saveError', { defaultValue: 'Could not save reminder' }), 'err'); }
     onSaved && onSaved();
     onClose();
   };
@@ -236,10 +261,10 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Habit reminder</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{tr('habits:reminder.title', { defaultValue: 'Habit reminder' })}</div>
         <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingBottom: 14, borderBottom: `1px solid ${t.HAIR}` }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Remind me</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{tr('habits:reminder.remindMe', { defaultValue: 'Remind me' })}</div>
           <button onClick={() => setOn(v => !v)} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? c : t.RULE}`, background: on ? c : 'transparent', position: 'relative', cursor: 'pointer' }}>
             <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
           </button>
@@ -247,28 +272,28 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
         {on && (
           <React.Fragment>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Time</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{tr('habits:reminder.time', { defaultValue: 'Time' })}</div>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ background: 'transparent', color: c, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 10px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, cursor: 'pointer' }} />
             </div>
             <div style={{ padding: '14px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginBottom: 10 }}>Days</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginBottom: 10 }}>{tr('habits:reminder.days', { defaultValue: 'Days' })}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {_BS_REM_DAYS.map(([lab, d], i) => { const dn = days.includes(d); return (
-                  <button key={i} onClick={() => toggleDay(d)} style={{ flex: 1, height: 36, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{lab}</button>
+                  <button key={i} onClick={() => toggleDay(d)} style={{ flex: 1, height: 36, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{_bsDowNarrow(d)}</button>
                 ); })}
               </div>
               <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <button onClick={() => setDays([1, 2, 3, 4, 5])} style={chip}>Weekdays</button>
-                <button onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])} style={chip}>Every day</button>
+                <button onClick={() => setDays([1, 2, 3, 4, 5])} style={chip}>{tr('habits:reminder.weekdays', { defaultValue: 'Weekdays' })}</button>
+                <button onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])} style={chip}>{tr('habits:reminder.everyDay', { defaultValue: 'Every day' })}</button>
               </div>
             </div>
           </React.Fragment>
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '12px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={save} style={{ flex: 1, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: 'pointer' }}>{on && days.length ? 'Save reminder' : 'Turn off'}</button>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '12px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{tr('habits:common.cancel', { defaultValue: 'Cancel' })}</button>
+          <button onClick={save} style={{ flex: 1, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: 'pointer' }}>{on && days.length ? tr('habits:reminder.save', { defaultValue: 'Save reminder' }) : tr('habits:reminder.turnOff', { defaultValue: 'Turn off' })}</button>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>Off by default · skipped once you check it off · never nagging</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('habits:reminder.footnote', { defaultValue: 'Off by default · skipped once you check it off · never nagging' })}</div>
       </div>
     </div>
   );
@@ -276,6 +301,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
 }
 function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, first = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const done = (habit.history || []).includes(_bsHabitsToday);
   const isAvoid = habit.type === 'avoid';
   const pts = _bsHabitPts(habit);
@@ -287,7 +313,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
       display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
       padding: '11px 0', minHeight: 44, borderTop: first ? 0 : `1px solid ${t.HAIR}`,
     }}>
-      <button onClick={() => onToggle(habit.id)} aria-label={done ? 'Mark not done' : 'Mark done'} style={{
+      <button onClick={() => onToggle(habit.id)} aria-label={done ? tr('habits:row.markNotDone', { defaultValue: 'Mark not done' }) : tr('habits:row.markDone', { defaultValue: 'Mark done' })} style={{
         width: 24, height: 24, borderRadius: 3, cursor: 'pointer', flexShrink: 0,
         border: `1.5px solid ${done ? c : `${c}55`}`, background: done ? c : 'transparent',
         color: '#04201d', display: 'grid', placeItems: 'center',
@@ -296,12 +322,14 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
       <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
-          {habit.domain === 'work' && <span style={{ color: t.BLUE }}>Work · </span>}
-          {done ? (isAvoid ? '✓ Stayed clean' : '✓ Kept') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
+          {habit.domain === 'work' && <span style={{ color: t.BLUE }}>{tr('habits:row.workTag', { defaultValue: 'Work · ' })}</span>}
+          {done
+            ? (isAvoid ? tr('habits:row.stayedClean', { defaultValue: '✓ Stayed clean' }) : tr('habits:row.kept', { defaultValue: '✓ Kept' }))
+            : `${isAvoid ? tr('habits:row.avoid', { defaultValue: 'Avoid' }) : tr('habits:row.do', { defaultValue: 'Do' })} · ${tr('habits:row.pts', { defaultValue: '{count, plural, one {+# pt} other {+# pts}}', count: pts })}`}
         </div>
       </button>
-      <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label="Habit reminder" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
-      <button onClick={async () => { if (await window.bsAskConfirm({ title: 'Delete this habit?', name: habit.name, message: "This removes the habit and its full streak history.", confirmLabel: 'Delete habit' })) onRemove(habit.id); }} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
+      <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label={tr('habits:reminder.title', { defaultValue: 'Habit reminder' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
+      <button onClick={async () => { if (await window.bsAskConfirm({ title: tr('habits:list.deleteTitle', { defaultValue: 'Delete this habit?' }), name: habit.name, message: tr('habits:list.deleteMessage', { defaultValue: 'This removes the habit and its full streak history.' }), confirmLabel: tr('habits:list.deleteConfirm', { defaultValue: 'Delete habit' }) })) onRemove(habit.id); }} aria-label={tr('habits:list.removeHabit', { defaultValue: 'Remove habit' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
       {remOpen && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setRemOpen(false)} onSaved={onReminderChange} />}
     </div>
   );
@@ -311,19 +339,22 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
 // over tick-divider rows; ＋ Add is an underline text-action.
 function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange }) {
   const t = useBS();
+  const tr = useShapeTr();
   const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
-  const word = type === 'avoid' ? 'Stayed clean' : 'Done';
+  const countMsg = type === 'avoid'
+    ? tr('habits:list.cleanCount', { defaultValue: '{done}/{total} Stayed clean', done, total: habits.length })
+    : tr('habits:list.doneCount', { defaultValue: '{done}/{total} Done', done, total: habits.length });
   return (
     <div style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: accent }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{title} · {done}/{habits.length} {word}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{title} · {countMsg}</span>
         <span aria-hidden style={{ flex: 1 }} />
-        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: '4px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${accent}`, paddingBottom: 2 }}>＋ Add</span></button>
+        <button onClick={onAdd} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: '4px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${accent}`, paddingBottom: 2 }}>{tr('habits:list.add', { defaultValue: '＋ Add' })}</span></button>
       </div>
       {habits.length === 0 ? (
         <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 8 }}>
-          ＋ Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
+          {type === 'avoid' ? tr('habits:list.addToDont', { defaultValue: '＋ Add a to-don’t' }) : tr('habits:list.addToDo', { defaultValue: '＋ Add a to-do' })}
         </button>
       ) : habits.map((h, i) => (
         <BSHabitRow key={h.id} habit={h} first={i === 0} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} />
@@ -336,6 +367,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
 // and split bars died with the Habit Ledger; the register carries them all).
 function BSHabitScoreCard({ habits, onOpenScore }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const week = _bsHabitInsightStats(habits); // this week's Shape Score from habits + adherence
   const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
@@ -349,20 +381,20 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
     <div>
       <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.3, color: t.INK }}>
         {possible === 0
-          ? <>Add a habit — <span style={{ fontStyle: 'italic', color: teal }}>daily points live here.</span></>
+          ? <>{tr('habits:score.emptyLead', { defaultValue: 'Add a habit —' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.emptyEmph', { defaultValue: 'daily points live here.' })}</span></>
           : earned === 0
-            ? <>Nothing banked yet — <span style={{ fontStyle: 'italic', color: teal }}>{possible} pts on the table.</span></>
+            ? <>{tr('habits:score.noneLead', { defaultValue: 'Nothing banked yet —' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.pointsOnTable', { defaultValue: '{count, plural, one {# pt on the table.} other {# pts on the table.}}', count: possible })}</span></>
             : remaining > 0
-              ? <>+{earned} banked today — <span style={{ fontStyle: 'italic', color: teal }}>{remaining} more on the table.</span></>
-              : <>+{earned} banked today — <span style={{ fontStyle: 'italic', color: teal }}>a clean sweep.</span></>}
+              ? <>{tr('habits:score.bankedLead', { defaultValue: '+{earned} banked today —', earned })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.moreOnTable', { defaultValue: '{count, plural, one {# more on the table.} other {# more on the table.}}', count: remaining })}</span></>
+              : <>{tr('habits:score.bankedLead', { defaultValue: '+{earned} banked today —', earned })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.cleanSweep', { defaultValue: 'a clean sweep.' })}</span></>}
       </div>
       <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'repeat(5, auto)', justifyContent: 'space-between', gap: 8 }}>
         {[
-          ['Today', `+${earned}/${possible}`, t.INK50],
-          ['To do', `${sumE(dos)}/${sumP(dos)}`, teal],
-          ["To don't", `${sumE(donts)}/${sumP(donts)}`, t.RUST],
-          ['This wk', `+${week.score}`, t.INK50],
-          ['Adherence', `${week.adherence}%`, t.INK50],
+          [tr('habits:score.today', { defaultValue: 'Today' }), `+${earned}/${possible}`, t.INK50],
+          [tr('habits:score.toDo', { defaultValue: 'To do' }), `${sumE(dos)}/${sumP(dos)}`, teal],
+          [tr('habits:score.toDont', { defaultValue: "To don't" }), `${sumE(donts)}/${sumP(donts)}`, t.RUST],
+          [tr('habits:score.thisWk', { defaultValue: 'This wk' }), `+${week.score}`, t.INK50],
+          [tr('habits:score.adherence', { defaultValue: 'Adherence' }), `${week.adherence}%`, t.INK50],
         ].map(([l, v, lc]) => (
           <div key={l}>
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', fontWeight: 800, textTransform: 'uppercase', color: lc }}>{l}</div>
@@ -372,7 +404,7 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
       </div>
       <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
       <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 40, boxSizing: 'border-box', padding: '9px 0 0' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>The Shape Score</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('habits:score.shapeScore', { defaultValue: 'The Shape Score' })}</span>
         <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)' }} />
         <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
       </button>
@@ -385,10 +417,11 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
 // tiles; today is the rightmost column (pattern value 2), accent-marked.
 function BSHabitGrid({ habits }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const model = _bsHabitGridModel(habits);
   if (!model.rows.length) return null;
-  const days = model.demo ? _BS_HABIT_GRID_DAYS : _bsLast7().map(_bsDow3);
+  const days = model.demo ? _BS_HABIT_GRID_DOW.map(_bsDowShort) : _bsLast7().map(_bsDow3);
   const lastIdx = days.length - 1; // today is the rightmost column
   // One cell: done-today (solid teal + glow) · done-past (teal tint) ·
   // today-pending (teal outline) · past-empty (hairline outline).
@@ -406,8 +439,8 @@ function BSHabitGrid({ habits }) {
   return (
     <div>
       {/* header — mono eyebrow + serif display title + ink→accent ledger */}
-      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Last 7 days</div>
-      <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>The grid<span style={{ color: teal }}>.</span></div>
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('habits:grid.last7Days', { defaultValue: 'Last 7 days' })}</div>
+      <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('habits:grid.title', { defaultValue: 'The grid' })}<span style={{ color: teal }}>.</span></div>
       <div aria-hidden style={{ height: 2, width: 44, borderRadius: 1, marginTop: 9, background: `linear-gradient(90deg, ${t.INK}, ${teal} 70%, transparent)` }} />
       {/* day-label header — aligned over the tile columns; today in accent */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, marginBottom: 9 }}>
@@ -424,7 +457,7 @@ function BSHabitGrid({ habits }) {
         return (
           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
             <div style={{ flex: NAME_FLEX, minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: isAvoid ? t.RUST : teal }}>{isAvoid ? "DON'T" : 'DO'}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: isAvoid ? t.RUST : teal }}>{isAvoid ? tr('habits:grid.dont', { defaultValue: "DON'T" }) : tr('habits:grid.do', { defaultValue: 'DO' })}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
             </div>
             <div style={{ flex: DOTS_FLEX, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
@@ -449,6 +482,7 @@ const _BS_HABIT_SUGGEST = {
 // Bottom-sheet add flow — do / avoid variant, suggestion chips, points stepper.
 function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isAvoid = type === 'avoid';
   const onAccentInk = isAvoid ? '#2b0d07' : '#04201d';
   const [name, setName] = useStateBSH('');
@@ -466,15 +500,15 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>New {isAvoid ? 'to-don’t' : 'to-do'}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Something to <span style={{ fontStyle: 'italic', color: accent }}>{isAvoid ? 'avoid.' : 'do.'}</span></div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{isAvoid ? tr('habits:add.newToDont', { defaultValue: 'New to-don’t' }) : tr('habits:add.newToDo', { defaultValue: 'New to-do' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('habits:add.somethingTo', { defaultValue: 'Something to' })} <span style={{ fontStyle: 'italic', color: accent }}>{isAvoid ? tr('habits:add.emphAvoid', { defaultValue: 'avoid.' }) : tr('habits:add.emphDo', { defaultValue: 'do.' })}</span></div>
         <input
           ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
           maxLength={60}
-          placeholder={isAvoid ? 'e.g. No second coffee' : 'e.g. 10 min walk after lunch'}
+          placeholder={isAvoid ? tr('habits:add.placeholderAvoid', { defaultValue: 'e.g. No second coffee' }) : tr('habits:add.placeholderDo', { defaultValue: 'e.g. 10 min walk after lunch' })}
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 16, padding: '8px 0', background: 'transparent', color: t.INK, border: 0, borderBottom: `1px solid ${t.RULE}`, outline: 'none', fontFamily: t.DISPLAY, fontSize: 18 }}
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
@@ -486,9 +520,9 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
             The toggle covers hand-typed work habits. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
           <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: t.BLUE }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Work</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('habits:add.work', { defaultValue: 'Work' })}</span>
           <span aria-hidden style={{ flex: 1 }} />
-          <button onClick={() => setDomain(d => d === 'work' ? '' : 'work')} aria-pressed={domain === 'work'} style={{ background: 'transparent', border: `1px solid ${domain === 'work' ? t.BLUE : t.RULE}`, borderRadius: 999, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: domain === 'work' ? t.BLUE : t.INK50 }}>{domain === 'work' ? '✓ Work habit' : 'Work habit'}</button>
+          <button onClick={() => setDomain(d => d === 'work' ? '' : 'work')} aria-pressed={domain === 'work'} style={{ background: 'transparent', border: `1px solid ${domain === 'work' ? t.BLUE : t.RULE}`, borderRadius: 999, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: domain === 'work' ? t.BLUE : t.INK50 }}>{domain === 'work' ? tr('habits:add.workHabitOn', { defaultValue: '✓ Work habit' }) : tr('habits:add.workHabit', { defaultValue: 'Work habit' })}</button>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
           {workSuggestions.map(s => (
@@ -496,16 +530,16 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Points</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('habits:add.points', { defaultValue: 'Points' })}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button onClick={() => setPts(p => Math.max(1, p - 1))} aria-label="Fewer points" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>−</button>
+            <button onClick={() => setPts(p => Math.max(1, p - 1))} aria-label={tr('habits:add.fewerPoints', { defaultValue: 'Fewer points' })} style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>−</button>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: accent, letterSpacing: '-0.03em', minWidth: 44, textAlign: 'center' }}>+{pts}</span>
-            <button onClick={() => setPts(p => Math.min(20, p + 1))} aria-label="More points" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>+</button>
+            <button onClick={() => setPts(p => Math.min(20, p + 1))} aria-label={tr('habits:add.morePoints', { defaultValue: 'More points' })} style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>+</button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '14px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={add} disabled={!canAdd} style={{ flex: 1, padding: '14px', borderRadius: 999, border: 0, background: canAdd ? accent : t.RULE, color: canAdd ? onAccentInk : t.INK50, cursor: canAdd ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Add habit</button>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '14px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('habits:common.cancel', { defaultValue: 'Cancel' })}</button>
+          <button onClick={add} disabled={!canAdd} style={{ flex: 1, padding: '14px', borderRadius: 999, border: 0, background: canAdd ? accent : t.RULE, color: canAdd ? onAccentInk : t.INK50, cursor: canAdd ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('habits:add.addHabit', { defaultValue: 'Add habit' })}</button>
         </div>
       </div>
     </div>
@@ -536,6 +570,7 @@ function _bsMapServerHabits(rows) {
 // in one place persists everywhere. Server mutations update optimistically and
 // also mirror into tweaks so the home summary reflects them without a refetch.
 function _bsUseServerHabits(tweaks, setTweak) {
+  const tr = useShapeTr();
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
   const [serverHabits, setServerHabits] = useStateBSH(null);
 
@@ -577,7 +612,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
     if (useServer) {
       apiAction({ action: 'create', name: cleanName, type, cadence, visibility, pts: ptsVal, domain: dom })
         .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, pts: ptsVal, domain: (d.habit.domain === 'work' ? 'work' : dom), history: [] }])]); })
-        .catch(() => window.__bsToast?.('Could not add habit', 'err'));
+        .catch(() => window.__bsToast?.(tr('habits:toast.addError', { defaultValue: 'Could not add habit' }), 'err'));
       return;
     }
     saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', pts: ptsVal, domain: dom, history: [] }]);
@@ -592,7 +627,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
       } else {
         apiAction({ action: 'create', name: h.name, type: h.type, cadence: h.cadence || 'daily', visibility: h.visibility || 'private' })
           .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, history: h.history || [] }])]); })
-          .catch(() => window.__bsToast?.('Could not add habit', 'err'));
+          .catch(() => window.__bsToast?.(tr('habits:toast.addError', { defaultValue: 'Could not add habit' }), 'err'));
       }
       return;
     }
@@ -607,7 +642,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
     } else {
       saveLocal(local.filter(h => h.id !== id));
     }
-    window.__bsToast?.('Habit removed', 'ok');
+    window.__bsToast?.(tr('habits:toast.removed', { defaultValue: 'Habit removed' }), 'ok');
   };
 
   const setVisibility = (id, visibility) => {
@@ -618,15 +653,15 @@ function _bsUseServerHabits(tweaks, setTweak) {
       saveLocal(local.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
     }
     window.__bsToast?.(
-      visibility === 'public' ? 'Made public'
-        : visibility === 'friends' ? 'Shared with friends'
-        : 'Set to private',
+      visibility === 'public' ? tr('habits:toast.madePublic', { defaultValue: 'Made public' })
+        : visibility === 'friends' ? tr('habits:toast.sharedFriends', { defaultValue: 'Shared with friends' })
+        : tr('habits:toast.setPrivate', { defaultValue: 'Set to private' }),
       'ok',
     );
   };
 
   const toggle = (id) => {
-    if (window.bsRequireAccount && !window.bsRequireAccount('track habits')) return;
+    if (window.bsRequireAccount && !window.bsRequireAccount(tr('habits:gate.trackHabits', { defaultValue: 'track habits' }))) return;
     const applyToggle = (list) => list.map(h => {
       if (h.id !== id) return h;
       const hist = new Set(h.history || []);
@@ -638,7 +673,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
       setServer(applyToggle);
       apiAction({ action: 'toggle', id, date: _bsHabitsToday }).catch(() => {
         setServer(applyToggle); // revert the optimistic flip on failure
-        window.__bsToast?.('Could not update habit', 'err');
+        window.__bsToast?.(tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }), 'err');
       });
     } else {
       saveLocal(applyToggle(local));
@@ -651,6 +686,7 @@ function _bsUseServerHabits(tweaks, setTweak) {
 
 function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const { BSPage, BSDetailHeader } = window;
 
@@ -672,8 +708,8 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Section · Habits"
-        title={<>Daily <span style={{ color: teal }}>habits</span></>}
+        eyebrow={tr('habits:page.eyebrow', { defaultValue: 'Section · Habits' })}
+        title={<>{tr('habits:page.titleLead', { defaultValue: 'Daily' })} <span style={{ color: teal }}>{tr('habits:page.titleAccent', { defaultValue: 'habits' })}</span></>}
       />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
@@ -681,8 +717,8 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitGrid habits={habits} />
       </div>
-      <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} reminders={reminders} onReminderChange={loadReminders} />
-      <BSHabitSection title="To don't" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} reminders={reminders} onReminderChange={loadReminders} />
+      <BSHabitSection title={tr('habits:list.toDo', { defaultValue: 'To do' })} type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} reminders={reminders} onReminderChange={loadReminders} />
+      <BSHabitSection title={tr('habits:list.toDont', { defaultValue: "To don't" })} type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} reminders={reminders} onReminderChange={loadReminders} />
       <div style={{ height: 28 }} />
       {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>
