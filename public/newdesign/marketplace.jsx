@@ -40,10 +40,9 @@ function useActiveLeadBoost(role) {
   return active;
 }
 
-// Marketing portraits for the signed-out marketplace — a few faces so the page
-// reads as real people (the facet gem shows the photo, else 2 initials). Stable
-// Unsplash IDs, cropped to the face.
-const mkFace = (id) => `https://images.unsplash.com/photo-${id}?w=200&h=200&fit=crop&crop=faces&q=72&auto=format`;
+// Marketing portraits for the signed-out marketplace — the facet gem shows the
+// photo, else 2 initials. Self-hosted AI-generated portraits (one consistent set).
+const mkFace = (slug) => `/newdesign/faces/${slug}.jpg`;
 // Coach-chosen background image sitting behind the avatar (the "cover"). Rendered
 // darkened + tinted toward the tier color so the gem still pops and the page stays
 // cohesive. A few demo coaches carry one; real coaches set theirs in the profile
@@ -52,19 +51,19 @@ const mkBg = (id) => `https://images.unsplash.com/photo-${id}?w=640&h=480&fit=cr
 
 const COACHES_FULL = [
   // Trainers
-  { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rate: 120, rating: 4.97, sessions: 1284, tag: "Trainer", specialties: ["Strength", "Hypertrophy"], cert: "NASM-CPT", years: 9, format: "In-person", category: "Strength & Resistance", photo: mkFace("1438761681033-6461ffad8d80"), cover: mkBg("1534438327276-14e5300c3a48") },
-  { name: "Leo Martins", role: "Powerlifting", city: "Lisbon", rate: 105, rating: 4.86, sessions: 1120, tag: "Trainer", specialties: ["Powerlifting", "Strength"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Strength & Resistance", photo: mkFace("1502685104226-ee32379fefbe") },
+  { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rate: 120, rating: 4.97, sessions: 1284, tag: "Trainer", specialties: ["Strength", "Hypertrophy"], cert: "NASM-CPT", years: 9, format: "In-person", category: "Strength & Resistance", photo: mkFace("maya"), cover: mkBg("1534438327276-14e5300c3a48") },
+  { name: "Leo Martins", role: "Powerlifting", city: "Lisbon", rate: 105, rating: 4.86, sessions: 1120, tag: "Trainer", specialties: ["Powerlifting", "Strength"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Strength & Resistance", photo: mkFace("leo") },
   { name: "Anya Volkov", role: "Barbell Foundations", city: "Berlin", rate: 98, rating: 4.91, sessions: 680, tag: "Trainer", specialties: ["Strength", "Technique"], cert: "NSCA-CSCS", years: 6, format: "Hybrid", category: "Strength & Resistance" },
 
-  { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin, TX", rate: 95, rating: 4.92, sessions: 912, tag: "Trainer", specialties: ["Running", "VO2"], cert: "ACE-CPT", years: 7, format: "Hybrid", category: "Cardio & Endurance", photo: mkFace("1499996860823-5214fcc65f8f"), cover: mkBg("1461896836934-ffe607ba8211") },
+  { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin, TX", rate: 95, rating: 4.92, sessions: 912, tag: "Trainer", specialties: ["Running", "VO2"], cert: "ACE-CPT", years: 7, format: "Hybrid", category: "Cardio & Endurance", photo: mkFace("diego"), cover: mkBg("1461896836934-ffe607ba8211") },
   { name: "Kenji Watanabe", role: "Triathlon Coaching", city: "San Francisco", rate: 150, rating: 4.91, sessions: 590, tag: "Trainer", specialties: ["Triathlon", "Swimming"], cert: "USAT-L2", years: 14, format: "Hybrid", category: "Cardio & Endurance" },
   { name: "Hana Reyes", role: "Cycling & VO2", city: "Girona", rate: 110, rating: 4.88, sessions: 720, tag: "Trainer", specialties: ["Cycling", "Endurance"], cert: "USA-C-L2", years: 9, format: "Remote", category: "Cardio & Endurance" },
 
-  { name: "Jordan Park", role: "Mobility · PT Recovery", city: "Los Angeles", rate: 110, rating: 4.89, sessions: 1510, tag: "Trainer", specialties: ["Mobility", "Post-op"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("1506794778202-cad84cf45f1d") },
-  { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn, NY", rate: 90, rating: 4.93, sessions: 1680, tag: "Trainer", specialties: ["Yoga", "Breath"], cert: "RYT-500", years: 9, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("1544005313-94ddf0286df2"), cover: mkBg("1545205597-3d9d02c29597") },
+  { name: "Jordan Park", role: "Mobility · PT Recovery", city: "Los Angeles", rate: 110, rating: 4.89, sessions: 1510, tag: "Trainer", specialties: ["Mobility", "Post-op"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("jordan") },
+  { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn, NY", rate: 90, rating: 4.93, sessions: 1680, tag: "Trainer", specialties: ["Yoga", "Breath"], cert: "RYT-500", years: 9, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("priya"), cover: mkBg("1545205597-3d9d02c29597") },
   { name: "Sam Oduya", role: "Rehab & Return-to-Sport", city: "Atlanta", rate: 125, rating: 4.94, sessions: 540, tag: "Trainer", specialties: ["Rehab", "PT"], cert: "DPT · CSCS", years: 11, format: "In-person", category: "Mobility, Recovery & Rehab" },
 
-  { name: "Tomás Reyes", role: "CrossFit · Olympic Lifts", city: "Miami", rate: 130, rating: 4.88, sessions: 2010, tag: "Trainer", specialties: ["CrossFit", "Olympic"], cert: "CF-L3", years: 12, format: "In-person", category: "Functional & Hybrid", photo: mkFace("1507003211169-0a1dd7228f2d"), cover: mkBg("1571019613454-1cb2f99b2d8b") },
+  { name: "Tomás Reyes", role: "CrossFit · Olympic Lifts", city: "Miami", rate: 130, rating: 4.88, sessions: 2010, tag: "Trainer", specialties: ["CrossFit", "Olympic"], cert: "CF-L3", years: 12, format: "In-person", category: "Functional & Hybrid", photo: mkFace("tomas"), cover: mkBg("1571019613454-1cb2f99b2d8b") },
   { name: "Isla Park", role: "Hybrid Athlete", city: "Austin, TX", rate: 115, rating: 4.90, sessions: 640, tag: "Trainer", specialties: ["Hybrid", "Hyrox"], cert: "NSCA-CSCS", years: 7, format: "Hybrid", category: "Functional & Hybrid" },
 
   { name: "Marcus Hale", role: "Classic Bodybuilding", city: "Las Vegas", rate: 140, rating: 4.87, sessions: 980, tag: "Trainer", specialties: ["Hypertrophy", "Prep"], cert: "NASM · PN-1", years: 13, format: "In-person", category: "Bodybuilding" },
@@ -92,12 +91,12 @@ const COACHES_FULL = [
   { name: "Rafa Moreno", role: "Hyrox Strength & Run Carry-over", city: "Madrid", rate: 105, rating: 4.89, sessions: 440, tag: "Trainer", specialties: ["Hyrox", "Conditioning"], cert: "Hyrox-CT", years: 6, format: "In-person", category: "Hyrox" },
 
   // Nutritionists
-  { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration", photo: mkFace("1487412720507-e7ab37603c6f"), cover: mkBg("1490645935967-10de6ba17061") },
-  { name: "Claire Donovan", role: "Performance Nutrition", city: "London", rate: 130, rating: 4.93, sessions: 520, tag: "Nutritionist", specialties: ["Athlete fueling"], cert: "AfN-RNutr", years: 9, format: "Remote", category: "Performance Nutrition", photo: mkFace("1573497019940-1c28c88b4f3e") },
-  { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rate: 160, rating: 4.98, sessions: 420, tag: "Nutritionist", specialties: ["Auto-immune", "Gut"], cert: "AfN-RNutr", years: 13, format: "Remote", category: "Medical & Condition-Specific", photo: mkFace("1524504388940-b1c1722653e1"), cover: mkBg("1512621776951-a57141f2eefd") },
+  { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration", photo: mkFace("rae"), cover: mkBg("1490645935967-10de6ba17061") },
+  { name: "Claire Donovan", role: "Performance Nutrition", city: "London", rate: 130, rating: 4.93, sessions: 520, tag: "Nutritionist", specialties: ["Athlete fueling"], cert: "AfN-RNutr", years: 9, format: "Remote", category: "Performance Nutrition", photo: mkFace("claire") },
+  { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rate: 160, rating: 4.98, sessions: 420, tag: "Nutritionist", specialties: ["Auto-immune", "Gut"], cert: "AfN-RNutr", years: 13, format: "Remote", category: "Medical & Condition-Specific", photo: mkFace("sofia"), cover: mkBg("1512621776951-a57141f2eefd") },
   { name: "David Mehta", role: "Medical Nutrition Therapy", city: "Toronto", rate: 150, rating: 4.95, sessions: 380, tag: "Nutritionist", specialties: ["Diabetes", "Cardiac"], cert: "RD", years: 14, format: "Remote", category: "Medical & Condition-Specific" },
-  { name: "Ben Caldwell", role: "Muscle Gain & Bulking", city: "Sydney", rate: 110, rating: 4.87, sessions: 690, tag: "Nutritionist", specialties: ["Bulking", "Recomp"], cert: "APD", years: 7, format: "Remote", category: "Muscle Gain / Bulking", photo: mkFace("1521119989659-a83eee488004") },
-  { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rate: 125, rating: 4.95, sessions: 730, tag: "Nutritionist", specialties: ["GI health", "Functional"], cert: "RDN", years: 6, format: "Remote", category: "Gut Health & Functional Nutrition", photo: mkFace("1534528741775-53994a69daeb") },
+  { name: "Ben Caldwell", role: "Muscle Gain & Bulking", city: "Sydney", rate: 110, rating: 4.87, sessions: 690, tag: "Nutritionist", specialties: ["Bulking", "Recomp"], cert: "APD", years: 7, format: "Remote", category: "Muscle Gain / Bulking", photo: mkFace("ben") },
+  { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rate: 125, rating: 4.95, sessions: 730, tag: "Nutritionist", specialties: ["GI health", "Functional"], cert: "RDN", years: 6, format: "Remote", category: "Gut Health & Functional Nutrition", photo: mkFace("nadia") },
   { name: "Ingrid Olsen", role: "Longevity & Healthspan", city: "Copenhagen", rate: 145, rating: 4.96, sessions: 310, tag: "Nutritionist", specialties: ["Longevity", "Metabolic"], cert: "RD", years: 12, format: "Remote", category: "Longevity & Healthspan" },
   { name: "Ayo Adeyemi", role: "Weight Management", city: "Lagos", rate: 95, rating: 4.89, sessions: 820, tag: "Nutritionist", specialties: ["Weight", "Habits"], cert: "RD", years: 8, format: "Remote", category: "Weight Mgmt" },
   { name: "Liana Torres", role: "Plant-based Nutrition", city: "Madrid", rate: 105, rating: 4.92, sessions: 490, tag: "Nutritionist", specialties: ["Plant-based", "Athlete"], cert: "RD", years: 7, format: "Remote", category: "Plant-Based" },
@@ -120,20 +119,20 @@ const LOCATIONS = {
 const SPOTLIGHT = {
   Trainer: {
     kicker: "Spotlight · this week",
-    lead: { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rating: 4.97, sessions: 1284, years: 9, rate: 120, tag: "Top 1% strength", note: "Rebuilt her programming around tempo work — clients hitting PRs 30% faster on average. Books the last Friday of the month free for 2nd-opinion intros.", photo: mkFace("1438761681033-6461ffad8d80"), cover: mkBg("1534438327276-14e5300c3a48") },
+    lead: { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rating: 4.97, sessions: 1284, years: 9, rate: 120, tag: "Top 1% strength", note: "Rebuilt her programming around tempo work — clients hitting PRs 30% faster on average. Books the last Friday of the month free for 2nd-opinion intros.", photo: mkFace("maya"), cover: mkBg("1534438327276-14e5300c3a48") },
     side: [
-      { name: "Tomás Reyes", role: "CrossFit · Olympic", city: "Miami", rating: 4.88, rate: 130, note: "Olympic lifts with clean fundamentals.", photo: mkFace("1507003211169-0a1dd7228f2d") },
-      { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn", rating: 4.93, rate: 90, note: "Rehab-adjacent mobility. Waitlist open.", photo: mkFace("1544005313-94ddf0286df2") },
-      { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin", rating: 4.92, rate: 95, note: "Took 4 clients to sub-3 last season.", photo: mkFace("1499996860823-5214fcc65f8f") },
+      { name: "Tomás Reyes", role: "CrossFit · Olympic", city: "Miami", rating: 4.88, rate: 130, note: "Olympic lifts with clean fundamentals.", photo: mkFace("tomas") },
+      { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn", rating: 4.93, rate: 90, note: "Rehab-adjacent mobility. Waitlist open.", photo: mkFace("priya") },
+      { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin", rating: 4.92, rate: 95, note: "Took 4 clients to sub-3 last season.", photo: mkFace("diego") },
     ],
   },
   Nutritionist: {
     kicker: "Spotlight · this week",
-    lead: { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rating: 5.00, sessions: 640, years: 11, rate: 140, tag: "5-star, 640+ sessions", note: "Built fueling plans for 3 Olympic endurance athletes. Specializes in plans that survive real life — travel, kids, shift work.", photo: mkFace("1487412720507-e7ab37603c6f"), cover: mkBg("1490645935967-10de6ba17061") },
+    lead: { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rating: 5.00, sessions: 640, years: 11, rate: 140, tag: "5-star, 640+ sessions", note: "Built fueling plans for 3 Olympic endurance athletes. Specializes in plans that survive real life — travel, kids, shift work.", photo: mkFace("rae"), cover: mkBg("1490645935967-10de6ba17061") },
     side: [
-      { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rating: 4.98, rate: 160, note: "Auto-immune & gut specialist.", photo: mkFace("1524504388940-b1c1722653e1") },
-      { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rating: 4.95, rate: 125, note: "Plant-forward GI protocols.", photo: mkFace("1534528741775-53994a69daeb") },
-      { name: "Ben Caldwell", role: "Muscle Gain & Bulking", city: "Sydney", rating: 4.87, rate: 110, note: "Lean recomp for natural lifters.", photo: mkFace("1521119989659-a83eee488004") },
+      { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rating: 4.98, rate: 160, note: "Auto-immune & gut specialist.", photo: mkFace("sofia") },
+      { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rating: 4.95, rate: 125, note: "Plant-forward GI protocols.", photo: mkFace("nadia") },
+      { name: "Ben Caldwell", role: "Muscle Gain & Bulking", city: "Sydney", rating: 4.87, rate: 110, note: "Lean recomp for natural lifters.", photo: mkFace("ben") },
     ],
   },
 };
