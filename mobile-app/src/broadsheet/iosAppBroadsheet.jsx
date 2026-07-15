@@ -1544,17 +1544,34 @@ function BSPhone({ children }) {
 // the right. Never inside the masthead row, never top-right, never bottom.
 // BSDetailHeader (client) and BSMasthead/BSPageHeader's `onBack` slot are the
 // canonical implementations — new pages use one of those, not an ad-hoc copy.
-function BSBackButton({ onClick, label = 'Back', style }) {
+// The i18n translator for this shared-chrome module. Mirrors client.jsx's
+// useShapeTr — self-contained on the window globals (ShapeI18n/ShapeLocale),
+// so the chrome primitives here don't depend on client.jsx's copy or its load
+// order. Returns opts.defaultValue when a key is missing.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+
+function BSBackButton({ onClick, label = null, style }) {
   const t = useBS();
+  const tr = useShapeTr();
+  // Default label localizes to the shared common:action.back; a caller that
+  // passes an explicit label (e.g. a screen name) still wins.
+  const lbl = label != null ? label : tr('common:action.back', { defaultValue: 'Back' });
   return (
-    <button type="button" onClick={onClick} aria-label={label} style={{
+    <button type="button" onClick={onClick} aria-label={lbl} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       background: 'transparent', border: 0,
       padding: '8px 2px', cursor: 'pointer', color: t.INK,
       fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em',
       textTransform: 'uppercase', lineHeight: 1, flexShrink: 0, ...style,
     }}>
-      <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>{label}
+      <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>{lbl}
     </button>
   );
 }
