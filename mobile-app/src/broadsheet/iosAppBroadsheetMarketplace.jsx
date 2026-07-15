@@ -1621,7 +1621,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[
             [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
-            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
+            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount != null ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
             [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
             [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
           ].map(([l, v]) => (
