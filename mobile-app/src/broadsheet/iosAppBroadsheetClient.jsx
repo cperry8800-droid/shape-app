@@ -8623,6 +8623,7 @@ async function bsRepostPost({ postId, who, title, body }) {
 }
 function BSPostSheetShell({ title, onClose, INK, BG, z, children }) {
   const t = useBS();
+  const tr = useShapeTr();
   const ink = INK || t.INK, bg = BG || t.PAPER;
   const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const sheet = (
@@ -8630,7 +8631,7 @@ function BSPostSheetShell({ title, onClose, INK, BG, z, children }) {
       <div style={{ background: bg, borderRadius: '18px 18px 0 0', border: `1px solid ${bsTHexA(ink, 0.14)}`, borderBottom: 0, padding: '15px 16px calc(18px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(ink, 0.6) }}>{title}</span>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(ink, 0.5), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, padding: 2, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label={tr('feed:sheet.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: bsTHexA(ink, 0.5), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, padding: 2, lineHeight: 1 }}>✕</button>
         </div>
         {children}
       </div>
@@ -8640,6 +8641,7 @@ function BSPostSheetShell({ title, onClose, INK, BG, z, children }) {
 }
 function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
   const t = useBS();
+  const tr = useShapeTr();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const [draft, setDraft] = React.useState('');
@@ -8652,14 +8654,14 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
       await window.ShapeCommunity.addComment({ postId: post.postId, body });
       onAdded({ who: 'You', text: body });
       setDraft('');
-    } catch (e) { window.__bsToast?.('Could not comment — try again.', 'error'); }
+    } catch (e) { window.__bsToast?.(tr('feed:comments.error', { defaultValue: 'Could not comment — try again.' }), 'error'); }
     setBusy(false);
   };
   return (
-    <BSPostSheetShell title={`Comments · ${comments.length}`} onClose={onClose} INK={ink} BG={BG}>
+    <BSPostSheetShell title={`${tr('feed:comments.title', { defaultValue: 'Comments' })} · ${comments.length}`} onClose={onClose} INK={ink} BG={BG}>
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 60, overflowY: 'auto' }}>
         {comments.length === 0 ? (
-          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>No comments yet — say something.</div>
+          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{tr('feed:comments.empty', { defaultValue: 'No comments yet — say something.' })}</div>
         ) : comments.map((cm, i) => (
           <div key={i} style={{ padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{cm.who || 'Member'}</div>
@@ -8668,15 +8670,16 @@ function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} placeholder="Add a comment…"
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} placeholder={tr('feed:comments.placeholder', { defaultValue: 'Add a comment…' })}
           style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '10px 13px', borderRadius: 999, border: `1px solid ${bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-        <button disabled={busy || !draft.trim()} onClick={send} style={{ flexShrink: 0, padding: '10px 16px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy || !draft.trim() ? 0.55 : 1 }}>Post</button>
+        <button disabled={busy || !draft.trim()} onClick={send} style={{ flexShrink: 0, padding: '10px 16px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy || !draft.trim() ? 0.55 : 1 }}>{tr('feed:comments.post', { defaultValue: 'Post' })}</button>
       </div>
     </BSPostSheetShell>
   );
 }
 function BSPostSendSheet({ post, onClose, c, INK, BG }) {
   const t = useBS();
+  const tr = useShapeTr();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const [q, setQ] = React.useState('');
@@ -8685,7 +8688,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
   // Single sign-in gate for every ✉ entry point (posts, activities, channels).
   React.useEffect(() => {
     const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-    if (!signedIn) { window.__bsToast?.('Sign in to send messages.', 'info'); onClose(); }
+    if (!signedIn) { window.__bsToast?.(tr('feed:send.signIn', { defaultValue: 'Sign in to send messages.' }), 'info'); onClose(); }
   }, []);
   React.useEffect(() => {
     let dead = false;
@@ -8714,23 +8717,23 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
         const snippet = [post.title, post.body].filter(Boolean).join(' — ').slice(0, 200);
         await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Shared ${post.who ? `${post.who}'s` : 'a'} post: “${snippet || 'Activity'}”`, metadata: { kind: 'shared_post', post_id: post.postId || null } });
       }
-      window.__bsToast?.(`Sent to ${m.name}`, 'ok');
+      window.__bsToast?.(tr('feed:send.sent', { defaultValue: 'Sent to {name}', name: m.name }), 'ok');
       onClose();
-    } catch (e) { window.__bsToast?.('Could not send — try again.', 'error'); }
+    } catch (e) { window.__bsToast?.(tr('feed:send.error', { defaultValue: 'Could not send — try again.' }), 'error'); }
     setBusy('');
   };
   return (
-    <BSPostSheetShell title={post.channel ? `Send #${post.channel.name} to` : post.playlist ? `Send “${post.playlist.name}” to` : 'Send to'} onClose={onClose} INK={ink} BG={BG}>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
+    <BSPostSheetShell title={post.channel ? tr('feed:send.titleChannel', { defaultValue: 'Send #{name} to', name: post.channel.name }) : post.playlist ? tr('feed:send.titlePlaylist', { defaultValue: 'Send “{name}” to', name: post.playlist.name }) : tr('feed:send.title', { defaultValue: 'Send to' })} onClose={onClose} INK={ink} BG={BG}>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
         {people.length === 0 ? (
-          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? 'No one found.' : 'Search for someone to send this to.'}</div>
+          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? tr('feed:send.noneFound', { defaultValue: 'No one found.' }) : tr('feed:send.empty', { defaultValue: 'Search for someone to send this to.' })}</div>
         ) : people.map((m, i) => (
           <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '10px 2px', display: 'flex', alignItems: 'center', gap: 11, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
             <BSFacetAvatar size={32} c={bsTierColor(bsPostTier({ who: m.name }))} initial={bsInitials(m.name)} name={m.name} showRank={false} />
             <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: busy === m.id ? bsTHexA(ink, 0.4) : accent }}>{busy === m.id ? 'Sending…' : 'Send →'}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: busy === m.id ? bsTHexA(ink, 0.4) : accent }}>{busy === m.id ? tr('feed:send.sending', { defaultValue: 'Sending…' }) : tr('feed:send.send', { defaultValue: 'Send →' })}</span>
           </button>
         ))}
       </div>
@@ -8739,6 +8742,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
 }
 function BSPostActions({ post, c, INK, BG, onReposted, onEdit }) {
   const t = useBS();
+  const tr = useShapeTr();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const [lk, setLk] = React.useState({ n: post.likes || 0, on: !!post.liked });
@@ -8749,8 +8753,8 @@ function BSPostActions({ post, c, INK, BG, onReposted, onEdit }) {
   const real = !!post.postId;
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const guard = () => {
-    if (!real) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return false; }
-    if (!signedIn) { window.__bsToast?.('Sign in to do that.', 'info'); return false; }
+    if (!real) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return false; }
+    if (!signedIn) { window.__bsToast?.(tr('feed:toast.signInDo', { defaultValue: 'Sign in to do that.' }), 'info'); return false; }
     return true;
   };
   const pill = (on) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 10px', background: on ? bsTHexA(accent, 0.12) : 'transparent', color: on ? accent : bsTHexA(ink, 0.55), border: `1px solid ${on ? bsTHexA(accent, 0.7) : bsTHexA(ink, 0.18)}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' });
@@ -8763,21 +8767,21 @@ function BSPostActions({ post, c, INK, BG, onReposted, onEdit }) {
   const doRepost = async () => {
     if (!guard() || reBusy) return;
     setReBusy(true);
-    try { await bsRepostPost(post); window.__bsToast?.('Reposted to your feed', 'ok'); onReposted && onReposted(); }
-    catch (e) { window.__bsToast?.('Could not repost.', 'error'); }
+    try { await bsRepostPost(post); window.__bsToast?.(tr('feed:action.reposted', { defaultValue: 'Reposted to your feed' }), 'ok'); onReposted && onReposted(); }
+    catch (e) { window.__bsToast?.(tr('feed:action.repostError', { defaultValue: 'Could not repost.' }), 'error'); }
     setReBusy(false);
   };
   const iconPill = { ...pill(false), width: 27, height: 27, boxSizing: 'border-box', padding: 0, justifyContent: 'center', flexShrink: 0 };
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(ink, 0.1)}` }}>
-        <button aria-label="Like" onClick={doLike} style={{ ...pill(lk.on), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('heart', 12, lk.on)}{lk.n ? <span>{lk.n}</span> : null}</button>
-        <button aria-label="Comment" onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={{ ...pill(openC), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('comment', 12)}{cmts.length ? <span>{cmts.length}</span> : null}</button>
+        <button aria-label={tr('feed:action.like', { defaultValue: 'Like' })} onClick={doLike} style={{ ...pill(lk.on), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('heart', 12, lk.on)}{lk.n ? <span>{lk.n}</span> : null}</button>
+        <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={{ ...pill(openC), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('comment', 12)}{cmts.length ? <span>{cmts.length}</span> : null}</button>
         <span style={{ marginLeft: 'auto' }} />
-        <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>{bsFeedIcon('send', 13)}</button>
-        <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>{bsFeedIcon('share', 13)}</button>
-        <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>{bsFeedIcon('repost', 13)}</button>
-        {onEdit && post.postId && <button aria-label="Edit post" onClick={onEdit} style={{ ...iconPill, fontSize: 13 }}>✎</button>}
+        <button aria-label={tr('feed:action.sendPrivately', { defaultValue: 'Send privately' })} onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>{bsFeedIcon('send', 13)}</button>
+        <button aria-label={tr('feed:action.share', { defaultValue: 'Share' })} onClick={() => bsSharePostExternal(post)} style={iconPill}>{bsFeedIcon('share', 13)}</button>
+        <button aria-label={tr('feed:action.repost', { defaultValue: 'Repost' })} disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>{bsFeedIcon('repost', 13)}</button>
+        {onEdit && post.postId && <button aria-label={tr('feed:action.editPost', { defaultValue: 'Edit post' })} onClick={onEdit} style={{ ...iconPill, fontSize: 13 }}>✎</button>}
       </div>
       {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
       {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
@@ -12851,6 +12855,7 @@ function useBSCardSheets() {
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
 function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
+  const tr = useShapeTr();
   const {
     t, cardInk, muted, hair, card,
     actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
@@ -12993,7 +12998,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                     and demo/PR cards have no postId, so this stays profile-own-posts.
                     44px hit target (negative vertical margins keep the slim row
                     height); the visible ✎ circle stays 22px. */}
-                {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ margin: '-11px 0 -11px auto', flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button>}
+                {onEdit && a.postId && <button aria-label={tr('feed:card.editActivity', { defaultValue: 'Edit activity' })} onClick={() => onEdit(a)} style={{ margin: '-11px 0 -11px auto', flexShrink: 0, background: 'transparent', border: 0, width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}><span aria-hidden style={{ width: 22, height: 22, border: `1px solid ${hair}`, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, boxSizing: 'border-box' }}>✎</span></button>}
                 <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
             ) : (
@@ -13004,7 +13009,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                   <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
                   <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.ago', { defaultValue: '{time} ago', time: a.ago })} · {a.city}</div>
               </div>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
@@ -13012,7 +13017,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {/* HERO — activity name + the promoted primary metric. Tapping the
               title/metric/caption (or the route below) opens the full session-
               details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
+          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label={tr('feed:card.openSessionDetails', { defaultValue: 'Open session details' })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
             {/* honest hero figure — posts with no hero stat skip this block
                 entirely (never a fabricated placeholder). Eyebrow sits ABOVE
@@ -13050,7 +13055,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {a.photo && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
           {a.video && (bsIsDirectVideoUrl(a.video)
             ? <video src={a.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: 10, background: '#000' }} />
-            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 12, boxSizing: 'border-box' }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
+            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 12, boxSizing: 'border-box' }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('feed:card.watchVideo', { defaultValue: 'Watch video' })}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
           {a.link && <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, color: muted, display: 'grid', placeItems: 'center', fontSize: 13, boxSizing: 'border-box' }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontWeight: 600, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.link.title || bsLinkHost(a.link.url)}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.link.url)} ↗</span></span></a>}
           {/* coach attribution — honest slot: renders ONLY when the post names a
               program + coach; suppressed entirely for self-coached / opted-out.
@@ -13059,7 +13064,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               + eligibility carried verbatim; 44px target from invisible height. */}
           {coachLine && (
             <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, marginTop: 2, background: 'transparent', border: 0, borderRadius: 0, padding: '2px 0', cursor: 'pointer', textAlign: 'left' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>Programmed by</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, flexShrink: 0 }}>{tr('feed:card.programmedBy', { defaultValue: 'Programmed by' })}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat, flexShrink: 0 }}>›</span>
             </button>
@@ -13077,14 +13082,14 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             // to say (review round — never "0 g", never a fabricated
             // "Adjusted").
             const plateRows = bsMealMenuLines(a.meal);
-            const stamp = a.meal.planned === true ? 'As planned' : a.meal.planned === false ? 'Adjusted' : null;
+            const stamp = a.meal.planned === true ? tr('feed:card.plateAsPlanned', { defaultValue: 'As planned' }) : a.meal.planned === false ? tr('feed:card.plateAdjusted', { defaultValue: 'Adjusted' }) : null;
             const stampLine = [stamp, a.meal.portion ? `${a.meal.portion}×` : null].filter(Boolean).join(' · ');
-            const attribution = a.meal.coach ? `From ${a.meal.coach}'s plan` : a.meal.recipeId ? 'Kitchen Card recipe' : null;
+            const attribution = a.meal.coach ? tr('feed:card.plateFromCoachPlan', { defaultValue: "From {coach}'s plan", coach: a.meal.coach }) : a.meal.recipeId ? tr('feed:card.plateKitchenCard', { defaultValue: 'Kitchen Card recipe' }) : null;
             return (
               <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 9px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
                   <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
-                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The plate</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>{tr('feed:card.plateTitle', { defaultValue: 'The plate' })}</span>
                   <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
                 </div>
                 {plateRows.length > 0 && (
@@ -13119,7 +13124,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             <div style={{ marginTop: 12, border: `1px solid ${hair}`, borderRadius: 12, padding: '11px 14px 11px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-hidden="true">
                 <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>The appointments</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted }}>{tr('feed:card.appointmentsTitle', { defaultValue: 'The appointments' })}</span>
                 <span style={{ flex: 1, borderTop: `1px solid ${bsTHexA(t.INK, 0.16)}` }} />
               </div>
               <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -13150,9 +13155,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               </div>
             </div>
           ) : showRoute && (
-            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label={tr('feed:card.gpsNotRecordedAria', { defaultValue: 'GPS not recorded' })}>
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px' }}>GPS · Not recorded</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px' }}>{tr('feed:card.gpsNotRecorded', { defaultValue: 'GPS · Not recorded' })}</span>
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
             </div>
           )}
@@ -13163,7 +13168,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               closes the section) and no button chrome; the 44px tap target
               comes from invisible vertical padding, not a visible bar. */}
           <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, marginTop: 11, padding: '14px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Session details · full activity</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('feed:card.sessionDetails', { defaultValue: 'Session details · full activity' })}</span>
             <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat }}>›</span>
           </button>
           {/* coach co-sign → PRESS CREDIT (graft, binding over the base concept's
@@ -13178,7 +13183,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderRadius: 0, padding: '2px 0', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('feed:card.cosigned', { defaultValue: 'co-signed · {role}', role: String(coSign.role).toLowerCase() === 'nutritionist' ? tr('feed:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('feed:role.coach', { defaultValue: 'Coach' }) })}</span>
               </button>
             </div>
           )}
@@ -13194,7 +13199,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                   <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
                 );
               })}
-              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
+              <button aria-label={tr('feed:card.closeReactions', { defaultValue: 'Close reactions' })} onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
             </div>
           )}
           {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
@@ -13203,8 +13208,8 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
           {likeFacepile.length > 0 && (() => {
             const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
             const fpLabel = fpNames.length
-              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
-              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
+              ? (followedLikers.length === 1 ? tr('feed:card.facepileOne', { defaultValue: '{name} reacted', name: fpNames[0] }) : tr('feed:card.facepileSome', { defaultValue: '{name} + {count} you follow reacted', name: fpNames[0].split(' ')[0], count: followedLikers.length - 1 }))
+              : tr('feed:card.facepileCount', { defaultValue: '{count, plural, one {# person you follow reacted} other {# people you follow reacted}}', count: followedLikers.length });
             return (
               <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 44, width: '100%', marginTop: 12, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
@@ -13242,19 +13247,19 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
               onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-              title="Hold for more reactions"
+              title={tr('feed:card.holdForReactions', { defaultValue: 'Hold for more reactions' })}
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, boxSizing: 'border-box', padding: '0 14px', borderRadius: 6, whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, ...(liked ? { background: heat, color: '#fff' } : { background: bsTHexA(heat, 0.08), color: heat }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></span>
             </button>
             <button
-              aria-label={`Comments · ${commentCount}`}
+              aria-label={`${tr('feed:card.comments', { defaultValue: 'Comments' })} · ${commentCount}`}
               onClick={() => openDetail('comments')}
               onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
               onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('comment', 15)}<span>{commentCount}</span></button>
             <button
-              aria-label="Share"
+              aria-label={tr('feed:action.share', { defaultValue: 'Share' })}
               onClick={() => {
                 // OWN real activities get the chooser (link vs the story-ready
                 // image — spec 2026-07-13); everyone else's cards keep the
@@ -13269,15 +13274,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('share', 15)}</button>
             <button
-              aria-label="Send privately"
-              onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }}
+              aria-label={tr('feed:action.sendPrivately', { defaultValue: 'Send privately' })}
+              onClick={() => { if (!a.postId) { window.__bsToast?.(tr('feed:toast.sampleActivity', { defaultValue: 'Sample activity — engagement lights up on real ones.' }), 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }}
               onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
               onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('send', 15)}</button>
             <button
-              aria-label="Repost"
-              onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }}
+              aria-label={tr('feed:action.repost', { defaultValue: 'Repost' })}
+              onClick={async () => { if (!a.postId) { window.__bsToast?.(tr('feed:toast.sampleActivity', { defaultValue: 'Sample activity — engagement lights up on real ones.' }), 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.(tr('feed:action.reposted', { defaultValue: 'Reposted to your feed' }), 'ok'); } catch (e) { window.__bsToast?.(tr('feed:action.repostError', { defaultValue: 'Could not repost.' }), 'error'); } }}
               onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
               onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
@@ -13295,7 +13300,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
             <div style={{ marginTop: 11 }}>
               <button onClick={() => openDetail('comments')} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, width: '100%', padding: '11px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
                 <span aria-hidden style={{ display: 'inline-block', width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Comments · {commentCount} ›</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('feed:card.comments', { defaultValue: 'Comments' })} · {commentCount} ›</span>
               </button>
               {followedComments.length > 0 && followedComments.slice(0, 2).map((c, i) => (
                 <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
@@ -13348,6 +13353,7 @@ const COMMUNITY_ACTIVITIES = [
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
+  const tr = useShapeTr();
   useBSPresence(); // re-render avatars as people come online / go offline
   const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
   const [tab, setTab] = useStateBSC('feed');
@@ -13490,7 +13496,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
   const threadRows = (coachThreads || []).map((th, i) => ({
     n: th.who || 'Coach',
-    s: th.provider_role === 'nutritionist' ? 'Your nutritionist' : th.provider_role === 'trainer' ? 'Your coach' : 'Direct message',
+    s: th.provider_role === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : th.provider_role === 'trainer' ? tr('feed:thread.yourCoach', { defaultValue: 'Your coach' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' }),
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
@@ -13507,7 +13513,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
-      setOpenChat({ n: name || 'Client', s: openRequest.role || 'Direct message', c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      setOpenChat({ n: name || 'Client', s: openRequest.role || tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
       return;
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
@@ -13576,7 +13582,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   }, [loadMemberThreads, loadCoachThreads]);
   const friendRows = (memberThreads || []).map((th, i) => ({
     n: th.who || 'Member',
-    s: 'Direct message',
+    s: tr('feed:thread.directMessage', { defaultValue: 'Direct message' }),
     c: _threadPalette[i % _threadPalette.length],
     i: (th.who || 'M').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
@@ -13591,8 +13597,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     try {
       const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: m.id });
       if (res && res.data) convId = res.data;
-    } catch (e) { window.__bsToast?.(e?.message || 'Could not start conversation.', 'err'); }
-    setOpenChat({ n: nm, s: 'Direct message', c: pal[nm.length % pal.length], i: nm.trim().charAt(0).toUpperCase(), messages: [], dm: true, conversation_id: convId });
+    } catch (e) { window.__bsToast?.(e?.message || tr('feed:feed.convError', { defaultValue: 'Could not start conversation.' }), 'err'); }
+    setOpenChat({ n: nm, s: tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: pal[nm.length % pal.length], i: nm.trim().charAt(0).toUpperCase(), messages: [], dm: true, conversation_id: convId });
     loadMemberThreads();
   };
   const refreshChannels = React.useCallback(() => {
@@ -13612,14 +13618,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // Optimistic: show it immediately (also lets the demo/preview work without a
     // signed-in session). The backend call persists it when authenticated.
     setChannels(prev => [{ id: 'tmp-ch-' + Date.now(), name, description: '', memberCount: 1, joined: true, isHost: true, private: isPrivate, pinned: false, last: '' }, ...(prev || [])]);
-    window.__bsToast?.(`Created “${name}”`, 'ok');
+    window.__bsToast?.(tr('feed:channels.createdToast', { defaultValue: 'Created “{name}”', name }), 'ok');
     const p = window.ShapeChannels?.create?.({ name, visibility: isPrivate ? 'private' : 'public' });
-    if (p && p.then) p.then(() => refreshChannels()).catch((e) => window.__bsToast?.(e?.message || 'Saved locally — sign in to sync.', 'info'));
+    if (p && p.then) p.then(() => refreshChannels()).catch((e) => window.__bsToast?.(e?.message || tr('feed:channels.savedLocally', { defaultValue: 'Saved locally — sign in to sync.' }), 'info'));
   };
   const pinChannelNow = (ch) => {
     const next = !ch.pinned;
     setPinOverride(o => ({ ...o, [ch.id]: next }));
-    window.__bsToast?.(next ? 'Pinned to top' : 'Unpinned', 'ok');
+    window.__bsToast?.(next ? tr('feed:channels.pinnedToast', { defaultValue: 'Pinned to top' }) : tr('feed:channels.unpinnedToast', { defaultValue: 'Unpinned' }), 'ok');
     // Only persist for real backend channels — sample/support rows are local-only.
     const local = String(ch.id || '').startsWith('sample') || ch.id === 'support';
     if (local) return;
@@ -13629,14 +13635,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const joinChannelNow = (ch) => {
     window.ShapeUnread?.noteChannel?.(ch.id);
     setChannels(prev => (prev || []).map(c => c.id === ch.id ? { ...c, joined: true, memberCount: (c.memberCount || 0) + 1 } : c));
-    window.__bsToast?.(`Joined ${ch.name}`, 'ok');
+    window.__bsToast?.(tr('feed:channels.joinedToast', { defaultValue: 'Joined {name}', name: ch.name }), 'ok');
     const p = window.ShapeChannels?.join?.(ch.id);
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
     const mc = ch.memberCount || 0;
-    const finish = (msgs) => setOpenChat({ n: ch.name, s: `${mc} member${mc === 1 ? '' : 's'}`, channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc });
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: mc }), channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc });
     if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -13648,7 +13654,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return () => { active = false; };
   }, [addMemberFor, memberQuery]);
   const addMemberNow = (m) => {
-    window.__bsToast?.(`Added ${m.name}`, 'ok');
+    window.__bsToast?.(tr('feed:channels.addedToast', { defaultValue: 'Added {name}', name: m.name }), 'ok');
     const p = window.ShapeChannels?.addMember?.({ channelId: addMemberFor.id, userId: m.id });
     if (p && p.then) p.then(() => refreshChannels()).catch(() => {});
   };
@@ -13710,11 +13716,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     </button>
   );
   const ROLE = {
-    SHAPE: { color: TEALB, label: 'Client' },
-    TRAINER: { color: '#ff7a59', label: 'Trainer' },
-    CLIENT: { color: '#2ee0c4', label: 'Client' },
-    NUTRI: { color: '#e0b15a', label: 'Nutritionist' },
-    COMMUNITY: { color: '#8a5cf6', label: 'Community' },
+    SHAPE: { color: TEALB, label: tr('feed:roleTag.client', { defaultValue: 'Client' }) },
+    TRAINER: { color: '#ff7a59', label: tr('feed:roleTag.trainer', { defaultValue: 'Trainer' }) },
+    CLIENT: { color: '#2ee0c4', label: tr('feed:roleTag.client', { defaultValue: 'Client' }) },
+    NUTRI: { color: '#e0b15a', label: tr('feed:roleTag.nutritionist', { defaultValue: 'Nutritionist' }) },
+    COMMUNITY: { color: '#8a5cf6', label: tr('feed:roleTag.community', { defaultValue: 'Community' }) },
   };
   // Feed chips depend on the signed-in role: everyone sees Shape + Community,
   // plus only their own role's chip (Client / Trainer / Nutri).
@@ -13726,7 +13732,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const CHIP_KEYS = ['COMMUNITY', myRoleChip, 'SHAPE'];
   // Display labels: per request the Community and Shape chips are swapped in chat
   // (the activity feed reads "Shape", the members feed reads "Community").
-  const chipLabel = (k) => (k === 'COMMUNITY' ? 'SHAPE' : k === 'SHAPE' ? 'COMMUNITY' : k);
+  const chipLabel = (k) => (
+    k === 'COMMUNITY' ? tr('feed:chip.shape', { defaultValue: 'Shape' })
+    : k === 'SHAPE' ? tr('feed:chip.community', { defaultValue: 'Community' })
+    : k === 'TRAINER' ? tr('feed:chip.trainer', { defaultValue: 'Trainer' })
+    : k === 'NUTRI' ? tr('feed:chip.nutritionist', { defaultValue: 'Nutritionist' })
+    : tr('feed:chip.client', { defaultValue: 'Client' })
+  );
   const SAMPLE = [
     // SHAPE = individual members (the general community)
     { id: 's1', who: 'Emma Rivera', kind: 'SHAPE', init: 'E', hue: '#2e6fa0', time: '1h', body: 'New to Shape this week, coming off a long layoff. Any tips for not going too hard the first couple weeks?', hearts: 22, replies: 15 },
@@ -13895,8 +13907,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const mentions = mentionsPayload();
     setTagged([]);
     setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body, mentions, hearts: 0, replies: 0 }, ...prev]);
-    try { await window.ShapeCommunity?.createPost?.({ title: body || 'Tagged', note: body, channel: kind, privacy: 'community', mentions }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
+    try { await window.ShapeCommunity?.createPost?.({ title: body || 'Tagged', note: body, channel: kind, privacy: 'community', mentions }); window.__bsToast?.(tr('feed:feed.postedTo', { defaultValue: 'Posted to {where}', where }), 'ok'); }
+    catch (e) { window.__bsToast?.(e?.message || tr('feed:feed.postError', { defaultValue: 'Could not post.' }), 'err'); }
   };
   // Photo post — upload to community-photos then create a post carrying the URL.
   const feedPhotoRef = React.useRef(null);
@@ -13920,8 +13932,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       setDraft(''); setTagged([]);
       setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body: caption, photo: url, mentions, hearts: 0, replies: 0 }, ...prev]);
       await window.ShapeCommunity?.createPost?.({ title: caption || 'Photo', note: caption, channel: kind, privacy: 'community', photoUrl: url, mentions });
-      window.__bsToast?.(`Photo posted to ${where}`, 'ok');
-    } catch (err) { window.__bsToast?.(err?.message || 'Could not post photo.', 'err'); }
+      window.__bsToast?.(tr('feed:feed.photoPostedTo', { defaultValue: 'Photo posted to {where}', where }), 'ok');
+    } catch (err) { window.__bsToast?.(err?.message || tr('feed:feed.photoError', { defaultValue: 'Could not post photo.' }), 'err'); }
     finally { setPhotoBusy(false); }
   };
   const like = (p) => {
@@ -14053,7 +14065,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const AV_OFFSET = 49; // avatar (38) + gap (11), to align meta/reactions under the bubble
     return (
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
-        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
+        {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> {tr('feed:bubble.pinned', { defaultValue: 'Pinned' })}</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
           <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? (bsMyPhoto() || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
           <div style={{ minWidth: 0 }}>
@@ -14067,7 +14079,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12 }} />}
               {Array.isArray(p.mentions) && p.mentions.length > 0 && (
                 <div style={{ padding: p.photo ? '8px 10px 2px' : '8px 0 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: p.official ? '#5a534a' : muted }}>
-                  with {p.mentions.map((mn, mi) => (
+                  {tr('feed:bubble.with', { defaultValue: 'with' })} {p.mentions.map((mn, mi) => (
                     <React.Fragment key={mi}>
                       <button onClick={() => mn.userId && setOpenProfile({ who: mn.name, userId: mn.userId, kind: 'CLIENT', tier: bsPostTier({ who: mn.name }), init: bsInitials(mn.name), public: true })} style={{ background: 'transparent', border: 0, padding: 0, cursor: mn.userId ? 'pointer' : 'default', fontFamily: 'inherit', fontSize: 'inherit', color: tc, fontWeight: 700 }}>@{mn.name}</button>
                       {mi < p.mentions.length - 1 ? ', ' : ''}
@@ -14079,13 +14091,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
-          <button aria-label="Like" onClick={() => like(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: p.liked ? (t.isLight ? '#c0392b' : '#ff6b6b') : muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>{bsFeedIcon('heart', 13, !!p.liked)}<span>{p.hearts}</span></button>
-          <button aria-label="Comment" onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
-          <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
-          <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
-          <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
+          <button aria-label={tr('feed:action.like', { defaultValue: 'Like' })} onClick={() => like(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: p.liked ? (t.isLight ? '#c0392b' : '#ff6b6b') : muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>{bsFeedIcon('heart', 13, !!p.liked)}<span>{p.hearts}</span></button>
+          <button aria-label={tr('feed:action.comment', { defaultValue: 'Comment' })} onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
+          <button aria-label={tr('feed:action.sendPost', { defaultValue: 'Send post' })} onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
+          <button aria-label={tr('feed:action.sharePost', { defaultValue: 'Share post' })} onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
+          <button aria-label={tr('feed:action.repost', { defaultValue: 'Repost' })} onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.(tr('feed:toast.samplePost', { defaultValue: 'Sample post — engagement lights up on real posts.' }), 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.(tr('feed:action.reposted', { defaultValue: 'Reposted to your feed' }), 'ok'); } catch (e) { window.__bsToast?.(tr('feed:action.repostError', { defaultValue: 'Could not repost.' }), 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
           {isMe && bsRealPostId(p) && (
-            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.metaKind || null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+            <button aria-label={tr('feed:action.editPost', { defaultValue: 'Edit post' })} onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.metaKind || null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
           )}
         </div>
         {actCmtOpen === p.id && (
@@ -14097,8 +14109,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               </div>
             ))}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (actComments[p.id] || []).length ? 4 : 0 }}>
-              <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-              <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+              <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(p.id); }} placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+              <button onClick={() => sendActComment(p.id)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>{tr('feed:action.send', { defaultValue: 'Send' })}</button>
             </div>
           </div>
         )}
@@ -14162,7 +14174,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       let convId = null;
       if (person.userId) {
         try { const res = await window.ShapeMessages?.getOrCreateMemberConversation?.({ otherUserId: person.userId }); if (res && res.data) convId = res.data; }
-        catch (e) { window.__bsToast?.(e?.message || 'Could not start conversation.', 'err'); }
+        catch (e) { window.__bsToast?.(e?.message || tr('feed:feed.convError', { defaultValue: 'Could not start conversation.' }), 'err'); }
       }
       setOpenChat({ n: person.who, s: ROLE[person.kind]?.label || 'Member', c: bsTierColor(person.tier), i: person.init, messages: [], dm: true, conversation_id: convId });
       loadMemberThreads();
@@ -14173,8 +14185,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return (
       <>
         <BSChatThread
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? 'Channel' : 'Direct message'), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
-          eyebrow={openChat.channelId ? 'Channel' : openChat.dm ? 'Private thread' : 'Direct message'}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
@@ -14223,9 +14235,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
+              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
@@ -14237,7 +14249,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               sit on the Community title's baseline instead of floating. */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexShrink: 0 }}>
-              {[['universal', 'Universal'], ['following', 'Following']].map(([k, label]) => {
+              {[['universal', tr('feed:lens.universal', { defaultValue: 'Universal' })], ['following', tr('feed:lens.following', { defaultValue: 'Following' })]].map(([k, label]) => {
                 const on = feedMode === k;
                 return (
                   <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
@@ -14258,7 +14270,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
@@ -14293,7 +14305,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `6px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['teams', 'Team', coachUnread + friendUnread], ['channels', 'Channels', chUnread], ['support', 'Support', 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -14341,10 +14353,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: '2px 2px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || 'Threads'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</span>
                   <span style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{n} thread{n === 1 ? '' : 's'}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tot} new</span></span> : null}</span>
-                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title="Start a conversation" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>＋ New</button>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: teal, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
+                    <button onClick={() => { setNewDmOpen(true); setDmQuery(''); setDmResults([]); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
                   </span>
                 </div>
                 <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 62%, transparent)` }} />
@@ -14394,8 +14406,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const _friendUnread = (friends || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
           // Channels + Support are their own top-level tabs — Team holds Coaches + Friends.
           const selectors = [
-            { key: 'coaches', label: 'Coaches', color: '#c0533b', badge: _coachUnread },
-            { key: 'friends', label: 'Friends', color: '#147b68', badge: _friendUnread },
+            { key: 'coaches', label: tr('feed:team.coaches', { defaultValue: 'Coaches' }), color: '#c0533b', badge: _coachUnread },
+            { key: 'friends', label: tr('feed:team.friends', { defaultValue: 'Friends' }), color: '#147b68', badge: _friendUnread },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           // Channels index — Open Ledger grammar: zero-box dot-leader rows, teal =
@@ -14416,24 +14428,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig, ...(chReduced ? null : { '--sd-glow': bsTHexA(tealSig, 0.5), animation: 'bsSdPrBreath 2.4s ease-in-out infinite' }) }} />
-                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: tealSig }}>LIVE</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: tealSig }}>{tr('feed:channels.live', { defaultValue: 'LIVE' })}</span>
                       </span>
                     )}
-                    {ch.private && <span aria-label="Private" style={{ fontSize: 8, flexShrink: 0, opacity: 0.6 }}>🔒</span>}
-                    {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', color: muted, flexShrink: 0 }}>HOST</span>}
+                    {ch.private && <span aria-label={tr('feed:channels.privateBadge', { defaultValue: 'Private' })} style={{ fontSize: 8, flexShrink: 0, opacity: 0.6 }}>🔒</span>}
+                    {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', color: muted, flexShrink: 0 }}>{tr('feed:channels.host', { defaultValue: 'HOST' })}</span>}
                     <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(2px)' }} />
-                    {chN > 0 && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: tealSig, fontVariantNumeric: 'tabular-nums' }}>{chN} NEW</span>}
+                    {chN > 0 && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: tealSig, fontVariantNumeric: 'tabular-nums' }}>{tr('feed:channels.newBadge', { defaultValue: '{count} NEW', count: chN })}</span>}
                   </div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
-                    {ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? <span> · <span style={{ color: tealSig, fontWeight: 700 }}>{ch.online} online</span></span> : null}
+                    {tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: ch.memberCount })}{ch.online ? <span> · <span style={{ color: tealSig, fontWeight: 700 }}>{tr('feed:channels.onlineCount', { defaultValue: '{count} online', count: ch.online })}</span></span> : null}
                   </div>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
-                  <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin to top'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
+                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
+                  <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
                   {ch.joined
-                    ? <button onClick={openOrJoin} aria-label={`Open #${ch.name}`} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
-                    : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 4, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Join</button>}
+                    ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
+                    : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 4, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', background: TEAL, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:channels.join', { defaultValue: 'Join' })}</button>}
                 </div>
               </div>
             );
@@ -14447,11 +14459,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 {/* Ledger head — honest register + the ink→teal rule */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, padding: '0 2px' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>The channels</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted, fontWeight: 800 }}>{tr('feed:channels.head', { defaultValue: 'The channels' })}</span>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {chDisplay.length} {chDisplay.length === 1 ? 'channel' : 'channels'}
-                      {chLiveCount ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{chLiveCount} live</span></span> : null}
-                      {chUnread ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{chUnread} new</span></span> : null}
+                      {tr('feed:channels.count', { defaultValue: '{count, plural, one {# channel} other {# channels}}', count: chDisplay.length })}
+                      {chLiveCount ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{tr('feed:channels.liveCount', { defaultValue: '{count} live', count: chLiveCount })}</span></span> : null}
+                      {chUnread ? <span> · <span style={{ color: tealSig, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: chUnread })}</span></span> : null}
                     </span>
                   </div>
                   <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${tealSig} 62%, transparent)` }} />
@@ -14460,11 +14472,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div className="bs-uline bs-uline-row" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 2px 9px', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }}>
                     <span aria-hidden style={{ fontSize: 13, color: muted, flexShrink: 0 }}>⌕</span>
-                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, padding: 0 }} />
-                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ flexShrink: 0, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', padding: 0 }}>CLEAR</button>}
+                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder={tr('feed:channels.search', { defaultValue: 'Search channels…' })} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, padding: 0 }} />
+                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label={tr('feed:channels.clearSearch', { defaultValue: 'Clear search' })} style={{ flexShrink: 0, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', padding: 0 }}>{tr('feed:channels.clear', { defaultValue: 'CLEAR' })}</button>}
                   </div>
                   <button onClick={() => setNewChannel(newChannel === null ? '' : null)} style={{ flexShrink: 0, minHeight: 40, background: 'transparent', border: 0, padding: '2px 0', cursor: 'pointer' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: newChannel === null ? tealSig : muted, borderBottom: `2px solid ${newChannel === null ? `${tealSig}66` : 'transparent'}`, paddingBottom: 3 }}>{newChannel === null ? '＋ New' : 'Cancel'}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: newChannel === null ? tealSig : muted, borderBottom: `2px solid ${newChannel === null ? `${tealSig}66` : 'transparent'}`, paddingBottom: 3 }}>{newChannel === null ? tr('feed:team.new', { defaultValue: '＋ New' }) : tr('feed:action.cancel', { defaultValue: 'Cancel' })}</span>
                   </button>
                 </div>
                 {/* Create — a quiet zero-box form (two-tier rule) */}
@@ -14472,11 +14484,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 2 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: tealSig }}>
                       <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: tealSig }} />
-                      New · Channel
+                      {tr('feed:channels.newChannel', { defaultValue: 'New · Channel' })}
                     </div>
-                    <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" className="bs-uline" style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', padding: '6px 0 9px', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }} />
+                    <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder={tr('feed:channels.namePlaceholder', { defaultValue: 'Channel name — e.g. Sunday Run Club' })} className="bs-uline" style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', padding: '6px 0 9px', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25), '--bs-accent': tealSig }} />
                     <div style={{ display: 'flex', gap: 22 }}>
-                      {[[false, 'Public', 'Anyone can join'], [true, 'Private', 'Invite only']].map(([v, title, sub]) => {
+                      {[[false, tr('feed:channels.public', { defaultValue: 'Public' }), tr('feed:channels.publicSub', { defaultValue: 'Anyone can join' })], [true, tr('feed:channels.private', { defaultValue: 'Private' }), tr('feed:channels.privateSub', { defaultValue: 'Invite only' })]].map(([v, title, sub]) => {
                         const on = newChannelPrivate === v;
                         return (
                           <button key={title} onClick={() => setNewChannelPrivate(v)} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '6px 0 9px', cursor: 'pointer', position: 'relative', textAlign: 'left', minHeight: 40 }}>
@@ -14488,8 +14500,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                       })}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
-                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, borderBottom: `2px solid ${bsTHexA(t.INK, 0.25)}`, paddingBottom: 3 }}>Cancel</button>
-                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ marginLeft: 'auto', padding: '11px 18px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: newChannel.trim() ? 'pointer' : 'default' }}>Create channel</button>
+                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, borderBottom: `2px solid ${bsTHexA(t.INK, 0.25)}`, paddingBottom: 3 }}>{tr('feed:action.cancel', { defaultValue: 'Cancel' })}</button>
+                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ marginLeft: 'auto', padding: '11px 18px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: newChannel.trim() ? 'pointer' : 'default' }}>{tr('feed:channels.create', { defaultValue: 'Create channel' })}</button>
                     </div>
                   </div>
                 )}
@@ -14497,14 +14509,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 {_chQ && chDisplay.length === 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-                    No channels match “{channelQuery.trim()}”
+                    {tr('feed:channels.noneMatch', { defaultValue: 'No channels match “{q}”', q: channelQuery.trim() })}
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
                   </div>
                 )}
                 {channels && chList.length === 0 && newChannel === null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-                    No channels yet — start one
+                    {tr('feed:channels.noneYet', { defaultValue: 'No channels yet — start one' })}
                     <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
                   </div>
                 )}
@@ -14528,7 +14540,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                       (each reply should feel like HER), so the masthead carrying it
                       too read as a double avatar. */}
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Concierge</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:support.concierge', { defaultValue: 'Concierge' })}</div>
                     <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>Nora<span style={{ color: noraTint }}>.</span></div>
                   </div>
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
@@ -14540,7 +14552,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     aria-pressed={voiceChat}
                     style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
-                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> Voice chat {voiceChat ? 'on' : 'off'}
+                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.voiceChat', { defaultValue: 'Voice chat' })} {voiceChat ? tr('feed:support.on', { defaultValue: 'on' }) : tr('feed:support.off', { defaultValue: 'off' })}
                   </button>
                 </div>
                 <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
@@ -14559,11 +14571,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                             : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                             {!me && (
-                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ' · Concierge' : ''}</div>
+                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
                             )}
                             <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
                             {m.bot && (
-                              <button onClick={() => speakReply(m.t, { force: true })} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> Listen</button>
+                              <button onClick={() => speakReply(m.t, { force: true })} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
                             )}
                             {Array.isArray(m.actions) && m.actions.length > 0 && (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
@@ -14582,7 +14594,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                       </div>
                     );
                   })}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>Nora is typing…</div>}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
                 </div>
               </div>
             );
@@ -14598,12 +14610,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />
-                  {ThreadHead(friends, 'Friends')}
+                  {ThreadHead(friends, tr('feed:team.friends', { defaultValue: 'Friends' }))}
                   {friends.map(Row)}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {ThreadHead(coaches, 'Coaches')}
+                  {ThreadHead(coaches, tr('feed:team.coaches', { defaultValue: 'Coaches' }))}
                   {coaches.map(Row)}
                 </div>
               )}
@@ -14623,9 +14635,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             </div>
             {filter === 'COMMUNITY' && (
               <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                <select value={feedType} onChange={(e) => setFeedType(e.target.value)} aria-label="Filter by activity type"
+                <select value={feedType} onChange={(e) => setFeedType(e.target.value)} aria-label={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
                   style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 24px 7px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer' }}>
-                  {[['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs'], ['nutrition', 'Nutrition'], ['milestones', 'Milestones']].map(([k, label]) => (
+                  {[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]].map(([k, label]) => (
                     <option key={k} value={k}>{label}</option>
                   ))}
                 </select>
@@ -14657,17 +14669,17 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   if (feedMode === 'following') {
                     return (
                       <div style={{ padding: `18px ${t.padX}px 8px` }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>Nothing from your people yet.</div>
-                        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Follow members to build this feed</div>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{tr('feed:feed.emptyFollowingTitle', { defaultValue: 'Nothing from your people yet.' })}</div>
+                        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('feed:feed.emptyFollowingSub', { defaultValue: 'Follow members to build this feed' })}</div>
                         <div style={{ marginTop: 14 }}><BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} /></div>
-                        <button onClick={() => switchFeedMode('universal')} style={{ marginTop: 14, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>See everyone — Universal →</button>
+                        <button onClick={() => switchFeedMode('universal')} style={{ marginTop: 14, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>{tr('feed:feed.seeEveryone', { defaultValue: 'See everyone — Universal →' })}</button>
                       </div>
                     );
                   }
                   return (
                     <div style={{ textAlign: 'center', padding: '40px 24px', color: muted }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.02em' }}>No activity yet</div>
-                      <div style={{ fontFamily: t.BODY, fontSize: 13, marginTop: 6, lineHeight: 1.4 }}>Log a workout or run — or connect Strava/Whoop in Settings — and it shows up here for the community.</div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.02em' }}>{tr('feed:feed.emptyTitle', { defaultValue: 'No activity yet' })}</div>
+                      <div style={{ fontFamily: t.BODY, fontSize: 13, marginTop: 6, lineHeight: 1.4 }}>{tr('feed:feed.emptySub', { defaultValue: 'Log a workout or run — or connect Strava/Whoop in Settings — and it shows up here for the community.' })}</div>
                     </div>
                   );
                 }
@@ -14675,11 +14687,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   // The base feed has cards but none match the type chip —
                   // honest filtered-empty, one tap back to All. (Demo carries
                   // most buckets — Nutrition can land here signed-out.)
-                  const typeLabel = { workouts: 'workouts', runs: 'runs', prs: 'PRs', nutrition: 'meals', milestones: 'milestones' }[feedType] || 'activity';
+                  const _nounKey = ['workouts', 'runs', 'prs', 'nutrition', 'milestones'].includes(feedType) ? feedType : 'activity';
+                  const _emptyNoun = tr('feed:emptyNoun.' + _nounKey, { defaultValue: { workouts: 'workouts', runs: 'runs', prs: 'PRs', nutrition: 'meals', milestones: 'milestones', activity: 'activity' }[_nounKey] });
                   return (
                     <div style={{ textAlign: 'center', padding: '32px 24px', color: muted }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: cardInk, letterSpacing: '-0.01em' }}>No {typeLabel} on the wire yet.</div>
-                      <button onClick={() => setFeedType('all')} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>Show all →</button>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:feed.filteredEmpty', { defaultValue: 'No {label} on the wire yet.', label: _emptyNoun })}</div>
+                      <button onClick={() => setFeedType('all')} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB }}>{tr('feed:feed.showAll', { defaultValue: 'Show all →' })}</button>
                     </div>
                   );
                 }
@@ -14696,7 +14709,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'feed' && (
         <>
           <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
-          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder="Message…" />
+          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder={tr('feed:composer.message', { defaultValue: 'Message…' })} />
         </>
       )}
       {showLog && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setFeedNonce(n => n + 1); }} />}
@@ -14705,29 +14718,29 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Tag people</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 12px' }}>{tagged.length ? `${tagged.length} tagged` : 'Search Shape members'}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:tag.title', { defaultValue: 'Tag people' })}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 12px' }}>{tagged.length ? tr('feed:tag.taggedCount', { defaultValue: '{count} tagged', count: tagged.length }) : tr('feed:tag.searchMembers', { defaultValue: 'Search Shape members' })}</div>
             {tagged.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {tagged.map((x) => <button key={x.id || x.name} onClick={() => removeTagged(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '5px 10px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
               </div>
             )}
-            <input autoFocus value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder="Search members…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            <input autoFocus value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
             {tagResults.map((m) => { const nm = m.name || m.full_name || 'Member'; const id = m.id || m.user_id || nm; const on = tagged.some(x => (x.id || x.name) === id); const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6']; return (
               <button key={id} onClick={() => toggleTagged(m)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '10px 12px', borderRadius: 12, border: `1px solid ${on ? TEALB : t.RULE}`, background: on ? `${TEALB}1a` : t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
                 <BSFacetAvatar size={36} c={pal[nm.length % pal.length]} initial={nm.trim().charAt(0).toUpperCase()} showRank={false} />
                 <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{nm}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: on ? TEALB : t.INK50 }}>{on ? 'TAGGED ✓' : 'TAG'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: on ? TEALB : t.INK50 }}>{on ? tr('feed:tag.tagged', { defaultValue: 'TAGGED ✓' }) : tr('feed:tag.tag', { defaultValue: 'TAG' })}</span>
               </button>
             ); })}
-            {tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? 'No matches.' : 'Type a name to find someone.'}</div>}
-            <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 8, padding: '13px', borderRadius: 12, border: 0, background: t.ACCENT, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done</button>
+            {tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
+            <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 8, padding: '13px', borderRadius: 12, border: 0, background: t.ACCENT, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:action.done', { defaultValue: 'Done' })}</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? sendSupportText : undefined} placeholder="Message the Shape team…" />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? sendSupportText : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Message the Shape team…' })} />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -14750,9 +14763,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Reactions</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>Who reacted</div>
-            {(likerSheetFor.likers || []).length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, padding: '10px 0' }}>No reactions yet.</div>}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>{tr('feed:likers.reactions', { defaultValue: 'Reactions' })}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>{tr('feed:likers.whoReacted', { defaultValue: 'Who reacted' })}</div>
+            {(likerSheetFor.likers || []).length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, padding: '10px 0' }}>{tr('feed:likers.noReactions', { defaultValue: 'No reactions yet.' })}</div>}
             {(likerSheetFor.likers || []).map((l, i) => (
               <button key={i} onClick={() => { if (l.userId || l.name) { setOpenProfile({ who: l.name || 'Shape member', kind: String(l.role || 'client').toUpperCase() === 'TRAINER' ? 'TRAINER' : String(l.role || '').toUpperCase() === 'NUTRITIONIST' ? 'NUTRI' : 'CLIENT', init: bsInitials(l.name || '?'), userId: l.userId || undefined, public: true, photo: l.photo }); setLikerSheetFor(null); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, padding: '10px 2px', cursor: 'pointer', textAlign: 'left' }}>
                 <BSFacetAvatar size={38} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
@@ -14760,7 +14773,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name || 'Shape member'}</div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{l.role || 'Client'}</div>
                 </div>
-                {l.follows && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>Following</span>}
+                {l.follows && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>{tr('feed:likers.following', { defaultValue: 'Following' })}</span>}
               </button>
             ))}
           </div>
@@ -14771,9 +14784,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>New message</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>Start a conversation</div>
-            <input autoFocus value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} placeholder="Search people…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:newDm.title', { defaultValue: 'New message' })}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>{tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })}</div>
+            <input autoFocus value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} placeholder={tr('feed:newDm.searchPeople', { defaultValue: 'Search people…' })} style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
             {dmResults.map((m) => {
               const nm = m.name || m.full_name || 'Member';
               const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
@@ -14781,11 +14794,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <button key={m.id || nm} onClick={() => startDm(m)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '10px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
                   <BSFacetAvatar size={36} c={pal[nm.length % pal.length]} initial={nm.trim().charAt(0).toUpperCase()} showRank={false} />
                   <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{nm}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>MESSAGE →</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>{tr('feed:newDm.message', { defaultValue: 'MESSAGE →' })}</span>
                 </button>
               );
             })}
-            {dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? 'No matches.' : 'Type a name to find someone.'}</div>}
+            {dmResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{dmQuery.trim() ? tr('feed:common.noMatches', { defaultValue: 'No matches.' }) : tr('feed:common.typeName', { defaultValue: 'Type a name to find someone.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -14794,16 +14807,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div onClick={() => setAddMemberFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Add to # {addMemberFor.name}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>Add Shape members</div>
-            <input autoFocus value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} placeholder="Search members…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:addMember.title', { defaultValue: 'Add to # {name}', name: addMemberFor.name })}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>{tr('feed:addMember.sub', { defaultValue: 'Add Shape members' })}</div>
+            <input autoFocus value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} placeholder={tr('feed:common.searchMembers', { defaultValue: 'Search members…' })} style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
             {memberResults.map((m) => (
               <button key={m.id} onClick={() => addMemberNow(m)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer' }}>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{m.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>+ ADD</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: TEALB }}>{tr('feed:addMember.add', { defaultValue: '+ ADD' })}</span>
               </button>
             ))}
-            {memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>No matches yet — type a name.</div>}
+            {memberResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tr('feed:addMember.noMatches', { defaultValue: 'No matches yet — type a name.' })}</div>}
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -15236,8 +15249,9 @@ function BSReactionPicker({ t, anchorRight, onPick, current }) {
 }
 
 function BSReactionPill({ t, emoji, anchorRight, onClick }) {
+  const tr = useShapeTr();
   return (
-    <div onClick={onClick} title="Remove reaction" style={{
+    <div onClick={onClick} title={tr('feed:reaction.remove', { defaultValue: 'Remove reaction' })} style={{
       position: 'absolute', bottom: -10,
       [anchorRight ? 'left' : 'right']: -6,
       background: t.PAPER2, border: `1px solid ${t.SURFACE_BORDER}`,
