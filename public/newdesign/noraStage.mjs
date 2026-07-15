@@ -79,9 +79,12 @@ export class NoraStage {
     const rUpper = h && h.getNormalizedBoneNode('rightUpperArm');
     if (head) head.rotation.x = p.headBob * 0.4;
     if (spine) spine.rotation.z = p.spineSway;
-    // Arms rest down at ~|1.2| rad on Z; raise toward the decks as armRaise→1.
-    if (lUpper) lUpper.rotation.z = 1.2 - p.armRaise * 0.5;
-    if (rUpper) rUpper.rotation.z = -1.2 + p.armRaise * 0.5;
+    // Arms hang at the sides (~|1.35| rad) and lift out into a gentle groove as
+    // armRaise→1 — never overhead. On this rig +z raises the left arm, so the
+    // resting value is negative on the left / positive on the right. (The old
+    // signs were inverted, which fired both arms straight up at rest.)
+    if (lUpper) lUpper.rotation.z = -1.35 + p.armRaise * 0.3;
+    if (rUpper) rUpper.rotation.z = 1.35 - p.armRaise * 0.3;
     const em = vrm.expressionManager;
     if (em) {
       em.setValue('happy', p.expression);
