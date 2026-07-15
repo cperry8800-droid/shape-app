@@ -11,6 +11,26 @@ const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 }
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
 
+// The i18n translator for this module. Mirrors client.jsx's useShapeTr —
+// self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
+// doesn't depend on another file's copy or its load order.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+// Localized role word (Trainer / Nutritionist) — the fixed UI vocabulary the
+// code emits from a boolean, matching the feed's roleTag.* pattern. The
+// underlying provider_role value stays English; only the displayed word maps.
+function bsmRoleWord(tr, isNutri) {
+  return isNutri
+    ? tr('marketplace:role.nutritionist', { defaultValue: 'Nutritionist' })
+    : tr('marketplace:role.trainer', { defaultValue: 'Trainer' });
+}
+
 // ═══════════════════════════════════════════════════════════
 // Data
 // ═══════════════════════════════════════════════════════════
@@ -362,6 +382,7 @@ function MktPortrait({ photo, name, w, h, fontSize, spine }) {
 // + tier-colored text died with the Classifieds pass; tier reads as ink text.
 function MktCoachCard({ c, onOpen, photo }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
   const role = mktRoleColor(c);
   const { name: tierName } = mktCoachTier(c);
@@ -369,7 +390,7 @@ function MktCoachCard({ c, onOpen, photo }) {
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: 0 }}>
       <MktPortrait photo={photo} name={c.name} w="100%" h={122} fontSize={30} spine={role} />
       <span style={{ display: 'block', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-      <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isNutri ? 'Nutritionist' : 'Trainer'} · {tierName}</span>
+      <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isNutri)} · {tierName}</span>
       <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
     </button>
   );
@@ -381,6 +402,7 @@ function MktCoachCard({ c, onOpen, photo }) {
 // the meta line (never color-only).
 function MktRow({ c, onOpen, n }) {
   const t = useBS();
+  const tr = useShapeTr();
   const role = mktRoleColor(c);
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
   const { name: tierName } = mktCoachTier(c);
@@ -390,7 +412,7 @@ function MktRow({ c, onOpen, n }) {
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
       <span style={{ minWidth: 0 }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isNutri ? 'Nutritionist' : 'Trainer'} · {getPrimaryCredential(c)} · {mktShortLoc(c.loc)} · {tierName}</span>
+        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isNutri)} · {getPrimaryCredential(c)} · {mktShortLoc(c.loc)} · {tierName}</span>
       </span>
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>★ {formatCoachRating10(c)}</span>
       <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
@@ -414,6 +436,7 @@ const BSM_DEMO_PLANS = [
 ];
 function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCoach = null, onCoachConsumed = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
   const [cat, setCat] = useStateBSM2('All Categories');
@@ -501,7 +524,27 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   }, [everyone]);
   const coachPhoto = (c) => (c && (c.photo || c.avatar || (c.provider_user_id ? avatarByUser[c.provider_user_id] : null))) || undefined;
 
+  // Filter tab STATE values stay English (the logic branches on them); only the
+  // displayed label localizes.
   const pills = ['All', 'Trainers', 'Nutritionists'];
+  const pillLabel = (p) => p === 'Trainers'
+    ? tr('marketplace:dir.tabTrainers', { defaultValue: 'Trainers' })
+    : p === 'Nutritionists'
+      ? tr('marketplace:dir.tabNutritionists', { defaultValue: 'Nutritionists' })
+      : tr('marketplace:dir.tabAll', { defaultValue: 'All' });
+  // Fixed filter-enum labels (value stays English for the filter comparison).
+  const fmtLabel = (f) => ({
+    'All formats': tr('marketplace:format.all', { defaultValue: 'All formats' }),
+    'In-person': tr('marketplace:format.inPerson', { defaultValue: 'In-person' }),
+    'Remote': tr('marketplace:format.remote', { defaultValue: 'Remote' }),
+    'Hybrid': tr('marketplace:format.hybrid', { defaultValue: 'Hybrid' }),
+  }[f] || f);
+  const sortLabel = (s) => ({
+    'Most Popular': tr('marketplace:sort.popular', { defaultValue: 'Most Popular' }),
+    'Highest Rated': tr('marketplace:sort.rated', { defaultValue: 'Highest Rated' }),
+    'Lowest Price': tr('marketplace:sort.price', { defaultValue: 'Lowest Price' }),
+    'Most Experience': tr('marketplace:sort.experience', { defaultValue: 'Most Experience' }),
+  }[s] || s);
 
   const list = useMemoBSM2(() => {
     let out = everyone;
@@ -570,7 +613,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{tr('marketplace:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {window.BSFacetAvatar ? (
@@ -590,15 +633,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
         <div style={{ marginTop: 12 }}>
-          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, padding: '8px 2px', lineHeight: 1 }}><span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>Back</button>
+          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, padding: '8px 2px', lineHeight: 1 }}><span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>←</span>{tr('common:action.back', { defaultValue: 'Back' })}</button>
         </div>
         {/* The Classifieds eyebrow — the marketplace is the paper's listings section */}
         <div style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 7 }}>
           <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: teal }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>The classifieds</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:dir.eyebrow', { defaultValue: 'The classifieds' })}</span>
         </div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
-          Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
+          {tr('marketplace:dir.title1', { defaultValue: 'Find your' })}<br /><span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:dir.title2', { defaultValue: 'coach.' })}</span>
         </h1>
       </div>
 
@@ -606,16 +649,16 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 2px', borderBottom: `1.5px solid ${t.INK}4d` }}>
           <span aria-hidden style={{ fontSize: 14, color: t.INK50 }}>⌕</span>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Coaches, plans, playlists…" style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, letterSpacing: '-0.005em', padding: 0, minWidth: 0 }} />
-          {query ? <button onClick={() => setQuery('')} aria-label="Clear search" style={{ border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 4px' }}>×</button> : null}
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('marketplace:dir.searchPlaceholder', { defaultValue: 'Coaches, plans, playlists…' })} style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, letterSpacing: '-0.005em', padding: 0, minWidth: 0 }} />
+          {query ? <button onClick={() => setQuery('')} aria-label={tr('marketplace:dir.clearSearch', { defaultValue: 'Clear search' })} style={{ border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 4px' }}>×</button> : null}
         </div>
       </div>
 
       {/* Role index — typographic tabs on a hairline, teal (page-chrome) underline */}
-      <div role="tablist" aria-label="Filter coaches by role" style={{ margin: `12px ${t.padX}px ${catList ? 10 : 14}px`, display: 'flex', borderBottom: `1px solid ${t.INK}17` }}>
+      <div role="tablist" aria-label={tr('marketplace:dir.filterAria', { defaultValue: 'Filter coaches by role' })} style={{ margin: `12px ${t.padX}px ${catList ? 10 : 14}px`, display: 'flex', borderBottom: `1px solid ${t.INK}17` }}>
         {pills.map((p) => { const on = pill === p && !(p === 'All' && forceList); return (
           <button key={p} role="tab" aria-selected={on} onClick={() => pickPill(p)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
-            {p}
+            {pillLabel(p)}
             {on && <span aria-hidden style={{ position: 'absolute', left: '20%', right: '20%', bottom: -1, height: 2, background: teal }} />}
           </button>
         ); })}
@@ -628,11 +671,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
         <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <select value={cat} onChange={(e) => setCat(e.target.value)} style={sel}>
-              {catList.map((ct) => <option key={ct} value={ct}>{ct === 'All Categories' ? 'All categories' : ct}</option>)}
+              {catList.map((ct) => <option key={ct} value={ct}>{ct === 'All Categories' ? tr('marketplace:filter.allCategories', { defaultValue: 'All categories' }) : ct}</option>)}
             </select>
             {pill === 'Trainers' && (
               <select value={format} onChange={(e) => setFormat(e.target.value)} style={sel}>
-                {BSM_MARKETPLACE_FORMATS.map((f) => <option key={f} value={f}>{f === 'All formats' ? 'All formats' : f}</option>)}
+                {BSM_MARKETPLACE_FORMATS.map((f) => <option key={f} value={f}>{fmtLabel(f)}</option>)}
               </select>
             )}
           </div>
@@ -641,7 +684,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
               {(locList || ['Anywhere']).map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
             <select value={sort} onChange={(e) => setSort(e.target.value)} style={sel}>
-              {BSM_MARKETPLACE_SORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {BSM_MARKETPLACE_SORTS.map((s) => <option key={s} value={s}>{sortLabel(s)}</option>)}
             </select>
           </div>
         </div>
@@ -650,16 +693,16 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
 
       {(providersLoading || providersError) ? (
         <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
-          {providersLoading ? 'Syncing live providers…' : `Demo data · ${providersError}`}
+          {providersLoading ? tr('marketplace:dir.syncingProviders', { defaultValue: 'Syncing live providers…' }) : tr('marketplace:dir.demoData', { defaultValue: 'Demo data · {error}', error: providersError })}
         </div>
       ) : null}
 
       {browsing ? (
         <>
-          <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? 'Everyone' : pill)} title={`${list.length} on the books`} teal={teal} />
+          <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? tr('marketplace:dir.kickerEveryone', { defaultValue: 'Everyone' }) : pillLabel(pill))} title={tr('marketplace:dir.onTheBooks', { defaultValue: '{count} on the books', count: list.length })} teal={teal} />
           <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column' }}>
             {list.map((c, i) => <MktRow key={c.id} c={c} n={i + 1} onOpen={() => { setOpenNo(i + 1); setOpen(c); }} />)}
-            {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No coaches match that — try a different filter.</div> : null}
+            {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('marketplace:dir.noMatch', { defaultValue: 'No coaches match that — try a different filter.' })}</div> : null}
           </div>
         </>
       ) : (
@@ -676,7 +719,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             <div style={{ padding: `0 ${t.padX}px` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: teal }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Feature · Coach of the week</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:dir.featureEyebrow', { defaultValue: 'Feature · Coach of the week' })}</span>
               </div>
               <div onClick={() => setOpen(cotw)} role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setOpen(cotw); } }} style={{ cursor: 'pointer', marginTop: 10, position: 'relative', paddingLeft: 13 }}>
                 <span aria-hidden style={{ position: 'absolute', left: 0, top: 2, bottom: 2, width: 3, background: role }} />
@@ -684,10 +727,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                   <MktPortrait photo={photo} name={cotw.name} w={96} h={118} fontSize={26} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{cotw.name}<span style={{ color: role }}>.</span></div>
-                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isN ? 'Nutritionist' : 'Trainer'} · {ct.name} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isN)} · {ct.name} · {mktShortLoc(cotw.loc)}</div>
                     <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{cotw.bio}”</div>
                     <div style={{ display: 'flex', gap: 22, marginTop: 10 }}>
-                      {[['Rating', '★ ' + formatCoachRating10(cotw)], ['Clients', (cotw.clients || 0) + '+'], ['Years', String(cotw.years || 1)]].map(([l, v]) => (
+                      {[[tr('marketplace:stat.rating', { defaultValue: 'Rating' }), '★ ' + formatCoachRating10(cotw)], [tr('marketplace:stat.clients', { defaultValue: 'Clients' }), (cotw.clients || 0) + '+'], [tr('marketplace:stat.years', { defaultValue: 'Years' }), String(cotw.years || 1)]].map(([l, v]) => (
                         <div key={l}>
                           <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
                           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
@@ -697,13 +740,13 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                   </div>
                 </div>
                 {/* tracklist */}
-                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:dir.tracklist', { defaultValue: 'Tracklist' })}</div>
                 <div style={{ marginTop: 1 }}>
                   {cotwProfile.packages.slice(0, 3).map((p, i) => (
-                    <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
+                    <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? tr('marketplace:pkg.monthly', { defaultValue: 'Monthly' }) : tr('marketplace:pkg.oneTime', { defaultValue: 'One-time' })} · ${tr('marketplace:pkg.included', { defaultValue: '{count} included', count: p.perks.length })}`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
                   ))}
                 </div>
-                <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>See the profile →</div>
+                <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>{tr('marketplace:dir.seeProfile', { defaultValue: 'See the profile →' })}</div>
               </div>
             </div>
             );
@@ -711,7 +754,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
 
           {/* Featured this week — 2-up grid */}
           <div style={{ marginTop: 26 }}>
-            <MktSectionHead kicker="On the roster" title="This week" action="See all" onAction={() => setForceList(true)} teal={teal} />
+            <MktSectionHead kicker={tr('marketplace:dir.rosterKicker', { defaultValue: 'On the roster' })} title={tr('marketplace:dir.thisWeek', { defaultValue: 'This week' })} action={tr('marketplace:dir.seeAll', { defaultValue: 'See all' })} onAction={() => setForceList(true)} teal={teal} />
             <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 14px' }}>
               {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
             </div>
@@ -719,7 +762,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
 
           {/* What's hot — real published plans across coaches, tabbed by kind */}
           {(() => {
-            const PLAN_TABS = [['program', 'Programs'], ['workout', 'Workouts'], ['meal', 'Meal plans']];
+            const PLAN_TABS = [
+              ['program', tr('marketplace:plan.programs', { defaultValue: 'Programs' }), tr('marketplace:plan.programsLower', { defaultValue: 'programs' })],
+              ['workout', tr('marketplace:plan.workouts', { defaultValue: 'Workouts' }), tr('marketplace:plan.workoutsLower', { defaultValue: 'workouts' })],
+              ['meal', tr('marketplace:plan.mealPlans', { defaultValue: 'Meal plans' }), tr('marketplace:plan.mealPlansLower', { defaultValue: 'meal plans' })],
+            ];
             // Live published plans when present; else sample plans so the rail is
             // populated in preview / before any coach has published.
             const live = Array.isArray(marketPlans) ? marketPlans : [];
@@ -731,15 +778,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
               color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' });
             return (
             <div style={{ marginTop: 28 }}>
-              <MktSectionHead kicker="From coaches" title="What's hot" teal={teal} />
+              <MktSectionHead kicker={tr('marketplace:dir.fromCoaches', { defaultValue: 'From coaches' })} title={tr('marketplace:dir.whatsHot', { defaultValue: "What's hot" })} teal={teal} />
               <div style={{ display: 'flex', gap: 7, padding: `0 ${t.padX}px 12px` }}>
                 {PLAN_TABS.map(([k, label]) => <button key={k} onClick={() => setPlanTab(k)} style={tabPill(planTab === k)}>{label}</button>)}
               </div>
               <div style={{ padding: `0 ${t.padX}px` }}>
                 {tabPlans.length === 0 ? (
-                  <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No {PLAN_TABS.find(([k]) => k === planTab)[1].toLowerCase()} listed yet — check back soon.</div>
+                  <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>{tr('marketplace:dir.noPlansYet', { defaultValue: 'No {label} listed yet — check back soon.', label: (PLAN_TABS.find(([k]) => k === planTab) || [])[2] || '' })}</div>
                 ) : tabPlans.map((pl, i) => (
-                  <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${pl.providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · ${pl.coachName}`} right={pl.price || 'View'} first={i === 0} onClick={() => {
+                  <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${bsmRoleWord(tr, pl.providerRole === 'nutritionist')} · ${pl.coachName}`} right={pl.price || tr('marketplace:dir.view', { defaultValue: 'View' })} first={i === 0} onClick={() => {
                     // Tap a hot plan → open that coach's page (their storefront, where
                     // the plan + Buy live). Real coaches resolve to their live account;
                     // sample plans open the demo coach's derived detail page — every
@@ -755,19 +802,19 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
           {/* Coach apply CTAs — zero-box notices on an AMBER recruiting spine
               (semantic accent, line-only; text demoted to ink). Discovery view only. */}
           <div style={{ margin: `28px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-            {[{ role: 'trainer', label: 'trainer' }, { role: 'nutritionist', label: 'nutritionist' }].map((b) => (
+            {[{ role: 'trainer', label: tr('marketplace:role.trainerLower', { defaultValue: 'trainer' }) }, { role: 'nutritionist', label: tr('marketplace:role.nutritionistLower', { defaultValue: 'nutritionist' }) }].map((b) => (
               <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ position: 'relative', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: '2px 0 2px 11px', minHeight: 44 }}>
                 <span aria-hidden style={{ position: 'absolute', left: 0, top: 2, bottom: 2, width: 3, background: t.AMBER }} />
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Coaches</div>
-                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Apply to be a <span style={{ fontStyle: 'italic' }}>{b.label}.</span></div>
-                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>Apply →</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:apply.eyebrow', { defaultValue: 'Coaches' })}</div>
+                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>{tr('marketplace:apply.applyToBe', { defaultValue: 'Apply to be a' })} <span style={{ fontStyle: 'italic' }}>{b.label}.</span></div>
+                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>{tr('marketplace:apply.apply', { defaultValue: 'Apply →' })}</div>
               </button>
             ))}
           </div>
         </>
       )}
 
-      <BSFooter right="Marketplace" />
+      <BSFooter right={tr('marketplace:footer.marketplace', { defaultValue: 'Marketplace' })} />
     </BSPage>
   );
 }
@@ -971,10 +1018,18 @@ function BSProfileCard({ children, style }) {
 
 function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent }) {
   const t = useBS();
-  const [message, setMessage] = useStateBSM2(`Hi ${coach.name.split(' ')[0].replace('Dr.', '').trim()}, I found your profile on Shape and would like to learn more.`);
+  const tr = useShapeTr();
+  const [message, setMessage] = useStateBSM2(tr('marketplace:panel.defaultMessage', { defaultValue: 'Hi {name}, I found your profile on Shape and would like to learn more.', name: coach.name.split(' ')[0].replace('Dr.', '').trim() }));
   if (!action) return null;
   const isMessage = action.type === 'Message';
   const canSendMessage = message.trim().length > 0;
+  // action.type is an English discriminator ('Message'/'Booking'/'Checkout');
+  // localize only its displayed eyebrow.
+  const typeLabel = action.type === 'Booking'
+    ? tr('marketplace:panel.typeBooking', { defaultValue: 'Booking' })
+    : action.type === 'Checkout'
+      ? tr('marketplace:panel.typeCheckout', { defaultValue: 'Checkout' })
+      : tr('marketplace:panel.typeMessage', { defaultValue: 'Message' });
 
   return (
     <div style={{
@@ -999,7 +1054,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
           <div style={{ minWidth: 0 }}>
-            <BSEyebrow color={action.done ? t.ACCENT : t.INK50}>{action.type}</BSEyebrow>
+            <BSEyebrow color={action.done ? t.ACCENT : t.INK50}>{typeLabel}</BSEyebrow>
             <div style={{
               marginTop: 7,
               fontFamily: t.DISPLAY,
@@ -1010,7 +1065,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
               letterSpacing: '-0.03em',
             }}>{action.title}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" style={{
+          <button type="button" onClick={onClose} aria-label={tr('marketplace:sheet.close', { defaultValue: 'Close' })} style={{
             flexShrink: 0,
             borderRadius: 999,
             border: `1px solid ${t.RULE}`,
@@ -1045,7 +1100,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
               color: t.INK50,
               fontWeight: 800,
             }}>
-              Your note
+              {tr('marketplace:panel.yourNote', { defaultValue: 'Your note' })}
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -1088,7 +1143,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
                 textTransform: 'uppercase',
                 fontWeight: 800,
               }}
-            >Send message</button>
+            >{tr('marketplace:panel.sendMessage', { defaultValue: 'Send message' })}</button>
             <div style={{
               fontFamily: t.DISPLAY,
               fontSize: 12.5,
@@ -1096,7 +1151,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
               color: t.INK50,
               textAlign: 'center',
             }}>
-              This starts a private thread in Chat.
+              {tr('marketplace:panel.privateThread', { defaultValue: 'This starts a private thread in Chat.' })}
             </div>
           </div>
         )}
@@ -1120,7 +1175,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
             fontWeight: 800,
             whiteSpace: 'normal',
             overflowWrap: 'anywhere',
-          }}>{action.cta || 'Confirm'}</button>
+          }}>{action.cta || tr('marketplace:panel.confirm', { defaultValue: 'Confirm' })}</button>
         )}
       </BSProfileCard>
     </div>
@@ -1143,6 +1198,7 @@ const BSM_DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // SAME booking confirm as the Listing's OPEN THIS WEEK rows.
 function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const byDay = bsSlotsByDay(open);
   const today = new Date();
@@ -1160,17 +1216,17 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← The listing</button>
-        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>The calendar · {first}{demo ? ' · Preview' : ''}</div>
-        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>Open to <span style={{ fontStyle: 'italic', color: teal }}>book.</span></h1>
-        {demo ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Preview · typical availability — confirm at booking</div> : null}
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
+        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
+        {demo ? <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:cal.previewNote', { defaultValue: 'Preview · typical availability — confirm at booking' })}</div> : null}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={() => nav(-1)} aria-label="Previous month" style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>‹</button>
+          <button onClick={() => nav(-1)} aria-label={tr('marketplace:cal.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>‹</button>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{monthLabel}</span>
-          <button onClick={() => nav(1)} aria-label="Next month" style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>›</button>
+          <button onClick={() => nav(1)} aria-label={tr('marketplace:cal.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, width: 34, height: 30, cursor: 'pointer', color: t.INK, fontSize: 13, lineHeight: 1 }}>›</button>
         </div>
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-          {BSM_DAYS3.map((d) => <div key={d} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{d}</div>)}
+          {BSM_DAYS3.map((d, di) => <div key={d} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr(`marketplace:dow.${di}`, { defaultValue: d })}</div>)}
           {Array.from({ length: startPad }, (_, i) => <div key={`pad-${i}`} />)}
           {Array.from({ length: daysInMonth }, (_, i) => {
             const d = i + 1;
@@ -1180,7 +1236,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
             const on = selIso === iso;
             const bookable = !past && slots.length > 0;
             return (
-              <button key={iso} disabled={!bookable} onClick={() => setSelIso(on ? null : iso)} aria-label={bookable ? `${iso} — ${slots.length} open` : iso} style={{
+              <button key={iso} disabled={!bookable} onClick={() => setSelIso(on ? null : iso)} aria-label={bookable ? tr('marketplace:cal.dayAria', { defaultValue: '{iso} — {count} open', iso, count: slots.length }) : iso} style={{
                 aspectRatio: '1 / 1', boxSizing: 'border-box', padding: '5px 2px 3px', cursor: bookable ? 'pointer' : 'default',
                 border: `1px solid ${on ? teal : t.HAIR}`, borderRadius: 3, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
@@ -1195,21 +1251,21 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
           <div style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span aria-hidden style={{ flexShrink: 0, width: 10, height: 3, background: roleColor }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{new Date(`${selIso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · intro is free</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{new Date(`${selIso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · {tr('marketplace:cal.introFree', { defaultValue: 'intro is free' })}</span>
             </div>
             {daySlots.map((s, i) => (
               <button key={`${s.iso}-${s.time}`} onClick={() => onPick(s)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{bsFmtSlot12(s.time)}</span>
                 <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
-                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Hold it →</span>
+                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:slot.holdIt', { defaultValue: 'Hold it →' })}</span>
               </button>
             ))}
           </div>
         ) : (
-          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Tap a marked day to see its open times.</div>
+          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:cal.tapDay', { defaultValue: 'Tap a marked day to see its open times.' })}</div>
         )}
       </div>
-      <BSFooter right="Availability" />
+      <BSFooter right={tr('marketplace:footer.availability', { defaultValue: 'Availability' })} />
     </BSPage>
   );
 }
@@ -1220,6 +1276,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
 // profile opens from THE FULL PROFILE → leader — never replaced by this page.
 function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   const p = buildPublicProfile(coach);
   const roleColor = mktRoleColor(coach);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -1321,8 +1378,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     setRevPosting(true);
     fetch('/api/coaches/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coach: coachSlug, kind: coachKind, rating: revRating, text: revText }) })
       .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
-      .then(d => { if (d && d.review) { setLiveReviews(prev => [d.review, ...prev]); setRevRating(0); setRevText(''); window.__bsToast?.('Review posted', 'ok'); } })
-      .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); })
+      .then(d => { if (d && d.review) { setLiveReviews(prev => [d.review, ...prev]); setRevRating(0); setRevText(''); window.__bsToast?.(tr('marketplace:listing.reviewPosted', { defaultValue: 'Review posted' }), 'ok'); } })
+      .catch(err => { window.__bsToast?.(err && err.error ? err.error : tr('marketplace:listing.reviewError', { defaultValue: 'Could not post review' }), 'err'); })
       .finally(() => setRevPosting(false));
   };
   const last = coach.name.split(' ').slice(1).join(' ') || p.role;
@@ -1334,9 +1391,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       .find(slot => slot.time && slot.time !== '--');
     setAction({
       type: 'Booking',
-      title: `Book a free intro with ${firstName}`,
-      body: 'Choose an open time below, or confirm now and Shape will hold the next available intro slot.',
-      cta: 'Hold next open slot',
+      title: tr('marketplace:listing.bookIntroTitle', { defaultValue: 'Book a free intro with {name}', name: firstName }),
+      body: tr('marketplace:listing.bookIntroBody', { defaultValue: 'Choose an open time below, or confirm now and Shape will hold the next available intro slot.' }),
+      cta: tr('marketplace:listing.holdSlot', { defaultValue: 'Hold next open slot' }),
       slot: nextOpen,
     });
   };
@@ -1344,18 +1401,22 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const openMessage = () => {
     setAction({
       type: 'Message',
-      title: `Message ${firstName}`,
-      body: 'Send a private note before booking. The thread will also appear on your Chat page.',
-      cta: 'Send message',
+      title: tr('marketplace:listing.messageTitle', { defaultValue: 'Message {name}', name: firstName }),
+      body: tr('marketplace:listing.messageBody', { defaultValue: 'Send a private note before booking. The thread will also appear on your Chat page.' }),
+      cta: tr('marketplace:listing.sendMessage', { defaultValue: 'Send message' }),
     });
   };
 
   const openCheckout = (item) => {
     setAction({
       type: 'Checkout',
-      title: item.type === 'Subscription' ? `Subscribe to ${item.name}` : `Buy ${item.name}`,
-      body: `${item.price} ${item.unit}. Includes: ${item.perks.slice(0, 2).join(', ')}.`,
-      cta: item.type === 'Subscription' ? 'Open secure subscription' : 'Open secure checkout',
+      title: item.type === 'Subscription'
+        ? tr('marketplace:listing.subscribeTo', { defaultValue: 'Subscribe to {name}', name: item.name })
+        : tr('marketplace:listing.buyItem', { defaultValue: 'Buy {name}', name: item.name }),
+      body: tr('marketplace:listing.checkoutBody', { defaultValue: '{price} {unit}. Includes: {perks}.', price: item.price, unit: item.unit, perks: item.perks.slice(0, 2).join(', ') }),
+      cta: item.type === 'Subscription'
+        ? tr('marketplace:listing.openSubscription', { defaultValue: 'Open secure subscription' })
+        : tr('marketplace:listing.openCheckout', { defaultValue: 'Open secure checkout' }),
       item,
     });
   };
@@ -1364,9 +1425,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     if (time === '--') return;
     setAction({
       type: 'Booking',
-      title: `${day}, ${month} ${date} at ${time}`,
-      body: `Free intro call with ${coach.name}. You can reschedule later from messages.`,
-      cta: 'Confirm booking',
+      title: tr('marketplace:listing.slotTitle', { defaultValue: '{day}, {month} {date} at {time}', day, month, date, time }),
+      body: tr('marketplace:listing.slotBody', { defaultValue: 'Free intro call with {name}. You can reschedule later from messages.', name: coach.name }),
+      cta: tr('marketplace:listing.confirmBooking', { defaultValue: 'Confirm booking' }),
       slot: { day, date, time, month, iso },
     });
   };
@@ -1388,16 +1449,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           setAction({
             ...current,
             done: true,
-            title: 'Checkout setup needed',
+            title: tr('marketplace:listing.checkoutSetup', { defaultValue: 'Checkout setup needed' }),
             body: result.message,
           });
         }
       } catch (error) {
         setAction({
           ...current,
-          title: 'Checkout error',
-          body: error?.message || 'Unable to open Stripe checkout.',
-          cta: 'Try again',
+          title: tr('marketplace:listing.checkoutError', { defaultValue: 'Checkout error' }),
+          body: error?.message || tr('marketplace:listing.checkoutErrorBody', { defaultValue: 'Unable to open Stripe checkout.' }),
+          cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }),
         });
       } finally {
         setCheckoutBusy(false);
@@ -1413,21 +1474,21 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           slot: current.slot,
           topic: 'Free intro call',
         });
-        writeShapeCoachThread(coach, `Booked intro consultation: ${current.title}.`);
+        writeShapeCoachThread(coach, tr('marketplace:thread.bookedIntro', { defaultValue: 'Booked intro consultation: {title}.', title: current.title }));
         setAction({
           ...current,
           done: true,
-          title: 'Booked',
+          title: tr('marketplace:listing.booked', { defaultValue: 'Booked' }),
           body: result?.stored === 'supabase'
-            ? `Your intro with ${coach.name} is saved in Shape bookings. A message thread has been started.`
-            : `Your intro with ${coach.name} is held locally. A message thread has been started.`,
+            ? tr('marketplace:listing.bookedSyncedBody', { defaultValue: 'Your intro with {name} is saved in Shape bookings. A message thread has been started.', name: coach.name })
+            : tr('marketplace:listing.bookedLocalBody', { defaultValue: 'Your intro with {name} is held locally. A message thread has been started.', name: coach.name }),
         });
       } catch (error) {
         setAction({
           ...current,
-          title: 'Booking error',
-          body: error?.message || 'Unable to save this consultation booking.',
-          cta: 'Try again',
+          title: tr('marketplace:listing.bookingError', { defaultValue: 'Booking error' }),
+          body: error?.message || tr('marketplace:listing.bookingErrorBody', { defaultValue: 'Unable to save this consultation booking.' }),
+          cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }),
         });
       } finally {
         setCheckoutBusy(false);
@@ -1437,31 +1498,31 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     setAction({
       ...current,
       done: true,
-      title: 'Booked',
-      body: `Your intro with ${coach.name} is held. A message thread has been started.`,
+      title: tr('marketplace:listing.booked', { defaultValue: 'Booked' }),
+      body: tr('marketplace:listing.bookedHeldBody', { defaultValue: 'Your intro with {name} is held. A message thread has been started.', name: coach.name }),
     });
   };
 
   const sendMessage = async (text) => {
-    const clean = (text || '').trim() || `Hi ${firstName}, I found your profile on Shape and would like to learn more.`;
+    const clean = (text || '').trim() || tr('marketplace:panel.defaultMessage', { defaultValue: 'Hi {name}, I found your profile on Shape and would like to learn more.', name: firstName });
     try {
       const result = await window.ShapeMessages?.sendProviderMessage?.({ coach, text: clean });
       writeShapeCoachThread(coach, clean, result || {});
       setAction({
         type: 'Message',
         done: true,
-        title: result?.stored === 'supabase' ? 'Message synced' : 'Message saved locally',
+        title: result?.stored === 'supabase' ? tr('marketplace:listing.messageSynced', { defaultValue: 'Message synced' }) : tr('marketplace:listing.messageSavedLocal', { defaultValue: 'Message saved locally' }),
         body: result?.stored === 'supabase'
-          ? `${coach.name} will see your note in their Shape messages. The thread is synced to your Chat page under Team.`
-          : `${coach.name}'s thread has been added to your Chat page under Team. Sign in after the message schema is live to sync across devices.`,
+          ? tr('marketplace:listing.messageSyncedBody', { defaultValue: '{name} will see your note in their Shape messages. The thread is synced to your Chat page under Team.', name: coach.name })
+          : tr('marketplace:listing.messageSavedLocalBody', { defaultValue: "{name}'s thread has been added to your Chat page under Team. Sign in after the message schema is live to sync across devices.", name: coach.name }),
       });
     } catch (error) {
       writeShapeCoachThread(coach, clean);
       setAction({
         type: 'Message',
         done: true,
-        title: 'Message saved locally',
-        body: `${coach.name}'s thread was added to Chat. Supabase sync needs the conversations/messages migration run first. ${error?.message || ''}`,
+        title: tr('marketplace:listing.messageSavedLocal', { defaultValue: 'Message saved locally' }),
+        body: tr('marketplace:listing.messageErrorBody', { defaultValue: "{name}'s thread was added to Chat. Supabase sync needs the conversations/messages migration run first. {error}", name: coach.name, error: error?.message || '' }),
       });
     }
   };
@@ -1527,7 +1588,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           </div>
         )}
         {pl.price ? (
-          <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Buy · yours to keep →</span></button>
+          <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:listing.buyKeep', { defaultValue: 'Buy · yours to keep →' })}</span></button>
         ) : <div style={{ height: 10 }} />}
       </div>
     );
@@ -1537,9 +1598,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     <BSPage>
       {/* Back */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← The Classifieds</button>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
-          {no != null ? `Listing Nº ${String(no).padStart(2, '0')} · ` : ''}{p.role}{coach.verified ? ' · ✓ Vetted' : ''}
+          {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}
         </div>
       </div>
 
@@ -1550,14 +1611,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
 
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{firstName}<br/><span style={{ fontStyle: 'italic' }}>{last}<span style={{ color: roleColor }}>.</span></span></h1>
-        <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)} · <span style={{ color: tierColor }}>{tierName} tier</span></div>
+        <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)} · <span style={{ color: tierColor }}>{tr('marketplace:listing.tierSuffix', { defaultValue: '{tier} tier', tier: tierName })}</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>{p.headline}</div>
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[
-            ['Score', p.score != null ? String(p.score) : '—'],
-            ['Sessions', coach.sessionCount ? Number(coach.sessionCount).toLocaleString() : '—'],
-            ['Years', coach.years ? String(coach.years) : '—'],
-            ['Rating', avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
+            [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
+            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount ? Number(coach.sessionCount).toLocaleString() : '—'],
+            [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
+            [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
           ].map(([l, v]) => (
             <div key={l}>
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
@@ -1567,40 +1628,40 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         </div>
         <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${roleColor} 72%, transparent)` }} />
         {p.tagline ? <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.45, color: t.INK70, letterSpacing: '-0.01em' }}>“{p.tagline}”</div> : null}
-        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Book the intro · $0</button>
-        <button onClick={openMessage} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${t.INK}59` }}>✉ Message {firstName}</button>
+        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookTheIntro', { defaultValue: 'Book the intro · $0' })}</button>
+        <button onClick={openMessage} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${t.INK}59` }}>{tr('marketplace:listing.messageName', { defaultValue: '✉ Message {name}', name: firstName })}</button>
       </div>
 
       {/* ── Open this week ─────────────────────────────── */}
-      <Station>Open this week · intro is free</Station>
+      <Station>{tr('marketplace:listing.openThisWeek', { defaultValue: 'Open this week · intro is free' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {openSlots.length === 0 ? (
-          <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No open times this week — message {firstName} to find one.</div>
+          <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName })}</div>
         ) : openSlots.map((s, i) => (
           <button key={`${s.iso}-${s.time}`} onClick={() => selectSlot(s.day, s.date, s.time, s.iso, s.month)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ flexShrink: 0, width: 42, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{s.day}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{fmtSlot(s.time)}</span>
             <Leader />
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Hold it →</span>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:slot.holdIt', { defaultValue: 'Hold it →' })}</span>
           </button>
         ))}
         <button onClick={() => setShowCal(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}` }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>See the full calendar</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('marketplace:listing.seeFullCalendar', { defaultValue: 'See the full calendar' })}</span>
           <Leader />
           <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
         </button>
       </div>
 
       {/* ── The rate card ─────────────────────────────── */}
-      <Station>The rate card</Station>
+      <Station>{tr('marketplace:listing.rateCard', { defaultValue: 'The rate card' })}</Station>
       {monthlyPkg ? (
         <div style={{ margin: `12px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, padding: '13px 13px 15px', position: 'relative', background: t.PAPER }}>
           <div aria-hidden style={{ position: 'absolute', inset: 6, border: `1px dashed ${t.INK}3d`, pointerEvents: 'none' }} />
           <div style={{ position: 'relative' }}>
             {atCapacity ? (
               wl?.status === 'invited' ? (<>
-                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>You're invited</div>
-                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{firstName} has room for you.</div>
+                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>{tr('marketplace:listing.invited', { defaultValue: "You're invited" })}</div>
+                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{tr('marketplace:listing.roomForYou', { defaultValue: '{name} has room for you.', name: firstName })}</div>
                 {/* Book now = the per-role ONE-TIME purchase (trainer session /
                     nutritionist meal plan) — a non-Subscription item.type puts the
                     checkout route in one-time payment mode; the charge is server-
@@ -1608,28 +1669,28 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
                     coach.rate maps from). The normal coupon CTA is hidden at
                     capacity, so the subscription path rides alongside — mirrors the
                     website first-dibs trio (#1498). */}
-                <button onClick={() => openCheckout({ type: 'One-time', name: isNutriDetail ? 'Meal plan' : 'Booking', price: `$${coach.rate}`, unit: 'one-time', perks: isNutriDetail ? ['Coach-built meal plan', 'No subscription'] : ['One-time session', 'No subscription'] })} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: t.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Book now</button>
+                <button onClick={() => openCheckout({ type: 'One-time', name: isNutriDetail ? 'Meal plan' : 'Booking', price: `$${coach.rate}`, unit: 'one-time', perks: isNutriDetail ? ['Coach-built meal plan', 'No subscription'] : ['One-time session', 'No subscription'] })} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: t.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookNow', { defaultValue: 'Book now' })}</button>
                 <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button onClick={() => openCheckout(monthlyPkg)} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe /mo</button>
-                  <button onClick={wlWithdraw} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Decline</button>
+                  <button onClick={() => openCheckout(monthlyPkg)} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('marketplace:listing.subscribeMo', { defaultValue: 'Subscribe /mo' })}</button>
+                  <button onClick={wlWithdraw} style={{ minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('marketplace:listing.decline', { defaultValue: 'Decline' })}</button>
                 </div>
               </>) : wl ? (<>
-                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>On the waiting list</div>
-                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>You're #{wl.position} in line. {firstName} will invite you when a spot opens.</div>
-                <button onClick={wlWithdraw} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Leave the list</button>
+                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.onWaitlist', { defaultValue: 'On the waiting list' })}</div>
+                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.waitlistPosition', { defaultValue: "You're #{position} in line. {name} will invite you when a spot opens.", position: wl.position, name: firstName })}</div>
+                <button onClick={wlWithdraw} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tr('marketplace:listing.leaveList', { defaultValue: 'Leave the list' })}</button>
               </>) : (<>
-                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>At capacity</div>
-                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{firstName} isn't taking new clients right now. Join the waiting list to be first in line.</div>
-                <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Join the waiting list</button>
+                <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.RUST }}>{tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' })}</div>
+                <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.45 }}>{tr('marketplace:listing.atCapacityBody', { defaultValue: "{name} isn't taking new clients right now. Join the waiting list to be first in line.", name: firstName })}</div>
+                <button onClick={wlJoin} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 12, minHeight: 44, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.joinWaitlist', { defaultValue: 'Join the waiting list' })}</button>
               </>)
             ) : (<>
-              <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>✂ · Standing offer</div>
-              <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>Coached by {firstName}, monthly<span style={{ color: roleColor }}>.</span></div>
+              <div style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.standingOffer', { defaultValue: '✂ · Standing offer' })}</div>
+              <div style={{ marginTop: 7, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{tr('marketplace:listing.coachedMonthly', { defaultValue: 'Coached by {name}, monthly', name: firstName })}<span style={{ color: roleColor }}>.</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ marginTop: 6, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
               <div style={{ marginTop: 9, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
-              <button onClick={() => openCheckout(monthlyPkg)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 11, padding: 12, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+              <button onClick={() => openCheckout(monthlyPkg)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 11, padding: 12, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.subscribeArrow', { defaultValue: 'Subscribe →' })}</button>
               <div style={{ marginTop: 9, textAlign: 'center' }}>
-                <button onClick={() => setOfferSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>What's included →</span></button>
+                <button onClick={() => setOfferSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:listing.whatsIncluded', { defaultValue: "What's included →" })}</span></button>
               </div>
             </>)}
           </div>
@@ -1644,20 +1705,20 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{item.price}</span>
             </div>
             {item.sub ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{item.sub}</div> : null}
-            <button onClick={() => openCheckout(item)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Buy →</span></button>
+            <button onClick={() => openCheckout(item)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:listing.buyArrow', { defaultValue: 'Buy →' })}</span></button>
           </div>
         ))}
       </div>
 
       {salePlanPrograms.length > 0 && (<>
-        <Station>{isNutriDetail ? 'Diets & plans' : 'Programs & plans'}</Station>
+        <Station>{isNutriDetail ? tr('marketplace:listing.dietsPlans', { defaultValue: 'Diets & plans' }) : tr('marketplace:listing.programsPlans', { defaultValue: 'Programs & plans' })}</Station>
         <div style={{ padding: `2px ${t.padX}px 0` }}>{salePlanPrograms.map((pl) => renderSaleRow(pl))}</div>
       </>)}
 
       {/* Single workouts/meals — individually buyable one-off files. Live coaches
           list theirs via coach_plans; the demo shelf shows on preview rows only. */}
       {(salePlanSingles.length > 0 || (!saleProviderId && Array.isArray(p.singles) && p.singles.length > 0)) && (<>
-        <Station>{isNutriDetail ? 'Single meals' : 'Single workouts'}</Station>
+        <Station>{isNutriDetail ? tr('marketplace:listing.singleMeals', { defaultValue: 'Single meals' }) : tr('marketplace:listing.singleWorkouts', { defaultValue: 'Single workouts' })}</Station>
         <div style={{ padding: `2px ${t.padX}px 0` }}>
           {salePlanSingles.length > 0
             ? salePlanSingles.map((pl) => renderSaleRow(pl))
@@ -1669,32 +1730,32 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
                     <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{s.price}</span>
                   </div>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{s.meta}</div>
-                  <button onClick={() => openCheckout({ type: 'One-time', name: s.name, price: s.price, unit: 'one-time', perks: [s.meta, 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>Buy · yours to keep →</span></button>
+                  <button onClick={() => openCheckout({ type: 'One-time', name: s.name, price: s.price, unit: 'one-time', perks: [s.meta, 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:listing.buyKeep', { defaultValue: 'Buy · yours to keep →' })}</span></button>
                 </div>
               ))}
         </div>
       </>)}
 
       {/* ── The approach ─────────────────────────────── */}
-      <Station>The approach</Station>
+      <Station>{tr('marketplace:listing.approach', { defaultValue: 'The approach' })}</Station>
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, color: t.INK }}>{p.philosophy}</div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, lineHeight: 2 }}>{[...(coach.spec || []), coach.category].filter(Boolean).slice(0, 7).join(' · ')}</div>
       </div>
-      <Station>Credentials</Station>
+      <Station>{tr('marketplace:listing.credentials', { defaultValue: 'Credentials' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {(getCoachCertifications(coach).length ? getCoachCertifications(coach) : [getPrimaryCredential(coach)]).map((cert, i) => (
           <div key={`${cert}-${i}`} style={{ display: 'grid', gridTemplateColumns: '84px 1fr', gap: 10, padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, color: roleColor, letterSpacing: '0.1em', fontWeight: 800 }}>{cert}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.35 }}>{cert === getPrimaryCredential(coach) ? coach.cred : `${p.role} certification - verified on Shape`}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.35 }}>{cert === getPrimaryCredential(coach) ? coach.cred : tr('marketplace:listing.certVerified', { defaultValue: '{role} certification - verified on Shape', role: bsmRoleWord(tr, isNutriDetail) })}</span>
           </div>
         ))}
       </div>
 
       {/* ── The sample ─────────────────────────────── */}
-      <Station>{p.kind === 'trainer' ? 'Sample workout' : 'Sample plan'} · {p.sampleMeta}</Station>
+      <Station>{p.kind === 'trainer' ? tr('marketplace:listing.sampleWorkout', { defaultValue: 'Sample workout' }) : tr('marketplace:listing.samplePlan', { defaultValue: 'Sample plan' })} · {p.sampleMeta}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
-        <div style={{ padding: '8px 0 2px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{p.sampleTitle} <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>· Preview</span></div>
+        <div style={{ padding: '8px 0 2px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{p.sampleTitle} <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>· {tr('marketplace:listing.previewTag', { defaultValue: 'Preview' })}</span></div>
         {p.sampleBlocks.map(([label, mv, detail, note], i) => (
           <div key={`${label}-${mv}`} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ flexShrink: 0, width: 38, fontFamily: t.MONO, fontSize: 9.5, color: roleColor, letterSpacing: '0.08em', fontWeight: 800 }}>{label}</span>
@@ -1709,21 +1770,21 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       </div>
 
       {/* ── From their clients ─────────────────────────────── */}
-      <Station>From their clients{avgRev != null ? ` · ${avgRev}/10` : ''}{coach.clients ? ` · ${coach.clients} coached` : ''}</Station>
+      <Station>{tr('marketplace:listing.fromClients', { defaultValue: 'From their clients' })}{avgRev != null ? ` · ${avgRev}/10` : ''}{coach.clients ? ` · ${tr('marketplace:listing.coached', { defaultValue: '{count} coached', count: coach.clients })}` : ''}</Station>
       <div style={{ padding: `6px ${t.padX}px 0` }}>
         {/* Write a review — a quiet form by the two-tier rule. */}
         <div style={{ borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>Your rating</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{tr('marketplace:listing.yourRating', { defaultValue: 'Your rating' })}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, marginBottom: 10 }}>
             {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-              <button key={n} onClick={() => setRevRating(n)} aria-label={`${n} of 10`} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '0 1px', fontSize: 20, lineHeight: 1, color: revRating >= n ? t.ACCENT : t.INK50 }}>★</button>
+              <button key={n} onClick={() => setRevRating(n)} aria-label={tr('marketplace:listing.ratingAria', { defaultValue: '{n} of 10', n })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '0 1px', fontSize: 20, lineHeight: 1, color: revRating >= n ? t.ACCENT : t.INK50 }}>★</button>
             ))}
             {revRating ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 11, color: t.ACCENT }}>{revRating}/10</span> : null}
           </div>
-          <textarea value={revText} onChange={(e) => setRevText(e.target.value)} placeholder="Share how it went…" rows={2}
+          <textarea value={revText} onChange={(e) => setRevText(e.target.value)} placeholder={tr('marketplace:listing.reviewPlaceholder', { defaultValue: 'Share how it went…' })} rows={2}
             style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '8px 10px', fontFamily: t.DISPLAY, fontSize: 13.5, resize: 'vertical', outline: 'none' }} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <button onClick={submitReview} disabled={!revRating || revPosting} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: (revRating && !revPosting) ? 'pointer' : 'default', opacity: revPosting ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{revPosting ? 'Posting…' : 'Post review'}</button>
+            <button onClick={submitReview} disabled={!revRating || revPosting} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: (revRating && !revPosting) ? 'pointer' : 'default', opacity: revPosting ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{revPosting ? tr('marketplace:listing.posting', { defaultValue: 'Posting…' }) : tr('marketplace:listing.postReview', { defaultValue: 'Post review' })}</button>
           </div>
         </div>
         {liveReviews.map(rv => (
@@ -1742,7 +1803,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       </div>
 
       {/* ── Good questions ─────────────────────────────── */}
-      <Station>Good questions</Station>
+      <Station>{tr('marketplace:listing.goodQuestions', { defaultValue: 'Good questions' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {p.faq.map(([q, a], i) => (
           <div key={q} style={{ padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
@@ -1756,7 +1817,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       {window.BSPublicProfile ? (
         <div style={{ padding: `18px ${t.padX}px 0` }}>
           <button onClick={() => setShowProfile(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>The full profile</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{tr('marketplace:listing.fullProfile', { defaultValue: 'The full profile' })}</span>
             <Leader />
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>→</span>
           </button>
@@ -1764,7 +1825,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       ) : null}
 
       <div style={{ padding: `16px ${t.padX}px 20px` }}>
-        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>Start with {firstName} · free intro →</button>
+        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50, padding: '15px 10px', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, lineHeight: 1.15, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.startWith', { defaultValue: 'Start with {name} · free intro →', name: firstName })}</button>
       </div>
 
       {offerSheet && monthlyPkg && (() => {
@@ -1776,12 +1837,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         const rows = includes.length ? includes : (Array.isArray(monthlyPkg.perks) ? monthlyPkg.perks : []);
         return (
           <div onClick={() => setOfferSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`What ${firstName}'s monthly coaching includes`} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>Monthly coaching{blurb ? '' : ' · Standard'}</div>
-              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>Coached by {firstName}, monthly<span style={{ color: roleColor }}>.</span></div>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('marketplace:offer.aria', { defaultValue: "What {name}'s monthly coaching includes", name: firstName })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:offer.eyebrow', { defaultValue: 'Monthly coaching' })}{blurb ? '' : ` · ${tr('marketplace:offer.standard', { defaultValue: 'Standard' })}`}</div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>{tr('marketplace:listing.coachedMonthly', { defaultValue: 'Coached by {name}, monthly', name: firstName })}<span style={{ color: roleColor }}>.</span></div>
               <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
               {blurb ? <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>{blurb}</div>
-                : <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>{firstName} hasn't written a custom description yet — the standard monthly package includes:</div>}
+                : <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>{tr('marketplace:offer.noDescription', { defaultValue: "{name} hasn't written a custom description yet — the standard monthly package includes:", name: firstName })}</div>}
               <div style={{ marginTop: 6 }}>
                 {rows.map((line, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}` }}>
@@ -1792,8 +1853,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               </div>
               <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{monthlyPkg.price}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>/MO</span></div>
               <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-                <button onClick={() => setOfferSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>Close</span></button>
-                <button onClick={() => { setOfferSheet(false); openCheckout(monthlyPkg); }} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>Subscribe →</button>
+                <button onClick={() => setOfferSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:sheet.close', { defaultValue: 'Close' })}</span></button>
+                <button onClick={() => { setOfferSheet(false); openCheckout(monthlyPkg); }} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.subscribeArrow', { defaultValue: 'Subscribe →' })}</button>
               </div>
             </div>
           </div>
@@ -1808,7 +1869,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         onMessageSent={sendMessage}
       />
 
-      <BSFooter right={p.role} />
+      <BSFooter right={bsmRoleWord(tr, isNutriDetail)} />
     </BSPage>
   );
 }
