@@ -18,7 +18,10 @@ const { useState: useStateBSH } = React;
 // doesn't depend on another file's copy or its load order.
 function useShapeTr() {
   const [, force] = React.useState(0);
-  React.useEffect(() => window.ShapeLocale?.subscribe?.(() => force((n) => n + 1)), []);
+  React.useEffect(() => {
+    const unsub = window.ShapeLocale?.subscribe?.(() => force((n) => n + 1));
+    return typeof unsub === 'function' ? unsub : undefined;
+  }, []);
   return (key, opts) => {
     const v = window.ShapeI18n?.t?.(key, opts);
     return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
@@ -278,7 +281,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
             <div style={{ padding: '14px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginBottom: 10 }}>{tr('habits:reminder.days', { defaultValue: 'Days' })}</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {_BS_REM_DAYS.map(([lab, d], i) => { const dn = days.includes(d); return (
+                {_BS_REM_DAYS.map(([, d], i) => { const dn = days.includes(d); return (
                   <button key={i} onClick={() => toggleDay(d)} style={{ flex: 1, height: 36, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{_bsDowNarrow(d)}</button>
                 ); })}
               </div>
