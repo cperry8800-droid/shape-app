@@ -1,87 +1,206 @@
+// Client's coaching team — "Your team." (Open Ledger grammar).
+// Zero-box coach stations on role-colored spines (trainer rust / nutritionist
+// gold), dot-leader registers, ink→accent rules. Honest data throughout:
+// live coaches from /api/client/team; role-tinted initials avatars (the API
+// carries no photo); a real empty state for a signed-in member with no coach;
+// a real error state on a failed load; the demo team shows ONLY as a labelled
+// signed-out (401) preview — never on a server error.
+
+const CT_RUST = "#c0533b";      // trainer
+const CT_GOLD = "#d8b25a";      // nutritionist (bright variant reads on dark paper)
+const CT_INK55 = INK + "8c";    // 55% of the cream INK token
+const CT_INK40 = INK + "66";    // 40%
+const CT_HAIR = INK + "1a";     // 10% hairline
+const CT_MONO = "'JetBrains Mono', monospace";
+const CT_MARKET = "/newdesign/marketplace.html";
+
+const CT_DEMO_COACHES = [
+  { name: "Maya Okafor", role: "Head trainer", provider_role: "trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", next: "Thu 8:00 AM", hasNext: true },
+  { name: "Rae Lindqvist", role: "Nutritionist", provider_role: "nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", next: "Wed 1:30 PM", hasNext: true },
+];
+
+function ctRoleColor(c) {
+  return c.provider_role === "nutritionist" ? CT_GOLD : CT_RUST;
+}
+function ctInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+function ctOpenChat(name) {
+  const f = window.__openChatTo || window.__openChat;
+  if (f) f({ who: name });
+}
+
+// One dot-leader register row: LABEL ···· value (tabular).
+function CtLeader({ label, value, valueColor }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "6px 0" }}>
+      <span style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.14em", color: CT_INK55, flex: "0 0 auto" }}>{label}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${CT_HAIR}`, transform: "translateY(-3px)" }} />
+      <span style={{ fontSize: 13, color: valueColor || INK, fontVariantNumeric: "tabular-nums", textAlign: "right", flex: "0 0 auto" }}>{value}</span>
+    </div>
+  );
+}
+
+// A zero-box coach station threaded on its role-colored spine.
+function CtStation({ c }) {
+  const accent = ctRoleColor(c);
+  return (
+    <div style={{ position: "relative", paddingLeft: 24 }}>
+      <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: accent, borderRadius: 2 }} />
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <div aria-hidden style={{ width: 48, height: 48, flex: "0 0 auto", borderRadius: 8, background: accent + "1f", border: `1px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 18, color: accent }}>{ctInitials(c.name)}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: accent, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{String(c.role).toUpperCase()} · SINCE {String(c.since).toUpperCase()}</div>
+          <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", lineHeight: 1.12, marginTop: 3 }}>{c.name}</div>
+        </div>
+      </div>
+      <div aria-hidden style={{ height: 2, margin: "15px 0 6px", background: `linear-gradient(90deg, ${INK}, ${accent} 55%, transparent)`, opacity: 0.85, borderRadius: 1 }} />
+      <CtLeader label="PLAN" value={c.plan} />
+      <CtLeader label="NEXT" value={c.hasNext ? c.next : "No session booked"} valueColor={c.hasNext ? TEAL_BRIGHT : CT_INK40} />
+      <div style={{ display: "flex", gap: 26, marginTop: 12 }}>
+        <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Message <span aria-hidden>→</span></button>
+        <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: TEAL_BRIGHT, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Book session <span aria-hidden>→</span></button>
+      </div>
+    </div>
+  );
+}
+
+// Eyebrow-above-figure register cell for the synthesis lead.
+function CtRegister({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: CT_INK55 }}>{label}</div>
+      <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    </div>
+  );
+}
+
+// A zero-box notice on a spine (shared by the empty + error states).
+function CtNotice({ accent, eyebrow, title, body, cta }) {
+  return (
+    <div style={{ paddingLeft: 24, position: "relative", maxWidth: 520, marginBottom: 20 }}>
+      <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: accent, borderRadius: 2 }} />
+      <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: accent }}>{eyebrow}</div>
+      <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", marginTop: 6 }}>{title}</div>
+      <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 8, lineHeight: 1.5 }}>{body}</div>
+      {cta}
+    </div>
+  );
+}
+
 function ClientTeamPage() {
-  const STATIC_COACHES = [
-    { name: "Maya Okafor", role: "Head trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", last: "2m ago", avail: "Next session Thu 8am", trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
-    { name: "Rae Lindqvist", role: "Nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", last: "14m ago", avail: "Weekly check Wed 1:30pm", trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
-  ];
-  const [coaches, setCoaches] = React.useState(STATIC_COACHES);
+  const [coaches, setCoaches] = React.useState([]);
+  const [state, setState] = React.useState("loading"); // loading | live | empty | preview | error
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/client/team', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (!alive || !d || !Array.isArray(d.coaches) || !d.coaches.length) return;
-        setCoaches(d.coaches.map(c => ({
-          name: c.name,
-          role: c.role,
-          since: c.since,
-          plan: c.plan,
-          last: '—',
-          avail: c.next,
-          trend: [0.3,0.4,0.5,0.5,0.6,0.65,0.7],
-        })));
+    fetch("/api/client/team", { credentials: "same-origin" })
+      .then((r) => {
+        if (r.status === 401) return { __signedOut: true };   // genuine signed-out → preview
+        if (!r.ok) return { __error: true };                  // 403/500/etc → real error, never demo
+        return r.json();
       })
-      .catch(() => {});
+      .then((d) => {
+        if (!alive) return;
+        if (d && d.__signedOut) { setCoaches(CT_DEMO_COACHES); setState("preview"); return; }
+        if (d && d.__error) { setState("error"); return; }
+        if (d && Array.isArray(d.coaches) && d.coaches.length) {
+          setCoaches(d.coaches.map((c) => ({
+            name: c.name,
+            role: c.role,
+            provider_role: c.provider_role,
+            since: c.since,
+            plan: c.plan,
+            next: c.next,
+            hasNext: !!c.next && c.next !== "No session booked",
+          })));
+          setState("live");
+        } else {
+          setCoaches([]);
+          setState("empty");
+        }
+      })
+      .catch(() => { if (alive) setState("error"); });        // network failure → error, never demo
     return () => { alive = false; };
   }, []);
-  const chatThreads = [
-    { who: "Maya Okafor", role: "Head trainer · Tempo + hybrid", last: "Stick with 185 for top set. Drop backoffs to 165.", time: "2m", unread: 0, messages: [
-      { who: "Maya", t: "How'd the warmups feel this morning?", time: "8:48 AM", me: false },
-      { who: "You", t: "Squat 185 felt heavy — knee a bit grumpy.", time: "8:54 AM", me: true },
-      { who: "Maya", t: "Stick with 185 for top set. Drop backoffs to 165 — protect the knee.", time: "9:02 AM", me: false },
-      { who: "Maya", t: "Ice tonight and log sleep before Friday's call.", time: "9:02 AM", me: false },
-    ]},
-    { who: "Rae Lindqvist", role: "Nutritionist", last: "30g whey + 60g carbs within 45 min.", time: "14m", unread: 1, messages: [
-      { who: "Rae", t: "Post-run fueling template is live in your Nutri tab.", time: "Tue 6:14 PM", me: false },
-      { who: "You", t: "Saw it — trying the rice bowl tomorrow.", time: "Tue 7:02 PM", me: true },
-      { who: "Rae", t: "30g whey + 60g carbs within 45 min. Recovery window matters.", time: "14m", me: false },
-    ]},
-  ];
+
+  const n = coaches.length;
+  const upcoming = coaches.filter((c) => c.hasNext).length;
+  const showCount = state === "live" || state === "preview";
+  const eyebrow = showCount ? `YOUR CARE TEAM · ${n} ACTIVE` : "YOUR CARE TEAM";
+  const subtitle = state === "empty"
+    ? "You haven't added a coach yet. Build your team — you pay each coach directly, at their rates."
+    : state === "error"
+    ? "We couldn't load your team just now."
+    : state === "loading"
+    ? "Loading your coaches…"
+    : `${n === 1 ? "One coach" : `${n} coaches`}, one plan. You pay each directly, at their rates.`;
+
+  const ghostBtn = { display: "inline-block", background: "transparent", color: INK, textDecoration: "none", border: `1px solid ${INK}40`, padding: "10px 20px", borderRadius: 4, fontFamily: sans, fontSize: 13, cursor: "pointer" };
+  const solidBtn = { display: "inline-block", background: INK, color: PAPER, textDecoration: "none", border: 0, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
+  const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 40, marginBottom: 20 };
+
   return (
     <DashPage
       navItems={clientNavItems("team")}
       payoutCard={clientPayoutCard}
-      eyebrow="YOUR COACHES · 2 ACTIVE"
-      title="Team"
-      subtitle="Your coaches work together on one plan. You pay each directly, at their rates."
+      eyebrow={eyebrow}
+      title="Your team."
+      subtitle={subtitle}
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Browse coaches</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Invite specialist</button>
+        <a href={CT_MARKET} style={ghostBtn}>Browse coaches</a>
+        <a href={CT_MARKET} style={solidBtn}>＋ Invite specialist</a>
       </>}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-        {coaches.map((c, i) => (
-          <Card key={i} style={{ padding: 28 }}>
-            <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 999, background: "#efece6" }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", lineHeight: 1.1 }}>{c.name}</div>
-                <div style={{ fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>{c.role}</div>
-                <div style={{ fontSize: 11, color: "rgba(242,237,228,0.45)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>COACHING SINCE {c.since.toUpperCase()}</div>
+      {state === "loading" ? (
+        <div style={gridStyle}>
+          {[0, 1].map((i) => (
+            <div key={i} style={{ paddingLeft: 24, opacity: 0.5 }}>
+              <div style={{ display: "flex", gap: 14 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 8, background: CT_HAIR }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ height: 10, width: "55%", background: CT_HAIR, borderRadius: 2 }} />
+                  <div style={{ height: 20, width: "70%", background: CT_HAIR, borderRadius: 3, marginTop: 8 }} />
+                </div>
               </div>
-              <Sparkline data={c.trend} width={70} height={28} />
+              <div style={{ height: 2, margin: "16px 0", background: CT_HAIR }} />
+              <div style={{ height: 12, width: "80%", background: CT_HAIR, borderRadius: 2, margin: "10px 0" }} />
+              <div style={{ height: 12, width: "60%", background: CT_HAIR, borderRadius: 2 }} />
             </div>
-            <div style={{ borderTop: "1px solid rgba(242,237,228,0.08)", paddingTop: 16, display: "grid", gap: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "rgba(242,237,228,0.55)" }}>Plan</span>
-                <span>{c.plan}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "rgba(242,237,228,0.55)" }}>Last message</span>
-                <span>{c.last}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-                <span style={{ color: "rgba(242,237,228,0.55)" }}>Next</span>
-                <span style={{ color: TEAL_BRIGHT }}>{c.avail}</span>
-              </div>
-            </div>
-            <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-              <button onClick={() => { const f = window.__openChatTo || window.__openChat; if (f) f({ who: c.name }); }} style={{ flex: 1, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 0", borderRadius: 999, fontSize: 13, cursor: "pointer", fontFamily: sans }}>Message</button>
-              <button style={{ flex: 1, background: INK, color: PAPER, border: 0, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Book session</button>
-            </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : state === "error" ? (
+        <CtNotice
+          accent={RUST}
+          eyebrow="COULDN'T LOAD"
+          title="Your team didn't load."
+          body="Something went wrong reaching your coaches. Give it another try."
+          cta={<button type="button" onClick={() => window.location.reload()} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, background: "transparent", border: 0, padding: "6px 0", fontFamily: sans, fontSize: 13, fontWeight: 500, color: TEAL_BRIGHT, cursor: "pointer" }}>Retry <span aria-hidden>→</span></button>}
+        />
+      ) : state === "empty" ? (
+        <CtNotice
+          accent={TEAL}
+          eyebrow="NO COACHES YET"
+          title="Find your first coach."
+          body="Browse trainers and nutritionists in the Marketplace. You subscribe at their rate and they show up here."
+          cta={<a href={CT_MARKET} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, fontFamily: sans, fontSize: 13, fontWeight: 500, color: TEAL_BRIGHT, textDecoration: "none" }}>Browse coaches <span aria-hidden>→</span></a>}
+        />
+      ) : (
+        <>
+          {state === "preview" && (
+            <div style={{ fontFamily: CT_MONO, fontSize: 10.5, letterSpacing: "0.12em", color: CT_INK40, marginBottom: 18 }}>PREVIEW · SAMPLE TEAM — SIGN IN TO SEE YOURS</div>
+          )}
+          <div style={{ display: "flex", gap: 44, alignItems: "flex-end", paddingBottom: 20, marginBottom: 28, borderBottom: "2px solid transparent", borderImage: `linear-gradient(90deg, ${INK}, ${TEAL_BRIGHT} 45%, transparent) 1` }}>
+            <CtRegister label="COACHES" value={n} />
+            <CtRegister label="SESSIONS COMING UP" value={upcoming} />
+          </div>
+          <div style={gridStyle}>
+            {coaches.map((c, i) => (<CtStation key={i} c={c} />))}
+          </div>
+        </>
+      )}
 
       <ChatWidget tabs={clientChatTabs} />
     </DashPage>
