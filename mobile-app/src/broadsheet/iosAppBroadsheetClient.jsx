@@ -345,9 +345,10 @@ function BSScoreIntro({ onClose, onOpenScore }) {
     ['momentum', tr('onboarding:score.earn.momentum', { defaultValue: 'Momentum (hold 80+)' }), '+25-100'],
   ];
   // Tier NAMES + ranges stay literal (brand rungs / numerals); the perk is prose, so
-  // it's keyed by rung. SHAPE_SCORE_TIERS is shared with the Score page — read the
-  // perk through here, never mutate the shared data.
-  const tierPerk = (name) => tr('onboarding:score.tierPerk.' + String(name).toLowerCase(), { defaultValue: (SHAPE_SCORE_TIERS.find((x) => x.name === name) || {}).perk || '' });
+  // it's keyed by rung. SHAPE_SCORE_TIERS is shared with the Score page — and so are
+  // the perk STRINGS: both surfaces read `score:tierPerk.*`, so a perk can never say
+  // one thing here and another on the Score page. Never mutate the shared data.
+  const tierPerk = (name) => tr('score:tierPerk.' + String(name).toLowerCase(), { defaultValue: (SHAPE_SCORE_TIERS.find((x) => x.name === name) || {}).perk || '' });
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
@@ -15631,27 +15632,27 @@ const SHAPE_SCORE_PROFILES = {
     // EARN — the real score_ledger mechanisms (matches the RPCs). Keep honest:
     // only ways that actually credit points are listed.
     activities: [
-      { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
-      { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
-      { name: 'Log a meal', pts: '+10', cap: 'Daily', note: 'Any real logged meal' },
-      { name: 'Complete a habit', pts: '+3', cap: 'Per habit', note: 'Each one you check off' },
-      { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
-      { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
-      { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
-      { name: 'Career milestone', pts: '+25', cap: 'Monthly', note: 'Log a work win — any visibility' },
-      { name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
-      { name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
-      { name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },
-      { name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
-      { name: 'Reach a new tier', pts: '+500-4k', cap: 'One-time', note: 'First time you hit it' },
+      { id: 'weeklyCheckIn', capKey: 'weekly', name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
+      { id: 'logWorkout', capKey: 'daily', name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { id: 'logMeal', capKey: 'daily', name: 'Log a meal', pts: '+10', cap: 'Daily', note: 'Any real logged meal' },
+      { id: 'completeHabit', capKey: 'perHabit', name: 'Complete a habit', pts: '+3', cap: 'Per habit', note: 'Each one you check off' },
+      { id: 'dailySteps', capKey: 'daily', name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
+      { id: 'coachSessionKept', capKey: 'perSession', name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
+      { id: 'newPr', capKey: 'perLiftMo', name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
+      { id: 'careerMilestone', capKey: 'monthly', name: 'Career milestone', pts: '+25', cap: 'Monthly', note: 'Log a work win — any visibility' },
+      { id: 'communityPost', capKey: 'perPost', name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
+      { id: 'goalMilestone', capKey: '255075100', name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
+      { id: 'momentumBonus', capKey: 'weekly', name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },
+      { id: 'hitCommitment', capKey: 'weekly', name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
+      { id: 'reachNewTier', capKey: 'oneTime', name: 'Reach a new tier', pts: '+500-4k', cap: 'One-time', note: 'First time you hit it' },
     ],
     // PROTECT YOUR POINTS — the accountability clawback (daily cron). Framed
     // constructively, never punitively (matches the never-shaming tone).
     penalties: [
-      { name: 'Skip your weekly check-in', pts: '-7', cap: 'Weekly', note: 'Just check in next week' },
-      { name: 'Miss an assigned workout', pts: '-5', cap: 'Per workout', note: 'Logging can lag a day' },
-      { name: 'Break a habit streak', pts: '-2', cap: 'Per streak', note: 'A 3+ day streak lost' },
-      { name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
+      { id: 'skipWeeklyCheckIn', capKey: 'weekly', name: 'Skip your weekly check-in', pts: '-7', cap: 'Weekly', note: 'Just check in next week' },
+      { id: 'missAssignedWorkout', capKey: 'perWorkout', name: 'Miss an assigned workout', pts: '-5', cap: 'Per workout', note: 'Logging can lag a day' },
+      { id: 'breakHabitStreak', capKey: 'perStreak', name: 'Break a habit streak', pts: '-2', cap: 'Per streak', note: 'A 3+ day streak lost' },
+      { id: 'missCommitment', capKey: 'weekly', name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
     ],
     ledger: [
       ['APR 18', '+14', 'Session kept - Maya Okafor'],
@@ -15670,18 +15671,18 @@ const SHAPE_SCORE_PROFILES = {
     pointsToNext: 1760, available: 1280, lifetime: 6840, redeemedCount: 11, week: '+88',
     weekRatio: 0.82, streakRatio: 0.58, tierRatio: 0.54, spendRatio: 0.72,
     activities: [
-      { name: 'Live session completed', pts: '+18-28', cap: 'Per booking', note: 'Client attended' },
-      { name: 'Program block delivered', pts: '+24', cap: 'Per client', note: 'New or refreshed training block' },
-      { name: 'Workout assigned', pts: '+8', cap: 'Per plan', note: 'New or adjusted session' },
-      { name: 'Form review returned', pts: '+8-12', cap: 'Per review', note: 'Video feedback within 24h' },
-      { name: 'Client check-in answered', pts: '+5', cap: 'Daily', note: 'Meaningful coaching reply' },
-      { name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
-      { name: 'PR verified', pts: '+10', cap: 'Per PR', note: 'Client lift or performance milestone' },
-      { name: 'Client weekly target hit', pts: '+6', cap: 'Per client', note: 'Roster adherence credit' },
-      { name: 'Retention streak', pts: '+20', cap: 'Weekly', note: 'Active roster held for 7 days' },
-      { name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
-      { name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace program purchase' },
-      { name: 'New client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
+      { id: 'liveSessionCompleted', capKey: 'perBooking', name: 'Live session completed', pts: '+18-28', cap: 'Per booking', note: 'Client attended' },
+      { id: 'programBlockDelivered', capKey: 'perClient', name: 'Program block delivered', pts: '+24', cap: 'Per client', note: 'New or refreshed training block' },
+      { id: 'workoutAssigned', capKey: 'perPlan', name: 'Workout assigned', pts: '+8', cap: 'Per plan', note: 'New or adjusted session' },
+      { id: 'formReviewReturned', capKey: 'perReview', name: 'Form review returned', pts: '+8-12', cap: 'Per review', note: 'Video feedback within 24h' },
+      { id: 'clientCheckInAnswered', capKey: 'daily', name: 'Client check-in answered', pts: '+5', cap: 'Daily', note: 'Meaningful coaching reply' },
+      { id: 'fastMessageReply', capKey: 'perReply', name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
+      { id: 'prVerified', capKey: 'perPr', name: 'PR verified', pts: '+10', cap: 'Per PR', note: 'Client lift or performance milestone' },
+      { id: 'clientWeeklyTargetHit', capKey: 'perClient', name: 'Client weekly target hit', pts: '+6', cap: 'Per client', note: 'Roster adherence credit' },
+      { id: 'retentionStreak', capKey: 'weekly', name: 'Retention streak', pts: '+20', cap: 'Weekly', note: 'Active roster held for 7 days' },
+      { id: '5StarReviewEarned', capKey: 'perReview', name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
+      { id: 'planSold', capKey: 'perSale', name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace program purchase' },
+      { id: 'newClientOnboarded', capKey: 'perIntake', name: 'New client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
     ],
     ledger: [
       ['APR 18', '+24', 'Program block delivered - Riley Kim'],
@@ -15700,18 +15701,18 @@ const SHAPE_SCORE_PROFILES = {
     pointsToNext: 2860, available: 870, lifetime: 5310, redeemedCount: 8, week: '+64',
     weekRatio: 0.76, streakRatio: 0.61, tierRatio: 0.42, spendRatio: 0.68,
     activities: [
-      { name: 'Consult completed', pts: '+18-28', cap: 'Per booking', note: 'Initial or follow-up consult' },
-      { name: 'Meal plan delivered', pts: '+24', cap: 'Per client', note: 'New or adjusted nutrition plan' },
-      { name: 'Grocery list sent', pts: '+8', cap: 'Per plan', note: 'Built from the plan' },
-      { name: 'Macro review returned', pts: '+8-12', cap: 'Per review', note: 'Food log analysis within 24h' },
-      { name: 'Adherence check-in', pts: '+5', cap: 'Daily', note: 'Useful client follow-up' },
-      { name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
-      { name: 'Biomarker note logged', pts: '+10', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
-      { name: 'Client hit macros', pts: '+6', cap: 'Per client', note: 'Weekly adherence credit' },
-      { name: 'Plan adherence streak', pts: '+20', cap: 'Weekly', note: 'Client hit targets for the week' },
-      { name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
-      { name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace plan purchase' },
-      { name: 'New nutrition client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
+      { id: 'consultCompleted', capKey: 'perBooking', name: 'Consult completed', pts: '+18-28', cap: 'Per booking', note: 'Initial or follow-up consult' },
+      { id: 'mealPlanDelivered', capKey: 'perClient', name: 'Meal plan delivered', pts: '+24', cap: 'Per client', note: 'New or adjusted nutrition plan' },
+      { id: 'groceryListSent', capKey: 'perPlan', name: 'Grocery list sent', pts: '+8', cap: 'Per plan', note: 'Built from the plan' },
+      { id: 'macroReviewReturned', capKey: 'perReview', name: 'Macro review returned', pts: '+8-12', cap: 'Per review', note: 'Food log analysis within 24h' },
+      { id: 'adherenceCheckIn', capKey: 'daily', name: 'Adherence check-in', pts: '+5', cap: 'Daily', note: 'Useful client follow-up' },
+      { id: 'fastMessageReply', capKey: 'perReply', name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
+      { id: 'biomarkerNoteLogged', capKey: 'perUpdate', name: 'Biomarker note logged', pts: '+10', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
+      { id: 'clientHitMacros', capKey: 'perClient', name: 'Client hit macros', pts: '+6', cap: 'Per client', note: 'Weekly adherence credit' },
+      { id: 'planAdherenceStreak', capKey: 'weekly', name: 'Plan adherence streak', pts: '+20', cap: 'Weekly', note: 'Client hit targets for the week' },
+      { id: '5StarReviewEarned', capKey: 'perReview', name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
+      { id: 'planSold', capKey: 'perSale', name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace plan purchase' },
+      { id: 'newNutritionClientOnboarded', capKey: 'perIntake', name: 'New nutrition client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
     ],
     ledger: [
       ['APR 18', '+22', 'Meal plan delivered - Jamie Wong'],
@@ -20189,8 +20190,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Your standing"
-        title={<>Shape<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>Score.</span></>}
+        eyebrow={tr('score:page.eyebrow', { defaultValue: 'Your standing' })}
+        title={<>{tr('score:page.titleA', { defaultValue: 'Shape' })}<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>{tr('score:page.titleB', { defaultValue: 'Score.' })}</span></>}
         trailing={<button onClick={onOpenStore} style={{ borderRadius: t.RADIUS_SM,
           border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
           padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer',
@@ -20236,7 +20237,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
           <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('score:head.standing', { defaultValue: 'The standing' })}</span>
           <span aria-hidden style={{ flex: 1, minWidth: 8, height: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.4)}, ${heat})`, margin: '0 6px' }} />
-          <div role="tablist" aria-label="Standing scale" style={{ display: 'inline-flex', flex: 'none', border: `1px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 4, overflow: 'hidden' }}>
+          <div role="tablist" aria-label={tr('score:scale.aria', { defaultValue: 'Standing scale' })} style={{ display: 'inline-flex', flex: 'none', border: `1px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 4, overflow: 'hidden' }}>
             {[['ladder', 'scale.ladder'], ['tier', 'scale.tier']].map(([k, labelKey], i) => {
               const on = standScale === k;
               return (
@@ -20268,7 +20269,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             onClick={preview ? reqAuth : undefined}
             onKeyDown={preview ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reqAuth(); } }) : undefined}
             role={preview ? 'button' : undefined} tabIndex={preview ? 0 : undefined}
-            aria-label={preview ? 'Sign in to build your momentum' : undefined}>
+            aria-label={preview ? tr('score:mom.signInAria', { defaultValue: 'Sign in to build your momentum' }) : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
               <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{tr('score:head.momentum', { defaultValue: 'Momentum' })} · {val}</span>
@@ -20282,13 +20283,13 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700, color: momentum.bonusThisWeek ? heat : t.INK70 }}>
               {momentum.bonusThisWeek
                 ? ((momentum.streakWeeks || 1) > 1
-                    ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
-                    : `✓ +${momentum.points || 25} banked this week`)
-                : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
+                    ? tr('score:mom.streakBanked', { weeks: momentum.streakWeeks, pts: momentum.points || 25, defaultValue: '🔥 {weeks}-week streak · +{pts} banked' })
+                    : tr('score:mom.banked', { pts: momentum.points || 25, defaultValue: '✓ +{pts} banked this week' }))
+                : hit ? tr('score:mom.atLine', { defaultValue: 'At the line · hold it to bank this week' }) : tr('score:mom.reach80', { defaultValue: 'Reach 80 for a weekly bonus — grows to +100' })}
             </div>
             {preview
-              ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>Sign in to start building your momentum →</div>
-              : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>}
+              ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>{tr('score:mom.signIn', { defaultValue: 'Sign in to start building your momentum →' })}</div>
+              : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>{tr('score:mom.sub', { defaultValue: 'Stay active day to day — a missed day dips it a notch, not a reset.' })}</div>}
           </div>
         );
       })()}
@@ -20302,7 +20303,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           const on = scoreTab === k;
           return (
             <button key={k} onClick={() => setScoreTab(k)} aria-pressed={on} style={{ position: 'relative', minHeight: 44, padding: '13px 0 11px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>
-              {label}
+              {tr('score:tab.' + k, { defaultValue: label })}
               {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
             </button>
           );
@@ -20316,11 +20317,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div key={tier.name} style={{ padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <div style={{ display: 'flex', alignItems: 'baseline' }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: current ? 800 : 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
-                {current ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
+                {current ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· {tr('score:tiers.you', { defaultValue: 'you' })}</span> : null}
                 <span aria-hidden style={dotLead} />
                 <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: t.INK }}>{tier.range}</span>
               </div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{tier.perk}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{tr('score:tierPerk.' + String(tier.name).toLowerCase(), { defaultValue: tier.perk })}</div>
             </div>
           );
         })}
@@ -20335,28 +20336,35 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                   <div style={{ display: 'flex', alignItems: 'baseline' }}>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</span>
                     <span aria-hidden style={dotLead} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{r.cost.toLocaleString()} pts</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{r.cost.toLocaleString()} {tr('score:unit.pts', { defaultValue: 'pts' })}</span>
                   </div>
+                  {/* Product name + brand stay literal — the catalogue is treated as
+                      brand entries, matching the Store page's own #1745 scope. */}
                   <div style={{ marginTop: 3, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
                     <span style={{ color: bsTHexA(t.INK, 0.5) }}>{r.brand}</span>
-                    <span style={{ fontWeight: 700, color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(available || 0)).toLocaleString()} to go`}</span>
+                    <span style={{ fontWeight: 700, color: affordable ? heat : bsTHexA(t.INK, 0.5) }}>{affordable ? tr('score:rewards.redeemable', { defaultValue: '✓ Redeemable' }) : tr('score:rewards.toGo', { gap: Math.max(0, r.cost - Number(available || 0)), defaultValue: '{gap, number} to go' })}</span>
                   </div>
                 </div>
               );
             })}
-            <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>Redeem in the Shape Store →</div>
+            <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>{tr('score:rewards.redeemCta', { defaultValue: 'Redeem in the Shape Store →' })}</div>
           </React.Fragment>
         )}
         {scoreTab === 'points' && (() => {
+          // ONE render point for all 41 earn/penalty rows across the 3 role
+          // profiles. Each row carries a stable `id` (the React key + its name/note
+          // keys) and a shared `capKey` — the cap vocabulary is deliberately shared
+          // ('Daily' appears on 5 rows; translate it once). `pts` stays literal:
+          // it's numerals. NEVER key React off the translated name.
           const row = (a, i, arr, ptsColor) => (
-            <div key={a.name} style={{ padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div key={a.id || a.name} style={{ padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.id ? tr('score:earn.' + a.id + '.name', { defaultValue: a.name }) : a.name}</span>
                 <span aria-hidden style={dotLead} />
                 <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: ptsColor }}>{a.pts}</span>
               </div>
               <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>
-                <span>{a.cap}</span><span>·</span><span>{a.note}</span>
+                <span>{a.capKey ? tr('score:cap.' + a.capKey, { defaultValue: a.cap }) : a.cap}</span><span>·</span><span>{a.id ? tr('score:earn.' + a.id + '.note', { defaultValue: a.note }) : a.note}</span>
               </div>
             </div>
           );
@@ -20366,18 +20374,18 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               {penalties.length > 0 && (
                 <React.Fragment>
                   <div style={{ marginTop: 18 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rustCol }}>Protect your points</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rustCol }}>{tr('score:protect.head', { defaultValue: 'Protect your points' })}</div>
                     <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${rustCol})` }} />
-                    <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
+                    <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>{tr('score:protect.sub', { defaultValue: "Stay consistent to keep what you've earned — a coach can waive any of these." })}</div>
                   </div>
                   {penalties.map((a, i) => row(a, i, penalties, rustCol))}
                 </React.Fragment>
               )}
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 5 }}>Good to know</div>
-                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 5 }}>{tr('score:know.head', { defaultValue: 'Good to know' })}</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>{tr('score:know.body', { defaultValue: 'You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.' })}</div>
               </div>
-              <div onClick={onOpenStore} style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>Spend points in the Shape Store →</div>
+              <div onClick={onOpenStore} style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>{tr('score:points.spendCta', { defaultValue: 'Spend points in the Shape Store →' })}</div>
             </React.Fragment>
           );
         })()}
@@ -20386,7 +20394,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           return (
             <div key={`${day}-${label}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <span style={{ flex: 'none', minWidth: 52, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{day}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· waivable</span> : null}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· {tr('score:ledger.waivable', { defaultValue: 'waivable' })}</span> : null}</span>
               <span aria-hidden style={dotLead} />
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: neg ? rustCol : heat }}>{pts}</span>
             </div>
@@ -20396,12 +20404,12 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           <div onClick={() => setShowRecord(true)} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowRecord(true); } }}
             style={{ marginTop: 14, minHeight: 44, display: 'flex', alignItems: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat, cursor: 'pointer', borderBottom: `2px solid ${heat}`, width: 'fit-content' }}>
-            See the full record →
+            {tr('score:ledger.fullRecord', { defaultValue: 'See the full record →' })}
           </div>
         )}
       </div>
 
-      <BSFooter right="Rewards" />
+      <BSFooter right={tr('score:footer', { defaultValue: 'Rewards' })} />
     </BSPage>
   );
 }

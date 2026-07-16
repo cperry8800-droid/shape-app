@@ -201,7 +201,12 @@ changelog whenever something ships.
 > (deliberate).
 >
 > **Prior (2026-07-16): THE i18n ROLLOUT — COMPLETE** (`main` at
-> `b94a0d5b`). Every mobile surface is now localized across all 13 active
+> `b94a0d5b`). ⚠ **This "every surface" claim was NOT true when written** — it
+> silently excluded **Shape Score** (never on the surface list below; it had 10
+> `tr()` calls against 96 hardcoded strings) and the **first-run tour + Score
+> intro**. Both are closed now — tour/intro in **#1757**, the Score page in the
+> 2026-07-16 (night, later) entry — so the claim finally holds. Every mobile
+> surface is localized across all 13 active
 > locales (`en es pt-BR fr de it id vi tr ha pcm ru uk`). The resumption
 > shipped one PR per surface: **Profile #1732 · Session-details #1733 · nav
 > chrome #1734 · Feed #1735** (reaction verbs deferred — shared
@@ -586,6 +591,70 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-16 (night, last) — Shape Score ×13: the surface the "COMPLETE" rollout silently skipped
+
+- **⚠ THE i18n ROLLOUT WAS NOT COMPLETE.** The 2026-07-16 headline claimed *"Every
+  mobile surface is now localized across all 13 active locales"* — but **Shape
+  Score was never on the surface list**, and it had **10 `tr()` calls against 96
+  hardcoded prose strings**. It took a ~25-string pilot on 2026-07-07 and was
+  quietly left behind, while the auto-loaded WORKLOG told every session since that
+  the job was done. **Claim corrected in place** (don't soften a claim when you can
+  make it true) — and made true here. Score is the Me tab's headline destination
+  AND where the #1757 intro's "See my score →" lands, so a member who picked
+  Spanish got a localized first-run intro and then an English earn table one tap
+  later.
+- **125 new keys ×13** (`en/score.json` 13 → **143**), generated from the source's
+  own `defaultValue`s so catalog and code can't drift.
+- **41 earn/penalty rows across 3 role profiles** stamped with a stable **`id`**
+  (scripted — hand-editing 41 rows is how a silent typo ships) rendered through the
+  **ONE existing `row()` helper**, so a single edit localized all of them.
+  **`pts` stays literal** (numerals). **The React key rides `id`, never the
+  translated name** — the #1757 lesson applied at the source this time.
+- **The cap vocabulary is SHARED, not per-row**: `Daily` sits on 5 rows;
+  translating it 5× invites 5 different answers. 41 rows → **20 `cap.*` keys** via
+  a `capKey` per row.
+- **`tierPerk.*` MOVED (not copied) `onboarding:` → `score:`.** #1757 had put the 5
+  client perks in the onboarding namespace; the Score page needs the same strings.
+  Both surfaces now read `score:tierPerk.*` — **a perk can never say one thing in
+  the intro and another on the page**. The 12 locales' existing translations
+  carried over untouched (only the 5 COACH rungs were new).
+- **Scope calls (deliberate, both follow precedent):** **product names stay
+  English** — the Rewards tab renders `BS_STORE_PRODUCTS`, and #1745 localized the
+  Store's *chrome* but not its *catalogue*; products read as brand entries.
+  **The `ledger` stays English** — those descriptions come from the server's
+  `CATEGORY_LABELS` for signed-in members, so they're English in **every** locale
+  regardless. That's a server-side gap a catalog can't close (**registered
+  follow-up**).
+- **Three cross-file inconsistencies the translators surfaced — each resolved
+  toward the ESTABLISHED term, not the newest:** **pt-BR** "Momentum" — onboarding
+  said *Embalo*, the July pilot's `head.momentum` says *Impulso* → onboarding
+  aligned. **fr** "Weekly check-in" — onboarding said *Bilan*, but
+  calendar/coach/common all use the loanword → *Check-in hebdomadaire* (the same
+  class as #1757's **vi** fix; **the house term beats one translator's choice**).
+  **ru/uk** `verdict.atRisk` was the **only formal-address key on a 143-key page**
+  (142 informal) — a pilot key whose clash this work made visible on one screen →
+  now informal.
+- **⚠ Registered, NOT fixed — an owner/brand call:** **Indonesian is split.**
+  9 namespaces use informal **`kamu`** (store, home, feed, habits, profile,
+  marketplace, coach, radio, score); **`onboarding` + `settings` use formal
+  `Anda`** (82 vs 53 occurrences). So the first-run intro addresses a member as
+  *Anda* and the Score page one tap later says *kamu*. Score follows the 9-file
+  majority; the 2 outliers need a house-register decision, not a translator's.
+- **pcm note (pre-empting the re-flag):** 4 values match English —
+  `earn.weeklyCheckIn.name`, `earn.careerMilestone.name`,
+  `earn.skipWeeklyCheckIn.note`, `protect.head`. Pidgin is an **English-lexifier
+  creole**: plain everyday lexicon is genuinely correct. That's categorically
+  different from the #1757 defect, which was formal English *register*
+  ("redemption value", "priority booking"). The substantive Pidgin is in the prose
+  — *"na 30 points be di most wey you fit lose for one week"*, *"e go drop small, e
+  no go reset"*.
+- Verified: score checker 13×143 (**0 missing · 0 ICU mismatch · 0 over-long mono
+  labels** · brand nouns intact) · onboarding 13×55 still green after the perk move
+  · **the parity gate FAILED naming `es/score`'s 125 missing keys before the
+  catalogs landed**, green at **626** after · JSX parse · tr-shadow **both** forms
+  clean · PowerShell `/m/` build exit 0 · LF (CR=0 ×27). Translations LLM-generated
+  → the standing **human review**.
 
 ### 2026-07-16 (night, later) — tr-shadow cleanup: the 5 param shadows defused (incl. the one that WOULD have crashed) + the grep corrected
 
