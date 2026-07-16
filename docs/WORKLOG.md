@@ -173,10 +173,11 @@ changelog whenever something ships.
 > **ON AIR** tag with a **red lamp**, and it's rolled out to the **static navs**
 > that never used the React component (index `.nradio` + 8 legal `.nav-radio`
 > rendered a PNG — which is why the landing page kept the old look).
-> **Geometry gotcha:** `logo-triangles-only.svg` *interlocks* the triangles
-> (offset 0.45 of height); the authentic `public/shape-triangles.png` is 0.63 —
-> use **its** coords (`viewBox="8 8 79 98"`, teal `14,47 14,100 51,73`, white
-> `81,14 81,65 44,39`). **Process gotcha:** a `?v` sweep across pageShell's 69
+> **Geometry gotcha:** `logo-triangles-only.svg`'s coords are **SUPERSEDED** —
+> they *interlock* the triangles (offset 0.45 of height) and read cramped; the
+> authentic `public/shape-triangles.png` is 0.63. **The final canonical values
+> (shipped) are the PNG-derived ones:** `viewBox="8 8 79 98"`, teal
+> `14,47 14,100 51,73`, white `81,14 81,65 44,39`. Copy those, not the SVG's. **Process gotcha:** a `?v` sweep across pageShell's 69
 > consumers made a 70-file PR that **CodeRabbit auto-skips (>50 files)** — and
 > it was **prod-redundant anyway**, since `scripts/build-newdesign.mjs` rewrites
 > the tags to `nd/…?v=<content-hash>` at deploy. **This supersedes the
@@ -604,11 +605,14 @@ changelog whenever something ships.
   states the live signal the dot only implied (decorative/`aria-hidden`; the
   link still reads "Shape Radio").
 - **⚠ Triangle geometry — use the ASSET, not `logo-triangles-only.svg`.** That
-  SVG's coords **interlock** the triangles (33×44 at offset (+23,−20) = 0.45 of
-  height) and read cramped. Measured the authentic
-  **`public/shape-triangles.png`**: 37×52 at offset (+30,−33) = **0.63** — a
-  real diagonal gap. Canonical values now in use: `viewBox="8 8 79 98"`,
-  teal `14,47 14,100 51,73`, white `81,14 81,65 44,39`.
+  SVG's coords are **SUPERSEDED**: they **interlock** the triangles (33×44 at
+  offset (+23,−20) = 0.45 of height) and read cramped — that was #1750's first
+  cut. Measured the authentic **`public/shape-triangles.png`** instead: 37×52 at
+  offset (+30,−33) = **0.63** — a real diagonal gap. **The FINAL canonical
+  values (what ships) are the PNG-derived ones — copy these, not the SVG's:**
+  `viewBox="8 8 79 98"`, bottom-left teal `14,47 14,100 51,73`, top-right white
+  `81,14 81,65 44,39`. (The teal/white split IS the SVG's own annotation and is
+  correct — take the colors from it, the geometry from the PNG.)
 - **⚠ The wordmark has TWO implementations** — that's why the landing page kept
   the old look. (1) React `RadioWordmark` in `pageShell.jsx` → the 69 newdesign
   React pages; (2) **static hand-written navs** that never used it —
