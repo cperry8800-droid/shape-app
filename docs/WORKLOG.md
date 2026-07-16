@@ -641,6 +641,32 @@ changelog whenever something ships.
   `Anda`** (82 vs 53 occurrences). So the first-run intro addresses a member as
   *Anda* and the Score page one tap later says *kamu*. Score follows the 9-file
   majority; the 2 outliers need a house-register decision, not a translator's.
+- **⚠ CORRECTION — I invented a bad Turkish rule in #1757 and it caused a real
+  defect.** My translator brief said *"never glue an apostrophe case-suffix onto a
+  brand noun"* (`Shape'in` ✗). **That rule is wrong.** The DOCUMENTED rule is only
+  *"Turkish never glues case suffixes onto `{placeholders}`"* — which is right,
+  because a placeholder's runtime value decides vowel harmony. A **proper noun** is
+  the opposite case: Turkish **requires** the apostrophe before a case suffix
+  (TDK), and this repo's own tr catalogs do it **24 times** (`Shape'te`,
+  `Spotify'dan`, `Supabase'e`, `Music'ten`). The pilot key
+  `verdict.topSub` = `"Shape'in sunduğu en yüksek seviye."` is **CORRECT — leave
+  it.** Cost of the bad rule: #1757's translator phrased around apostrophes into
+  `Shape Score puanın nasıl çalışır` ("your Shape Score score how works"), which
+  CodeRabbit flagged and we fixed. **Brief the rule as placeholders-only.**
+- **⚠ Registered — Hausa has no house term for "check-in" (3-way split):**
+  `calendar`/`home` use the loanword `check-in`, `coach` uses `rahoto`,
+  `onboarding`/`settings` use `duba`. Score used **`Duba na mako`** to match the
+  parallel onboarding earn list, so Score and Home now say different words for the
+  same thing. Needs a house ruling (same class as the **vi** `check-in` call,
+  which had a clear majority; Hausa doesn't).
+- **Hausa runs longest on the cramped cap row** (max 20 chars vs en's 13 —
+  `Kowane abokin ciniki`, `Kowane ɗagawa / wata`); there's no shorter *genuine*
+  Hausa for "client" and the loanword is blocked by the no-English rule. **If that
+  mono row clips on-device, that's where** — the checker passes it, but it's the
+  known edge.
+- **Hausa "bet" → `alkawari` (commitment), NOT `caca`** — the literal word for a
+  bet means *gambling*, which carries a religious objection for much of the Hausa
+  readership. A deliberate, correct deviation from the English.
 - **pcm note (pre-empting the re-flag):** 4 values match English —
   `earn.weeklyCheckIn.name`, `earn.careerMilestone.name`,
   `earn.skipWeeklyCheckIn.note`, `protect.head`. Pidgin is an **English-lexifier
