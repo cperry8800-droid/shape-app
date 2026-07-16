@@ -49,12 +49,21 @@
 
   function stepsFor(role) { return role === 'client' ? clientSteps() : coachSteps(role); }
 
-  // Per-role seen flag: a client walkthrough must not suppress a coach's onboarding
-  // (or vice-versa) in the same browser profile.
-  function seenKey(role) { return 'shape.webTourSeen.' + role; }
+  // Per-role AND per-account seen flag: a client walkthrough must not suppress a
+  // coach's onboarding in the same browser profile, and Account A completing the
+  // tour must not suppress Account B's on a shared browser (CodeRabbit, #1755).
+  // The legacy unscoped key ('shape.webTourSeen.<role>') is still HONORED as seen
+  // — browsers that completed the pre-rework tour shouldn't be re-toured — but no
+  // longer written.
+  function seenKey(role, uid) { return 'shape.webTourSeen.' + role + '.' + uid; }
+  function legacySeenKey(role) { return 'shape.webTourSeen.' + role; }
   function markSeen(role) {
-    try { localStorage.setItem(seenKey(role), '1'); } catch (e) {}
     try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(GOAL_KEY[role], { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
+    try {
+      Promise.resolve(window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()).then(function (u) {
+        if (u) { try { localStorage.setItem(seenKey(role, u.id), '1'); } catch (e) {} }
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   function start(role) {
@@ -76,19 +85,25 @@
 
   function init(role) {
     window.addEventListener('shape:startTour', function () { start(role); });
-    // Auto-show once per account: first signed-in dashboard visit, not seen on this
-    // browser (localStorage fast-path) or any other (the dedicated cloud flag).
+    // Auto-show once per account: first signed-in dashboard visit, not seen by THIS
+    // account on this browser (localStorage fast-path) or anywhere (the dedicated
+    // cloud flag). Failure split: auth unresolved → fail CLOSED (can't confirm a
+    // signed-in member; the next visit retries), goals read failed after auth
+    // confirmed → fail OPEN like the mobile tours (worst case a seen member gets a
+    // one-tap-skippable repeat, never a lost first-run).
     (function () {
-      try {
-        if (localStorage.getItem(seenKey(role)) === '1') return;
-      } catch (e) {}
       var db = window.shapeDb;
       if (!db || !db.getUser) return;
       Promise.resolve(db.getUser()).then(function (u) {
         if (!u) return; // signed-out demo view — no tour
-        return Promise.resolve(db.getUserGoals ? db.getUserGoals(GOAL_KEY[role]) : null).then(function (d) {
+        try {
+          if (localStorage.getItem(seenKey(role, u.id)) === '1') return;
+          if (localStorage.getItem(legacySeenKey(role)) === '1') return; // pre-rework completion
+        } catch (e) {}
+        var goals = db.getUserGoals ? Promise.resolve(db.getUserGoals(GOAL_KEY[role])).catch(function () { return null; }) : Promise.resolve(null);
+        return goals.then(function (d) {
           if (d && d.tourSeen) {
-            try { localStorage.setItem(seenKey(role), '1'); } catch (e) {} // sync this browser
+            try { localStorage.setItem(seenKey(role, u.id), '1'); } catch (e) {} // sync this browser
             return;
           }
           // Seen is marked in onDone (finish OR skip), never here — a reload mid-tour
