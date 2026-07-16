@@ -46,10 +46,20 @@ changelog whenever something ships.
   we build on — **always edit the pages here** (`*.html` + their `*.jsx` babel
   blocks/companions), not anywhere else. Each `*.html` is the live page; many are
   **self-contained** (inline `<script type="text/babel">`) and pull in shared
-  `living*.jsx` / `chatWidget.jsx` / `pageShell.jsx` via `?v=N` tags — **bump the
-  `?v=` when you change a referenced `.jsx`** so the cache busts. A few legacy
-  `*.jsx` files (e.g. `memberProfile.jsx`) are **orphaned/dead** (nothing loads
-  them) — confirm a file is actually referenced before relying on an edit there.
+  `living*.jsx` / `chatWidget.jsx` / `pageShell.jsx` via `?v=N` tags.
+  ⚠️ **You do NOT need to bump the `?v=` — that convention is OBSOLETE**
+  (superseded 2026-07-16; it predates the #1726 precompile). At deploy,
+  `scripts/build-newdesign.mjs` **rewrites every newdesign page's script tags to
+  `nd/<name>?v=<content-hash>`**, so production's cache key is the **content
+  hash** — editing a `.jsx` busts its cache automatically. The precompile covers
+  **all** of `public/newdesign/` (it's the only place `.jsx?v=` refs exist), so
+  there is no exception. **Do not sweep `?v=` across a shared jsx's consumers**
+  — `pageShell.jsx` has 69, which makes a 70-file PR that **CodeRabbit
+  auto-skips (>50 files = no review at all)**. Keep the PR to the jsx file. (The
+  hand-written `?v` only affects the raw-babel dev path — a stale local copy is
+  one hard-refresh.) A few legacy `*.jsx` files (e.g. `memberProfile.jsx`) are
+  **orphaned/dead** (nothing loads them) — confirm a file is actually referenced
+  before relying on an edit there.
   The Next.js app at the repo root (`src/`) is **API routes + the gated
   `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
   store/coach pages all live in `public/newdesign/`.
@@ -63,10 +73,12 @@ changelog whenever something ships.
 - **Diff review before merge (standard practice).** For any non-trivial change
   (logic, data flow, theming, anything touching shared components), give the PR
   diff a dedicated review pass before squash-merging — hunting specifically for:
-  logic bugs/regressions, missed `?v=` cache-bust bumps on edited referenced
-  `.jsx`, theme-token violations (hardcoded ink/paper on themed surfaces, theme
-  tokens on fixed-background screens), demo-vs-live data leaks, and changes to
-  shared code that other profiles/pages also render. Docs/copy-only tweaks can
+  logic bugs/regressions, theme-token violations (hardcoded ink/paper on themed
+  surfaces, theme tokens on fixed-background screens), demo-vs-live data leaks,
+  and changes to shared code that other profiles/pages also render. (**No longer
+  check for "missed `?v=` bumps"** — that convention is obsolete, see the
+  newdesign bullet above; flag a *needless* 69-file `?v` sweep instead, since it
+  trips CodeRabbit's 50-file skip.) Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
