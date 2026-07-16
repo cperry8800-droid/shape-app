@@ -38,7 +38,7 @@ function coachLocale() {
 // bridge at call time; the components that consume these outputs carry their
 // own useShapeTr() subscription, so they re-run on locale change.
 function coachTr(key, opts) {
-  const v = typeof window !== 'undefined' && window.ShapeI18n?.t?.(key, opts);
+  const v = typeof window !== 'undefined' ? window.ShapeI18n?.t?.(key, opts) : undefined;
   return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
 }
 const {
