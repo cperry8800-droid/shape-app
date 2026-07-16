@@ -940,26 +940,29 @@ function BSProWeekStrip({ goCalendar, dots, heat, label, selDay: selDayProp, onS
 // ═══════════════════════════════════════════════════════════
 // ── First-run coach app tour ────────────────────────────────────────────────
 // Coach-side counterpart of the client BSOnboardingTour: a skippable guided
-// walkthrough of the coaching tools. Auto-shows once for newly-created coach
-// accounts (persisted to localStorage 'shape.coachTourSeen' + cloud user_goals
-// 'coach_onboarding'); replayable anytime via the `shape:startTour` event.
+// walkthrough of the coaching tools. Auto-shows ONCE per coach on their first
+// signed-in visit to a coach shell (persisted to localStorage
+// 'shape.coachTourSeen' + cloud user_goals 'coach_onboarding'); replayable
+// anytime via the `shape:startTour` event.
 function bsMarkCoachTourSeen() {
   try { localStorage.setItem('shape.coachTourSeen', '1'); } catch (e) {}
   try { window.shapeDb?.saveUserGoals?.('coach_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
 }
-// Auto-show decision shared by both coach shells: new account (<24h) + not seen.
+// Auto-show decision shared by both coach shells: signed-in coach + not seen.
+// Deliberately NOT gated on account age (2026-07-16): a coach APPLIES on day 0
+// and is approved days later, so by their first real coach-shell login the old
+// created_at<24h window had usually passed and the tour never auto-showed.
+// Being in a coach shell already proves the role; the seen flags carry the
+// once-only guarantee.
 function bsCoachTourAutoShow(setShow) {
   let alive = true;
   let done = false;
   try { done = localStorage.getItem('shape.coachTourSeen') === '1'; } catch (e) {}
   if (done) return () => {};
-  const NEW_MS = 24 * 60 * 60 * 1000;
   const decide = () => {
     if (!alive || done) return;
     const u = window.ShapeAuth?.getCachedState?.().user;
     if (!u) return;
-    const created = u.created_at ? Date.parse(u.created_at) : NaN;
-    if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return;
     done = true;
     if (window.shapeDb?.getUserGoals) {
       window.shapeDb.getUserGoals('coach_onboarding')

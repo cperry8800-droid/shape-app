@@ -587,6 +587,46 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (evening) — Onboarding-tour triggers repaired: the web tour can no longer kill the app tour · intro→tour chaining · first-visit semantics
+
+- **Fixes the three trigger holes** from the onboarding-tour review (the tours
+  themselves are untouched — this is when/whether they fire):
+- **⚠ The web tour was silently suppressing the MOBILE app tour (real bug).**
+  `dashTour.js` wrote `{tourSeen:true}` into `user_goals('client_onboarding')` —
+  the exact doc/field the app tour reads — and wrote it **on arm, before the
+  tour even rendered**. Worse: `saveUserGoals` **REPLACES the whole doc** (plain
+  upsert, no merge), so the write also clobbered anything else there. The web
+  tour now uses **dedicated keys** (`web_client_onboarding` /
+  `web_coach_onboarding` — the "dedicated key, no clobber" convention), READS
+  its cloud flag (it was localStorage-only, so it re-fired per browser), and
+  marks seen **in `onDone`** (finish or skip) — a failed engine load can't burn
+  the one auto-show; a reload mid-tour re-offers it.
+- **Web trigger → first signed-in dashboard visit** (was `created_at < 24h`).
+  Accounts are created in the app, so most members first reach the web
+  dashboard days later — the web tour effectively never fired, which is why it
+  read as "there is no website tour."
+- **Mobile client: the Score intro's "Got it" now CHAINS the app tour**
+  (`chainTourAfterIntro` in `BSClientAppInner`) — intro → tour in one launch.
+  The old handoff waited for a *later* launch still inside the 24h window, so
+  anyone who didn't relaunch day-1 never saw the tour. `BSScoreIntro.onClose`
+  now carries `skipped` (SKIP doesn't chain — declining onboarding is
+  respected; replay lives in Me → App tour), and "See my score →" no longer
+  double-fires `onClose`. The mount-time effect stays as the fallback.
+- **Mobile coach: the `created_at < 24h` gate is dropped** — a coach applies on
+  day 0 and is approved days later, so by their first real coach-shell login
+  the window had passed. Now: signed-in + not seen (the shell proves the role).
+- **Dead code:** `tourTrigger.mjs` + `tests/tour-trigger.test.mjs` deleted —
+  nothing imported the module (dashTour only *mirrored* it in a comment); the
+  age-gate predicate it tested no longer exists. Suite 632 → **626**.
+- **`?v` note:** `dashTour.js` is a **plain classic script**, NOT a babel block
+  — the precompile does not rewrite its tag, so its hand-written `?v` is still
+  the live cache key and WAS bumped (3 SPA pages). The retired no-bump
+  convention applies to precompiled newdesign `.jsx` only.
+- Verified: JSX parse ×2 · `node --check` · PowerShell `/m/` build exit 0 ·
+  `npm test` 626 · LF (CR=0 ×6). Open (from the same review, not this PR):
+  i18n for the client tour + Score intro (B) · stale copy incl. the earn list
+  (C) · engine scroll/Escape/dialog polish (D).
+
 ### 2026-07-16 (later) — Website Team page → Open Ledger (#1748) · the radio wordmark gets its triangles + ON AIR (#1750 · #1751 · #1752)
 
 - **Team page → "Your team." (#1748, `f7b18f62`).**
