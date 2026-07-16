@@ -18,6 +18,9 @@ function waitFor(getter, ms = 1200) {
     (function tick() { let e = null; try { e = getter(); } catch (_) {} if (e) return res(e); if (Date.now() - t0 > ms) return res(null); requestAnimationFrame(tick); })();
   });
 }
+// Two frames: one for the scroll/layout to apply, one for it to settle before we
+// measure. getBoundingClientRect right after scrollIntoView reads the OLD position.
+function nextFrames() { return new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))); }
 
 export function startTour(steps, opts = {}) {
   const root = opts.root || document.body;
@@ -33,13 +36,43 @@ export function startTour(steps, opts = {}) {
   const cut = el('div', `position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,10,12,0.66);transition:${reduce ? 'none' : 'all .28s cubic-bezier(.2,.7,.2,1)'};pointer-events:none`);
   const ring = el('div', `position:absolute;border-radius:14px;border:1.5px solid ${accent};box-shadow:0 0 22px -2px ${accent}88;transition:${reduce ? 'none' : 'all .28s cubic-bezier(.2,.7,.2,1)'};pointer-events:none`);
   const card = el('div', `position:absolute;width:280px;max-width:84%;background:${paper};color:${ink};border:1px solid ${accent}44;border-radius:16px;padding:18px 18px 14px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);font-family:system-ui,-apple-system,sans-serif;transition:${reduce ? 'none' : 'top .28s, left .28s'}`);
+  // The card IS the tour's dialog: the dim layer blocks the page beneath it, so a
+  // screen reader / keyboard user should be scoped to the card.
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-label', 'Product tour');
+  cut.setAttribute('aria-hidden', 'true');
+  ring.setAttribute('aria-hidden', 'true');
   layer.append(cut, ring, card);
   root.appendChild(layer);
 
+  const prevFocus = typeof document !== 'undefined' ? document.activeElement : null;
   let i = 0, destroyed = false;
   const cardSize = () => ({ w: card.offsetWidth || 280, h: card.offsetHeight || 150 });
+  const focusables = () => Array.from(card.querySelectorAll('button')).filter((b) => b.offsetParent !== null);
 
-  function teardown() { if (destroyed) return; destroyed = true; layer.remove(); try { root.style.position = rootPos0; } catch (_) {} }
+  // Escape dismisses (a modal contract); Tab cycles within the card so focus can't
+  // wander into the dimmed, pointer-blocked page behind it.
+  function onKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); finish(); return; }
+    if (e.key !== 'Tab') return;
+    const f = focusables();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  document.addEventListener('keydown', onKey);
+
+  function teardown() {
+    if (destroyed) return;
+    destroyed = true;
+    document.removeEventListener('keydown', onKey);
+    layer.remove();
+    try { root.style.position = rootPos0; } catch (_) {}
+    // Hand focus back to whatever the user was on before the tour opened.
+    try { if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true }); } catch (_) {}
+  }
   function finish() { teardown(); if (opts.onDone) opts.onDone(); }
 
   async function show() {
@@ -50,6 +83,16 @@ export function startTour(steps, opts = {}) {
     let target = await waitFor(step.anchor);
     if (!target && step.fallback) { try { target = step.fallback(); } catch (_) {} }
     if (destroyed) return;
+
+    // Bring the anchor into view BEFORE measuring — an anchor below the fold (e.g.
+    // hero-habits on a filled Home) would otherwise spotlight offscreen. The dim
+    // layer swallows pointer events, so the user can't scroll it back out from under
+    // us; instant behavior keeps the measure deterministic (and honors reduced motion).
+    if (target && target.scrollIntoView) {
+      try { target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); } catch (_) {}
+      await nextFrames();
+      if (destroyed) return;
+    }
 
     const rr = root.getBoundingClientRect();
     renderCard(step);
@@ -71,6 +114,8 @@ export function startTour(steps, opts = {}) {
 
   function renderCard(step) {
     const b = stepBounds(i, steps.length);
+    // Name the dialog by its step so a screen reader announces what changed on advance.
+    card.setAttribute('aria-label', step.title || 'Product tour');
     const dots = steps.map((_, k) => `<span style="width:${k === i ? 18 : 6}px;height:6px;border-radius:3px;background:${k === i ? accent : ink + '40'};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
     const nextLabel = step.final ? (step.ctaLabel || 'Open →') : (b.isLast ? 'Done' : 'Next →');
     card.innerHTML =
@@ -85,9 +130,14 @@ export function startTour(steps, opts = {}) {
         `</div>` +
       `</div>` +
       `<button data-st="skip" aria-label="Skip" style="position:absolute;top:10px;right:12px;background:none;border:none;color:${ink};opacity:.5;font-size:18px;line-height:1;cursor:pointer">×</button>`;
-    card.querySelector('[data-st="next"]').onclick = () => { if (step.final) { try { step.onCta && step.onCta(); } catch (_) {} finish(); } else if (b.isLast) finish(); else { i++; show(); } };
+    const next = card.querySelector('[data-st="next"]');
+    next.onclick = () => { if (step.final) { try { step.onCta && step.onCta(); } catch (_) {} finish(); } else if (b.isLast) finish(); else { i++; show(); } };
     const back = card.querySelector('[data-st="back"]'); if (back) back.onclick = () => { if (i > 0) { i--; show(); } };
     card.querySelector('[data-st="skip"]').onclick = finish;
+    // Pull focus into the dialog. innerHTML above destroyed the old buttons, so
+    // activeElement has fallen back to <body> — this runs on first show and on every
+    // step change, and is a no-op re-focus on a resize re-render.
+    if (next && !card.contains(document.activeElement)) { try { next.focus({ preventScroll: true }); } catch (_) {} }
   }
 
   const onResize = () => show();

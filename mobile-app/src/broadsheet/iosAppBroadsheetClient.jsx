@@ -288,13 +288,13 @@ function BSOnboardingTour({ onClose, onNavigate }) {
     const steps = [
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: "A quick tour of where everything lives — about 30 seconds." },
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Home', title: 'Your day, at a glance.', body: "Your next move, meals and habits — all on the home screen." },
-      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: 'Train', title: "Today’s session.", body: "Your workout, ready to start — coach-built, with the moves and loads." },
+      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: 'Train', title: "Today’s session.", body: "Your workout, ready to start — written by your coach, or built by you. Coach optional." },
       { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: 'Eat', title: 'Meals & logging.', body: "Your plan for the day. Tap a meal to log it in one tap." },
       { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: 'Grocery', title: 'Grocery lists.', body: "Your week’s meals become a shopping list, sorted by aisle — auto-built for you." },
       { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: 'Habits', title: 'Daily habits.', body: "Check off the small things that add up — every one feeds your Shape Score." },
       { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Coaches & community.', body: "Message your coaches and see the community feed." },
       { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your Shape Score.', body: "Your profile, progress and the one number that tells the truth." },
-      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: '🎵 Shape Radio.', body: "Ad-free workout mixes, curated by BPM. Free with your membership.", onCta: () => onNavigate && onNavigate('radio') },
+      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: 'Shape Radio.', body: "Ad-free workout mixes, curated by BPM. Free with your membership.", onCta: () => onNavigate && onNavigate('radio') },
     ];
     const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
@@ -322,7 +322,11 @@ function BSScoreIntro({ onClose, onOpenScore }) {
       <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${color || accent})` }} />
     </div>
   );
-  const earn = [['Weekly check-in', '+15'], ['Log a workout', '+10'], ['Daily steps', '+1 / 5k'], ['New PR · community post', '+12 · +5'], ['Goal milestone', '+50-200'], ['Momentum (hold 80+)', '+25-100']];
+  // A curated subset of the REAL earn catalog (the Score page's `activities` list —
+  // keep in sync with it, never invent a row). Ordered daily loop first: what a new
+  // member actually does tomorrow. The footnote below points at the full list, so
+  // showing a subset stays honest.
+  const earn = [['Log a workout', '+10'], ['Log a meal', '+10'], ['Complete a habit', '+3'], ['Weekly check-in', '+15'], ['Daily steps', '+1 / 5k'], ['New PR · community post', '+12 · +5'], ['Goal milestone', '+50-200'], ['Momentum (hold 80+)', '+25-100']];
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
@@ -358,7 +362,7 @@ function BSScoreIntro({ onClose, onOpenScore }) {
             </div>
           ))}
         </div>
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>Consistency compounds</b> — hold your momentum and the weekly bonus grows.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>Consistency compounds</b> — hold your momentum and the weekly bonus grows. Your Score page lists every way to earn.</div>
 
         {sec('Spend what you earn')}
         <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Turn points into real rewards — session credit, gear and more — in the <b style={{ color: t.INK }}>Shape Store</b>. Spending never lowers your rank.</div>
