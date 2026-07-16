@@ -57,27 +57,34 @@
   // longer written.
   function seenKey(role, uid) { return 'shape.webTourSeen.' + role + '.' + uid; }
   function legacySeenKey(role) { return 'shape.webTourSeen.' + role; }
-  function markSeen(role) {
-    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(GOAL_KEY[role], { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
+  // uid = the account the tour was ARMED for (the auto-show eligibility check).
+  // Persistence aborts when the active account no longer matches — a shared browser
+  // switching accounts in another tab mid-tour must not stamp Account B's flags for
+  // Account A's tour (CodeRabbit, #1755). The replay path passes no uid (it is
+  // user-initiated, so the account completing IS the account that started).
+  function markSeen(role, uid) {
     try {
       Promise.resolve(window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()).then(function (u) {
-        if (u) { try { localStorage.setItem(seenKey(role, u.id), '1'); } catch (e) {} }
+        if (!u) return;
+        if (uid && u.id !== uid) return; // account switched mid-tour — don't persist
+        try { window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(GOAL_KEY[role], { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
+        try { localStorage.setItem(seenKey(role, u.id), '1'); } catch (e) {}
       }).catch(function () {});
     } catch (e) {}
   }
 
-  function start(role) {
+  function start(role, uid) {
     if (!window.SpotlightTour) return;
-    window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: false, onDone: function () { markSeen(role); } });
+    window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: false, onDone: function () { markSeen(role, uid); } });
   }
 
   // The engine (spotlightTour.js) loads as a module and may not be ready when the
   // auto-show timer fires; wait for window.SpotlightTour so a new-account auto-show
   // doesn't silently no-op. (The replay path is user-initiated, so it's always ready.)
-  function startWhenReady(role) {
+  function startWhenReady(role, uid) {
     var tries = 0;
     (function tick() {
-      if (window.SpotlightTour) { start(role); return; }
+      if (window.SpotlightTour) { start(role, uid); return; }
       if (tries++ > 60) return;   // ~6s ceiling, then give up rather than spin
       setTimeout(tick, 100);
     })();
@@ -108,7 +115,7 @@
           }
           // Seen is marked in onDone (finish OR skip), never here — a reload mid-tour
           // re-offers it; a failed engine load doesn't consume the auto-show.
-          setTimeout(function () { startWhenReady(role); }, 900); // let the first route render
+          setTimeout(function () { startWhenReady(role, u.id); }, 900); // let the first route render
         });
       }).catch(function () {});
     })();
