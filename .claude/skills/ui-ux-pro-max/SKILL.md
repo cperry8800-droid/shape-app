@@ -86,9 +86,14 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   `/m/` broadsheet). Biggest file: `iosAppBroadsheetClient.jsx`. Shared chrome
   (`BSPlate`, `BSPage`, `BSFooter`) in `iosAppBroadsheet.jsx`; coach apps in
   `iosAppBroadsheetPros.jsx`.
-- **Website** — `public/newdesign/*.html` + their `*.jsx` babel blocks. **Bump
-  the `?v=N`** on any referenced shared `.jsx` you change (cache-bust), and
-  confirm a file is actually referenced before relying on an edit.
+- **Website** — `public/newdesign/*.html` + their `*.jsx` babel blocks.
+  ⚠️ **Do NOT bump the `?v=N`** — that convention is **obsolete** (superseded
+  2026-07-16). The deploy precompile (`scripts/build-newdesign.mjs`) rewrites
+  every newdesign script tag to `nd/<name>?v=<content-hash>`, so editing a
+  `.jsx` cache-busts itself. **Never sweep `?v` across a shared jsx's
+  consumers** — `pageShell.jsx` has 69, and a 70-file PR makes **CodeRabbit skip
+  review entirely (>50 files)**. Keep the PR to the jsx file. Confirm a file is
+  actually referenced before relying on an edit.
 - **Next app** — `src/` (API routes + gated `/dashboard`).
 
 ## Verify-before-ship loop (mandatory)
@@ -101,8 +106,9 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   confirm `diff -rq mobile-app/dist public/m` is clean (CI fails on stale
   `public/m`).
 - Run `npm test`; open a PR only when asked; wait for CI green; review the diff
-  for theme-token violations, missed `?v=` bumps, demo-vs-live leaks, and
-  shared-component blast radius before merging.
+  for theme-token violations, demo-vs-live leaks, and shared-component blast
+  radius before merging. (Don't hunt for "missed `?v=` bumps" — obsolete; flag a
+  needless `?v` sweep instead, it trips CodeRabbit's 50-file skip.)
 
 ## Self-review before declaring done
 

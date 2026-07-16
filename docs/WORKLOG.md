@@ -46,10 +46,20 @@ changelog whenever something ships.
   we build on — **always edit the pages here** (`*.html` + their `*.jsx` babel
   blocks/companions), not anywhere else. Each `*.html` is the live page; many are
   **self-contained** (inline `<script type="text/babel">`) and pull in shared
-  `living*.jsx` / `chatWidget.jsx` / `pageShell.jsx` via `?v=N` tags — **bump the
-  `?v=` when you change a referenced `.jsx`** so the cache busts. A few legacy
-  `*.jsx` files (e.g. `memberProfile.jsx`) are **orphaned/dead** (nothing loads
-  them) — confirm a file is actually referenced before relying on an edit there.
+  `living*.jsx` / `chatWidget.jsx` / `pageShell.jsx` via `?v=N` tags.
+  ⚠️ **You do NOT need to bump the `?v=` — that convention is OBSOLETE**
+  (superseded 2026-07-16; it predates the #1726 precompile). At deploy,
+  `scripts/build-newdesign.mjs` **rewrites every newdesign page's script tags to
+  `nd/<name>?v=<content-hash>`**, so production's cache key is the **content
+  hash** — editing a `.jsx` busts its cache automatically. The precompile covers
+  **all** of `public/newdesign/` (it's the only place `.jsx?v=` refs exist), so
+  there is no exception. **Do not sweep `?v=` across a shared jsx's consumers**
+  — `pageShell.jsx` has 69, which makes a 70-file PR that **CodeRabbit
+  auto-skips (>50 files = no review at all)**. Keep the PR to the jsx file. (The
+  hand-written `?v` only affects the raw-babel dev path — a stale local copy is
+  one hard-refresh.) A few legacy `*.jsx` files (e.g. `memberProfile.jsx`) are
+  **orphaned/dead** (nothing loads them) — confirm a file is actually referenced
+  before relying on an edit there.
   The Next.js app at the repo root (`src/`) is **API routes + the gated
   `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
   store/coach pages all live in `public/newdesign/`.
@@ -63,10 +73,12 @@ changelog whenever something ships.
 - **Diff review before merge (standard practice).** For any non-trivial change
   (logic, data flow, theming, anything touching shared components), give the PR
   diff a dedicated review pass before squash-merging — hunting specifically for:
-  logic bugs/regressions, missed `?v=` cache-bust bumps on edited referenced
-  `.jsx`, theme-token violations (hardcoded ink/paper on themed surfaces, theme
-  tokens on fixed-background screens), demo-vs-live data leaks, and changes to
-  shared code that other profiles/pages also render. Docs/copy-only tweaks can
+  logic bugs/regressions, theme-token violations (hardcoded ink/paper on themed
+  surfaces, theme tokens on fixed-background screens), demo-vs-live data leaks,
+  and changes to shared code that other profiles/pages also render. (**No longer
+  check for "missed `?v=` bumps"** — that convention is obsolete, see the
+  newdesign bullet above; flag a *needless* 69-file `?v` sweep instead, since it
+  trips CodeRabbit's 50-file skip.) Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
@@ -159,7 +171,36 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-16): THE i18n ROLLOUT — COMPLETE** (`main` at
+> **Latest (2026-07-16, later): TEAM PAGE → OPEN LEDGER + THE RADIO WORDMARK.**
+> **#1748** rebuilds the website client **Team** page into the ledger grammar
+> (synthesis register lead → zero-box coach stations on role-colored spines,
+> dot-leader PLAN/NEXT registers) and fixes three honesty bugs: the fabricated
+> "Last message" row **dies** (the API never returned it), a signed-in member
+> with no coaches gets a real **empty state** instead of the Maya/Rae demo, and
+> a **non-401 failure no longer shows the demo** labelled "signed out" (401 →
+> preview; 403/500/network → a real error state). **#1750/#1751/#1752 — the
+> radio wordmark**: the nav's `◂` glyph becomes the real **SHAPE two-triangle
+> mark**, in the brand's two-tone (bottom-left **teal**, top-right **white** —
+> per `logo-triangles-only.svg`'s own annotation), the pulsing dot dies for an
+> **ON AIR** tag with a **red lamp**, and it's rolled out to the **static navs**
+> that never used the React component (index `.nradio` + 8 legal `.nav-radio`
+> rendered a PNG — which is why the landing page kept the old look).
+> **Geometry gotcha:** `logo-triangles-only.svg`'s coords are **SUPERSEDED** —
+> they *interlock* the triangles (offset 0.45 of height) and read cramped; the
+> authentic `public/shape-triangles.png` is 0.63. **The final canonical values
+> (shipped) are the PNG-derived ones:** `viewBox="8 8 79 98"`, teal
+> `14,47 14,100 51,73`, white `81,14 81,65 44,39`. Copy those, not the SVG's. **Process gotcha:** a `?v` sweep across pageShell's 69
+> consumers made a 70-file PR that **CodeRabbit auto-skips (>50 files)** — and
+> it was **prod-redundant anyway**, since `scripts/build-newdesign.mjs` rewrites
+> the tags to `nd/…?v=<content-hash>` at deploy. **This supersedes the
+> "bump the `?v=`" convention for precompiled newdesign shared jsx** — don't
+> sweep; keep the PR to the jsx file so CodeRabbit actually reviews it (#1749
+> closed → reshipped as the 1-file #1750). Handoff:
+> **[`docs/HANDOFF-2026-07-16.md`](HANDOFF-2026-07-16.md)**. Open: owner
+> on-device/on-deploy pass; the Radio page's *hero* logo still uses the PNG
+> (deliberate).
+>
+> **Prior (2026-07-16): THE i18n ROLLOUT — COMPLETE** (`main` at
 > `b94a0d5b`). Every mobile surface is now localized across all 13 active
 > locales (`en es pt-BR fr de it id vi tr ha pcm ru uk`). The resumption
 > shipped one PR per surface: **Profile #1732 · Session-details #1733 · nav
@@ -545,6 +586,76 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-16 (later) — Website Team page → Open Ledger (#1748) · the radio wordmark gets its triangles + ON AIR (#1750 · #1751 · #1752)
+
+- **Team page → "Your team." (#1748, `f7b18f62`).**
+  `public/newdesign/clientTeam.jsx` rebuilt into the site's ledger grammar (the
+  #1537 language): a synthesis register lead (COACHES · SESSIONS COMING UP) over
+  an ink→teal rule, then zero-box coach **stations** on role-colored spines
+  (trainer rust `#c0533b` / nutritionist gold `#d8b25a`) — role-tinted initials
+  avatar, mono `ROLE · SINCE` eyebrow, serif name, ink→role rule, `PLAN`/`NEXT`
+  dot-leader registers (NEXT teal when booked), Message/Book actions. The
+  rounded cards, sparklines and blank-circle avatars die.
+  **Three honesty fixes:** the fabricated **"Last message · 2m ago"** row is
+  dropped (the `/api/client/team` payload never returned it — live coaches got
+  `—`); a signed-in member with **no coaches** now gets a real empty state
+  ("Find your first coach." → Marketplace) instead of the Maya/Rae demo (the
+  demo is now a labelled **401-only** preview); and a **non-401 failure
+  (403/500/network) no longer renders the demo** labelled "signed out" — it
+  shows a real error state + Retry, and loading no longer claims "· 0 ACTIVE".
+  Avatars are initials because the API carries no photo (real faces would need
+  the route to join `get_public_profile` — registered as a follow-up).
+  CodeRabbit raised all three as Majors and **confirmed** each fix. Verified
+  headless at 1280 + 430px across error/live/preview.
+- **The radio wordmark (#1750 · #1751 · #1752).** The nav wordmark had gone
+  pure-text in #1729 (`● Shape ◂ Radio`), the `◂` being just a glyph — the PNG's
+  triangles were dropped with it. Now: the **real SHAPE two-triangle mark**
+  renders inline (no image request) in the brand's **two-tone — bottom-left
+  teal, top-right white** (per `logo-triangles-only.svg`'s own annotation); the
+  pulsing dot dies for an **ON AIR** tag carrying a **red (`RUST`) lamp**, which
+  states the live signal the dot only implied (decorative/`aria-hidden`; the
+  link still reads "Shape Radio").
+- **⚠ Triangle geometry — use the ASSET, not `logo-triangles-only.svg`.** That
+  SVG's coords are **SUPERSEDED**: they **interlock** the triangles (33×44 at
+  offset (+23,−20) = 0.45 of height) and read cramped — that was #1750's first
+  cut. Measured the authentic **`public/shape-triangles.png`** instead: 37×52 at
+  offset (+30,−33) = **0.63** — a real diagonal gap. **The FINAL canonical
+  values (what ships) are the PNG-derived ones — copy these, not the SVG's:**
+  `viewBox="8 8 79 98"`, bottom-left teal `14,47 14,100 51,73`, top-right white
+  `81,14 81,65 44,39`. (The teal/white split IS the SVG's own annotation and is
+  correct — take the colors from it, the geometry from the PNG.)
+- **⚠ The wordmark has TWO implementations** — that's why the landing page kept
+  the old look. (1) React `RadioWordmark` in `pageShell.jsx` → the 69 newdesign
+  React pages; (2) **static hand-written navs** that never used it —
+  `newdesign/index.html` (`.nradio`) + 8 legal/standalone pages (`.nav-radio`:
+  code-of-conduct · contact · privacy · help · data-compliance ·
+  health-data-privacy · subprocessors · terms), all rendering
+  `shape-radio-logo.png`. **#1752 unified all 9.** Traps: index's `.nradio` is
+  **hidden by media queries**, so style it with CSS classes — an **inline
+  `display` beats the media query** and breaks the mobile hide (verified
+  `display:none` at 430px); the legal pages' `.nav-radio` had **`line-height:0`**
+  (fine for an `<img>`, collapses text → now `1`); and index's signed-in JS uses
+  `.nradio` as an **`insertBefore` anchor**, so the `<a>` must stay a direct
+  child of `.nauth` (only its inner content was replaced). `radio.html` +
+  `newdesign/radio.jsx` keep the PNG **deliberately** — that's the Radio page's
+  large *hero* logo, not a nav wordmark.
+- **⚠ SUPERSEDES the "bump the `?v=`" convention for precompiled newdesign
+  shared jsx.** The first wordmark PR (#1749) also swept `?v` across
+  pageShell's **69** consumers → a **70-file PR**, and **CodeRabbit auto-skips
+  anything over 50 files** ("Review skipped — Too many files!"). That's not a
+  finding and never clears, so the merge was (correctly) blocked by the standing
+  wait-for-CodeRabbit rule. **The sweep was redundant anyway**:
+  `scripts/build-newdesign.mjs` (Vercel buildCommand) **rewrites** each page's
+  `<script src="foo.jsx?v=X">` to `nd/foo…?v=<content-hash>` (`hash8(code)`), so
+  **production's cache key is the content hash** — changing the jsx busts cache
+  automatically and the hand-written `?v` is discarded (it only affects the
+  raw-babel dev path). **Don't sweep `?v` for a shared newdesign jsx** — keep
+  the PR to the jsx file so CodeRabbit reviews it. #1749 was closed and
+  reshipped as the **1-file #1750** (CodeRabbit reviewed, 0 findings).
+- Verified per PR: JSX parse · `build-newdesign --check` exit 0 · LF · headless
+  render (index + a legal page + the React nav; mobile hide; 0px overflow).
+  Handoff: **[`docs/HANDOFF-2026-07-16.md`](HANDOFF-2026-07-16.md)**.
 
 ### 2026-07-16 — i18n rollout COMPLETE: the coach app is the tenth + final surface (#1746, `b94a0d5b`)
 - **The whole mobile app + coach app is now localized across all 13 active
