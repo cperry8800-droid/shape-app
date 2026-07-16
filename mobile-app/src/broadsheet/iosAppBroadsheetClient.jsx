@@ -331,15 +331,18 @@ function BSScoreIntro({ onClose, onOpenScore }) {
   // keep in sync with it, never invent a row). Ordered daily loop first: what a new
   // member actually does tomorrow. The footnote below points at the full list, so
   // showing a subset stays honest. Point values stay literal (numerals, not prose).
+  // [stableId, label, pts] — the React key rides the id, NEVER the translated
+  // label: two labels can collide in some locale, and a localized key is unstable
+  // across a language switch.
   const earn = [
-    [tr('onboarding:score.earn.workout', { defaultValue: 'Log a workout' }), '+10'],
-    [tr('onboarding:score.earn.meal', { defaultValue: 'Log a meal' }), '+10'],
-    [tr('onboarding:score.earn.habit', { defaultValue: 'Complete a habit' }), '+3'],
-    [tr('onboarding:score.earn.checkin', { defaultValue: 'Weekly check-in' }), '+15'],
-    [tr('onboarding:score.earn.steps', { defaultValue: 'Daily steps' }), '+1 / 5k'],
-    [tr('onboarding:score.earn.prPost', { defaultValue: 'New PR · community post' }), '+12 · +5'],
-    [tr('onboarding:score.earn.goal', { defaultValue: 'Goal milestone' }), '+50-200'],
-    [tr('onboarding:score.earn.momentum', { defaultValue: 'Momentum (hold 80+)' }), '+25-100'],
+    ['workout', tr('onboarding:score.earn.workout', { defaultValue: 'Log a workout' }), '+10'],
+    ['meal', tr('onboarding:score.earn.meal', { defaultValue: 'Log a meal' }), '+10'],
+    ['habit', tr('onboarding:score.earn.habit', { defaultValue: 'Complete a habit' }), '+3'],
+    ['checkin', tr('onboarding:score.earn.checkin', { defaultValue: 'Weekly check-in' }), '+15'],
+    ['steps', tr('onboarding:score.earn.steps', { defaultValue: 'Daily steps' }), '+1 / 5k'],
+    ['prPost', tr('onboarding:score.earn.prPost', { defaultValue: 'New PR · community post' }), '+12 · +5'],
+    ['goal', tr('onboarding:score.earn.goal', { defaultValue: 'Goal milestone' }), '+50-200'],
+    ['momentum', tr('onboarding:score.earn.momentum', { defaultValue: 'Momentum (hold 80+)' }), '+25-100'],
   ];
   // Tier NAMES + ranges stay literal (brand rungs / numerals); the perk is prose, so
   // it's keyed by rung. SHAPE_SCORE_TIERS is shared with the Score page — read the
@@ -352,7 +355,9 @@ function BSScoreIntro({ onClose, onOpenScore }) {
           {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
         </div>
-        <button onClick={() => dismiss(true)} aria-label={tr('onboarding:score.skip', { defaultValue: 'Skip' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>{tr('onboarding:score.skip', { defaultValue: 'Skip' }).toUpperCase()}</button>
+        {/* Uppercase via CSS, never JS: String.toUpperCase() is locale-insensitive
+            (Turkish i → I, should be İ). text-transform honors the document locale. */}
+        <button onClick={() => dismiss(true)} aria-label={tr('onboarding:score.skip', { defaultValue: 'Skip' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('onboarding:score.skip', { defaultValue: 'Skip' })}</button>
       </div>
       <div style={{ padding: '0 18px 28px' }}>
         <div style={eyebrow}>{tr('onboarding:score.eyebrow', { defaultValue: 'Welcome · Shape Score' })}</div>
@@ -380,8 +385,8 @@ function BSScoreIntro({ onClose, onOpenScore }) {
 
         {sec(tr('onboarding:score.earn.head', { defaultValue: 'Ways to earn' }))}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {earn.map(([k, p]) => (
-            <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          {earn.map(([id, k, p]) => (
+            <div key={id} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK }}>{k}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: accent }}>{p}</span>
             </div>

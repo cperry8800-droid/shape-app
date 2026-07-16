@@ -606,7 +606,7 @@ changelog whenever something ships.
   tier ladder was `SHAPE_SCORE_TIERS.map((tr) => …)` — the loop **parameter**
   `tr` shadows the translator inside the map, and **no `const` appears**, so the
   gate is blind to it. Renamed to `rung`. **Grep BOTH forms from now on:**
-  `grep -nE '(const|let|var) tr =' ` **AND**
+  `grep -nE '(const|let|var) tr ='` **AND**
   `grep -nE '\((tr)\)\s*=>|\(\s*tr\s*,|function\s*\(\s*tr\s*[,)]'`.
   The second form found **5 more pre-existing param shadows** in the client
   module — 4 × `getTracks().forEach((tr) => tr.stop())` (tr = MediaStreamTrack)
