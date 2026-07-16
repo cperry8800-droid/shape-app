@@ -557,6 +557,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'i18n / localization — COMPLETE (2026-07-16)',
+      items: [
+        { label: 'Full-app i18n rollout COMPLETE: every mobile surface localized across all 13 active locales (en es pt-BR fr de it id vi tr ha pcm ru uk). One PR per surface on top of the 2026-07-07 pilot (Settings #1589/#1590 · lang dropdown #1592 · Home #1595): Profile #1732 · Session-details #1733 · nav chrome #1734 · Feed #1735 · Marketplace #1736 · Radio #1742 · Calendar #1743 · Habits #1744 · Store #1745 · coach app #1746', status: 'done' },
+        { label: 'Coach app #1746 (the tenth + final surface): 835 coach: keys wired through a self-contained useShapeTr() bridge across trainer + nutritionist (Today/THE WIRE, roster, client Case File, Adjust/Schedule, Plans+Diet catalogues, draft editor, review queue, grocery, soundtracks, live-watch, add-client, tour) + a module-scope coachTr() for the pure roster helpers; all 13 catalogs authored (835 keys each). Gates: catalog test 3/3 (key parity + ICU-placeholder + ICU-validity), tr-shadow clean, LF, /m/ build. CodeRabbit: the coachTr window-absent false-fallback fixed', status: 'done' },
+        { label: 'Pattern for any future i18n work: components read via useShapeTr() → tr(<ns>:<key>, {defaultValue}), never shadow the theme t; register each namespace in BOTH mobile-app/src/i18n/index.js AND tests/i18n-catalog-complete.test.mjs (or it ships UNGATED); the separate window-global bundles (marketplace/radio/calendar/habits/pros) each need their OWN bridge; grep for a pre-existing local const tr = … before/after wiring (it shadows the translator → runtime crash no static gate catches)', status: 'done' },
+        { label: 'Reaction verbs (Spot/Beast/Respect…) DEFERRED (low-priority follow-up) — shared reactionVerbs.mjs the website also imports; owner brand-voice call, localize by bucket key later if wanted', status: 'pending' },
+        { label: 'Human translation review — the 13-locale catalogs are LLM-generated (flagged throughout); a native-speaker pass is the standing follow-up before treating any non-EN locale as final', status: 'manual' },
+      ],
+    },
+    {
       section: 'Shape Score — The Record, awards & anti-farm (2026-07-06)',
       items: [
         { label: '"The Record" — full Shape Score history + report page (mobile BSScoreRecordPage + website ScoreRecordView): header register, cumulative trend with a 1W/1M/3M/All toggle, by-source bars + penalties, day-grouped filterable history. One algorithm, two twins — scoreHistory.mjs (tested) + src/lib/scoreHistory.ts — feeding GET /api/client/score-record. Rank basis (store redemptions excluded) so the Record reconciles with the Standing. No migration. (#1559 spec, #1560 build; chart fixes #1563)', status: 'done' },

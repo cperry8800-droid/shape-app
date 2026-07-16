@@ -159,7 +159,48 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-14 evening): THE WEBSITE PERF + DESIGN-REVIEW WAVE — 6
+> **Latest (2026-07-16): THE i18n ROLLOUT — COMPLETE** (`main` at
+> `b94a0d5b`). Every mobile surface is now localized across all 13 active
+> locales (`en es pt-BR fr de it id vi tr ha pcm ru uk`). The resumption
+> shipped one PR per surface: **Profile #1732 · Session-details #1733 · nav
+> chrome #1734 · Feed #1735** (reaction verbs deferred — shared
+> `reactionVerbs.mjs` the website imports too) **· Marketplace #1736 · Radio
+> #1742 · Calendar #1743 · Habits #1744 · Store #1745 · the coach app #1746**
+> (trainer + nutritionist — the tenth and final surface, **835 `coach:` keys
+> ×13**), on top of the 2026-07-07 pilot (Settings #1589/#1590 · lang
+> dropdown #1592 · Home #1595). Pattern per surface: components read via
+> `useShapeTr()` (`tr('<ns>:<key>',{defaultValue})`, NEVER shadow the theme
+> `t`); each namespace is registered in **BOTH** `mobile-app/src/i18n/
+> index.js` AND `tests/i18n-catalog-complete.test.mjs` (or it ships ungated);
+> flat dotted keys ×13; the separate window-global bundles (marketplace ·
+> radio · calendar · habits · pros) each carry their OWN self-contained
+> `useShapeTr()` bridge, and the pros module also needed a module-scope
+> non-hook `coachTr()` for the pure roster helpers (bug CodeRabbit caught:
+> `typeof window !== 'undefined' && …` short-circuits to `false` → renders
+> nothing; ternary yielding `undefined` fixes it). Gates: JSX parse ·
+> **tr-shadow grep** (a pre-existing local `const tr = …` shadows the
+> translator → runtime crash no static gate catches — grep before/after
+> wiring) · catalog test 3/3 (key parity + ICU-placeholder preservation +
+> ICU-validity) · LF (CR=0) · PowerShell `/m/` build. Translations are
+> LLM-generated, **flagged for the standing human review**; per-locale rules
+> honored (Turkish never glues case suffixes onto `{placeholders}` · Hausa
+> explicit `one` plurals + no leftover English · ru/uk one/few/many/other ·
+> pcm authentic Naija Pidgin · pt-BR Brazilian · brand nouns literal).
+> **Process lesson:** the 835×12 coach translation only worked with **direct
+> per-locale-pair subagents from the main loop**; a single agent that fanned
+> out into NESTED sub-subagents produced nothing (18-min watch → 0/12 files).
+> Open: reaction-verb localization (owner brand-voice call) + the human
+> translation review of the LLM output.
+>
+> **Also this window (2026-07-14→15): AI PORTRAIT SELF-HOST + NORA FIXES.**
+> The demo people's stock Unsplash faces replaced with a consistent
+> AI-generated portrait set, self-hosted on both surfaces — **website #1740 ·
+> mobile #1741** (trainers in activewear, nutritionists smart-casual,
+> members/clients everyday clothes; nano-banana clean flush frames). Plus
+> Nora avatar fixes — face the camera **#1737**, rest her arms at her sides
+> **#1739** — and the GetApp HOME walkthrough screenshot refresh **#1738**.
+>
+> **Prior (2026-07-14 evening): THE WEBSITE PERF + DESIGN-REVIEW WAVE — 6
 > PRs, all merged** (`main` at `2809bf64`). Owner asked for a design/flow
 > review + "reduce the delay": the root cause of slow page switches was
 > in-browser Babel compiling ~100–300KB JSX per navigation on dev-build
@@ -504,6 +545,75 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-16 — i18n rollout COMPLETE: the coach app is the tenth + final surface (#1746, `b94a0d5b`)
+- **The whole mobile app + coach app is now localized across all 13 active
+  locales.** The coach app (`iosAppBroadsheetPros.jsx`, trainer +
+  nutritionist) was the last surface — it started with **zero** i18n calls
+  and needed its own bridge. Wired **835 `coach:` strings** through
+  `useShapeTr()` across every live section of both roles: Today / THE WIRE,
+  the roster, the full client **Case File**, Adjust / Schedule, the Plans +
+  Diet catalogues, the draft editor, the review queue, grocery, soundtracks,
+  live-watch, add-client, and the onboarding tour. The coach Me/settings hub
+  renders the already-localized client-bundle `BSSettings` / `BSPublicProfile`,
+  so nothing was re-wired there.
+- **Self-contained bridge in the pros bundle** (it's a separate window-global
+  module — can't import the client singleton): a `useShapeTr()` hook +
+  `coachLocale()` + a module-scope non-hook **`coachTr()`** for the pure
+  roster helpers (`bsRosterSeverity`/`bsRowFromTriage`) that render verdict
+  text but can't hold a React hook. `coach` namespace registered in BOTH the
+  runtime NS array (`mobile-app/src/i18n/index.js`) and the catalog-parity
+  test NS list.
+- **All 13 catalogs authored** (`en` + 12 translations, 835 keys each), with
+  per-locale correctness verified: Turkish never glues case suffixes onto
+  `{placeholders}` (0 apostrophe/letter suffixes), Hausa carries explicit
+  `one` plurals with no leftover English, ru/uk expand `one/other` →
+  `one/few/many/other`, pcm is authentic Naija Pidgin grammar, pt-BR is
+  Brazilian; brand nouns (Shape / Shape Score / Spotify / Apple Music) kept
+  literal. LLM-generated → **flagged for the standing human translation
+  review.**
+- **CodeRabbit round (both addressed):** a real `coachTr` correctness bug —
+  `typeof window !== 'undefined' && window.ShapeI18n?.t?.(…)` short-circuits
+  to boolean `false` (renders nothing) in a non-browser context; the fallback
+  `(v == null || v === key)` doesn't catch `false` → fixed to a ternary
+  yielding `undefined`, matching `coachLocale()` (commit `97a0df2a`). The
+  `today.editionTrainer` "TRAINERS EDITION" grammar nit was declined —
+  pre-existing owner masthead copy (#1578), a matched pair with
+  `editionNutri` = "NUTRI EDITION" (same no-possessive style); an i18n PR
+  preserves visible copy, it doesn't rewrite it.
+- Gates: catalog test **3/3** (key parity + ICU-placeholder preservation +
+  ICU-validity across all 13 locales), tr-shadow grep clean (25 `useShapeTr`,
+  0 shadows), LF (CR=0 on all catalogs + edited files), `VITE_BASE=/m/` build
+  exit 0. Squash-merged, branch kept + re-synced to main.
+- **The full rollout** (one PR per surface, on top of the 2026-07-07 pilot —
+  Settings #1589/#1590 · lang dropdown #1592 · Home #1595): Profile **#1732**
+  · Session-details **#1733** · nav chrome **#1734** · Feed **#1735**
+  (reaction verbs deferred) · Marketplace **#1736** · Radio **#1742** ·
+  Calendar **#1743** · Habits **#1744** · Store **#1745** · coach app
+  **#1746**. **Process lesson (recorded):** for a big surface's multi-locale
+  translation, dispatch **direct** per-locale-pair subagents from the main
+  loop — a single translation agent that fanned out into NESTED sub-subagents
+  produced nothing (nested spawning is unreliable here). **Open:**
+  reaction-verb localization (owner brand-voice call, `reactionVerbs.mjs` the
+  website also imports) + the human review of the LLM translations.
+
+### 2026-07-14→15 — AI portrait self-host (both surfaces) + Nora avatar fixes (#1737–#1741)
+- **The demo people's stock Unsplash faces are replaced with a consistent,
+  self-hosted AI-generated portrait set** — website **#1740** + mobile
+  **#1741**. Trainers in activewear, nutritionists smart-casual, members /
+  clients in everyday clothes; nano-banana (clean flush frames — soul_cast
+  forced 16:9 + invented backstory, soul_2 "General" wrapped photos in
+  physical print/mat frames, so the model was locked to nano-banana for the
+  whole roster). Website faces → `public/newdesign/faces/<id>.jpg`
+  (coachDirectory / marketplace / chatWidget); mobile faces →
+  `mobile-app/public/faces/` served at `/m/faces/…` (`BS_FACE_BASE` +
+  `bsFaceUrl`; the demo-face maps + TRAINING_NOW presence rail resolve to
+  slugs). `public/m` is gitignored (deploy-built at Vercel), so the mobile PR
+  commits no bundle.
+- **Nora avatar fixes:** face the camera (**#1737** — fix the back-of-head
+  render) and rest her arms at her sides (**#1739** — fix the overhead pose).
+- **GetApp #1738:** refreshed the HOME walkthrough screenshot to the current
+  app.
 
 ### 2026-07-14 — The hologram DJ gets real: "The Booth" (owner pick, option B) + an fx color picker (#1723, `95949d7a`)
 
