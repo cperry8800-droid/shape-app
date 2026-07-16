@@ -15643,7 +15643,7 @@ const SHAPE_SCORE_PROFILES = {
       { id: 'communityPost', capKey: 'perPost', name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
       { id: 'goalMilestone', capKey: '255075100', name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
       { id: 'momentumBonus', capKey: 'weekly', name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },
-      { id: 'hitCommitment', capKey: 'weekly', name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
+      { id: 'hitCommitment', capKey: 'weekly', ptsKey: 'plusStake', name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
       { id: 'reachNewTier', capKey: 'oneTime', name: 'Reach a new tier', pts: '+500-4k', cap: 'One-time', note: 'First time you hit it' },
     ],
     // PROTECT YOUR POINTS — the accountability clawback (daily cron). Framed
@@ -15652,7 +15652,7 @@ const SHAPE_SCORE_PROFILES = {
       { id: 'skipWeeklyCheckIn', capKey: 'weekly', name: 'Skip your weekly check-in', pts: '-7', cap: 'Weekly', note: 'Just check in next week' },
       { id: 'missAssignedWorkout', capKey: 'perWorkout', name: 'Miss an assigned workout', pts: '-5', cap: 'Per workout', note: 'Logging can lag a day' },
       { id: 'breakHabitStreak', capKey: 'perStreak', name: 'Break a habit streak', pts: '-2', cap: 'Per streak', note: 'A 3+ day streak lost' },
-      { id: 'missCommitment', capKey: 'weekly', name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
+      { id: 'missCommitment', capKey: 'weekly', ptsKey: 'minusStake', name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
     ],
     ledger: [
       ['APR 18', '+14', 'Session kept - Maya Okafor'],
@@ -20361,7 +20361,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               <div style={{ display: 'flex', alignItems: 'baseline' }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.id ? tr('score:earn.' + a.id + '.name', { defaultValue: a.name }) : a.name}</span>
                 <span aria-hidden style={dotLead} />
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: ptsColor }}>{a.pts}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: ptsColor }}>{a.ptsKey ? tr('score:pts.' + a.ptsKey, { defaultValue: a.pts }) : a.pts}</span>
               </div>
               <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>
                 <span>{a.capKey ? tr('score:cap.' + a.capKey, { defaultValue: a.cap }) : a.cap}</span><span>·</span><span>{a.id ? tr('score:earn.' + a.id + '.note', { defaultValue: a.note }) : a.note}</span>

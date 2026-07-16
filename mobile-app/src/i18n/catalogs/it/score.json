@@ -47,7 +47,7 @@
   "earn.newPr.name": "Nuovo PR",
   "earn.newPr.note": "Un nuovo record personale",
   "earn.careerMilestone.name": "Traguardo di carriera",
-  "earn.careerMilestone.note": "Una vittoria al lavoro — ogni visibilità",
+  "earn.careerMilestone.note": "Visibile o no",
   "earn.communityPost.name": "Post nella comunità",
   "earn.communityPost.note": "Condividi nel feed",
   "earn.goalMilestone.name": "Traguardo dell'obiettivo",
@@ -141,5 +141,11 @@
   "points.spendCta": "Spendi i punti nello Shape Store →",
   "ledger.waivable": "annullabile",
   "ledger.fullRecord": "Vedi il registro completo →",
-  "footer": "Premi"
+  "footer": "Premi",
+  "tab.tiers": "Livelli",
+  "tab.rewards": "Premi",
+  "tab.points": "Punti",
+  "tab.ledger": "Cronologia",
+  "pts.plusStake": "+ puntata",
+  "pts.minusStake": "- puntata"
 }

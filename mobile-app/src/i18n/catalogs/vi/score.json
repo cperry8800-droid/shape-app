@@ -141,5 +141,11 @@
   "points.spendCta": "Tiêu điểm tại Shape Store →",
   "ledger.waivable": "có thể miễn",
   "ledger.fullRecord": "Xem toàn bộ hồ sơ →",
-  "footer": "Phần thưởng"
+  "footer": "Phần thưởng",
+  "tab.tiers": "Bậc",
+  "tab.rewards": "Phần thưởng",
+  "tab.points": "Điểm",
+  "tab.ledger": "Lịch sử",
+  "pts.plusStake": "+ cược",
+  "pts.minusStake": "- cược"
 }

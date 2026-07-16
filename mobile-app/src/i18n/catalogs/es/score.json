@@ -141,5 +141,11 @@
   "points.spendCta": "Gasta puntos en la Shape Store →",
   "ledger.waivable": "perdonable",
   "ledger.fullRecord": "Ver el registro completo →",
-  "footer": "Recompensas"
+  "footer": "Recompensas",
+  "tab.tiers": "Niveles",
+  "tab.rewards": "Recompensas",
+  "tab.points": "Puntos",
+  "tab.ledger": "Historial",
+  "pts.plusStake": "+ apuesta",
+  "pts.minusStake": "- apuesta"
 }

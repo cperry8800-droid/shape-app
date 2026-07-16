@@ -47,7 +47,7 @@
   "earn.newPr.name": "Новый PR",
   "earn.newPr.note": "Новый личный рекорд",
   "earn.careerMilestone.name": "Веха в карьере",
-  "earn.careerMilestone.note": "Запиши рабочую победу — любая приватность",
+  "earn.careerMilestone.note": "Видно другим или нет",
   "earn.communityPost.name": "Пост в сообществе",
   "earn.communityPost.note": "Поделись в ленте",
   "earn.goalMilestone.name": "Веха цели",
@@ -141,5 +141,11 @@
   "points.spendCta": "Потратить очки в Shape Store →",
   "ledger.waivable": "можно отменить",
   "ledger.fullRecord": "Смотреть всю историю →",
-  "footer": "Награды"
+  "footer": "Награды",
+  "tab.tiers": "Уровни",
+  "tab.rewards": "Награды",
+  "tab.points": "Очки",
+  "tab.ledger": "История",
+  "pts.plusStake": "+ ставка",
+  "pts.minusStake": "- ставка"
 }

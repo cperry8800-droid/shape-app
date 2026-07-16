@@ -141,5 +141,11 @@
   "points.spendCta": "Shape Store içinde puan harca →",
   "ledger.waivable": "muaf tutulabilir",
   "ledger.fullRecord": "Tüm kaydı gör →",
-  "footer": "Ödüller"
+  "footer": "Ödüller",
+  "tab.tiers": "Seviyeler",
+  "tab.rewards": "Ödüller",
+  "tab.points": "Puan",
+  "tab.ledger": "Geçmiş",
+  "pts.plusStake": "+ bahis",
+  "pts.minusStake": "- bahis"
 }

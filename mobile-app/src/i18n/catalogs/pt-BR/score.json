@@ -31,7 +31,7 @@
   "cap.perPr": "Por PR",
   "cap.perSale": "Por venda",
   "cap.perIntake": "Por cadastro",
-  "cap.perUpdate": "Por registro",
+  "cap.perUpdate": "Por atualização",
   "earn.weeklyCheckIn.name": "Check-in semanal",
   "earn.weeklyCheckIn.note": "Envie seu check-in",
   "earn.logWorkout.name": "Registrar um treino",
@@ -89,7 +89,7 @@
   "earn.planSold.name": "Plano vendido",
   "earn.planSold.note": "Compra de plano no marketplace",
   "earn.newClientOnboarded.name": "Novo cliente integrado",
-  "earn.newClientOnboarded.note": "Cadastro concluído e primeiro plano",
+  "earn.newClientOnboarded.note": "Cadastro e primeiro plano concluídos",
   "earn.consultCompleted.name": "Consulta concluída",
   "earn.consultCompleted.note": "Consulta inicial ou de retorno",
   "earn.mealPlanDelivered.name": "Plano alimentar entregue",
@@ -141,5 +141,11 @@
   "points.spendCta": "Gaste pontos na Shape Store →",
   "ledger.waivable": "relevável",
   "ledger.fullRecord": "Ver o registro completo →",
-  "footer": "Recompensas"
+  "footer": "Recompensas",
+  "tab.tiers": "Níveis",
+  "tab.rewards": "Recompensas",
+  "tab.points": "Pontos",
+  "tab.ledger": "Histórico",
+  "pts.plusStake": "+ aposta",
+  "pts.minusStake": "- aposta"
 }

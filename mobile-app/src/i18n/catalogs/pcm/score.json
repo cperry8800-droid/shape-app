@@ -112,7 +112,7 @@
   "tierPerk.tempo": "2x value wen you redeem am",
   "tierPerk.form": "You see drop first + streak boost",
   "tierPerk.peak": "You dey book first + 1 free intro / month",
-  "tierPerk.legend": "Shape merch every year + credit for service",
+  "tierPerk.legend": "Shape merch every year + money for service",
   "tierPerk.certified": "Coach wey dem verify",
   "tierPerk.pro": "You dey show first for search",
   "tierPerk.elite": "Featured spot + lead boost",
@@ -141,5 +141,11 @@
   "points.spendCta": "Spend your points for di Shape Store →",
   "ledger.waivable": "coach fit waive",
   "ledger.fullRecord": "See di full record →",
-  "footer": "Rewards"
+  "footer": "Rewards",
+  "tab.tiers": "Tiers",
+  "tab.rewards": "Rewards",
+  "tab.points": "Points",
+  "tab.ledger": "History",
+  "pts.plusStake": "+ bet",
+  "pts.minusStake": "- bet"
 }

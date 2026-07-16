@@ -141,5 +141,11 @@
   "points.spendCta": "Витратити очки в Shape Store →",
   "ledger.waivable": "можна скасувати",
   "ledger.fullRecord": "Переглянути всю історію →",
-  "footer": "Нагороди"
+  "footer": "Нагороди",
+  "tab.tiers": "Рівні",
+  "tab.rewards": "Нагороди",
+  "tab.points": "Очки",
+  "tab.ledger": "Історія",
+  "pts.plusStake": "+ ставка",
+  "pts.minusStake": "- ставка"
 }

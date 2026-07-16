@@ -141,5 +141,11 @@
   "points.spendCta": "Punkte im Shape Store ausgeben →",
   "ledger.waivable": "erlassbar",
   "ledger.fullRecord": "Alle Einträge ansehen →",
-  "footer": "Prämien"
+  "footer": "Prämien",
+  "tab.tiers": "Stufen",
+  "tab.rewards": "Prämien",
+  "tab.points": "Punkte",
+  "tab.ledger": "Verlauf",
+  "pts.plusStake": "+ Einsatz",
+  "pts.minusStake": "- Einsatz"
 }

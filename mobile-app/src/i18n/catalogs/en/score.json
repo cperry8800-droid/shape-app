@@ -141,5 +141,11 @@
   "points.spendCta": "Spend points in the Shape Store →",
   "ledger.waivable": "waivable",
   "ledger.fullRecord": "See the full record →",
-  "footer": "Rewards"
+  "footer": "Rewards",
+  "tab.tiers": "Tiers",
+  "tab.rewards": "Rewards",
+  "tab.points": "Points",
+  "tab.ledger": "Ledger",
+  "pts.plusStake": "+ stake",
+  "pts.minusStake": "- stake"
 }

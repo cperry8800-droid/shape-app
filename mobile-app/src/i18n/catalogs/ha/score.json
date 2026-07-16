@@ -47,7 +47,7 @@
   "earn.newPr.name": "Sabon PR",
   "earn.newPr.note": "Sabon mafi kyawun naka",
   "earn.careerMilestone.name": "Matakin sana'a",
-  "earn.careerMilestone.note": "Rubuta nasarar aiki — kowane saitin gani",
+  "earn.careerMilestone.note": "Ko an gani ko ba a gani ba",
   "earn.communityPost.name": "Saƙon al'umma",
   "earn.communityPost.note": "Raba ga al'umma",
   "earn.goalMilestone.name": "Matakin buri",
@@ -141,5 +141,11 @@
   "points.spendCta": "Kashe maki a Shape Store →",
   "ledger.waivable": "ana iya yafewa",
   "ledger.fullRecord": "Duba cikakken tarihi →",
-  "footer": "Kyaututtuka"
+  "footer": "Kyaututtuka",
+  "tab.tiers": "Matakai",
+  "tab.rewards": "Kyaututtuka",
+  "tab.points": "Maki",
+  "tab.ledger": "Tarihi",
+  "pts.plusStake": "+ alkawari",
+  "pts.minusStake": "- alkawari"
 }

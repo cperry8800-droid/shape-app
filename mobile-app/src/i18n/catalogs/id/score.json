@@ -47,7 +47,7 @@
   "earn.newPr.name": "PR baru",
   "earn.newPr.note": "Rekor pribadi baru",
   "earn.careerMilestone.name": "Tonggak karier",
-  "earn.careerMilestone.note": "Catat capaian kerja — visibilitas bebas",
+  "earn.careerMilestone.note": "Terlihat atau tidak",
   "earn.communityPost.name": "Postingan komunitas",
   "earn.communityPost.note": "Bagikan ke feed",
   "earn.goalMilestone.name": "Tonggak tujuan",
@@ -141,5 +141,11 @@
   "points.spendCta": "Belanjakan poin di Shape Store →",
   "ledger.waivable": "bisa dibatalkan",
   "ledger.fullRecord": "Lihat catatan lengkap →",
-  "footer": "Hadiah"
+  "footer": "Hadiah",
+  "tab.tiers": "Tingkat",
+  "tab.rewards": "Hadiah",
+  "tab.points": "Poin",
+  "tab.ledger": "Riwayat",
+  "pts.plusStake": "+ taruhan",
+  "pts.minusStake": "- taruhan"
 }
