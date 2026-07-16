@@ -3,14 +3,21 @@
 // gold), dot-leader registers, ink→accent rules. Honest data throughout:
 // live coaches from /api/client/team; role-tinted initials avatars (the API
 // carries no photo); a real empty state for a signed-in member with no coach;
-// the demo team shows ONLY as a labelled signed-out preview.
+// a real error state on a failed load; the demo team shows ONLY as a labelled
+// signed-out (401) preview — never on a server error.
 
 const CT_RUST = "#c0533b";      // trainer
 const CT_GOLD = "#d8b25a";      // nutritionist (bright variant reads on dark paper)
-const CT_INK55 = "rgba(242,237,228,0.55)";
-const CT_INK40 = "rgba(242,237,228,0.4)";
-const CT_HAIR = "rgba(242,237,228,0.1)";
+const CT_INK55 = INK + "8c";    // 55% of the cream INK token
+const CT_INK40 = INK + "66";    // 40%
+const CT_HAIR = INK + "1a";     // 10% hairline
 const CT_MONO = "'JetBrains Mono', monospace";
+const CT_MARKET = "/newdesign/marketplace.html";
+
+const CT_DEMO_COACHES = [
+  { name: "Maya Okafor", role: "Head trainer", provider_role: "trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", next: "Thu 8:00 AM", hasNext: true },
+  { name: "Rae Lindqvist", role: "Nutritionist", provider_role: "nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", next: "Wed 1:30 PM", hasNext: true },
+];
 
 function ctRoleColor(c) {
   return c.provider_role === "nutritionist" ? CT_GOLD : CT_RUST;
@@ -19,6 +26,10 @@ function ctInitials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+function ctOpenChat(name) {
+  const f = window.__openChatTo || window.__openChat;
+  if (f) f({ who: name });
 }
 
 // One dot-leader register row: LABEL ···· value (tabular).
@@ -35,7 +46,6 @@ function CtLeader({ label, value, valueColor }) {
 // A zero-box coach station threaded on its role-colored spine.
 function CtStation({ c }) {
   const accent = ctRoleColor(c);
-  const message = () => { const f = window.__openChatTo || window.__openChat; if (f) f({ who: c.name }); };
   return (
     <div style={{ position: "relative", paddingLeft: 24 }}>
       <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: accent, borderRadius: 2 }} />
@@ -50,8 +60,8 @@ function CtStation({ c }) {
       <CtLeader label="PLAN" value={c.plan} />
       <CtLeader label="NEXT" value={c.hasNext ? c.next : "No session booked"} valueColor={c.hasNext ? TEAL_BRIGHT : CT_INK40} />
       <div style={{ display: "flex", gap: 26, marginTop: 12 }}>
-        <button onClick={message} style={{ background: "transparent", border: 0, padding: "11px 0", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Message <span aria-hidden>→</span></button>
-        <button style={{ background: "transparent", border: 0, padding: "11px 0", color: TEAL_BRIGHT, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Book session <span aria-hidden>→</span></button>
+        <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Message <span aria-hidden>→</span></button>
+        <button type="button" onClick={() => ctOpenChat(c.name)} style={{ background: "transparent", border: 0, padding: "11px 0", color: TEAL_BRIGHT, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Book session <span aria-hidden>→</span></button>
       </div>
     </div>
   );
@@ -67,21 +77,35 @@ function CtRegister({ label, value }) {
   );
 }
 
+// A zero-box notice on a spine (shared by the empty + error states).
+function CtNotice({ accent, eyebrow, title, body, cta }) {
+  return (
+    <div style={{ paddingLeft: 24, position: "relative", maxWidth: 520, marginBottom: 20 }}>
+      <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: accent, borderRadius: 2 }} />
+      <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: accent }}>{eyebrow}</div>
+      <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", marginTop: 6 }}>{title}</div>
+      <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 8, lineHeight: 1.5 }}>{body}</div>
+      {cta}
+    </div>
+  );
+}
+
 function ClientTeamPage() {
-  const DEMO_COACHES = [
-    { name: "Maya Okafor", role: "Head trainer", provider_role: "trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", next: "Thu 8:00 AM", hasNext: true },
-    { name: "Rae Lindqvist", role: "Nutritionist", provider_role: "nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", next: "Wed 1:30 PM", hasNext: true },
-  ];
   const [coaches, setCoaches] = React.useState([]);
-  const [state, setState] = React.useState("loading"); // loading | live | empty | preview
+  const [state, setState] = React.useState("loading"); // loading | live | empty | preview | error
 
   React.useEffect(() => {
     let alive = true;
     fetch("/api/client/team", { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : { __preview: true }))
+      .then((r) => {
+        if (r.status === 401) return { __signedOut: true };   // genuine signed-out → preview
+        if (!r.ok) return { __error: true };                  // 403/500/etc → real error, never demo
+        return r.json();
+      })
       .then((d) => {
         if (!alive) return;
-        if (d && d.__preview) { setCoaches(DEMO_COACHES); setState("preview"); return; }
+        if (d && d.__signedOut) { setCoaches(CT_DEMO_COACHES); setState("preview"); return; }
+        if (d && d.__error) { setState("error"); return; }
         if (d && Array.isArray(d.coaches) && d.coaches.length) {
           setCoaches(d.coaches.map((c) => ({
             name: c.name,
@@ -98,19 +122,25 @@ function ClientTeamPage() {
           setState("empty");
         }
       })
-      .catch(() => { if (alive) { setCoaches(DEMO_COACHES); setState("preview"); } });
+      .catch(() => { if (alive) setState("error"); });        // network failure → error, never demo
     return () => { alive = false; };
   }, []);
 
   const n = coaches.length;
   const upcoming = coaches.filter((c) => c.hasNext).length;
-  const eyebrow = state === "empty" ? "YOUR CARE TEAM" : `YOUR CARE TEAM · ${n} ACTIVE`;
+  const showCount = state === "live" || state === "preview";
+  const eyebrow = showCount ? `YOUR CARE TEAM · ${n} ACTIVE` : "YOUR CARE TEAM";
   const subtitle = state === "empty"
     ? "You haven't added a coach yet. Build your team — you pay each coach directly, at their rates."
+    : state === "error"
+    ? "We couldn't load your team just now."
+    : state === "loading"
+    ? "Loading your coaches…"
     : `${n === 1 ? "One coach" : `${n} coaches`}, one plan. You pay each directly, at their rates.`;
 
-  const ghostBtn = { background: "transparent", color: INK, border: `1px solid rgba(242,237,228,0.25)`, padding: "10px 20px", borderRadius: 4, fontFamily: sans, fontSize: 13, cursor: "pointer" };
-  const solidBtn = { background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
+  const ghostBtn = { display: "inline-block", background: "transparent", color: INK, textDecoration: "none", border: `1px solid ${INK}40`, padding: "10px 20px", borderRadius: 4, fontFamily: sans, fontSize: 13, cursor: "pointer" };
+  const solidBtn = { display: "inline-block", background: INK, color: PAPER, textDecoration: "none", border: 0, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
+  const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 40, marginBottom: 20 };
 
   return (
     <DashPage
@@ -120,12 +150,12 @@ function ClientTeamPage() {
       title="Your team."
       subtitle={subtitle}
       actions={<>
-        <button style={ghostBtn}>Browse coaches</button>
-        <button style={solidBtn}>＋ Invite specialist</button>
+        <a href={CT_MARKET} style={ghostBtn}>Browse coaches</a>
+        <a href={CT_MARKET} style={solidBtn}>＋ Invite specialist</a>
       </>}
     >
       {state === "loading" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 40, marginBottom: 20 }}>
+        <div style={gridStyle}>
           {[0, 1].map((i) => (
             <div key={i} style={{ paddingLeft: 24, opacity: 0.5 }}>
               <div style={{ display: "flex", gap: 14 }}>
@@ -141,24 +171,32 @@ function ClientTeamPage() {
             </div>
           ))}
         </div>
+      ) : state === "error" ? (
+        <CtNotice
+          accent={RUST}
+          eyebrow="COULDN'T LOAD"
+          title="Your team didn't load."
+          body="Something went wrong reaching your coaches. Give it another try."
+          cta={<button type="button" onClick={() => window.location.reload()} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, background: "transparent", border: 0, padding: "6px 0", fontFamily: sans, fontSize: 13, fontWeight: 500, color: TEAL_BRIGHT, cursor: "pointer" }}>Retry <span aria-hidden>→</span></button>}
+        />
       ) : state === "empty" ? (
-        <div style={{ paddingLeft: 24, position: "relative", maxWidth: 520, marginBottom: 20 }}>
-          <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: TEAL, borderRadius: 2 }} />
-          <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: TEAL_BRIGHT }}>NO COACHES YET</div>
-          <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", marginTop: 6 }}>Find your first coach.</div>
-          <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 8, lineHeight: 1.5 }}>Browse trainers and nutritionists in the Marketplace. You subscribe at their rate and they show up here.</div>
-          <a href="/newdesign/marketplace.html" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, fontFamily: sans, fontSize: 13, fontWeight: 500, color: TEAL_BRIGHT, textDecoration: "none" }}>Browse coaches <span aria-hidden>→</span></a>
-        </div>
+        <CtNotice
+          accent={TEAL}
+          eyebrow="NO COACHES YET"
+          title="Find your first coach."
+          body="Browse trainers and nutritionists in the Marketplace. You subscribe at their rate and they show up here."
+          cta={<a href={CT_MARKET} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, fontFamily: sans, fontSize: 13, fontWeight: 500, color: TEAL_BRIGHT, textDecoration: "none" }}>Browse coaches <span aria-hidden>→</span></a>}
+        />
       ) : (
         <>
           {state === "preview" && (
             <div style={{ fontFamily: CT_MONO, fontSize: 10.5, letterSpacing: "0.12em", color: CT_INK40, marginBottom: 18 }}>PREVIEW · SAMPLE TEAM — SIGN IN TO SEE YOURS</div>
           )}
-          <div style={{ display: "flex", gap: 44, alignItems: "flex-end", paddingBottom: 20, marginBottom: 28, borderBottom: `2px solid transparent`, borderImage: `linear-gradient(90deg, ${INK}, ${TEAL_BRIGHT} 45%, transparent) 1` }}>
+          <div style={{ display: "flex", gap: 44, alignItems: "flex-end", paddingBottom: 20, marginBottom: 28, borderBottom: "2px solid transparent", borderImage: `linear-gradient(90deg, ${INK}, ${TEAL_BRIGHT} 45%, transparent) 1` }}>
             <CtRegister label="COACHES" value={n} />
             <CtRegister label="SESSIONS COMING UP" value={upcoming} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 40, marginBottom: 20 }}>
+          <div style={gridStyle}>
             {coaches.map((c, i) => (<CtStation key={i} c={c} />))}
           </div>
         </>
