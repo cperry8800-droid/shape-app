@@ -38,16 +38,22 @@ function Logo({ variant = "black", size = 28 }) {
 }
 
 // Typeset Shape Radio wordmark for the nav — replaces the washed-out PNG
-// (near-invisible over the dark mast). Live dot + teal RADIO give it real
-// presence at AA contrast; pure text, one less image request.
+// (near-invisible over the dark mast). Live dot + the real SHAPE two-triangle
+// mark (logo-triangles-only.svg geometry, inline so there's no image request)
+// + teal RADIO give it brand presence at AA contrast. The inline mark replaces
+// the old plain "◂" glyph so the SHAPE triangles actually read at nav size.
 function RadioWordmark() {
   return (
     <a href="/newdesign/Radio.html" aria-label="Shape Radio"
       style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", padding: "6px 0", lineHeight: 1 }}>
       <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: TEAL_BRIGHT, boxShadow: `0 0 8px ${TEAL_BRIGHT}` }} />
-      <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+      <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 7 }}>
         <span style={{ color: "rgba(245,239,225,0.92)" }}>Shape</span>
-        <span style={{ color: TEAL_BRIGHT }}> ◂ Radio</span>
+        <svg aria-hidden viewBox="60 14 80 72" style={{ height: 14, width: "auto", flex: "0 0 auto", display: "block" }}>
+          <polygon points="72,38 72,82 105,60" fill={TEAL_BRIGHT} />
+          <polygon points="128,18 128,62 95,40" fill={TEAL_BRIGHT} />
+        </svg>
+        <span style={{ color: TEAL_BRIGHT }}>Radio</span>
       </span>
     </a>
   );
