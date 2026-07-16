@@ -1,18 +1,20 @@
 /* Website spotlight tour adapter. Loads after spotlightTour.js (window.SpotlightTour)
-   and supabase.js (window.shapeDb). Each dashboard shell calls ShapeDashTour.init(role). */
+   and supabase.js (window.shapeDb). Each dashboard shell calls ShapeDashTour.init(role).
+
+   Trigger (2026-07-16 rework): auto-shows ONCE per account on the FIRST signed-in visit
+   to a dashboard — not gated on account age. Accounts are created in the app, so most
+   members first reach the web dashboard days later; the old <24h created_at window meant
+   the tour effectively never fired. Seen-state lives in DEDICATED user_goals keys
+   (web_client_onboarding / web_coach_onboarding) so the web tour can never suppress the
+   MOBILE app tour: saveUserGoals REPLACES the whole doc for a key, and the old code wrote
+   { tourSeen } into the same client_onboarding doc the app reads. markSeen fires in
+   onDone (finish or skip both land there) — never on arm, so a failed engine load can't
+   burn the one auto-show. */
 (function () {
   var ACCENT = { client: '#2ee0c4', trainer: '#0a8f87', nutritionist: '#a07a2e' };
-  var GOAL_KEY = { client: 'client_onboarding', trainer: 'coach_onboarding', nutritionist: 'coach_onboarding' };
-
-  // Mirror of tourTrigger.mjs shouldAutoShowTour (the .mjs is the tested source).
-  function shouldAutoShow(createdAtISO, seen, nowMs, maxAgeHours) {
-    if (seen) return false;
-    if (!createdAtISO) return false;
-    var t = Date.parse(createdAtISO);
-    if (!isFinite(t)) return false;
-    var ageHours = (nowMs - t) / 3600000;
-    return ageHours >= 0 && ageHours < (maxAgeHours || 24);
-  }
+  // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding
+  // docs from here (replace-semantics would clobber the app tour's own seen flag).
+  var GOAL_KEY = { client: 'web_client_onboarding', trainer: 'web_coach_onboarding', nutritionist: 'web_coach_onboarding' };
 
   function q(key) { return function () { return document.querySelector('[data-tour="' + key + '"]'); }; }
   function go(slug) { return function () { window.location.hash = '#' + slug; }; }
@@ -74,17 +76,25 @@
 
   function init(role) {
     window.addEventListener('shape:startTour', function () { start(role); });
-    // Auto-show once for new accounts.
+    // Auto-show once per account: first signed-in dashboard visit, not seen on this
+    // browser (localStorage fast-path) or any other (the dedicated cloud flag).
     (function () {
       try {
         if (localStorage.getItem(seenKey(role)) === '1') return;
       } catch (e) {}
-      Promise.resolve(window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()).then(function (u) {
-        if (!u || !u.created_at) return;
-        if (shouldAutoShow(u.created_at, false, Date.now(), 24)) {
-          markSeen(role);            // mark first so a reload can't re-trigger
+      var db = window.shapeDb;
+      if (!db || !db.getUser) return;
+      Promise.resolve(db.getUser()).then(function (u) {
+        if (!u) return; // signed-out demo view — no tour
+        return Promise.resolve(db.getUserGoals ? db.getUserGoals(GOAL_KEY[role]) : null).then(function (d) {
+          if (d && d.tourSeen) {
+            try { localStorage.setItem(seenKey(role), '1'); } catch (e) {} // sync this browser
+            return;
+          }
+          // Seen is marked in onDone (finish OR skip), never here — a reload mid-tour
+          // re-offers it; a failed engine load doesn't consume the auto-show.
           setTimeout(function () { startWhenReady(role); }, 900); // let the first route render
-        }
+        });
       }).catch(function () {});
     })();
   }

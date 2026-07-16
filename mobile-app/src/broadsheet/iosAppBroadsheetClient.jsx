@@ -312,7 +312,9 @@ function BSScoreIntro({ onClose, onOpenScore }) {
   const rust = t.RUST || '#c0533b';
   _bsScrollTopOnMount();
   const tierColor = (n) => (typeof bsTierColor === 'function' ? bsTierColor(n) : accent);
-  const dismiss = () => { bsMarkScoreIntroSeen(); onClose && onClose(); };
+  // onClose(skipped): "Got it" passes false, SKIP passes true — the shell chains the
+  // app tour only after an engaged (non-skip) dismissal.
+  const dismiss = (skipped) => { bsMarkScoreIntroSeen(); onClose && onClose(!!skipped); };
   const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent };
   const sec = (label, color) => (
     <div style={{ marginTop: 18, marginBottom: 8 }}>
@@ -328,7 +330,7 @@ function BSScoreIntro({ onClose, onOpenScore }) {
           {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
         </div>
-        <button onClick={dismiss} aria-label="Skip" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>SKIP</button>
+        <button onClick={() => dismiss(true)} aria-label="Skip" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>SKIP</button>
       </div>
       <div style={{ padding: '0 18px 28px' }}>
         <div style={eyebrow}>Welcome · Shape Score</div>
@@ -364,8 +366,8 @@ function BSScoreIntro({ onClose, onOpenScore }) {
         {sec('Protect your points', rust)}
         <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.</div>
 
-        <button onClick={dismiss} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Got it</button>
-        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); if (onClose) onClose(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>See my score →</button>
+        <button onClick={() => dismiss(false)} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Got it</button>
+        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>See my score →</button>
       </div>
     </div>
   );
@@ -583,9 +585,24 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => { alive = false; clearTimeout(tid); };
   }, []);
 
-  // First-run app tour: auto-show ONLY for newly-created accounts (created in the
-  // last 24h) that haven't seen it — localStorage fast-path + cloud user_goals so
-  // it doesn't re-appear across devices. Replayable anytime via `shape:startTour`.
+  // First-run app tour — the PRIMARY path is chaining: the Score intro's "Got it"
+  // calls chainTourAfterIntro() below, so a new member flows intro → tour in ONE
+  // launch (the old later-launch handoff meant anyone who didn't relaunch inside the
+  // 24h new-account window never saw the tour at all). Checks the same seen flags as
+  // the mount effect; no new-account check needed — the intro only auto-shows for
+  // <24h accounts, so chaining inherits that gate.
+  const chainTourAfterIntro = () => {
+    try { if (localStorage.getItem('shape.tourSeen') === '1') return; } catch (e) {}
+    if (window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_onboarding')
+        .then(d => { if (d && d.tourSeen) { try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {} } else setShowTour(true); })
+        .catch(() => setShowTour(true));
+    } else setShowTour(true);
+  };
+  // Mount-time auto-show — now the FALLBACK for paths chaining doesn't cover (the
+  // intro was skipped or exited via "See my score", then a relaunch inside the 24h
+  // new-account window). localStorage fast-path + cloud user_goals so it doesn't
+  // re-appear across devices. Replayable anytime via `shape:startTour`.
   React.useEffect(() => {
     let alive = true;
     let done = false;
@@ -598,8 +615,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!u) return; // signed out / not resolved yet — the tour is for new accounts
       const created = u.created_at ? Date.parse(u.created_at) : NaN;
       if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return; // existing account
-      // Let the one-time Shape Score intro go first — the tour auto-shows once the
-      // intro has been seen (a later launch), so the two never stack.
+      // Let the one-time Shape Score intro go first — its "Got it" chains the tour
+      // directly (chainTourAfterIntro above); this mount path only fires on a later
+      // launch, so the two never stack.
       try { if (localStorage.getItem('shape.scoreIntroSeen') !== '1') return; } catch (e) {}
       done = true; // guard the retry below from double-firing
       if (window.shapeDb?.getUserGoals) {
@@ -739,7 +757,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       />
       <BSRadioPrompt />
       {showSearch && <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} />}
-      {showScoreIntro && <BSScoreIntro onClose={() => setShowScoreIntro(false)} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
+      {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
   );
