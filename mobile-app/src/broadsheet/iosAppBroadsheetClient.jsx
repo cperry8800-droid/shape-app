@@ -281,20 +281,24 @@ function bsMarkScoreIntroSeen() {
 
 function BSOnboardingTour({ onClose, onNavigate }) {
   const t = useBS();
+  const tr = useShapeTr();
   React.useEffect(() => {
     const root = document.getElementById('bs-phone-surface') || document.body;
     const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
     const go = (tab) => () => onNavigate && onNavigate(tab);
+    // Steps are built once per mount (the engine takes plain strings, not nodes) —
+    // a locale change mid-tour isn't a case worth re-rendering for, same as the
+    // coach tour. Brand nouns (Shape, Shape Score, Shape Radio) stay literal.
     const steps = [
-      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: "A quick tour of where everything lives — about 30 seconds." },
-      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Home', title: 'Your day, at a glance.', body: "Your next move, meals and habits — all on the home screen." },
-      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: 'Train', title: "Today’s session.", body: "Your workout, ready to start — written by your coach, or built by you. Coach optional." },
-      { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: 'Eat', title: 'Meals & logging.', body: "Your plan for the day. Tap a meal to log it in one tap." },
-      { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: 'Grocery', title: 'Grocery lists.', body: "Your week’s meals become a shopping list, sorted by aisle — auto-built for you." },
-      { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: 'Habits', title: 'Daily habits.', body: "Check off the small things that add up — every one feeds your Shape Score." },
-      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Coaches & community.', body: "Message your coaches and see the community feed." },
-      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your Shape Score.', body: "Your profile, progress and the one number that tells the truth." },
-      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: 'Shape Radio.', body: "Ad-free workout mixes, curated by BPM. Free with your membership.", onCta: () => onNavigate && onNavigate('radio') },
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.welcome.eyebrow', { defaultValue: 'Welcome' }), title: tr('onboarding:tour.welcome.title', { defaultValue: 'Welcome to Shape.' }), body: tr('onboarding:tour.welcome.body', { defaultValue: 'A quick tour of where everything lives — about 30 seconds.' }) },
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.home.eyebrow', { defaultValue: 'Home' }), title: tr('onboarding:tour.home.title', { defaultValue: 'Your day, at a glance.' }), body: tr('onboarding:tour.home.body', { defaultValue: 'Your next move, meals and habits — all on the home screen.' }) },
+      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: tr('onboarding:tour.train.eyebrow', { defaultValue: 'Train' }), title: tr('onboarding:tour.train.title', { defaultValue: 'Today’s session.' }), body: tr('onboarding:tour.train.body', { defaultValue: 'Your workout, ready to start — written by your coach, or built by you. Coach optional.' }) },
+      { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.eat.eyebrow', { defaultValue: 'Eat' }), title: tr('onboarding:tour.eat.title', { defaultValue: 'Meals & logging.' }), body: tr('onboarding:tour.eat.body', { defaultValue: 'Your plan for the day. Tap a meal to log it in one tap.' }) },
+      { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.grocery.eyebrow', { defaultValue: 'Grocery' }), title: tr('onboarding:tour.grocery.title', { defaultValue: 'Grocery lists.' }), body: tr('onboarding:tour.grocery.body', { defaultValue: 'Your week’s meals become a shopping list, sorted by aisle — auto-built for you.' }) },
+      { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.habits.eyebrow', { defaultValue: 'Habits' }), title: tr('onboarding:tour.habits.title', { defaultValue: 'Daily habits.' }), body: tr('onboarding:tour.habits.body', { defaultValue: 'Check off the small things that add up — every one feeds your Shape Score.' }) },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('onboarding:tour.chat.eyebrow', { defaultValue: 'Chat' }), title: tr('onboarding:tour.chat.title', { defaultValue: 'Coaches & community.' }), body: tr('onboarding:tour.chat.body', { defaultValue: 'Message your coaches and see the community feed.' }) },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.you.eyebrow', { defaultValue: 'You' }), title: tr('onboarding:tour.you.title', { defaultValue: 'Your Shape Score.' }), body: tr('onboarding:tour.you.body', { defaultValue: 'Your profile, progress and the one number that tells the truth.' }) },
+      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free workout mixes, curated by BPM. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
     ];
     const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
@@ -308,6 +312,7 @@ function BSOnboardingTour({ onClose, onNavigate }) {
 // compounds, that points are spendable, and (gently) that lapsing dips the number.
 function BSScoreIntro({ onClose, onOpenScore }) {
   const t = useBS();
+  const tr = useShapeTr();
   const accent = t.isLight ? '#0a8f87' : '#34d6c5';
   const rust = t.RUST || '#c0533b';
   _bsScrollTopOnMount();
@@ -325,8 +330,21 @@ function BSScoreIntro({ onClose, onOpenScore }) {
   // A curated subset of the REAL earn catalog (the Score page's `activities` list —
   // keep in sync with it, never invent a row). Ordered daily loop first: what a new
   // member actually does tomorrow. The footnote below points at the full list, so
-  // showing a subset stays honest.
-  const earn = [['Log a workout', '+10'], ['Log a meal', '+10'], ['Complete a habit', '+3'], ['Weekly check-in', '+15'], ['Daily steps', '+1 / 5k'], ['New PR · community post', '+12 · +5'], ['Goal milestone', '+50-200'], ['Momentum (hold 80+)', '+25-100']];
+  // showing a subset stays honest. Point values stay literal (numerals, not prose).
+  const earn = [
+    [tr('onboarding:score.earn.workout', { defaultValue: 'Log a workout' }), '+10'],
+    [tr('onboarding:score.earn.meal', { defaultValue: 'Log a meal' }), '+10'],
+    [tr('onboarding:score.earn.habit', { defaultValue: 'Complete a habit' }), '+3'],
+    [tr('onboarding:score.earn.checkin', { defaultValue: 'Weekly check-in' }), '+15'],
+    [tr('onboarding:score.earn.steps', { defaultValue: 'Daily steps' }), '+1 / 5k'],
+    [tr('onboarding:score.earn.prPost', { defaultValue: 'New PR · community post' }), '+12 · +5'],
+    [tr('onboarding:score.earn.goal', { defaultValue: 'Goal milestone' }), '+50-200'],
+    [tr('onboarding:score.earn.momentum', { defaultValue: 'Momentum (hold 80+)' }), '+25-100'],
+  ];
+  // Tier NAMES + ranges stay literal (brand rungs / numerals); the perk is prose, so
+  // it's keyed by rung. SHAPE_SCORE_TIERS is shared with the Score page — read the
+  // perk through here, never mutate the shared data.
+  const tierPerk = (name) => tr('onboarding:score.tierPerk.' + String(name).toLowerCase(), { defaultValue: (SHAPE_SCORE_TIERS.find((x) => x.name === name) || {}).perk || '' });
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
@@ -334,26 +352,33 @@ function BSScoreIntro({ onClose, onOpenScore }) {
           {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
         </div>
-        <button onClick={() => dismiss(true)} aria-label="Skip" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>SKIP</button>
+        <button onClick={() => dismiss(true)} aria-label={tr('onboarding:score.skip', { defaultValue: 'Skip' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>{tr('onboarding:score.skip', { defaultValue: 'Skip' }).toUpperCase()}</button>
       </div>
       <div style={{ padding: '0 18px 28px' }}>
-        <div style={eyebrow}>Welcome · Shape Score</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', margin: '6px 0 10px', lineHeight: 1.05 }}>How your Shape <span style={{ fontStyle: 'italic', color: accent }}>Score</span> works.</div>
-        <div style={{ fontFamily: t.BODY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>One number for showing up. Everything you log feeds it — and it climbs as you stay consistent. Here's the gist.</div>
+        <div style={eyebrow}>{tr('onboarding:score.eyebrow', { defaultValue: 'Welcome · Shape Score' })}</div>
+        {/* pre / accent / post: the accent word sits MID-sentence in English, and its
+            position moves per language — so each locale distributes the words across
+            the three keys (leaving post empty where it falls last). */}
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', margin: '6px 0 10px', lineHeight: 1.05 }}>{tr('onboarding:score.titlePre', { defaultValue: 'How your Shape' })} <span style={{ fontStyle: 'italic', color: accent }}>{tr('onboarding:score.titleAccent', { defaultValue: 'Score' })}</span>{tr('onboarding:score.titlePost', { defaultValue: ' works.' })}</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('onboarding:score.intro', { defaultValue: 'One number for showing up. Everything you log feeds it — and it climbs as you stay consistent. Here’s the gist.' })}</div>
 
-        {sec('Climb the tiers')}
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginBottom: 10 }}>Earn points to climb — and your tier <b style={{ color: t.INK }}>never goes down</b> once you reach it.</div>
+        {sec(tr('onboarding:score.tiers.head', { defaultValue: 'Climb the tiers' }))}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginBottom: 10 }}>{tr('onboarding:score.tiers.body', { defaultValue: 'Earn points to climb — and your tier never goes down once you reach it.' })}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {SHAPE_SCORE_TIERS.map((tr) => (
-            <div key={tr.name} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 9, alignItems: 'center' }}>
-              <span style={{ width: 9, height: 9, borderRadius: 3, background: tierColor(tr.name) }} />
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{tr.name}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, marginLeft: 7 }}>{tr.range}</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'right' }}>{tr.perk}</span>
+          {/* NOTE: this callback param was named `tr` — it SHADOWED the translator
+              inside the map (the tr-shadow crash class, and a variant the documented
+              `const tr =` grep can't see because it's a parameter). Renamed to `rung`;
+              don't reintroduce a `tr` binding here. */}
+          {SHAPE_SCORE_TIERS.map((rung) => (
+            <div key={rung.name} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 9, alignItems: 'center' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: tierColor(rung.name) }} />
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{rung.name}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, marginLeft: 7 }}>{rung.range}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'right' }}>{tierPerk(rung.name)}</span>
             </div>
           ))}
         </div>
 
-        {sec('Ways to earn')}
+        {sec(tr('onboarding:score.earn.head', { defaultValue: 'Ways to earn' }))}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {earn.map(([k, p]) => (
             <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -362,16 +387,18 @@ function BSScoreIntro({ onClose, onOpenScore }) {
             </div>
           ))}
         </div>
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>Consistency compounds</b> — hold your momentum and the weekly bonus grows. Your Score page lists every way to earn.</div>
+        {/* The bold lead is its own key: a phrase most languages can front. The rest
+            is one sentence — never split prose AROUND a bold span, word order moves. */}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>{tr('onboarding:score.earn.compoundsLead', { defaultValue: 'Consistency compounds' })}</b> {tr('onboarding:score.earn.compoundsBody', { defaultValue: '— hold your momentum and the weekly bonus grows. Your Score page lists every way to earn.' })}</div>
 
-        {sec('Spend what you earn')}
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Turn points into real rewards — session credit, gear and more — in the <b style={{ color: t.INK }}>Shape Store</b>. Spending never lowers your rank.</div>
+        {sec(tr('onboarding:score.spend.head', { defaultValue: 'Spend what you earn' }))}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{tr('onboarding:score.spend.body', { defaultValue: 'Turn points into real rewards — session credit, gear and more — in the Shape Store. Spending never lowers your rank.' })}</div>
 
-        {sec('Protect your points', rust)}
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.</div>
+        {sec(tr('onboarding:score.protect.head', { defaultValue: 'Protect your points' }), rust)}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{tr('onboarding:score.protect.body', { defaultValue: 'Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.' })}</div>
 
-        <button onClick={() => dismiss(false)} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Got it</button>
-        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>See my score →</button>
+        <button onClick={() => dismiss(false)} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('onboarding:score.gotIt', { defaultValue: 'Got it' })}</button>
+        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>{tr('onboarding:score.seeScore', { defaultValue: 'See my score →' })}</button>
       </div>
     </div>
   );

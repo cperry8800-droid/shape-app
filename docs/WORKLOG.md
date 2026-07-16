@@ -587,6 +587,77 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (night) — i18n: the first-run tour + Score intro ×13 — the LAST unlocalized mobile surface (task B; the onboarding wave closes)
+
+- **Task B of the onboarding review — the wave is COMPLETE** (A #1755 · C+D #1756 ·
+  B here). The i18n rollout was declared complete 2026-07-16, but the **client**
+  tour (`BSOnboardingTour`) and the whole **`BSScoreIntro`** were hardcoded
+  English — the worst possible place to miss, since the first-run flow *asks* a
+  member their language and then immediately shows them English. (The **coach**
+  tour was already localized in #1746 — this closes the client side.)
+- **58 new keys × 13 locales** wired through `useShapeTr()` into the existing
+  **`onboarding`** namespace — which was already registered in BOTH
+  `mobile-app/src/i18n/index.js` AND `tests/i18n-catalog-complete.test.mjs`
+  (it held the 2 language-picker keys), so the "register in both or it ships
+  ungated" trap was already closed. Translations LLM-generated → **flagged for
+  the standing human review**.
+- **⚠ THE tr-SHADOW GREP HAS A BLIND SPOT — it misses PARAMETER shadows.** The
+  documented gate is `grep 'const tr =|let tr =|var tr ='`. But `BSScoreIntro`'s
+  tier ladder was `SHAPE_SCORE_TIERS.map((tr) => …)` — the loop **parameter**
+  `tr` shadows the translator inside the map, and **no `const` appears**, so the
+  gate is blind to it. Renamed to `rung`. **Grep BOTH forms from now on:**
+  `grep -nE '(const|let|var) tr =' ` **AND**
+  `grep -nE '\((tr)\)\s*=>|\(\s*tr\s*,|function\s*\(\s*tr\s*[,)]'`.
+  The second form found **5 more pre-existing param shadows** in the client
+  module — 4 × `getTracks().forEach((tr) => tr.stop())` (tr = MediaStreamTrack)
+  and a render map in **`BSPlaylistCard`** (`list.map((tr, i) => …)`). **All are
+  INERT today** (none of those components hold a translator) and were left alone
+  as out-of-scope — but **`BSPlaylistCard` will crash the moment someone
+  localizes it**. Fix it in that PR, don't discover it at runtime.
+- **The split-accent title.** House style italicizes the title's accent word, and
+  the established i18n pattern is a 2-key `titlePre` + `titleAccent` split (see
+  `home:today.titlePre`/`titleYou`) — which only works when the accent lands
+  LAST. Here it's mid-sentence (*How your Shape **Score** works.*), and the rule
+  is that an i18n PR preserves copy rather than rewriting it — so this uses a
+  **pre / accent / post triple**, letting each locale distribute the words
+  (`titlePost` carries the tail, e.g. tr `" puanın nasıl çalışır."`, de
+  `" funktioniert."`). **Spec bug caught by the translators, not by me:** the
+  brief said "set `titlePost` to `""` when Score lands last" — that would
+  **silently drop the sentence-final period**, since the string composes as
+  `pre + " " + accent + post`. Three agents independently pushed back and used
+  `"."`. The **invariants that actually matter** (now in the checker): the
+  composed title must still contain the brand noun **"Shape Score"** intact, and
+  must end in punctuation.
+- **Never split prose AROUND a bold/italic span.** `score.earn.compounds*` keeps
+  a 2-key split ONLY because the bold is a **leading phrase** most languages can
+  front; the mid-sentence bolds (`tiers.body`, `spend.body`) were collapsed to
+  one key each — word order moves, and a 3-way prose split breaks in translation.
+  Brand nouns inside prose (`Shape Store`) stay literal in-sentence.
+- **Per-locale judgment worth keeping:** **ru/uk keep "Score" as the brand
+  shorthand** — translating it to «счёт»/«рахунок» reads as ***bill*** in both.
+  **tr** carries zero apostrophe-suffixes on brand nouns (phrased around them:
+  `Shape Score puanın`, not `Shape Score'un`). **pcm** is real Naija grammar
+  ("Na one number for showing up… e dey climb as you dey consistent", `gotIt` =
+  "I don hear"), not English with words swapped. **ha** is genuine Hausa
+  orthography (ɗ/ƙ/ɓ) with a word-by-word English scan. **vi** `score.earn.checkin`
+  was corrected to the **house loanword** "Check-in hằng tuần" — `calendar.json`
+  + `coach.json` already use `check-in`, so "Cập nhật hằng tuần" would have
+  drifted (the translator flagged its own choice; the house term won).
+- **⚠ Windows tooling trap that cost a false alarm:** a `python -c "…open(p)…"`
+  audit reported vi/ru/uk catalogs "MISSING" — it was **cp1252** choking on
+  Cyrillic/Vietnamese, swallowed by an `|| echo MISSING` fallback. The files were
+  always fine. **Always `io.open(p, encoding='utf-8')` + `export
+  PYTHONIOENCODING=utf-8`** when touching catalogs on this machine; and never let
+  a `|| echo` fallback turn a decode error into a data conclusion.
+- **The parity gate has teeth (proven, not assumed):** with the 4 unwritten
+  locales the suite FAILED naming `vi/onboarding missing: <58 keys>`; green at
+  **626** once complete. Verified: JSX parse · tr-shadow BOTH forms clean ·
+  catalog checker (13×60 keys · brand nouns · arrows · title composition · no
+  leftover English) · `npm test` **626** · PowerShell `/m/` build exit 0 · LF
+  (CR=0 ×14). Open: the standing **human translation review**; the Score PAGE's
+  own earn list + tier perks are still English (a pre-existing pilot gap — that
+  surface was never fully localized).
+
 ### 2026-07-16 (evening, later) — Onboarding tour: honest earn list · coach-optional copy · the engine scrolls, traps focus + takes Escape (tasks C + D)
 
 - **Tasks C + D of the onboarding review** (A shipped in #1755). C had to land
