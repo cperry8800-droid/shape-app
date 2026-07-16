@@ -1751,7 +1751,7 @@ function BSBarcodeScan({ onHit, onFallback, teal }) {
     } catch (e) { onFallback(); return undefined; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then((s) => {
-        if (done) { s.getTracks().forEach((tr) => tr.stop()); return; }
+        if (done) { s.getTracks().forEach((track) => track.stop()); return; }
         stream = s;
         const v = videoRef.current;
         if (v) { v.srcObject = s; const p = v.play && v.play(); if (p && p.catch) p.catch(() => {}); }
@@ -1766,7 +1766,7 @@ function BSBarcodeScan({ onHit, onFallback, teal }) {
         }, 350);
       })
       .catch(() => { if (!done) onFallback(); });
-    return () => { done = true; if (timer) clearInterval(timer); if (stream) stream.getTracks().forEach((tr) => tr.stop()); };
+    return () => { done = true; if (timer) clearInterval(timer); if (stream) stream.getTracks().forEach((track) => track.stop()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
@@ -4090,14 +4090,14 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
         <div style={{ marginTop: 6 }}>
           {list.length === 0 ? (
             <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in {pName} to see the full tracklist.</div>
-          ) : list.map((tr, i) => (
+          ) : list.map((track, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 2px', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 'none' }}>
               <div style={{ width: 16, textAlign: 'right', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr.a}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 1, letterSpacing: '0.03em' }}>{tr.b}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.a}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 1, letterSpacing: '0.03em' }}>{track.b}</div>
               </div>
-              {tr.len && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.03em' }}>{tr.len}</div>}
+              {track.len && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.03em' }}>{track.len}</div>}
             </div>
           ))}
         </div>
@@ -15016,13 +15016,13 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { setVoiceErr('Mic blocked — allow access or type.'); return; }
     // Hold-to-talk: the finger came up while permission was pending — don't
     // start a recording nobody is holding. Release the tracks and bail.
-    if (holdToTalk && !holdingRef.current) { try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {} return; }
+    if (holdToTalk && !holdingRef.current) { try { stream.getTracks().forEach((track) => track.stop()); } catch (e) {} return; }
     try {
       const mr = new window.MediaRecorder(stream);
       const chunks = [];
       mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
       mr.onstop = async () => {
-        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        try { stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
         if (mr._bsCancel) { setVoiceState('idle'); return; } // canceled hold — nothing to transcribe
         setVoiceState('transcribing');
         try {

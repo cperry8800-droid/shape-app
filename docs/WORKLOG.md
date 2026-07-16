@@ -587,6 +587,36 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (night, later) — tr-shadow cleanup: the 5 param shadows defused (incl. the one that WOULD have crashed) + the grep corrected
+
+- **Follow-through on the #1757 finding.** That PR documented that the tr-shadow
+  grep misses **parameter** shadows and left the 5 pre-existing ones alone as
+  out-of-scope. Defusing them now — they're a pure local rename, zero behavior
+  change, and one of them was a live trap.
+- **`BSPlaylistCard` was the real one.** `list.map((tr, i) => …)` — the tracklist
+  rows read `tr.a` / `tr.b` / `tr.len`. Inert only because that component holds
+  no translator; **the moment anyone localized it, adding `const tr =
+  useShapeTr()` would make every `tr('…')` inside the map a TypeError** (`tr` is
+  a track object, not a function) — and parse, tsc, tests and the build would ALL
+  still pass. Renamed to **`track`**, which is what it actually is (it's a
+  playlist tracklist). The 4 × `getTracks().forEach((tr) => tr.stop())`
+  (MediaStreamTrack) renamed to `track` too — same class, same fix.
+- **⚠ CORRECTION to the grep published in #1757.** The param-form regex
+  `\(\s*tr\s*,` **has false positives** — it can't tell a *declaration* from a
+  *call site*. It flags 8 hits in `iosAppBroadsheetMarketplace.jsx` that are all
+  **correct code**: `function bsmRoleWord(tr, isNutri)` is a module-scope
+  non-hook helper that **takes the translator as a parameter** (dependency
+  injection — the same sanctioned pattern as the pros module's `coachTr()`), plus
+  its call sites `bsmRoleWord(tr, …)`. **Injecting `tr` into a module-scope
+  helper is the RIGHT pattern, not a shadow** — there's no outer `tr` to shadow.
+- **The grep that actually works** — the dangerous form is an **arrow-callback
+  param** named `tr` inside a component that holds the translator:
+  `grep -nE "\((tr)\)\s*=>|\((tr),\s*[a-z]"`. Run it **alongside**
+  `grep -nE '(const|let|var) tr ='`. Both are clean in the client module now;
+  marketplace's hits are the injection pattern (verified, correct).
+- Verified: JSX parse · both grep forms clean · `npm test` **626** · PowerShell
+  `/m/` build exit 0 · LF (CR=0). No behavior change — locals only.
+
 ### 2026-07-16 (night) — i18n: the first-run tour + Score intro ×13 — the LAST unlocalized mobile surface (task B; the onboarding wave closes)
 
 - **Task B of the onboarding review — the wave is COMPLETE** (A #1755 · C+D #1756 ·
