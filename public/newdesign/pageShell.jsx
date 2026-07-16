@@ -50,13 +50,16 @@ function RadioWordmark() {
       style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", whiteSpace: "nowrap", padding: "6px 0", lineHeight: 1 }}>
       <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 7 }}>
         <span style={{ color: cream }}>Shape</span>
-        <svg aria-hidden viewBox="60 14 80 72" style={{ height: 14, width: "auto", flex: "0 0 auto", display: "block" }}>
-          <polygon points="72,38 72,82 105,60" fill={TEAL_BRIGHT} />
-          <polygon points="128,18 128,62 95,40" fill={cream} />
+        <svg aria-hidden viewBox="8 8 79 98" style={{ height: 15, width: "auto", flex: "0 0 auto", display: "block" }}>
+          <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
+          <polygon points="81,14 81,65 44,39" fill={cream} />
         </svg>
         <span style={{ color: TEAL_BRIGHT }}>Radio</span>
       </span>
-      <span aria-hidden style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, border: `1px solid ${TEAL_BRIGHT}59`, borderRadius: 3, padding: "3px 5px", lineHeight: 1, boxShadow: `0 0 10px ${TEAL_BRIGHT}26` }}>ON AIR</span>
+      <span aria-hidden style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: mono, fontSize: 8.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, border: `1px solid ${TEAL_BRIGHT}59`, borderRadius: 3, padding: "3px 5px", lineHeight: 1, boxShadow: `0 0 10px ${TEAL_BRIGHT}26` }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: RUST, boxShadow: `0 0 6px ${RUST}`, flex: "0 0 auto" }} />
+        ON AIR
+      </span>
     </a>
   );
 }
