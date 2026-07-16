@@ -14,6 +14,33 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 // Lighter pass: 4 tabs each — Today, Clients, Plans/Pubs, Me.
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
+
+// The i18n translator for this module. Mirrors client.jsx's useShapeTr —
+// self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
+// doesn't depend on another file's copy or its load order.
+function useShapeTr() {
+  const [, force] = React.useState(0);
+  React.useEffect(() => {
+    const unsub = window.ShapeLocale?.subscribe?.(() => force((n) => n + 1));
+    return typeof unsub === 'function' ? unsub : undefined;
+  }, []);
+  return (key, opts) => {
+    const v = window.ShapeI18n?.t?.(key, opts);
+    return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+// Active app locale for Intl date/number formatting.
+function coachLocale() {
+  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
+}
+// Non-reactive translator for module-scope helpers (roster severity/directives)
+// that render verdict text but can't hold a React hook. Reads the live i18n
+// bridge at call time; the components that consume these outputs carry their
+// own useShapeTr() subscription, so they re-run on locale change.
+function coachTr(key, opts) {
+  const v = typeof window !== 'undefined' && window.ShapeI18n?.t?.(key, opts);
+  return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+}
 const {
   useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
@@ -169,12 +196,13 @@ function demoWorkoutReviewSessions(role = 'trainer') {
 // click "Open calendar →" to drill in.
 function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isNutri = role === 'nutritionist';
   const heat = bsProHeat(t, role);
   const [sessions, setSessions] = useStateBSP([]);
   const [selectedId, setSelectedId] = useStateBSP(null);
   const [note, setNote] = useStateBSP('');
-  const [status, setStatus] = useStateBSP('LOADING…');
+  const [status, setStatus] = useStateBSP(tr('coach:review.statusLoading', { defaultValue: 'LOADING…' }));
 
   useEffectBSP(() => {
     let cancelled = false;
@@ -186,13 +214,13 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         const nextRows = rows.length ? rows : demoWorkoutReviewSessions(role);
         setSessions(nextRows);
         setSelectedId((current) => current || nextRows[0]?.id || null);
-        setStatus(rows.length ? 'LIVE · SUPABASE SESSION LOGS' : 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR');
+        setStatus(rows.length ? tr('coach:review.statusLiveLogs', { defaultValue: 'LIVE · SUPABASE SESSION LOGS' }) : tr('coach:review.statusDemoQueue', { defaultValue: 'DEMO QUEUE · UNTIL CLIENT SESSIONS APPEAR' }));
       } catch (error) {
         if (cancelled) return;
         const fallback = demoWorkoutReviewSessions(role);
         setSessions(fallback);
         setSelectedId(fallback[0]?.id || null);
-        setStatus('DEMO QUEUE · OFFLINE');
+        setStatus(tr('coach:review.statusDemoOffline', { defaultValue: 'DEMO QUEUE · OFFLINE' }));
       }
     }
     load();
@@ -211,7 +239,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const saveNote = async () => {
     const clean = note.trim();
     if (!selected?.id || !clean) return;
-    setStatus('Saving review note...');
+    setStatus(tr('coach:review.savingNote', { defaultValue: 'Saving review note...' }));
     try {
       const result = await window.ShapeWorkoutLogs?.addCoachReviewNote?.({
         sessionId: selected.id,
@@ -224,14 +252,14 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
         : session));
       setNote('');
-      setStatus(result?.stored === 'supabase' ? 'Review note saved to Supabase' : 'Review note saved locally');
+      setStatus(result?.stored === 'supabase' ? tr('coach:review.noteSavedRemote', { defaultValue: 'Review note saved to Supabase' }) : tr('coach:review.noteSavedLocal', { defaultValue: 'Review note saved locally' }));
     } catch (error) {
       const saved = { id: `local-${Date.now()}`, body: clean, visibility: 'client', created_at: new Date().toISOString() };
       setSessions((rows) => rows.map((session) => session.id === selected.id
         ? { ...session, coach_workout_review_notes: [...(session.coach_workout_review_notes || []), saved] }
         : session));
       setNote('');
-      setStatus(error?.message || 'Saved locally for this demo session');
+      setStatus(error?.message || tr('coach:review.savedDemo', { defaultValue: 'Saved locally for this demo session' }));
     }
   };
 
@@ -254,11 +282,11 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <BSBackButton onClick={onBack} />
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-            THE QUEUE <span style={{ color: `${t.INK}80` }}>· {sessions.length} ITEMS</span>
+            {tr('coach:review.queueEyebrow', { defaultValue: 'THE QUEUE' })} <span style={{ color: `${t.INK}80` }}>· {tr('coach:review.itemsCount', { defaultValue: '{count, plural, one {# ITEM} other {# ITEMS}}', count: sessions.length })}</span>
           </div>
         </div>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
-          {isNutri ? 'Client' : 'Workout'} <i style={{ color: heat, fontStyle: 'italic' }}>review.</i>
+          {isNutri ? tr('coach:review.titleNutri', { defaultValue: 'Client' }) : tr('coach:review.titleTrainer', { defaultValue: 'Workout' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:review.titleAccent', { defaultValue: 'review.' })}</i>
         </div>
         <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{status}</div>
       </div>
@@ -270,8 +298,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           const active = session.id === selected?.id;
           const isNut = session.nutrition === true;
           const count = isNut ? `${session.logged}/${session.planned}` : (session.summary?.completedSets || (session.workout_set_logs || []).length || 0);
-          const unit = isNut ? 'MEALS' : 'SETS';
-          const title = session.workout_name || session.title || 'Workout session';
+          const unit = isNut ? tr('coach:review.unitMeals', { defaultValue: 'MEALS' }) : tr('coach:review.unitSets', { defaultValue: 'SETS' });
+          const title = session.workout_name || session.title || tr('coach:review.sessionFallback', { defaultValue: 'Workout session' });
           return (
             <button
               key={session.id}
@@ -305,17 +333,17 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               workout body (sets + watch samples); COACH NOTES is shared below. */}
           {selected.nutrition ? (
             <div style={{ padding: `22px ${t.padX}px 0` }}>
-              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`MEAL LOG · ${selected.status || 'logged'}`} />}
+              {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.mealLog', { defaultValue: 'MEAL LOG' })} · ${selected.status || 'logged'}`} />}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                {stat('Kcal', selected.kcal)}
-                {stat('Target', selected.target)}
+                {stat(tr('coach:review.statKcal', { defaultValue: 'Kcal' }), selected.kcal)}
+                {stat(tr('coach:review.statTarget', { defaultValue: 'Target' }), selected.target)}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>Protein</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{tr('coach:review.statProtein', { defaultValue: 'Protein' })}</div>
                   <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 27, lineHeight: 1, color: t.INK, fontWeight: t.W.display, letterSpacing: '-0.045em', fontVariantNumeric: 'tabular-nums' }}>
                     {selected.protein_g}<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginLeft: 3 }}>/{selected.protein_target_g}G</span>
                   </div>
                 </div>
-                {stat('Logged', `${selected.logged}/${selected.planned}`)}
+                {stat(tr('coach:review.statLogged', { defaultValue: 'Logged' }), `${selected.logged}/${selected.planned}`)}
               </div>
               {selected.flag ? (
                 <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>{selected.flag}</div>
@@ -338,41 +366,41 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
           {/* ── Session detail — station head + bare 4-up registers (eyebrow above
               figure) + dot-leader set rows. The bordered card is gone. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`SESSION DETAIL · ${selected.status || 'completed'}`} />}
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={`${tr('coach:review.sessionDetail', { defaultValue: 'SESSION DETAIL' })} · ${selected.status || 'completed'}`} />}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-              {stat('Sets', completedSets)}
-              {stat('Avg set', formatReviewSeconds(avgSet))}
-              {stat('Avg rest', formatReviewSeconds(avgRest))}
-              {stat('Elapsed', formatReviewSeconds(selected.duration_seconds))}
+              {stat(tr('coach:review.statSets', { defaultValue: 'Sets' }), completedSets)}
+              {stat(tr('coach:review.statAvgSet', { defaultValue: 'Avg set' }), formatReviewSeconds(avgSet))}
+              {stat(tr('coach:review.statAvgRest', { defaultValue: 'Avg rest' }), formatReviewSeconds(avgRest))}
+              {stat(tr('coach:review.statElapsed', { defaultValue: 'Elapsed' }), formatReviewSeconds(selected.duration_seconds))}
             </div>
             <div style={{ marginTop: 16 }}>
               {setLogs.length ? setLogs.map((entry, index) => {
-                const name = `${entry.movement_name || entry.moveName || 'Movement'} #${entry.set_number || entry.setNumber || index + 1}`;
-                const target = `${entry.target_reps || entry.targetReps || 'target'} · ${entry.target_load || entry.targetLoad || 'load'}`;
+                const name = `${entry.movement_name || entry.moveName || tr('coach:review.movementFallback', { defaultValue: 'Movement' })} #${entry.set_number || entry.setNumber || index + 1}`;
+                const target = `${entry.target_reps || entry.targetReps || tr('coach:review.targetFallback', { defaultValue: 'target' })} · ${entry.target_load || entry.targetLoad || tr('coach:review.loadFallback', { defaultValue: 'load' })}`;
                 return (
                   <div key={entry.id || index} style={{ borderTop: `1px solid ${t.INK}12`, padding: '11px 0', minHeight: 52 }}>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                       <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
                       <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>SET {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · REST {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{tr('coach:review.setLabel', { defaultValue: 'SET' })} {formatReviewSeconds(entry.set_duration_seconds ?? entry.setDurationSeconds)} · {tr('coach:review.restLabel', { defaultValue: 'REST' })} {formatReviewSeconds(entry.rest_before_seconds ?? entry.restBeforeSeconds)}</span>
                     </span>
                     <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{target}</span>
                   </div>
                 );
-              }) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO SETS LOGGED" /> : null)}
+              }) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:review.noSetsLogged', { defaultValue: 'NO SETS LOGGED' })} /> : null)}
             </div>
           </div>
 
           {/* ── Watch samples — bare registers (eyebrow above figure); a pending
               sample renders — in t.INK50. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="WATCH SAMPLES" meta={`${sensorSamples.length} samples`} />}
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:review.watchSamples', { defaultValue: 'WATCH SAMPLES' })} meta={tr('coach:review.samplesCount', { defaultValue: '{count, plural, one {# sample} other {# samples}}', count: sensorSamples.length })} />}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, rowGap: 16 }}>
-              {(sensorSamples.length ? sensorSamples : [{ metric: 'watch data', value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => {
+              {(sensorSamples.length ? sensorSamples : [{ metric: tr('coach:review.watchDataFallback', { defaultValue: 'watch data' }), value: 'pending', unit: '' }]).slice(0, 4).map((sample, index) => {
                 const pending = sample.value === 'pending' || sample.value == null;
                 return (
                   <div key={sample.id || index} style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || 'metric').replace(/_/g, ' ')}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
                     <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                       {pending ? '—' : sample.value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{sample.unit}</span> : null}
                     </div>
@@ -388,14 +416,14 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
               textarea + save button stay a quiet form; button keeps its t.INK
               fill — this page's primary action). ── */}
           <div style={{ padding: `22px ${t.padX}px 22px` }}>
-            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="COACH NOTES" meta={`${reviewNotes.length} notes`} />}
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:review.coachNotes', { defaultValue: 'COACH NOTES' })} meta={tr('coach:review.notesCount', { defaultValue: '{count, plural, one {# note} other {# notes}}', count: reviewNotes.length })} />}
             <div style={{ display: 'grid', gap: 10 }}>
               {reviewNotes.map((item) => (
                 <div key={item.id} style={{ borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.4 }}>
                   {item.body}
                 </div>
               ))}
-              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write feedback for the client..." style={{
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={tr('coach:review.notePlaceholder', { defaultValue: 'Write feedback for the client...' })} style={{
                 width: '100%',
                 minHeight: 94,
                 resize: 'vertical',
@@ -422,7 +450,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 fontWeight: 800,
                 cursor: 'pointer',
               }}>
-                Save review note
+                {tr('coach:review.saveNote', { defaultValue: 'Save review note' })}
               </button>
             </div>
           </div>
@@ -436,6 +464,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 // timer, sets as they land, current move, plus a quick-cue sender.
 function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak', onBack = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [now, setNow] = useStateBSP(Date.now());
   const [startedAt] = useStateBSP(Date.now() - (30 * 60 + 55) * 1000); // ~30:55 in
@@ -458,30 +487,35 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = moves.reduce((s, m) => s + m.done, 0);
   const pct = totalSets ? doneSets / totalSets : 0;
-  const quickCues = ['Slow the eccentric', 'Hold this weight', 'One more set', 'Lengthen your rest'];
+  const quickCues = [
+    tr('coach:live.cueEccentric', { defaultValue: 'Slow the eccentric' }),
+    tr('coach:live.cueHold', { defaultValue: 'Hold this weight' }),
+    tr('coach:live.cueOneMore', { defaultValue: 'One more set' }),
+    tr('coach:live.cueRest', { defaultValue: 'Lengthen your rest' }),
+  ];
   const sendCue = (text) => { const m = String(text || cueDraft).trim(); if (!m) return; setSentCue(m); setCueDraft(''); };
 
   return (
     <BSPage>
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ Close</button>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> Live · {fmt(elapsed)}
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: fmt(elapsed) })}
         </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sets {doneSets}/{totalSets}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done: doneSets, total: totalSets })}</span>
       </div>
 
       <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Watching live</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.watchingLive', { defaultValue: 'Watching live' })}</div>
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{client}</div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{workout} · {Math.round(pct * 100)}% · set {cur.done + 1} of {cur.sets}</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('coach:live.workoutProgress', { defaultValue: '{workout} · {pct}% · set {cur} of {total}', workout, pct: Math.round(pct * 100), cur: cur.done + 1, total: cur.sets })}</div>
         <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
           <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
         </div>
       </div>
 
       <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Exercise {curIdx + 1} of {moves.length}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.exerciseOf', { defaultValue: 'Exercise {cur} of {total}', cur: curIdx + 1, total: moves.length })}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{cur.scheme}</span>
       </div>
       <div style={{ padding: `4px ${t.padX}px 0` }}>
@@ -491,7 +525,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
 
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span />
+          <span>{tr('coach:live.colSet', { defaultValue: 'Set' })}</span><span>{tr('coach:live.colWeight', { defaultValue: 'Weight' })}</span><span>{tr('coach:live.colReps', { defaultValue: 'Reps' })}</span><span>{tr('coach:common.rpe', { defaultValue: 'RPE' })}</span><span />
         </div>
         {/* Read-only set ledger — this is a MIRROR of the client's live inputs, so no
             box-fields: bare tabular figures; the live set carries a teal underline. */}
@@ -513,11 +547,11 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
 
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         {/* Rust retired from chrome — station-head eyebrow (accent tick + ink), teal action. */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> Send a cue</div>
-        {sentCue && <div style={{ marginTop: 8, borderLeft: `3px solid ${teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>Sent to {client}: “{sentCue}”</div>}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> {tr('coach:live.sendCue', { defaultValue: 'Send a cue' })}</div>
+        {sentCue && <div style={{ marginTop: 8, borderLeft: `3px solid ${teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>{tr('coach:live.sentTo', { defaultValue: 'Sent to {name}: “{cue}”', name: client, cue: sentCue })}</div>}
         <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder="Type a quick cue…" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 8, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-          <button onClick={() => sendCue()} style={{ borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Send</button>
+          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder={tr('coach:live.cuePlaceholder', { defaultValue: 'Type a quick cue…' })} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 8, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+          <button onClick={() => sendCue()} style={{ borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:common.send', { defaultValue: 'Send' })}</button>
         </div>
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
           {quickCues.map(q => <button key={q} onClick={() => sendCue(q)} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: '8px 12px', minHeight: 32, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{q}</button>)}
@@ -525,8 +559,8 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
       </div>
 
       <div style={{ padding: `24px ${t.padX}px 4px` }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> Up next</div>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Queue<span style={{ color: teal }}>.</span></div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> {tr('coach:common.upNext', { defaultValue: 'Up next' })}</div>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('coach:live.queue', { defaultValue: 'Queue' })}<span style={{ color: teal }}>.</span></div>
       </div>
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         {/* NOW spine on the current move — no fill/box (the client session queue grammar). */}
@@ -535,10 +569,10 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
           const isCur = i === curIdx;
           return (
             <div key={i} style={{ borderLeft: `3px solid ${isCur ? teal : 'transparent'}`, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 0 12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : (isCur ? teal : t.INK50) }}>{mDone ? '✓' : isCur ? 'NOW' : String(i + 1).padStart(2, '0')}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : (isCur ? teal : t.INK50) }}>{mDone ? '✓' : isCur ? tr('coach:common.now', { defaultValue: 'NOW' }) : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{m.scheme} · {m.rest} rest · {m.done}/{m.sets} sets</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{tr('coach:live.moveMeta', { defaultValue: '{scheme} · {rest} rest · {done}/{total} sets', scheme: m.scheme, rest: m.rest, done: m.done, total: m.sets })}</div>
               </div>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{m.load}</span>
             </div>
@@ -547,9 +581,9 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 24px` }}>
-        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Stop watching</button>
+        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('coach:live.stopWatching', { defaultValue: 'Stop watching' })}</button>
       </div>
-      <BSFooter right="Live" />
+      <BSFooter right={tr('coach:common.live', { defaultValue: 'Live' })} />
     </BSPage>
   );
 }
@@ -570,6 +604,7 @@ function bsGroAisle(name) {
   return 'Other';
 }
 function BSProGroceryLists({ t, isNutri, onBack }) {
+  const tr = useShapeTr();
   const DEMO = [
     { id: 'd0', name: 'My weekly prep', client_id: null, client_name: null, status: 'ready', items: [{ name: 'Chicken breast' }, { name: 'Jasmine rice' }, { name: 'Broccoli' }, { name: 'Greek yogurt' }, { name: 'Olive oil' }, { name: 'Eggs' }].map(x => ({ name: x.name, aisle: bsGroAisle(x.name) })) },
     { id: 'd1', name: 'Big-plate day list', client_id: null, client_name: 'Riley Kim', status: 'ready', items: ['Chicken breast', 'Jasmine rice', 'Pineapple', 'Chili base', 'Greek yogurt'].map(n => ({ name: n, aisle: bsGroAisle(n) })) },
@@ -593,25 +628,25 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   // Role-true heat (trainer rust / nutritionist gold), line-only; teal = the one action.
   const heat = bsProHeat(t, isNutri ? 'nutritionist' : 'trainer');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const STAT = { ready: ['Ready to send', '#5fae7e'], review: ['In review', t.AMBER || '#d8a23a'], approval: ['Awaiting approval', t.INK70], sent: ['Sent', heat] };
+  const STAT = { ready: [tr('coach:grocery.statusReady', { defaultValue: 'Ready to send' }), '#5fae7e'], review: [tr('coach:grocery.statusReview', { defaultValue: 'In review' }), t.AMBER || '#d8a23a'], approval: [tr('coach:grocery.statusApproval', { defaultValue: 'Awaiting approval' }), t.INK70], sent: [tr('coach:grocery.statusSent', { defaultValue: 'Sent' }), heat] };
   const aislesOf = (items) => { const m = {}; (items || []).forEach(it => { const a = it.aisle || bsGroAisle(it.name); m[a] = (m[a] || 0) + 1; }); return Object.keys(m).map(a => [a, m[a]]); };
   const create = async () => {
     const name = draft.name.trim();
-    if (!name) { window.__bsToast?.('Add a list name', 'err'); return; }
+    if (!name) { window.__bsToast?.(tr('coach:grocery.toastAddName', { defaultValue: 'Add a list name' }), 'err'); return; }
     const items = draft.items.split('\n').map(s => s.trim()).filter(Boolean).map(n => ({ name: n, aisle: bsGroAisle(n) }));
     const clientName = draft.forClient ? draft.clientName.trim() : '';
     setBusy(true);
     try {
-      if (window.ShapeGroceryLists?.create) { await window.ShapeGroceryLists.create({ name, items, status: 'ready', clientName }); window.__bsToast?.('List created', 'ok'); }
+      if (window.ShapeGroceryLists?.create) { await window.ShapeGroceryLists.create({ name, items, status: 'ready', clientName }); window.__bsToast?.(tr('coach:grocery.toastCreated', { defaultValue: 'List created' }), 'ok'); }
       else { setLists(l => [{ id: 'l' + Date.now(), name, items, status: 'ready', client_name: clientName || null, client_id: null }, ...(l || DEMO)]); }
       setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' });
       setTab(clientName ? 'clients' : 'mine');
       reload();
-    } catch (e) { window.__bsToast?.(e.message || 'Could not save', 'err'); }
+    } catch (e) { window.__bsToast?.(e.message || tr('coach:grocery.toastCouldNotSave', { defaultValue: 'Could not save' }), 'err'); }
     finally { setBusy(false); }
   };
   const send = async (g) => {
-    if (!g.client_id) { window.__bsToast?.('Delivers once this client is linked', 'info'); return; }
+    if (!g.client_id) { window.__bsToast?.(tr('coach:grocery.toastDeliversLinked', { defaultValue: 'Delivers once this client is linked' }), 'info'); return; }
     try {
       // Deliver to the client's EAT page (grocery) — not chat. Nutritionists push
       // it into the client's grocery (review + sub-out there); the push fires the
@@ -620,16 +655,16 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
       if (isNutri && window.ShapeGroceryLists?.push) pushed = await window.ShapeGroceryLists.push({ clientId: g.client_id, name: g.name, items: g.items });
       if (!pushed) { try { await window.ShapeGroceryLists?.notify?.(g.client_id, g.name); } catch (e) {} }
       if (window.ShapeGroceryLists?.update && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.update({ id: g.id, status: 'sent' });
-      window.__bsToast?.(`Sent to ${String(g.client_name || 'client').split(' ')[0]} · on their Eat page`, 'ok');
+      window.__bsToast?.(tr('coach:grocery.toastSentTo', { defaultValue: 'Sent to {name} · on their Eat page', name: String(g.client_name || tr('coach:grocery.clientWord', { defaultValue: 'client' })).split(' ')[0] }), 'ok');
       reload();
-    } catch (e) { window.__bsToast?.('Could not send', 'err'); }
+    } catch (e) { window.__bsToast?.(tr('coach:grocery.toastCouldNotSend', { defaultValue: 'Could not send' }), 'err'); }
   };
   const del = async (g) => {
     if (!(await window.bsAskConfirm({
-      title: 'Delete this grocery list?',
+      title: tr('coach:grocery.deleteTitle', { defaultValue: 'Delete this grocery list?' }),
       name: g.name,
-      message: g.client_name ? `This permanently removes the list for ${String(g.client_name).split(' ')[0]}.` : 'This permanently removes the list.',
-      confirmLabel: 'Delete list',
+      message: g.client_name ? tr('coach:grocery.deleteMsgClient', { defaultValue: 'This permanently removes the list for {name}.', name: String(g.client_name).split(' ')[0] }) : tr('coach:grocery.deleteMsg', { defaultValue: 'This permanently removes the list.' }),
+      confirmLabel: tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' }),
     }))) return;
     if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
@@ -651,44 +686,44 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
-      <BSMasthead title="Grocery Lists" leftKicker={isNutri ? 'Nutrition delivery' : 'Meal support'} rightKicker={`${all.length} lists`} onBack={onBack} />
+      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} />
 
       {/* Verdict lead — the whole queue on one line, heat = role */}
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
           <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: heat, flexShrink: 0 }} />
-          The lists · {isNutri ? 'nutrition delivery' : 'meal support'}
+          {tr('coach:grocery.leadEyebrow', { defaultValue: 'The lists · {mode}', mode: isNutri ? tr('coach:grocery.modeNutri', { defaultValue: 'nutrition delivery' }) : tr('coach:grocery.modeTrainer', { defaultValue: 'meal support' }) })}
         </div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.02 }}>
-          {clients.length} client {clients.length === 1 ? 'list' : 'lists'}<span style={{ color: heat }}>.</span>
+          {tr('coach:grocery.clientListsCount', { defaultValue: '{count, plural, one {# client list} other {# client lists}}', count: clients.length })}<span style={{ color: heat }}>.</span>
         </div>
         <div aria-hidden style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 60%, transparent)` }} />
       </div>
 
       {/* Typographic index — Clients / Mine */}
       <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', gap: 20, borderBottom: `1px solid ${t.HAIR}` }}>
-        {tabItem('clients', 'Clients', clients.length)}
-        {tabItem('mine', 'Mine', mine.length)}
+        {tabItem('clients', tr('coach:grocery.tabClients', { defaultValue: 'Clients' }), clients.length)}
+        {tabItem('mine', tr('coach:grocery.tabMine', { defaultValue: 'Mine' }), mine.length)}
       </div>
 
       {/* New list — dashed add box, or the quiet create form */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         {!creating ? (
-          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '13px', borderRadius: 6, border: `1.5px dashed ${t.INK}40`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>＋ New grocery list</button>
+          <button onClick={() => setCreating(true)} style={{ width: '100%', padding: '13px', borderRadius: 6, border: `1.5px dashed ${t.INK}40`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:grocery.newList', { defaultValue: '＋ New grocery list' })}</button>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="List name — e.g. Big-plate day" className="bs-uline" style={uline} />
-            <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={'One item per line\nChicken breast\nJasmine rice\nBroccoli'} className="bs-uline" style={{ ...uline, resize: 'vertical', fontSize: 14 }} />
+            <input autoFocus value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder={tr('coach:grocery.listNamePlaceholder', { defaultValue: 'List name — e.g. Big-plate day' })} className="bs-uline" style={uline} />
+            <textarea value={draft.items} onChange={e => setDraft(d => ({ ...d, items: e.target.value }))} rows={4} placeholder={tr('coach:grocery.itemsPlaceholder', { defaultValue: 'One item per line\nChicken breast\nJasmine rice\nBroccoli' })} className="bs-uline" style={{ ...uline, resize: 'vertical', fontSize: 14 }} />
             <div style={{ display: 'flex', gap: 20 }}>
-              {[['Mine', false], ['For a client', true]].map(([l, v]) => {
+              {[[tr('coach:grocery.forMine', { defaultValue: 'Mine' }), false], [tr('coach:grocery.forClient', { defaultValue: 'For a client' }), true]].map(([l, v]) => {
                 const on = draft.forClient === v;
-                return <button key={l} onClick={() => setDraft(d => ({ ...d, forClient: v }))} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
+                return <button key={String(v)} onClick={() => setDraft(d => ({ ...d, forClient: v }))} aria-pressed={on} style={{ background: 'transparent', border: 0, padding: '2px 0 6px', cursor: 'pointer', position: 'relative', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{l}{on && <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: heat }} />}</button>;
               })}
             </div>
-            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder="Client name" className="bs-uline" style={uline} />}
+            {draft.forClient && <input value={draft.clientName} onChange={e => setDraft(d => ({ ...d, clientName: e.target.value }))} placeholder={tr('coach:grocery.clientNamePlaceholder', { defaultValue: 'Client name' })} className="bs-uline" style={uline} />}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
-              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={textAction(t.INK70)}>Cancel</button>
-              <button disabled={busy} onClick={create} style={{ ...tealCta, marginLeft: 'auto', padding: '11px 18px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Create list'}</button>
+              <button onClick={() => { setCreating(false); setDraft({ name: '', items: '', forClient: true, clientName: '' }); }} style={textAction(t.INK70)}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+              <button disabled={busy} onClick={create} style={{ ...tealCta, marginLeft: 'auto', padding: '11px 18px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? tr('coach:common.saving', { defaultValue: 'Saving…' }) : tr('coach:grocery.createList', { defaultValue: 'Create list' })}</button>
             </div>
           </div>
         )}
@@ -699,7 +734,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
         {shown.length === 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
-            {tab === 'mine' ? 'No personal lists yet' : 'No client lists yet'}
+            {tab === 'mine' ? tr('coach:grocery.emptyMine', { defaultValue: 'No personal lists yet' }) : tr('coach:grocery.emptyClients', { defaultValue: 'No client lists yet' })}
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.INK}40` }} />
           </div>
         )}
@@ -713,11 +748,11 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
             <div key={g.id || i} style={{ position: 'relative', borderTop: i ? `1px solid ${t.HAIR}` : 0, paddingTop: i ? 16 : 0, paddingBottom: 16, paddingLeft: 13 }}>
               <span aria-hidden style={{ position: 'absolute', left: 0, top: i ? 16 : 0, bottom: 16, width: 3, background: heat }} />
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 900 }}>{g.client_name || 'Personal'}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: heat, fontWeight: 900 }}>{g.client_name || tr('coach:grocery.personal', { defaultValue: 'Personal' })}</div>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc }}>{sl}</span>
               </div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{(g.items || []).length} items · {ais.length} {ais.length === 1 ? 'aisle' : 'aisles'}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:grocery.itemsCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: (g.items || []).length })} · {tr('coach:grocery.aislesCount', { defaultValue: '{count, plural, one {# aisle} other {# aisles}}', count: ais.length })}</div>
               {ais.length > 0 && (
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {ais.map(([a, n]) => (
@@ -729,31 +764,32 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
                   ))}
                 </div>
               )}
-              {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{more > 0 ? ` +${more} more` : ''}</div>}
+              {preview.length > 0 && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{preview.join(' · ')}{more > 0 ? tr('coach:grocery.andMore', { defaultValue: ' +{count} more', count: more }) : ''}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 13 }}>
                 {g.client_name
-                  ? <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px' }}>Send to {first || 'client'} →</button>
-                  : <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>Your list</span>}
-                <button type="button" onClick={() => del(g)} aria-label="Delete list" style={{ ...textAction(rust), marginLeft: 'auto' }}>Delete</button>
+                  ? <button type="button" onClick={() => send(g)} style={{ ...tealCta, padding: '10px 16px' }}>{tr('coach:grocery.sendToClient', { defaultValue: 'Send to {name} →', name: first || tr('coach:grocery.clientWord', { defaultValue: 'client' }) })}</button>
+                  : <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:grocery.yourList', { defaultValue: 'Your list' })}</span>}
+                <button type="button" onClick={() => del(g)} aria-label={tr('coach:grocery.deleteConfirm', { defaultValue: 'Delete list' })} style={{ ...textAction(rust), marginLeft: 'auto' }}>{tr('coach:common.delete', { defaultValue: 'Delete' })}</button>
               </div>
             </div>
           );
         })}
       </div>
-      <BSFooter left={isNutri ? 'Nutrition Queue' : 'Coach Queue'} right="Grocery delivery" />
+      <BSFooter left={isNutri ? tr('coach:grocery.footerNutri', { defaultValue: 'Nutrition Queue' }) : tr('coach:grocery.footerTrainer', { defaultValue: 'Coach Queue' })} right={tr('coach:grocery.footerRight', { defaultValue: 'Grocery delivery' })} />
     </BSPage>
   );
 }
 
 function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isNutri = role === 'nutritionist';
   const accent = isNutri ? t.RUST : t.GREEN;
   const configs = {
     pr: {
-      title: 'PR Alerts',
-      kicker: 'Client milestones',
-      meta: '7 alerts',
+      title: tr('coach:prq.title', { defaultValue: 'PR Alerts' }),
+      kicker: tr('coach:prq.kicker', { defaultValue: 'Client milestones' }),
+      meta: tr('coach:prq.meta', { defaultValue: '7 alerts' }),
       rows: [
         ['Casey Lee', 'Deadlift +15 lb', 'Verified from workout log - comment queued'],
         ['Alex Rivera', 'Bench press 185 x 6', 'First time hitting target reps this block'],
@@ -785,7 +821,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         rightKicker={cfg.meta}
         onBack={onBack}
       />
-      <BSSection title={cfg.title} meta="Action queue" />
+      <BSSection title={cfg.title} meta={tr('coach:prq.actionQueue', { defaultValue: 'Action queue' })} />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
         {cfg.rows.map(([name, title, detail], i) => (
           <button key={`${name}-${title}`} type="button" style={{
@@ -824,11 +860,11 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
               textTransform: 'uppercase',
               color: t.INK70,
               background: t.PAPER,
-            }}>Open</span>
+            }}>{tr('coach:common.open', { defaultValue: 'Open' })}</span>
           </button>
         ))}
       </div>
-      <BSFooter left={isNutri ? 'Nutrition Queue' : 'Coach Queue'} right="Live widgets" />
+      <BSFooter left={isNutri ? tr('coach:grocery.footerNutri', { defaultValue: 'Nutrition Queue' }) : tr('coach:grocery.footerTrainer', { defaultValue: 'Coach Queue' })} right={tr('coach:prq.footerRight', { defaultValue: 'Live widgets' })} />
     </BSPage>
   );
 }
@@ -845,8 +881,10 @@ function bsProWeek(now = new Date()) {
 }
 
 // `dots` is an array indexed by weekday (0=Mon..6=Sun).
-function BSProWeekStrip({ goCalendar, dots, heat, label = 'This week', selDay: selDayProp, onSelectDay }) {
+function BSProWeekStrip({ goCalendar, dots, heat, label, selDay: selDayProp, onSelectDay }) {
   const t = useBS();
+  const tr = useShapeTr();
+  const labelText = label || tr('coach:rail.thisWeek', { defaultValue: 'This week' });
   const { todayIdx, dates } = bsProWeek();
   const [internalSel, setInternalSel] = useStateBSP(dates[todayIdx].getDate());
   const selDay = selDayProp != null ? selDayProp : internalSel;
@@ -860,9 +898,9 @@ function BSProWeekStrip({ goCalendar, dots, heat, label = 'This week', selDay: s
   return (
     <>
       <BSSection
-        title={label}
+        title={labelText}
         kicker={`${range} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`}
-        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>}
+        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>{tr('coach:rail.monthView', { defaultValue: 'Month view →' })}</span>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         {/* Day boxes — mono day letters, ink-alpha ticks (not colored dots); the
@@ -936,18 +974,19 @@ function bsCoachTourAutoShow(setShow) {
 
 function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey = 'plans' }) {
   const t = useBS();
+  const tr = useShapeTr();
   useEffectBSP(() => {
     const root = document.getElementById('bs-phone-surface') || document.body;
     const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
     const go = (tab) => () => onNavigate && onNavigate(tab);
-    const plansLabel = plansKey === 'programs' ? 'Programs' : 'Plans';
+    const plansLabel = plansKey === 'programs' ? tr('coach:tour.programs', { defaultValue: 'Programs' }) : tr('coach:tour.plans', { defaultValue: 'Plans' });
     const steps = [
-      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: "A quick tour of your dashboard — about 30 seconds." },
-      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Today', title: 'Who needs you.', body: "Your day leads with the clients who need attention first." },
-      { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('tab-clients'), eyebrow: 'Clients', title: 'Your roster.', body: "Every client, sorted by who's on track and who's slipping." },
-      { navigate: go(plansKey), anchor: q('hero-plans'), fallback: q('tab-' + plansKey), eyebrow: plansLabel, title: 'Build & sell.', body: "Create " + plansLabel.toLowerCase() + ", assign them to clients, and sell them in the marketplace." },
-      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Stay in touch.', body: "Message clients and co-coaches; see the community." },
-      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your standing.', body: "Your coach profile, payouts and Shape Score." },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: tr('coach:tour.welcomeEyebrow', { defaultValue: 'Welcome' }), title: tr('coach:tour.welcomeTitle', { defaultValue: 'Your coaching tools.' }), body: tr('coach:tour.welcomeBody', { defaultValue: 'A quick tour of your dashboard — about 30 seconds.' }) },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: tr('coach:tour.todayEyebrow', { defaultValue: 'Today' }), title: tr('coach:tour.todayTitle', { defaultValue: 'Who needs you.' }), body: tr('coach:tour.todayBody', { defaultValue: 'Your day leads with the clients who need attention first.' }) },
+      { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('tab-clients'), eyebrow: tr('coach:tour.clientsEyebrow', { defaultValue: 'Clients' }), title: tr('coach:tour.clientsTitle', { defaultValue: 'Your roster.' }), body: tr('coach:tour.clientsBody', { defaultValue: "Every client, sorted by who's on track and who's slipping." }) },
+      { navigate: go(plansKey), anchor: q('hero-plans'), fallback: q('tab-' + plansKey), eyebrow: plansLabel, title: tr('coach:tour.plansTitle', { defaultValue: 'Build & sell.' }), body: tr('coach:tour.plansBody', { defaultValue: 'Create {kind}, assign them to clients, and sell them in the marketplace.', kind: plansLabel.toLowerCase() }) },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('coach:tour.chatEyebrow', { defaultValue: 'Chat' }), title: tr('coach:tour.chatTitle', { defaultValue: 'Stay in touch.' }), body: tr('coach:tour.chatBody', { defaultValue: 'Message clients and co-coaches; see the community.' }) },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('coach:tour.meEyebrow', { defaultValue: 'You' }), title: tr('coach:tour.meTitle', { defaultValue: 'Your standing.' }), body: tr('coach:tour.meBody', { defaultValue: 'Your coach profile, payouts and Shape Score.' }) },
     ];
     const tour = startTour(steps, { root, accent: bsProAccent(t, role), isLight: t.isLight, onDone: () => { bsMarkCoachTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
@@ -962,6 +1001,7 @@ function BSTrainerApp({ onLogout, tweaks, setTweak }) {
 }
 function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
+  const tr = useShapeTr();
   const sheet = useBSSheet();
   const [, _bumpIdentity] = useStateBSP(0);
   React.useEffect(() => {
@@ -1165,11 +1205,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
-        { key: 'today',    label: 'Today' },
-        { key: 'clients',  label: 'Clients' },
-        { key: 'programs', label: 'Plans' },
-        { key: 'chat',     label: 'Chat' },
-        { key: 'me',       label: 'Me' },
+        { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
+        { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
+        { key: 'programs', label: tr('coach:nav.plans', { defaultValue: 'Plans' }) },
+        { key: 'chat',     label: tr('coach:nav.chat', { defaultValue: 'Chat' }) },
+        { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
       {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
@@ -1190,6 +1230,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
 // ═══════════════════════════════════════════════════════════
 function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, onWatchLive = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isNutri = role === 'nutritionist';
   const heat = bsProHeat(t, role);
   const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
@@ -1239,8 +1280,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         const [tg, tc] = tagFor(ev.kind);
         (byDate[ev.date] = byDate[ev.date] || []).push({
           time: ev.time || '—', tag: tg, tagColor: tc,
-          title: ev.title || (isNutri ? 'Consult' : 'Session'),
-          sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
+          title: ev.title || (isNutri ? tr('coach:today.consult', { defaultValue: 'Consult' }) : tr('coach:today.session', { defaultValue: 'Session' })),
+          sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || tr('coach:today.scheduled', { defaultValue: 'Scheduled' }),
           state: ev.status === 'done' ? 'done' : undefined,
           client: ev.with || '', clientId: ev.clientId || null,
         });
@@ -1368,7 +1409,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // are red/amber/new/green/past; green/past never enter the budget). Demo rows
   // carry no `_sig` and derive severity from their `s` status via bsRowSeverity —
   // the single live-or-demo path — so signed-out demo flags flow through here too.
-  const FLAG_WORDS = { red: 'FLAG', amber: 'WATCH', new: 'NEW' };
+  const FLAG_WORDS = { red: tr('coach:sev.flag', { defaultValue: 'FLAG' }), amber: tr('coach:sev.watch', { defaultValue: 'WATCH' }), new: tr('coach:sev.new', { defaultValue: 'NEW' }) };
   const triageRows = roster
     .filter((c) => c.active !== false)
     .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
@@ -1417,7 +1458,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const nowTick = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
       <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>{tr('coach:common.now', { defaultValue: 'NOW' })} {bsNowHHMM()} — {dayShape.countdown}</span>
     </div>
   );
 
@@ -1438,7 +1479,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {/* §A.2 DATELINE — one row, edition label in heat + day/date, ink-50; right = live clock or selected date. */}
       <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          <span style={{ color: heat }}>{isNutri ? 'NUTRI EDITION' : 'TRAINERS EDITION'}</span>
+          <span style={{ color: heat }}>{isNutri ? tr('coach:today.editionNutri', { defaultValue: 'NUTRI EDITION' }) : tr('coach:today.editionTrainer', { defaultValue: 'TRAINERS EDITION' })}</span>
           <span style={{ color: `${t.INK}80` }}> · {_BS_DOW[selIdx]} · {_BS_MON[selDate.getMonth()]} {selDate.getDate()}</span>
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
@@ -1455,9 +1496,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {liveBulletinShown && (() => {
         const lc = liveClient || { n: 'Alex Rivera', i: 'A', c: t.RUST };
         const more = Math.max(0, liveClients.length - 1);
-        const verb = isNutri ? 'cooking' : 'training';
-        const actionLabel = isNutri ? 'OPEN →' : 'WATCH →';
-        const title = liveClient ? (more ? `${lc.n} · +${more} more` : lc.n) : (isNutri ? 'Alex Rivera · Meal prep' : 'Alex Rivera · Upper Pull');
+        const verb = isNutri ? tr('coach:today.verbCooking', { defaultValue: 'cooking' }) : tr('coach:today.verbTraining', { defaultValue: 'training' });
+        const actionLabel = isNutri ? tr('coach:today.openArrow', { defaultValue: 'OPEN →' }) : tr('coach:today.watchArrow', { defaultValue: 'WATCH →' });
+        const title = liveClient ? (more ? tr('coach:today.livePlusMore', { defaultValue: '{name} · +{count} more', name: lc.n, count: more }) : lc.n) : (isNutri ? 'Alex Rivera · Meal prep' : 'Alex Rivera · Upper Pull');
         return (
           <div style={{ padding: `4px ${t.padX}px 0` }}>
             <div style={{ borderLeft: `3px solid ${t.isLight ? '#0a8f87' : '#34d6c5'}`, padding: '8px 0 8px 11px' }}>
@@ -1465,7 +1506,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 <BSFacetAvatar size={28} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5', fontWeight: 800 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', boxShadow: '0 0 8px currentColor', animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> Live · {verb}
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', boxShadow: '0 0 8px currentColor', animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> {tr('coach:today.liveVerb', { defaultValue: 'Live · {verb}', verb })}
                   </div>
                   <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
                 </div>
@@ -1499,21 +1540,21 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {!coachSignedIn && (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
           <button type="button" onClick={onOpenReviews} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', borderLeft: `3px solid ${heat}`, padding: '8px 0 8px 11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, minHeight: 44 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{isNutri ? '2 CLIENT LOGS WAITING' : '4 FORM CLIPS WAITING'} · REVIEW →</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{isNutri ? tr('coach:today.logsWaiting', { defaultValue: '2 CLIENT LOGS WAITING' }) : tr('coach:today.clipsWaiting', { defaultValue: '4 FORM CLIPS WAITING' })} · {tr('coach:today.reviewArrow', { defaultValue: 'REVIEW →' })}</span>
           </button>
         </div>
       )}
 
       {/* §A.4 THE LEAD — verdict lead (data-tour anchor for the coach onboarding tour). */}
       <div ref={leadRef} data-tour="hero-today" style={{ padding: `14px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}` }}>
-        {StationHead && <StationHead heat={heat} INK={t.INK} label="THE LEAD" />}
+        {StationHead && <StationHead heat={heat} INK={t.INK} label={tr('coach:today.theLead', { defaultValue: 'THE LEAD' })} />}
         <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.28, color: t.INK }}>
           {leadVerdict}<span style={{ color: heat }}>.</span>
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 22 }}>
-          {LedgerStat && <LedgerStat INK={t.INK} label={isNutri ? 'CONSULTS' : 'SESSIONS'} value={String(bookings.length)} seen={leadSeen} figSize={26} />}
-          {LedgerStat && <LedgerStat INK={t.INK} label="NEED YOU" value={String(flaggedTotal)} seen={leadSeen} figSize={26} delay={60} />}
-          {openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label="OPEN HRS" value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
+          {LedgerStat && <LedgerStat INK={t.INK} label={isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} value={String(bookings.length)} seen={leadSeen} figSize={26} />}
+          {LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.needYou', { defaultValue: 'NEED YOU' })} value={String(flaggedTotal)} seen={leadSeen} figSize={26} delay={60} />}
+          {openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
         </div>
       </div>
 
@@ -1548,8 +1589,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       <div ref={railRef} style={{ padding: `4px ${t.padX}px 0` }}>
         {StationHead && (
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 0 }}><StationHead heat={heat} INK={t.INK} label={`${_BS_DOW[selIdx]} · THE RAIL`} /></div>
-            <button type="button" onClick={goCalendar} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', marginBottom: 13, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, padding: '0 2px' }}>CALENDAR →</button>
+            <div style={{ flex: 1, minWidth: 0 }}><StationHead heat={heat} INK={t.INK} label={`${_BS_DOW[selIdx]} · ${tr('coach:rail.theRail', { defaultValue: 'THE RAIL' })}`} /></div>
+            <button type="button" onClick={goCalendar} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', marginBottom: 13, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, padding: '0 2px' }}>{tr('coach:rail.calendar', { defaultValue: 'CALENDAR →' })}</button>
           </div>
         )}
         <div
@@ -1559,7 +1600,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           <span aria-hidden style={{ position: 'absolute', left: 30, top: 0, bottom: 0, width: 2, background: heat, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
           {bookings.length >= 10 && bookings.filter((b) => b.state === 'done').length > 0 && (
             <div style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}80` }}>{bookings.filter((b) => b.state === 'done').length} DONE ✓</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}80` }}>{tr('coach:rail.doneCount', { defaultValue: '{count} DONE ✓', count: bookings.filter((b) => b.state === 'done').length })}</div>
             </div>
           )}
           {(() => {
@@ -1575,7 +1616,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             return visible.map(({ b, rawIdx }) => {
               const done = b.state === 'done';
               const isNext = b.state === 'next' || b.state === 'live';
-              const typeWord = b.tag || 'SESSION';
+              const typeWord = b.tag || tr('coach:rail.sessionTag', { defaultValue: 'SESSION' });
               const inlineFlag = budget.inline.find((x) => x.bookingIdx === rawIdx);
               const demotedFlag = !inlineFlag ? demotedAnchorFor(rawIdx) : null;
               const flagHit = inlineFlag || demotedFlag;
@@ -1589,7 +1630,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: done ? t.INK50 : t.INK, textDecoration: done ? 'line-through' : 'none' }}>{b.title}</div>
                     <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
                       {isNext ? <span style={{ color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{typeWord}</span> : typeWord}
-                      {' · '}{b.sub}{done ? ' · DONE' : ''}{isNext && <span style={{ color: heat }}> · ↑ NEXT</span>}
+                      {' · '}{b.sub}{done ? tr('coach:rail.doneSuffix', { defaultValue: ' · DONE' }) : ''}{isNext && <span style={{ color: heat }}> {tr('coach:rail.nextSuffix', { defaultValue: '· ↑ NEXT' })}</span>}
                       {sevWord && <span style={{ color: sevColor }}> · ⚑ {sevWord}</span>}
                     </div>
                   </div>
@@ -1608,14 +1649,14 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               this end-of-day tick renders after the last rail entry. */}
           {dayShape.nowSlot === 'end' && isToday && nowTick}
           {bookings.length === 0 && coachSignedIn && (
-            Redact ? <Redact INK={t.INK} label="NOTHING BOOKED — OPEN HOURS" /> : (
+            Redact ? <Redact INK={t.INK} label={tr('coach:rail.nothingBooked', { defaultValue: 'NOTHING BOOKED — OPEN HOURS' })} /> : (
               <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '10px 0' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${t.INK}4d` }}>NOTHING BOOKED — OPEN HOURS</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{tr('coach:rail.nothingBooked', { defaultValue: 'NOTHING BOOKED — OPEN HOURS' })}</span>
               </div>
             )
           )}
           {bookings.length === 0 && !coachSignedIn && (
-            <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? 'Off day · nothing scheduled' : 'Off day · nothing booked'}</div>
+            <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? tr('coach:rail.offDayNutri', { defaultValue: 'Off day · nothing scheduled' }) : tr('coach:rail.offDayTrainer', { defaultValue: 'Off day · nothing booked' })}</div>
           )}
         </div>
       </div>
@@ -1624,11 +1665,11 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       <div ref={wireRef} style={{ marginTop: 10, ...(sdReduced ? null : wireSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
         {budget.wires.length > 0 && (
           <>
-            {StationHead && <div style={{ padding: `0 ${t.padX}px` }}><StationHead heat="#c0533b" INK={t.INK} label={`THE WIRE · ${bookings.length === 0 ? 'NO SESSION BOOKED' : 'NEEDS YOU'}`} /></div>}
+            {StationHead && <div style={{ padding: `0 ${t.padX}px` }}><StationHead heat="#c0533b" INK={t.INK} label={`${tr('coach:wire.theWire', { defaultValue: 'THE WIRE' })} · ${bookings.length === 0 ? tr('coach:wire.noSessionBooked', { defaultValue: 'NO SESSION BOOKED' }) : tr('coach:today.needsYou', { defaultValue: 'NEEDS YOU' })}`} /></div>}
             <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gap: 10 }}>
               {budget.wires.map((w, i) => {
                 const sevColor = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[w.severity] || t.AMBER;
-                const sevWord = FLAG_WORDS[w.severity] || 'FLAG';
+                const sevWord = FLAG_WORDS[w.severity] || tr('coach:sev.flag', { defaultValue: 'FLAG' });
                 return (
                   <div key={w.clientId || w.name || i} style={{ borderLeft: `3px solid ${sevColor}`, padding: '8px 0 9px 11px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -1641,7 +1682,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                       onClick={() => (w.clientId ? setSchedFor({ n: w.name, userId: w.clientId }) : onWidgetOpen('clients'))}
                       style={{ marginTop: 5, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0 0', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK }}
                     >
-                      <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{w.clientId ? 'SCHEDULE →' : 'OPEN THE FILE →'}</span>
+                      <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{w.clientId ? tr('coach:wire.scheduleArrow', { defaultValue: 'SCHEDULE →' }) : tr('coach:wire.openFileArrow', { defaultValue: 'OPEN THE FILE →' })}</span>
                     </button>
                   </div>
                 );
@@ -1651,9 +1692,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         )}
         <div style={{ padding: `10px ${t.padX}px 0` }}>
           <button type="button" onClick={() => onWidgetOpen('clients')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>SEE THE FULL ROSTER</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:wire.seeFullRoster', { defaultValue: 'SEE THE FULL ROSTER' })}</span>
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{roster.filter((c) => c.active !== false).length} CLIENTS{flaggedTotal ? ` · ${flaggedTotal} FLAGGED` : ''} ›</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{tr('coach:wire.clientsCount', { defaultValue: '{count} CLIENTS', count: roster.filter((c) => c.active !== false).length })}{flaggedTotal ? tr('coach:wire.flaggedSuffix', { defaultValue: ' · {count} FLAGGED', count: flaggedTotal }) : ''} ›</span>
           </button>
         </div>
       </div>
@@ -1661,24 +1702,24 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {/* §A.8 INSIDE. — four doors per role (spec §A.8, lines 171-177). Door ALWAYS
           renders; figures only when known. */}
       <div ref={insideRef} style={{ padding: `18px ${t.padX}px 0`, ...(sdReduced ? null : insideSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>INSIDE.</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('coach:today.inside', { defaultValue: 'INSIDE.' })}</div>
         <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
           {(() => {
             const activeCount = roster.filter((c) => c.active !== false).length;
-            const clientsFigure = `${activeCount} ACTIVE${flaggedTotal ? ` · ${flaggedTotal} FLAGGED` : ''}`;
+            const clientsFigure = `${tr('coach:today.activeCount', { defaultValue: '{count} ACTIVE', count: activeCount })}${flaggedTotal ? tr('coach:wire.flaggedSuffix', { defaultValue: ' · {count} FLAGGED', count: flaggedTotal }) : ''}`;
             return isNutri
               ? [
-                  { label: 'CLIENTS', figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
-                  { label: 'PLANS', figure: null, onOpen: () => onWidgetOpen('plans') },
-                  { label: 'REVIEW QUEUE', figure: null, onOpen: () => onOpenReviews() },
-                  { label: 'GROCERY LISTS', figure: null, onOpen: () => onWidgetOpen('grocery') },
+                  { label: tr('coach:door.clients', { defaultValue: 'CLIENTS' }), figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
+                  { label: tr('coach:door.plans', { defaultValue: 'PLANS' }), figure: null, onOpen: () => onWidgetOpen('plans') },
+                  { label: tr('coach:door.reviewQueue', { defaultValue: 'REVIEW QUEUE' }), figure: null, onOpen: () => onOpenReviews() },
+                  { label: tr('coach:door.groceryLists', { defaultValue: 'GROCERY LISTS' }), figure: null, onOpen: () => onWidgetOpen('grocery') },
                 ]
               : [
-                  { label: 'CLIENTS', figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
-                  { label: 'PROGRAMS', figure: null, onOpen: () => onWidgetOpen('programs') },
-                  { label: 'REVIEW QUEUE', figure: null, onOpen: () => onOpenReviews() },
-                  { label: 'GROCERY LISTS', figure: null, onOpen: () => onWidgetOpen('grocery') },
-                  { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
+                  { label: tr('coach:door.clients', { defaultValue: 'CLIENTS' }), figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
+                  { label: tr('coach:door.programs', { defaultValue: 'PROGRAMS' }), figure: null, onOpen: () => onWidgetOpen('programs') },
+                  { label: tr('coach:door.reviewQueue', { defaultValue: 'REVIEW QUEUE' }), figure: null, onOpen: () => onOpenReviews() },
+                  { label: tr('coach:door.groceryLists', { defaultValue: 'GROCERY LISTS' }), figure: null, onOpen: () => onWidgetOpen('grocery') },
+                  { label: tr('coach:door.playlists', { defaultValue: 'PLAYLISTS' }), figure: null, onOpen: () => onWidgetOpen('playlists') },
                 ];
           })().map((door) => (
             <button key={door.label} type="button" onClick={door.onOpen} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
@@ -1690,7 +1731,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         </div>
       </div>
 
-      <BSFooter left={isNutri ? 'The Nutri Edition' : 'The Coach Edition'} right="Pg 1 of 4" />
+      <BSFooter left={isNutri ? tr('coach:common.nutriEdition', { defaultValue: 'The Nutri Edition' }) : tr('coach:common.coachEdition', { defaultValue: 'The Coach Edition' })} right={tr('coach:common.pg1of4', { defaultValue: 'Pg 1 of 4' })} />
     </BSPage>
   );
 }
@@ -1731,22 +1772,23 @@ function bsClientMatchesQuery(c, query) {
 function bsRosterSeverity(c, role) {
   const s = (c && c.s) || 'on track';
   const nut = role === 'nutritionist';
+  const NEEDS = coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' });
   switch (s) {
     case 'missed':
-      return { sev: 'red', rank: 0, label: 'NEEDS YOU', directive: nut ? 'No logs lately — send a nudge.' : 'Missed — no check-in. Reach out.' };
+      return { sev: 'red', rank: 0, label: NEEDS, directive: nut ? coachTr('coach:roster.dirMissedNutri', { defaultValue: 'No logs lately — send a nudge.' }) : coachTr('coach:roster.dirMissed', { defaultValue: 'Missed — no check-in. Reach out.' }) };
     case 'review form':
-      return { sev: 'amber', rank: 1, label: 'NEEDS YOU', directive: nut ? 'Food log waiting on your review.' : 'Check-in form waiting on your review.' };
+      return { sev: 'amber', rank: 1, label: NEEDS, directive: nut ? coachTr('coach:roster.dirReviewNutri', { defaultValue: 'Food log waiting on your review.' }) : coachTr('coach:roster.dirReview', { defaultValue: 'Check-in form waiting on your review.' }) };
     case 'deload soon':
-      return { sev: 'amber', rank: 1, label: 'NEEDS YOU', directive: 'Deload due — adjust the block.' };
+      return { sev: 'amber', rank: 1, label: NEEDS, directive: coachTr('coach:roster.dirDeload', { defaultValue: 'Deload due — adjust the block.' }) };
     case 'onboard':
-      return { sev: 'new', rank: 2, label: 'NEW', directive: nut ? 'New — send the intake form.' : 'New — send the intake + first plan.' };
+      return { sev: 'new', rank: 2, label: coachTr('coach:sev.new', { defaultValue: 'NEW' }), directive: nut ? coachTr('coach:roster.dirOnboardNutri', { defaultValue: 'New — send the intake form.' }) : coachTr('coach:roster.dirOnboard', { defaultValue: 'New — send the intake + first plan.' }) };
     case 'pr':
-      return { sev: 'green', rank: 3, label: 'PR', directive: 'PR this week — send some props.' };
+      return { sev: 'green', rank: 3, label: coachTr('coach:roster.labelPr', { defaultValue: 'PR' }), directive: coachTr('coach:roster.dirPr', { defaultValue: 'PR this week — send some props.' }) };
     case 'past':
-      return { sev: 'past', rank: 5, label: 'PAST', directive: 'Past client — re-engage when ready.' };
+      return { sev: 'past', rank: 5, label: coachTr('coach:roster.labelPast', { defaultValue: 'PAST' }), directive: coachTr('coach:roster.dirPast', { defaultValue: 'Past client — re-engage when ready.' }) };
     case 'on track':
     default:
-      return { sev: 'green', rank: 3, label: 'ON TRACK', directive: nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.' };
+      return { sev: 'green', rank: 3, label: coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }), directive: nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' }) };
   }
 }
 // Demo rosters — ONE source rendered by the Clients page AND read by the Today
@@ -1793,7 +1835,7 @@ function bsDemoRoster(role, t) {
 function bsRowFromTriage(row, role, t) {
   const p = (row && row.client && row.client.profile) || {};
   const rec = (row && row.client) || {};
-  const name = p.name || 'Client';
+  const name = p.name || coachTr('coach:common.clientFallback', { defaultValue: 'Client' });
   const initials = name.trim().split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
   const palette = [t.GREEN, t.RUST, t.AMBER, t.BLUE, '#8a5cf6'];
   let h = 0; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
@@ -1809,7 +1851,7 @@ function bsRowFromTriage(row, role, t) {
   const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
     || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
-  const directive = reason || (sev === 'green' ? (nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.') : 'Needs your attention this week.');
+  const directive = reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
     : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
@@ -1818,7 +1860,7 @@ function bsRowFromTriage(row, role, t) {
   const roFlags = ((row.flags || []).filter((f) => f && f.owned === false))
     .concat((row.readOnly || []).filter((f) => f && f.owned === false));
   const routed = roFlags.length
-    ? { to: ['nutritionist', 'dietitian', 'nutrition'].includes(String(roFlags[0].routeTo || '').toLowerCase()) ? 'Dietitian' : 'Trainer', reason: roFlags[0].reason }
+    ? { to: ['nutritionist', 'dietitian', 'nutrition'].includes(String(roFlags[0].routeTo || '').toLowerCase()) ? coachTr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachTr('coach:role.trainer', { defaultValue: 'Trainer' }), reason: roFlags[0].reason }
     : null;
   return {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
@@ -1827,7 +1869,7 @@ function bsRowFromTriage(row, role, t) {
     streak, d: adh != null ? `${adh}%` : '',
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : 'on track',
     active: true,
-    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive, routed },
+    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -1902,6 +1944,7 @@ function bsUseSdInViewFallback() { return [null, true]; }
 
 function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBS();
+  const tr = useShapeTr();
   const heat = bsProHeat(t, role);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
@@ -1951,19 +1994,19 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-            THE ROSTER <span style={{ color: `${t.INK}80` }}>· {activeCount} ACTIVE{newThisMonth > 0 ? ` · +${newThisMonth} THIS MO` : ''}</span>
+            {tr('coach:roster.theRoster', { defaultValue: 'THE ROSTER' })} <span style={{ color: `${t.INK}80` }}>· {tr('coach:roster.activeCount', { defaultValue: '{count} ACTIVE', count: activeCount })}{newThisMonth > 0 ? tr('coach:roster.newThisMonth', { defaultValue: ' · +{count} THIS MO', count: newThisMonth }) : ''}</span>
           </div>
           <div data-tour="hero-clients" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
-            Your <i style={{ color: heat, fontStyle: 'italic' }}>clients.</i>
+            {tr('coach:roster.your', { defaultValue: 'Your' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:roster.clientsAccent', { defaultValue: 'clients.' })}</i>
           </div>
         </div>
-        <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>＋ ADD</button>
+        <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:roster.add', { defaultValue: '＋ ADD' })}</button>
       </div>
 
       {/* §B.2 Underline search */}
       <div style={{ margin: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1.5px solid ${t.INK}4d`, paddingBottom: 8 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>⌕</span>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search clients" placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })} placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: totalCount })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
       </div>
 
       {/* §B.3 Typographic filter index — role phase filters + ⚑ NEEDS YOU last;
@@ -1976,14 +2019,14 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             <button key={f.k} type="button" onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{f.label}</button>
           );
         })}
-        <button type="button" onClick={() => setNeedsYou(!needsYou)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: needsYou ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: needsYou ? t.INK : '#c0533b', whiteSpace: 'nowrap' }}>⚑ NEEDS YOU</button>
+        <button type="button" onClick={() => setNeedsYou(!needsYou)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: needsYou ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: needsYou ? t.INK : '#c0533b', whiteSpace: 'nowrap' }}>{tr('coach:roster.needsYouFilter', { defaultValue: '⚑ NEEDS YOU' })}</button>
       </div>
 
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
         {/* §B.4 Verdict — serif 16/600 + heat period; k = flagged, m = on-track. */}
         {!pastMode && rows.length > 0 && (
           <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, lineHeight: 1.35, color: t.INK }}>
-            {k > 0 ? `${k} need you — the other ${m} are holding` : `All ${m} holding — nobody needs you today`}
+            {k > 0 ? tr('coach:roster.verdictNeed', { defaultValue: '{k} need you — the other {m} are holding', k, m }) : tr('coach:roster.verdictAllHolding', { defaultValue: 'All {m} holding — nobody needs you today', m })}
             <span style={{ color: heat }}>.</span>
           </div>
         )}
@@ -1992,7 +2035,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         {!pastMode && rows.length === 0 && totalCount > 0 && (
           <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>NO MATCHING CLIENTS</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:roster.noMatching', { defaultValue: 'NO MATCHING CLIENTS' })}</span>
             <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
           </div>
         )}
@@ -2000,11 +2043,11 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         {/* §B.5 NEEDS YOU station — full wire rows (only when k > 0). */}
         {k > 0 && (
           <div ref={needsRef} style={{ marginTop: 20 }}>
-            {StationHead && <StationHead heat="#c0533b" INK={t.INK} label={`NEEDS YOU · ${k}`} />}
+            {StationHead && <StationHead heat="#c0533b" INK={t.INK} label={`${tr('coach:today.needsYou', { defaultValue: 'NEEDS YOU' })} · ${k}`} />}
             <div style={{ display: 'grid', gap: 2 }}>
               {needsRows.map(({ c, sig }, i) => {
                 const sevKey = sig.sev === 'red' ? 'red' : sig.sev === 'amber' ? 'amber' : 'new';
-                const sevWord = sig.sev === 'red' ? 'FLAG' : sig.sev === 'amber' ? 'WATCH' : 'NEW';
+                const sevWord = sig.sev === 'red' ? tr('coach:sev.flag', { defaultValue: 'FLAG' }) : sig.sev === 'amber' ? tr('coach:sev.watch', { defaultValue: 'WATCH' }) : tr('coach:sev.new', { defaultValue: 'NEW' });
                 const col = SEVCOL[sevKey];
                 return (
                   <button
@@ -2024,7 +2067,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                       {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
-                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.RUST, whiteSpace: 'nowrap' }}>WKND −{Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp))}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.RUST, whiteSpace: 'nowrap' }}>{tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) })}</span>
                       )}
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: col, whiteSpace: 'nowrap' }}>{sevWord} · {c.r || sig.label}</span>
                     </div>
@@ -2039,7 +2082,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             dot-leader expander. */}
         {onTrackRows.length > 0 && (
           <div ref={trackRef} style={{ marginTop: 20, ...(sdReduced ? null : trackSeen ? { animation: 'bsSdFadeUp 380ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
-            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`ON TRACK · ${onTrackRows.length}`} />}
+            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`${tr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' })} · ${onTrackRows.length}`} />}
             <div style={{ display: 'grid', gap: 1 }}>
               {trackShown.map(({ c, sig }, i) => (
                 <button
@@ -2056,9 +2099,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             </div>
             {trackMore > 0 && (
               <button type="button" onClick={() => setExpanded(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 4px 0', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{trackMore} MORE ON TRACK</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:roster.moreOnTrack', { defaultValue: '{count} MORE ON TRACK', count: trackMore })}</span>
                 <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK }}>SHOW ›</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK }}>{tr('coach:roster.show', { defaultValue: 'SHOW ›' })}</span>
               </button>
             )}
           </div>
@@ -2068,7 +2111,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             PAST mode, where the active NEEDS YOU / ON TRACK stations are empty). */}
         {pastMode && (
           <div style={{ marginTop: 20 }}>
-            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`PAST CLIENTS · ${pastRows.length}`} />}
+            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`${tr('coach:roster.pastClients', { defaultValue: 'PAST CLIENTS' })} · ${pastRows.length}`} />}
             {pastRows.length > 0 ? (
               <div style={{ display: 'grid', gap: 1 }}>
                 {pastRows.map(({ c }, i) => (
@@ -2080,15 +2123,15 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                   >
                     <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{c.r || 'PAST'}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{c.r || tr('coach:roster.labelPast', { defaultValue: 'PAST' })}</span>
                   </button>
                 ))}
               </div>
             ) : (
-              Redact ? <Redact INK={t.INK} label="NO PAST CLIENTS" /> : (
+              Redact ? <Redact INK={t.INK} label={tr('coach:roster.noPast', { defaultValue: 'NO PAST CLIENTS' })} /> : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                   <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>NO PAST CLIENTS</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:roster.noPast', { defaultValue: 'NO PAST CLIENTS' })}</span>
                   <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
                 </div>
               )
@@ -2102,7 +2145,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           <button type="button" onClick={() => setRoster(roster === 'past' ? 'active' : 'past')} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
             <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>
-              {roster === 'past' ? `← BACK TO ACTIVE` : `PAST CLIENTS · ${pastCount} ›`}
+              {roster === 'past' ? tr('coach:roster.backToActive', { defaultValue: '← BACK TO ACTIVE' }) : tr('coach:roster.pastClientsToggle', { defaultValue: 'PAST CLIENTS · {count} ›', count: pastCount })}
             </span>
             <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
           </button>
@@ -2111,15 +2154,15 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         {/* §B.8 Signed-in empty roster — redaction line + Grow your roster →. */}
         {totalCount === 0 && (
           <div style={{ marginTop: 20 }}>
-            {Redact ? <Redact INK={t.INK} label="NO CLIENTS YET" /> : (
+            {Redact ? <Redact INK={t.INK} label={tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' })} /> : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>NO CLIENTS YET</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' })}</span>
                 <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
               </div>
             )}
             <button type="button" onClick={goGrowRoster} style={{ display: 'block', margin: '10px auto 0', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>
-              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Grow your roster →</span>
+              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:roster.growRoster', { defaultValue: 'Grow your roster →' })}</span>
             </button>
           </div>
         )}
@@ -2143,6 +2186,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
 // says so honestly instead of sending a card that opens nothing.
 function BSProAddClientSheet({ role, onClose }) {
   const t = useBS();
+  const tr = useShapeTr();
   const heat = bsProHeat(t, role);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
@@ -2188,57 +2232,57 @@ function BSProAddClientSheet({ role, onClose }) {
   const invite = async (p) => {
     const lock = sendLockRef.current;
     if (lock.active || lock.sent[p.userId] || invited[p.userId]) return;
-    if (!mine) { window.__bsToast?.('Publish your marketplace listing first — the invite carries it.', 'warn'); return; }
+    if (!mine) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
     lock.active = p.userId;
     setBusyId(p.userId);
     try {
       const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
       const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
       if (!cid) throw new Error('Could not open the conversation.');
-      const verb = role === 'nutritionist' ? 'work with me' : 'train with me';
+      const inviteBody = role === 'nutritionist' ? tr('coach:addClient.inviteBodyNutri', { defaultValue: "Come work with me on Shape — my listing's attached." }) : tr('coach:addClient.inviteBodyTrainer', { defaultValue: "Come train with me on Shape — my listing's attached." });
       await window.ShapeMessages.sendMessage({
         conversationId: cid,
-        body: `Come ${verb} on Shape — my listing's attached.`,
-        metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : 'Your coach') },
+        body: inviteBody,
+        metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
       });
       lock.sent[p.userId] = true;
       setInvited((prev) => ({ ...prev, [p.userId]: true }));
-      window.__bsToast?.('Invite sent ✓ — it lands in their chat', 'ok');
+      window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
     } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not send the invite', 'err');
+      window.__bsToast?.(e?.message || tr('coach:addClient.inviteFailed', { defaultValue: 'Could not send the invite' }), 'err');
     }
     lock.active = null;
     setBusyId(null);
   };
   const shareListing = async () => {
-    if (!myUid) { window.__bsToast?.('Sign in to share your listing.', 'warn'); return; }
+    if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
     const url = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
     try {
-      if (navigator.share) { await navigator.share({ title: 'My Shape listing', url }); return; }
+      if (navigator.share) { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
       await navigator.clipboard.writeText(url);
-      window.__bsToast?.('Listing link copied ✓', 'ok');
+      window.__bsToast?.(tr('coach:addClient.linkCopied', { defaultValue: 'Listing link copied ✓' }), 'ok');
     } catch (e) { /* user cancelled the share sheet — silent */ }
   };
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   const sheet = (
     <div onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a client" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: heat }}>Grow your roster</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>Add a client.</div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.6 }}>Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.</div>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: heat }}>{tr('coach:addClient.eyebrow', { defaultValue: 'Grow your roster' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>{tr('coach:addClient.title', { defaultValue: 'Add a client.' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.6 }}>{tr('coach:addClient.blurb', { defaultValue: 'Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.' })}</div>
         {mine === null && (
           <div style={{ marginTop: 12, padding: '10px 12px', borderLeft: `3px solid ${t.AMBER || heat}`, background: t.PAPER2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-            No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved.
+            {tr('coach:addClient.noListing', { defaultValue: "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved." })}
           </div>
         )}
         <label style={{ display: 'block', marginTop: 14 }}>
-          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>Invite a member on Shape</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members by name…" autoComplete="off"
+          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{tr('coach:addClient.inviteLabel', { defaultValue: 'Invite a member on Shape' })}</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('coach:addClient.searchPlaceholder', { defaultValue: 'Search members by name…' })} autoComplete="off"
             style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
         </label>
-        {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Searching…</div>}
+        {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.searching', { defaultValue: 'Searching…' })}</div>}
         {!searching && results && results.length === 0 && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>No members match — share your listing link instead.</div>
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' })}</div>
         )}
         {!searching && (results || []).map((p) => (
           <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
@@ -2247,15 +2291,15 @@ function BSProAddClientSheet({ role, onClose }) {
               : <span style={{ width: 34, height: 34, borderRadius: 10, background: teal, color: '#06110e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Member</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
             </div>
             {invited[p.userId]
-              ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>Invited ✓</span>
-              : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? 'Sending…' : 'Invite'}</button>}
+              ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
+              : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
           </div>
         ))}
-        <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>↗ Share your listing link</button>
-        <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Close</button>
+        <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:addClient.shareLink', { defaultValue: '↗ Share your listing link' })}</button>
+        <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.close', { defaultValue: 'Close' })}</button>
       </div>
     </div>
   );
@@ -2265,6 +2309,7 @@ function BSProAddClientSheet({ role, onClose }) {
 
 function BSTrainerClients() {
   const t = useBS();
+  const tr = useShapeTr();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
@@ -2312,18 +2357,19 @@ function BSTrainerClients() {
       needsYou={needsYou}
       setNeedsYou={setNeedsYou}
       onOpen={(c) => setFullClient(c)}
-      footerLeft="The Coach Edition"
-      footerRight="Clients"
+      footerLeft={tr('coach:common.coachEdition', { defaultValue: 'The Coach Edition' })}
+      footerRight={tr('coach:nav.clients', { defaultValue: 'Clients' })}
     />
   );
 }
 
 function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   const t = useBS();
+  const tr = useShapeTr();
   if (!client) return null;
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} onBack={onBack} />
+      <BSPageHeader kicker={tr('coach:preview.kicker', { defaultValue: 'Section · Roster' })} title={<>{tr('coach:preview.titleA', { defaultValue: 'Client' })}<br/>{tr('coach:preview.titleB', { defaultValue: 'preview.' })}</>} onBack={onBack} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSFacetAvatar size={36} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
@@ -2334,25 +2380,25 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
         </div>
         <div style={{ padding: `${t.rowY + 8}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           <div style={{ borderLeft: `1px solid ${t.RULE}`, paddingLeft: 10 }}>
-            <BSEyebrow>Last seen</BSEyebrow>
+            <BSEyebrow>{tr('coach:preview.lastSeen', { defaultValue: 'Last seen' })}</BSEyebrow>
             <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{client.d || '—'}</div>
           </div>
           <div style={{ borderLeft: `1px solid ${t.RULE}`, paddingLeft: 10 }}>
-            <BSEyebrow>Status</BSEyebrow>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{client.s || 'On track'}</div>
+            <BSEyebrow>{tr('coach:preview.status', { defaultValue: 'Status' })}</BSEyebrow>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{client.s || tr('coach:preview.onTrack', { defaultValue: 'On track' })}</div>
           </div>
           <div style={{ borderLeft: `1px solid ${t.RULE}`, paddingLeft: 10 }}>
-            <BSEyebrow>Tier</BSEyebrow>
+            <BSEyebrow>{tr('coach:preview.tier', { defaultValue: 'Tier' })}</BSEyebrow>
             <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{(client.r || '').split('·')[0]?.trim() || 'Build'}</div>
           </div>
         </div>
       </div>
       <div style={{ padding: `12px ${t.padX}px 18px` }}>
         <button onClick={onViewFullProfile} style={{ width: '100%', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 14px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 900 }}>
-          View full profile →
+          {tr('coach:preview.viewFull', { defaultValue: 'View full profile →' })}
         </button>
       </div>
-      <BSFooter left="Client preview" right={client.n} />
+      <BSFooter left={tr('coach:preview.footer', { defaultValue: 'Client preview' })} right={client.n} />
     </BSPage>
   );
 }
@@ -2382,10 +2428,11 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
 // Dot-leader catalogue row: mono index · serif name · leader · mono price ·
 // ASSIGN heat-underlined action; meta subline. Row tap = onOpen.
 function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
+  const tr = useShapeTr();
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', minHeight: 52, padding: '13px 0', borderTop: `1px solid ${t.INK}12` }}>
       <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(index + 1).padStart(2, '0')}</span>
-      <button type="button" onClick={onOpen} aria-label={`Open ${name}`} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0 }}>
+      <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name })} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0 }}>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
           <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
@@ -2394,8 +2441,8 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
         {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{meta}</span>}
       </button>
       {onAssign && (
-        <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={`Assign ${name} to a client`} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: '0 2px' }}>
-          <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>ASSIGN</span>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: '0 2px' }}>
+          <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</span>
         </button>
       )}
     </div>
@@ -2442,11 +2489,11 @@ function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
 // Enrolled row (borderless): serif plan · dotted leader · {n} on it · facepiles.
 function bsProEnrolledRow(t, flash, e, i) {
   return (
-    <button key={i} type="button" onClick={() => flash(`${e.n} clients on ${e.prog}`)} aria-label={`${e.prog}, ${e.n} clients enrolled`} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
+    <button key={i} type="button" onClick={() => flash(coachTr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog }))} aria-label={coachTr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n })} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: 'pointer', padding: '13px 0', minHeight: 52 }}>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
         <span aria-hidden style={{ flex: 1, minWidth: 18, borderBottom: `1px dotted ${t.INK}4d`, transform: 'translateY(-3px)' }} />
-        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{e.n} ON IT</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{coachTr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n })}</span>
       </span>
       <span style={{ display: 'flex', marginTop: 7 }}>
         {e.who.map(([ini, col], j) => (
@@ -2501,14 +2548,15 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
 }
 function BSProClientMini({ client, heat }) {
   const t = useBS();
+  const tr = useShapeTr();
   if (!client) return null;
-  const prog = client.prog || (client.r || '').split('·')[0].trim() || 'Program';
+  const prog = client.prog || (client.r || '').split('·')[0].trim() || tr('coach:common.program', { defaultValue: 'Program' });
   return (
     <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${heat || t.INK}`, padding: '4px 0 4px 12px' }}>
       <BSFacetAvatar size={38} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog}{client.week != null && client.weeks != null ? ` · Week ${client.week} of ${client.weeks}` : ''}</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{prog}{client.week != null && client.weeks != null ? tr('coach:common.weekOf', { defaultValue: ' · Week {week} of {weeks}', week: client.week, weeks: client.weeks }) : ''}</div>
       </div>
     </div>
   );
@@ -2570,12 +2618,13 @@ function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, uni
 
 function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const accent = useBSProClientHeat(t, role, clientUid);
   const isNutri = role === 'nutritionist';
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const gold = '#d8b25a';
   const rust = t.RUST;
-  const first = (client?.n || 'there').split(' ')[0];
+  const first = (client?.n || tr('coach:common.there', { defaultValue: 'there' })).split(' ')[0];
   // Trainer state
   const [intensity, setIntensity] = useStateBSP('progress');
   const [sessions, setSessions] = useStateBSP(4);
@@ -2626,32 +2675,32 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   }, []);
 
   // Trainer derived
-  const intensityDesc = { deload: 'Pull volume back ~40% and cap intensity. Recover and resensitize.', maintain: 'Hold volume and loads — keep the engine ticking, no new stress.', progress: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }[intensity];
-  const focusOpts = [{ k: 'strength', l: 'Strength' }, { k: 'hypertrophy', l: 'Hypertrophy' }, { k: 'conditioning', l: 'Conditioning' }, { k: 'mobility', l: 'Mobility' }, { k: 'power', l: 'Power' }];
+  const intensityDesc = { deload: tr('coach:adjust.descDeload', { defaultValue: 'Pull volume back ~40% and cap intensity. Recover and resensitize.' }), maintain: tr('coach:adjust.descMaintain', { defaultValue: 'Hold volume and loads — keep the engine ticking, no new stress.' }), progress: tr('coach:adjust.descProgress', { defaultValue: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }) }[intensity];
+  const focusOpts = [{ k: 'strength', l: tr('coach:adjust.focusStrength', { defaultValue: 'Strength' }) }, { k: 'hypertrophy', l: tr('coach:adjust.focusHypertrophy', { defaultValue: 'Hypertrophy' }) }, { k: 'conditioning', l: tr('coach:adjust.focusConditioning', { defaultValue: 'Conditioning' }) }, { k: 'mobility', l: tr('coach:adjust.focusMobility', { defaultValue: 'Mobility' }) }, { k: 'power', l: tr('coach:adjust.focusPower', { defaultValue: 'Power' }) }];
   const toggleFocus = (k) => setFocus(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k]);
   const cycleDay = (i) => setDays(d => d.map((v, j) => j === i ? DAY_OPTS[(DAY_OPTS.indexOf(v) + 1) % DAY_OPTS.length] : v));
-  const focusLabel = focus.map(k => focusOpts.find(o => o.k === k)?.l.toLowerCase()).filter(Boolean).join(' + ') || 'general fitness';
-  const verb = intensity === 'progress' ? 'progressing top sets' : intensity === 'deload' ? 'deloading this week' : 'maintaining volume';
+  const focusLabel = focus.map(k => focusOpts.find(o => o.k === k)?.l.toLowerCase()).filter(Boolean).join(' + ') || tr('coach:adjust.generalFitness', { defaultValue: 'general fitness' });
+  const verb = intensity === 'progress' ? tr('coach:adjust.verbProgress', { defaultValue: 'progressing top sets' }) : intensity === 'deload' ? tr('coach:adjust.verbDeload', { defaultValue: 'deloading this week' }) : tr('coach:adjust.verbMaintain', { defaultValue: 'maintaining volume' });
   // Nutritionist derived
-  const restrictOpts = [{ k: 'vegetarian', l: 'Vegetarian' }, { k: 'dairy-light', l: 'Dairy-light' }, { k: 'gluten-free', l: 'Gluten-free' }, { k: 'egg-free', l: 'Egg-free' }, { k: 'nut-free', l: 'Nut-free' }, { k: 'halal', l: 'Halal' }];
+  const restrictOpts = [{ k: 'vegetarian', l: tr('coach:adjust.restrictVegetarian', { defaultValue: 'Vegetarian' }) }, { k: 'dairy-light', l: tr('coach:adjust.restrictDairyLight', { defaultValue: 'Dairy-light' }) }, { k: 'gluten-free', l: tr('coach:adjust.restrictGlutenFree', { defaultValue: 'Gluten-free' }) }, { k: 'egg-free', l: tr('coach:adjust.restrictEggFree', { defaultValue: 'Egg-free' }) }, { k: 'nut-free', l: tr('coach:adjust.restrictNutFree', { defaultValue: 'Nut-free' }) }, { k: 'halal', l: tr('coach:adjust.restrictHalal', { defaultValue: 'Halal' }) }];
   const toggleRestrict = (k) => setRestrictions(r => r.includes(k) ? r.filter(x => x !== k) : [...r, k]);
   const kcalFromMacros = protein * 4 + carbs * 4 + fat * 9;
   const kcalDiff = kcalFromMacros - calories;
   const pK = protein * 4, cK = carbs * 4, fK = fat * 9, mTot = (pK + cK + fK) || 1;
 
   const autoNote = isNutri
-    ? `Updated your plan to ${calories} kcal — ${protein}g protein, ${carbs}g carbs, ${fat}g fat across ${meals} meals.${refeed ? ' Keeping the weekend refeed to support training.' : ''} New targets are live in your Eat tab.`
-    : `Adjusting your block: ${sessions}×/week, ${verb}. Focus stays on ${focusLabel}. Check the updated split in your Train tab.`;
+    ? tr('coach:adjust.noteNutri', { defaultValue: 'Updated your plan to {calories} kcal — {protein}g protein, {carbs}g carbs, {fat}g fat across {meals} meals.{refeed} New targets are live in your Eat tab.', calories, protein, carbs, fat, meals, refeed: refeed ? tr('coach:adjust.noteRefeed', { defaultValue: ' Keeping the weekend refeed to support training.' }) : '' })
+    : tr('coach:adjust.noteTrainer', { defaultValue: 'Adjusting your block: {sessions}×/week, {verb}. Focus stays on {focus}. Check the updated split in your Train tab.', sessions, verb, focus: focusLabel });
   const body = noteText == null ? autoNote : noteText;
   const apply = async (notify) => {
-    const who = (client && (client.n || client.name)) || 'this client';
+    const who = (client && (client.n || client.name)) || tr('coach:common.thisClient', { defaultValue: 'this client' });
     if (!(await window.bsAskConfirm({
-      title: isNutri ? 'Update nutrition targets?' : 'Update training program?',
+      title: isNutri ? tr('coach:adjust.confirmTitleNutri', { defaultValue: 'Update nutrition targets?' }) : tr('coach:adjust.confirmTitleTrainer', { defaultValue: 'Update training program?' }),
       name: who,
       message: isNutri
-        ? "This overwrites this client's live nutrition targets (calories + macros) on their Eat tab. It takes effect immediately."
-        : "This overwrites this client's live training program on their Train tab. It takes effect immediately.",
-      confirmLabel: 'Apply changes',
+        ? tr('coach:adjust.confirmMsgNutri', { defaultValue: "This overwrites this client's live nutrition targets (calories + macros) on their Eat tab. It takes effect immediately." })
+        : tr('coach:adjust.confirmMsgTrainer', { defaultValue: "This overwrites this client's live training program on their Train tab. It takes effect immediately." }),
+      confirmLabel: tr('coach:adjust.confirmApply', { defaultValue: 'Apply changes' }),
     }))) return;
     setStatus('saving');
     try {
@@ -2668,7 +2717,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         // never lapses on already-baked rows; only the degraded
         // (pre-migration) path leaves gen absent.
         if (regen?.gen != null && regen.gen > 0) regenGen = regen.gen;
-        if (regen?.changed && regen.capped) window.__bsToast?.('Extension hit the plan bound — trimmed to fit.', 'warn');
+        if (regen?.changed && regen.capped) window.__bsToast?.(tr('coach:adjust.trimmed', { defaultValue: 'Extension hit the plan bound — trimmed to fit.' }), 'warn');
       }
       // 1b) Persist the adjustment to the client's coach-writable program record.
       //    This is what actually "takes effect" — the client app reads it back
@@ -2699,28 +2748,28 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const cta = (txt, onClick, mt) => (
     <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
   );
-  const sendLabel = status === 'saving' ? 'Sending…' : status === 'done' ? 'Sent ✓' : 'Apply & Send →';
+  const sendLabel = status === 'saving' ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : status === 'done' ? tr('coach:adjust.sent', { defaultValue: 'Sent ✓' }) : tr('coach:adjust.applySend', { defaultValue: 'Apply & Send →' });
 
   const trainerBody = (
     <>
       <div>
-        <BSProActionSec eyebrow="THIS WEEK" title="Intensity" accent={accent} />
-        <BSProSegment options={[{ k: 'deload', l: 'Deload' }, { k: 'maintain', l: 'Maintain' }, { k: 'progress', l: 'Progress' }]} value={intensity} onPick={setIntensity} accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.thisWeek', { defaultValue: 'THIS WEEK' })} title={tr('coach:adjust.intensity', { defaultValue: 'Intensity' })} accent={accent} />
+        <BSProSegment options={[{ k: 'deload', l: tr('coach:adjust.deload', { defaultValue: 'Deload' }) }, { k: 'maintain', l: tr('coach:adjust.maintain', { defaultValue: 'Maintain' }) }, { k: 'progress', l: tr('coach:adjust.progress', { defaultValue: 'Progress' }) }]} value={intensity} onPick={setIntensity} accent={accent} />
         <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{intensityDesc}</div>
       </div>
       <div>
-        <BSProActionSec eyebrow="STRUCTURE" title="Frequency & block" accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.structure', { defaultValue: 'STRUCTURE' })} title={tr('coach:adjust.frequencyBlock', { defaultValue: 'Frequency & block' })} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label="SESSIONS / WEEK" sub="Per microcycle" value={sessions} set={setSessions} min={1} max={7} accent={accent} />
-          <BSProStepper label="WEEKS REMAINING" sub="Until next review" value={weeks} set={setWeeks} min={1} max={16} accent={accent} />
+          <BSProStepper label={tr('coach:adjust.sessionsWeek', { defaultValue: 'SESSIONS / WEEK' })} sub={tr('coach:adjust.perMicrocycle', { defaultValue: 'Per microcycle' })} value={sessions} set={setSessions} min={1} max={7} accent={accent} />
+          <BSProStepper label={tr('coach:adjust.weeksRemaining', { defaultValue: 'WEEKS REMAINING' })} sub={tr('coach:adjust.untilReview', { defaultValue: 'Until next review' })} value={weeks} set={setWeeks} min={1} max={16} accent={accent} />
         </div>
       </div>
       <div>
-        <BSProActionSec eyebrow="EMPHASIS" title="Focus" accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.emphasis', { defaultValue: 'EMPHASIS' })} title={tr('coach:adjust.focus', { defaultValue: 'Focus' })} accent={accent} />
         <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
       </div>
       <div>
-        <BSProActionSec eyebrow="WEEKLY SPLIT" title="Training days" trailing={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50, whiteSpace: 'nowrap' }}>TAP TO CHANGE →</span>} accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.weeklySplit', { defaultValue: 'WEEKLY SPLIT' })} title={tr('coach:adjust.trainingDays', { defaultValue: 'Training days' })} trailing={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:adjust.tapToChange', { defaultValue: 'TAP TO CHANGE →' })}</span>} accent={accent} />
         {days.map((label, i) => {
           const rest = label === 'Rest';
           return (
@@ -2738,19 +2787,19 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   const nutriBody = (
     <>
       <div>
-        <BSProActionSec eyebrow="ENERGY" title="Calorie target" accent={accent} />
-        <BSProStepper label="DAILY CALORIES" sub="kcal / day" value={calories} set={setCalories} min={1000} max={5000} step={50} accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.energy', { defaultValue: 'ENERGY' })} title={tr('coach:adjust.calorieTarget', { defaultValue: 'Calorie target' })} accent={accent} />
+        <BSProStepper label={tr('coach:adjust.dailyCalories', { defaultValue: 'DAILY CALORIES' })} sub={tr('coach:adjust.kcalPerDay', { defaultValue: 'kcal / day' })} value={calories} set={setCalories} min={1000} max={5000} step={50} accent={accent} />
       </div>
       <div>
-        <BSProActionSec eyebrow="MACROS" title="Daily split" accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.macros', { defaultValue: 'MACROS' })} title={tr('coach:adjust.dailySplit', { defaultValue: 'Daily split' })} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label="PROTEIN" sub="" value={protein} set={setProtein} min={0} max={400} step={5} unit="g" accent={teal} />
-          <BSProStepper label="CARBS" sub="" value={carbs} set={setCarbs} min={0} max={600} step={5} unit="g" accent={gold} />
-          <BSProStepper label="FAT" sub="" value={fat} set={setFat} min={0} max={250} step={2} unit="g" accent={rust} />
+          <BSProStepper label={tr('coach:adjust.protein', { defaultValue: 'PROTEIN' })} sub="" value={protein} set={setProtein} min={0} max={400} step={5} unit="g" accent={teal} />
+          <BSProStepper label={tr('coach:adjust.carbs', { defaultValue: 'CARBS' })} sub="" value={carbs} set={setCarbs} min={0} max={600} step={5} unit="g" accent={gold} />
+          <BSProStepper label={tr('coach:adjust.fat', { defaultValue: 'FAT' })} sub="" value={fat} set={setFat} min={0} max={250} step={2} unit="g" accent={rust} />
           <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>FROM MACROS</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{kcalFromMacros.toLocaleString()} kcal · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{kcalDiff} vs target</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: accent }}>{tr('coach:adjust.fromMacros', { defaultValue: 'FROM MACROS' })}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{tr('coach:adjust.kcalUnit', { defaultValue: '{kcal} kcal', kcal: kcalFromMacros.toLocaleString(coachLocale()) })} · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{tr('coach:adjust.vsTarget', { defaultValue: '{diff} vs target', diff: kcalDiff })}</span></span>
             </div>
             <div style={{ marginTop: 9, display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
               <div style={{ width: `${(pK / mTot) * 100}%`, background: teal }} />
@@ -2762,13 +2811,13 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         </div>
       </div>
       <div>
-        <BSProActionSec eyebrow="STRUCTURE" title="Meals & refeeds" accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.structure', { defaultValue: 'STRUCTURE' })} title={tr('coach:adjust.mealsRefeeds', { defaultValue: 'Meals & refeeds' })} accent={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label="MEALS / DAY" sub="" value={meals} set={setMeals} min={1} max={8} accent={accent} />
+          <BSProStepper label={tr('coach:adjust.mealsDay', { defaultValue: 'MEALS / DAY' })} sub="" value={meals} set={setMeals} min={1} max={8} accent={accent} />
           <button onClick={() => setRefeed(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Weekend refeed</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>+40g carbs on training days</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:adjust.weekendRefeed', { defaultValue: 'Weekend refeed' })}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:adjust.refeedSub', { defaultValue: '+40g carbs on training days' })}</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${refeed ? accent : t.RULE}`, background: refeed ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: refeed ? 'flex-end' : 'flex-start' }}>
               <span style={{ width: 16, height: 16, borderRadius: 999, background: refeed ? '#06231f' : t.INK50, display: 'block' }} />
@@ -2777,7 +2826,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         </div>
       </div>
       <div>
-        <BSProActionSec eyebrow="CONSTRAINTS" title="Restrictions" accent={accent} />
+        <BSProActionSec eyebrow={tr('coach:adjust.constraints', { defaultValue: 'CONSTRAINTS' })} title={tr('coach:adjust.restrictions', { defaultValue: 'Restrictions' })} accent={accent} />
         <BSProChips options={restrictOpts} value={restrictions} multi onPick={toggleRestrict} accent={accent} />
       </div>
     </>
@@ -2786,38 +2835,39 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        <BSProActionHead eyebrow={isNutri ? 'ADJUST PLAN' : 'ADJUST PROGRAM'} titleA="Tune the" titleB={isNutri ? 'plan.' : 'program.'} accent={accent} onBack={onBack} />
+        <BSProActionHead eyebrow={isNutri ? tr('coach:adjust.eyebrowNutri', { defaultValue: 'ADJUST PLAN' }) : tr('coach:adjust.eyebrowTrainer', { defaultValue: 'ADJUST PROGRAM' })} titleA={tr('coach:adjust.titleA', { defaultValue: 'Tune the' })} titleB={isNutri ? tr('coach:adjust.titleBNutri', { defaultValue: 'plan.' }) : tr('coach:adjust.titleBTrainer', { defaultValue: 'program.' })} accent={accent} onBack={onBack} />
         <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {isNutri ? nutriBody : trainerBody}
           <div>
-            <BSProActionSec eyebrow="MESSAGE" title={`Note to ${first}`} accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:adjust.message', { defaultValue: 'MESSAGE' })} title={tr('coach:adjust.noteTo', { defaultValue: 'Note to {name}', name: first })} accent={accent} />
             <textarea value={body} onChange={(e) => setNoteText(e.target.value)} rows={4} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
             <div style={{ marginTop: 14 }}>
               {cta(sendLabel, () => apply(false))}
-              {cta('Apply & Notify →', () => apply(true), 10)}
+              {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10)}
             </div>
-            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't send — try again.</div>}
+            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
             {clientUid
-              ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>On apply · updates {first}'s {isNutri ? 'Eat' : 'Train'} tab + sends this note</div>
-              : <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · applies once linked to a live member</div>}
+              ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>
+              : <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:adjust.demoApplies', { defaultValue: 'Demo client · applies once linked to a live member' })}</div>}
           </div>
         </div>
       </div>
-      <BSFooter left={isNutri ? 'Adjust plan' : 'Adjust program'} right={client?.n} />
+      <BSFooter left={isNutri ? tr('coach:adjust.footerNutri', { defaultValue: 'Adjust plan' }) : tr('coach:adjust.footerTrainer', { defaultValue: 'Adjust program' })} right={client?.n} />
     </BSPage>
   );
 }
 
 function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBS();
+  const tr = useShapeTr();
   const accent = useBSProClientHeat(t, role, clientUid);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
-  const first = (client?.n || 'there').split(' ')[0];
+  const first = (client?.n || tr('coach:common.there', { defaultValue: 'there' })).split(' ')[0];
   const TYPES = isNutri
-    ? [{ k: 'consult', l: 'Consult' }, { k: 'plan', l: 'Plan delivery' }, { k: 'review', l: 'Food-log review' }, { k: 'intro', l: 'Intro call' }]
-    : [{ k: 'session', l: 'Session' }, { k: 'checkin', l: 'Check-in' }, { k: 'review', l: 'Form review' }, { k: 'intro', l: 'Intro call' }];
+    ? [{ k: 'consult', l: tr('coach:schedule.typeConsult', { defaultValue: 'Consult' }) }, { k: 'plan', l: tr('coach:schedule.typePlanDelivery', { defaultValue: 'Plan delivery' }) }, { k: 'review', l: tr('coach:schedule.typeFoodLog', { defaultValue: 'Food-log review' }) }, { k: 'intro', l: tr('coach:schedule.typeIntro', { defaultValue: 'Intro call' }) }]
+    : [{ k: 'session', l: tr('coach:schedule.typeSession', { defaultValue: 'Session' }) }, { k: 'checkin', l: tr('coach:schedule.typeCheckin', { defaultValue: 'Check-in' }) }, { k: 'review', l: tr('coach:schedule.typeFormReview', { defaultValue: 'Form review' }) }, { k: 'intro', l: tr('coach:schedule.typeIntro', { defaultValue: 'Intro call' }) }];
   const [type, setType] = useStateBSP(TYPES[0].k);
   const [dayIdx, setDayIdx] = useStateBSP(0);
   const [time, setTime] = useStateBSP('9:00');
@@ -2832,17 +2882,17 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const sel = dayCells[dayIdx] || today;
   const times = ['7:00', '8:00', '9:00', '11:30', '14:00', '16:00', '17:00', '18:30'];
   const modeOpts = isNutri
-    ? [{ k: 'zoom', l: 'Zoom' }, { k: 'call', l: 'Call' }, { k: 'inperson', l: 'In-person' }]
-    : [{ k: 'zoom', l: 'Zoom' }, { k: 'gym', l: 'Gym' }, { k: 'call', l: 'Call' }, { k: 'inperson', l: 'In-person' }];
+    ? [{ k: 'zoom', l: 'Zoom' }, { k: 'call', l: tr('coach:schedule.modeCall', { defaultValue: 'Call' }) }, { k: 'inperson', l: tr('coach:schedule.modeInPerson', { defaultValue: 'In-person' }) }]
+    : [{ k: 'zoom', l: 'Zoom' }, { k: 'gym', l: tr('coach:schedule.modeGym', { defaultValue: 'Gym' }) }, { k: 'call', l: tr('coach:schedule.modeCall', { defaultValue: 'Call' }) }, { k: 'inperson', l: tr('coach:schedule.modeInPerson', { defaultValue: 'In-person' }) }];
   const kindMap = { session: 'SESSION', consult: 'CONSULT', plan: 'PLAN', checkin: 'CHECKIN', review: 'REVIEW', intro: 'CONSULT' };
-  const typeLabel = TYPES.find(x => x.k === type)?.l || 'Session';
+  const typeLabel = TYPES.find(x => x.k === type)?.l || tr('coach:schedule.typeSession', { defaultValue: 'Session' });
   const modeLabel = modeOpts.find(m => m.k === mode)?.l || 'Zoom';
   const dateStr = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}-${String(sel.getDate()).padStart(2, '0')}`;
   const add = async () => {
     setStatus('saving');
     try {
       if (clientUid && window.ShapeCalendar?.create) {
-        await window.ShapeCalendar.create({ userId: clientUid, kind: kindMap[type] || 'SESSION', title: `${typeLabel} · ${first}`, sub: repeat ? `${modeLabel} · weekly` : modeLabel, date: dateStr, time, durationMin: duration, with: client?.n, location: modeLabel });
+        await window.ShapeCalendar.create({ userId: clientUid, kind: kindMap[type] || 'SESSION', title: `${typeLabel} · ${first}`, sub: repeat ? tr('coach:schedule.subWeekly', { defaultValue: '{mode} · weekly', mode: modeLabel }) : modeLabel, date: dateStr, time, durationMin: duration, with: client?.n, location: modeLabel });
       }
       setStatus('done');
       setTimeout(onBack, 950);
@@ -2851,15 +2901,15 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        <BSProActionHead eyebrow="SCHEDULE" titleA="Book a" titleB={isNutri ? 'consult.' : 'session.'} accent={accent} onBack={onBack} />
+        <BSProActionHead eyebrow={tr('coach:schedule.eyebrow', { defaultValue: 'SCHEDULE' })} titleA={tr('coach:schedule.titleA', { defaultValue: 'Book a' })} titleB={isNutri ? tr('coach:schedule.titleBNutri', { defaultValue: 'consult.' }) : tr('coach:schedule.titleBTrainer', { defaultValue: 'session.' })} accent={accent} onBack={onBack} />
         <BSProClientMini client={client} heat={accent} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           <div>
-            <BSProActionSec eyebrow="WHAT" title="Session type" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.what', { defaultValue: 'WHAT' })} title={tr('coach:schedule.sessionType', { defaultValue: 'Session type' })} accent={accent} />
             <BSProChips options={TYPES} value={type} onPick={setType} accent={accent} />
           </div>
           <div>
-            <BSProActionSec eyebrow="WHEN" title="Pick a day" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.when', { defaultValue: 'WHEN' })} title={tr('coach:schedule.pickDay', { defaultValue: 'Pick a day' })} accent={accent} />
             <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {dayCells.map((d, i) => {
                 const on = dayIdx === i;
@@ -2873,7 +2923,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
             </div>
           </div>
           <div>
-            <BSProActionSec eyebrow="TIME" title="Open slots" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.time', { defaultValue: 'TIME' })} title={tr('coach:schedule.openSlots', { defaultValue: 'Open slots' })} accent={accent} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
               {times.map(tm => {
                 const on = time === tm;
@@ -2882,39 +2932,39 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
             </div>
           </div>
           <div>
-            <BSProActionSec eyebrow="HOW LONG" title="Duration" accent={accent} />
-            <BSProSegment options={[{ k: 30, l: '30 min' }, { k: 45, l: '45 min' }, { k: 60, l: '60 min' }]} value={duration} onPick={setDuration} accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.howLong', { defaultValue: 'HOW LONG' })} title={tr('coach:schedule.duration', { defaultValue: 'Duration' })} accent={accent} />
+            <BSProSegment options={[{ k: 30, l: tr('coach:schedule.min30', { defaultValue: '30 min' }) }, { k: 45, l: tr('coach:schedule.min45', { defaultValue: '45 min' }) }, { k: 60, l: tr('coach:schedule.min60', { defaultValue: '60 min' }) }]} value={duration} onPick={setDuration} accent={accent} />
           </div>
           <div>
-            <BSProActionSec eyebrow="WHERE" title="Mode" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.where', { defaultValue: 'WHERE' })} title={tr('coach:schedule.mode', { defaultValue: 'Mode' })} accent={accent} />
             <BSProChips options={modeOpts} value={mode} onPick={setMode} accent={accent} />
           </div>
           <button onClick={() => setRepeat(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
             <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Repeat weekly</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Every {WD[sel.getDay()]} at {time}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:schedule.repeatWeekly', { defaultValue: 'Repeat weekly' })}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.everyDayAt', { defaultValue: 'Every {day} at {time}', day: WD[sel.getDay()], time })}</div>
             </div>
             <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${repeat ? accent : t.RULE}`, background: repeat ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: repeat ? 'flex-end' : 'flex-start' }}>
               <span style={{ width: 16, height: 16, borderRadius: 999, background: repeat ? '#06231f' : t.INK50, display: 'block' }} />
             </span>
           </button>
           <div>
-            <BSProActionSec eyebrow="SUMMARY" title="The booking" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.summary', { defaultValue: 'SUMMARY' })} title={tr('coach:schedule.theBooking', { defaultValue: 'The booking' })} accent={accent} />
             <div style={{ display: 'flex', gap: 20 }}>
-              {[['DAY', `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()}`], ['TIME', time], ['LENGTH', `${duration} min`]].map(([lab, fig]) => (
+              {[[tr('coach:schedule.day', { defaultValue: 'DAY' }), `${WD[sel.getDay()]} ${MON[sel.getMonth()]} ${sel.getDate()}`], [tr('coach:schedule.timeCol', { defaultValue: 'TIME' }), time], [tr('coach:schedule.length', { defaultValue: 'LENGTH' }), tr('coach:schedule.minUnit', { defaultValue: '{n} min', n: duration })]].map(([lab, fig]) => (
                 <div key={lab} style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{lab}</div>
                   <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>{fig}</div>
                 </div>
               ))}
             </div>
-            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? 'Adding…' : status === 'done' ? 'Added ✓' : 'Add to calendar →'}</button>
-            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't add — try again.</div>}
-            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · books once linked to a live member</div>}
+            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
+            {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
+            {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
           </div>
         </div>
       </div>
-      <BSFooter left="Schedule" right={client?.n} />
+      <BSFooter left={tr('coach:schedule.footer', { defaultValue: 'Schedule' })} right={client?.n} />
     </BSPage>
   );
 }
@@ -2932,6 +2982,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 // client_meal_plans weekly menu. A short note lands in the client's 1:1.
 function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, onBack, onDone }) {
   const t = useBS();
+  const tr = useShapeTr();
   const accent = bsProAccent(t, role);
   const isNutri = role === 'nutritionist';
   const [plan, setPlan] = useStateBSP(planProp || null);
@@ -2945,7 +2996,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
-  const targetName = fixedClient ? (clientProp?.n || 'this client') : (picked ? picked.name : 'a client');
+  const targetName = fixedClient ? (clientProp?.n || tr('coach:common.thisClient', { defaultValue: 'this client' })) : (picked ? picked.name : tr('coach:assign.aClient', { defaultValue: 'a client' }));
   const first = String(targetName).split(' ')[0];
 
   // Pickers — load only the half that wasn't handed in.
@@ -2977,10 +3028,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     if (!plan || !uid || status === 'working' || status === 'done') return;
     if (isNutri) {
       if (!(await window.bsAskConfirm({
-        title: 'Replace active meal plan?',
+        title: tr('coach:assign.replaceTitle', { defaultValue: 'Replace active meal plan?' }),
         name: targetName,
-        message: 'This archives ' + first + '’s current week menu and installs ' + (plan.name ? '“' + plan.name + '”' : 'the new plan') + ' on their Eat tab.',
-        confirmLabel: 'Replace plan',
+        message: tr('coach:assign.replaceMsg', { defaultValue: "This archives {name}’s current week menu and installs {plan} on their Eat tab.", name: first, plan: plan.name ? '“' + plan.name + '”' : tr('coach:assign.theNewPlan', { defaultValue: 'the new plan' }) }),
+        confirmLabel: tr('coach:assign.replaceConfirm', { defaultValue: 'Replace plan' }),
       }))) return;
     }
     setStatus('working');
@@ -3019,7 +3070,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         if (window.ShapeMessages?.getOrCreateMemberConversation) {
           const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
           const cid = conv?.data;
-          if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Put you on “${plan.name}” — it's live on your ${isNutri ? 'Eat' : 'Train'} tab now.`, metadata: { kind: 'plan_assigned' } });
+          if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: isNutri ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name }) : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name }), metadata: { kind: 'plan_assigned' } });
         }
       } catch (e) {}
       setStatus('done');
@@ -3043,43 +3094,44 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
   );
   const working = status === 'working';
-  const ctaLabel = working ? 'Assigning…' : status === 'done' ? 'Assigned ✓' : 'Assign & notify →';
+  const ctaLabel = working ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' }) : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' }) : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
   const timeLabel = timeSel ? (() => { const [h, m] = timeSel.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return ` · ${hh}:${String(m).padStart(2, '0')} ${ap}`; })() : '';
+  const fromLabel = `${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`;
   const summaryWhen = isNutri
-    ? 'This week · replaces their current menu from you'
+    ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
     : isSplit
-      ? `${dayLines.filter(d => d && !d.rest).length} sessions/wk · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`
-      : `Weekly · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`;
+      ? tr('coach:assign.whenSplit', { defaultValue: '{sessions} sessions/wk · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: dayLines.filter(d => d && !d.rest).length, weeks, from: fromLabel })
+      : tr('coach:assign.whenWeekly', { defaultValue: 'Weekly · {weeks, plural, one {# week} other {# weeks}} · from {from}', weeks, from: fromLabel });
 
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        <BSProActionHead eyebrow="ASSIGN" titleA="Put them on" titleB={isNutri ? 'a menu.' : 'a program.'} accent={accent} onBack={onBack} />
+        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
         {fixedClient && <BSProClientMini client={clientProp} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {!planProp && (
             <div>
-              <BSProActionSec eyebrow="WHAT" title={isNutri ? 'Pick a meal plan' : 'Pick a program'} accent={accent} />
+              <BSProActionSec eyebrow={tr('coach:schedule.what', { defaultValue: 'WHAT' })} title={isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' })} accent={accent} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {planList == null ? emptyCard('Loading your catalogue…')
-                  : planList.length === 0 ? emptyCard(`No saved ${isNutri ? 'meal plans' : 'programs'} yet — build one on the Plans tab first`)
+                {planList == null ? emptyCard(tr('coach:assign.loadingCatalogue', { defaultValue: 'Loading your catalogue…' }))
+                  : planList.length === 0 ? emptyCard(isNutri ? tr('coach:assign.noSavedMealPlans', { defaultValue: 'No saved meal plans yet — build one on the Plans tab first' }) : tr('coach:assign.noSavedPrograms', { defaultValue: 'No saved programs yet — build one on the Plans tab first' }))
                   : planList.map(p => rowBtn(p.id, p.name, p.meta, plan && plan.id === p.id, () => setPlan(p)))}
               </div>
             </div>
           )}
           {!fixedClient && (
             <div>
-              <BSProActionSec eyebrow="WHO" title="Pick a client" accent={accent} />
+              <BSProActionSec eyebrow={tr('coach:schedule.who', { defaultValue: 'WHO' })} title={tr('coach:assign.pickClient', { defaultValue: 'Pick a client' })} accent={accent} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {clientList == null ? emptyCard('Loading your clients…')
-                  : clientList.length === 0 ? emptyCard('No linked members yet — clients appear here once they subscribe or book')
-                  : clientList.map(c => rowBtn(c.userId, c.name, c.sessions ? `${c.sessions} session${c.sessions === 1 ? '' : 's'} together` : 'Linked member', picked && picked.userId === c.userId, () => setPicked(c)))}
+                {clientList == null ? emptyCard(tr('coach:assign.loadingClients', { defaultValue: 'Loading your clients…' }))
+                  : clientList.length === 0 ? emptyCard(tr('coach:assign.noLinked', { defaultValue: 'No linked members yet — clients appear here once they subscribe or book' }))
+                  : clientList.map(c => rowBtn(c.userId, c.name, c.sessions ? tr('coach:assign.sessionsTogether', { defaultValue: '{count, plural, one {# session} other {# sessions}} together', count: c.sessions }) : tr('coach:assign.linkedMember', { defaultValue: 'Linked member' }), picked && picked.userId === c.userId, () => setPicked(c)))}
               </div>
             </div>
           )}
           {!isNutri && (
             <div>
-              <BSProActionSec eyebrow="WHEN" title="Starts" accent={accent} />
+              <BSProActionSec eyebrow={tr('coach:schedule.when', { defaultValue: 'WHEN' })} title={tr('coach:assign.starts', { defaultValue: 'Starts' })} accent={accent} />
               <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {dayCells.map((d, i) => {
                   const on = dayIdx === i;
@@ -3092,15 +3144,15 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 })}
               </div>
               <div style={{ marginTop: 12 }}>
-                <BSProStepper label="WEEKS" sub={isSplit ? 'Repeats the weekly split' : 'Repeats the session weekly'} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
+                <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} sub={isSplit ? tr('coach:assign.repeatsSplit', { defaultValue: 'Repeats the weekly split' }) : tr('coach:assign.repeatsSession', { defaultValue: 'Repeats the session weekly' })} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
               </div>
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Session time · optional</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Set the time you've agreed with your client — it shows on their calendar &amp; home card.</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginTop: 9 }}>
                   {['', '06:00', '07:00', '08:00', '09:00', '12:00', '16:00', '17:00', '17:45', '18:00', '19:00', '20:00'].map((tv) => {
                     const on = timeSel === tv;
-                    const lbl = tv === '' ? 'No set time' : (() => { const [h, m] = tv.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; })();
+                    const lbl = tv === '' ? tr('coach:assign.noSetTime', { defaultValue: 'No set time' }) : (() => { const [h, m] = tv.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; })();
                     return (
                       <button key={tv || 'none'} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{lbl}</button>
                     );
@@ -3110,31 +3162,31 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             </div>
           )}
           <div>
-            <BSProActionSec eyebrow="SUMMARY" title="The assignment" accent={accent} />
+            <BSProActionSec eyebrow={tr('coach:schedule.summary', { defaultValue: 'SUMMARY' })} title={tr('coach:assign.theAssignment', { defaultValue: 'The assignment' })} accent={accent} />
             <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? 'Pick a meal plan' : 'Pick a program')} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
               <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
             </div>
             <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
-            {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't assign — {status}</div>}
+            {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
             <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
               {uid
-                ? `On assign · lands on ${first}'s ${isNutri ? 'Eat' : 'Train'} tab + sends a note`
-                : fixedClient ? 'Demo client · assigns once linked to a live member' : 'Pick a linked client above'}
+                ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
+                : fixedClient ? tr('coach:assign.demoAssigns', { defaultValue: 'Demo client · assigns once linked to a live member' }) : tr('coach:assign.pickLinked', { defaultValue: 'Pick a linked client above' })}
             </div>
             {disclaimer && (
               <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid ${accent}33`, background: `${accent}10`, padding: '10px 12px', fontFamily: t.BODY, fontSize: 10.5, lineHeight: 1.5, color: t.INK }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>Scope &amp; compliance</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>{tr('coach:assign.scopeCompliance', { defaultValue: 'Scope & compliance' })}</span>
                 {disclaimer}
               </div>
             )}
             {status === 'done' && disclaimer && (
-              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Read &amp; acknowledged · done</button>
+              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:assign.readAck', { defaultValue: 'Read & acknowledged · done' })}</button>
             )}
           </div>
         </div>
       </div>
-      <BSFooter left="Assign" right={plan ? plan.name : 'Catalogue'} />
+      <BSFooter left={tr('coach:assign.footer', { defaultValue: 'Assign' })} right={plan ? plan.name : tr('coach:assign.catalogueFooter', { defaultValue: 'Catalogue' })} />
     </BSPage>
   );
 }
@@ -3147,7 +3199,7 @@ function bsBuildDraftRecord(clientUid, stats, name) {
   // be grounded only in their real signals. With no stats yet, return a bare
   // record (the engine drafts an honest "just checking in" note).
   if (clientUid) {
-    const rec = { profile: { name: name || 'Client' } };
+    const rec = { profile: { name: name || coachTr('coach:common.clientFallback', { defaultValue: 'Client' }) } };
     if (!stats) return rec;
     if (stats.sessionsPlanned != null) rec.trainingAdherence = { done: stats.sessionsCompleted || 0, planned: stats.sessionsPlanned, pct: stats.sessionsPlanned ? Math.round(((stats.sessionsCompleted || 0) / stats.sessionsPlanned) * 100) : null };
     if (stats.avgCalories != null || stats.avgProtein != null) rec.nutrition = { avgCalories: stats.avgCalories ?? null, avgProtein: stats.avgProtein ?? null, targetCalories: stats.targetCalories ?? null, targetProtein: stats.targetProtein ?? null };
@@ -3170,7 +3222,8 @@ function bsBuildDraftRecord(clientUid, stats, name) {
 // sent version to ai_audit_log. Never auto-sends.
 function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose }) {
   const t = useBS();
-  const first = String(clientName || 'your client').split(' ')[0];
+  const tr = useShapeTr();
+  const first = String(clientName || tr('coach:draft.yourClient', { defaultValue: 'your client' })).split(' ')[0];
   const [draft, setDraft] = useStateBSP('');
   const [cited, setCited] = useStateBSP([]);
   const [loading, setLoading] = useStateBSP(true);
@@ -3193,7 +3246,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
           if (!on) return;
           if (res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
           setDraft(''); setCited([]); setAuditId(null); setLoading(false);
-          window.__bsToast?.((res && res.error) || 'Could not draft check-in', 'err');
+          window.__bsToast?.((res && res.error) || tr('coach:draft.couldNotDraft', { defaultValue: 'Could not draft check-in' }), 'err');
           return;
         }
         // Demo / signed-out fallback — the SAME grounded engine, client-side.
@@ -3208,7 +3261,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
   const send = async () => {
     const body = draft.trim();
     if (!body || sending || loading) return;
-    if (!clientUid) { window.__bsToast?.('Sends once this client is linked', 'info'); onClose(); return; }
+    if (!clientUid) { window.__bsToast?.(tr('coach:draft.sendsWhenLinked', { defaultValue: 'Sends once this client is linked' }), 'info'); onClose(); return; }
     setSending(true);
     try {
       let cid = null;
@@ -3226,7 +3279,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
           const ar = await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) });
           audited = !!(ar && ar.ok);
         } catch (e) { audited = false; }
-        window.__bsToast?.(audited ? `Sent to ${first}` : `Sent to ${first} — couldn't log it`, audited ? 'ok' : 'info');
+        window.__bsToast?.(audited ? tr('coach:draft.sentTo', { defaultValue: 'Sent to {name}', name: first }) : tr('coach:draft.sentNoLog', { defaultValue: "Sent to {name} — couldn't log it", name: first }), audited ? 'ok' : 'info');
         setSending(false);
         onClose();
         return;
@@ -3234,7 +3287,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
       throw new Error('Could not send');
     } catch (e) {
       // Keep the sheet open on failure so the coach's edited message isn't lost.
-      window.__bsToast?.('Could not send — try again', 'err');
+      window.__bsToast?.(tr('coach:draft.couldNotSend', { defaultValue: 'Could not send — try again' }), 'err');
       setSending(false);
     }
   };
@@ -3243,9 +3296,9 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>✦ AI draft · check-in</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>A note to <span style={{ fontStyle: 'italic', color: accent }}>{first}.</span></div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>Grounded in {first}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{tr('coach:draft.eyebrow', { defaultValue: '✦ AI draft · check-in' })}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:draft.aNoteTo', { defaultValue: 'A note to' })} <span style={{ fontStyle: 'italic', color: accent }}>{first}.</span></div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{tr('coach:draft.grounded', { defaultValue: "Grounded in {name}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.", name: first })}</div>
         {cited.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             {cited.map((c, i) => (
@@ -3253,10 +3306,10 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
             ))}
           </div>
         )}
-        <textarea value={loading ? 'Drafting…' : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.5, resize: 'vertical' }} />
+        <textarea value={loading ? tr('coach:draft.drafting', { defaultValue: 'Drafting…' }) : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.5, resize: 'vertical' }} />
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '13px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={send} disabled={loading || sending || !draft.trim()} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: loading || sending || !draft.trim() ? 'default' : 'pointer', opacity: loading || sending || !draft.trim() ? 0.55 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{sending ? 'Sending…' : `Send to ${first} →`}</button>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '13px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+          <button onClick={send} disabled={loading || sending || !draft.trim()} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: loading || sending || !draft.trim() ? 'default' : 'pointer', opacity: loading || sending || !draft.trim() ? 0.55 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{sending ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:draft.sendButton', { defaultValue: 'Send to {name} →', name: first })}</button>
         </div>
       </div>
     </div>
@@ -3272,22 +3325,23 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
 // `get_roster_weekend_split` (ShapeRosterWeekend); plate chrome → zero-box.
 function ProWeekendPlate({ split }) {
   const t = useBS();
+  const tr = useShapeTr();
   if (!split || split.status !== 'ok') return null;
   const dims = split.dimensions || {};
   const present = ['nutrition', 'habits', 'training'].map((k) => [k, dims[k]]).filter(([, d]) => d);
   if (!present.length) return null;
   const worst = split.worstDimension;
   const move = worst === 'nutrition'
-    ? 'Set a weekend check-in or a lighter weekend nutrition target.'
+    ? tr('coach:case.wkndMoveNutrition', { defaultValue: 'Set a weekend check-in or a lighter weekend nutrition target.' })
     : worst === 'training'
-      ? 'Move a weekend session earlier in the day, or shift it to a weekday they hit.'
+      ? tr('coach:case.wkndMoveTraining', { defaultValue: 'Move a weekend session earlier in the day, or shift it to a weekday they hit.' })
       : worst === 'habits'
-        ? 'Add a weekend-specific habit reminder.'
-        : 'Set one weekend anchor habit.';
-  const dimLabel = { nutrition: 'Nutrition', training: 'Training', habits: 'Habits' };
+        ? tr('coach:case.wkndMoveHabits', { defaultValue: 'Add a weekend-specific habit reminder.' })
+        : tr('coach:case.wkndMoveDefault', { defaultValue: 'Set one weekend anchor habit.' });
+  const dimLabel = { nutrition: tr('coach:case.dimNutrition', { defaultValue: 'Nutrition' }), training: tr('coach:case.dimTraining', { defaultValue: 'Training' }), habits: tr('coach:case.dimHabits', { defaultValue: 'Habits' }) };
   return (
     <div style={{ marginTop: 22 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={t.RUST} INK={t.INK} label="WEEKEND PATTERN" />}
+      {window.BSTStationHead && <window.BSTStationHead heat={t.RUST} INK={t.INK} label={tr('coach:case.weekendPattern', { defaultValue: 'WEEKEND PATTERN' })} />}
       <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '2px 0 2px 11px', display: 'grid', gap: 7 }}>
         {present.map(([k, d]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
@@ -3305,6 +3359,7 @@ function ProWeekendPlate({ split }) {
 
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
   const [phase, setPhase] = useStateBSP({ trainingPhase: 'Build', nutritionPhase: 'Cut' });
@@ -3416,8 +3471,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const waivePen = async (p) => {
     if (!clientUid || !window.ShapeCoachPenalties?.waive) return;
     const r = await window.ShapeCoachPenalties.waive(clientUid, p.source_kind, p.source_id);
-    if (r && r.waived) { window.__bsToast?.('Penalty waived', 'ok'); loadPens(); }
-    else { window.__bsToast?.('Couldn’t waive that', 'info'); }
+    if (r && r.waived) { window.__bsToast?.(tr('coach:case.penaltyWaived', { defaultValue: 'Penalty waived' }), 'ok'); loadPens(); }
+    else { window.__bsToast?.(tr('coach:case.waiveFailed', { defaultValue: 'Couldn’t waive that' }), 'info'); }
   };
   // Propose a weekly commitment for this client (they accept before points are at risk).
   const [commitForm, setCommitForm] = useStateBSP(false);
@@ -3432,8 +3487,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (cf.habits > 0) targets.habits = cf.habits;
     const r = await window.ShapeCoachCommit.propose(clientUid, targets, cf.stake);
     setCfBusy(false);
-    if (r && r.ok) { window.__bsToast?.('Commitment proposed', 'ok'); setCommitForm(false); }
-    else { window.__bsToast?.(r && r.reason === 'no_targets' ? 'Pick at least one target' : 'Couldn’t propose it', 'info'); }
+    if (r && r.ok) { window.__bsToast?.(tr('coach:case.commitProposed', { defaultValue: 'Commitment proposed' }), 'ok'); setCommitForm(false); }
+    else { window.__bsToast?.(r && r.reason === 'no_targets' ? tr('coach:case.pickTarget', { defaultValue: 'Pick at least one target' }) : tr('coach:case.proposeFailed', { defaultValue: 'Couldn’t propose it' }), 'info'); }
   };
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
@@ -3471,10 +3526,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // this same const for their register rules / underlines).
   const heat = clientTier && window.bsTierColor ? window.bsTierColor(clientTier) : bsProHeat(t, role);
   const nm = (client.n || '').trim().split(/\s+/);
-  const first = nm[0] || client.n || 'Client';
+  const first = nm[0] || client.n || tr('coach:common.clientFallback', { defaultValue: 'Client' });
   const last = nm.slice(1).join(' ');
   const isPast = client.s === 'past' || client.active === false;
-  const statusLabel = isPast ? 'PAST' : client.warn ? 'WATCH' : isNutri ? 'STRONG' : 'ON TRACK';
+  const statusLabel = isPast ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : client.warn ? tr('coach:sev.watch', { defaultValue: 'WATCH' }) : isNutri ? tr('coach:case.statusStrong', { defaultValue: 'STRONG' }) : tr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' });
   const phaseUp = (isNutri ? (phase.nutritionPhase || 'Cut') : (phase.trainingPhase || 'Build')).toUpperCase();
   // Eyebrow: CASE FILE · {PHASE}[ · WK N REMAINING | · {KCAL} KCAL] — the week/
   // kcal fragment only when the live program `detail` actually carries it
@@ -3483,9 +3538,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const liveWeeksRemaining = phase.detail && phase.detail.training && phase.detail.training.weeks != null ? Number(phase.detail.training.weeks) : null;
   const liveKcalTarget = phase.detail && phase.detail.nutrition && phase.detail.nutrition.calories != null ? Number(phase.detail.nutrition.calories) : null;
   const headFrag = clientUid
-    ? (isNutri ? (liveKcalTarget != null ? ` · ${liveKcalTarget.toLocaleString()} KCAL` : '') : (liveWeeksRemaining != null ? ` · WK ${liveWeeksRemaining} REMAINING` : ''))
+    ? (isNutri ? (liveKcalTarget != null ? tr('coach:case.headKcal', { defaultValue: ' · {kcal} KCAL', kcal: liveKcalTarget.toLocaleString(coachLocale()) }) : '') : (liveWeeksRemaining != null ? tr('coach:case.headWeeksRemaining', { defaultValue: ' · WK {weeks} REMAINING', weeks: liveWeeksRemaining }) : ''))
     : (isNutri ? ' · 2100 KCAL' : ' · WEEK 6 OF 12');
-  const headEyebrow = `CASE FILE · ${phaseUp}${headFrag}`;
+  const headEyebrow = `${tr('coach:case.caseFile', { defaultValue: 'CASE FILE' })} · ${phaseUp}${headFrag}`;
   // Real clients show '—' (no live since/streak source) — never the demo literal;
   // demo rows (no clientUid · signed-out preview) keep the example label.
   const sinceLabel = clientUid ? '—' : (isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak');
@@ -3516,10 +3571,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
   const liveRecent = Array.isArray(S.recentSessions) && S.recentSessions.length ? S.recentSessions.map(r => {
     const d = r.at ? new Date(r.at) : null;
-    const when = d && !isNaN(d) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
-    const st = r.status === 'completed' ? 'Completed' : r.status === 'requested' ? 'Requested' : 'Confirmed';
-    const mins = r.durationMin ? ` · ${r.durationMin} min` : '';
-    return { n: r.title || 'Session', s: `${st}${mins}`, d: when };
+    const when = d && !isNaN(d) ? d.toLocaleDateString(coachLocale(), { month: 'short', day: 'numeric' }) : '';
+    const st = r.status === 'completed' ? tr('coach:case.stCompleted', { defaultValue: 'Completed' }) : r.status === 'requested' ? tr('coach:case.stRequested', { defaultValue: 'Requested' }) : tr('coach:case.stConfirmed', { defaultValue: 'Confirmed' });
+    const mins = r.durationMin ? tr('coach:case.minsSuffix', { defaultValue: ' · {n} min', n: r.durationMin }) : '';
+    return { n: r.title || tr('coach:today.session', { defaultValue: 'Session' }), s: `${st}${mins}`, d: when };
   }) : null;
   // Strength rollup (key lifts, PRs, avg RPE) — best-effort, demo fallback.
   const L = cLifts || {};
@@ -3530,8 +3585,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => {
       const b = lnum(x.best), dl = lnum(x.delta), e1 = lnum(x.e1rm);
-      const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : '—';
-      return { n: x.name || 'Lift', v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+      const v = b != null ? (e1 != null ? tr('coach:case.liftE1rm', { defaultValue: '{load} kg · {e1rm} e1RM', load: b, e1rm: Math.round(e1) }) : tr('coach:case.liftLoad', { defaultValue: '{load} kg', load: b })) : '—';
+      return { n: x.name || tr('coach:case.liftFallback', { defaultValue: 'Lift' }), v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
     });
   })() : null;
 
@@ -3558,14 +3613,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {bsProMastRow()}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
-        <button type="button" onClick={onBack} aria-label="Back" style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '0 2px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK }}>← BACK</button>
+        <button type="button" onClick={onBack} aria-label={tr('coach:common.backAria', { defaultValue: 'Back' })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '0 2px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK }}>{tr('coach:common.back', { defaultValue: '← BACK' })}</button>
       </div>
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {first} <span style={{ fontStyle: 'italic', color: heat }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
         <BSFacetAvatar size={56} c={heat} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
-        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>CLIENT {sinceLabel}</div>
+        <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.clientSince', { defaultValue: 'CLIENT {since}', since: sinceLabel })}</div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: t.INK70 }}>
           <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: isPast ? t.INK50 : heat, display: 'inline-block' }} />
           {statusLabel}
@@ -3574,15 +3629,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* §C action line — MESSAGE / ADJUST / SCHEDULE / ✦ DRAFT, one row of 4
           typographic cells, each ≥44px, label underlined in heat. */}
       <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${t.INK}12`, borderBottom: `1px solid ${t.INK}12` }}>
-        {actionCell('MESSAGE', () => fireEvt('shape:proMessageClient'))}
-        {actionCell('ADJUST', () => setShowAdjustPage(true))}
-        {actionCell('SCHEDULE', () => setShowSchedulePage(true))}
-        {actionCell('✦ DRAFT', () => setShowDraft(true))}
+        {actionCell(tr('coach:case.actMessage', { defaultValue: 'MESSAGE' }), () => fireEvt('shape:proMessageClient'))}
+        {actionCell(tr('coach:case.actAdjust', { defaultValue: 'ADJUST' }), () => setShowAdjustPage(true))}
+        {actionCell(tr('coach:case.actSchedule', { defaultValue: 'SCHEDULE' }), () => setShowSchedulePage(true))}
+        {actionCell(tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' }), () => setShowDraft(true))}
       </div>
       {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
       {/* §C tabs — PROFILE / MANAGE typographic index, drawn heat underline. */}
       <div style={{ marginTop: 4, display: 'flex' }}>
-        {[['profile', isNutri ? 'PLAN' : 'PROFILE'], ['manage', 'MANAGE']].map(([k, label]) => {
+        {[['profile', isNutri ? tr('coach:case.tabPlan', { defaultValue: 'PLAN' }) : tr('coach:case.tabProfile', { defaultValue: 'PROFILE' })], ['manage', tr('coach:case.tabManage', { defaultValue: 'MANAGE' })]].map(([k, label]) => {
           const on = view === k;
           return (
             <button key={k} type="button" onClick={() => setView(k)} style={{ flex: 1, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 2px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: on ? t.INK : t.INK50, textAlign: 'center', borderBottom: `2px solid ${on ? heat : 'transparent'}` }}>{label}</button>
@@ -3614,9 +3669,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // Real clients with no live macros → '—' values (never demo grams); demo rows
   // keep the example averages.
   const macros = [
-    { n: 'Protein', cur: avgP != null ? avgP : (clientUid ? null : 165), tgt: 170, c: teal },
-    { n: 'Carbs', cur: avgC != null ? avgC : (clientUid ? null : 190), tgt: 200, c: gold },
-    { n: 'Fat', cur: avgF != null ? avgF : (clientUid ? null : 60), tgt: 62, c: rust },
+    { n: tr('coach:case.macroProtein', { defaultValue: 'Protein' }), cur: avgP != null ? avgP : (clientUid ? null : 165), tgt: 170, c: teal },
+    { n: tr('coach:case.macroCarbs', { defaultValue: 'Carbs' }), cur: avgC != null ? avgC : (clientUid ? null : 190), tgt: 200, c: gold },
+    { n: tr('coach:case.macroFat', { defaultValue: 'Fat' }), cur: avgF != null ? avgF : (clientUid ? null : 60), tgt: 62, c: rust },
   ];
   const trackRow = (label, value, deltaColor, delta, pct, barColor) => (
     <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
@@ -3693,14 +3748,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     return _BS_DOW[(nd.getDay() + 6) % 7];
   })();
   const moveVerdict = !hasDirective ? null
-    : _allClear ? `Everything holding — next check-in ${_nextCheckinWeekday} ✓.`
+    : _allClear ? tr('coach:case.moveAllClear', { defaultValue: 'Everything holding — next check-in {weekday} ✓.', weekday: _nextCheckinWeekday })
     : _sig.directive;
-  const moveActionLabel = _allClear ? '✦ DRAFT'
-    : _dirKind === 'new-intake' ? 'MESSAGE'
-    : _dirKind === 'nutrition-slip' ? 'MESSAGE'
-    : _dirKind === 'missed-sessions' ? 'SCHEDULE'
-    : _dirKind === 'program-stall' ? 'ADJUST'
-    : '✦ DRAFT';
+  const moveActionLabel = _allClear ? tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' })
+    : _dirKind === 'new-intake' ? tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })
+    : _dirKind === 'nutrition-slip' ? tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })
+    : _dirKind === 'missed-sessions' ? tr('coach:case.actSchedule', { defaultValue: 'SCHEDULE' })
+    : _dirKind === 'program-stall' ? tr('coach:case.actAdjust', { defaultValue: 'ADJUST' })
+    : tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' });
   const moveActionFn = _allClear || _dirKind === 'check-in-due' ? () => setShowDraft(true)
     : _dirKind === 'new-intake' || _dirKind === 'nutrition-slip' ? () => fireEvt('shape:proMessageClient')
     : _dirKind === 'missed-sessions' ? () => setShowSchedulePage(true)
@@ -3716,17 +3771,17 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const rows = [];
     if (wkndSplit && wkndSplit.status === 'ok' && wkndSplit.worstDimension) {
       const d = (wkndSplit.dimensions || {})[wkndSplit.worstDimension];
-      if (d && d.gapPp != null) rows.push(['WEEKEND ' + (wkndSplit.worstDimension === 'nutrition' ? 'NUTRITION' : wkndSplit.worstDimension === 'training' ? 'TRAINING' : 'HABITS'), `${d.gapPp >= 0 ? '−' : '+'}${Math.abs(Math.round(d.gapPp))} PTS`]);
+      if (d && d.gapPp != null) rows.push([tr('coach:case.evWeekend', { defaultValue: 'WEEKEND {dim}', dim: wkndSplit.worstDimension === 'nutrition' ? tr('coach:case.dimNutritionUp', { defaultValue: 'NUTRITION' }) : wkndSplit.worstDimension === 'training' ? tr('coach:case.dimTrainingUp', { defaultValue: 'TRAINING' }) : tr('coach:case.dimHabitsUp', { defaultValue: 'HABITS' }) }), tr('coach:case.evPts', { defaultValue: '{sign}{gap} PTS', sign: d.gapPp >= 0 ? '−' : '+', gap: Math.abs(Math.round(d.gapPp)) })]);
     }
-    if (_dirKind === 'nutrition-slip' && days7 != null && days7 < 7) rows.push(['LOGS', days7 === 0 ? 'QUIET 7 DAYS' : `QUIET ${7 - days7} DAYS`]);
-    if (_dirKind === 'missed-sessions' && sDone != null && sPlan != null) rows.push(['ATTENDANCE', `${sDone}/${sPlan} SESSIONS`]);
-    if (_dirKind === 'check-in-due' && cKit.checkins.length) rows.push(['LAST CHECK-IN', `WK OF ${String(cKit.checkins[0].week_of).slice(5)}`]);
-    if (avgKcal != null && _dirKind === 'nutrition-slip') rows.push(['AVG INTAKE', `${avgKcal.toLocaleString()} KCAL`]);
+    if (_dirKind === 'nutrition-slip' && days7 != null && days7 < 7) rows.push([tr('coach:case.evLogs', { defaultValue: 'LOGS' }), days7 === 0 ? tr('coach:case.evQuietAll', { defaultValue: 'QUIET 7 DAYS' }) : tr('coach:case.evQuiet', { defaultValue: 'QUIET {n} DAYS', n: 7 - days7 })]);
+    if (_dirKind === 'missed-sessions' && sDone != null && sPlan != null) rows.push([tr('coach:case.evAttendance', { defaultValue: 'ATTENDANCE' }), tr('coach:case.evSessions', { defaultValue: '{done}/{planned} SESSIONS', done: sDone, planned: sPlan })]);
+    if (_dirKind === 'check-in-due' && cKit.checkins.length) rows.push([tr('coach:case.evLastCheckin', { defaultValue: 'LAST CHECK-IN' }), tr('coach:case.evWkOf', { defaultValue: 'WK OF {date}', date: String(cKit.checkins[0].week_of).slice(5) })]);
+    if (avgKcal != null && _dirKind === 'nutrition-slip') rows.push([tr('coach:case.evAvgIntake', { defaultValue: 'AVG INTAKE' }), tr('coach:case.evKcal', { defaultValue: '{kcal} KCAL', kcal: avgKcal.toLocaleString(coachLocale()) })]);
     // ≤3 evidence lines. When there are fewer than 3 real cited rows (i.e. no
     // other dimension is flagged), close with the honest all-clear line —
     // never displace a real evidence row to make room for it.
     const capped = rows.slice(0, 3);
-    if (rows.length < 3) capped.push(['EVERYTHING ELSE', 'HOLDING ✓']);
+    if (rows.length < 3) capped.push([tr('coach:case.evEverythingElse', { defaultValue: 'EVERYTHING ELSE' }), tr('coach:case.evHolding', { defaultValue: 'HOLDING ✓' })]);
     return capped;
   })();
   const dotLeaderRow = (label, value, i) => (
@@ -3738,9 +3793,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   );
   const yourMoveStation = (
     <div ref={moveRef} style={{ marginTop: 20 }}>
-      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="YOUR MOVE · FROM THE ENGINE" />}
+      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.yourMove', { defaultValue: 'YOUR MOVE · FROM THE ENGINE' })} />}
       {!hasDirective ? (
-        window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO READ YET · DATA STILL THIN" /> : null
+        window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noRead', { defaultValue: 'NO READ YET · DATA STILL THIN' })} /> : null
       ) : (
         <>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.3, color: t.INK }}>
@@ -3748,7 +3803,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           </div>
           <button type="button" onClick={moveActionFn} style={{ marginTop: 10, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK }}>
             <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{moveActionLabel} →</span>
-          </button>
+          </button>{/* i18n: moveActionLabel is translated at source */}
           {evidenceRows.length > 0 && (
             <div style={{ marginTop: 8, borderTop: `1px solid ${t.HAIR}`, paddingTop: 6 }}>
               {evidenceRows.map(([l, v], i) => dotLeaderRow(l, v, i))}
@@ -3770,10 +3825,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* ATTENDANCE / ADHERENCE — register pair + BSSdBars(still) week bars. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? 'ADHERENCE · THIS WEEK' : 'ATTENDANCE · THIS BLOCK'} />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.adherenceWeek', { defaultValue: 'ADHERENCE · THIS WEEK' }) : tr('coach:case.attendanceBlock', { defaultValue: 'ATTENDANCE · THIS BLOCK' })} />}
         <div style={{ display: 'flex', gap: 22 }}>
-          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? 'ADHERENCE' : 'ATTENDANCE'} value={`${bigCard.big}%`} seen={statsSeen} figSize={26} />}
-          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? 'DAYS LOGGED' : 'SESSIONS'} value={isNutri ? `${days7Show}/7` : `${sDoneShow}/${sPlanShow}`} seen={statsSeen} figSize={26} delay={60} />}
+          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? tr('coach:case.adherence', { defaultValue: 'ADHERENCE' }) : tr('coach:case.attendance', { defaultValue: 'ATTENDANCE' })} value={`${bigCard.big}%`} seen={statsSeen} figSize={26} />}
+          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? tr('coach:case.daysLogged', { defaultValue: 'DAYS LOGGED' }) : tr('coach:case.sessionsStat', { defaultValue: 'SESSIONS' })} value={isNutri ? `${days7Show}/7` : `${sDoneShow}/${sPlanShow}`} seen={statsSeen} figSize={26} delay={60} />}
         </div>
         <div ref={statsRef} style={{ marginTop: 12 }}>
           {window.BSSdBars && <window.BSSdBars
@@ -3791,7 +3846,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* KEY LIFTS (trainer) / MACROS VS TARGET (nutri). */}
       {!isNutri ? (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="KEY LIFTS" meta={lifts.length ? undefined : null} />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.keyLifts', { defaultValue: 'KEY LIFTS' })} meta={lifts.length ? undefined : null} />}
           {lifts.length ? (
             <>
               {lifts.map((l, i) => (
@@ -3801,15 +3856,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.v} <span style={{ color: heat }}>▲{l.d}</span></span>
                 </div>
               ))}
-              <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>HISTORY</span>
+              <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{tr('coach:case.history', { defaultValue: 'HISTORY' })}</span>
             </>
-          ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="LIFTS · NOT ON RECORD" /> : emptyNote('No lifts logged yet'))}
+          ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.liftsRedact', { defaultValue: 'LIFTS · NOT ON RECORD' })} /> : emptyNote(tr('coach:case.noLifts', { defaultValue: 'No lifts logged yet' })))}
         </div>
       ) : (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="MACROS VS TARGET" />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.macrosVsTarget', { defaultValue: 'MACROS VS TARGET' })} />}
           {window.BSSdBars ? <window.BSSdBars
-            rows={macros.map((m) => [m.n.toUpperCase(), m.cur != null ? `${m.cur}g · ${m.tgt}g tgt` : '—', ''])}
+            rows={macros.map((m) => [m.n.toUpperCase(), m.cur != null ? tr('coach:case.macroVsTgt', { defaultValue: '{cur}g · {tgt}g tgt', cur: m.cur, tgt: m.tgt }) : '—', ''])}
             perf={macros.map((m) => (m.cur != null && m.tgt ? m.cur / m.tgt : 0))}
             bestIdx={-1}
             heat={heat}
@@ -3826,15 +3881,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           (or a demo row / pre-migration read) shows nothing here. */}
       {(selfPlans.programs.length > 0 || selfPlans.repeats.length > 0 || selfPlans.upcoming.length > 0) && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SELF-PROGRAMMED" meta={`${selfPlans.total} ${selfPlans.total === 1 ? 'SESSION' : 'SESSIONS'}`} />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.selfProgrammed', { defaultValue: 'SELF-PROGRAMMED' })} meta={tr('coach:case.sessionsCount', { defaultValue: '{count, plural, one {# SESSION} other {# SESSIONS}}', count: selfPlans.total })} />}
           {selfPlans.programs.map((p, i) => (
             <div key={`sp-prog-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                 {p.nextDate
-                  ? <>{p.nextWeek != null ? `W${p.nextWeek}` : ''}{p.nextWeek != null && p.weeks ? ` OF ${p.weeks}` : ''}{p.nextWeek != null ? ' · ' : ''}<span style={{ color: heat }}>{bsSelfPlanDateLabel(p.nextDate)}</span></>
-                  : 'PAST'}
+                  ? <>{p.nextWeek != null ? `W${p.nextWeek}` : ''}{p.nextWeek != null && p.weeks ? tr('coach:case.weekOfSep', { defaultValue: ' OF {weeks}', weeks: p.weeks }) : ''}{p.nextWeek != null ? ' · ' : ''}<span style={{ color: heat }}>{bsSelfPlanDateLabel(p.nextDate)}</span></>
+                  : tr('coach:roster.labelPast', { defaultValue: 'PAST' })}
               </span>
             </div>
           ))}
@@ -3842,7 +3897,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             <div key={`sp-rep-${i}`} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{r.days} <span style={{ color: t.INK50 }}>· WEEKLY</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{r.days} <span style={{ color: t.INK50 }}>· {tr('coach:case.weekly', { defaultValue: 'WEEKLY' })}</span></span>
             </div>
           ))}
           {selfPlans.upcoming.map((u, i) => (
@@ -3852,24 +3907,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: heat, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsSelfPlanDateLabel(u.date)}</span>
             </div>
           ))}
-          <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>PROGRAMMED BY THE MEMBER</span>
+          <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{tr('coach:case.programmedByMember', { defaultValue: 'PROGRAMMED BY THE MEMBER' })}</span>
         </div>
       )}
 
       {/* BODY — registers + the self-drawing line-only weight trace + LOG →. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BODY" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.body', { defaultValue: 'BODY' })} />}
         {bwHasData && (
           <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
-            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label="WEIGHT" value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks</div>
-            <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY' : 'LOG'}</span>
+            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={tr('coach:case.weight', { defaultValue: 'WEIGHT' })} value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{tr('coach:case.weightDelta', { defaultValue: '{delta} {unit} · {weeks} weeks', delta: bwDelta, unit: bwUnit, weeks: bwWeeks })}</div>
+            <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? tr('coach:case.history', { defaultValue: 'HISTORY' }) : tr('coach:case.log', { defaultValue: 'LOG' })}</span>
           </div>
         )}
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
             const vals = bwSeries.map(Number).filter(Number.isFinite);
-            if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label="WEIGHT · NOT ON RECORD" /> : null;
+            if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.weightRedact', { defaultValue: 'WEIGHT · NOT ON RECORD' })} /> : null;
             const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = 46;
             const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
             const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
@@ -3888,18 +3943,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* CHECK-IN — 3-col mini registers ×6 + the wins/struggles serif pull-quote + asked-you. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={cKit.checkins.length ? `CHECK-IN · WK OF ${String(cKit.checkins[0].week_of).slice(5)}` : 'CHECK-IN'} />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={cKit.checkins.length ? tr('coach:case.checkinWkOf', { defaultValue: 'CHECK-IN · WK OF {date}', date: String(cKit.checkins[0].week_of).slice(5) }) : tr('coach:case.checkin', { defaultValue: 'CHECK-IN' })} />}
         {clientUid && cKit.checkins.length > 0 ? (() => {
           const ck = cKit.checkins[0];
           const R = ck.ratings || {};
-          const items = [['trainingAdherence', 'Training'], ['nutritionAdherence', 'Nutrition'], ['sleep', 'Sleep'], ['energy', 'Energy'], ['stress', 'Stress'], ['hunger', 'Hunger']];
+          const items = [['trainingAdherence', tr('coach:case.ckTraining', { defaultValue: 'Training' })], ['nutritionAdherence', tr('coach:case.ckNutrition', { defaultValue: 'Nutrition' })], ['sleep', tr('coach:case.ckSleep', { defaultValue: 'Sleep' })], ['energy', tr('coach:case.ckEnergy', { defaultValue: 'Energy' })], ['stress', tr('coach:case.ckStress', { defaultValue: 'Stress' })], ['hunger', tr('coach:case.ckHunger', { defaultValue: 'Hunger' })]];
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {items.map(([k, l]) => (
                   <div key={k}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? `${R[k]}/10` : '—'}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? tr('coach:case.ratingOf10', { defaultValue: '{n}/10', n: R[k] }) : '—'}</div>
                   </div>
                 ))}
               </div>
@@ -3907,33 +3962,33 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gap: 9 }}>
                   {ck.wins ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{ck.wins}”</div> : null}
                   {ck.struggles ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{ck.struggles}</div> : null}
-                  {ck.question ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: accent }}>ASKED YOU · {ck.question}</div> : null}
+                  {ck.question ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: accent }}>{tr('coach:case.askedYou', { defaultValue: 'ASKED YOU · {question}', question: ck.question })}</div> : null}
                 </div>
               )}
             </>
           );
-        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="CHECK-IN · NOT SUBMITTED" /> : emptyNote('No check-in yet'))}
+        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.checkinRedact', { defaultValue: 'CHECK-IN · NOT SUBMITTED' })} /> : emptyNote(tr('coach:case.noCheckin', { defaultValue: 'No check-in yet' })))}
       </div>
 
       {/* SLEEP · RECOVERY — readiness + 7-day registers; redactions per field. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SLEEP · RECOVERY" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.sleepRecovery', { defaultValue: 'SLEEP · RECOVERY' })} />}
         {sleepRec ? (() => {
           const s = sleepRec;
           const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
           const cells = [
-            ['LAST NIGHT', s.latest != null ? `${Number(s.latest)}H` : null],
-            ['7-DAY AVG', s.avg7 != null ? `${Number(s.avg7)}H` : null],
-            ['EFFICIENCY', s.efficiency != null ? `${s.efficiency}%` : null],
-            ['RESTING HR', s.rhr != null ? `${s.rhr}` : null],
-            ['HRV', s.hrv != null ? `${s.hrv}` : null],
-            ['RESPIRATORY', s.respiratory != null ? `${s.respiratory}/MIN` : null],
+            [tr('coach:case.lastNight', { defaultValue: 'LAST NIGHT' }), s.latest != null ? `${Number(s.latest)}H` : null],
+            [tr('coach:case.sevenDayAvg', { defaultValue: '7-DAY AVG' }), s.avg7 != null ? `${Number(s.avg7)}H` : null],
+            [tr('coach:case.efficiency', { defaultValue: 'EFFICIENCY' }), s.efficiency != null ? `${s.efficiency}%` : null],
+            [tr('coach:case.restingHr', { defaultValue: 'RESTING HR' }), s.rhr != null ? `${s.rhr}` : null],
+            [tr('coach:common.hrv', { defaultValue: 'HRV' }), s.hrv != null ? `${s.hrv}` : null],
+            [tr('coach:case.respiratory', { defaultValue: 'RESPIRATORY' }), s.respiratory != null ? `${s.respiratory}/MIN` : null],
           ];
           return (
             <>
               {s.readiness != null && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>READINESS</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('coach:case.readiness', { defaultValue: 'READINESS' })}</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 11, color: t.INK50 }}>/100</span>
                   {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
@@ -3948,29 +4003,29 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 ) : (
                   <div key={l}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>— NOT SYNCED</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('coach:case.notSynced', { defaultValue: '— NOT SYNCED' })}</div>
                   </div>
                 ))}
               </div>
             </>
           );
-        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="SLEEP · RECOVERY · NOT SYNCED" /> : emptyNote('No recovery data yet'))}
+        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' })))}
       </div>
 
       {/* ACTIVITY — recent sessions/logs as dot-leader rows. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? 'ACTIVITY · RECENT LOGS' : 'ACTIVITY · RECENT SESSIONS'} />}
-        {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={isNutri ? 'LOGS · NOT ON RECORD' : 'SESSIONS · NOT ON RECORD'} /> : emptyNote(isNutri ? 'No logs yet' : 'No sessions yet'))}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? tr('coach:case.activityLogs', { defaultValue: 'ACTIVITY · RECENT LOGS' }) : tr('coach:case.activitySessions', { defaultValue: 'ACTIVITY · RECENT SESSIONS' })} />}
+        {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={isNutri ? tr('coach:case.logsRedact', { defaultValue: 'LOGS · NOT ON RECORD' }) : tr('coach:case.sessionsRedact', { defaultValue: 'SESSIONS · NOT ON RECORD' })} /> : emptyNote(isNutri ? tr('coach:case.noLogs', { defaultValue: 'No logs yet' }) : tr('coach:case.noSessions', { defaultValue: 'No sessions yet' })))}
       </div>
 
       {/* COACH NOTE — ink-spined quiet block (private, only-you). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="COACH NOTE · ONLY YOU SEE THIS" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.coachNoteHead', { defaultValue: 'COACH NOTE · ONLY YOU SEE THIS' })} />}
         {note ? (
           <div style={{ borderLeft: `3px solid ${t.INK}33`, padding: '2px 0 2px 11px' }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
           </div>
-        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO NOTE ON FILE" /> : null)}
+        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noNote', { defaultValue: 'NO NOTE ON FILE' })} /> : null)}
       </div>
     </div>
   );
@@ -3981,11 +4036,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // goals); private/none/loading → BSTRedact. Same data + gating as before —
   // restyle only (goalsContent no longer wraps its own rounded cards).
   const goalsContent = !clientUid ? (
-    window.BSTRedact ? <window.BSTRedact INK={t.INK} label="GOALS · APPEARS ONCE LINKED" /> : emptyNote('Appears once linked to a live member')
+    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.goalsAppearLinked', { defaultValue: 'GOALS · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.appearsLinked', { defaultValue: 'Appears once linked to a live member' }))
   ) : !cGoalsLoaded ? (
-    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.loading', { defaultValue: 'Loading…' })}</div>
   ) : (cGoals && cGoals.share === false) ? (
-    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={`${first.toUpperCase()} KEEPS GOALS PRIVATE`} /> : emptyNote(`${first} keeps their goals private.`)
+    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.goalsPrivateRedact', { defaultValue: '{name} KEEPS GOALS PRIVATE', name: first.toUpperCase() })} /> : emptyNote(tr('coach:case.goalsPrivate', { defaultValue: '{name} keeps their goals private.', name: first }))
   ) : (() => {
     const ov = cGoals && cGoals.overall;
     const trM = (cGoals && cGoals.trainingMeta) || null;
@@ -3993,7 +4048,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK
     // station; a member sharing only work goals must not read as "none shared".
     const wkM = (cGoals && cGoals.workMeta) || null;
-    if (!ov && !(trM && trM.title) && !(nuM && nuM.title) && !(wkM && wkM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO GOALS SHARED YET" /> : emptyNote('No goals shared yet.'));
+    if (!ov && !(trM && trM.title) && !(nuM && nuM.title) && !(wkM && wkM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noGoalsShared', { defaultValue: 'NO GOALS SHARED YET' })} /> : emptyNote(tr('coach:case.noGoalsSharedFull', { defaultValue: 'No goals shared yet.' })));
     const goalDotRow = (label, value, c, i) => (
       <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{label}</span>
@@ -4009,34 +4064,34 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
           const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
           const byD = ov.by ? new Date(ov.by) : null;
-          const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
+          const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString(coachLocale(), { month: 'short', day: 'numeric' }).toUpperCase() : '';
           return (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: heat }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: heat }}>{tr('coach:case.overall', { defaultValue: 'OVERALL' })}{byLabel ? tr('coach:case.byDate', { defaultValue: ' · BY {date}', date: byLabel }) : ''}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{tr('coach:case.pctThere', { defaultValue: '{pct}% there', pct: Math.round(pct * 100) })}</span>
               </div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
               <div style={{ marginTop: 8, height: 2, borderRadius: 0, background: `${t.INK}22`, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: heat }} /></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{tr('coach:case.goalProgress', { defaultValue: '{down} {unit} so far · {toGo} {unit} to go · now {now}{unit} · target {target}{unit}', down, unit, toGo: Math.abs(toGo), now, target })}</div>
             </div>
           );
         })()}
         {trM && trM.title && (
           <div style={{ marginTop: ov ? 12 : 0 }}>
-            {goalDotRow('Training', trM.title, t.RUST, 0)}
+            {goalDotRow(tr('coach:case.ckTraining', { defaultValue: 'Training' }), trM.title, t.RUST, 0)}
             {trM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{trM.subtitle}</div>}
           </div>
         )}
         {nuM && nuM.title && (
           <div style={{ marginTop: 4 }}>
-            {goalDotRow('Nutrition', nuM.title, '#a07a2e', 1)}
+            {goalDotRow(tr('coach:case.ckNutrition', { defaultValue: 'Nutrition' }), nuM.title, '#a07a2e', 1)}
             {nuM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{nuM.subtitle}</div>}
           </div>
         )}
         {wkM && wkM.title && (
           <div style={{ marginTop: 4 }}>
-            {goalDotRow('Work', wkM.title, t.BLUE, 2)}
+            {goalDotRow(tr('coach:case.dimWork', { defaultValue: 'Work' }), wkM.title, t.BLUE, 2)}
             {wkM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{wkM.subtitle}</div>}
           </div>
         )}
@@ -4048,8 +4103,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* PHASE — typographic index (mono 9/800, active = ink + 2px heat
           underline), the same setPhaseKey handler (ShapeProgramApi-backed). */}
       <div style={{ marginTop: 20 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BLOCK & PHASE" />}
-        {[['trainingPhase', 'TRAINING BLOCK', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base']], ['nutritionPhase', 'NUTRITION PHASE', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed']]].map(([key, label, opts], gi) => (
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.blockPhase', { defaultValue: 'BLOCK & PHASE' })} />}
+        {[['trainingPhase', tr('coach:case.trainingBlock', { defaultValue: 'TRAINING BLOCK' }), ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base']], ['nutritionPhase', tr('coach:case.nutritionPhase', { defaultValue: 'NUTRITION PHASE' }), ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed']]].map(([key, label, opts], gi) => (
           <div key={key} style={{ marginTop: gi ? 14 : 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{label}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
@@ -4064,65 +4119,65 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             </div>
           </div>
         ))}
-        {!clientUid && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
+        {!clientUid && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.demoSaves', { defaultValue: 'Demo client · saves once linked to a live member' })}</div>}
       </div>
 
       {/* ASSIGN — amber-spined notice row → setShowAssignPage(true). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={t.AMBER || '#d8a23a'} INK={t.INK} label={isNutri ? 'MEAL PLAN' : 'PROGRAM'} />}
+        {window.BSTStationHead && <window.BSTStationHead heat={t.AMBER || '#d8a23a'} INK={t.INK} label={isNutri ? tr('coach:case.mealPlanHead', { defaultValue: 'MEAL PLAN' }) : tr('coach:case.programHead', { defaultValue: 'PROGRAM' })} />}
         <button type="button" onClick={() => setShowAssignPage(true)} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', borderLeft: `3px solid ${t.AMBER || '#d8a23a'}`, padding: '9px 0 9px 11px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ flex: 1, minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>ASSIGN FROM YOUR CATALOGUE…</span>
+            <span style={{ flex: 1, minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:case.assignFromCatalogue', { defaultValue: 'ASSIGN FROM YOUR CATALOGUE…' })}</span>
             <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.AMBER || '#d8a23a' }}>›</span>
           </div>
-          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{isNutri ? `A saved meal plan → ${first}'s Eat tab` : `A saved program → ${first}'s Train tab`}</div>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{isNutri ? tr('coach:case.assignHintNutri', { defaultValue: "A saved meal plan → {name}'s Eat tab", name: first }) : tr('coach:case.assignHintTrainer', { defaultValue: "A saved program → {name}'s Train tab", name: first })}</div>
         </button>
       </div>
 
       {/* CLIENT GOALS — shared goals as dot-leader rows; private/none → redaction. */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SHARED GOALS" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.sharedGoals', { defaultValue: 'SHARED GOALS' })} />}
         {goalsContent}
       </div>
 
       {/* DATA QUALITY — reconcile sources (unchanged handler). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="DATA QUALITY" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.dataQuality', { defaultValue: 'DATA QUALITY' })} />}
         {clientUid ? (
           <button type="button" onClick={() => setShowReconcile(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK }}>Which source to trust</span>
-              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>When {first}'s devices disagree on a metric</span>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK }}>{tr('coach:case.whichSource', { defaultValue: 'Which source to trust' })}</span>
+              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.whichSourceSub', { defaultValue: "When {name}'s devices disagree on a metric", name: first })}</span>
             </span>
             <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: heat }}>›</span>
           </button>
-        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="DEMO CLIENT · APPEARS ONCE LINKED" /> : emptyNote('Demo client · appears once linked to a live member'))}
+        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.demoAppearsRedact', { defaultValue: 'DEMO CLIENT · APPEARS ONCE LINKED' })} /> : emptyNote(tr('coach:case.demoAppears', { defaultValue: 'Demo client · appears once linked to a live member' })))}
       </div>
 
       {/* CARE TEAM — press-credit rows (counterpart's ROLE-color spine · name ·
           CO-MANAGING · MESSAGE heat-underline → existing shape:proMessageCoach). */}
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="CARE TEAM" />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.careTeam', { defaultValue: 'CARE TEAM' })} />}
           {careTeam.map((c, i) => {
-            const cName = (c.name || 'Coach').trim();
+            const cName = (c.name || tr('coach:common.coach', { defaultValue: 'Coach' })).trim();
             const cInit = cName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
             const cColor = c.role === 'nutritionist' ? '#a07a2e' : t.RUST;
-            const cRoleLabel = c.role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
+            const cRoleLabel = c.role === 'nutritionist' ? tr('coach:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('coach:role.trainer', { defaultValue: 'Trainer' });
             return (
               <div key={c.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 11, borderLeft: `3px solid ${cColor}`, padding: '9px 0 9px 11px', marginTop: i ? 8 : 0 }}>
                 <BSFacetAvatar size={36} c={cColor} initial={cInit} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cName}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cRoleLabel.toUpperCase()} · CO-MANAGING</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coManaging', { defaultValue: '{role} · CO-MANAGING', role: cRoleLabel.toUpperCase() })}</div>
                 </div>
                 <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>MESSAGE</span>
+                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })}</span>
                 </button>
               </div>
             );
           })}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.coordinatePlan', { defaultValue: "Coordinate {name}'s plan with the rest of the care team", name: first })}</div>
         </div>
       )}
 
@@ -4130,33 +4185,33 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           leader · WAIVE heat-underline action, existing RPC handler). */}
       {clientUid && pens.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="ACCOUNTABILITY · RECENT PENALTIES" />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.accountabilityPenalties', { defaultValue: 'ACCOUNTABILITY · RECENT PENALTIES' })} />}
           {pens.map((p, i) => (
             <div key={p.source_id || i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '7px 0' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>{p.note || 'Penalty'}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>{p.note || tr('coach:case.penalty', { defaultValue: 'Penalty' })}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.RUST, whiteSpace: 'nowrap' }}>−{Math.abs(Number(p.delta) || 0)}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>{p.earned_at ? new Date(p.earned_at).toLocaleDateString() : ''}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>{p.earned_at ? new Date(p.earned_at).toLocaleDateString(coachLocale()) : ''}</span>
               <button type="button" onClick={() => waivePen(p)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>WAIVE</span>
+                <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.waive', { defaultValue: 'WAIVE' })}</span>
               </button>
             </div>
           ))}
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Waiving adds the points back — use it when a miss wasn't on {first}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.waiveHint', { defaultValue: "Waiving adds the points back — use it when a miss wasn't on {name}", name: first })}</div>
         </div>
       )}
 
       {/* ACCOUNTABILITY — set a weekly commitment (unchanged form/handlers). */}
       {clientUid && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="ACCOUNTABILITY · SET A COMMITMENT" />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.setCommitment', { defaultValue: 'ACCOUNTABILITY · SET A COMMITMENT' })} />}
           {!commitForm ? (
             <button type="button" onClick={() => setCommitForm(true)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK }}>
-              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>+ PROPOSE A WEEKLY COMMITMENT →</span>
+              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:case.proposeCommitment', { defaultValue: '+ PROPOSE A WEEKLY COMMITMENT →' })}</span>
             </button>
           ) : (
             <div style={{ borderLeft: `3px solid ${t.INK}33`, padding: '2px 0 2px 11px' }}>
-              {[['Workouts', 'workouts', 0, 14], ['Habit check-offs', 'habits', 0, 21]].map(([label, key, lo, hi], idx) => (
+              {[[tr('coach:case.commitWorkouts', { defaultValue: 'Workouts' }), 'workouts', 0, 14], [tr('coach:case.commitHabits', { defaultValue: 'Habit check-offs' }), 'habits', 0, 21]].map(([label, key, lo, hi], idx) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: idx ? 12 : 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{label}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -4167,44 +4222,44 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 </div>
               ))}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Weekly check-in</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{tr('coach:case.weeklyCheckin', { defaultValue: 'Weekly check-in' })}</div>
                 <button type="button" onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  <span style={{ borderBottom: cf.checkin ? `1px solid ${heat}` : `1px solid ${t.INK}4d`, paddingBottom: 2 }}>{cf.checkin ? 'YES' : 'NO'}</span>
+                  <span style={{ borderBottom: cf.checkin ? `1px solid ${heat}` : `1px solid ${t.INK}4d`, paddingBottom: 2 }}>{cf.checkin ? tr('coach:common.yes', { defaultValue: 'YES' }) : tr('coach:common.no', { defaultValue: 'NO' })}</span>
                 </button>
               </div>
               <div style={{ marginTop: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}><span>STAKE</span><span style={{ color: heat }}>{cf.stake} pts</span></div>
-                <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: heat }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}><span>{tr('coach:case.stake', { defaultValue: 'STAKE' })}</span><span style={{ color: heat }}>{tr('coach:case.stakePts', { defaultValue: '{n} pts', n: cf.stake })}</span></div>
+                <input type="range" aria-label={tr('coach:case.stakePointsAria', { defaultValue: 'Stake points' })} min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: heat }} />
               </div>
               <div style={{ marginTop: 14, display: 'flex', gap: 18 }}>
                 <button type="button" disabled={cfBusy} onClick={proposeCommit} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, opacity: cfBusy ? 0.6 : 1 }}>
-                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{cfBusy ? 'PROPOSING…' : 'PROPOSE →'}</span>
+                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{cfBusy ? tr('coach:case.proposing', { defaultValue: 'PROPOSING…' }) : tr('coach:case.propose', { defaultValue: 'PROPOSE →' })}</span>
                 </button>
-                <button type="button" onClick={() => setCommitForm(false)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>CANCEL</button>
+                <button type="button" onClick={() => setCommitForm(false)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
               </div>
             </div>
           )}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.acceptsBeforeStake', { defaultValue: '{name} accepts before any points are staked', name: first })}</div>
         </div>
       )}
 
       {/* SCREENING — health profile (PAR-Q); redaction when absent. */}
       {clientUid && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SCREENING · HEALTH PROFILE" meta={cKit.health ? (cKit.health.flagged ? 'FLAGGED' : 'ALL CLEAR') : undefined} />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.screening', { defaultValue: 'SCREENING · HEALTH PROFILE' })} meta={cKit.health ? (cKit.health.flagged ? tr('coach:case.flagged', { defaultValue: 'FLAGGED' }) : tr('coach:case.allClear', { defaultValue: 'ALL CLEAR' })) : undefined} />}
           {cKit.health ? (() => {
             const h = cKit.health;
-            const rxLine = h.rxMeds === 'yes' ? (h.medications || 'Yes — not listed') : h.rxMeds === 'no' ? 'None' : (h.medications || null);
+            const rxLine = h.rxMeds === 'yes' ? (h.medications || tr('coach:case.yesNotListed', { defaultValue: 'Yes — not listed' })) : h.rxMeds === 'no' ? tr('coach:case.none', { defaultValue: 'None' }) : (h.medications || null);
             const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
-            const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || 'Yes — not listed') : h.allergies === 'no' ? 'None reported' : null;
-            const pregLine = h.pregnancy === 'yes' ? 'Yes — pregnant or ≤6 months postpartum' : null;
+            const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || tr('coach:case.yesNotListed', { defaultValue: 'Yes — not listed' })) : h.allergies === 'no' ? tr('coach:case.noneReported', { defaultValue: 'None reported' }) : null;
+            const pregLine = h.pregnancy === 'yes' ? tr('coach:case.pregnancyYes', { defaultValue: 'Yes — pregnant or ≤6 months postpartum' }) : null;
             const rows = [
-              ['Prescription medication', rxLine],
-              ['Allergies', allergyLine],
-              ['Pregnancy / postpartum', pregLine],
-              ['Medical conditions', condLine],
-              ['Injuries & surgeries', h.injuries],
-              ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null],
+              [tr('coach:case.rowRx', { defaultValue: 'Prescription medication' }), rxLine],
+              [tr('coach:case.rowAllergies', { defaultValue: 'Allergies' }), allergyLine],
+              [tr('coach:case.rowPregnancy', { defaultValue: 'Pregnancy / postpartum' }), pregLine],
+              [tr('coach:case.rowConditions', { defaultValue: 'Medical conditions' }), condLine],
+              [tr('coach:case.rowInjuries', { defaultValue: 'Injuries & surgeries' }), h.injuries],
+              [tr('coach:case.rowEmergency', { defaultValue: 'Emergency contact' }), h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null],
             ];
             return (
               <div style={{ borderLeft: `3px solid ${h.flagged ? t.RUST : heat}`, padding: '2px 0 2px 11px' }}>
@@ -4214,17 +4269,17 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
                   </div>
                 ) : null)}
-                <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Shared with linked coaches for safety · completed {h.consentAt ? new Date(h.consentAt).toLocaleDateString() : ''}</div>
+                <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:case.screeningShared', { defaultValue: 'Shared with linked coaches for safety · completed {date}', date: h.consentAt ? new Date(h.consentAt).toLocaleDateString(coachLocale()) : '' })}</div>
               </div>
             );
-          })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO HEALTH PROFILE ON FILE" /> : emptyNote('No health profile on file yet'))}
+          })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noHealthRedact', { defaultValue: 'NO HEALTH PROFILE ON FILE' })} /> : emptyNote(tr('coach:case.noHealth', { defaultValue: 'No health profile on file yet' })))}
         </div>
       )}
 
       {/* BODY — latest measurements (dot-leader rows). */}
       {clientUid && cKit.meas.length > 0 && (
         <div style={{ marginTop: 22 }}>
-          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BODY · LATEST MEASUREMENTS" />}
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.bodyMeasurements', { defaultValue: 'BODY · LATEST MEASUREMENTS' })} />}
           {cKit.meas.map((m, i) => (
             <div key={m.site} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{m.site}</span>
@@ -4238,9 +4293,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 
       {/* PRIVATE — coach notes (quiet form, unchanged — two-tier rule). */}
       <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="PRIVATE · COACH NOTES" />}
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.privateNotes', { defaultValue: 'PRIVATE · COACH NOTES' })} />}
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>
-          {isNutri ? 'Clinical notes' : 'Training notes'} for {client.n} — history, compliance, habits, and messaging context live here.
+          {isNutri ? tr('coach:case.notesBodyNutri', { defaultValue: 'Clinical notes for {name} — history, compliance, habits, and messaging context live here.', name: client.n }) : tr('coach:case.notesBodyTrainer', { defaultValue: 'Training notes for {name} — history, compliance, habits, and messaging context live here.', name: client.n })}
         </div>
       </div>
     </div>
@@ -4252,7 +4307,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {headerBlock}
         {view === 'manage' ? manageView : profileView}
       </div>
-      <BSFooter left={isNutri ? 'Client plan' : 'Full profile'} right={client.n} />
+      <BSFooter left={isNutri ? tr('coach:case.footerNutri', { defaultValue: 'Client plan' }) : tr('coach:case.footerTrainer', { defaultValue: 'Full profile' })} right={client.n} />
     </BSPage>
   );
 }
@@ -4261,7 +4316,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 // Editable draft — after an AI (or blank) generation the coach lands here to
 // customize the name, the sections (add / rename / remove / reorder-by-edit),
 // and a note, then publishes. Shared by the trainer + nutritionist pages.
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel = 'Sections', initialName, initialBlocks, initialNote, initialMedia, onPublish, onCancel }) {
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, onPublish, onCancel }) {
+  const tr = useShapeTr();
+  const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
   const [name, setName] = useStateBSP(initialName || '');
   const [blocks, setBlocks] = useStateBSP(initialBlocks || []);
   const [note, setNote] = useStateBSP(initialNote || '');
@@ -4273,11 +4330,11 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     const files = Array.from(e.target.files || []);
     if (e.target) e.target.value = '';
     if (!files.length) return;
-    if (!window.ShapeCoachMedia?.upload) { setStatus('Sign in to upload media.'); setTimeout(() => setStatus(''), 1800); return; }
+    if (!window.ShapeCoachMedia?.upload) { setStatus(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); setTimeout(() => setStatus(''), 1800); return; }
     setUploading(true);
     for (const f of files) {
       try { const m = await window.ShapeCoachMedia.upload(f); if (m && m.url) setMedia(list => [...list, m]); }
-      catch (err) { setStatus(String(err?.message || 'Upload failed')); setTimeout(() => setStatus(''), 2200); }
+      catch (err) { setStatus(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); setTimeout(() => setStatus(''), 2200); }
     }
     setUploading(false);
   };
@@ -4293,10 +4350,10 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     const i = clipTargetRef.current;
     clipTargetRef.current = null;
     if (!file || i == null) return;
-    if (!window.ShapeCoachMedia?.upload) { setStatus('Sign in to upload media.'); setTimeout(() => setStatus(''), 1800); return; }
+    if (!window.ShapeCoachMedia?.upload) { setStatus(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); setTimeout(() => setStatus(''), 1800); return; }
     setUploading(true);
     try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
-    catch (err) { setStatus(String(err?.message || 'Upload failed')); setTimeout(() => setStatus(''), 2200); }
+    catch (err) { setStatus(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); setTimeout(() => setStatus(''), 2200); }
     setUploading(false);
   };
   const clearClip = (i) => setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
@@ -4310,18 +4367,18 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     <BSPage>
       <div style={{ padding: `60px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT · {(typeName || '').toUpperCase()}</div>
-          <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{tr('coach:editor.editEyebrow', { defaultValue: 'EDIT · {type}', type: (typeName || '').toUpperCase() })}</div>
+          <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Customize <span style={{ fontStyle: 'italic', color: accent }}>your {typeName}.</span></div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>Tweak anything below, then publish. Nothing's live until you do.</div>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('coach:editor.customize', { defaultValue: 'Customize' })} <span style={{ fontStyle: 'italic', color: accent }}>{tr('coach:editor.yourType', { defaultValue: 'your {type}.', type: typeName })}</span></div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{tr('coach:editor.tweakBelow', { defaultValue: "Tweak anything below, then publish. Nothing's live until you do." })}</div>
 
-        <div style={{ marginTop: 20 }}>{lbl('NAME')}<input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></div>
+        <div style={{ marginTop: 20 }}>{lbl(tr('coach:editor.name', { defaultValue: 'NAME' }))}<input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></div>
 
         <div style={{ marginTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            {lbl(blockLabel)}
-            <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>+ ADD</button>
+            {lbl(blockLabelText)}
+            <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>{tr('coach:editor.add', { defaultValue: '+ ADD' })}</button>
           </div>
           <input ref={clipInputRef} type="file" accept="video/*" onChange={pickClip} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -4331,31 +4388,31 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
                 <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   {b.video ? (<>
-                    <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={`Play clip for ${b.text || 'exercise'}`} style={clipBtnStyle}>▶ CLIP</button>
-                    <button type="button" onClick={() => clearClip(i)} aria-label={`Remove clip from ${b.text || 'exercise'}`} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
+                    <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={tr('coach:editor.playClipAria', { defaultValue: 'Play clip for {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={clipBtnStyle}>{tr('coach:editor.playClip', { defaultValue: '▶ CLIP' })}</button>
+                    <button type="button" onClick={() => clearClip(i)} aria-label={tr('coach:editor.removeClipAria', { defaultValue: 'Remove clip from {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
                   </>) : (
-                    <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={`Attach a video clip to ${b.text || 'exercise'}`} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>＋ CLIP</button>
+                    <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={tr('coach:editor.attachClipAria', { defaultValue: 'Attach a video clip to {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>{tr('coach:editor.addClip', { defaultValue: '＋ CLIP' })}</button>
                   )}
-                  <button type="button" onClick={() => rmBlock(i)} aria-label="Remove" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                  <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
                 </span>
               </div>
             ))}
-            {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>None yet — add one.</div>}
+            {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>{tr('coach:editor.noneYet', { defaultValue: 'None yet — add one.' })}</div>}
           </div>
         </div>
 
-        <div style={{ marginTop: 18 }}>{lbl('COACH NOTE')}<textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the client should know…" style={{ ...inputStyle, lineHeight: 1.5, resize: 'vertical' }} /></div>
+        <div style={{ marginTop: 18 }}>{lbl(tr('coach:editor.coachNote', { defaultValue: 'COACH NOTE' }))}<textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={tr('coach:editor.notePlaceholder', { defaultValue: 'Anything the client should know…' })} style={{ ...inputStyle, lineHeight: 1.5, resize: 'vertical' }} /></div>
 
         <div style={{ marginTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            {lbl('MEDIA · PHOTOS & VIDEOS')}
-            <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} disabled={uploading} style={{ border: 0, background: 'transparent', cursor: uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent, opacity: uploading ? 0.5 : 1 }}>{uploading ? 'UPLOADING…' : '+ UPLOAD'}</button>
+            {lbl(tr('coach:editor.media', { defaultValue: 'MEDIA · PHOTOS & VIDEOS' }))}
+            <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} disabled={uploading} style={{ border: 0, background: 'transparent', cursor: uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent, opacity: uploading ? 0.5 : 1 }}>{uploading ? tr('coach:editor.uploading', { defaultValue: 'UPLOADING…' }) : tr('coach:editor.upload', { defaultValue: '+ UPLOAD' })}</button>
           </div>
           <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple onChange={pickMedia} style={{ display: 'none' }} />
           {media.length === 0
             ? <div onClick={() => mediaInputRef.current && mediaInputRef.current.click()} style={{ borderRadius: 12, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '18px 13px', textAlign: 'center', cursor: 'pointer' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Add demo photos or videos</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>Show clients the moves in this {typeName}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:editor.addMedia', { defaultValue: 'Add demo photos or videos' })}</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{tr('coach:editor.showMoves', { defaultValue: 'Show clients the moves in this {type}', type: typeName })}</div>
               </div>
             : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {media.map((m, i) => (
@@ -4363,23 +4420,24 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                     {m.type === 'video'
                       ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
                       : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                    {m.type === 'video' && <div style={{ position: 'absolute', bottom: 4, left: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 4px' }}>VIDEO</div>}
-                    <button onClick={() => rmMedia(i)} aria-label="Remove" style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 }}>×</button>
+                    {m.type === 'video' && <div style={{ position: 'absolute', bottom: 4, left: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 4px' }}>{tr('coach:editor.videoBadge', { defaultValue: 'VIDEO' })}</div>}
+                    <button onClick={() => rmMedia(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 }}>×</button>
                   </div>
                 ))}
               </div>}
         </div>
 
-        <button onClick={async () => { setStatus('Publishing…'); await onPublish({ name, blocks, note, media }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || `Publish ${typeName} →`}</button>
-        <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>Saves to your library · you can edit again anytime</div>
+        <button onClick={async () => { setStatus(tr('coach:editor.publishing', { defaultValue: 'Publishing…' })); await onPublish({ name, blocks, note, media }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || tr('coach:editor.publish', { defaultValue: 'Publish {type} →', type: typeName })}</button>
+        <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.savesLibrary', { defaultValue: 'Saves to your library · you can edit again anytime' })}</div>
       </div>
-      <BSFooter left="Edit draft" right={typeName} />
+      <BSFooter left={tr('coach:editor.footer', { defaultValue: 'Edit draft' })} right={typeName} />
     </BSPage>
   );
 }
 
 function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const heat = bsProHeat(t, 'trainer');
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
@@ -4396,12 +4454,12 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
-  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
+  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash(tr('coach:plans.shareCopied', { defaultValue: 'Share link copied' })); };
   useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('program').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
   const duplicate = async (p) => {
-    const copy = { kind: 'program', name: `${p.n} (copy)`, meta: p.meta, price: p.price };
-    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash('Program duplicated'); return; } } catch (e) {} }
-    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Program duplicated');
+    const copy = { kind: 'program', name: tr('coach:plans.copyName', { defaultValue: '{name} (copy)', name: p.n }), meta: p.meta, price: p.price };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash(tr('coach:plans.programDuplicated', { defaultValue: 'Program duplicated' })); return; } } catch (e) {} }
+    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash(tr('coach:plans.programDuplicated', { defaultValue: 'Program duplicated' }));
   };
   const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
@@ -4411,8 +4469,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const [clipUploading, setClipUploading] = useStateBSP(false);
   const clipVideoRef = React.useRef(null);
   const openClipAdder = () => {
-    if (!serverPlans || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Sign in and publish a plan to add workout clips'); return; }
-    if (!serverPlans.length) { flash('Publish a plan first, then add a clip'); return; }
+    if (!serverPlans || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash(tr('coach:plans.clipSignIn', { defaultValue: 'Sign in and publish a plan to add workout clips' })); return; }
+    if (!serverPlans.length) { flash(tr('coach:plans.clipPublishFirst', { defaultValue: 'Publish a plan first, then add a clip' })); return; }
     setClipSheet(true);
   };
   const pickPlanForClip = (id) => { setClipPlanId(id); if (clipVideoRef.current) clipVideoRef.current.click(); };
@@ -4421,7 +4479,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     if (e.target) e.target.value = '';
     const planId = clipPlanId;
     const plan = (serverPlans || []).find(p => p.id === planId);
-    if (!file || !plan || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash('Could not add clip'); return; }
+    if (!file || !plan || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash(tr('coach:plans.clipFailed', { defaultValue: 'Could not add clip' })); return; }
     setClipUploading(true);
     try {
       const m = await window.ShapeCoachMedia.upload(file);
@@ -4430,9 +4488,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         const row = await window.ShapeCoachPlans.update({ id: plan.id, detail: nextDetail });
         const merged = (row && row.detail) ? row : { ...plan, detail: nextDetail };
         setServerPlans(list => (list || []).map(p => (p.id === plan.id ? merged : p)));
-        flash('Clip added to ' + plan.name);
+        flash(tr('coach:plans.clipAdded', { defaultValue: 'Clip added to {name}', name: plan.name }));
       }
-    } catch (err) { flash(String(err?.message || 'Upload failed')); }
+    } catch (err) { flash(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); }
     setClipUploading(false);
     setClipPlanId(null);
     setClipSheet(false);
@@ -4474,14 +4532,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Warmup & mobility', meta: '6 videos · 9 min · in 4 plans' },
   ];
   const [tab, setTab] = useStateBSP('library');
-  const TABS = [['library', 'Library'], ['soundtracks', 'Soundtracks']];
+  const TABS = [['library', tr('coach:plans.tabLibrary', { defaultValue: 'Library' })], ['soundtracks', tr('coach:plans.tabSoundtracks', { defaultValue: 'Soundtracks' })]];
   // Library sub-tabs. NOTE the labels: Plans = multi-week paid programs,
   // Programs = reusable weekly routines/templates, Workouts = single sessions.
   const [libTab, setLibTab] = useStateBSP('plans');
-  const LIB_TABS = [['plans', 'Plans'], ['workouts', 'Workouts'], ['programs', 'Programs']];
+  const LIB_TABS = [['plans', tr('coach:plans.subPlans', { defaultValue: 'Plans' })], ['workouts', tr('coach:plans.subWorkouts', { defaultValue: 'Workouts' })], ['programs', tr('coach:plans.subPrograms', { defaultValue: 'Programs' })]];
   const [buildType, setBuildType] = useStateBSP('plan'); // plan | workout | program
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
-  const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
+  const BUILD_LABEL = { plan: tr('coach:plans.buildPlan', { defaultValue: 'plan' }), workout: tr('coach:plans.buildWorkout', { defaultValue: 'workout' }), program: tr('coach:plans.buildProgram', { defaultValue: 'program' }) };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
@@ -4489,7 +4547,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [] } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
-    flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
+    flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
   };
   // Single day workouts — demo catalogue (signed-OUT preview only; §5 CodeRabbit).
@@ -4524,7 +4582,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue plan to a linked client ──
-  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash('Assigned — it\'s on their Train tab'); }} />;
+  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
@@ -4543,7 +4601,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       </div>
     );
     const generate = async () => {
-      setDraftStatus(blankMode ? 'Opening editor…' : 'Generating…');
+      setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
       const outline = blankMode ? mk(['', '', '']) : (buildType === 'workout'
@@ -4551,7 +4609,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         : buildType === 'program'
         ? mk(['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest'])
         : mk(['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest']));
-      const blockLabel = buildType === 'workout' ? 'Exercises' : buildType === 'program' ? 'Weekly split' : 'Weeks';
+      const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
       setDrafting(false);
       setEditDraft({ name: `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
@@ -4559,30 +4617,30 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <BSPage>
         <div style={{ padding: `60px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
+            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? 'Build a' : 'Describe the'} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>{tr('coach:plans.building', { defaultValue: 'BUILDING' })}</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[['plan', 'Plan'], ['workout', 'Workout'], ['program', 'Program']].map(([k, l]) => {
+              {[['plan', tr('coach:plans.kindPlan', { defaultValue: 'Plan' })], ['workout', tr('coach:plans.kindWorkout', { defaultValue: 'Workout' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })]].map(([k, l]) => {
                 const on = buildType === k;
                 return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{l}</button>;
               })}
             </div>
-            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'plan' ? 'A multi-week paid program clients enroll in.' : buildType === 'program' ? 'A reusable weekly routine / template.' : 'A single day workout session.'}</div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'plan' ? tr('coach:plans.descPlan', { defaultValue: 'A multi-week paid program clients enroll in.' }) : buildType === 'program' ? tr('coach:plans.descProgram', { defaultValue: 'A reusable weekly routine / template.' }) : tr('coach:plans.descWorkout', { defaultValue: 'A single day workout session.' })}</div>
           </div>
-          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
-          {chips('FOCUS', focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
-          {chips('EXPERIENCE', exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
-          {chips('EQUIPMENT', equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
-          {chips('LENGTH', length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? `Create ${BUILD_LABEL[buildType]}` : '✦ Generate draft')}</button>
-          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
+          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder={tr('coach:plans.descPlaceholderTrainer', { defaultValue: 'e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only' })} style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
+          {chips(tr('coach:plans.focusLabel', { defaultValue: 'FOCUS' }), focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
+          {chips(tr('coach:plans.experienceLabel', { defaultValue: 'EXPERIENCE' }), exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
+          {chips(tr('coach:plans.equipmentLabel', { defaultValue: 'EQUIPMENT' }), equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
+          {chips(tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
-        <BSFooter left="AI draft" right="Workout" />
+        <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:plans.footerAiWorkout', { defaultValue: 'Workout' })} />
       </BSPage>
     );
   }
@@ -4598,8 +4656,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
   // shows the live PUBLISHED count once loaded, else "—" (no fabricated drafts).
   const catalogueStat = !signedIn
-    ? '· 4 PUBLISHED · 1 DRAFT'
-    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
+    ? tr('coach:plans.catalogueDemoTrainer', { defaultValue: '· 4 PUBLISHED · 1 DRAFT' })
+    : (serverPlans === null ? '· —' : tr('coach:plans.publishedCount', { defaultValue: '· {count} PUBLISHED', count: serverPlans.length }));
 
   return (
     <BSPage>
@@ -4608,10 +4666,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
+          {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
         <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
-          Your <i style={{ color: heat, fontStyle: 'italic' }}>programs.</i>
+          {tr('coach:plans.yourWord', { defaultValue: 'Your' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:plans.programsAccent', { defaultValue: 'programs.' })}</i>
         </div>
       </div>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
@@ -4620,17 +4678,17 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
         {clipSheet && createPortal(
           <div onClick={closeClipSheet} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a clip to a workout" style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:plans.clipSheetAria', { defaultValue: 'Add a clip to a workout' })} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
               <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>＋ Add a clip</div>
-                <button type="button" onClick={closeClipSheet} aria-label="Close" style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginTop: -8, marginRight: -6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>{tr('coach:plans.addClipEyebrow', { defaultValue: '＋ Add a clip' })}</div>
+                <button type="button" onClick={closeClipSheet} aria-label={tr('coach:common.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginTop: -8, marginRight: -6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
               </div>
-              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Pick a <span style={{ fontStyle: 'italic', color: heat }}>workout.</span></div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{clipUploading ? 'Uploading…' : 'Choose which plan this clip belongs to, then pick a video.'}</div>
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:plans.pickA', { defaultValue: 'Pick a' })} <span style={{ fontStyle: 'italic', color: heat }}>{tr('coach:plans.workoutAccent', { defaultValue: 'workout.' })}</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>{clipUploading ? tr('coach:plans.uploading', { defaultValue: 'Uploading…' }) : tr('coach:plans.chooseClipPlan', { defaultValue: 'Choose which plan this clip belongs to, then pick a video.' })}</div>
               <div style={{ marginTop: 12 }}>
                 {(serverPlans || []).map((p, i) => (
-                  <button key={p.id || i} type="button" disabled={clipUploading} onClick={() => pickPlanForClip(p.id)} aria-label={`Add a clip to ${p.name}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minHeight: 52, textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: clipUploading ? 'default' : 'pointer', padding: '13px 0', opacity: clipUploading ? 0.5 : 1 }}>
+                  <button key={p.id || i} type="button" disabled={clipUploading} onClick={() => pickPlanForClip(p.id)} aria-label={tr('coach:plans.addClipToAria', { defaultValue: 'Add a clip to {name}', name: p.name })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', minHeight: 52, textAlign: 'left', background: 'transparent', border: 0, borderTop: `1px solid ${t.INK}12`, cursor: clipUploading ? 'default' : 'pointer', padding: '13px 0', opacity: clipUploading ? 0.5 : 1 }}>
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
                       {p.meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{p.meta}</span>}
@@ -4645,25 +4703,25 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         )}
 
         {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
-        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
+        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: tr('coach:plans.libraryOrSoundtracks', { defaultValue: 'Library or soundtracks' }) })}</div>
 
         {tab === 'library' && (<>
         {/* §1.3 Create actions — draft with AI · build from scratch */}
         <div style={{ marginTop: 6 }}>
-          <BSProTextAction heat={heat} t={t} label={`✦ Draft a ${BUILD_LABEL[libBuild]} in seconds →`} onClick={() => openDraft(libBuild)} />
-          <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft(libBuild, true)} />
+          <BSProTextAction heat={heat} t={t} label={tr('coach:plans.draftInSeconds', { defaultValue: '✦ Draft a {type} in seconds →', type: BUILD_LABEL[libBuild] })} onClick={() => openDraft(libBuild)} />
+          <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft(libBuild, true)} />
         </div>
 
         {/* §1.4 Kind sub-tabs — Plans / Workouts / Programs */}
-        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: 'Catalogue kind' })}</div>
+        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }) })}</div>
 
         {libTab === 'plans' && (<>
         {/* §1.5 THE CATALOGUE — paid plans as dot-leader rows */}
-        {stationHead('PAID PLANS', monoTrail(`SORT · ${sort.toUpperCase()} →`, cycleSort))}
+        {stationHead(tr('coach:plans.paidPlans', { defaultValue: 'PAID PLANS' }), monoTrail(tr('coach:plans.sortBy', { defaultValue: 'SORT · {mode} →', mode: (sort === 'Price' ? tr('coach:plans.sortPrice', { defaultValue: 'PRICE' }) : sort === 'Rating' ? tr('coach:plans.sortRating', { defaultValue: 'RATING' }) : tr('coach:plans.sortPopular', { defaultValue: 'POPULAR' })) }), cycleSort))}
         {programs.length === 0 ? (
           <div style={{ marginTop: 2 }}>
-            {Redact ? <Redact INK={t.INK} label="NO PUBLISHED PLANS" /> : null}
-            <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft('plan', true)} />
+            {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
+            <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('plan', true)} />
           </div>
         ) : (
           <div style={{ marginTop: 2 }}>
@@ -4675,9 +4733,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           </div>
         )}
         {/* §1.6 ENROLLED — clients on plans */}
-        {stationHead('ENROLLED')}
+        {stationHead(tr('coach:plans.enrolled', { defaultValue: 'ENROLLED' }))}
         {enrolled.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO ENROLLED CLIENTS" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' })} /> : null
         ) : (
           <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
         )}
@@ -4687,14 +4745,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Top workout — unboxed verdict lead. §5 (CodeRabbit) — fabricated
             "used by 34 · 4.9 ★" so signed-OUT preview only. */}
         {!signedIn && featureLead('TOP WORKOUT · 62 MIN', 'Lower Push —', 'Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('workout')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Lower Push Peak')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('workout')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Lower Push Peak')} /></span>
         </>)}
         {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead('SESSIONS', monoTrail('NEW →', () => openDraft('workout')))}
+        {stationHead(tr('coach:plans.sessions', { defaultValue: 'SESSIONS' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('workout')))}
         {workouts.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO WORKOUTS YET" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {workouts.map((w, i) => (
@@ -4707,36 +4765,36 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {/* Video library — real clips flattened from published plans (plan
             media + per-block clips); demo cues are the signed-out fallback. */}
-        {stationHead('WORKOUT VIDEOS')}
-        <BSProTextAction heat={heat} t={t} label="＋ Add a clip to a workout →" onClick={openClipAdder} />
+        {stationHead(tr('coach:plans.workoutVideos', { defaultValue: 'WORKOUT VIDEOS' }))}
+        <BSProTextAction heat={heat} t={t} label={tr('coach:plans.addClipAction', { defaultValue: '＋ Add a clip to a workout →' })} onClick={openClipAdder} />
         {serverPlans === null ? (
           !signedIn ? (
             // Signed-out preview → demo cues are fine.
             <div style={{ marginTop: 2 }}>
               {cues.map((c, i) => (
-                <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash('Open video set')} />
+                <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash(tr('coach:plans.openVideoSet', { defaultValue: 'Open video set' }))} />
               ))}
             </div>
           ) : (
             // Signed-in but still loading → redaction line, never fabricated counts.
-            <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="CLIPS · LOADING" /> : null}</div>
+            <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.clipsLoading', { defaultValue: 'CLIPS · LOADING' })} /> : null}</div>
           )
         ) : (() => {
           const clips = [];
           (serverPlans || []).forEach((p) => {
             const d = p && p.detail;
-            const from = 'FROM ' + String((p && p.name) || 'PLAN').toUpperCase();
+            const from = tr('coach:plans.fromPlan', { defaultValue: 'FROM {name}', name: String((p && p.name) || tr('coach:plans.planFallback', { defaultValue: 'PLAN' })).toUpperCase() });
             (d && Array.isArray(d.media) ? d.media : []).forEach((m) => {
-              if (m && m.type === 'video' && m.url) clips.push({ url: m.url, name: (m.name && m.name.trim()) || 'Clip', meta: from });
+              if (m && m.type === 'video' && m.url) clips.push({ url: m.url, name: (m.name && m.name.trim()) || tr('coach:plans.clipFallback', { defaultValue: 'Clip' }), meta: from });
             });
             (d && Array.isArray(d.blocks) ? d.blocks : []).forEach((b) => {
               if (b && b.video) {
                 const words = String((b.text) || '').trim().split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
-                clips.push({ url: b.video, name: words || 'Clip', meta: from });
+                clips.push({ url: b.video, name: words || tr('coach:plans.clipFallback', { defaultValue: 'Clip' }), meta: from });
               }
             });
           });
-          if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label="NO CLIPS YET" /> : null}</div>;
+          if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.noClips', { defaultValue: 'NO CLIPS YET' })} /> : null}</div>;
           return (
             <div style={{ marginTop: 2 }}>
               {clips.map((c, i) => (
@@ -4751,14 +4809,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
             "used by 22 · 4.8 ★" so signed-OUT preview only. */}
         {!signedIn && featureLead('TOP PROGRAM · 8 WK', '5-day Upper /', 'Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('5-day Upper Lower')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('program')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('5-day Upper Lower')} /></span>
         </>)}
         {/* Reusable weekly routines / templates — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead('TEMPLATES', monoTrail('NEW →', () => openDraft('program')))}
+        {stationHead(tr('coach:plans.templates', { defaultValue: 'TEMPLATES' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('program')))}
         {routines.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {routines.map((r, i) => (
@@ -4775,7 +4833,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <BSProSoundtracks role="trainer" embedded onBack={() => setTab('library')} />
         )}
       </div>
-      <BSFooter left="The Coach Edition" right="Programs" />
+      <BSFooter left={tr('coach:common.coachEdition', { defaultValue: 'The Coach Edition' })} right={tr('coach:plans.footerRightTrainer', { defaultValue: 'Programs' })} />
     </BSPage>
   );
 }
@@ -5012,6 +5070,7 @@ function BSNutritionistApp({ onLogout, tweaks, setTweak }) {
 }
 function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
+  const tr = useShapeTr();
   const sheet = useBSSheet();
   const [, _bumpIdentity] = useStateBSP(0);
   React.useEffect(() => {
@@ -5195,11 +5254,11 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
-        { key: 'today',    label: 'Today' },
-        { key: 'clients',  label: 'Clients' },
-        { key: 'plans',    label: 'Plans' },
-        { key: 'chat',     label: 'Chat' },
-        { key: 'me',       label: 'Me' },
+        { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
+        { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
+        { key: 'plans',    label: tr('coach:nav.plans', { defaultValue: 'Plans' }) },
+        { key: 'chat',     label: tr('coach:nav.chat', { defaultValue: 'Chat' }) },
+        { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
       {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
@@ -5291,6 +5350,7 @@ function BSProPlansTabBar({ active, onChange }) {
 
 function BSNutriPlans() {
   const t = useBS();
+  const tr = useShapeTr();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', heat = bsProHeat(t, 'nutritionist');
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
@@ -5306,12 +5366,12 @@ function BSNutriPlans() {
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans (meal_plan)
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
-  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash('Share link copied'); };
+  const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash(tr('coach:plans.shareCopied', { defaultValue: 'Share link copied' })); };
   useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('meal_plan').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
   const duplicate = async (p) => {
-    const copy = { kind: 'meal_plan', name: `${p.n} (copy)`, meta: p.meta, price: p.price };
-    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash('Plan duplicated'); return; } } catch (e) {} }
-    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Plan duplicated');
+    const copy = { kind: 'meal_plan', name: tr('coach:plans.copyName', { defaultValue: '{name} (copy)', name: p.n }), meta: p.meta, price: p.price };
+    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash(tr('coach:diet.planDuplicated', { defaultValue: 'Plan duplicated' })); return; } } catch (e) {} }
+    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash(tr('coach:diet.planDuplicated', { defaultValue: 'Plan duplicated' }));
   };
 
   // §4 (CodeRabbit) — the PAID PLANS list only wants paid meal plans. Filter the
@@ -5337,14 +5397,14 @@ function BSNutriPlans() {
     { n: 'Weight-loss kickstart', meta: '4 wks · calorie-controlled · $110' },
   ];
   const [tab, setTab] = useStateBSP('library');
-  const TABS = [['library', 'Library'], ['soundtracks', 'Soundtracks']];
+  const TABS = [['library', tr('coach:plans.tabLibrary', { defaultValue: 'Library' })], ['soundtracks', tr('coach:plans.tabSoundtracks', { defaultValue: 'Soundtracks' })]];
   // Library sub-tabs. Plans = multi-week paid meal plans, Programs = lifestyle
   // meal programs you sell, Diet = diet-specific meals / plans.
   const [libTab, setLibTab] = useStateBSP('plans');
-  const LIB_TABS = [['plans', 'Plans'], ['programs', 'Programs'], ['diet', 'Diet']];
+  const LIB_TABS = [['plans', tr('coach:plans.subPlans', { defaultValue: 'Plans' })], ['programs', tr('coach:plans.subPrograms', { defaultValue: 'Programs' })], ['diet', tr('coach:diet.subDiet', { defaultValue: 'Diet' })]];
   const [buildType, setBuildType] = useStateBSP('mealplan'); // mealplan | program | diet
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
-  const BUILD_LABEL = { mealplan: 'meal plan', program: 'program', diet: 'diet' };
+  const BUILD_LABEL = { mealplan: tr('coach:diet.buildMealPlan', { defaultValue: 'meal plan' }), program: tr('coach:plans.buildProgram', { defaultValue: 'program' }), diet: tr('coach:diet.buildDiet', { defaultValue: 'diet' }) };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
@@ -5352,7 +5412,7 @@ function BSNutriPlans() {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [] } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
-    flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
+    flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
   };
   const libBuild = ({ plans: 'mealplan', programs: 'program', diet: 'diet' })[libTab] || 'mealplan';
@@ -5384,7 +5444,7 @@ function BSNutriPlans() {
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue meal plan to a linked client ──
-  if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash('Assigned — it\'s on their Eat tab'); }} />;
+  if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
@@ -5403,7 +5463,7 @@ function BSNutriPlans() {
       </div>
     );
     const generate = async () => {
-      setDraftStatus(blankMode ? 'Opening editor…' : 'Generating…');
+      setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({ kind: buildType, goal, client: '', level: diet, duration: '7 days', calories: cals.replace('~', ''), preferences: desc, protein: '' }); } catch (e) {} }
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
       const outline = blankMode ? mk(['', '', '']) : (buildType === 'program'
@@ -5411,7 +5471,7 @@ function BSNutriPlans() {
         : buildType === 'diet'
         ? mk(['Breakfast options', 'Lunch options', 'Dinner options', 'Snacks', 'Foods to favour', 'Foods to avoid'])
         : mk(['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal', 'Dinner · ~650 kcal', 'Evening · ~150 kcal']));
-      const blockLabel = buildType === 'program' ? 'Weeks' : buildType === 'diet' ? 'Meal options' : 'Daily meals';
+      const blockLabel = buildType === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : buildType === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
       setDrafting(false);
       setEditDraft({ name: `${goal} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
@@ -5419,35 +5479,35 @@ function BSNutriPlans() {
       <BSPage>
         <div style={{ padding: `60px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
+            <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? 'Build a' : 'Describe the'} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
           {/* What are you building? */}
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>BUILDING</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>{tr('coach:plans.building', { defaultValue: 'BUILDING' })}</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[['mealplan', 'Meal plan'], ['program', 'Program'], ['diet', 'Diet']].map(([k, l]) => {
+              {[['mealplan', tr('coach:diet.kindMealPlan', { defaultValue: 'Meal plan' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })], ['diet', tr('coach:diet.kindDiet', { defaultValue: 'Diet' })]].map(([k, l]) => {
                 const on = buildType === k;
                 return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</button>;
               })}
             </div>
-            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? 'A multi-week paid plan clients enroll in.' : buildType === 'program' ? 'A lifestyle meal program a client can buy.' : 'A diet-specific set of meals / plans.'}</div>
+            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? tr('coach:diet.descMealPlan', { defaultValue: 'A multi-week paid plan clients enroll in.' }) : buildType === 'program' ? tr('coach:diet.descProgram', { defaultValue: 'A lifestyle meal program a client can buy.' }) : tr('coach:diet.descDiet', { defaultValue: 'A diet-specific set of meals / plans.' })}</div>
           </div>
-          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder="e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats" style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
-          {chips('GOAL', goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
-          {chips('DIET', diet, setDiet, ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'])}
-          {chips('DAILY CALORIES', cals, setCals, ['~1800', '~2100', '~2600', '~3000'])}
+          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder={tr('coach:diet.descPlaceholder', { defaultValue: 'e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats' })} style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
+          {chips(tr('coach:diet.goalLabel', { defaultValue: 'GOAL' }), goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
+          {chips(tr('coach:diet.dietLabel', { defaultValue: 'DIET' }), diet, setDiet, ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'])}
+          {chips(tr('coach:diet.dailyCaloriesLabel', { defaultValue: 'DAILY CALORIES' }), cals, setCals, ['~1800', '~2100', '~2600', '~3000'])}
           <div style={{ marginTop: 18 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>MEALS / DAY</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{tr('coach:diet.mealsPerDay', { defaultValue: 'MEALS / DAY' })}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
             </div>
           </div>
-          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? `Create ${BUILD_LABEL[buildType]}` : '✦ Generate draft')}</button>
-          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>You can edit everything before publishing</div>
+          <button onClick={generate} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
+          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
         </div>
-        <BSFooter left="AI draft" right="Meal plan" />
+        <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:diet.footerAiMealPlan', { defaultValue: 'Meal plan' })} />
       </BSPage>
     );
   }
@@ -5463,8 +5523,8 @@ function BSNutriPlans() {
   // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
   // shows the live PUBLISHED count once loaded, else "—" (no fabricated on-it count).
   const catalogueStat = !signedIn
-    ? '· 4 PUBLISHED · 40 ON IT'
-    : (serverPlans === null ? '· —' : `· ${serverPlans.length} PUBLISHED`);
+    ? tr('coach:diet.catalogueDemoNutri', { defaultValue: '· 4 PUBLISHED · 40 ON IT' })
+    : (serverPlans === null ? '· —' : tr('coach:plans.publishedCount', { defaultValue: '· {count} PUBLISHED', count: serverPlans.length }));
 
   return (
     <BSPage>
@@ -5473,35 +5533,35 @@ function BSNutriPlans() {
       <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
-          THE CATALOGUE <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
+          {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
         </div>
         <div data-tour="hero-plans" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
-          Your <i style={{ color: heat, fontStyle: 'italic' }}>plans.</i>
+          {tr('coach:plans.yourWord', { defaultValue: 'Your' })} <i style={{ color: heat, fontStyle: 'italic' }}>{tr('coach:diet.plansAccent', { defaultValue: 'plans.' })}</i>
         </div>
       </div>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* §1.2 LIBRARY / SOUNDTRACKS — typographic index */}
-        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: 'Library or soundtracks' })}</div>
+        <div style={{ marginTop: 14 }}>{bsProTypoIndex(t, TABS, tab, setTab, { ariaLabel: tr('coach:plans.libraryOrSoundtracks', { defaultValue: 'Library or soundtracks' }) })}</div>
 
         {tab === 'library' && (<>
         {/* §1.3 Create actions — draft with AI · build from scratch */}
         <div style={{ marginTop: 6 }}>
-          <BSProTextAction heat={heat} t={t} label={`✦ Draft a ${BUILD_LABEL[libBuild]} in seconds →`} onClick={() => openDraft(libBuild)} />
-          <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft(libBuild, true)} />
+          <BSProTextAction heat={heat} t={t} label={tr('coach:plans.draftInSeconds', { defaultValue: '✦ Draft a {type} in seconds →', type: BUILD_LABEL[libBuild] })} onClick={() => openDraft(libBuild)} />
+          <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft(libBuild, true)} />
         </div>
 
         {/* §1.4 Kind sub-tabs — Plans / Programs / Diet */}
-        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: 'Catalogue kind' })}</div>
+        <div style={{ marginTop: 8 }}>{bsProTypoIndex(t, LIB_TABS, libTab, setLibTab, { ariaLabel: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }) })}</div>
 
         {libTab === 'plans' && (<>
         {/* §1.5 THE CATALOGUE — paid meal plans as dot-leader rows */}
-        {stationHead('PAID PLANS')}
+        {stationHead(tr('coach:plans.paidPlans', { defaultValue: 'PAID PLANS' }))}
         {plans.length === 0 ? (
           <div style={{ marginTop: 2 }}>
-            {Redact ? <Redact INK={t.INK} label="NO PUBLISHED PLANS" /> : null}
-            <BSProTextAction mono heat={heat} t={t} label="＋ Build from scratch" onClick={() => openDraft('mealplan', true)} />
+            {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
+            <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('mealplan', true)} />
           </div>
         ) : (
           <div style={{ marginTop: 2 }}>
@@ -5513,9 +5573,9 @@ function BSNutriPlans() {
           </div>
         )}
         {/* §1.6 ENROLLED — clients on plans */}
-        {stationHead('ENROLLED')}
+        {stationHead(tr('coach:plans.enrolled', { defaultValue: 'ENROLLED' }))}
         {enrolled.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO ENROLLED CLIENTS" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' })} /> : null
         ) : (
           <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
         )}
@@ -5525,14 +5585,14 @@ function BSNutriPlans() {
         {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
             "24 on it · 4.8 ★" so signed-OUT preview only. */}
         {!signedIn && featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('program')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Busy professional')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('program')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Busy professional')} /></span>
         </>)}
         {/* Lifestyle meal programs for sale — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead('LIFESTYLE', monoTrail('NEW →', () => openDraft('program')))}
+        {stationHead(tr('coach:diet.lifestyle', { defaultValue: 'LIFESTYLE' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('program')))}
         {nutriPrograms.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO PROGRAMS YET" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {nutriPrograms.map((r, i) => (
@@ -5548,14 +5608,14 @@ function BSNutriPlans() {
         {/* Top diet — unboxed verdict lead. §5 (CodeRabbit) — fabricated
             "31 on it · 4.7 ★" so signed-OUT preview only. */}
         {!signedIn && featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label="EDIT" onClick={() => openDraft('diet')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="DUPLICATE" onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label="SHARE →" onClick={() => share('Keto 7-day')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('diet')} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
+          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Keto 7-day')} /></span>
         </>)}
         {/* Diet-specific meals / plans — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead('DIET-SPECIFIC', monoTrail('NEW →', () => openDraft('diet')))}
+        {stationHead(tr('coach:diet.dietSpecific', { defaultValue: 'DIET-SPECIFIC' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('diet')))}
         {diets.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO DIETS YET" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:diet.noDiets', { defaultValue: 'NO DIETS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {diets.map((r, i) => (
@@ -5568,9 +5628,9 @@ function BSNutriPlans() {
 
         {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no
             ASSIGN) — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead('MEALS · SINGLE DISHES')}
+        {stationHead(tr('coach:diet.singleDishes', { defaultValue: 'MEALS · SINGLE DISHES' }))}
         {singleMeals.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label="NO MEALS YET" /> : null
+          Redact ? <Redact INK={t.INK} label={tr('coach:diet.noMeals', { defaultValue: 'NO MEALS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {singleMeals.map((m, i) => (
@@ -5585,7 +5645,7 @@ function BSNutriPlans() {
         <BSProSoundtracks role="nutritionist" embedded onBack={() => setTab('library')} />
         )}
       </div>
-      <BSFooter left="The Nutri Edition" right="Plans" />
+      <BSFooter left={tr('coach:common.nutriEdition', { defaultValue: 'The Nutri Edition' })} right={tr('coach:nav.plans', { defaultValue: 'Plans' })} />
     </BSPage>
   );
 }
@@ -5651,6 +5711,7 @@ const SPOTIFY_PICKER_ENABLED = String(import.meta.env.VITE_SPOTIFY_LIBRARY_PICKE
 const APPLE_PICKER_ENABLED = String(import.meta.env.VITE_APPLE_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
 function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
   const [extra, setExtra] = useStateBSP(() => bsReadJSON('bs_coach_soundtracks', []));
   const [serverList, setServerList] = useStateBSP(null); // array once synced from the API
@@ -5706,16 +5767,16 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       if (e && e.connected === false) { setSpotConnected(false); setSpotErr(''); }
       // Otherwise it's almost always the Spotify dev-mode allowlist (account not
       // approved yet) — keep it friendly and point them at the manual link path.
-      else setSpotErr('Library import is still rolling out for your account — paste a playlist link below for now.');
+      else setSpotErr(tr('coach:sound.spotifyRollout', { defaultValue: 'Library import is still rolling out for your account — paste a playlist link below for now.' }));
     } finally { setSpotBusy(false); }
   };
   const pickSpotifyPlaylist = (pl) => {
     setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('spotify');
-    if (!iTag.trim()) setITag('From Spotify');
+    if (!iTag.trim()) setITag(tr('coach:sound.fromSpotifyTag', { defaultValue: 'From Spotify' }));
     setPicking(false);
   };
   const loadAppleMusicPlaylists = async () => {
-    if (!window.ShapeIntegrations?.listAppleMusicPlaylists) { setAppleErr('Apple Music isn’t available here.'); return; }
+    if (!window.ShapeIntegrations?.listAppleMusicPlaylists) { setAppleErr(tr('coach:sound.appleUnavailable', { defaultValue: 'Apple Music isn’t available here.' })); return; }
     setAppleBusy(true); setAppleErr('');
     try {
       const rows = await window.ShapeIntegrations.listAppleMusicPlaylists();
@@ -5723,13 +5784,13 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       setPickingApple(true);
     } catch (e) {
       // Not authorized / not configured yet → friendly nudge to the paste-a-link path.
-      if (e && e.connected === false) setAppleErr('Authorize Apple Music to pick from your library — it may not be enabled for your account yet.');
-      else setAppleErr('Couldn’t load your Apple Music library — paste a playlist link below for now.');
+      if (e && e.connected === false) setAppleErr(tr('coach:sound.appleAuthorize', { defaultValue: 'Authorize Apple Music to pick from your library — it may not be enabled for your account yet.' }));
+      else setAppleErr(tr('coach:sound.appleLoadFail', { defaultValue: 'Couldn’t load your Apple Music library — paste a playlist link below for now.' }));
     } finally { setAppleBusy(false); }
   };
   const pickAppleMusicPlaylist = (pl) => {
     setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('apple');
-    if (!iTag.trim()) setITag('From Apple Music');
+    if (!iTag.trim()) setITag(tr('coach:sound.fromAppleTag', { defaultValue: 'From Apple Music' }));
     setPickingApple(false);
   };
 
@@ -5780,16 +5841,16 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && picking) {
     const list = spotPlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL="Your Spotify" footerR="Library" topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR SPOTIFY</div>
-            <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</div>
+            <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistsAccent', { defaultValue: 'playlists.' })}</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.tapToImport', { defaultValue: '{count, plural, one {# playlist} other {# playlists}} · tap one to import', count: list.length })}</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Spotify library.</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>{tr('coach:sound.noSpotifyPlaylists', { defaultValue: 'No playlists found in your Spotify library.' })}</div>
             ) : list.map((pl) => (
               <button key={pl.id} onClick={() => pickSpotifyPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
                 <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5797,7 +5858,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{pl.tracks} tracks{pl.owner ? ` · ${pl.owner}` : ''}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: pl.tracks })}{pl.owner ? ` · ${pl.owner}` : ''}</div>
                 </div>
                 <span style={{ fontFamily: t.MONO, fontSize: 16, color: gold, fontWeight: 700 }}>+</span>
               </button>
@@ -5811,16 +5872,16 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && pickingApple) {
     const list = applePlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL="Your Apple Music" footerR="Library" topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR APPLE MUSIC</div>
-            <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</div>
+            <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistsAccent', { defaultValue: 'playlists.' })}</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.tapToImport', { defaultValue: '{count, plural, one {# playlist} other {# playlists}} · tap one to import', count: list.length })}</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Apple Music library.</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>{tr('coach:sound.noApplePlaylists', { defaultValue: 'No playlists found in your Apple Music library.' })}</div>
             ) : list.map((pl) => (
               <button key={pl.id} onClick={() => pickAppleMusicPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
                 <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5828,7 +5889,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{pl.tracks} tracks{pl.owner ? ` · ${pl.owner}` : ''}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: pl.tracks })}{pl.owner ? ` · ${pl.owner}` : ''}</div>
                 </div>
                 <span style={{ fontFamily: t.MONO, fontSize: 16, color: gold, fontWeight: 700 }}>+</span>
               </button>
@@ -5846,12 +5907,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       </div>
     );
     return (
-      <BSStShell embedded={embedded} t={t} footerL="New soundtrack" footerR="Library" topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
-            <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
+            <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.importA', { defaultValue: 'Import a' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.playlistAccent', { defaultValue: 'playlist.' })}</span></div>
           <div style={{ marginTop: 22 }}>
             {/* Pick straight from the coach's connected Spotify — no link to paste.
                 Hidden when VITE_SPOTIFY_LIBRARY_PICKER=off (pre Extended Quota). */}
@@ -5859,19 +5920,19 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1DB954' }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR SPOTIFY</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>{tr('coach:sound.beta', { defaultValue: 'BETA' })}</span>
               </div>
               <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>
-                {spotConnected === false ? 'Connect Spotify to pick from your library — rolling out, so it may not be enabled for your account yet.' : spotConnected === null ? 'Checking your Spotify connection…' : 'Pick a playlist straight from your library — we’ll fill in the rest.'}
+                {spotConnected === false ? tr('coach:sound.spotifyConnectBlurb', { defaultValue: 'Connect Spotify to pick from your library — rolling out, so it may not be enabled for your account yet.' }) : spotConnected === null ? tr('coach:sound.spotifyChecking', { defaultValue: 'Checking your Spotify connection…' }) : tr('coach:sound.pickStraight', { defaultValue: 'Pick a playlist straight from your library — we’ll fill in the rest.' })}
               </div>
               {spotConnected === false ? (
-                <button onClick={() => window.ShapeIntegrations?.connectSpotify?.()} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Connect Spotify →</button>
+                <button onClick={() => window.ShapeIntegrations?.connectSpotify?.()} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:sound.connectSpotify', { defaultValue: 'Connect Spotify →' })}</button>
               ) : (
-                <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? 'Loading…' : 'Pick from your Spotify →'}</button>
+                <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? tr('coach:sound.loading', { defaultValue: 'Loading…' }) : tr('coach:sound.pickSpotify', { defaultValue: 'Pick from your Spotify →' })}</button>
               )}
               {spotErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{spotErr}</div> : null}
-              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.orPasteLink', { defaultValue: 'Or paste a link below — works for everyone' })}</div>
             </div>
             )}
             {/* Pick straight from the coach's Apple Music library (client-side MusicKit
@@ -5880,18 +5941,18 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fa243c' }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR APPLE MUSIC</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>{tr('coach:sound.beta', { defaultValue: 'BETA' })}</span>
               </div>
-              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Pick a playlist straight from your Apple Music library — we’ll fill in the rest.</div>
-              <button onClick={loadAppleMusicPlaylists} disabled={appleBusy} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? 'Loading…' : 'Pick from your Apple Music →'}</button>
+              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>{tr('coach:sound.pickStraightApple', { defaultValue: 'Pick a playlist straight from your Apple Music library — we’ll fill in the rest.' })}</div>
+              <button onClick={loadAppleMusicPlaylists} disabled={appleBusy} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? tr('coach:sound.loading', { defaultValue: 'Loading…' }) : tr('coach:sound.pickApple', { defaultValue: 'Pick from your Apple Music →' })}</button>
               {appleErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{appleErr}</div> : null}
-              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.orPasteLink', { defaultValue: 'Or paste a link below — works for everyone' })}</div>
             </div>
             )}
-            {field('NAME', iName, setIName, 'Heavy Lifts')}
+            {field(tr('coach:sound.fieldName', { defaultValue: 'NAME' }), iName, setIName, 'Heavy Lifts')}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>SOURCE</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold, marginBottom: 7 }}>{tr('coach:sound.fieldSource', { defaultValue: 'SOURCE' })}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
                   const on = iProvider === k;
@@ -5899,10 +5960,10 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 })}
               </div>
             </div>
-            {field('TAG', iTag, setITag, 'High energy')}
-            {field('PLAYLIST LINK', iUrl, setIUrl, 'https://open.spotify.com/playlist/…')}
-            <button onClick={saveImport} disabled={!iName.trim()} style={{ width: '100%', marginTop: 6, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: iName.trim() ? 1 : 0.5 }}>Save soundtrack →</button>
-            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved to your library · assign it to any workout or plan</div>
+            {field(tr('coach:sound.fieldTag', { defaultValue: 'TAG' }), iTag, setITag, 'High energy')}
+            {field(tr('coach:sound.fieldLink', { defaultValue: 'PLAYLIST LINK' }), iUrl, setIUrl, 'https://open.spotify.com/playlist/…')}
+            <button onClick={saveImport} disabled={!iName.trim()} style={{ width: '100%', marginTop: 6, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: iName.trim() ? 1 : 0.5 }}>{tr('coach:sound.saveSoundtrack', { defaultValue: 'Save soundtrack →' })}</button>
+            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.savedLibraryHint', { defaultValue: 'Saved to your library · assign it to any workout or plan' })}</div>
           </div>
       </BSStShell>
     );
@@ -5927,16 +5988,16 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     };
     const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
-      <BSStShell embedded={embedded} t={t} footerL="Assign" footerR={pl.name} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name} topPad={50}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>ASSIGN SOUNDTRACK</div>
-            <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.assignSoundtrack', { defaultValue: 'ASSIGN SOUNDTRACK' })}</div>
+            <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
           </div>
           <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 600, color: t.INK, lineHeight: 1.02, letterSpacing: '-0.02em' }}>{pl.name} <span style={{ fontStyle: 'italic', color: gold }}>→</span></div>
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{providerLabel(pl.provider)} · attach to plans or a client's workouts</div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:sound.attachTo', { defaultValue: "{provider} · attach to plans or a client's workouts", provider: providerLabel(pl.provider) })}</div>
           {/* Tabs */}
           <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[['plans', 'Plans & workouts'], ['clients', 'By client']].map(([k, l]) => {
+            {[['plans', tr('coach:sound.plansWorkouts', { defaultValue: 'Plans & workouts' })], ['clients', tr('coach:sound.byClient', { defaultValue: 'By client' })]].map(([k, l]) => {
               const on = assignTab === k;
               return <button key={k} onClick={() => setAssignTab(k)} style={{ borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>;
             })}
@@ -5949,20 +6010,20 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px', marginBottom: 14 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-                <input value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} placeholder="Search clients…" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
+                <input value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} placeholder={tr('coach:sound.searchClients', { defaultValue: 'Search clients…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
               </div>
-              {clients.length === 0 && <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No clients match.</div>}
+              {clients.length === 0 && <div style={{ padding: '18px 4px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noClientsMatch', { defaultValue: 'No clients match.' })}</div>}
               {clients.map(c => (
                 <div key={c.id} style={{ marginBottom: 18 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, marginBottom: 8 }}>{c.name.toUpperCase()} · {c.workouts.length} WORKOUTS</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, marginBottom: 8 }}>{tr('coach:sound.clientWorkouts', { defaultValue: '{name} · {count} WORKOUTS', name: c.name.toUpperCase(), count: c.workouts.length })}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {c.workouts.map((w, i) => row({ id: `cli:${c.id}:${i}`, kind: 'Client workout', name: `${w} · ${c.name.split(' ')[0]}` }, t.RUST))}
+                    {c.workouts.map((w, i) => row({ id: `cli:${c.id}:${i}`, kind: tr('coach:sound.clientWorkoutKind', { defaultValue: 'Client workout' }), name: `${w} · ${c.name.split(' ')[0]}` }, t.RUST))}
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done · {cur.length} attached</button>
+          <button onClick={() => setAssignFor(null)} style={{ width: '100%', marginTop: 18, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:sound.doneAttached', { defaultValue: 'Done · {count} attached', count: cur.length })}</button>
       </BSStShell>
     );
   }
@@ -5976,44 +6037,44 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     </div>
   );
   return (
-    <BSStShell embedded={embedded} t={t} footerL="Soundtracks" footerR={`${all.length} playlists`} topPad={46}>
+    <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })} topPad={46}>
         {!embedded && (<>
         {bsProMastRow()}
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <BSBackButton onClick={onBack} />
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>
         </div>
-        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
-        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
+        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.libraryHead', { defaultValue: 'SOUNDTRACK LIBRARY' })}</div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.soundtracksAccent', { defaultValue: 'soundtracks.' })}</span></div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{tr('coach:sound.libraryBlurb', { defaultValue: 'Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.' })}</div>
         </>)}
 
         {/* New soundtrack */}
         <button onClick={() => setImporting(true)} style={{ width: '100%', marginTop: 20, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
           <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 300, lineHeight: 1 }}>+</span>
           <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>NEW SOUNDTRACK</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>Import from Spotify or Apple Music</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>{tr('coach:sound.importFrom', { defaultValue: 'Import from Spotify or Apple Music' })}</div>
           </div>
           <span style={{ color: gold, fontSize: 16 }}>→</span>
         </button>
 
         {/* Stats */}
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          {stat('PLAYLISTS', String(all.length), '', gold)}
-          {stat('ATTACHED', String(totalAttached), 'to plans', teal)}
-          {stat('SOURCES', '2', 'connected', purple)}
+          {stat(tr('coach:sound.statPlaylists', { defaultValue: 'PLAYLISTS' }), String(all.length), '', gold)}
+          {stat(tr('coach:sound.statAttached', { defaultValue: 'ATTACHED' }), String(totalAttached), tr('coach:sound.toPlans', { defaultValue: 'to plans' }), teal)}
+          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), '2', tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
         </div>
 
         {/* Search */}
         <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search soundtracks…" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('coach:sound.searchSoundtracks', { defaultValue: 'Search soundtracks…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
         </div>
 
         {/* Filter pills */}
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[['all', `All · ${all.length}`], ['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
+          {[['all', tr('coach:sound.filterAll', { defaultValue: 'All · {count}', count: all.length })], ['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
             const on = filter === k;
             return <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: 999, padding: '8px 15px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>;
           })}
@@ -6022,7 +6083,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
         {/* Playlist cards */}
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {shown.length === 0 && (
-            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No soundtracks match.</div>
+            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noMatch', { defaultValue: 'No soundtracks match.' })}</div>
           )}
           {shown.map((p) => {
             const att = assignedCount(p);
@@ -6038,9 +6099,9 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                     {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
                   </div>
                   <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{p.tracks} tracks · {p.dur} · {p.bpm} BPM · {att > 0 ? `assigned ${att}` : `used by ${p.used}`}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: p.used })}</div>
                 </div>
-                <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>ASSIGN</button>
+                <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</button>
               </div>
             );
           })}
