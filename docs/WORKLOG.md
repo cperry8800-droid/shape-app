@@ -587,6 +587,56 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (evening, later) — Onboarding tour: honest earn list · coach-optional copy · the engine scrolls, traps focus + takes Escape (tasks C + D)
+
+- **Tasks C + D of the onboarding review** (A shipped in #1755). C had to land
+  BEFORE the i18n task (B) — translating the tour ×13 and *then* rewriting the
+  English would mean re-translating every changed key.
+- **C — the Score intro's earn list was stale + under-selling the daily loop.**
+  It listed 6 earns and omitted the two a new member actually hits first —
+  **Log a meal +10** and **Complete a habit +3** (both live since #1558) — while
+  the tour's own habits step promises "every one feeds your Shape Score." Now a
+  **curated subset of the REAL catalog** (the Score page's `activities` list —
+  the #1438 accurate legend; KEEP-IN-SYNC, never invent a row), ordered **daily
+  loop first** (workout · meal · habit → check-in · steps · PR/post · goal ·
+  momentum), plus an honest footnote — *"Your Score page lists every way to
+  earn"* — so showing 8 of 13 isn't a half-truth.
+- **C — "coach-built" contradicted the product.** The Train step read "your
+  workout … coach-built", but self-serve training has shipped since #1618 and
+  the marketing site says **coach optional** (#1680) — the *coach-less* member
+  (the common new signup) was told the opposite of their real first experience.
+  Now: *"written by your coach, or built by you. Coach optional."*
+- **C — the last colored emoji** (`🎵 Shape Radio.`) dropped per the monochrome
+  rule; also aligns the mobile step with the web tour, which already read
+  "Shape Radio."
+- **D — `spotlightTour.js` (the SHARED engine — mobile imports it directly, so
+  this lands on BOTH surfaces):**
+  - **It never scrolled to its anchor.** A below-fold target (e.g. `hero-habits`
+    on a filled Home) dimmed the screen with the spotlight cut **offscreen**.
+    Now `scrollIntoView({block:'center'})` runs BEFORE measuring, with a
+    **two-frame settle** (a `getBoundingClientRect` straight after a scroll reads
+    the OLD position — the bug this would otherwise trade for). Instant behavior
+    keeps the measure deterministic + honors reduced motion; the dim layer eats
+    pointer events, so the user can't scroll it back out from under us.
+  - **Modal semantics:** the card is now `role="dialog"` + `aria-modal` named by
+    its step title (announces what changed on advance); cutout/ring `aria-hidden`;
+    **Escape dismisses**; **Tab cycles inside the card** (focus can't wander into
+    the dimmed, pointer-blocked page); focus moves to the primary action on each
+    step and is **restored to the pre-tour element** on teardown.
+- **⚠ `?v` bumped on `spotlightTour.js` + the 3 SPA pages — deliberate, not a
+  relapse.** The precompile only rewrites **`text/babel`** tags; a
+  `<script type="module" src="…js">` is left alone, so its hand-written `?v` IS
+  the live cache key (same as `dashTour.js`). The retired no-bump convention
+  covers precompiled newdesign **`.jsx`** only.
+- **Browser-verified** the engine in a throwaway harness (removed before commit)
+  rather than trusting a syntax check: a below-fold step **scrolled 1033px** and
+  the cutout landed exactly on the anchor (cut top 1708 = anchor 1716 − PAD 8),
+  aria-label tracked the step, focus entered the dialog, **Escape** tore it down
+  with `onDone` firing **once** and focus restored to the opener, 0 layers leaked.
+- Verified: JSX parse · `node --check` · PowerShell `/m/` build exit 0 ·
+  `npm test` 626 · LF (CR=0 ×5). Open from the review: **B — i18n the client
+  tour + Score intro ×13** (the last unlocalized mobile surface).
+
 ### 2026-07-16 (evening) — Onboarding-tour triggers repaired: the web tour can no longer kill the app tour · intro→tour chaining · first-visit semantics
 
 - **Fixes the three trigger holes** from the onboarding-tour review (the tours
