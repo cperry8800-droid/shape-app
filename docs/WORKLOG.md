@@ -592,6 +592,27 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (night, wrap) — the Momentum term: de + it finished (the #1759 fix was applied to only 1 of 3 locales)
+
+- **Follow-through, found by re-checking rather than by a report.** #1759 fixed
+  **pt-BR** `Embalo` → `Impulso` because that translator flagged it — but the SAME
+  clash existed in **de** (`Momentum (80+ halten)` vs `score:head.momentum` =
+  **Schwung**) and **it** (`Momentum (mantieni 80+)` vs **Slancio**). The de
+  translator flagged its own and I actioned only pt-BR; **nobody flagged `it` at
+  all**. Acting on the reports I got instead of sweeping the class left 2 of 3
+  broken.
+- **Same resolution, applied consistently:** `score:head.momentum` is a **July
+  pilot key** (older, already user-visible); the onboarding label came from #1757
+  → the **established term wins**. de → `Schwung (80+ halten)`, it → `Slancio
+  (mantieni 80+)`.
+- **Why it's visible:** the intro's Momentum earn row and the Score page's
+  Momentum meter are **one tap apart** (the intro's "See my score →" lands there).
+- **Swept the whole class, not just the reports** — all 13 locales now use one word
+  for Momentum across both surfaces (verified programmatically: `es/pt-BR` Impulso
+  · `fr` Élan · `de` Schwung · `it` Slancio · `vi` Đà · `tr` İvme · `ha` Ƙarfi ·
+  `ru` Импульс · `uk` Імпульс · `en/id/pcm` Momentum).
+- Verified: onboarding checker 13×55 · `npm test` **626** · LF (CR=0).
+
 ### 2026-07-16 (night, last) — Shape Score ×13: the surface the "COMPLETE" rollout silently skipped
 
 - **⚠ THE i18n ROLLOUT WAS NOT COMPLETE.** The 2026-07-16 headline claimed *"Every
