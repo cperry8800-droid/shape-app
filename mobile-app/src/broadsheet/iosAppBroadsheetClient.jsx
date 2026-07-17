@@ -19631,22 +19631,74 @@ function BSIntegrationsPage({ onBack }) {
   );
 }
 
+// Fallback label when a ledger row carries no note. KEEP IN SYNC with the server's
+// CATEGORY_LABELS (src/app/api/client/score/route.ts) + the score_ledger category
+// CHECK. `nutrition` (#1558) and `career` (#1697) were added to both and never here,
+// so a note-less meal log rendered the 'other' fallback ("Points").
 const _BS_SCORE_CATEGORY_LABELS = {
   workouts: 'Workout logged',
+  nutrition: 'Meal logged',
   adherence: 'Plan adherence',
   habits: 'Habit completed',
   prs: 'PR hit',
+  career: 'Career milestone',
   community: 'Community',
   endorsements: 'Coach endorsement',
   radio: 'Radio participation',
   referrals: 'Referral',
   other: 'Points',
 };
+// The ledger row's text. The award RPCs write `note` in ENGLISH SQL ('Meal logged',
+// 'Session kept'), so the note can never localize itself — but every row also
+// carries `source_kind`, a STABLE machine key ('meal_log', 'session_kept', …).
+// Translate off THAT and keep the English note as the defaultValue.
+//
+// Only the source_kinds whose note is fully static are keyed. The dynamic ones are
+// deliberately left on their note, because their variable half doesn't localize:
+//   store_redeem  'Shape Store · <product>'   — brand noun + a product name the
+//                                                Store itself keeps English (#1745)
+//   tier_bonus    'Tier bonus · <tier>'       — tier rungs are brand literals
+//   goal_milestone'Goal milestone · <label>'  — the member's OWN goal text
+//   pr_wall_post  'PR: <body>'                — the member's own post body
+//   step_points   '<n> Shape Steps + goal'    — the COUNT is baked into the note,
+//                                                so keying off source_kind would
+//                                                silently drop it ('Shape Steps' is
+//                                                a brand noun anyway)
+const _BS_LEDGER_KINDS = new Set([
+  'checkin', 'community_post', 'habit_completion', 'meal_log', 'momentum_bonus',
+  'penalty_waive', 'session_kept', 'work_milestone', 'workout_session',
+  // Accountability penalties + weekly commitments — also fixed notes
+  // (2026-06-18-score-accountability.sql / -score-commitments.sql).
+  'penalty_checkin', 'penalty_workout', 'penalty_habit',
+  'commitment_win', 'commitment_loss',
+]);
+function _bsLedgerLabel(tr, row) {
+  const note = row && row.note;
+  const sk = row && row.source_kind;
+  const fallback = note || _BS_SCORE_CATEGORY_LABELS[row && row.category] || 'Points';
+  if (sk && _BS_LEDGER_KINDS.has(sk)) return tr('score:ledger.kind.' + sk, { defaultValue: fallback });
+  if (!note) {
+    const cat = row && row.category;
+    if (cat && _BS_SCORE_CATEGORY_LABELS[cat]) return tr('score:ledger.cat.' + cat, { defaultValue: _BS_SCORE_CATEGORY_LABELS[cat] });
+  }
+  return fallback;
+}
+// Month abbreviations follow the SELECTED UI language, not the device — via the
+// shared intlLocale() bridge (the #1595 lesson: dates must track the app's locale).
+// The en list is the fallback when Intl can't resolve the locale.
 const _BS_SCORE_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function _bsScoreMonth(d) {
+  try {
+    const loc = (typeof window !== 'undefined' && window.ShapeI18n && window.ShapeI18n.intlLocale)
+      ? window.ShapeI18n.intlLocale() : null;
+    if (loc) return new Intl.DateTimeFormat(loc, { month: 'short', timeZone: 'UTC' }).format(d).toLocaleUpperCase(loc);
+  } catch (e) {}
+  return _BS_SCORE_MON[d.getUTCMonth()];
+}
 function _bsFormatScoreDate(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return `${_BS_SCORE_MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  return `${_bsScoreMonth(d)} ${d.getUTCDate()}`;
 }
 
 // Merge the signed-in member's live Shape Score (from /api/client/score, which
@@ -19692,10 +19744,16 @@ function _bsUseLiveScore(profile) {
 
   const total = data.points_total || 0;
   const nextTier = data.next_tier || null;
+  // [day, pts, label, row] — the 4th element is the RAW ledger row. The label is
+  // kept as the English fallback; the Ledger tab localizes off row.source_kind at
+  // RENDER time (this hook has no translator — it's shared by 7 callers incl. both
+  // coach shells, so pulling useShapeTr() in here would re-render all of them).
+  // Demo tuples carry no 4th element and fall through to their baked label.
   const ledger = (data.recent || []).slice(0, 12).map(r => [
     _bsFormatScoreDate(r.earned_at),
     `${r.delta > 0 ? '+' : ''}${r.delta}`,
     r.note || _BS_SCORE_CATEGORY_LABELS[r.category] || 'Points',
+    r,
   ]);
   return {
     ...profile,
@@ -20001,6 +20059,7 @@ function BSRecordTrace({ series, heat, t }) {
 // excluded, so the totals reconcile with the Standing).
 function BSScoreRecordPage({ onBack, tier }) {
   const t = useBS();
+  const tr = useShapeTr();
   const heat = bsTierColor(tier || 'Base');
   const rustCol = t.RUST || '#c0533b';
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
@@ -20022,6 +20081,7 @@ function BSScoreRecordPage({ onBack, tier }) {
   const preview = !loggedIn;
   const rec = record || bsScoreRecord([], {});
   const win = rec.ranges[range] || rec.ranges['1w'];
+  // Keys are stable; only the label localizes. NEVER key state off a translated word.
   const filters = [['all', 'All'], ['workouts', 'Workouts'], ['habits', 'Habits'], ['nutrition', 'Nutrition'], ['checkins', 'Check-ins'], ['prs', 'PRs'], ['penalty', 'Penalties']];
   const days = filter === 'all'
     ? rec.history
@@ -20033,27 +20093,33 @@ function BSScoreRecordPage({ onBack, tier }) {
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) };
   const dotLead = { flex: 1, minWidth: 12, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.3)}`, transform: 'translateY(-3px)', margin: '0 8px' };
   const sect = { padding: `${t.sectGap}px ${t.padX}px 0` };
-  const register = [['This week', rec.ranges['1w'].net], ['This month', rec.ranges['1m'].net], [`Earned · ${range.toUpperCase()}`, win.earned], [`Lost · ${range.toUpperCase()}`, -win.lost]];
+  const R = range.toUpperCase();
+  const register = [
+    ['thisWeek', tr('score:record.thisWeek', { defaultValue: 'This week' }), rec.ranges['1w'].net],
+    ['thisMonth', tr('score:record.thisMonth', { defaultValue: 'This month' }), rec.ranges['1m'].net],
+    ['earned', tr('score:record.earned', { range: R, defaultValue: 'Earned · {range}' }), win.earned],
+    ['lost', tr('score:record.lost', { range: R, defaultValue: 'Lost · {range}' }), -win.lost],
+  ];
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Shape Score" kicker="The Record" title="The Record" />
+      <BSDetailHeader onBack={onBack} eyebrow="Shape Score" kicker={tr('score:record.title', { defaultValue: 'The Record' })} title={tr('score:record.title', { defaultValue: 'The Record' })} />
 
       {preview && (
         <div style={{ margin: `0 ${t.padX}px 4px`, padding: '8px 10px', border: `1px solid ${bsTHexA(heat, 0.4)}`, borderRadius: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: heat }}>
-          Preview · demo record — an example of a live account · Sign in →
+          {tr('score:record.preview', { defaultValue: 'Preview · demo record — an example of a live account · Sign in →' })}
         </div>
       )}
 
       {/* 1 · Header register */}
       <div style={sect}>
-        <div style={eyebrow}>Lifetime score</div>
+        <div style={eyebrow}>{tr('score:record.lifetime', { defaultValue: 'Lifetime score' })}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>
           <BSSdCountUp text={rec.lifetime} />
         </div>
         <div style={{ display: 'flex', gap: 20, marginTop: 12, flexWrap: 'wrap' }}>
-          {register.map(([label, val]) => (
-            <div key={label}>
+          {register.map(([k, label, val]) => (
+            <div key={k}>
               <div style={eyebrow}>{label}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 15, fontWeight: 800, color: Number(val) < 0 ? rustCol : t.INK }}>{Number(val) >= 0 ? '+' : ''}{val}</div>
             </div>
@@ -20065,7 +20131,7 @@ function BSScoreRecordPage({ onBack, tier }) {
       {/* 2 · Score over time + range toggle */}
       <div style={sect}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={eyebrow}>Score over time</div>
+          <div style={eyebrow}>{tr('score:record.overTime', { defaultValue: 'Score over time' })}</div>
           <div style={{ display: 'flex', gap: 2, border: `1px solid ${t.HAIR}`, borderRadius: 8, padding: 2 }}>
             {RANGE_KEYS.map((k) => {
               const on = range === k;
@@ -20080,13 +20146,13 @@ function BSScoreRecordPage({ onBack, tier }) {
 
       {/* 3 · By source + penalties */}
       <div style={sect}>
-        <div style={eyebrow}>By source · {range.toUpperCase()}</div>
+        <div style={eyebrow}>{tr('score:record.bySource', { range: R, defaultValue: 'By source · {range}' })}</div>
         <div style={{ marginTop: 8 }}>
           {win.byCategory.length === 0
-            ? <div style={{ padding: '8px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>No points earned in this range yet.</div>
+            ? <div style={{ padding: '8px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{tr('score:record.emptyRange', { defaultValue: 'No points earned in this range yet.' })}</div>
             : win.byCategory.map((c) => (
               <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0' }}>
-                <div style={{ width: 76, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</div>
+                <div style={{ width: 76, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('score:record.cat.' + c.key, { defaultValue: c.label })}</div>
                 <div aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(3, (c.earned / maxBar) * 100)}%`, background: heat, borderRadius: '0 2px 2px 0' }} />
                 </div>
@@ -20096,7 +20162,7 @@ function BSScoreRecordPage({ onBack, tier }) {
         </div>
         {win.lost > 0 && (
           <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: rustCol }}>− Penalties · {win.lost} lost</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: rustCol }}>{tr('score:record.penalties', { lost: win.lost, defaultValue: '− Penalties · {lost, number} lost' })}</div>
             {win.penalties.slice(0, 3).map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', marginTop: 6 }}>
                 <span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{p.note}</span>
@@ -20110,17 +20176,17 @@ function BSScoreRecordPage({ onBack, tier }) {
 
       {/* 4 · The full history */}
       <div style={{ ...sect, paddingBottom: 8 }}>
-        <div style={eyebrow}>The full history</div>
+        <div style={eyebrow}>{tr('score:record.fullHistory', { defaultValue: 'The full history' })}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, margin: '8px 0 4px' }}>
           {filters.map(([k, label]) => {
             const on = filter === k;
             return (
-              <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: 'none', minHeight: 28, padding: '4px 8px', border: `1px solid ${on ? heat : t.HAIR}`, borderRadius: 999, background: on ? bsTHexA(heat, 0.12) : 'transparent', color: on ? heat : bsTHexA(t.INK, 0.6), cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+              <button key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: 'none', minHeight: 28, padding: '4px 8px', border: `1px solid ${on ? heat : t.HAIR}`, borderRadius: 999, background: on ? bsTHexA(heat, 0.12) : 'transparent', color: on ? heat : bsTHexA(t.INK, 0.6), cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{tr('score:record.filter.' + k, { defaultValue: label })}</button>
             );
           })}
         </div>
         {days.length === 0 ? (
-          <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>No entries in this filter yet.</div>
+          <div style={{ padding: '18px 0', fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>{tr('score:record.emptyFilter', { defaultValue: 'No entries in this filter yet.' })}</div>
         ) : days.map((d) => (
           <div key={d.date} style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', alignItems: 'baseline' }}>
@@ -20130,7 +20196,7 @@ function BSScoreRecordPage({ onBack, tier }) {
             </div>
             {d.rows.map((r, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'baseline', padding: '9px 0', borderBottom: i === d.rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.note}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{_bsLedgerLabel(tr, r)}</span>
                 <span aria-hidden style={dotLead} />
                 <span style={{ fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, color: r.isPenalty ? rustCol : heat }}>{r.delta >= 0 ? '+' : ''}{r.delta}</span>
               </div>
@@ -20139,7 +20205,7 @@ function BSScoreRecordPage({ onBack, tier }) {
         ))}
       </div>
 
-      <BSFooter right="Record" />
+      <BSFooter right={tr('score:record.footer', { defaultValue: 'Record' })} />
     </BSPage>
   );
 }
@@ -20389,12 +20455,14 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </React.Fragment>
           );
         })()}
-        {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => {
+        {scoreTab === 'ledger' && ledger.map(([day, pts, label, row], i) => {
           const neg = String(pts).trim().startsWith('-') || String(pts).trim().startsWith('−');
+          // Live rows localize off source_kind; demo tuples keep their baked label.
+          const text = row ? _bsLedgerLabel(tr, row) : label;
           return (
-            <div key={`${day}-${label}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div key={(row && row.earned_at) || `${day}-${label}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <span style={{ flex: 'none', minWidth: 52, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{day}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· {tr('score:ledger.waivable', { defaultValue: 'waivable' })}</span> : null}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{text}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· {tr('score:ledger.waivable', { defaultValue: 'waivable' })}</span> : null}</span>
               <span aria-hidden style={dotLead} />
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: neg ? rustCol : heat }}>{pts}</span>
             </div>

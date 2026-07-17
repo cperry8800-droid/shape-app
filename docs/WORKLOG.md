@@ -204,8 +204,10 @@ changelog whenever something ships.
 > `b94a0d5b`). ⚠ **This "every surface" claim was NOT true when written** — it
 > silently excluded **Shape Score** (never on the surface list below; it had 10
 > `tr()` calls against 96 hardcoded strings) and the **first-run tour + Score
-> intro**. Both are closed now — tour/intro in **#1757**, the Score page in the
-> 2026-07-16 (night, later) entry — so the claim finally holds. Every mobile
+> intro**. Closed in **#1757** (tour/intro) + the Score page. ⚠ **That correction
+> was ITSELF incomplete** — it left **"The Record"** (a Score sub-page, reached
+> from the very leader it localized) at **zero `tr()` calls**; closed in the
+> (night, last mile) entry. **NOW** the claim holds: every mobile
 > surface is localized across all 13 active
 > locales (`en es pt-BR fr de it id vi tr ha pcm ru uk`). The resumption
 > shipped one PR per surface: **Profile #1732 · Session-details #1733 · nav
@@ -592,6 +594,70 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-16 (night, last mile) — "The Record" ×13 + the ledger rows finally localize (and #1759's completeness claim gets ITS correction)
+
+- **⚠ #1759's "the claim finally holds" was ALSO imprecise** — the same error it
+  was correcting. Localizing the Score *page* left **`BSScoreRecordPage` ("The
+  Record") at ZERO `tr()` calls** — a fully-English 145-line page reached from the
+  "See the full record →" leader that #1759 *did* localize. Closed here; the claim
+  now actually holds.
+- **⚠ THE LEDGER IS NOT A SERVER-SIDE GAP — I was wrong in #1759.** I wrote that
+  the ledger "comes from the server's `CATEGORY_LABELS`… a server-side gap a
+  catalog can't close." **It isn't.** The award RPCs write `note` in English SQL
+  (`'Meal logged'`, `'Session kept'`), **but every row also carries `source_kind` —
+  a stable machine key — and `/api/client/score` was ALREADY selecting and
+  returning it.** So the ledger localizes **client-side, with no migration and no
+  server change**. New `_bsLedgerLabel(tr, row)` translates off `source_kind` and
+  keeps the English note as the `defaultValue`.
+- **Only the 9 STATIC-note source_kinds are keyed.** The dynamic ones deliberately
+  keep their note, because their variable half doesn't localize:
+  `store_redeem` (`Shape Store · <product>` — brand noun + a product name the Store
+  itself keeps English, #1745) · `tier_bonus` (`· <tier>` — brand rungs) ·
+  `goal_milestone` (`· <label>` — the member's OWN goal text) · `pr_wall_post`
+  (`PR: <body>` — their own post) · **`step_points`** (`<n> Shape Steps + goal` —
+  **the COUNT is baked into the note**, so keying off source_kind would silently
+  drop it).
+- **A real pre-existing bug fixed:** `_BS_SCORE_CATEGORY_LABELS` (the note-less
+  fallback) was **missing `nutrition` and `career`** — both added to the server map
+  + the `score_ledger` CHECK by #1558/#1697 and never here — so a note-less meal
+  log rendered the `other` fallback, **"Points"**. Now synced, and the comment says
+  KEEP IN SYNC with the route.
+- **Months were English in every locale** (`_BS_SCORE_MON` → `APR 18`) on BOTH the
+  Ledger tab and The Record. Now `Intl.DateTimeFormat` off the **selected UI
+  language** via `window.ShapeI18n.intlLocale()` (the #1595 rule), en as fallback.
+- **`source_kind` threaded through BOTH `scoreHistory` twins** (`.mjs` + `.ts`, +
+  the `HistoryRow` type) so The Record's history rows use the same helper. Additive
+  — suite still 626.
+- **Narrow by design:** `_bsUseLiveScore` is a **hook with 7 callers** (both coach
+  shells, settings, profile) and is window-exported, so pulling `useShapeTr()` into
+  it would re-render all of them. Instead the ledger tuple gained a **4th element —
+  the raw row** — and translation happens at RENDER, where `tr` already lives. Demo
+  tuples carry no 4th element and fall through to their baked label.
+- **41 new keys ×13** (`en/score.json` 149 → **190**). **27 of them were
+  regex-invisible** (`ledger.kind.*` · `ledger.cat.*` · `record.filter.*` are all
+  built by concatenation) — the exact #1759 defect. So they're enumerated
+  **explicitly**, and a new **resolve-check** now asserts every key the CODE can
+  build exists in `en` (reads `_BS_LEDGER_KINDS`, `_BS_SCORE_CATEGORY_LABELS` and
+  the `filters` array straight out of the source). That guard is the real fix.
+- **The link→page pairing fixed in 4 locales.** English pairs the LINK to the PAGE
+  ("See the full **record**" → "The **Record**") and keeps both distinct from the
+  TAB ("Ledger"). **de/id/ru/uk** had lost it — **ru/uk worst: the link said
+  "историю", which is the TAB's word, and landed on «Летопись»**. The title can't
+  take the tab's word (collision), so the link gave: ru «Смотреть всю летопись» ·
+  uk «Переглянути весь літопис» · de „Die ganze Bilanz ansehen" · id "Lihat rekam
+  jejak lengkap". All 13 pair now. *(Checker note: `tr` reads as a mismatch but is
+  correct — `kaydı` IS `kayıt` accusative; Turkish drops the 2nd-syllable vowel and
+  voices t→d. Don't "fix" it.)*
+- **⚠ Registered for the human review:** ru «Летопись» / uk «Літопис» = *chronicle*
+  — editorial but the grandest choice on the page; de „Die Bilanz" leans
+  *net balance* over *history*; ha `record.title` "Tarihin Maki" shares its word
+  with `tab.ledger` ("Tarihi") — different screens, no on-screen collision, but one
+  word doing two jobs.
+- Verified: score checker 13×**190** (0 missing · 0 ICU mismatch · 0 over-long) ·
+  **resolve-check: 0 unresolved** · JSX parse · `tsc --noEmit` clean (the twin's
+  `HistoryRow` type gained the field) · `npm test` **626** · PowerShell `/m/` build
+  exit 0 · LF.
+
 ### 2026-07-16 (night, wrap) — the Momentum term: de + it finished (the #1759 fix was applied to only 1 of 3 locales)
 
 - **Follow-through, found by re-checking rather than by a report.** #1759 fixed
@@ -643,10 +709,11 @@ changelog whenever something ships.
 - **Scope calls (deliberate, both follow precedent):** **product names stay
   English** — the Rewards tab renders `BS_STORE_PRODUCTS`, and #1745 localized the
   Store's *chrome* but not its *catalogue*; products read as brand entries.
-  **The `ledger` stays English** — those descriptions come from the server's
-  `CATEGORY_LABELS` for signed-in members, so they're English in **every** locale
-  regardless. That's a server-side gap a catalog can't close (**registered
-  follow-up**).
+  **The `ledger` stays English** — ⚠ **THIS REASONING WAS WRONG, see the
+  2026-07-16 (night, last mile) entry.** The notes are English SQL, but every row
+  also carries **`source_kind`** — a stable key the route was **already
+  returning** — so the ledger localizes **client-side with no server change**.
+  Closed, not deferred.
 - **Three cross-file inconsistencies the translators surfaced — each resolved
   toward the ESTABLISHED term, not the newest:** **pt-BR** "Momentum" — onboarding
   said *Embalo*, the July pilot's `head.momentum` says *Impulso* → onboarding
