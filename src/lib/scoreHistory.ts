@@ -34,7 +34,7 @@ export type SeriesPoint = { date: string; cumulative: number; dayDelta: number }
 export type CategoryBar = { key: string; label: string; earned: number };
 export type PenaltyRow = { note: string; total: number };
 export type RangeReport = { series: SeriesPoint[]; byCategory: CategoryBar[]; earned: number; lost: number; net: number; penalties: PenaltyRow[] };
-export type HistoryRow = { note: string; category: string; label: string; delta: number; earned_at: string; bucket: string; isPenalty: boolean };
+export type HistoryRow = { note: string; category: string; label: string; source_kind: string | null; delta: number; earned_at: string; bucket: string; isPenalty: boolean };
 export type HistoryDay = { date: string; subtotal: number; rows: HistoryRow[] };
 export type ScoreRecord = { ranges: Record<RangeKey, RangeReport>; history: HistoryDay[]; lifetime: number };
 
@@ -94,6 +94,10 @@ export function bsScoreRecord(rows: LedgerRow[], opts: { now?: Date | number } =
     dayMap.get(d)!.push({
       note: r.note || RECORD_CATEGORY_LABELS[r.category] || 'Points',
       category: r.category, label: RECORD_CATEGORY_LABELS[r.category] || r.category,
+      // source_kind is a stable machine key the UI localizes off (the RPCs write
+      // `note` in English SQL, so it can't localize itself); `note` stays the
+      // fallback. KEEP IN SYNC with mobile-app/src/services/scoreHistory.mjs.
+      source_kind: r.source_kind || null,
       delta: r.delta, earned_at: r.earned_at,
       bucket: recordFilterBucket(r.category, r.delta, r.source_kind), isPenalty: r.delta < 0,
     });

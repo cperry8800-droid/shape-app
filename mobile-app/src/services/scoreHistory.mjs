@@ -113,6 +113,11 @@ export function bsScoreRecord(rows, opts = {}) {
       note: r.note || RECORD_CATEGORY_LABELS[r.category] || 'Points',
       category: r.category,
       label: RECORD_CATEGORY_LABELS[r.category] || r.category,
+      // The award RPCs write `note` in English SQL, so it can never localize
+      // itself — but source_kind is a stable machine key the UI CAN translate off
+      // (see _bsLedgerLabel). Passing it through keeps `note` as the fallback.
+      // KEEP IN SYNC with src/lib/scoreHistory.ts.
+      source_kind: r.source_kind || null,
       delta: r.delta,
       earned_at: r.earned_at,
       bucket: recordFilterBucket(r.category, r.delta, r.source_kind),
