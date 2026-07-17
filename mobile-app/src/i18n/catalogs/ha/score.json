@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Gina jiki",
   "record.filter.checkins": "Duba",
   "record.filter.prs": "PR",
-  "record.filter.penalty": "Ragi"
+  "record.filter.penalty": "Ragi",
+  "record.cat.workouts": "Motsa jiki",
+  "record.cat.nutrition": "Gina jiki",
+  "record.cat.adherence": "Duba",
+  "record.cat.habits": "Ɗabi'u",
+  "record.cat.prs": "PR",
+  "record.cat.career": "Sana'a",
+  "record.cat.community": "Al'umma",
+  "record.cat.endorsements": "Shaidu",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Gabatarwa",
+  "record.cat.other": "Sauran",
+  "ledger.kind.penalty_checkin": "An rasa duba na mako",
+  "ledger.kind.penalty_workout": "An tsallake motsa jikin da aka ba ka",
+  "ledger.kind.penalty_habit": "An karya jerin ɗabi'a",
+  "ledger.kind.commitment_win": "An cika alkawari",
+  "ledger.kind.commitment_loss": "An rasa alkawari"
 }

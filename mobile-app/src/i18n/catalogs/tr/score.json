@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Beslenme",
   "record.filter.checkins": "Check-in'ler",
   "record.filter.prs": "PR",
-  "record.filter.penalty": "Cezalar"
+  "record.filter.penalty": "Cezalar",
+  "record.cat.workouts": "Antrenmanlar",
+  "record.cat.nutrition": "Beslenme",
+  "record.cat.adherence": "Check-in'ler",
+  "record.cat.habits": "Alışkanlıklar",
+  "record.cat.prs": "PR",
+  "record.cat.career": "Kariyer",
+  "record.cat.community": "Topluluk",
+  "record.cat.endorsements": "Onaylar",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Referanslar",
+  "record.cat.other": "Diğer",
+  "ledger.kind.penalty_checkin": "Kaçırılan haftalık check-in",
+  "ledger.kind.penalty_workout": "Atlanan planlı antrenman",
+  "ledger.kind.penalty_habit": "Kırılan alışkanlık serisi",
+  "ledger.kind.commitment_win": "Taahhüt tutuldu",
+  "ledger.kind.commitment_loss": "Taahhüt kaçırıldı"
 }

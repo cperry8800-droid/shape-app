@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Dinh dưỡng",
   "record.filter.checkins": "Check-in",
   "record.filter.prs": "PR",
-  "record.filter.penalty": "Điểm trừ"
+  "record.filter.penalty": "Điểm trừ",
+  "record.cat.workouts": "Buổi tập",
+  "record.cat.nutrition": "Dinh dưỡng",
+  "record.cat.adherence": "Check-in",
+  "record.cat.habits": "Thói quen",
+  "record.cat.prs": "PR",
+  "record.cat.career": "Sự nghiệp",
+  "record.cat.community": "Cộng đồng",
+  "record.cat.endorsements": "Chứng nhận",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Giới thiệu",
+  "record.cat.other": "Khác",
+  "ledger.kind.penalty_checkin": "Lỡ check-in hằng tuần",
+  "ledger.kind.penalty_workout": "Lỡ buổi tập được giao",
+  "ledger.kind.penalty_habit": "Đứt chuỗi thói quen",
+  "ledger.kind.commitment_win": "Đã đạt cam kết",
+  "ledger.kind.commitment_loss": "Lỡ cam kết"
 }

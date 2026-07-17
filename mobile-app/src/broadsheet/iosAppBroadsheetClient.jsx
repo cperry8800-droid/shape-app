@@ -19667,6 +19667,10 @@ const _BS_SCORE_CATEGORY_LABELS = {
 const _BS_LEDGER_KINDS = new Set([
   'checkin', 'community_post', 'habit_completion', 'meal_log', 'momentum_bonus',
   'penalty_waive', 'session_kept', 'work_milestone', 'workout_session',
+  // Accountability penalties + weekly commitments — also fixed notes
+  // (2026-06-18-score-accountability.sql / -score-commitments.sql).
+  'penalty_checkin', 'penalty_workout', 'penalty_habit',
+  'commitment_win', 'commitment_loss',
 ]);
 function _bsLedgerLabel(tr, row) {
   const note = row && row.note;
@@ -20148,7 +20152,7 @@ function BSScoreRecordPage({ onBack, tier }) {
             ? <div style={{ padding: '8px 0', fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{tr('score:record.emptyRange', { defaultValue: 'No points earned in this range yet.' })}</div>
             : win.byCategory.map((c) => (
               <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0' }}>
-                <div style={{ width: 76, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('score:ledger.cat.' + c.key, { defaultValue: c.label })}</div>
+                <div style={{ width: 76, flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('score:record.cat.' + c.key, { defaultValue: c.label })}</div>
                 <div aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(3, (c.earned / maxBar) * 100)}%`, background: heat, borderRadius: '0 2px 2px 0' }} />
                 </div>
@@ -20456,7 +20460,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           // Live rows localize off source_kind; demo tuples keep their baked label.
           const text = row ? _bsLedgerLabel(tr, row) : label;
           return (
-            <div key={`${day}-${label}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            <div key={(row && row.earned_at) || `${day}-${label}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
               <span style={{ flex: 'none', minWidth: 52, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{day}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{text}{neg ? <span style={{ marginLeft: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rustCol }}>· {tr('score:ledger.waivable', { defaultValue: 'waivable' })}</span> : null}</span>
               <span aria-hidden style={dotLead} />

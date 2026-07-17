@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Nutrition",
   "record.filter.checkins": "Check-ins",
   "record.filter.prs": "PRs",
-  "record.filter.penalty": "Pénalités"
+  "record.filter.penalty": "Pénalités",
+  "record.cat.workouts": "Séances",
+  "record.cat.nutrition": "Nutrition",
+  "record.cat.adherence": "Check-ins",
+  "record.cat.habits": "Habitudes",
+  "record.cat.prs": "PRs",
+  "record.cat.career": "Carrière",
+  "record.cat.community": "Communauté",
+  "record.cat.endorsements": "Recommandations",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Parrainages",
+  "record.cat.other": "Autres",
+  "ledger.kind.penalty_checkin": "Check-in hebdomadaire manqué",
+  "ledger.kind.penalty_workout": "Séance assignée manquée",
+  "ledger.kind.penalty_habit": "Série d’habitude rompue",
+  "ledger.kind.commitment_win": "Engagement tenu",
+  "ledger.kind.commitment_loss": "Engagement manqué"
 }

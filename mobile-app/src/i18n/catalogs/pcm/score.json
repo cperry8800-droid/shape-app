@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Nutrition",
   "record.filter.checkins": "Check-ins",
   "record.filter.prs": "PRs",
-  "record.filter.penalty": "Penalties"
+  "record.filter.penalty": "Penalties",
+  "record.cat.workouts": "Workouts",
+  "record.cat.nutrition": "Nutrition",
+  "record.cat.adherence": "Check-ins",
+  "record.cat.habits": "Habits",
+  "record.cat.prs": "PRs",
+  "record.cat.career": "Career",
+  "record.cat.community": "Community",
+  "record.cat.endorsements": "Backing",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Referrals",
+  "record.cat.other": "Oda",
+  "ledger.kind.penalty_checkin": "You miss weekly check-in",
+  "ledger.kind.penalty_workout": "You miss workout wey dem assign",
+  "ledger.kind.penalty_habit": "You break habit streak",
+  "ledger.kind.commitment_win": "You do wetin you promise",
+  "ledger.kind.commitment_loss": "You miss wetin you promise"
 }

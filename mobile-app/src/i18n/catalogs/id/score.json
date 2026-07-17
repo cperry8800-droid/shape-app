@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Nutrisi",
   "record.filter.checkins": "Check-in",
   "record.filter.prs": "PR",
-  "record.filter.penalty": "Penalti"
+  "record.filter.penalty": "Penalti",
+  "record.cat.workouts": "Latihan",
+  "record.cat.nutrition": "Nutrisi",
+  "record.cat.adherence": "Check-in",
+  "record.cat.habits": "Kebiasaan",
+  "record.cat.prs": "PR",
+  "record.cat.career": "Karier",
+  "record.cat.community": "Komunitas",
+  "record.cat.endorsements": "Dukungan",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Rujukan",
+  "record.cat.other": "Lainnya",
+  "ledger.kind.penalty_checkin": "Check-in mingguan terlewat",
+  "ledger.kind.penalty_workout": "Latihan yang diberikan terlewat",
+  "ledger.kind.penalty_habit": "Rentetan kebiasaan putus",
+  "ledger.kind.commitment_win": "Komitmen terpenuhi",
+  "ledger.kind.commitment_loss": "Komitmen terlewat"
 }

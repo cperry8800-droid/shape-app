@@ -188,5 +188,21 @@
   "record.filter.nutrition": "Харчування",
   "record.filter.checkins": "Чек-іни",
   "record.filter.prs": "PR",
-  "record.filter.penalty": "Списання"
+  "record.filter.penalty": "Списання",
+  "record.cat.workouts": "Тренування",
+  "record.cat.nutrition": "Харчування",
+  "record.cat.adherence": "Чек-іни",
+  "record.cat.habits": "Звички",
+  "record.cat.prs": "PR",
+  "record.cat.career": "Кар'єра",
+  "record.cat.community": "Спільнота",
+  "record.cat.endorsements": "Відгуки",
+  "record.cat.radio": "Radio",
+  "record.cat.referrals": "Реферали",
+  "record.cat.other": "Інше",
+  "ledger.kind.penalty_checkin": "Пропущено тижневий чек-ін",
+  "ledger.kind.penalty_workout": "Пропущено призначене тренування",
+  "ledger.kind.penalty_habit": "Перервано серію звички",
+  "ledger.kind.commitment_win": "Зобов'язання виконано",
+  "ledger.kind.commitment_loss": "Зобов'язання не виконано"
 }
