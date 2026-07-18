@@ -174,5 +174,7 @@
   "type.nutrition": "Nutrizione",
   "type.prs": "PR",
   "type.runs": "Corse",
-  "type.workouts": "Allenamenti"
+  "type.workouts": "Allenamenti",
+  "boost.liveSet": "set {done, number} of {total, number}",
+  "boost.liveSets": "{done, number}/{total, number} sets"
 }

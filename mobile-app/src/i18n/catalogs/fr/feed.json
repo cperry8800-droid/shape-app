@@ -174,5 +174,7 @@
   "type.nutrition": "Nutrition",
   "type.prs": "PRs",
   "type.runs": "Courses",
-  "type.workouts": "Séances"
+  "type.workouts": "Séances",
+  "boost.liveSet": "set {done, number} of {total, number}",
+  "boost.liveSets": "{done, number}/{total, number} sets"
 }

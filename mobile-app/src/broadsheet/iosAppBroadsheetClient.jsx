@@ -7657,6 +7657,7 @@ const BS_BOOST_PHRASES = {
 };
 function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
   const accent = kind === 'cooking' ? t.AMBER : teal;
@@ -7676,6 +7677,29 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
     }).catch(() => {});
     return () => { on = false; };
   }, [person.userId]);
+  // Live set-by-set line (spec 2026-07-18) — renders ONLY when a row is
+  // readable under RLS. No row → today's sheet, byte-identical; absence is
+  // deliberately unremarkable (never "they hid this" — that would leak the
+  // existence of a setting choice). Demo people (no userId) never fetch.
+  const [live, setLive] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!person.userId || kind !== 'workout' || !window.ShapeLiveProgress) return undefined;
+    let on = true; let expTimer = null;
+    const take = (row) => {
+      if (!on) return;
+      setLive(row);
+      // Subscription-side expiry (spec review): the SQL filter protects get()
+      // only — an already-open sheet must drop a row when its expires_at passes.
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
+      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
+    };
+    window.ShapeLiveProgress.get(person.userId).then(take).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(person.userId, take);
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
+  }, [person.userId, kind]);
+  const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
+  const lpCur = lp && lp.curIdx >= 0 && lp.exercises[lp.curIdx] ? lp.exercises[lp.curIdx] : null;
   const sendBoost = async (body) => {
     const msg = String(body || '').trim();
     if (!msg || busy || sent) return;
@@ -7714,6 +7738,21 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
               <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33`, ...(reduced ? null : { '--sd-glow': bsTHexA(accent, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
             </div>
+            {lp && (
+              <div style={{ marginTop: 5 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {lpCur ? <>
+                    <span style={{ color: t.INK, fontWeight: 800 }}>{lpCur.n}</span>
+                    {' · '}{tr('feed:boost.liveSet', { done: Math.min(lpCur.done + 1, lpCur.total), total: lpCur.total, defaultValue: 'set {done, number} of {total, number}' })}
+                    {' — '}
+                  </> : null}
+                  {tr('feed:boost.liveSets', { done: lp.setsDone, total: lp.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
+                </div>
+                <div aria-hidden style={{ marginTop: 4, height: 2, background: bsTHexA(t.INK, 0.12) }}>
+                  <div style={{ height: 2, width: `${lp.setsTotal ? Math.round((lp.setsDone / lp.setsTotal) * 100) : 0}%`, background: accent }} />
+                </div>
+              </div>
+            )}
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
           </div>
           {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}

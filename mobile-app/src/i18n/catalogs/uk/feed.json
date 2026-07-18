@@ -174,5 +174,7 @@
   "type.nutrition": "Харчування",
   "type.prs": "PR",
   "type.runs": "Пробіжки",
-  "type.workouts": "Тренування"
+  "type.workouts": "Тренування",
+  "boost.liveSet": "set {done, number} of {total, number}",
+  "boost.liveSets": "{done, number}/{total, number} sets"
 }
