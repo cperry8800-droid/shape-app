@@ -7684,9 +7684,13 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => {
     if (!person.userId || kind !== 'workout' || !window.ShapeLiveProgress) return undefined;
-    let on = true; let expTimer = null;
-    const take = (row) => {
+    let on = true; let expTimer = null; let evented = false;
+    // TOCTOU guard (review: CodeRabbit): the initial get() can resolve AFTER a
+    // newer realtime event (incl. a DELETE on session end) and restore a stale
+    // row. Once any subscription event has landed, the initial fetch is ignored.
+    const take = (row, fromEvent) => {
       if (!on) return;
+      if (fromEvent) evented = true; else if (evented) return;
       setLive(row);
       // Subscription-side expiry (spec review): the SQL filter protects get()
       // only — an already-open sheet must drop a row when its expires_at passes.
@@ -7694,8 +7698,8 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
       const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
       if (expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
     };
-    window.ShapeLiveProgress.get(person.userId).then(take).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(person.userId, take);
+    window.ShapeLiveProgress.get(person.userId).then((r) => take(r, false)).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(person.userId, (r) => take(r, true));
     return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [person.userId, kind]);
   const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
@@ -21383,8 +21387,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     const next = base ? { ...base, title: String(title || '').slice(0, 80) } : null;
     const lr = liveRef.current;
     const fire = () => {
+      const fresh = lr.prev == null;   // first push of this session → stamp started_at
       lr.prev = next; lr.lastAt = Date.now();
-      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next); } catch (e) {}
+      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next, fresh); } catch (e) {}
     };
     if (lr.timer) { clearTimeout(lr.timer); lr.timer = null; }
     if (lr.restTimer) { clearTimeout(lr.restTimer); lr.restTimer = null; }

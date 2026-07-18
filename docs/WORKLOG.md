@@ -186,7 +186,9 @@ changelog whenever something ships.
 > (naming it would leak that a choice exists), the coach console reads a
 > **neutral** "live detail unavailable" — **never "private"**, since RLS makes
 > private / not-visible-to-you / pre-migration indistinguishable.
-> ⚠ **OWNER: run `2026-07-18-user-activity-live.sql`** (silent no-op until then).
+> ⚠ **OWNER: run `2026-07-18-user-activity-live.sql`** (silent no-op until
+> then — the boost sheet is unchanged; the coach console on a real client
+> already shows the neutral line rather than the demo grid, deliberately).
 > Open: the on-device pass.
 >
 > **Prior (2026-07-16, later): TEAM PAGE → OPEN LEDGER + THE RADIO WORDMARK.**
@@ -622,7 +624,12 @@ changelog whenever something ships.
   was watching fiction.
 - **⚠ MIGRATION — OWNER RUNS IT:** `2026-07-18-user-activity-live.sql` (additive,
   idempotent; raw link on the PR). Until it's applied every call is a **silent
-  no-op** and both surfaces render exactly today's UI.
+  no-op**. Precisely what that looks like: the **boost sheet is byte-identical
+  to today** (no row → the line simply doesn't render), while the **coach
+  console on a REAL client shows the neutral "live detail unavailable" line
+  instead of the old demo grid** — that change is deliberate and lands with or
+  without the migration, because a real client must never be shown fabricated
+  demo sets. Demo roster entries still render the demo grid.
 - **The audience is the member's OWN share rule, strictly** (owner decision):
   `bsWorkoutSharePrivacy` → `public` (any signed-in member) · `followers`
   (accepted follows) · **`private` → NO ROW EXISTS AT ALL**. There is deliberately

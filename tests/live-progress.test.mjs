@@ -53,6 +53,22 @@ test('bsValidLivePayload accepts its own builder output and rejects malformed wi
   assert.equal(bsValidLivePayload({ v: 1, exercises: [{ n: 'A', done: 0, total: 2 }], curIdx: 5, setsDone: 0, setsTotal: 2 }), null); // curIdx out of range
 });
 
+test('bsValidLivePayload enforces the FULL builder contract (review round)', () => {
+  const ok = { v: 1, exercises: [{ n: 'A', done: 1, total: 2 }], curIdx: 0, resting: false, setsDone: 1, setsTotal: 2 };
+  assert.ok(bsValidLivePayload(ok));
+  // aggregates must equal the sums — contradictory totals would draw a fabricated bar
+  assert.equal(bsValidLivePayload({ ...ok, setsDone: 9 }), null);
+  assert.equal(bsValidLivePayload({ ...ok, setsTotal: 99 }), null);
+  // a whitespace-only name would render a blank row; the builder never emits one
+  assert.equal(bsValidLivePayload({ ...ok, exercises: [{ n: '   ', done: 1, total: 2 }] }), null);
+  // resting must be a real boolean, not a truthy smuggle
+  assert.equal(bsValidLivePayload({ ...ok, resting: 'yes' }), null);
+  assert.equal(bsValidLivePayload({ ...ok, resting: 1 }), null);
+  // curIdx -1 is a REAL state ("nothing started yet") and must SURVIVE validation
+  const none = bsValidLivePayload({ ...ok, curIdx: -1 });
+  assert.equal(none.curIdx, -1);
+});
+
 test('throttle: unchanged never pushes; changed pushes only past the 4s floor', () => {
   const a = bsLiveProgressPayload(MOVES, DONE, 1, false);
   const b = bsLiveProgressPayload(MOVES, { ...DONE, '1-2': true }, 1, false);

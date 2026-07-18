@@ -481,16 +481,19 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
   const [liveRow, setLiveRow] = useStateBSP(null);
   useEffectBSP(() => {
     if (!clientId || !window.ShapeLiveProgress) return undefined;
-    let on = true; let expTimer = null;
-    const take = (r) => {
+    let on = true; let expTimer = null; let evented = false;
+    // TOCTOU guard (review: CodeRabbit) — see the boost sheet: a late initial
+    // get() must not overwrite a newer realtime event or a DELETE.
+    const take = (r, fromEvent) => {
       if (!on) return;
+      if (fromEvent) evented = true; else if (evented) return;
       setLiveRow(r);
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
       const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
       if (expMs > 0) expTimer = setTimeout(() => { if (on) setLiveRow(null); }, expMs);   // subscription-side expiry
     };
-    window.ShapeLiveProgress.get(clientId).then(take).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(clientId, take);
+    window.ShapeLiveProgress.get(clientId).then((r) => take(r, false)).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(clientId, (r) => take(r, true));
     return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [clientId]);
   const lp = liveRow ? bsValidLivePayload(liveRow.payload) : null;   // malformed → honest-absent
@@ -514,8 +517,11 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
   // read below would throw. `noDetail` short-circuits the header counter, the
   // exercise section and the set grid; `cur` is null-safe regardless.
   const noDetail = liveMode && !lp;
-  const curIdx = Math.max(0, shownMoves.findIndex(m => m.active));
-  const cur = shownMoves.length ? shownMoves[curIdx] : null;
+  // curIdx === -1 is a REAL state the validator preserves ("no current
+  // exercise" — nothing started yet). Math.max(0, …) would fabricate exercise 1
+  // and a NOW marker (review: CodeRabbit), so -1 is honoured and `cur` stays null.
+  const curIdx = shownMoves.findIndex(m => m.active);
+  const cur = curIdx >= 0 ? shownMoves[curIdx] : null;
   const totalSets = shownMoves.reduce((s, m) => s + m.sets, 0);
   const doneSets = shownMoves.reduce((s, m) => s + m.done, 0);
   const pct = totalSets ? doneSets / totalSets : 0;

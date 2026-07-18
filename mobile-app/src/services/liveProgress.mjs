@@ -60,19 +60,27 @@ export function bsValidLivePayload(raw) {
   if (!raw || typeof raw !== 'object' || raw.v !== 1) return null;
   if (!Array.isArray(raw.exercises) || raw.exercises.length === 0 || raw.exercises.length > MAX_EXERCISES) return null;
   const okInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
+  let sumDone = 0; let sumTotal = 0;
   for (const e of raw.exercises) {
     if (!e || typeof e !== 'object') return null;
-    if (typeof e.n !== 'string' || !e.n || e.n.length > 80) return null;
+    // A whitespace-only name would render as a blank row — the builder never
+    // emits one (it falls back to 'Exercise'), so the wire must not either.
+    if (typeof e.n !== 'string' || !e.n.trim() || e.n.length > 80) return null;
     if (!okInt(e.total, 1, MAX_SETS) || !okInt(e.done, 0, e.total)) return null;
+    sumDone += e.done; sumTotal += e.total;
   }
   if (!Number.isInteger(raw.curIdx) || raw.curIdx < -1 || raw.curIdx >= raw.exercises.length) return null;
-  if (!okInt(raw.setsDone, 0, MAX_SETS * MAX_EXERCISES) || !okInt(raw.setsTotal, 1, MAX_SETS * MAX_EXERCISES) || raw.setsDone > raw.setsTotal) return null;
+  if (!okInt(raw.setsDone, 0, MAX_SETS * MAX_EXERCISES) || !okInt(raw.setsTotal, 1, MAX_SETS * MAX_EXERCISES)) return null;
+  // Aggregates MUST equal the sums the builder computes — contradictory totals
+  // would render a fabricated progress bar (review: CodeRabbit).
+  if (raw.setsDone !== sumDone || raw.setsTotal !== sumTotal) return null;
+  if (typeof raw.resting !== 'boolean') return null;
   return {
     v: 1,
     title: typeof raw.title === 'string' ? raw.title.slice(0, 80) : '',
     exercises: raw.exercises.map((e) => ({ n: e.n, done: e.done, total: e.total })),
-    curIdx: raw.curIdx,
-    resting: !!raw.resting,
+    curIdx: raw.curIdx,          // -1 is a REAL state: "no current exercise"
+    resting: raw.resting,
     setsDone: raw.setsDone,
     setsTotal: raw.setsTotal,
   };

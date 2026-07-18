@@ -5402,7 +5402,21 @@ window.ShapePresence = {
 // the row after session end (spec review: CodeRabbit race finding).
 // Pre-migration degrade: any error is a silent no-op (the feature just
 // doesn't exist until the OWNER applies the SQL).
+// Mutations are SERIALIZED through one promise chain (review: CodeRabbit
+// Critical + Codex P2). A pre-dispatch generation check alone cannot guard an
+// ALREADY-DISPATCHED request: an upsert could pass the check, then land after a
+// later clear() deleted the row, republishing progress after Stop/Finish or
+// after a privacy withdrawal. With the queue, a clear() cannot start until the
+// in-flight upsert has finished, so the delete always wins the ordering.
+// The generation is still bumped on EVERY clear path (incl. the private/
+// read-failed one) so a queued push that is now obsolete drops out cheaply.
 let _liveGen = 0;
+let _liveQueue = Promise.resolve();
+function _liveEnqueue(fn) {
+  const run = () => fn().catch(() => {});
+  _liveQueue = _liveQueue.then(run, run);
+  return _liveQueue;
+}
 async function _liveAudience() {
   let doc = null; let failed = false;
   try {
@@ -5412,28 +5426,38 @@ async function _liveAudience() {
   } catch (e) { failed = true; }
   return bsLiveAudience(doc, failed);
 }
-async function livePush(payload) {
-  try {
-    if (!supabase || !state.user || !payload) return;
-    const gen = _liveGen;
+// `fresh` = the first push of a session. It stamps started_at so a row that
+// survived a crash / failed clear can't lend its OLD start time to the new
+// session (the coach clock would read hours old — Codex P2). Later pushes omit
+// started_at so the session's real start survives the upsert.
+async function livePush(payload, fresh) {
+  if (!supabase || !state.user || !payload) return;
+  const gen = _liveGen;
+  return _liveEnqueue(async () => {
+    if (gen !== _liveGen) return;              // superseded before we ran
     const vis = await _liveAudience();
-    if (gen !== _liveGen) return;              // clear() ran while we awaited — session over
-    if (!vis) { await liveClear(); return; }   // private (or read-failed) → absence
-    const now = new Date();
     if (gen !== _liveGen) return;
-    await supabase.from('user_activity_live').upsert({
+    if (!vis) { _liveGen++; await _liveDelete(); return; }   // private/read-failed → absence
+    const now = new Date();
+    const row = {
       user_id: state.user.id, visibility: vis, payload,
       updated_at: now.toISOString(),
       expires_at: new Date(now.getTime() + 6 * 3600 * 1000).toISOString(),
-    }, { onConflict: 'user_id' });
-  } catch (e) {}
+    };
+    if (fresh) row.started_at = now.toISOString();
+    await supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' });
+  });
 }
-async function liveClear() {
+async function _liveDelete() {
   try { if (supabase && state.user) await supabase.from('user_activity_live').delete().eq('user_id', state.user.id); } catch (e) {}
+}
+function liveClear() {
+  _liveGen++;                                   // obsolete any queued push
+  return _liveEnqueue(_liveDelete);             // runs AFTER any in-flight upsert
 }
 window.ShapeLiveProgress = {
   push: livePush,
-  clear: () => { _liveGen++; return liveClear(); },  // bump FIRST: any awaited push aborts
+  clear: liveClear,
   get: async (uid) => {
     if (!supabase || !uid) return null;
     try {
