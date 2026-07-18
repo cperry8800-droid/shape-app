@@ -833,5 +833,7 @@
   "wire.openFileArrow": "BUKA BERKAS →",
   "wire.scheduleArrow": "JADWALKAN →",
   "wire.seeFullRoster": "LIHAT SELURUH DAFTAR KLIEN",
-  "wire.theWire": "KABAR"
+  "wire.theWire": "KABAR",
+  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
+  "live.liveTag": "Live"
 }

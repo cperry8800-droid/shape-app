@@ -4,6 +4,7 @@ import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
+import { bsValidLivePayload } from '../services/liveProgress.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -462,19 +463,40 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
 // Coach "live now" — read-only mirror of the client's live session: running
 // timer, sets as they land, current move, plus a quick-cue sender.
-function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak', onBack = () => {} }) {
+function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Upper Pull — Peak', onBack = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [now, setNow] = useStateBSP(Date.now());
-  const [startedAt] = useStateBSP(Date.now() - (30 * 60 + 55) * 1000); // ~30:55 in
+  const [startedAt] = useStateBSP(Date.now() - (30 * 60 + 55) * 1000); // ~30:55 in (DEMO only)
   const [cueDraft, setCueDraft] = useStateBSP('');
   const [sentCue, setSentCue] = useStateBSP(null);
   useEffectBSP(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const elapsed = Math.floor((now - startedAt) / 1000);
+  // Real mode (spec 2026-07-18): a real clientId + a readable row → render the
+  // PAYLOAD (names + set counts; loads render '—' — v1 broadcasts none, and the
+  // demo figures must NEVER show for a real client). No readable row → the demo
+  // grid is NOT shown either: the console keeps elapsed/kind and reads an honest
+  // neutral line. The hardcoded demo survives ONLY for demo roster entries.
+  const [liveRow, setLiveRow] = useStateBSP(null);
+  useEffectBSP(() => {
+    if (!clientId || !window.ShapeLiveProgress) return undefined;
+    let on = true; let expTimer = null;
+    const take = (r) => {
+      if (!on) return;
+      setLiveRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLiveRow(null); }, expMs);   // subscription-side expiry
+    };
+    window.ShapeLiveProgress.get(clientId).then(take).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(clientId, take);
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
+  }, [clientId]);
+  const lp = liveRow ? bsValidLivePayload(liveRow.payload) : null;   // malformed → honest-absent
+  const liveMode = !!clientId;   // real client → NEVER the demo data, row or not
 
-  const moves = [
+  const demoMoves = [
     { name: 'Pull-up', scheme: '4 × 6-8', rest: '180s', load: '42 lb', sets: 4, done: 4 },
     { name: 'Barbell row', scheme: '4 × 8', rest: '2:00', load: '155 lb', sets: 4, done: 2, active: true, cue: 'Hinge 45°, pull to sternum.' },
     { name: 'Chest-sup. row', scheme: '3 × 10', rest: '90s', load: '60 lb', sets: 3, done: 0 },
@@ -482,11 +504,22 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
     { name: 'Incline curl', scheme: '3 × 12', rest: '60s', load: '27.5 lb', sets: 3, done: 0 },
     { name: 'Farmer carry', scheme: '3 × 40m', rest: '60s', load: '80 lb', sets: 3, done: 0 },
   ];
-  const curIdx = Math.max(0, moves.findIndex(m => m.active));
-  const cur = moves[curIdx];
-  const totalSets = moves.reduce((s, m) => s + m.sets, 0);
-  const doneSets = moves.reduce((s, m) => s + m.done, 0);
+  // Live payload → the same row shape the demo grid renders. Loads are honest-
+  // absent ('—'): v1 deliberately broadcasts no loads/RPE (owner decision 2).
+  const shownMoves = liveMode
+    ? (lp ? lp.exercises.map((e, i) => ({ name: e.n, scheme: `${e.done}/${e.total}`, rest: '—', load: '—', sets: e.total, done: e.done, active: i === lp.curIdx })) : [])
+    : demoMoves;
+  const shownStartedAt = liveMode ? (liveRow && liveRow.started_at ? new Date(liveRow.started_at).getTime() : null) : startedAt;
+  // ⚠ Crash guard (spec review, Codex P1): with shownMoves = [] every `cur.*`
+  // read below would throw. `noDetail` short-circuits the header counter, the
+  // exercise section and the set grid; `cur` is null-safe regardless.
+  const noDetail = liveMode && !lp;
+  const curIdx = Math.max(0, shownMoves.findIndex(m => m.active));
+  const cur = shownMoves.length ? shownMoves[curIdx] : null;
+  const totalSets = shownMoves.reduce((s, m) => s + m.sets, 0);
+  const doneSets = shownMoves.reduce((s, m) => s + m.done, 0);
   const pct = totalSets ? doneSets / totalSets : 0;
+  const elapsed = shownStartedAt != null ? Math.max(0, Math.floor((now - shownStartedAt) / 1000)) : null;
   const quickCues = [
     tr('coach:live.cueEccentric', { defaultValue: 'Slow the eccentric' }),
     tr('coach:live.cueHold', { defaultValue: 'Hold this weight' }),
@@ -500,30 +533,41 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: fmt(elapsed) })}
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: elapsed != null ? fmt(elapsed) : '—:—' })}
         </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done: doneSets, total: totalSets })}</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{noDetail ? '' : tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done: doneSets, total: totalSets })}</span>
       </div>
 
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.watchingLive', { defaultValue: 'Watching live' })}</div>
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{client}</div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('coach:live.workoutProgress', { defaultValue: '{workout} · {pct}% · set {cur} of {total}', workout, pct: Math.round(pct * 100), cur: cur.done + 1, total: cur.sets })}</div>
-        <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
-        </div>
+        {noDetail ? (
+          // Neutral by design (spec review): RLS makes 'private', 'not visible
+          // to this viewer' and 'pre-migration' indistinguishable — naming any
+          // one would fabricate a state we cannot know.
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+            {tr('coach:live.detailUnavailable', { defaultValue: "Live detail unavailable — set-by-set isn't shared here" })}
+          </div>
+        ) : (
+          <React.Fragment>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('coach:live.workoutProgress', { defaultValue: '{workout} · {pct}% · set {cur} of {total}', workout, pct: Math.round(pct * 100), cur: (cur ? cur.done : 0) + 1, total: cur ? cur.sets : 0 })}</div>
+            <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+            </div>
+          </React.Fragment>
+        )}
       </div>
 
-      <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.exerciseOf', { defaultValue: 'Exercise {cur} of {total}', cur: curIdx + 1, total: moves.length })}</span>
+      {cur && <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.exerciseOf', { defaultValue: 'Exercise {cur} of {total}', cur: curIdx + 1, total: shownMoves.length })}</span>
         <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{cur.scheme}</span>
-      </div>
-      <div style={{ padding: `4px ${t.padX}px 0` }}>
+      </div>}
+      {cur && <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{cur.name}<span style={{ color: teal }}>.</span></div>
         {cur.cue && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK50 }}>“{cur.cue}”</div>}
-      </div>
+      </div>}
 
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
+      {cur && <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           <span>{tr('coach:live.colSet', { defaultValue: 'Set' })}</span><span>{tr('coach:live.colWeight', { defaultValue: 'Weight' })}</span><span>{tr('coach:live.colReps', { defaultValue: 'Reps' })}</span><span>{tr('coach:common.rpe', { defaultValue: 'RPE' })}</span><span />
         </div>
@@ -536,14 +580,14 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {cell(cur.load.replace(/\s*lb/i, '') + ' lb')}
-              {cell(done ? '8' : '—')}
-              {cell(done ? '8.0' : '—')}
+              {cell(liveMode ? '—' : String(cur.load || '').replace(/\s*lb/i, '') + ' lb')}
+              {cell(liveMode ? '—' : (done ? '8' : '—'))}
+              {cell(liveMode ? '—' : (done ? '8.0' : '—'))}
               <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || active) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
             </div>
           );
         })}
-      </div>
+      </div>}
 
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         {/* Rust retired from chrome — station-head eyebrow (accent tick + ink), teal action. */}
@@ -564,7 +608,7 @@ function BSProLiveWatch({ client = 'Alex Rivera', workout = 'Upper Pull — Peak
       </div>
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         {/* NOW spine on the current move — no fill/box (the client session queue grammar). */}
-        {moves.map((m, i) => {
+        {shownMoves.map((m, i) => {
           const mDone = m.done >= m.sets;
           const isCur = i === curIdx;
           return (
@@ -1186,7 +1230,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
   if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
-  if (liveWatch) return <BSProLiveWatch client={liveWatch.client} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
+  if (liveWatch) return <BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,

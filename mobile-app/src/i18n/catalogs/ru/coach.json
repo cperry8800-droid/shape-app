@@ -833,5 +833,7 @@
   "wire.openFileArrow": "ОТКРЫТЬ ДЕЛО →",
   "wire.scheduleArrow": "РАСПИСАНИЕ →",
   "wire.seeFullRoster": "СМОТРЕТЬ ВЕСЬ СПИСОК",
-  "wire.theWire": "СВОДКА"
+  "wire.theWire": "СВОДКА",
+  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
+  "live.liveTag": "Live"
 }

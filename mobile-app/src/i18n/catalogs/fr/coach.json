@@ -833,5 +833,7 @@
   "wire.openFileArrow": "OUVRIR LE DOSSIER →",
   "wire.scheduleArrow": "PLANIFIER →",
   "wire.seeFullRoster": "VOIR LA LISTE COMPLÈTE",
-  "wire.theWire": "LE FIL"
+  "wire.theWire": "LE FIL",
+  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
+  "live.liveTag": "Live"
 }

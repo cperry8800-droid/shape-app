@@ -833,5 +833,7 @@
   "wire.openFileArrow": "ABRIR O PRONTUÁRIO →",
   "wire.scheduleArrow": "AGENDAR →",
   "wire.seeFullRoster": "VER A LISTA COMPLETA",
-  "wire.theWire": "O FIO"
+  "wire.theWire": "O FIO",
+  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
+  "live.liveTag": "Live"
 }
