@@ -8,6 +8,7 @@ import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLed
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
+import { bsLiveProgressPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -21332,7 +21333,52 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // workout persists across screen changes / app backgrounding (DB-backed) and is
   // only cleared when she actually ends it (✕ End or Finish below).
   React.useEffect(() => { bsSetMyActivity('workout'); }, []);
-  const endWorkout = () => { bsSetMyActivity(null); onBack(); };
+  // ── Live progress broadcast (spec 2026-07-18) ──────────────────────────────
+  // Push names + set counts (NEVER loads/RPE) through the throttle whenever the
+  // watched state changes; trailing retry so a change inside the 4s floor still
+  // lands. Clear on end/unmount so live detail can never outlive the dot.
+  const liveRef = React.useRef({ prev: null, lastAt: 0, timer: null, restTimer: null });
+  React.useEffect(() => {
+    const resting = !!restEnd && restEnd > Date.now();
+    const base = bsLiveProgressPayload(moves, completed, moveIdx, resting);
+    const next = base ? { ...base, title: String(title || '').slice(0, 80) } : null;
+    const lr = liveRef.current;
+    const fire = () => {
+      lr.prev = next; lr.lastAt = Date.now();
+      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next); } catch (e) {}
+    };
+    if (lr.timer) { clearTimeout(lr.timer); lr.timer = null; }
+    if (lr.restTimer) { clearTimeout(lr.restTimer); lr.restTimer = null; }
+    if (!next) return;
+    if (bsShouldPushProgress(lr.prev, next, lr.lastAt, Date.now())) fire();
+    else if (JSON.stringify(lr.prev) !== JSON.stringify(next)) {
+      lr.timer = setTimeout(fire, Math.max(250, 4000 - (Date.now() - lr.lastAt)));   // trailing push
+    }
+    // Rest-expiry re-push (spec review, Codex P2): a rest that counts down to
+    // zero changes NO dependency — restEnd stays set, Date.now() just passes it
+    // — so viewers would hold `resting: true` until the next tap. While resting,
+    // schedule a push of the resting:false payload at expiry (same floor rules).
+    if (resting) {
+      lr.restTimer = setTimeout(() => {
+        const after = { ...next, resting: false };
+        if (bsShouldPushProgress(lr.prev, after, lr.lastAt, Date.now())) {
+          lr.prev = after; lr.lastAt = Date.now();
+          try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(after); } catch (e) {}
+        }
+      }, Math.max(250, restEnd - Date.now() + 4050));   // past the floor by construction
+    }
+  }, [moves, completed, moveIdx, restEnd, title]);
+  React.useEffect(() => () => {
+    const lr = liveRef.current;
+    if (lr.timer) clearTimeout(lr.timer);
+    if (lr.restTimer) clearTimeout(lr.restTimer);
+    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
+  }, []);
+  const endWorkout = () => {
+    bsSetMyActivity(null);
+    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
+    onBack();
+  };
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
@@ -21571,6 +21617,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
     }
     bsSetMyActivity(null);
+    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
     onBack();
   };
 
