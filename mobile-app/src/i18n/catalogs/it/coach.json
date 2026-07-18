@@ -833,5 +833,7 @@
   "wire.openFileArrow": "APRI IL FASCICOLO →",
   "wire.scheduleArrow": "PIANIFICA →",
   "wire.seeFullRoster": "VEDI LA LISTA COMPLETA",
-  "wire.theWire": "IL FILO"
+  "wire.theWire": "IL FILO",
+  "live.detailUnavailable": "Dettaglio in diretta non disponibile — qui non si condivide serie per serie",
+  "live.liveTag": "In diretta"
 }

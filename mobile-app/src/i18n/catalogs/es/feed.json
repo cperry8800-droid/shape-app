@@ -174,5 +174,7 @@
   "type.nutrition": "Nutrición",
   "type.prs": "PRs",
   "type.runs": "Carreras",
-  "type.workouts": "Entrenamientos"
+  "type.workouts": "Entrenamientos",
+  "boost.liveSet": "serie {done, number} de {total, number}",
+  "boost.liveSets": "{done, number}/{total, number} series"
 }

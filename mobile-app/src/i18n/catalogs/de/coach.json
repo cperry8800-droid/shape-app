@@ -833,5 +833,7 @@
   "wire.openFileArrow": "AKTE ÖFFNEN →",
   "wire.scheduleArrow": "TERMINIEREN →",
   "wire.seeFullRoster": "GESAMTEN KADER ANSEHEN",
-  "wire.theWire": "DER DRAHT"
+  "wire.theWire": "DER DRAHT",
+  "live.detailUnavailable": "Live-Details nicht verfügbar — Satz für Satz wird hier nicht geteilt",
+  "live.liveTag": "Live"
 }

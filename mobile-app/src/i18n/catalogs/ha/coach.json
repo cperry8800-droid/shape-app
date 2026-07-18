@@ -833,5 +833,7 @@
   "wire.openFileArrow": "BUƊE FAYILIN →",
   "wire.scheduleArrow": "JADAWALI →",
   "wire.seeFullRoster": "DUBA CIKAKKEN JERIN",
-  "wire.theWire": "WAYAR"
+  "wire.theWire": "WAYAR",
+  "live.detailUnavailable": "Babu bayanin kai tsaye — ba a raba saiti-saiti a nan ba",
+  "live.liveTag": "Kai tsaye"
 }

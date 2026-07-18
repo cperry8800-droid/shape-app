@@ -174,5 +174,7 @@
   "type.nutrition": "Beslenme",
   "type.prs": "PR",
   "type.runs": "Koşular",
-  "type.workouts": "Antrenmanlar"
+  "type.workouts": "Antrenmanlar",
+  "boost.liveSet": "set {done, number}/{total, number}",
+  "boost.liveSets": "{done, number}/{total, number} set"
 }

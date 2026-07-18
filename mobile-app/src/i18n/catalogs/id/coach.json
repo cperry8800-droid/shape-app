@@ -833,5 +833,7 @@
   "wire.openFileArrow": "BUKA BERKAS →",
   "wire.scheduleArrow": "JADWALKAN →",
   "wire.seeFullRoster": "LIHAT SELURUH DAFTAR KLIEN",
-  "wire.theWire": "KABAR"
+  "wire.theWire": "KABAR",
+  "live.detailUnavailable": "Detail langsung tidak tersedia — rincian set per set tidak dibagikan di sini",
+  "live.liveTag": "Langsung"
 }

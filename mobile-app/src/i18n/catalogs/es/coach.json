@@ -833,5 +833,7 @@
   "wire.openFileArrow": "ABRIR EL EXPEDIENTE →",
   "wire.scheduleArrow": "AGENDAR →",
   "wire.seeFullRoster": "VER LA LISTA COMPLETA",
-  "wire.theWire": "EL HILO"
+  "wire.theWire": "EL HILO",
+  "live.detailUnavailable": "Detalle en vivo no disponible — aquí no se comparte serie por serie",
+  "live.liveTag": "En vivo"
 }

@@ -833,5 +833,7 @@
   "wire.openFileArrow": "ВІДКРИТИ СПРАВУ →",
   "wire.scheduleArrow": "РОЗКЛАД →",
   "wire.seeFullRoster": "ПЕРЕГЛЯНУТИ ВЕСЬ СПИСОК",
-  "wire.theWire": "ЗВЕДЕННЯ"
+  "wire.theWire": "ЗВЕДЕННЯ",
+  "live.detailUnavailable": "Деталі наживо недоступні — тут немає розбивки за підходами",
+  "live.liveTag": "Наживо"
 }

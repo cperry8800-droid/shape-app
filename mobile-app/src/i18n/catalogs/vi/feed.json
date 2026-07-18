@@ -174,5 +174,7 @@
   "type.nutrition": "Dinh dưỡng",
   "type.prs": "PR",
   "type.runs": "Chạy bộ",
-  "type.workouts": "Buổi tập"
+  "type.workouts": "Buổi tập",
+  "boost.liveSet": "hiệp {done, number}/{total, number}",
+  "boost.liveSets": "{done, number}/{total, number} hiệp"
 }

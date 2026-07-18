@@ -833,5 +833,7 @@
   "wire.openFileArrow": "MỞ HỒ SƠ →",
   "wire.scheduleArrow": "LỊCH →",
   "wire.seeFullRoster": "XEM TOÀN BỘ DANH SÁCH",
-  "wire.theWire": "BẢN TIN"
+  "wire.theWire": "BẢN TIN",
+  "live.detailUnavailable": "Không có chi tiết trực tiếp — từng hiệp không được chia sẻ ở đây",
+  "live.liveTag": "Trực tiếp"
 }

@@ -8,6 +8,7 @@ import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
+import { bsLiveAudience } from './liveProgress.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
@@ -5388,6 +5389,94 @@ window.ShapePresence = {
   },
   myActivity: () => _activity.mine,
   onChange: (cb) => { _presence.listeners.add(cb); return () => _presence.listeners.delete(cb); },
+};
+
+// ─── Live workout progress (spec 2026-07-18) ────────────────────────────────
+// One row per member in user_activity_live; RLS enforces the audience.
+// The AUDIENCE is resolved PER PUSH — deliberately NO cache (spec review:
+// Codex P1 + CodeRabbit CWE-862 — a cache breaks retro-tightening inside its
+// TTL, and a cached success masks a later failed read, defeating fail-closed).
+// The writer's 4s throttle bounds this to one small single-row select per push.
+// FAILS CLOSED: a failed read → null → clear(), never a broadcast (#1613).
+// Push/clear are GENERATION-guarded so an in-flight push can never resurrect
+// the row after session end (spec review: CodeRabbit race finding).
+// Pre-migration degrade: any error is a silent no-op (the feature just
+// doesn't exist until the OWNER applies the SQL).
+// Mutations are SERIALIZED through one promise chain (review: CodeRabbit
+// Critical + Codex P2). A pre-dispatch generation check alone cannot guard an
+// ALREADY-DISPATCHED request: an upsert could pass the check, then land after a
+// later clear() deleted the row, republishing progress after Stop/Finish or
+// after a privacy withdrawal. With the queue, a clear() cannot start until the
+// in-flight upsert has finished, so the delete always wins the ordering.
+// The generation is still bumped on EVERY clear path (incl. the private/
+// read-failed one) so a queued push that is now obsolete drops out cheaply.
+let _liveGen = 0;
+let _liveQueue = Promise.resolve();
+function _liveEnqueue(fn) {
+  const run = () => fn().catch(() => {});
+  _liveQueue = _liveQueue.then(run, run);
+  return _liveQueue;
+}
+async function _liveAudience() {
+  let doc = null; let failed = false;
+  try {
+    const { data, error } = await supabase.from('user_goals').select('data')
+      .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
+    if (error) failed = true; else doc = (data && data.data) || null;
+  } catch (e) { failed = true; }
+  return bsLiveAudience(doc, failed);
+}
+// `fresh` = the first push of a session. It stamps started_at so a row that
+// survived a crash / failed clear can't lend its OLD start time to the new
+// session (the coach clock would read hours old — Codex P2). Later pushes omit
+// started_at so the session's real start survives the upsert.
+async function livePush(payload, fresh) {
+  if (!supabase || !state.user || !payload) return;
+  const gen = _liveGen;
+  return _liveEnqueue(async () => {
+    if (gen !== _liveGen) return;              // superseded before we ran
+    const vis = await _liveAudience();
+    if (gen !== _liveGen) return;
+    if (!vis) { _liveGen++; await _liveDelete(); return; }   // private/read-failed → absence
+    const now = new Date();
+    const row = {
+      user_id: state.user.id, visibility: vis, payload,
+      updated_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + 6 * 3600 * 1000).toISOString(),
+    };
+    if (fresh) row.started_at = now.toISOString();
+    await supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' });
+  });
+}
+async function _liveDelete() {
+  try { if (supabase && state.user) await supabase.from('user_activity_live').delete().eq('user_id', state.user.id); } catch (e) {}
+}
+function liveClear() {
+  _liveGen++;                                   // obsolete any queued push
+  return _liveEnqueue(_liveDelete);             // runs AFTER any in-flight upsert
+}
+window.ShapeLiveProgress = {
+  push: livePush,
+  clear: liveClear,
+  get: async (uid) => {
+    if (!supabase || !uid) return null;
+    try {
+      const { data } = await supabase.from('user_activity_live')
+        .select('payload, visibility, started_at, updated_at, expires_at')
+        .eq('user_id', uid).gt('expires_at', new Date().toISOString()).maybeSingle();
+      return data || null;   // RLS decides; absent/error → null (honest-absent)
+    } catch (e) { return null; }
+  },
+  subscribe: (uid, cb) => {
+    if (!supabase || !uid) return () => {};
+    try {
+      const channel = supabase.channel(`live-progress-${uid}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_activity_live', filter: `user_id=eq.${uid}` },
+          (payload) => { try { cb(payload.eventType === 'DELETE' ? null : (payload.new || null)); } catch (e) {} })
+        .subscribe();
+      return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+    } catch (e) { return () => {}; }
+  },
 };
 
 window.ShapeWorkoutLogs = {

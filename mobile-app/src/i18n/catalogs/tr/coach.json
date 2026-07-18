@@ -833,5 +833,7 @@
   "wire.openFileArrow": "DOSYAYI AÇ →",
   "wire.scheduleArrow": "PLANLA →",
   "wire.seeFullRoster": "TÜM KADROYU GÖR",
-  "wire.theWire": "BÜLTEN"
+  "wire.theWire": "BÜLTEN",
+  "live.detailUnavailable": "Canlı ayrıntı yok — set set ayrıntı burada paylaşılmıyor",
+  "live.liveTag": "Canlı"
 }

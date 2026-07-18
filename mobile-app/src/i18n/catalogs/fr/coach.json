@@ -833,5 +833,7 @@
   "wire.openFileArrow": "OUVRIR LE DOSSIER →",
   "wire.scheduleArrow": "PLANIFIER →",
   "wire.seeFullRoster": "VOIR LA LISTE COMPLÈTE",
-  "wire.theWire": "LE FIL"
+  "wire.theWire": "LE FIL",
+  "live.detailUnavailable": "Détail en direct indisponible — le suivi série par série n'est pas partagé ici",
+  "live.liveTag": "En direct"
 }

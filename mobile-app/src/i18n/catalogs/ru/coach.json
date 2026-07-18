@@ -833,5 +833,7 @@
   "wire.openFileArrow": "ОТКРЫТЬ ДЕЛО →",
   "wire.scheduleArrow": "РАСПИСАНИЕ →",
   "wire.seeFullRoster": "СМОТРЕТЬ ВЕСЬ СПИСОК",
-  "wire.theWire": "СВОДКА"
+  "wire.theWire": "СВОДКА",
+  "live.detailUnavailable": "Детали в эфире недоступны — здесь нет разбивки по подходам",
+  "live.liveTag": "В эфире"
 }
