@@ -101,6 +101,7 @@ end $$;
   - `bsLiveProgressPayload(moves, completed, moveIdx, resting)` → `{ v:1, title?, exercises:[{n,done,total}], curIdx, resting, setsDone, setsTotal } | null` — `moves` is the player's state shape `[{ m: string, sets: number, ... }]` (name field is **`m`**), `completed` is the `{ '<moveIdx>-<setIdx>': true }` map, `title` is attached by the caller (Task 4), not this function.
   - `bsLiveAudience(settingsDoc, readFailed)` → `'public' | 'followers' | null`.
   - `bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now)` → `boolean`.
+  - `bsValidLivePayload(raw)` → sanitized payload `| null` — every consumer (Tasks 5–6) renders ONLY through this.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -108,7 +109,7 @@ end $$;
 // tests/live-progress.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bsLiveProgressPayload, bsLiveAudience, bsShouldPushProgress } from '../mobile-app/src/services/liveProgress.mjs';
+import { bsLiveProgressPayload, bsLiveAudience, bsShouldPushProgress, bsValidLivePayload } from '../mobile-app/src/services/liveProgress.mjs';
 
 const MOVES = [ { m: 'Pull-up', sets: 4 }, { m: 'Barbell row', sets: 4 }, { m: '', sets: 3 } ];
 const DONE = { '0-0': true, '0-1': true, '0-2': true, '0-3': true, '1-0': true, '1-1': true };
@@ -146,6 +147,21 @@ test('audience maps the share rule; private → null; failed read → null (fail
   assert.equal(bsLiveAudience({ shareWorkoutData: 'On', profileVisibility: 'Public' }, true), null); // read FAILED → closed
 });
 
+test('payload bounds hostile state: Infinity/fractional sets clamp, never loop', () => {
+  const p = bsLiveProgressPayload([{ m: 'X', sets: Infinity }, { m: 'Y', sets: 2.7 }], {}, 0, false);
+  assert.equal(p.exercises[0].total, 1);   // Infinity is not finite → floor 1, no infinite loop
+  assert.equal(p.exercises[1].total, 2);
+});
+
+test('bsValidLivePayload accepts its own builder output and rejects malformed wire data', () => {
+  const own = bsLiveProgressPayload(MOVES, DONE, 1, true);
+  assert.ok(bsValidLivePayload(own));
+  assert.equal(bsValidLivePayload(null), null);
+  assert.equal(bsValidLivePayload({ v: 2, exercises: [] }), null);
+  assert.equal(bsValidLivePayload({ v: 1, exercises: [{ n: 'A', done: 3, total: 2 }], curIdx: 0, setsDone: 3, setsTotal: 2 }), null); // done > total
+  assert.equal(bsValidLivePayload({ v: 1, exercises: [{ n: 'A', done: 0, total: 2 }], curIdx: 5, setsDone: 0, setsTotal: 2 }), null); // curIdx out of range
+});
+
 test('throttle: unchanged never pushes; changed pushes only past the 4s floor', () => {
   const a = bsLiveProgressPayload(MOVES, DONE, 1, false);
   const b = bsLiveProgressPayload(MOVES, { ...DONE, '1-2': true }, 1, false);
@@ -176,15 +192,22 @@ test('throttle: unchanged never pushes; changed pushes only past the 4s floor', 
 import { bsWorkoutSharePrivacy } from './workoutShare.mjs';
 
 const PUSH_FLOOR_MS = 4000;
+const MAX_SETS = 50;      // per-move bound — also blocks Infinity/fractional state (review: CodeRabbit)
+const MAX_EXERCISES = 60;
+
+const intSets = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(MAX_SETS, Math.max(1, Math.floor(n))) : 1;
+};
 
 export function bsLiveProgressPayload(moves, completed, moveIdx, resting) {
   if (!Array.isArray(moves) || moves.length === 0) return null;
   const done = completed && typeof completed === 'object' ? completed : {};
-  const exercises = moves.map((m, i) => {
-    const total = Math.max(1, Number(m && m.sets) || 1);
+  const exercises = moves.slice(0, MAX_EXERCISES).map((m, i) => {
+    const total = intSets(m && m.sets);
     let d = 0;
     for (let s = 0; s < total; s++) if (done[`${i}-${s}`]) d++;
-    return { n: String((m && m.m) || '').trim() || 'Exercise', done: d, total };
+    return { n: String((m && m.m) || '').trim().slice(0, 80) || 'Exercise', done: d, total };
   });
   const setsTotal = exercises.reduce((s, e) => s + e.total, 0);
   const setsDone = exercises.reduce((s, e) => s + e.done, 0);
@@ -203,9 +226,26 @@ export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) 
   if (JSON.stringify(prevPayload) === JSON.stringify(nextPayload)) return false;
   return (Number(now) || 0) - (Number(lastPushAt) || 0) >= PUSH_FLOOR_MS;
 }
+
+// Consumer-side structural validator (review: CodeRabbit) — jsonb off the wire
+// is attacker-shaped until proven otherwise. Anything malformed → null → the
+// honest-absent render; a v1 consumer never guesses at a partial shape.
+export function bsValidLivePayload(raw) {
+  if (!raw || typeof raw !== 'object' || raw.v !== 1) return null;
+  if (!Array.isArray(raw.exercises) || raw.exercises.length === 0 || raw.exercises.length > MAX_EXERCISES) return null;
+  const okInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
+  for (const e of raw.exercises) {
+    if (!e || typeof e !== 'object') return null;
+    if (typeof e.n !== 'string' || !e.n || e.n.length > 80) return null;
+    if (!okInt(e.total, 1, MAX_SETS) || !okInt(e.done, 0, e.total)) return null;
+  }
+  if (!Number.isInteger(raw.curIdx) || raw.curIdx < -1 || raw.curIdx >= raw.exercises.length) return null;
+  if (!okInt(raw.setsDone, 0, MAX_SETS * MAX_EXERCISES) || !okInt(raw.setsTotal, 1, MAX_SETS * MAX_EXERCISES) || raw.setsDone > raw.setsTotal) return null;
+  return { v: 1, title: typeof raw.title === 'string' ? raw.title.slice(0, 80) : '', exercises: raw.exercises.map((e) => ({ n: e.n, done: e.done, total: e.total })), curIdx: raw.curIdx, resting: !!raw.resting, setsDone: raw.setsDone, setsTotal: raw.setsTotal };
+}
 ```
 
-- [ ] **Step 4: Run to verify pass** — `node --test tests/live-progress.test.mjs` → 5 pass. Then the full suite: `npm test` → 635 pass (630 + these 5), 0 fail.
+- [ ] **Step 4: Run to verify pass** — `node --test tests/live-progress.test.mjs` → 7 pass. Then the full suite: `npm test` → 637 pass (630 + these 7), 0 fail.
 - [ ] **Step 5: Commit** — `git add mobile-app/src/services/liveProgress.mjs tests/live-progress.test.mjs && git commit -m "live-progress: pure payload/audience/throttle module (TDD)"`
 
 ---
@@ -223,32 +263,35 @@ export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) 
 
 ```js
 // ─── Live workout progress (spec 2026-07-18) ────────────────────────────────
-// One row per member in user_activity_live; RLS enforces the audience. The
-// AUDIENCE is resolved here from the member's own client_settings — cached
-// briefly so a session's pushes don't re-read per set — and FAILS CLOSED:
-// a failed read → null → clear(), never a broadcast (the #1613 lesson).
+// One row per member in user_activity_live; RLS enforces the audience.
+// The AUDIENCE is resolved PER PUSH — deliberately NO cache (spec review:
+// Codex P1 + CodeRabbit CWE-862 — a cache breaks retro-tightening inside its
+// TTL, and a cached success masks a later failed read, defeating fail-closed).
+// The writer's 4s throttle bounds this to one small single-row select per push.
+// FAILS CLOSED: a failed read → null → clear(), never a broadcast (#1613).
+// Push/clear are GENERATION-guarded so an in-flight push can never resurrect
+// the row after session end (spec review: CodeRabbit race finding).
 // Pre-migration degrade: any error is a silent no-op (the feature just
 // doesn't exist until the OWNER applies the SQL).
-let _liveAud = { at: 0, val: null };   // { at: ms, val: 'public'|'followers'|null }
+let _liveGen = 0;
 async function _liveAudience() {
-  const now = Date.now();
-  if (now - _liveAud.at < 60000) return _liveAud.val;
   let doc = null; let failed = false;
   try {
     const { data, error } = await supabase.from('user_goals').select('data')
       .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
     if (error) failed = true; else doc = (data && data.data) || null;
   } catch (e) { failed = true; }
-  const val = bsLiveAudience(doc, failed);
-  _liveAud = { at: now, val };
-  return val;
+  return bsLiveAudience(doc, failed);
 }
 async function livePush(payload) {
   try {
     if (!state.user || !payload) return;
+    const gen = _liveGen;
     const vis = await _liveAudience();
+    if (gen !== _liveGen) return;              // clear() ran while we awaited — session over
     if (!vis) { await liveClear(); return; }   // private (or read-failed) → absence
     const now = new Date();
+    if (gen !== _liveGen) return;
     await supabase.from('user_activity_live').upsert({
       user_id: state.user.id, visibility: vis, payload,
       updated_at: now.toISOString(),
@@ -261,7 +304,7 @@ async function liveClear() {
 }
 window.ShapeLiveProgress = {
   push: livePush,
-  clear: () => { _liveAud = { at: 0, val: null }; return liveClear(); },  // reset the cache so a Settings flip re-resolves next session
+  clear: () => { _liveGen++; return liveClear(); },  // bump FIRST: any awaited push aborts
   get: async (uid) => {
     try {
       const { data } = await supabase.from('user_activity_live')
@@ -284,7 +327,7 @@ window.ShapeLiveProgress = {
 
 - [ ] **Step 2: Note on `started_at`** — the DB default (`now()` at first upsert) is the session start; later upserts must NOT send `started_at` (they don't — it's absent from the push object, so the original value survives the upsert **only if the column is omitted**… it is: `push` never includes it). The coach console derives elapsed from it.
 - [ ] **Step 3: Verify** — `node --check mobile-app/src/services/shapeBackend.js` → clean; `npm test` → 635.
-- [ ] **Step 4: Commit** — `git add mobile-app/src/services/shapeBackend.js && git commit -m "live-progress: ShapeLiveProgress push/clear/get/subscribe (fail-closed audience)"`
+- [ ] **Step 4: Commit** — `git add mobile-app/src/services/shapeBackend.js && git commit -m "live-progress: ShapeLiveProgress push/clear/get/subscribe (per-push fail-closed audience; generation-guarded clear)"`
 
 ---
 
@@ -304,7 +347,7 @@ window.ShapeLiveProgress = {
   // Push names + set counts (NEVER loads/RPE) through the throttle whenever the
   // watched state changes; trailing retry so a change inside the 4s floor still
   // lands. Clear on end/unmount so live detail can never outlive the dot.
-  const liveRef = React.useRef({ prev: null, lastAt: 0, timer: null });
+  const liveRef = React.useRef({ prev: null, lastAt: 0, timer: null, restTimer: null });
   React.useEffect(() => {
     const resting = !!restEnd && restEnd > Date.now();
     const base = bsLiveProgressPayload(moves, completed, moveIdx, resting);
@@ -315,15 +358,30 @@ window.ShapeLiveProgress = {
       try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next); } catch (e) {}
     };
     if (lr.timer) { clearTimeout(lr.timer); lr.timer = null; }
+    if (lr.restTimer) { clearTimeout(lr.restTimer); lr.restTimer = null; }
     if (!next) return;
     if (bsShouldPushProgress(lr.prev, next, lr.lastAt, Date.now())) fire();
     else if (JSON.stringify(lr.prev) !== JSON.stringify(next)) {
       lr.timer = setTimeout(fire, Math.max(250, 4000 - (Date.now() - lr.lastAt)));   // trailing push
     }
+    // Rest-expiry re-push (spec review, Codex P2): a rest that counts down to
+    // zero changes NO dependency — restEnd stays set, Date.now() just passes it
+    // — so viewers would hold `resting: true` until the next tap. While resting,
+    // schedule a push of the resting:false payload at expiry (same floor rules).
+    if (resting) {
+      lr.restTimer = setTimeout(() => {
+        const after = { ...next, resting: false };
+        if (bsShouldPushProgress(lr.prev, after, lr.lastAt, Date.now())) {
+          lr.prev = after; lr.lastAt = Date.now();
+          try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(after); } catch (e) {}
+        }
+      }, Math.max(250, restEnd - Date.now() + 4050));   // past the floor by construction
+    }
   }, [moves, completed, moveIdx, restEnd, title]);
   React.useEffect(() => () => {
     const lr = liveRef.current;
     if (lr.timer) clearTimeout(lr.timer);
+    if (lr.restTimer) clearTimeout(lr.restTimer);
     try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
   }, []);
 ```
@@ -348,7 +406,7 @@ window.ShapeLiveProgress = {
 - Modify: `mobile-app/src/i18n/catalogs/en/feed.json` — 2 new keys.
 
 **Interfaces:**
-- Consumes: `window.ShapeLiveProgress.get/subscribe` (Task 3). The sheet already has `person.userId`, `kind` (`'workout'|'cooking'`), `accent`, `t`, and the `mins` effect as the anchor.
+- Consumes: `window.ShapeLiveProgress.get/subscribe` (Task 3) and `bsValidLivePayload` (Task 2 — extend the Task 4 import line in this same file to include it). The sheet already has `person.userId`, `kind` (`'workout'|'cooking'`), `accent`, `t`, and the `mins` effect as the anchor.
 - Produces: `feed:boost.liveSet` = `set {done, number} of {total, number}` · `feed:boost.liveSets` = `{done, number}/{total, number} sets` (Task 7 translates ×12).
 
 - [ ] **Step 1: Add the keys to `en/feed.json`** (flat dotted keys, keep file order tidy):
@@ -369,12 +427,21 @@ window.ShapeLiveProgress = {
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => {
     if (!person.userId || kind !== 'workout' || !window.ShapeLiveProgress) return undefined;
-    let on = true;
-    window.ShapeLiveProgress.get(person.userId).then((row) => { if (on) setLive(row); }).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(person.userId, (row) => { if (on) setLive(row); });
-    return () => { on = false; off(); };
+    let on = true; let expTimer = null;
+    const take = (row) => {
+      if (!on) return;
+      setLive(row);
+      // Subscription-side expiry (spec review): the SQL filter protects get()
+      // only — an already-open sheet must drop a row when its expires_at passes.
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
+      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
+    };
+    window.ShapeLiveProgress.get(person.userId).then(take).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(person.userId, take);
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [person.userId, kind]);
-  const lp = live && live.payload && live.payload.v === 1 ? live.payload : null;   // unknown shape → render nothing
+  const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
   const lpCur = lp && lp.curIdx >= 0 && lp.exercises && lp.exercises[lp.curIdx] ? lp.exercises[lp.curIdx] : null;
 ```
 
@@ -400,8 +467,9 @@ window.ShapeLiveProgress = {
 
 (The "current set" figure is `done + 1` clamped to `total` — the set they're ON, not the count finished; the summary pair stays raw done/total.)
 
-- [ ] **Step 4: Verify** — JSX parse → clean; `npm test` → 635 (catalog parity still green — `feed` gains keys in `en` only in this task; the parity test compares against `en`, so **it will FAIL naming the 12 locales** — that is the expected gate state; Task 7 closes it. If the suite must stay green per-commit, add the two keys to all 13 in this task with English values and let Task 7 replace them — do NOT ship English values ×12 past Task 7).
-- [ ] **Step 5: Commit** — `git add mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx mobile-app/src/i18n/catalogs/en/feed.json && git commit -m "live-progress: boost sheet live line (honest-absent; RLS decides)"`
+- [ ] **Step 4: Seed the 2 keys into ALL 13 locale `feed.json` catalogs** (identical English values for now — the parity suite stays green on every commit; Task 7 REPLACES the 12 non-en values with real translations and the branch must never merge before it does). One scripted loop, not hand-edits.
+- [ ] **Step 5: Verify** — JSX parse → clean; `npm test` → 637 including catalog parity 3/3.
+- [ ] **Step 6: Commit** — `git add mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx mobile-app/src/i18n/catalogs/*/feed.json && git commit -m "live-progress: boost sheet live line (honest-absent; RLS decides)"`
 
 ---
 
@@ -413,15 +481,17 @@ window.ShapeLiveProgress = {
 
 **Interfaces:**
 - Consumes: `window.ShapeLiveProgress.get/subscribe` (Task 3). Call-site state already carries `clientId` (`setLiveWatch({ client: lc.n, clientId: lc.userId, ... })` line ~1445) — **but the component never receives it today**.
-- Produces: `coach:live.detailPrivate` = `Live detail private — set-by-set isn't shared` · `coach:live.liveTag` = `Live` (Task 7 translates ×12).
+- Produces: `coach:live.detailUnavailable` = `Live detail unavailable — set-by-set isn't shared here` · `coach:live.liveTag` = `Live` (Task 7 translates ×12). Also consumes `bsValidLivePayload` — the pros module imports it from `../services/liveProgress.mjs` (new import line at the top of the pros file).
 
 - [ ] **Step 1: Pass `clientId` through** — line ~1189: `<BSProLiveWatch client={liveWatch.client} workout={liveWatch.workout} onBack={...} />` → add `clientId={liveWatch.clientId}`.
 - [ ] **Step 2: Add the en keys** to `coach.json`:
 
 ```json
-"live.detailPrivate": "Live detail private — set-by-set isn't shared",
+"live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
 "live.liveTag": "Live"
 ```
+
+(**Neutral by design** — spec review: RLS makes *private*, *not visible to this viewer*, and *pre-migration* indistinguishable; naming any one would fabricate a state we cannot know.)
 
 - [ ] **Step 3: Live mode in the component** — signature becomes `function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Upper Pull — Peak', onBack = () => {} })`. Below the existing state, add:
 
@@ -435,12 +505,19 @@ window.ShapeLiveProgress = {
   const [liveRow, setLiveRow] = useStateBSP(null);
   useEffectBSP(() => {
     if (!clientId || !window.ShapeLiveProgress) return undefined;
-    let on = true;
-    window.ShapeLiveProgress.get(clientId).then((r) => { if (on) setLiveRow(r); }).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(clientId, (r) => { if (on) setLiveRow(r); });
-    return () => { on = false; off(); };
+    let on = true; let expTimer = null;
+    const take = (r) => {
+      if (!on) return;
+      setLiveRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLiveRow(null); }, expMs);   // subscription-side expiry
+    };
+    window.ShapeLiveProgress.get(clientId).then(take).catch(() => {});
+    const off = window.ShapeLiveProgress.subscribe(clientId, take);
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [clientId]);
-  const lp = liveRow && liveRow.payload && liveRow.payload.v === 1 ? liveRow.payload : null;
+  const lp = liveRow ? bsValidLivePayload(liveRow.payload) : null;   // malformed → honest-absent
   const liveMode = !!clientId;   // real client → NEVER the demo data, row or not
 ```
 
@@ -454,16 +531,17 @@ window.ShapeLiveProgress = {
   const shownStartedAt = liveMode ? (liveRow ? new Date(liveRow.started_at).getTime() : null) : startedAt;
 ```
 
-Then: every downstream read (`curIdx`, `cur`, `totalSets`, `doneSets`, `pct`, the grid map, the header counter, the elapsed clock) reads `shownMoves` / `shownStartedAt`. Elapsed renders `—:—` when `shownStartedAt` is null. Where `liveMode && !lp`, in place of the move grid render the private line + keep the cue composer:
+**⚠ Crash guard (spec review, Codex P1):** with `shownMoves = []`, the existing render path dereferences the derived current move (`cur.done`, `cur.sets`, `cur.name`) BEFORE any grid render — `cur` would be `undefined` and the console crashes instead of showing the intended fallback. So: derive `const noDetail = liveMode && !lp;` immediately after `shownMoves`; make every current-move derivation null-safe (`const cur = shownMoves.length ? shownMoves[Math.max(0, curIdx)] : null;`); every downstream read (`totalSets`, `doneSets`, `pct`, the grid map, the header counter, the elapsed clock) reads `shownMoves` / `shownStartedAt`; elapsed renders `—:—` when `shownStartedAt` is null; and where `noDetail`, render the block below IN PLACE OF the header counter + exercise section + grid (the cue composer stays):
 
 ```jsx
           <div style={{ padding: '14px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-            {tr('coach:live.detailPrivate', { defaultValue: "Live detail private — set-by-set isn't shared" })}
+            {tr('coach:live.detailUnavailable', { defaultValue: "Live detail unavailable — set-by-set isn't shared here" })}
           </div>
 ```
 
-- [ ] **Step 5: Verify** — JSX parse on the pros file → clean; PowerShell `/m/` build → exit 0; `npm test` (same parity caveat as Task 5 for `coach.json`).
-- [ ] **Step 6: Commit** — `git add mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx mobile-app/src/i18n/catalogs/en/coach.json && git commit -m "live-progress: coach live-watch real mode (demo stays demo-only; honest-absent loads)"`
+- [ ] **Step 5: Seed the 2 keys into ALL 13 locale `coach.json` catalogs** (English values; Task 7 replaces the 12 — same never-merge-before-Task-7 rule).
+- [ ] **Step 6: Verify** — JSX parse on the pros file → clean; PowerShell `/m/` build → exit 0; `npm test` → 637 including parity 3/3.
+- [ ] **Step 7: Commit** — `git add mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx mobile-app/src/i18n/catalogs/*/coach.json && git commit -m "live-progress: coach live-watch real mode (demo stays demo-only; honest-absent loads)"`
 
 ---
 
@@ -475,7 +553,7 @@ Then: every downstream read (`curIdx`, `cur`, `totalSets`, `doneSets`, `pct`, th
 
 **Interfaces:** consumes the exact en values from Tasks 5–6. Nothing downstream.
 
-- [ ] **Step 1: Translate the 4 keys ×12** — dispatch ONE translation agent (run-lean; this is tiny) with the standing per-locale rules verbatim: brand nouns literal · ICU args `{done}`/`{total}` preserved exactly · tr = placeholders-only apostrophe rule (proper-noun suffixes ARE correct) · ha = no leftover English · pcm = real Naija Pidgin, no formal register · ru/uk informal, "Score" never «счёт»/«рахунок» (not present here, but the rules ride whole) · id = `kamu`. Instruct: REUSE each locale's existing `coach:live.*` vocabulary for the coach keys.
+- [ ] **Step 1: REPLACE the 12 seeded-English values per key** (Tasks 5–6 seeded all 13 with English to keep parity green; merging with seeds in place ships English — this step makes the branch mergeable). Dispatch ONE translation agent (run-lean; this is tiny) with the standing per-locale rules verbatim: brand nouns literal · ICU args `{done}`/`{total}` preserved exactly · tr = placeholders-only apostrophe rule (proper-noun suffixes ARE correct) · ha = no leftover English · pcm = real Naija Pidgin, no formal register · ru/uk informal, "Score" never «счёт»/«рахунок» (not present here, but the rules ride whole) · id = `kamu`. Instruct: REUSE each locale's existing `coach:live.*` vocabulary for the coach keys.
 - [ ] **Step 2: Full gates** — `npm test` → **all green including catalog parity 3/3**; JSX parse ×2; `node --check` shapeBackend; `npx tsc --noEmit` → clean; PowerShell `VITE_BASE=/m/` build → exit 0; LF audit over every touched file → CR=0.
 - [ ] **Step 3: Browser verification** (dev server, two contexts): member starts a session → viewer's boost sheet shows the line, updates on a set toggle (≤5s), disappears on end; Settings → Private mid-session → row deleted on next transition; coach console with a real linked client renders payload moves + `—` loads; demo roster entry still renders the demo grid.
 - [ ] **Step 4: WORKLOG entry + War Room** — dated entry (what shipped · the RLS/visibility model · the no-loads decision · degrade behavior); War Room: flip the v2 "see the workout in progress live" item → done, register **OWNER runs `2026-07-18-user-activity-live.sql`** (raw link on the PR), the on-device pass, and the v2 candidates (coach-only richer channel · cooking detail · website).
@@ -487,4 +565,4 @@ Then: every downstream read (`curIdx`, `cur`, `totalSets`, `doneSets`, `pct`, th
 
 - **Spec coverage:** migration→T1 · pure module→T2 · backend API→T3 · writer+trailing push+retro-tighten (audience cache reset on clear; 60s TTL bounds staleness)→T3/T4 · boost line + member-side silence→T5 · coach real mode + private line + demo-stays-demo→T6 · i18n ×13 + gates + browser proof + registration→T7. Non-goals honored (no loads test in T2 enforces decision 2 structurally).
 - **Type consistency:** `bsLiveProgressPayload(moves, completed, moveIdx, resting)` consistent across T2/T4; `ShapeLiveProgress.{push,clear,get,subscribe}` consistent across T3/T5/T6; `title` attached by the caller (T4) per T2's interface note.
-- **Known judgment point for the executor:** T5/T6 leave the parity suite red between tasks (en-only keys). Either accept red-between-commits on the branch, or seed English ×12 in T5/T6 and replace in T7 — **never merge before T7 closes parity.**
+- **Review round applied (spec PR #1763, 12 findings):** audience cache removed (per-push resolve — Codex P1 + CodeRabbit CWE-862) · push/clear generation guard (race) · rest-expiry re-push (Codex P2) · coach no-row crash guard (Codex P1) · `bsValidLivePayload` consumer validator + bounds on `m.sets` (Infinity/fractional) · subscription-side `expires_at` timers on both consumers · seed-13-then-replace resolves the parity-gate contradiction · coach copy neutral `detailUnavailable` (honest-absent: RLS makes private / not-visible / pre-migration indistinguishable) · client-stamped `visibility` DECLINED-with-receipts (trust model = #1613's `community_posts.privacy`; a server-side re-derive trigger registered as the v2 hardening candidate).
