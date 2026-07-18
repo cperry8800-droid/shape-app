@@ -834,6 +834,6 @@
   "wire.scheduleArrow": "PIANIFICA →",
   "wire.seeFullRoster": "VEDI LA LISTA COMPLETA",
   "wire.theWire": "IL FILO",
-  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
-  "live.liveTag": "Live"
+  "live.detailUnavailable": "Dettaglio in diretta non disponibile — qui non si condivide serie per serie",
+  "live.liveTag": "In diretta"
 }

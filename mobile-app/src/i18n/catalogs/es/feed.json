@@ -175,6 +175,6 @@
   "type.prs": "PRs",
   "type.runs": "Carreras",
   "type.workouts": "Entrenamientos",
-  "boost.liveSet": "set {done, number} of {total, number}",
-  "boost.liveSets": "{done, number}/{total, number} sets"
+  "boost.liveSet": "serie {done, number} de {total, number}",
+  "boost.liveSets": "{done, number}/{total, number} series"
 }

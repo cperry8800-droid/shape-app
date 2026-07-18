@@ -171,7 +171,25 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-16, later): TEAM PAGE → OPEN LEDGER + THE RADIO WORDMARK.**
+> **Latest (2026-07-18): LIVE WORKOUT PROGRESS — the boost sender (and the
+> coach) finally see the session as it happens.** Closes the War Room v2 item.
+> Spec+plan **#1763**, build below. The session player broadcasts **names + set
+> counts only** (never loads/RPE — owner call) into a new `user_activity_live`
+> row whose audience is the member's **own share rule, strictly**: public /
+> followers / **private = NO ROW EXISTS** (absence, not filtering — absence
+> can't leak a setting choice). **No coach exception, no new toggle.** RLS +
+> realtime `postgres_changes` enforce it per subscriber. The boost sheet gains a
+> live line; the coach's `BSProLiveWatch` — until now **100% hardcoded demo
+> including its clock** — renders the real payload, with loads as an honest `—`
+> and the demo grid confined to demo roster entries. Honest-absent two ways, on
+> purpose: the member-side sheet says **nothing** when no row is readable
+> (naming it would leak that a choice exists), the coach console reads a
+> **neutral** "live detail unavailable" — **never "private"**, since RLS makes
+> private / not-visible-to-you / pre-migration indistinguishable.
+> ⚠ **OWNER: run `2026-07-18-user-activity-live.sql`** (silent no-op until then).
+> Open: the on-device pass.
+>
+> **Prior (2026-07-16, later): TEAM PAGE → OPEN LEDGER + THE RADIO WORDMARK.**
 > **#1748** rebuilds the website client **Team** page into the ledger grammar
 > (synthesis register lead → zero-box coach stations on role-colored spines,
 > dot-leader PLAN/NEXT registers) and fixes three honesty bugs: the fabricated
@@ -593,6 +611,93 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-18 — LIVE WORKOUT PROGRESS: the boost sender (and the coach) finally see the session as it happens
+
+- **Closes the registered War Room v2 item** ("let a boost sender SEE the workout
+  in progress"). Spec + plan **#1763**; build this entry. Two surfaces already
+  promised this and neither delivered: the boost sheet showed only kind + "N min
+  in", and the coach's `BSProLiveWatch` rendered a full move grid that was
+  **100% hardcoded demo — including its elapsed clock**. A coach "watching live"
+  was watching fiction.
+- **⚠ MIGRATION — OWNER RUNS IT:** `2026-07-18-user-activity-live.sql` (additive,
+  idempotent; raw link on the PR). Until it's applied every call is a **silent
+  no-op** and both surfaces render exactly today's UI.
+- **The audience is the member's OWN share rule, strictly** (owner decision):
+  `bsWorkoutSharePrivacy` → `public` (any signed-in member) · `followers`
+  (accepted follows) · **`private` → NO ROW EXISTS AT ALL**. There is deliberately
+  no `'private'` value in the CHECK: **absence, not filtering** — absence can't
+  leak a setting choice. **No coach exception** (a coach sees detail only if they
+  pass the same test) and **no new toggle** — the two Settings a member already
+  owns express intent for live exactly as they do for post-hoc sharing.
+- **No loads / RPE / reps in the v1 payload** (owner decision) — exercise names +
+  set counts only. The audience can include followers or the public; load figures
+  are the intimate part. In the coach console loads therefore render an honest
+  **`—`**, never the old demo figures. The coach still reads real loads post-hoc
+  from session logs.
+- **Transport**: `user_activity_live`, one row per member, RLS audience read,
+  realtime `postgres_changes` (**which enforces RLS per subscriber**, so a
+  followers-tier row is never pushed to a non-follower), 6h expiry.
+  **Rejected in spec:** a jsonb column on `user_activity` (RLS is row-level, not
+  column-level — that table is authenticated-read, so a direct select AND every
+  realtime push would leak set data to all signed-in members) and ephemeral
+  broadcast channels (no RLS story, no late-joiner state — and the boost sheet
+  opening MID-workout is the primary case).
+- **Pure `liveProgress.mjs`** (+ 7 test vectors, suite **637**): payload
+  derivation · `bsLiveAudience` (fail-closed on a read error — the #1613 lesson)
+  · `bsShouldPushProgress` (4s floor) · **`bsValidLivePayload`** — the
+  consumer-side structural validator, because jsonb off the wire is
+  attacker-shaped until proven otherwise; malformed → the honest-absent render.
+- **Writer** (`BSSession`): pushes on set toggle / move change / rest transitions
+  / add-remove set, plus a **trailing push** (a change inside the 4s floor still
+  lands) and a **rest-expiry re-push** (a rest counting down to zero changes NO
+  React dependency, so viewers would otherwise hold `resting: true` until the
+  next tap). `clear()` on finish · ✕ End · unmount, so live detail can never
+  outlive the presence dot.
+- **Retro-tightening is EXACT**: the audience re-resolves on **every push (no
+  cache)** — flipping Settings to Private mid-workout deletes the row on the very
+  next transition. Push/clear are **generation-guarded** so an in-flight push can
+  never resurrect the row after session end.
+- **Consumers**: the boost sheet gains a live line (`Barbell row · set 2 of 4 —
+  12/20 sets` + a fill bar); the coach console renders the real payload with a
+  real NOW marker and real elapsed. **Both carry subscription-side expiry
+  timers** — the SQL filter protects `get()` only, so an already-open view drops
+  a row when its `expires_at` passes.
+- **Honest-absent, two different ways (deliberate):** the member-side sheet says
+  **nothing** when no row is readable (naming it would leak that a setting choice
+  exists); the coach console reads a **neutral** `LIVE DETAIL UNAVAILABLE — SET-BY-SET
+  ISN'T SHARED HERE`. **Not "private"** — RLS makes *private*, *not visible to
+  this viewer*, and *pre-migration* indistinguishable, so naming any one would
+  fabricate a state we cannot know. **The demo grid now renders ONLY for demo
+  roster entries** (no real `clientId`).
+- **i18n ×13 day one** (4 keys, literal — no dynamic families). Two false
+  positives worth recording so the next translation check doesn't "fix" correct
+  work: **pcm** matches English on 3 of 4 (an English-lexifier creole genuinely
+  says "set 2 of 4"), and **de `live.liveTag` = "Live"** is correct German — the
+  catalog's own pre-existing `common.live` is already "Live". The rule that
+  generalizes: *a value equal to English is not a leftover seed when the locale
+  already uses that exact string under a different, pre-existing key.*
+- **Plan deviation (deliberate, 1):** `bsShouldPushProgress` returns true
+  explicitly when `prevPayload == null`. The plan let the first push fall out of
+  `Date.now() - 0 >= 4000` — true with a real clock, false under an injected one;
+  the TDD vector caught it. "The first push goes immediately" is a real
+  requirement (a viewer shouldn't wait 4s to see a session that just started), so
+  it's now stated rather than emergent.
+- Verified: JSX parse ×2 · `node --check` ×2 · `tsc --noEmit` clean · `npm test`
+  **637** · PowerShell `/m/` build exit 0 · LF · tr-shadow both forms clean ·
+  a dedicated 13-locale key checker (ICU preservation · no leftover seeds ·
+  em-dash kept · a **neutrality tripwire** that fails if any locale's
+  no-detail copy names a cause).
+- **Browser-verified on the dev server, precisely (no overclaim):**
+  `window.ShapeLiveProgress` exposes the exact 4-method API in the real bundle,
+  and — since the migration isn't applied yet — **this run WAS the pre-migration
+  state**, so the degrade is proven end to end: `get()` resolves **null** rather
+  than throwing, `subscribe()` returns a working unsubscribe, and boot adds no
+  new console errors. **NOT yet browser-proven** (both need the migration + two
+  signed-in accounts, i.e. the registered on-device pass): the live line
+  rendering from a real row, and the coach console's real mode. React isn't a
+  global in the Vite bundle, so the components can't be mounted from the console
+  to shortcut it. **Open: the OWNER migration + that on-device pass.**
 
 ### 2026-07-16 (night, last mile) — "The Record" ×13 + the ledger rows finally localize (and #1759's completeness claim gets ITS correction)
 

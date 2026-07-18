@@ -834,6 +834,6 @@
   "wire.scheduleArrow": "РАСПИСАНИЕ →",
   "wire.seeFullRoster": "СМОТРЕТЬ ВЕСЬ СПИСОК",
   "wire.theWire": "СВОДКА",
-  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
-  "live.liveTag": "Live"
+  "live.detailUnavailable": "Детали в эфире недоступны — здесь нет разбивки по подходам",
+  "live.liveTag": "В эфире"
 }

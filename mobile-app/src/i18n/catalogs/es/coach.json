@@ -834,6 +834,6 @@
   "wire.scheduleArrow": "AGENDAR →",
   "wire.seeFullRoster": "VER LA LISTA COMPLETA",
   "wire.theWire": "EL HILO",
-  "live.detailUnavailable": "Live detail unavailable — set-by-set isn't shared here",
-  "live.liveTag": "Live"
+  "live.detailUnavailable": "Detalle en vivo no disponible — aquí no se comparte serie por serie",
+  "live.liveTag": "En vivo"
 }
