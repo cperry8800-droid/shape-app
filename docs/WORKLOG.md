@@ -178,7 +178,28 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-19): THE BUILDABLE WAVE — specs + plans written on Fable,
+> **Latest (2026-07-19, build 1/9): THE LIVE STATION — coach live-watch parity
+> on the website (#1769).** The buildable wave starts shipping. The pure half of
+> `liveProgress.mjs` is promoted to the **canonical `public/newdesign/`copy**
+> (mobile keeps a re-export shim holding `bsLiveAudience`, whose `workoutShare`
+> dep isn't web-servable) — a **referential-equality test proves ONE
+> implementation**, and that split is the foundation builds 3 and 4 sit on. The
+> website coach client page gains **THE LIVE STATION**: a realtime view of a
+> client's in-progress session under the RLS shipped with #1764, carrying the
+> mobile console's consumer hygiene (evented TOCTOU guard · subscription-side
+> expiry timer · synchronous reset on client change · NaN-safe expiry). Both
+> coach client pages gained their **first supabase loader**; the chat widget
+> gained a presence line. **No migration, no route.** Honest-absent throughout:
+> no readable row → **the station does not exist** (never a "private" label —
+> RLS makes private / not-visible / expired indistinguishable), loads read a
+> bare `—`. ⚠ **Deliberate deviation:** no `?v=` sweep on chatWidget's 35
+> consumers (the precompile content-hashes them; the sweep is prod-redundant and
+> would push the PR past **CodeRabbit's 50-file auto-skip**). ⚠ **The
+> cross-member RLS denial vector is recorded NOT RUN** — a static stub cannot
+> exercise RLS; it needs two authenticated sessions on the branch preview
+> (registered as an OWNER War Room item). Next: build 2/9 `variance-band`.
+>
+> **Prior (2026-07-19): THE BUILDABLE WAVE — specs + plans written on Fable,
 > builds queued for Opus.** The owner's binding workflow ("write everything on
 > fable and then build everything with opus"): **six specs** MERGED (#1766 →
 > `54a3e6bf`) — **The Cycle** (menstrual-cycle awareness: calendar + phase
@@ -194,7 +215,8 @@ changelog whenever something ships.
 > before CodeRabbit's re-review of the fix commits completed** — a late round
 > (3 findings) landed post-merge, was recovered, and folded in via #1768;
 > the corrected rule: wait for the re-review + a quiet period before ANY
-> merge. **NOTHING is built yet** — builds run on Opus one plan at a time
+> merge. **Nothing was built in THAT session** (corrected in place: **build 1/9
+> has since shipped** — #1769, the entry above) — builds run on Opus one plan at a time
 > (order: live-web → variance/nora-sets → cooking → coach-channel → Cycle
 > A→D), each through the full gate; **5 OWNER migrations** land with their
 > build PRs. Handoff:
