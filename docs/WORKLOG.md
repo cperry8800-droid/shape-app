@@ -645,6 +645,74 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-19 (build 1/9) — THE LIVE STATION: coach live-watch parity on the website (#1769)
+
+- **First build of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-live-progress-web.md` verbatim on Opus.
+  **No migration, no new route** — the `user_activity_live` table + RLS shipped
+  with #1764 and are live; this consumes them browser-side.
+- **Canonical split-with-shim (the pattern the next 3 builds depend on).** The
+  pure half of `liveProgress.mjs` (`bsLiveProgressPayload` ·
+  `bsShouldPushProgress` · `bsValidLivePayload`) moved to
+  **`public/newdesign/liveProgress.mjs`** — the `shareCard.mjs` precedent (web
+  loads it as a native ES module → `window.ShapeLiveValidate`; mobile imports
+  it; Node tests import it directly). `mobile-app/src/services/liveProgress.mjs`
+  became a **re-export shim that KEEPS `bsLiveAudience`**, because that function
+  imports `workoutShare.mjs`, which is **not web-servable** — and the web never
+  resolves an audience (writer-side job). **Zero mobile call-site churn**; a
+  **referential-equality test** (`bsValidLivePayload === bsValidCanonical`)
+  proves there is ONE implementation rather than a twin. Suite **639**.
+- **THE LIVE STATION** on `coachClientDetail.jsx` (both coach roles): a realtime
+  view of a client's in-progress session — exercise rows, a `NOW ▸` marker,
+  `Sets m/n`, Working/Resting, minutes-in. Consumer hygiene ported from the
+  mobile console (`BSProLiveWatch`): the **`evented` TOCTOU guard** (a late
+  initial fetch can never overwrite a newer realtime event/DELETE), a
+  **subscription-side expiry timer** (the SQL filter protects `get()` only, so
+  an already-open page must drop the row itself), a **synchronous state reset**
+  on client change (B must never render A's payload, even for a frame), and
+  **NaN-safe expiry** (`!(expMs > 0)` — a malformed `expires_at` reads as
+  absence, never an untimed forever-station). Expiry gates **events** too, or an
+  already-expired realtime INSERT would pin the station open.
+- **The coach client pages had NO supabase loader** — `TrainerClient.html` /
+  `NutritionistClient.html` gain the SRI'd vendor tag (copied byte-for-byte from
+  `ClientApp.html`) + `/supabase.js` + the canonical module tag. Later builds
+  must guard against double-insertion.
+- **Chat-widget presence line** — "In a workout / In the kitchen · N min in" off
+  the existing authenticated-read `user_activity`. **Presence tier only, never
+  set detail** (that is the station's job, behind its own RLS). The hook is
+  **hoisted to the widget's top level**: the profile preview is an inline IIFE,
+  not its own component, so a hook cannot live there (rules-of-hooks).
+- **Honest-absent throughout**: no readable row → **the station does not exist**
+  (absence — never a "private" label, since RLS makes *private* /
+  *not visible to you* / *expired* indistinguishable). Loads render a bare
+  **`—`** (the v1 payload carries none; a unit suffix would imply a claim).
+- **⚠ Deliberate plan deviation — NO `?v=` sweep** on `chatWidget.jsx`'s **35**
+  newdesign consumers. The plan's Task 4 encoded the convention retired
+  2026-07-16: `scripts/build-newdesign.mjs` compiles `chatWidget.jsx` and
+  rewrites its tags to `nd/<name>?v=<content-hash>` at deploy, so production's
+  cache key is the content hash and the hand-written `?v` only affects the
+  raw-babel dev path. Sweeping would have taken the PR from **7 files to 42** —
+  pointlessly close to **CodeRabbit's 50-file auto-skip** (>50 = no review at
+  all = blocked merge). `coachClientDetail.jsx?v=20260719` IS bumped on its 2
+  pages.
+- **Browser-verified against the REAL page scripts** (throwaway harness, removed
+  before commit) with a controllable `shapeDb` stub — every path asserted at the
+  DOM: station renders · realtime UPDATE moves the `NOW` marker and flips
+  Resting · DELETE removes it · **no row → no element at all** · loads read `—`
+  · **evented guard** (DELETE, then a late initial fetch → stays absent) ·
+  **expiry timer** (a row expiring in 1.2s vanishes with no event) ·
+  already-expired event ignored · malformed payload rejected · contradictory
+  aggregates rejected · **A→B navigation removes A's channel**. 0 console errors.
+- **⚠ NOT RUN — the cross-member RLS denial vector** (CWE-862: coach C1 vs
+  stranger S, asserted at the query/event layer before the DOM). A static stub
+  **cannot exercise RLS**, so per the plan's own instruction this is recorded as
+  NOT RUN rather than passed — it needs the branch preview with two distinct
+  authenticated sessions. Registered as an OWNER item in the War Room. The
+  server-side guarantee is unchanged from #1764; this build adds no new read path.
+- Verified: `npm test` **639** · `tsc --noEmit` clean · PowerShell `VITE_BASE=/m/`
+  build exit 0 · `build-newdesign --check` exit 0 · all 7 files LF (CR=0, index
+  + worktree).
+
 ### 2026-07-19 — The buildable wave: 6 specs + 9 plans written on Fable (#1765 · #1766 · #1767 · #1768); builds queued for Opus
 
 - **The workflow (owner-binding):** "basically i want to write evreything on
