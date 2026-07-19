@@ -19,8 +19,6 @@ function cwInitials(name) {
 }
 function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
 function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
-// Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
-// initials inside, optional pulsing "online" ring.
 // Presence-tier activity line (spec 2026-07-19): what the member is DOING now
 // ('workout' | 'cooking') + minutes in, from the existing authenticated-read
 // user_activity table. Presence info only — never set detail (that is the
@@ -53,6 +51,8 @@ function cwUseActivity(userId, open) {
   return mins != null ? `${verb} · ${mins} min in` : verb;
 }
 
+// Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
+// initials inside, optional pulsing "online" ring.
 function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick, photo }) {
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
