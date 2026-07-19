@@ -37,6 +37,73 @@ function CKSecHead({ children }) {
   return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{children}</div>;
 }
 
+// THE LIVE STATION (spec 2026-07-19): a realtime view of the client's
+// in-progress session. Consumer-side hygiene ported from the mobile console
+// (iosAppBroadsheetPros.jsx BSProLiveWatch): the `evented` TOCTOU guard (a
+// late initial fetch never overwrites a newer realtime event/DELETE) and the
+// subscription-side expires_at timer (an open page drops the row at expiry).
+// No readable row → null — THE STATION DOES NOT EXIST (absence; never a
+// "private" label: RLS makes private / not-visible / expired indistinguishable).
+function CKLiveStation({ clientId, accent }) {
+  const [row, setRow] = React.useState(null);
+  React.useEffect(() => {
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!db || !clientId) return undefined;
+    setRow(null);   // SYNCHRONOUS reset on client change — B must never render A's payload, even for a frame (spec review)
+    let on = true; let evented = false; let expTimer = null; let channel = null;
+    const take = (r, fromEvent) => {
+      if (!on) return;
+      if (fromEvent) evented = true; else if (evented) return;   // TOCTOU guard
+      // Expiry gates EVENTS too (review round): an already-expired realtime
+      // INSERT/UPDATE would set no timer and pin the station forever.
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (r && !(expMs > 0)) r = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
+      setRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
+    };
+    db.from("user_activity_live")
+      .select("payload, started_at, updated_at, expires_at")
+      .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle()
+      .then(({ data }) => take(data || null, false))
+      .catch(() => {});
+    try {
+      channel = db.channel(`ck-live-${clientId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live", filter: `user_id=eq.${clientId}` },
+          (p) => { try { take(p.eventType === "DELETE" ? null : (p.new || null), true); } catch (e) {} })
+        .subscribe();
+    } catch (e) {}
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
+  }, [clientId]);
+  const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
+  // Workout payloads only (review round): the cooking-detail PR later teaches
+  // the validator a {kind:'cooking'} shape with NO exercises — this station
+  // must gate on the discriminator or that row would crash the render.
+  if (!lp || (lp.kind && lp.kind !== 'workout')) return null;   // absence — the station does not exist
+  const started = row.started_at ? new Date(row.started_at).getTime() : null;
+  const mins = started != null ? Math.max(0, Math.floor((Date.now() - started) / 60000)) : null;
+  return (
+    <Card style={{ marginBottom: 16, border: `1px solid ${accent}55` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+        <CKSecHead>LIVE · IN A SESSION NOW</CKSecHead>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>
+          <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 999, background: accent, boxShadow: "0 0 8px " + accent, marginRight: 6 }} />
+          {lp.resting ? "Resting" : "Working"}{mins != null ? ` · ${mins} min in` : ""} · Sets {lp.setsDone}/{lp.setsTotal}
+        </span>
+      </div>
+      {lp.exercises.map((e, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "baseline", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, color: i === lp.curIdx ? "#f2ede4" : "rgba(242,237,228,0.7)" }}>
+            {i === lp.curIdx ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: accent, marginRight: 8 }}>NOW ▸</span> : null}{e.n}
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>—</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: e.done >= e.total ? accent : "rgba(242,237,228,0.75)" }}>{e.done}/{e.total}</span>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function CoachClientDetailPage() {
   const params = new URLSearchParams(window.location.search);
   const clientId = params.get("id");
@@ -160,6 +227,7 @@ function CoachClientDetailPage() {
       subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
       <React.Fragment>
+          <CKLiveStation clientId={clientId} accent={accent} />
           <Card style={{ marginBottom: 16 }}>
             <CKSecHead>{isNutri ? "ADHERENCE · THIS WEEK" : "TRAINING · THIS BLOCK"}</CKSecHead>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
