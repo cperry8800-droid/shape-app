@@ -94,16 +94,23 @@ changelog whenever something ships.
   review.** Auto-reviews every PR into `main`/`staging` with full PR context +
   `.coderabbit.yaml` config (assertive profile, path rules). This is the source of
   truth — **never treat the layer-0 IDE pass as a substitute for it.** **(3)
-  required checks** — `main` branch protection requires the CI checks
-  (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
-  merge (GitHub → Settings → Branches; once on, merging on red is impossible).
-  Docs/config-only commits may skip layers 0-1.
+  required checks** — `main` branch protection requires ALL THREE CI checks
+  (`Web (typecheck + build)` + `Mobile (build + public/m sync)` +
+  `Secret scan (gitleaks)`) green before a merge (GitHub → Settings →
+  Branches; once on, merging on red is impossible). Docs/config-only commits
+  may skip layers 0-1. **Layer-2 "done" detection (sharpened 2026-07-19):**
+  after pushing fixes for a CodeRabbit round, WAIT for its re-review of the
+  fix commit (the edited-in-place summary comment + a quiet period) before
+  merging — an addressed round + green CI is NOT done; a late round can
+  still be in flight.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
-    (added #1342 — scans the working tree against `.gitleaks.toml`; advisory until
-    added to branch protection). Web + Mobile are the **required** checks for
-    branch protection on `main`.
+    (added #1342 — scans the working tree against `.gitleaks.toml`).
+    ⚠ **ALL THREE are REQUIRED checks on `main`** — gitleaks included (the
+    "advisory" claim went stale; proven 2026-07-19 when a merge 405'd with
+    "Required status check Secret scan (gitleaks) is in progress"). A merge
+    attempt while any of the three runs is rejected — wait them out.
   - **`android-build.yml`** (only when `mobile-app/**` changes) — **Build debug
     APK** (debug-signed, no secrets). A **release APK** job is opt-in and runs
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
@@ -171,7 +178,31 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-18): LIVE WORKOUT PROGRESS — the boost sender (and the
+> **Latest (2026-07-19): THE BUILDABLE WAVE — specs + plans written on Fable,
+> builds queued for Opus.** The owner's binding workflow ("write everything on
+> fable and then build everything with opus"): **six specs** MERGED (#1766 →
+> `54a3e6bf`) — **The Cycle** (menstrual-cycle awareness: calendar + phase
+> engine + consented coach view, owner-approved doctrine incl. the verbatim
+> not-medical-advice disclaimer, GUC-guarded RPC-only consent writes) ·
+> live-progress **web** coach station · compliance **variance band** · the
+> **live coach channel** (loads/RPE, owner-RATIFIED coach-link gate) · live
+> **cooking detail** (planned-meal title only) · **nora_sets** schedule — then
+> **nine implementation plans** MERGED (#1767 → `fe23a6e0`,
+> `docs/superpowers/plans/2026-07-19-*`), each a full TDD build contract.
+> Three CodeRabbit rounds on the specs (45 findings) + one on the plans (25)
+> all addressed. ⚠ **Process lesson (owner-flagged): #1766/#1767 were merged
+> before CodeRabbit's re-review of the fix commits completed** — a late round
+> (3 findings) landed post-merge, was recovered, and folded in via #1768;
+> the corrected rule: wait for the re-review + a quiet period before ANY
+> merge. **NOTHING is built yet** — builds run on Opus one plan at a time
+> (order: live-web → variance/nora-sets → cooking → coach-channel → Cycle
+> A→D), each through the full gate; **5 OWNER migrations** land with their
+> build PRs. Handoff:
+> **[`docs/HANDOFF-2026-07-19.md`](HANDOFF-2026-07-19.md)**. Also this
+> session: the #1764 live-progress migration verified live + its stale War
+> Room item flipped (#1765).
+>
+> **Prior (2026-07-18): LIVE WORKOUT PROGRESS — the boost sender (and the
 > coach) finally see the session as it happens.** Closes the War Room v2 item.
 > Spec+plan **#1763**, build below. The session player broadcasts **names + set
 > counts only** (never loads/RPE — owner call) into a new `user_activity_live`
@@ -613,6 +644,92 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-19 — The buildable wave: 6 specs + 9 plans written on Fable (#1765 · #1766 · #1767 · #1768); builds queued for Opus
+
+- **The workflow (owner-binding):** "basically i want to write evreything on
+  fable and then build everything with opus." This session is the WRITE half,
+  complete; nothing from the wave is built yet.
+- **#1765** — the #1764 `user_activity_live` migration verified LIVE (RLS +
+  both policies byte-correct · `private` unrepresentable · 0 ERROR advisors)
+  and its stale War Room OWNER item flipped done.
+- **Spec stack #1766 (→ `54a3e6bf`)** — six specs in
+  `docs/superpowers/specs/2026-07-19-*`:
+  1. **The Cycle** — the flagship differentiator (no coaching platform
+     surfaces cycle data). Owner decisions binding: member-logged period
+     starts (wearable APIs don't cleanly expose phase — engineering-honesty
+     finding), a cycle calendar page, engine adaptation, coach view behind a
+     member share toggle OFF by default with two separate `consent_log`
+     receipts. Doctrine: never speculate about pregnancy · verbatim
+     not-medical-advice disclaimer · no Score points ever · engine never
+     modifies a plan · discretion outside cycle surfaces · absence-not-a-
+     padlock. Review hardening: `search_path` + optIn∧share in the definer ·
+     a no-future-date trigger (member tz, UTC+1d fallback) · **GUC-guard
+     triggers make cycle settings AND cycle consent receipts RPC-only at the
+     DB** (`shape.cycle_rpc`, the #1707 pattern) · transactional
+     `cycle_opt_out()` · fully deterministic phase windows (L round-half-up
+     [15,60]; menstrual > luteal > ovulatory > follicular derivation; pinned
+     vectors L=28/17/16/15; ordered 5-rung confidence ladder).
+  2. **Live progress → web** — THE LIVE STATION on `coachClientDetail.jsx`,
+     browser-side realtime under the shipped RLS, canonical-module move, the
+     evented/expiry hygiene + A→B state reset. No route, no migration.
+  3. **Compliance variance band** — population-stdev weekly-adherence band
+     (steady ≤8.0pp · variable ≥18.0pp, unrounded), closed-ISO-week pipeline,
+     hardened `get_roster_weekly_adherence` definer, roster chip + Case File
+     line + web line, NO new routes; members never see it.
+  4. **Live coach channel** — loads/reps/RPE to the client's own coach only;
+     **owner-RATIFIED**: gated on the coach link alone, no new toggle
+     ("changes WHEN the coach reads what session logs already tell them, not
+     WHAT"). Separate `user_activity_live_coach` table (row-level-RLS
+     lesson), 30-min rolling expiry, transactional `live_clear()`, active
+     revocation clearing, full denial matrix.
+  5. **Live cooking detail** — the boost sheet learns the PLANNED meal's
+     title only (`kind:'cooking'` payload variant); freehand broadcasts
+     nothing (meal share-by-choice doctrine reconciled); kind-dispatch-first
+     validation, server-authoritative audience withdrawal, + a tiny
+     expiry-into-RLS hardening migration for `user_activity_live`.
+  6. **nora_sets schedule** — published-only public read with an explicit
+     revoke-then-grant privilege layer; end-exclusive `bsSetsNow` windows;
+     COMING UP on Shape Sets + website; the LIVE banner **gated on a real
+     stream** (`ShapeRadioLive.station().configured`) — mock reads "broadcast
+     coming soon," never LIVE. Formally supersedes the unbuilt 2026-06-19
+     avatar-DJ sketch schema/route.
+  - **Three CodeRabbit rounds, 45 findings addressed** (a handful declined
+    with written rationale — e.g. no SQL twin of the payload validator; a
+    transactional dual-push RPC).
+- **Plan stack #1767 (→ `fe23a6e0`)** — nine plans in
+  `docs/superpowers/plans/2026-07-19-*`, full writing-plans standard (TDD
+  vectors · complete code · repo-verified anchors · Interfaces blocks):
+  live-progress-web · variance-band · live-cooking-detail ·
+  live-coach-channel · nora-sets-schedule · cycle-a-engine ·
+  cycle-b-member-surfaces · cycle-c-coach-share · cycle-d-website-parity.
+  Load-bearing calls the plans lock in: **canonical split-with-shim**
+  (`liveProgress.mjs` pure half → `public/newdesign/`, the mobile file
+  re-exports it and keeps `bsLiveAudience` since `workoutShare.mjs` isn't
+  web-servable — referential-equality test proves ONE implementation) and
+  the coach pages gaining the supabase loader (they load none today). Its
+  own CodeRabbit round (25 findings) fully folded in — best catches: a
+  contradictory late/paused test vector, `Number(null)` reading as a planned
+  meal, the web station crashing on the future cooking payload, `limit(40)`
+  able to truncate away the live set.
+- **⚠ Process lesson (owner-flagged): #1766 and #1767 were merged before
+  CodeRabbit's re-review of the fix commits completed.** I'd read the
+  owner's "reviews done" nudges as authorization to merge on
+  addressed-findings + CI green; a fifth #1766 round (3 findings) landed
+  five minutes POST-merge. Recovered and folded in via **#1768** (boost-sheet
+  expired-event guard · a two-account browser-level RLS denial test · the
+  documented TOCTOU residual on audience withdrawal). **Corrected rule, no
+  exceptions inferred from nudges:** address every round, then WAIT for the
+  re-review of the fix commit (summary-comment update + a quiet period)
+  before merging — #1768 itself ran under that discipline.
+- **⚠ 5 OWNER migrations, NOT yet written as SQL files** — they land with
+  their build PRs (raw link only, per convention): `2026-07-19-cycle-events`
+  · `2026-07-19-roster-weekly-adherence` · `2026-07-19-user-activity-live-coach`
+  · `2026-07-19-user-activity-live-expiry-rls` · `2026-07-19-nora-sets`.
+- **Next:** switch to **Opus** and execute the plans VERBATIM, one PR each,
+  in order: live-web → (variance | nora-sets) → cooking → coach-channel →
+  Cycle A → B → C → D. Session handoff:
+  **[`docs/HANDOFF-2026-07-19.md`](HANDOFF-2026-07-19.md)**.
 
 ### 2026-07-18 — LIVE WORKOUT PROGRESS: the boost sender (and the coach) finally see the session as it happens
 
@@ -4280,9 +4397,10 @@ changelog whenever something ships.
     (`safeMusicUrl` http/https + host allowlist); the proxy size cap + `readJson` still cover the
     newer routes; `.rpc()` args parameterized. **`npm audit --omit=dev` = 0 vulnerabilities**
     (root + mobile-app). next 16.2.9 · react 19.2.7 · stripe 22.3 · @supabase current.
-  - **P3 (OWNER/dashboard):** the `Secret scan (gitleaks)` CI job runs on every PR but is
-    **advisory, not a required check** on `main` — add it under GitHub → Settings → Branches to
-    make it a hard gate. (Long-standing known item; unchanged.)
+  - **P3 (OWNER/dashboard):** ~~the `Secret scan (gitleaks)` CI job runs on every PR but is
+    **advisory, not a required check** on `main`~~ **STALE — this claim was wrong when written:**
+    gitleaks has been a REQUIRED check since the 2026-06-25 branch-protection enable, proven
+    2026-07-19 when a merge 405'd mid-scan (see "How we work → CI checks"). No owner action needed.
 - **Website Shape Score — the first-tier "Start" label now reflects the tier color.** On the
   marketing Score ladder (`public/newdesign/score.jsx`) the Raw node's `Start` sat in a faded
   neutral (`rgba(242,237,228,0.3)`); it's now a tinted chip in the tier color (`t.color` →

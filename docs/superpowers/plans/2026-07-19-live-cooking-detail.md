@@ -130,15 +130,16 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   // settings change re-pushes immediately via shape:liveAudienceChanged.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
   const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
-  const cookPushedRef = React.useRef(false);             // fresh=true on the FIRST push only —
-  React.useEffect(() => {                                // a re-push must never reset started_at
-    if (!window.ShapeLiveProgress) return undefined;
+  const cookPushedRef = React.useRef(null);              // last-pushed MEAL KEY — fresh=true when
+  React.useEffect(() => {                                // the key changes; a re-push of the SAME
+    if (!window.ShapeLiveProgress) return undefined;     // meal must never reset started_at
     if (cookPayload) {
-      window.ShapeLiveProgress.push(cookPayload, !cookPushedRef.current);
-      cookPushedRef.current = true;
+      const mealKey = (meal && (meal.id != null ? String(meal.id) : null)) || cookPayload.title;
+      window.ShapeLiveProgress.push(cookPayload, cookPushedRef.current !== mealKey);
+      cookPushedRef.current = mealKey;
     } else {
       window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
-      cookPushedRef.current = false;                     // a NEW eligible meal restarts the clock
+      cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
     }
     const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, false); };
     window.addEventListener('shape:liveAudienceChanged', rePush);
@@ -149,7 +150,7 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   }, [cookPayload]);
 ```
 
-⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). The `cookPushedRef` dance above IS the fresh-flag contract: `started_at` stamps once per eligible meal, never on a re-push.
+⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). The `cookPushedRef` dance above IS the fresh-flag contract: `started_at` stamps once per eligible meal, never on a re-push — and the ref holds a meal KEY (id, else payload title), not a boolean, so a DIRECT swap from one eligible meal to another (A → B with no ineligible gap between renders) still restamps `started_at` for B (#1768 round-1 outside-diff finding).
 
 - [ ] **Step 2: Settings mutation acts DIRECTLY (spec round-3 revision)** — in BOTH prefs-save branches (~22988, ~23002), directly after `bsMaybeRetightenAutoPosts(p, next)`:
 
@@ -201,6 +202,8 @@ async function bsRetightenLiveRow(nextPrefs) {
 
 ⚠ Match the surrounding file's import style (static top-level import if that's the pattern) and the actual settings-doc shape `bsLiveAudience` expects (`shareWorkoutData`/`profileVisibility` keys — the same doc `bsMaybeRetightenAutoPosts` receives).
 
+**Accepted residual (late #1766 finding, TOCTOU — documented, not hidden):** the settings write and the row mutation are two operations, not one transaction. The bound: the row mutation retries once, a failure surfaces an honest toast (the member knows the withdrawal didn't land), the re-push event NEVER fires on failure (so the local writer can't resurrect the row), and expiry caps the worst case. A single serialized RPC folding `client_settings` + the live row into one transaction would re-route the whole settings write path through a new RPC for that bound — declined at this scope; revisit if withdrawal failures ever show up in practice.
+
 - [ ] **Step 3: Verify** — JSX parse · `/m/` build · `npm test`. **Commit.**
 
 ---
@@ -220,6 +223,15 @@ async function bsRetightenLiveRow(nextPrefs) {
 ```
 
 (The effect's `[person.userId, kind]` deps stay; the row's own `payload.kind` decides rendering.)
+
+- [ ] **Step 1b: Expiry-reject in the sheet's `take()` (late #1766 finding, CWE-359)** — the shipped boost-sheet consumer sets state for EVERY incoming realtime row and only schedules a timer when expiry is in the future, so an already-expired realtime row can render until unmount. Mirror the web station's guard inside `take()` (~7691):
+
+```js
+      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
+      if (row && !(expMs > 0)) row = null; // expired OR invalid/NaN expiry = absence (NaN fails > 0)
+```
+
+before `setLive(row)`, keeping the existing timer scheduling for the `expMs > 0` case. Add the vector to the render checks (an expired seeded row → the generic state, never the title).
 
 - [ ] **Step 2: Render the cooking line** — where the workout branch renders its live line from `lp` (`lpCur` block, ~7706+), add the cooking branch ABOVE the existing cook-themed boost phrases:
 
