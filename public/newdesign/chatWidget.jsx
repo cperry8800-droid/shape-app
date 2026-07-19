@@ -21,6 +21,38 @@ function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); c
 function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
 // initials inside, optional pulsing "online" ring.
+// Presence-tier activity line (spec 2026-07-19): what the member is DOING now
+// ('workout' | 'cooking') + minutes in, from the existing authenticated-read
+// user_activity table. Presence info only — never set detail (that is the
+// coach station's job, behind its own RLS).
+function cwUseActivity(userId, open) {
+  const [act, setAct] = React.useState(null);
+  React.useEffect(() => {
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!db || !userId || !open) { setAct(null); return undefined; }
+    let on = true; let expTimer = null;
+    db.from("user_activity").select("kind, started_at, expires_at")
+      .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle()
+      .then(({ data }) => {
+        if (!on) return;
+        // Require a FINITE future expiry — malformed expires_at (NaN) must read
+        // as absence, never an untimed forever-line.
+        const expOk = data && data.expires_at && (new Date(data.expires_at).getTime() - Date.now()) > 0;
+        setAct(expOk ? data : null);
+        // Clear the line AT expiry (review round) — an open preview must not
+        // keep saying "In a workout" after the activity row lapses.
+        const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
+        if (expMs > 0) expTimer = setTimeout(() => { if (on) setAct(null); }, expMs);
+      })
+      .catch(() => { if (on) setAct(null); });
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); };
+  }, [userId, open]);
+  if (!act) return null;
+  const mins = act.started_at ? Math.max(0, Math.floor((Date.now() - new Date(act.started_at).getTime()) / 60000)) : null;
+  const verb = act.kind === "cooking" ? "In the kitchen" : "In a workout";
+  return mins != null ? `${verb} · ${mins} min in` : verb;
+}
+
 function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick, photo }) {
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
@@ -751,6 +783,10 @@ function ChatWidget(props) {
     setProfileFor({ who, role: (m && m.coach) ? "Coach" : ((active && active.role) || ""), coach, userId: (m && m.userId) || (active && active.userId) || null, tier: (m && m.tier) || null });
   };
   const profUid = profileFor && profileFor.userId;
+  // Hoisted to the component's top level (hooks rule): the profile preview
+  // below is an inline IIFE, not its own component, so the hook cannot live
+  // there. `open` gates the read on the preview actually being up.
+  const actLine = cwUseActivity(profUid, !!profileFor);
   React.useEffect(() => {
     setProfLive(null);
     setProfFollow(null);
@@ -1238,6 +1274,7 @@ function ChatWidget(props) {
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{isNora ? "Always online" : tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{isNora ? "Shape's Concierge" : roleLabel}</span>
                         </div>
+                        {actLine && <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "#2ee0c4" }}>{actLine}</div>}
                         <div style={{ marginTop: 5, fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
                         <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>{handle}</div>
                         {(followers != null || following != null) && (
