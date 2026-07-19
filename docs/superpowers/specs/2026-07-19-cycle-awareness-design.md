@@ -1,0 +1,340 @@
+# The Cycle — menstrual-cycle awareness (tracking · phase engine · consented coach view)
+
+**Date:** 2026-07-19 · **Status:** approved by owner (design round, this doc is the record)
+**Surfaces:** mobile broadsheet + website (parity per house rule) · **Migration:** one (owner runs it)
+
+## Why
+
+The 2026-06-12 coach-metrics research pass registered this as a standing differentiator:
+wearables carry cycle data, and **no coaching platform surfaces it** — not Trainerize,
+Everfit, TrueCoach, or MyPTHub. Shape holds training + nutrition + recovery + habits in
+one place, so it can do what a period app cannot: read a member's cycle **against** her
+real training and recovery data, and adapt what the engine says.
+
+**Engineering honesty that shaped v1:** the "wearables expose it" claim does not survive
+contact with the APIs. Oura shows Cycle Insights in its own app but does not cleanly
+expose phase via the public v2 API (our sync pulls sleep/readiness/activity only). Apple
+Health has menstrual-flow data but is native-build-gated. Garmin has a Women's Health
+API but our access request is still blocked. **Therefore v1's anchor is the member
+logging period starts herself** — one tap on a calendar — with wearable import registered
+as v2 riding the same rails.
+
+## Owner decisions (2026-07-19, binding)
+
+1. **Member + engine + consented coach view.** The engine adapts (directive copy +
+   statistical reads) AND a linked coach can see cycle timing — but only behind the
+   member's own share toggle. *(The design round first scoped member-only; the owner
+   widened it to include the coach view in the same wave.)*
+2. **Period starts only.** No flow levels, no end dates, no symptom picker. The existing
+   Today check-in (energy · hunger · sleep · rested — already collected daily) is the
+   symptom stream; cycle reads cross-reference it. New sensitive datum = exactly one
+   date class.
+3. **The member surface is a cycle calendar** — she logs by tapping the day, views
+   logged days + the predicted window + phase bands on a month grid.
+4. **Coach access = member share toggle, OFF by default, separate consent.** Opting
+   into tracking never exposes anything to a coach. Two distinct `consent_log`
+   receipts (`cycle_tracking`, `cycle_share`).
+5. **Storage = dedicated `cycle_events` table** (not a `user_goals` doc) — chosen
+   because coach share is in v1 scope, which needs the SECURITY DEFINER RPC pattern,
+   and because v2 wearable import needs idempotent per-date upserts.
+
+## Doctrine (hard rules, all copy and code)
+
+- **Never speculate about pregnancy.** When a cycle runs past average + 7 days, the
+  phase reads `paused` — *"Cycle running long — predictions paused."* No
+  interpretation, no "you're late," ever. A tracker that hints at causes is a
+  liability Shape never takes.
+- **Not medical advice.** The opt-in screen carries verbatim: *"The Cycle is for
+  training and recovery context only. It is not medical advice, not a diagnostic
+  tool, and must never be used for contraception or fertility planning. Predictions
+  are estimates from the dates you log."*
+- **No Shape Score points for cycle logging, ever** (the meal-share doctrine,
+  stronger here — never gamify reproductive data).
+- **The engine never modifies a plan.** Copy and directives only; load changes stay
+  human (the coach-adjust precedent).
+- **Discretion on shared surfaces.** Plain cycle language (period / luteal / phase
+  names) appears only on cycle surfaces (the calendar page, the Progress card, the
+  coach station). If the Home directive takes a cycle lever it speaks neutrally —
+  "Recovery emphasis today" — never naming the cycle. Shoulder-surfing is a real
+  threat model for this data class.
+- **Never-shaming** applies with extra force. Reads are framed as the body working
+  with her, never as deficiency ("your sleep runs shorter in late luteal — the
+  deload is working with you, not against you").
+- **Absence, not a locked state.** A coach without share sees no CYCLE station at
+  all — not a padlock (a padlock reveals that there is something being withheld;
+  the live-progress lesson).
+
+## Data model
+
+### Migration `2026-07-19-cycle-events.sql` (idempotent; ⚠ OWNER runs it)
+
+```sql
+create table if not exists public.cycle_events (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  event_date date not null,
+  kind       text not null default 'period_start' check (kind in ('period_start')),
+  created_at timestamptz not null default now(),
+  unique (user_id, event_date, kind)
+);
+
+alter table public.cycle_events enable row level security;
+
+-- Owner-only. Deliberately NO coach policy on the table — coach access exists
+-- ONLY through the definer RPC below, which checks the member's share flag.
+drop policy if exists "cycle owner all" on public.cycle_events;
+create policy "cycle owner all" on public.cycle_events
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Storage-boundary guard: no future-dated starts, judged in the MEMBER'S OWN
+-- timezone (shape_user_tz — the 2026-07-06 helper). A calendar-UI bug or a
+-- direct write can't seed the engine with a future "latest start" and a
+-- negative day-of-cycle. Historical + same-day rows pass untouched.
+create or replace function public.cycle_events_no_future()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_tz text; v_today date;
+begin
+  -- shape_user_tz can be NULL for a member whose zone was never captured; a
+  -- NULL comparison would make the IF unknown and SKIP the guard. Fail SAFE,
+  -- not closed: fall back to UTC today + 1 day of slack (the award-clamp
+  -- precedent) — a Tokyo member's local "today" is never rejected, a genuine
+  -- future date still is. With a captured tz the bound is exact local today.
+  v_tz := public.shape_user_tz(new.user_id);
+  v_today := (now() at time zone coalesce(v_tz, 'UTC'))::date
+             + (case when v_tz is null then 1 else 0 end);
+  if new.event_date > v_today then
+    raise exception 'future_event_date';
+  end if;
+  return new;
+end $$;
+drop trigger if exists cycle_events_no_future on public.cycle_events;
+create trigger cycle_events_no_future before insert or update on public.cycle_events
+  for each row execute function public.cycle_events_no_future();
+
+-- Coach read: the get_client_goals pattern. Gated on an active coach link AND
+-- BOTH member flags — optIn AND share (a share flag on a non-opted-in doc is
+-- inconsistent state and reads as not shared). Returns share:false (and
+-- nothing else) otherwise — the caller renders absence. Returns RAW recent
+-- starts, not derived phase: consumers derive via the ONE pure module
+-- (cyclePhase.mjs) so SQL and JS can never drift. search_path pinned with
+-- pg_temp LAST + every reference schema-qualified (definer shadowing guard).
+create or replace function public.get_client_cycle(p_user_id uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_ok boolean; v_starts jsonb;
+begin
+  if not public.is_coach_on_client(p_user_id) then return null; end if;
+  select coalesce((data->>'optIn')::boolean, false)
+     and coalesce((data->>'share')::boolean, false) into v_ok
+    from public.user_goals where user_id = p_user_id and kind = 'cycle_settings';
+  if not coalesce(v_ok, false) then return jsonb_build_object('share', false); end if;
+  select coalesce(jsonb_agg(event_date order by event_date desc), '[]'::jsonb)
+    into v_starts
+    from (select event_date from public.cycle_events
+          where user_id = p_user_id and kind = 'period_start'
+          order by event_date desc limit 13) s;
+  return jsonb_build_object('share', true, 'starts', v_starts);
+end $$;
+
+revoke execute on function public.get_client_cycle(uuid) from public, anon;
+grant  execute on function public.get_client_cycle(uuid) to authenticated;
+```
+
+The same migration also ships two small **invoker** RPCs named by the sections
+below — `cycle_set_settings(...)` (a settings flip + its consent receipt in one
+transaction) and `cycle_opt_out()` (the full delete + withdrawal receipt in one
+transaction). Invoker rights on purpose: the owner RLS on `cycle_events` /
+`user_goals` / `consent_log` IS the scope — no definer privilege to misuse.
+All idempotent; EXECUTE revoked from public/anon, granted to authenticated.
+
+**RPC-only writes, enforced at the DB (not by convention):** both RPCs open by
+setting a transaction-local flag — `select set_config('shape.cycle_rpc', '1',
+true)` — and a `cycle_settings_guard` BEFORE INSERT/UPDATE trigger on
+`user_goals` REJECTS any `kind = 'cycle_settings'` write made without it (the
+exact `shape.adjust_regen` GUC-guard pattern from the #1707 regeneration
+migration). So a direct owner upsert can never set `share = true` without its
+receipt — the flag/receipt invariant the read RPC relies on is structural, not
+best-effort. The SAME guard extends to the ledger side: a
+`cycle_consent_guard` BEFORE INSERT trigger on `consent_log` rejects
+`kind in ('cycle_tracking','cycle_share')` rows written without the RPC flag —
+a member can't hand-fabricate a granted/withdrawn cycle receipt or its
+disclaimer text, so the compliance history stays trustworthy for any future
+consumer. Negative tests: a direct `user_goals` upsert of `cycle_settings`
+raises · a direct `consent_log` insert of a cycle kind raises · non-cycle
+consent kinds (banner/GPC/signup) pass both triggers untouched.
+
+### Settings doc — `user_goals('cycle_settings')`
+
+`{ optIn: boolean, share: boolean }`. Owner-only by construction (user_goals RLS).
+Dedicated key, never merged into `client_settings` (the no-clobber convention).
+
+### Consent receipts (`consent_log`, existing table — built naming exactly these classes)
+
+- `kind: 'cycle_tracking'` written on opt-in, with the exact disclaimer text shown.
+- `kind: 'cycle_share'` written on enabling the coach share toggle, with its exact text.
+- Withdrawal receipts on opt-out / share-off.
+- **Atomic with the flag they record:** every settings flip and its receipt are
+  written in ONE transaction via `cycle_set_settings(...)`, so a granted
+  `share` flag can never exist without its receipt (or vice versa). The
+  read-side RPC authorizes on the flags (both of them — optIn AND share); the
+  ledger stays what it is — an audit trail, made consistent-by-construction at
+  the write, not a second authorization source parsed at read time.
+
+### Deletion (WA MHMD story)
+
+Opt-out (Settings → Cycle → "Stop tracking & delete") is ONE server-side
+transaction — `cycle_opt_out()` (invoker; owner RLS is the scope) deletes
+**all** the caller's `cycle_events` rows, deletes the `cycle_settings` doc, and
+writes the withdrawal receipt atomically. **Safe to retry:** a timeout or
+repeat call converges on the same fully-withdrawn state (the deletes are
+naturally idempotent; a re-run just re-records the withdrawal) — partial state
+where events outlive their consent is unrepresentable. The account-deletion
+route (`/api/account/delete`) adds `cycle_events` to its purge list.
+
+## Phase engine — pure `public/newdesign/cyclePhase.mjs` (TDD)
+
+One implementation, three consumers (member mobile, coach mobile, website).
+The **canonical copy lives in `public/newdesign/`** and mobile imports it —
+the exact `shareCard.mjs` pattern. Not `mobile-app/src/services/`: that path
+is never served to the website, so a mobile-side canonical would force a twin.
+
+`bsDeriveCycle(starts, today)` → derived state. Calendar method:
+
+- **Personal length `L`** = mean of the last ≤12 intervals (13 starts),
+  **rounded half-up to an integer, then clamped to [15, 60]** — L is a day
+  boundary and must be deterministic across implementations. `<2` starts →
+  `L = 28`, confidence `low`. Intervals outside 15–60 days are discarded as
+  data-entry noise before averaging (never silently mutated — just excluded from L).
+- **Day of cycle** `d` = days since last logged start + 1.
+- **Phases** — integer day windows, ALL boundaries inclusive, derived in this
+  exact order (priority: menstrual > luteal > ovulatory > follicular — luteal
+  is the physiologically fixed span, so a short cycle compresses the
+  follicular side, which is what actually happens):
+  1. menstrual = `[1, 5]` (fixed — no end dates collected).
+  2. luteal = `[max(6, L−11), L]`.
+  3. ovulatory = `[max(6, L−16), min(L−12, luteal.start − 1)]`; if end < start
+     the window is **EMPTY** (short cycle — no ovulatory window is claimed and
+     the prediction line renders none; honest absence over fabrication).
+  4. follicular = `[6, ovulatory.start − 1]` (when ovulatory is empty:
+     `[6, luteal.start − 1]`); empty when end < start.
+  Windows never overlap and never go negative **by construction**. Vectors the
+  tests pin: `L=28` → M 1–5 · F 6–11 · O 12–16 · Lu 17–28 (textbook). `L=17` →
+  M 1–5 · Lu 6–17 · O and F empty. `L=16` → M 1–5 · Lu 6–16 · O/F empty.
+  `L=15` → M 1–5 · Lu 6–15 · O/F empty.
+- **Confidence — a deterministic ordered ladder** (first match wins; `n` =
+  kept intervals after outlier discard; stdev = **population** stdev of those
+  intervals, defined only for `n ≥ 2`):
+  1. `n === 0` → `low` (the L=28 default).
+  2. `n === 1` → `low` (one interval carries no spread evidence).
+  3. `n ≥ 2 && stdev > 5` → `low`, AND the ovulatory window widens to ±4 —
+     i.e. `[max(6, L−18), min(L−10, luteal.start − 1)]`, same clamps, same
+     empty rule (irregular cycles get honest vagueness, not false precision).
+  4. `n ≥ 3 && stdev ≤ 3` → `high`.
+  5. otherwise → `medium` (covers `n === 2` with stdev ≤ 5, and `n ≥ 3` with
+     3 < stdev ≤ 5).
+  The old "medium = 2 intervals OR stdev ≤ 5d" phrasing is superseded — rung 3
+  outranks rung 5, so an n=2, stdev=10 history reads `low`, never `medium`.
+  Prediction renders as a **window**, not a date.
+- **Paused:** `today > lastStart + L + 7` → `{ phase: 'paused' }` and every
+  prediction field null. The paused copy is fixed by doctrine (above).
+- **No starts** → `{ phase: null }` → setup state renders.
+
+`bsCycleRead(days, cycle)` — the statistical reads, `crossoverRead`'s shape:
+buckets the member's **existing** series (check-in energy/rested, sleep hours,
+habit adherence, training volume — all already cached client-side) by phase across
+complete cycles. **Floors:** ≥2 complete logged cycles AND ≥8 observed days in each
+compared bucket; fires only when the gap clears both a per-metric materiality floor
+(sleep ≥ 30 min · check-in scales ≥ 1.0 point · adherence ≥ 12pp) **and** ≥ 1.65·SE.
+Below any floor → null → the card renders nothing (honest-null; no silent caps —
+the card's register states how many cycles of data exist).
+
+## Member surfaces (mobile)
+
+1. **The cycle calendar page** — the #1712 unboxed month-grid grammar (hairline week
+   rows, bare numerals): logged period days = filled accent discs; predicted window =
+   dotted outline discs; phase bands = quiet underlay tints with a mono legend.
+   **Tap a day to log a period start; tap a logged day to un-log** (delete own row,
+   `bsAskConfirm`-guarded). Month nav as the house calendar. Reached from the
+   Progress card and Settings → Cycle.
+2. **Today page chip** — inside the expected window (predicted start −2d … +7d) a
+   quiet one-line chip: "Period started? Log it →" (opens the calendar on today).
+   Only when opted in; never on the Home slate.
+3. **THE CYCLE card** (Progress hub, `BSCrossoverCard`'s sibling): phase + day-of-cycle
+   headline, confidence + cycle-length register, predicted-window line, and the
+   `bsCycleRead` findings once powered. Renders only when opted in.
+4. **Home directive lever** — the engine may lead with a cycle-aware move, phrased
+   neutrally per doctrine; detail lives on cycle surfaces.
+5. **Settings → Cycle** — opt-in (disclaimer + consent receipt) · share toggle
+   (own consent receipt) · open calendar · "Stop tracking & delete."
+
+## Coach surface (share-gated)
+
+Case File (Profile tab) gains a **CYCLE station** rendered ONLY when
+`get_client_cycle` returns `share:true` — phase + day (derived client-side via the
+same module), predicted next-period window, and that month's logged days as a small
+month strip. **Phase and timing only** — no symptom inference, no check-in
+cross-reads on the coach side (those are the member's own). Copy is professional
+and directive-useful: "Week of the 24th is a natural deload window." At
+`share:false` the station does not exist.
+
+## Website parity
+
+- Member: cycle calendar + THE CYCLE card on the dashboard Progress page, consuming
+  the same `cyclePhase.mjs` (canonical module in `public/newdesign/`, mobile imports
+  it — the `shareCard.mjs` pattern, one implementation).
+- Coach: CYCLE station on `coachClientDetail.jsx` via the same RPC through
+  `/api/clients/[id]/shared-overview` (adds a `cycle` leg, share-gated server-side).
+
+## i18n
+
+New `cycle` namespace ×13 locales, registered in **both** `mobile-app/src/i18n/index.js`
+and `tests/i18n-catalog-complete.test.mjs` (the register-in-both trap). No dynamic
+concatenated keys (the #1759 lesson — enumerate literally). tr-shadow greps both forms.
+Phase names + all doctrine copy are keys; the medical disclaimer is one key whose
+translations get flagged for the standing human review **with priority** (it's the
+legally material string).
+
+## Testing
+
+- `tests/cycle-phase.test.mjs` — vectors: personal-length averaging + outlier
+  discard · <2 starts → 28/low · phase windows at L=28 and irregular L ·
+  stdev-widened ovulatory · paused past L+7 · no-starts null · clamped degenerate
+  cycles · read floors (underpowered → null, powered → fires, materiality + SE both
+  required).
+- RPC shape validated read-only against prod post-migration (grants: anon=false,
+  authenticated=true; share:false path).
+- Standard gates: JSX parse · tsc · `/m/` PowerShell build · LF · catalog parity.
+- **On-device (owner, registered in War Room):** log/un-log on the calendar ·
+  predicted window renders · share toggle → coach Case File station appears/vanishes
+  · opt-out wipes everything · discretion check (nothing cycle-named outside cycle
+  surfaces).
+
+## Build plan
+
+- **PR A** — migration + `cyclePhase.mjs` + tests + `window.ShapeCycle` data layer
+  (list/log/unlog/settings/optOut).
+- **PR B** — member mobile: calendar page · Today chip · Progress card + reads ·
+  Home lever · Settings section + consents. i18n ×13.
+- **PR C** — coach: share wiring + Case File station + shared-overview leg.
+- **PR D** — website parity (member + coach).
+
+## Rejected alternatives (with receipts)
+
+- **`daily_health_snapshot` column** — that table is coach-readable
+  (`providers_read_subscriber_snapshots`) and RLS is row-level, not column-level;
+  cycle data would leak to every linked coach. The exact lesson from the
+  live-progress spec's rejection of a jsonb column on `user_activity`.
+- **`user_goals` doc as primary storage** — right-sized for member-only, but coach
+  share moved into v1 and needs the definer-RPC-over-a-table pattern; wearable
+  import (v2) needs per-date idempotent upserts.
+- **Symptom/flow logging** — duplicates the Today check-in and multiplies the most
+  intimate data class for marginal read value.
+- **Auto plan modification** — medical-adjacent, tramples coach-authored plans;
+  human-in-the-loop doctrine.
+- **Points for logging** — never gamify reproductive data.
+
+## v2 (registered, not built)
+
+Apple Health menstrual-flow import (native build) · Garmin Women's Health (access
+blocked) · optional end dates / member-set period length · symptom overlay from
+check-in data on the member's own calendar · coach-side nudge timing ("schedule the
+deload") woven into Adjust.
