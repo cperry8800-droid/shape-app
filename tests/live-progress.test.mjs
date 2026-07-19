@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bsLiveProgressPayload, bsLiveAudience, bsShouldPushProgress, bsValidLivePayload } from '../mobile-app/src/services/liveProgress.mjs';
+import { bsValidLivePayload as bsValidCanonical } from '../public/newdesign/liveProgress.mjs';
 
 const MOVES = [ { m: 'Pull-up', sets: 4 }, { m: 'Barbell row', sets: 4 }, { m: '', sets: 3 } ];
 const DONE = { '0-0': true, '0-1': true, '0-2': true, '0-3': true, '1-0': true, '1-1': true };
@@ -78,4 +79,8 @@ test('throttle: unchanged never pushes; changed pushes only past the 4s floor', 
   assert.equal(bsShouldPushProgress(a, b, 100000, 104100), true);      // changed + past the floor
   assert.equal(bsShouldPushProgress(a, rest, 100000, 104100), true);   // a resting flip is material
   assert.equal(bsShouldPushProgress(null, a, 0, 1000), true);          // first push always goes
+});
+
+test('mobile shim re-exports the canonical implementation (no twin)', () => {
+  assert.equal(bsValidLivePayload, bsValidCanonical);
 });
