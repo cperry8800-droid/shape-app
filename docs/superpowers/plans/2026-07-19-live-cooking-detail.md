@@ -227,7 +227,7 @@ async function bsRetightenLiveRow(nextPrefs) {
 
 ```js
       const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
-      if (row && expMs <= 0) row = null;   // an already-expired event is absence, not state
+      if (row && !(expMs > 0)) row = null; // expired OR invalid/NaN expiry = absence (NaN fails > 0)
 ```
 
 before `setLive(row)`, keeping the existing timer scheduling for the `expMs > 0` case. Add the vector to the render checks (an expired seeded row → the generic state, never the title).

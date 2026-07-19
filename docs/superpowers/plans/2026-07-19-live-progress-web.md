@@ -151,7 +151,7 @@ function CKLiveStation({ clientId, accent }) {
       // Expiry gates EVENTS too (review round): an already-expired realtime
       // INSERT/UPDATE would set no timer and pin the station forever.
       const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
-      if (r && expMs <= 0) r = null;
+      if (r && !(expMs > 0)) r = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
       setRow(r);
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
       if (r && expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
@@ -239,7 +239,10 @@ function cwUseActivity(userId, open) {
       .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle()
       .then(({ data }) => {
         if (!on) return;
-        setAct(data || null);
+        // Require a FINITE future expiry — malformed expires_at (NaN) must read
+        // as absence, never an untimed forever-line.
+        const expOk = data && data.expires_at && (new Date(data.expires_at).getTime() - Date.now()) > 0;
+        setAct(expOk ? data : null);
         // Clear the line AT expiry (review round) — an open preview must not
         // keep saying "In a workout" after the activity row lapses.
         const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
@@ -280,7 +283,7 @@ function cwUseActivity(userId, open) {
   - Prove: the station renders (exercise rows + NOW marker + Sets m/n); a realtime UPDATE moves the NOW marker; a DELETE removes the station; **no row → no station element in the DOM at all**; loads column reads `—`.
   - Race/timer paths (spec addition): stub `db.from(...).maybeSingle()` to resolve AFTER a synthetic realtime DELETE fires → the station must STAY absent (evented guard); seed a row whose `expires_at` is ~15s out → the station disappears at expiry without any event; feed a malformed payload (`{v:1, exercises:[]}`) → no station.
   - **A → B navigation:** open client A's page (station live), navigate to client B → prove A's channel is removed (`db.removeChannel` called / no `ck-live-A` in `db.getChannels()`) and A's expiry timer can no longer fire into B's page (the effect's `[clientId]` teardown is the mechanism — verify it, don't assume it).
-  - **Cross-member RLS denial at the browser level (late #1766 finding, CWE-862):** two DISTINCT authenticated accounts — coach C1 (linked to member M, whose row is `followers`-tier) and stranger S (not a follower, not M's coach) — S's session sees NO row on M's page and its realtime subscription receives NO events while C1's page renders the station live. Realtime filters alone don't prove policy enforcement; this does.
+  - **Cross-member RLS denial at the DATA boundary (late #1766 finding + #1768 round, CWE-862):** two DISTINCT authenticated accounts — coach C1 (linked to member M, whose row is `followers`-tier) and stranger S (not a follower, not M's coach). Assert the QUERY/EVENT layer, not just the DOM: capture S's actual `user_activity_live` select result (`data === null`, zero rows) AND S's realtime callback count (0 after C1-visible updates fire), while C1's select returns the row and C1's callback count increments — then also the UI layer (no station element for S, live station for C1). A DOM-only check could pass while unauthorized data reaches the client and is merely hidden.
 - [ ] **Step 4: LF/CRLF audit** on every touched file (`git ls-files --eol` + `tr -cd '\r'`), then **final commit + push + PR** — title `live-web: THE LIVE STATION — coach live-watch parity on the website (spec 2026-07-19)`; body links the spec; **no migration** note; wait CI green + CodeRabbit, address findings, squash-merge, re-sync branch.
 
 ---
