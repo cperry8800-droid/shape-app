@@ -79,6 +79,14 @@ $$;
 revoke all on function public.live_clear() from public, anon;
 grant execute on function public.live_clear() to authenticated;
 
+-- Expired-row hygiene: rows are PK-bounded (ONE per user, upserted over by
+-- the next session and deleted by live_clear on every clean end), so an
+-- orphan is at most one ≤8KB unreadable row per user — no scheduled job is
+-- warranted. The index makes any future sweep (and the expiry-gated read
+-- policy) cheap.
+create index if not exists user_activity_live_coach_expires_idx
+  on public.user_activity_live_coach (expires_at);
+
 do $$ begin
   if not exists (
     select 1 from pg_publication_tables
@@ -133,6 +141,11 @@ end $$;
       };
       if (fresh) crow.started_at = now.toISOString();
       await supabase.from('user_activity_live_coach').upsert(crow, { onConflict: 'user_id' });
+    } else {
+      // A null coach payload AFTER a valid one (malformed state, nothing to
+      // show) must not leave the old loads readable until expiry — delete,
+      // so the consumer falls back to the public row / '—' honestly.
+      await supabase.from('user_activity_live_coach').delete().eq('user_id', state.user.id);
     }
 ```
 

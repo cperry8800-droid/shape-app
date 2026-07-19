@@ -136,15 +136,24 @@ const MIN_WEEKS = 4;
 const STEADY_PP = 8;
 const VARIABLE_PP = 18;
 
+const numOrNull = (v) => {
+  // STRICT (review round): Number(null)/Number('') are 0 — reject non-number,
+  // non-numeric-string inputs outright instead of letting them read as zero.
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') { const n = Number(v); return Number.isFinite(n) ? n : null; }
+  return null;
+};
+
 export function bsVarianceBand(weeks) {
   if (!Array.isArray(weeks)) return null;
   const byWeek = new Map();
   for (const w of weeks) {
     if (!w || typeof w !== 'object') continue;
-    const ws = String(w.week_start || '');
-    const sched = Number(w.scheduled); const done = Number(w.completed);
-    if (!/^\d{4}-\d{2}-\d{2}/.test(ws)) continue;
-    if (!Number.isFinite(sched) || !Number.isFinite(done)) continue;
+    const ws = String(w.week_start || '').slice(0, 10);
+    // Anchored full-date parse — no trailing garbage, no invalid dates.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ws) || !Number.isFinite(Date.parse(ws))) continue;
+    const sched = numOrNull(w.scheduled); const done = numOrNull(w.completed);
+    if (sched === null || done === null) continue;
     if (sched < MIN_UNITS || done < 0 || done > sched) continue;
     byWeek.set(ws, done / sched);                 // duplicate week_start → last wins
   }
@@ -198,13 +207,20 @@ export function bsVarianceCopy(result) {
 -- pg_temp; every reference schema-qualified.
 create or replace function public.get_roster_weekly_adherence(p_client_ids uuid[])
 returns table (client_id uuid, week_start date, scheduled numeric, completed numeric)
-language sql
+language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
+begin
+  -- Fail CLOSED on an oversized batch (review round: raise, never silently
+  -- truncate — a truncated roster would read as "those clients have no data").
+  if coalesce(array_length(p_client_ids, 1), 0) > 100 then
+    raise exception 'too_many_clients';
+  end if;
+  return query
   with capped as (
-    -- bounded batch: no unbounded fan-out on a hot definer
-    select cid from unnest(p_client_ids[1:100]) as cid
+    -- DISTINCT: duplicate ids must not multiply joined rows into the totals.
+    select distinct cid from unnest(p_client_ids) as cid
   ),
   allowed as (
     select cid as client_id from capped
@@ -217,10 +233,12 @@ as $$
         and (t.owner_id = auth.uid() or n.owner_id = auth.uid())
     )
   ),
-  tz as (  -- captured timezone only — never fabricate a bucketing choice
-    select a.client_id, cp.timezone as zone
-    from allowed a join public.client_profiles cp on cp.user_id = a.client_id
-    where cp.timezone is not null
+  tz as (  -- the CANONICAL tz helper (spec: shape_user_tz — validated names
+           -- only); unknown-tz clients drop out (never fabricate a bucketing
+           -- choice), same honest-data rule as the weekend-split RPC.
+    select a.client_id, public.shape_user_tz(a.client_id) as zone
+    from allowed a
+    where public.shape_user_tz(a.client_id) is not null
   ),
   win as (  -- the trailing 8 CLOSED ISO weeks, local to each member
     select client_id, zone,
@@ -244,8 +262,8 @@ as $$
       -- units count SEPARATELY even on the same date (spec):
       coalesce(dh.n_daily, 0)                                                   as habit_sched,
       coalesce(c.done, 0)                                                       as habit_done,
-      case when w.id is not null then 1 else 0 end                              as workout_sched,
-      case when w.id is not null and wl.done then 1 else 0 end                  as workout_done,
+      case when ws.scheduled then 1 else 0 end                                  as workout_sched,
+      case when ws.scheduled and wl.done then 1 else 0 end                      as workout_done,
       1                                                                         as nutrition_sched,
       case when coalesce(s.protein_g, 0) >= 10 then 1 else 0 end               as nutrition_done
     from days d
@@ -258,7 +276,17 @@ as $$
       where uh.user_id in (select client_id from allowed)
       group by uh.user_id, uhc.done_on
     ) c on c.user_id = d.client_id and c.done_on = d.day
-    left join public.client_workouts w on w.client_id = d.client_id and w.scheduled_date = d.day
+    -- EXISTS, not a join (review round): several workout rows on one date
+    -- must not fan per_day out and multiply the habit/nutrition units.
+    left join lateral (
+      select exists (
+        select 1 from public.client_workouts w
+        where w.client_id = d.client_id and w.scheduled_date = d.day
+        -- apply the repo's published/status predicate here — grep how the
+        -- accountability cron filters assigned workouts (e.g. a status or
+        -- published column on client_workouts) and mirror it exactly
+      ) as scheduled
+    ) ws on true
     left join lateral (
       select exists (
         select 1 from public.workout_sessions ws
@@ -268,13 +296,13 @@ as $$
     ) wl on true
     left join public.daily_health_snapshot s on s.user_id = d.client_id and s.snapshot_date = d.day
   )
-  select client_id, date_trunc('week', day)::date as week_start,
+  select per_day.client_id, date_trunc('week', per_day.day)::date as week_start,
          sum(habit_sched + workout_sched + nutrition_sched)::numeric as scheduled,
          sum(least(habit_done, habit_sched) + workout_done + nutrition_done)::numeric as completed
   from per_day
-  group by client_id, date_trunc('week', day)
-  order by client_id, week_start;
-$$;
+  group by per_day.client_id, date_trunc('week', per_day.day)
+  order by 1, 2;
+end $$;
 
 revoke all on function public.get_roster_weekly_adherence(uuid[]) from public, anon;
 grant execute on function public.get_roster_weekly_adherence(uuid[]) to authenticated, service_role;
@@ -354,12 +382,12 @@ window.ShapeRosterVariance = { get: rosterVarianceGet };
 ```jsx
 {varRead && (
   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: varRead.chip ? t.AMBER : t.INK50 }}>
-    {tr('coach:case.varianceLine', { defaultValue: '{line}', line: varRead.line })}
+    {varRead.line}
   </div>
 )}
 ```
 
-where `const varRead = clientVar ? bsVarianceCopy(clientVar) : null;`. ⚠ i18n note: the line's figures come pre-baked from `bsVarianceCopy` (the no-drift rule) — the `tr` wrapper carries the whole line as a parameter so locales can reorder around it; do NOT rebuild the sentence from parts in the catalog (that would fork the copy source). If the reviewer prefers, render `varRead.line` bare (copy-module strings are English-only by design like ledger notes) — pick bare rendering, matching `crossoverCopy`'s precedent, and drop the `tr` wrapper. **Pick bare rendering.**
+where `const varRead = clientVar ? bsVarianceCopy(clientVar) : null;`. The line renders **bare** — `bsVarianceCopy` is the ONE copy source (words + figures baked together, the `crossoverCopy` precedent; ledger-note class, English by design). Wrapping it in `tr()` would invite catalogs to rebuild the sentence from parts and fork the copy source — don't.
 
 - [ ] **Step 3: Verify + commit** — JSX parse · `/m/` build · `npm test`.
 
@@ -384,6 +412,9 @@ where `const varRead = clientVar ? bsVarianceCopy(clientVar) : null;`. ⚠ i18n 
 ```jsx
 const [varRead, setVarRead] = React.useState(null);
 React.useEffect(() => {
+  setVarRead(null);   // SYNCHRONOUS reset (review round): client A's line must
+                      // never sit under client B while B's fetch is in flight,
+                      // and missing prereqs must clear any held line too.
   const db = window.shapeDb && window.shapeDb.client; const VB = window.ShapeVariance;
   if (!db || !VB || !clientId) return undefined;
   let on = true;
@@ -409,7 +440,7 @@ Render under the stat grid inside the same Card:
 
 - [ ] `npm test` full · `tsc --noEmit` · PowerShell `/m/` build · JSX parses · LF audit.
 - [ ] Post-migration validation (after the OWNER applies): **seeded synthetic fixtures only** — a test coach + test client with authored habit/snapshot rows; assert bucketing + the fail-closed empty set for an unauthorized caller. Never real member adherence data.
-- [ ] PR: `variance: steady-vs-variable weekly adherence — roster chip + Case File + web line (spec 2026-07-19)`; body carries the RAW migration link ONLY (the migration convention) + a note that members never see the band. Wait CI + CodeRabbit; address; squash-merge; re-sync.
+- [ ] PR: `variance: steady-vs-variable weekly adherence — roster chip + Case File + web line (spec 2026-07-19)`. The migration handoff follows the ONE house convention (Global Constraints): reply with ONLY the raw GitHub link — no SQL body, no explanation. The PR *description* separately notes that members never see the band. Wait CI + CodeRabbit; address; squash-merge; re-sync.
 
 ---
 

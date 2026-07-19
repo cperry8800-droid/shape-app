@@ -74,7 +74,14 @@ const COOK_TITLE_BAD = /[\u0000-\u001f\u007f<>]/;
 
 export function bsCookingPayload(meal) {
   if (!meal || typeof meal !== 'object') return null;
-  const eligible = Number.isFinite(Number(meal.kcal)) || (typeof meal.recipeId === 'string' && meal.recipeId.trim());
+  // Planned-meal predicate, STRICT (review round): Number(null)/Number('')/
+  // Number(false) are all finite 0 — a freehand meal carrying one of those
+  // must NOT read as planned. Only a real number, or a non-empty numeric
+  // string, counts (the logger's hasPlanned semantics, made type-safe).
+  const kcalPlanned =
+    (typeof meal.kcal === 'number' && Number.isFinite(meal.kcal)) ||
+    (typeof meal.kcal === 'string' && meal.kcal.trim() !== '' && Number.isFinite(Number(meal.kcal)));
+  const eligible = kcalPlanned || (typeof meal.recipeId === 'string' && meal.recipeId.trim());
   if (!eligible) return null;                              // freehand = intake = silence
   const title = String(meal.title || '').trim();
   if (!title || title.length > 80 || COOK_TITLE_BAD.test(title)) return null;
@@ -97,7 +104,8 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   if (raw.kind !== undefined && raw.kind !== 'workout') return null;
 ```
 
-- [ ] **Step 4: Run → green** (including every pre-existing workout vector, untouched).
+- [ ] **Step 4: Downstream discriminated union** — every EXISTING consumer of `bsValidLivePayload` now receives a union and must gate on `lp.kind` before touching workout fields: this PR updates `BSLiveBoostSheet` (Task 3) and adds a regression vector; the web `CKLiveStation` gained its `kind !== 'workout'` gate in the live-progress-web plan (verify it's there — `grep -n "kind" public/newdesign/coachClientDetail.jsx`); `BSProLiveWatch` reads through the same validator — add its gate here too (a cooking row renders the neutral no-detail line, never exercise scaffolding).
+- [ ] **Step 5: Run → green** (including every pre-existing workout vector, untouched).
 - [ ] **Step 5: Commit** — `git commit -am "cooking: kind-dispatch validator + bsCookingPayload (reject-not-truncate, TDD)"`
 
 ---
@@ -122,11 +130,17 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   // settings change re-pushes immediately via shape:liveAudienceChanged.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
   const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
-  React.useEffect(() => {
+  const cookPushedRef = React.useRef(false);             // fresh=true on the FIRST push only —
+  React.useEffect(() => {                                // a re-push must never reset started_at
     if (!window.ShapeLiveProgress) return undefined;
-    if (cookPayload) window.ShapeLiveProgress.push(cookPayload, true);
-    else window.ShapeLiveProgress.clear();               // ineligible → absence, NOW
-    const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, true); };
+    if (cookPayload) {
+      window.ShapeLiveProgress.push(cookPayload, !cookPushedRef.current);
+      cookPushedRef.current = true;
+    } else {
+      window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
+      cookPushedRef.current = false;                     // a NEW eligible meal restarts the clock
+    }
+    const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, false); };
     window.addEventListener('shape:liveAudienceChanged', rePush);
     return () => {
       window.removeEventListener('shape:liveAudienceChanged', rePush);
@@ -135,15 +149,22 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   }, [cookPayload]);
 ```
 
-⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). `push(payload, true)` uses `fresh=true` so `started_at` stamps at cook start — each re-push refreshing `started_at` is WRONG; pass `fresh` only on the FIRST push: keep a `pushedRef` (`const pushedRef = React.useRef(false)`) and call `push(cookPayload, !pushedRef.current)`, setting `pushedRef.current = true` after; reset it when `cookPayload` becomes null.
+⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). The `cookPushedRef` dance above IS the fresh-flag contract: `started_at` stamps once per eligible meal, never on a re-push.
 
 - [ ] **Step 2: Settings mutation acts DIRECTLY (spec round-3 revision)** — in BOTH prefs-save branches (~22988, ~23002), directly after `bsMaybeRetightenAutoPosts(p, next)`:
 
 ```js
       if (key === 'shareWorkoutData' || key === 'profileVisibility') {
         bsMaybeRetightenAutoPosts(p, next);
-        bsRetightenLiveRow(next);   // server-authoritative: acts on the row itself, cross-device
-        try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged')); } catch (e) {}
+        // Await the row mutation; dispatch the local re-push ONLY on success —
+        // a failed withdrawal followed by a re-push could resurrect the row.
+        bsRetightenLiveRow(next).then((r) => {
+          if (r && r.ok) {
+            try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged')); } catch (e) {}
+          } else {
+            try { window.__bsToast?.('Live-sharing change didn\'t save — check your connection.', 'info'); } catch (e) {}
+          }
+        });
       }
 ```
 
@@ -156,14 +177,25 @@ with a new module-scope helper beside `bsMaybeRetightenAutoPosts`:
 // null audience → delete, tightened → restamp visibility. Works even when the
 // broadcasting device is asleep; the event above is just the local re-push.
 async function bsRetightenLiveRow(nextPrefs) {
+  // Returns {ok} — the caller MUST await this and only dispatch the local
+  // re-push event on success (review round): a failed privacy mutation must
+  // never be followed by a re-push that could re-create the row the member
+  // just tried to withdraw.
   try {
     const { bsLiveAudience } = await import('../services/liveProgress.mjs');
     const vis = bsLiveAudience(nextPrefs, false);
     const db = window.shapeDb; const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
-    if (!db?.client || !uid) return;
-    if (!vis) await db.client.from('user_activity_live').delete().eq('user_id', uid);
-    else await db.client.from('user_activity_live').update({ visibility: vis }).eq('user_id', uid);
-  } catch (e) {}
+    if (!db?.client || !uid) return { ok: false };
+    const q = !vis
+      ? db.client.from('user_activity_live').delete().eq('user_id', uid)
+      : db.client.from('user_activity_live').update({ visibility: vis }).eq('user_id', uid);
+    const { error } = await q;
+    if (error) {                                   // one retry, then honest failure
+      const { error: e2 } = await q;
+      if (e2) return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
 }
 ```
 

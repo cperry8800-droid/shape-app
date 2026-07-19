@@ -72,6 +72,17 @@ begin
   if p_consent_kind not in ('cycle_tracking', 'cycle_share') then
     raise exception 'bad_consent_kind';
   end if;
+  -- Invariants (review round): the flags and the receipt must describe ONE
+  -- coherent transition. Sharing requires opt-in; the receipt's granted value
+  -- must match the flag it records (tracking receipt ↔ p_opt_in, share
+  -- receipt ↔ p_share). Anything else is an incoherent audit row.
+  if p_share and not p_opt_in then raise exception 'share_requires_opt_in'; end if;
+  if p_consent_kind = 'cycle_tracking' and p_granted <> p_opt_in then
+    raise exception 'receipt_flag_mismatch';
+  end if;
+  if p_consent_kind = 'cycle_share' and p_granted <> p_share then
+    raise exception 'receipt_flag_mismatch';
+  end if;
   perform set_config('shape.cycle_rpc', '1', true);
   insert into public.user_goals (user_id, kind, data)
   values (auth.uid(), 'cycle_settings',
@@ -89,10 +100,20 @@ grant execute on function public.cycle_set_settings(boolean, boolean, text, bool
 --    withdrawal. Partial state (events outliving consent) is unrepresentable.
 create or replace function public.cycle_opt_out()
 returns void language plpgsql security invoker set search_path = public, pg_temp as $$
+declare v_was_sharing boolean;
 begin
   perform set_config('shape.cycle_rpc', '1', true);
+  select coalesce((data->>'share')::boolean, false) into v_was_sharing
+    from public.user_goals where user_id = auth.uid() and kind = 'cycle_settings';
   delete from public.cycle_events where user_id = auth.uid();
   delete from public.user_goals where user_id = auth.uid() and kind = 'cycle_settings';
+  -- Withdrawal receipts for EVERY scope that was granted (review round): a
+  -- member who was sharing gets a cycle_share withdrawal too, so the ledger
+  -- never shows a share grant outliving its tracking basis.
+  if coalesce(v_was_sharing, false) then
+    insert into public.consent_log (user_id, kind, granted, consent_text, source)
+    values (auth.uid(), 'cycle_share', false, 'Coach sharing ended — cycle tracking stopped.', 'settings');
+  end if;
   insert into public.consent_log (user_id, kind, granted, consent_text, source)
   values (auth.uid(), 'cycle_tracking', false, 'Stopped cycle tracking — all cycle data deleted.', 'settings');
 end $$;
@@ -116,7 +137,7 @@ grant execute on function public.cycle_opt_out() to authenticated;
 
 **Interfaces:**
 - Produces (PR B–D consume):
-  - `bsDeriveCycle(starts, today)` → `{ phase, day, L, confidence, windows, predictedStart, starts } | { phase: null } | { phase: 'paused', … }` — `starts` = ISO date strings newest-first (the RPC's shape), `today` = ISO date or Date. `windows` = `{ menstrual: [a,b], luteal: [a,b], ovulatory: [a,b]|null, follicular: [a,b]|null }` (inclusive day numbers). `predictedStart` = `{ from, to }` ISO dates (lastStart + L ± the confidence-scaled slop: high ±1 · medium ±2 · low ±4) or null when paused/no-starts.
+  - `bsDeriveCycle(starts, today)` → `{ phase, day, L, confidence, windows, predictedStart, starts } | { phase: null }` — `phase` ∈ `'menstrual' | 'follicular' | 'ovulatory' | 'luteal' | 'late' | 'paused'` (`'late'` = L < day ≤ L+7, predictions hold; `'paused'` = day > L+7, every prediction field null — PRs B/C consume both) — `starts` = ISO date strings newest-first (the RPC's shape), `today` = ISO date or Date. `windows` = `{ menstrual: [a,b], luteal: [a,b], ovulatory: [a,b]|null, follicular: [a,b]|null }` (inclusive day numbers). `predictedStart` = `{ from, to }` ISO dates (lastStart + L ± the confidence-scaled slop: high ±1 · medium ±2 · low ±4) or null when paused/no-starts.
   - `bsCycleRead(days, cycle)` → `{ metric, phaseA, phaseB, gap, se, copy } | null` — the statistical read, crossoverRead's shape.
 
 - [ ] **Step 1: Failing tests** — pin the spec's vectors EXACTLY:
@@ -170,16 +191,26 @@ test('confidence ladder: ordered, population stdev, stdev>5 outranks n=2 medium'
   assert.equal(bsDeriveCycle(['2026-07-01', '2026-06-04', '2026-05-06'], '2026-07-02').confidence, 'medium');
 });
 
-test('paused past lastStart + L + 7; no starts → phase null', () => {
-  assert.equal(bsDeriveCycle(REG, '2026-08-06').phase, 'paused');       // day 37 > 28+7
-  assert.equal(bsDeriveCycle(REG, '2026-08-05').phase, 'luteal');       // day 36 clamps into luteal? NO —
-  // day 36 > L: not paused yet (≤ L+7) but past every window → the engine
-  // reports phase 'late' — day > L, predictions hold, copy stays neutral.
-  assert.equal(bsDeriveCycle(REG, '2026-08-05').phase, 'late');
+test('late then paused; no starts → phase null', () => {
+  // Day arithmetic against REG (last start 2026-07-01, L=28, L+7=35):
+  // Jul 30 = day 30 · Aug 4 = day 35 (the last 'late' day) · Aug 5 = day 36.
+  assert.equal(bsDeriveCycle(REG, '2026-07-30').phase, 'late');   // L < 30 ≤ L+7
+  assert.equal(bsDeriveCycle(REG, '2026-08-04').phase, 'late');   // day 35 == L+7 boundary, still late
+  assert.equal(bsDeriveCycle(REG, '2026-08-05').phase, 'paused'); // day 36 > L+7
   const none = bsDeriveCycle([], '2026-07-10');
   assert.equal(none.phase, null);
   const paused = bsDeriveCycle(REG, '2026-09-01');
-  assert.equal(paused.predictedStart, null);                            // every prediction field null
+  assert.equal(paused.predictedStart, null);                      // every prediction field null
+});
+
+test('Date inputs normalize to the LOCAL calendar date (no midnight drift)', () => {
+  // Logged starts are date-only; `today` as a Date must resolve to the same
+  // day number a plain ISO string does, at any wall-clock time — 23:59 local
+  // must NOT read as tomorrow (or yesterday) via UTC epoch math.
+  const evening = new Date(2026, 6, 10, 23, 59);   // LOCAL Jul 10, 23:59
+  const morning = new Date(2026, 6, 10, 0, 1);     // LOCAL Jul 10, 00:01
+  assert.equal(bsDeriveCycle(REG, evening).day, bsDeriveCycle(REG, '2026-07-10').day);
+  assert.equal(bsDeriveCycle(REG, morning).day, bsDeriveCycle(REG, '2026-07-10').day);
 });
 
 test('predictedStart window scales with confidence', () => {
@@ -216,7 +247,18 @@ test('bsCycleRead: floors → null; powered + material + significant → fires',
 // stay null.
 const DAY = 86400000;
 const iso = (t) => new Date(t).toISOString().slice(0, 10);
-const parse = (d) => (d instanceof Date ? d.getTime() : Date.parse(d));
+// Calendar-date semantics (review round): logged starts are DATE-ONLY strings
+// (UTC-midnight epoch under Date.parse). A `today` passed as a Date object is
+// therefore normalized to its LOCAL calendar date first — the member's wall
+// clock decides what "today" is — then parsed the same UTC-midnight way, so
+// day arithmetic never drifts ±1 near local midnight.
+const parse = (d) => {
+  if (d instanceof Date) {
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return Date.parse(local);
+  }
+  return Date.parse(d);
+};
 
 export function bsDeriveCycle(starts, today) {
   const t = parse(today);

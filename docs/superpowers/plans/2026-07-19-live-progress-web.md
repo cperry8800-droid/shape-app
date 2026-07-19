@@ -148,10 +148,13 @@ function CKLiveStation({ clientId, accent }) {
     const take = (r, fromEvent) => {
       if (!on) return;
       if (fromEvent) evented = true; else if (evented) return;   // TOCTOU guard
+      // Expiry gates EVENTS too (review round): an already-expired realtime
+      // INSERT/UPDATE would set no timer and pin the station forever.
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (r && expMs <= 0) r = null;
       setRow(r);
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
-      if (expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
     };
     db.from("user_activity_live")
       .select("payload, started_at, updated_at, expires_at")
@@ -167,7 +170,10 @@ function CKLiveStation({ clientId, accent }) {
     return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
   }, [clientId]);
   const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
-  if (!lp) return null;   // absence — the station does not exist
+  // Workout payloads only (review round): the cooking-detail PR later teaches
+  // the validator a {kind:'cooking'} shape with NO exercises — this station
+  // must gate on the discriminator or that row would crash the render.
+  if (!lp || (lp.kind && lp.kind !== 'workout')) return null;   // absence — the station does not exist
   const started = row.started_at ? new Date(row.started_at).getTime() : null;
   const mins = started != null ? Math.max(0, Math.floor((Date.now() - started) / 60000)) : null;
   return (
@@ -184,7 +190,7 @@ function CKLiveStation({ clientId, accent }) {
           <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, color: i === lp.curIdx ? "#f2ede4" : "rgba(242,237,228,0.7)" }}>
             {i === lp.curIdx ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: accent, marginRight: 8 }}>NOW ▸</span> : null}{e.n}
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>— lb</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>—</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: e.done >= e.total ? accent : "rgba(242,237,228,0.75)" }}>{e.done}/{e.total}</span>
         </div>
       ))}
@@ -193,7 +199,7 @@ function CKLiveStation({ clientId, accent }) {
 }
 ```
 
-Note on the `— lb` cell: loads are honest-absent in v1 (the payload carries none) — render the literal `—` with no unit instead if the `lb` reads as a claim: use `—` alone. **Use `—` alone.**
+The load cell renders the literal `—` alone — loads are honest-absent in v1 (the payload carries none), and a unit suffix would imply a claim.
 
 - [ ] **Step 2: Mount it** — in `CoachClientDetailPage`'s return, insert as the first child inside `<React.Fragment>` (line ~162, before the stat-grid `<Card>`):
 
@@ -228,12 +234,19 @@ function cwUseActivity(userId, open) {
   React.useEffect(() => {
     const db = window.shapeDb && window.shapeDb.client;
     if (!db || !userId || !open) { setAct(null); return undefined; }
-    let on = true;
+    let on = true; let expTimer = null;
     db.from("user_activity").select("kind, started_at, expires_at")
       .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle()
-      .then(({ data }) => { if (on) setAct(data || null); })
+      .then(({ data }) => {
+        if (!on) return;
+        setAct(data || null);
+        // Clear the line AT expiry (review round) — an open preview must not
+        // keep saying "In a workout" after the activity row lapses.
+        const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
+        if (expMs > 0) expTimer = setTimeout(() => { if (on) setAct(null); }, expMs);
+      })
       .catch(() => { if (on) setAct(null); });
-    return () => { on = false; };
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); };
   }, [userId, open]);
   if (!act) return null;
   const mins = act.started_at ? Math.max(0, Math.floor((Date.now() - new Date(act.started_at).getTime()) / 60000)) : null;

@@ -63,7 +63,7 @@
 **Interfaces:**
 - Consumes: `useBSCycleSettings` + a shared `useBSCycleDerived()` hook (fetch `list()` once, derive, cache with the same event refresh).
 
-- [ ] **Step 1: Today chip** — on the Today page (NOT the Home slate — doctrine), when opted-in AND today ∈ `[predictedStart.from − 2d, predictedStart.to + 7d]` and today isn't already logged: one quiet mono line `tr('cycle:todayChip', { defaultValue: 'Period started? Log it →' })` → fires `shape:openCycle`.
+- [ ] **Step 1: Today chip** — on the Today page (NOT the Home slate — doctrine), when opted-in AND **`derived.predictedStart` is non-null** (the engine returns null for no-starts and paused — the window arithmetic below must never run on it) AND today ∈ `[predictedStart.from − 2d, predictedStart.to + 7d]` and today isn't already logged: one quiet mono line `tr('cycle:todayChip', { defaultValue: 'Period started? Log it →' })` → fires `shape:openCycle`.
 - [ ] **Step 2: THE CYCLE card** — sibling directly after `<BSCrossoverCard …/>` (~25092), `BSCycleCard`: renders ONLY when opted in. Station grammar (`BSOLHead`-style eyebrow + tick in tier heat): phase + day headline · confidence/L register line · predicted-window line · and, when `bsCycleRead` fires over the member's cached series (assemble `days` from the SAME sources `BSCrossoverCard` uses — read its assembly at ~24931+ and reuse the cached progress series + check-in data, labeling each day's phase via `bsDeriveCycle` windows over the logged starts), the read's `copy` line with an honest register (`{n} CYCLES OF DATA`). Below floors → the card renders the headline WITHOUT a read (never a fabricated insight). Tap → `shape:openCycle`.
 - [ ] **Step 3: Verify + commit.**
 

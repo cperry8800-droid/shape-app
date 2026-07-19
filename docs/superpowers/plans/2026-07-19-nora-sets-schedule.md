@@ -55,9 +55,12 @@ drop policy if exists "nora sets public read" on public.nora_sets;
 create policy "nora sets public read" on public.nora_sets
   for select to anon, authenticated using (published);
 
--- Privilege contract: revoke everything, grant back SELECT only.
-revoke all on table public.nora_sets from anon, authenticated;
+-- Privilege contract, explicit for EVERY role (review round): revoke from
+-- PUBLIC too, and grant the service-role write path by name rather than
+-- relying on pre-existing default grants.
+revoke all on table public.nora_sets from public, anon, authenticated;
 grant select on table public.nora_sets to anon, authenticated;
+grant select, insert, update, delete on table public.nora_sets to service_role;
 
 create index if not exists nora_sets_starts_idx on public.nora_sets (published, starts_at);
 ```
@@ -135,9 +138,16 @@ export function bsSetsNow(rows, now) {
   const out = { live: null, next: null, upcoming: [] };
   if (!Array.isArray(rows) || !Number.isFinite(t)) return out;
   const clean = rows.filter((r) => {
+    // Mirror the schema's contract (review round): required non-empty text
+    // fields, integer 10–360 duration, parseable start, finite end.
     if (!r || typeof r !== 'object') return false;
     const s = Date.parse(r.starts_at); const d = Number(r.duration_min);
-    return Number.isFinite(s) && Number.isFinite(d) && d > 0;
+    return typeof r.id === 'string'
+      && typeof r.title === 'string' && r.title.trim() !== ''
+      && typeof r.dj === 'string' && r.dj.trim() !== ''
+      && Number.isFinite(s)
+      && Number.isInteger(d) && d >= 10 && d <= 360
+      && Number.isFinite(s + d * 60000);
   }).map((r) => ({ ...r, _s: Date.parse(r.starts_at), _e: Date.parse(r.starts_at) + Number(r.duration_min) * 60000 }));
   const liveCands = clean.filter((r) => r._s <= t && t < r._e);
   liveCands.sort((a, b) => b._s - a._s || String(a.id).localeCompare(String(b.id)));
@@ -162,7 +172,7 @@ export function bsSetsNow(rows, now) {
 - Modify: `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx` — `BSShapeSetsScreen` (~1222+, inside the Glass-card stack) + a small fetch helper at module scope.
 
 **Interfaces:**
-- Consumes: `supabase` read via a new `window.ShapeNoraSets.list()` in `shapeBackend.js` (`supabase.from('nora_sets').select('*').eq('published', true).gte('starts_at', <now - 6h ISO>).order('starts_at').limit(40)` → `[] `on error — degrade silent), plus Task 2's module (import at the top of the radio module: `import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';`).
+- Consumes: `supabase` read via a new `window.ShapeNoraSets.list()` in `shapeBackend.js` (`supabase.from('nora_sets').select('*').eq('published', true).gte('starts_at', <now - 6h ISO>).lte('starts_at', <now + 7d ISO>).order('starts_at')` — the whole relevant window, NO row limit (review round: a limit could truncate away the live row; the window itself is the bound, and RLS narrows to published) → `[]` on error — degrade silent), plus Task 2's module (import at the top of the radio module: `import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';`).
 
 - [ ] **Step 1: Data layer** — add `window.ShapeNoraSets = { list }` in `shapeBackend.js` beside the other public reads; anon-safe (the table is public-read; a signed-out preview still shows the schedule).
 - [ ] **Step 2: The station** — inside `BSShapeSetsScreen`, after the existing example cards, a `Glass` card: mono eyebrow `COMING UP`, dot-leader rows (day + time via `new Intl.DateTimeFormat(window.ShapeI18n?.intlLocale?.() || 'en', { weekday: 'short', hour: 'numeric', minute: '2-digit' })` · serif title · mono dj), honest empty state `tr('radio:sets.empty', { defaultValue: 'Schedule lands with the first broadcast.' })`. Rows from a `useEffect` fetch on mount → `bsSetsNow(rows, Date.now()).upcoming` (plus the live row pinned on top with a `NOW` tag when present).
@@ -216,10 +226,10 @@ function useBSSetsLive() {
 
 **Files:**
 - Modify: `public/newdesign/radio.jsx` — inside `RadioShapeSets()` (~line 165+).
-- Modify: `public/newdesign/Radio.html` — add the supabase vendor+loader tags (grep first — it has none today) + `<script type="module">import * as NS from "/newdesign/noraSets.mjs?v=20260719"; window.ShapeNoraSets = NS;</script>` + bump `radio.jsx?v=20260714` → `?v=20260719`.
+- Modify: `public/newdesign/Radio.html` — add the supabase vendor+loader tags (grep first — it has none today) + `<script type="module">import * as NS from "/newdesign/noraSets.mjs?v=20260719"; window.ShapeSetsLib = NS;</script>` (the WEB namespace — `ShapeSetsLib`, never `ShapeNoraSets`, which is the mobile data layer) + bump `radio.jsx?v=20260714` → `?v=20260719`.
 
 **Interfaces:**
-- Consumes: `window.shapeDb.client.from('nora_sets')` (anon read — public-read RLS) + `window.ShapeNoraSets.bsSetsNow`.
+- Consumes: `window.shapeDb.client.from('nora_sets')` (anon read — public-read RLS, same no-limit window as Task 3) + `window.ShapeSetsLib.bsSetsNow`.
 
 - [ ] **Step 1: Loaders on Radio.html** (vendor SRI tag byte-copied from ClientApp.html:34 + `/supabase.js` + the module tag). EOL check first.
 - [ ] **Step 2: The list** — in `RadioShapeSets`, a `COMING UP` block above/below the editorial copy: fetch on mount, `bsSetsNow(rows, Date.now())`, render `upcoming` as dot-leader rows (mono day/time · serif title · dj) with the honest empty state; no LIVE/tune state on the website in v1 (the site has no stream player integration — schedule list only, per spec's surfaces).
