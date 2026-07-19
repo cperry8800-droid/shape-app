@@ -92,8 +92,17 @@ create policy "cycle owner all" on public.cycle_events
 -- negative day-of-cycle. Historical + same-day rows pass untouched.
 create or replace function public.cycle_events_no_future()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_tz text; v_today date;
 begin
-  if new.event_date > (now() at time zone public.shape_user_tz(new.user_id))::date then
+  -- shape_user_tz can be NULL for a member whose zone was never captured; a
+  -- NULL comparison would make the IF unknown and SKIP the guard. Fail SAFE,
+  -- not closed: fall back to UTC today + 1 day of slack (the award-clamp
+  -- precedent) — a Tokyo member's local "today" is never rejected, a genuine
+  -- future date still is. With a captured tz the bound is exact local today.
+  v_tz := public.shape_user_tz(new.user_id);
+  v_today := (now() at time zone coalesce(v_tz, 'UTC'))::date
+             + (case when v_tz is null then 1 else 0 end);
+  if new.event_date > v_today then
     raise exception 'future_event_date';
   end if;
   return new;
@@ -137,6 +146,17 @@ transaction). Invoker rights on purpose: the owner RLS on `cycle_events` /
 `user_goals` / `consent_log` IS the scope — no definer privilege to misuse.
 All idempotent; EXECUTE revoked from public/anon, granted to authenticated.
 
+**RPC-only writes, enforced at the DB (not by convention):** both RPCs open by
+setting a transaction-local flag — `select set_config('shape.cycle_rpc', '1',
+true)` — and a `cycle_settings_guard` BEFORE INSERT/UPDATE trigger on
+`user_goals` REJECTS any `kind = 'cycle_settings'` write made without it (the
+exact `shape.adjust_regen` GUC-guard pattern from the #1707 regeneration
+migration). So a direct owner upsert can never set `share = true` without its
+receipt — the flag/receipt invariant the read RPC relies on is structural, not
+best-effort. Negative test: a direct `user_goals` upsert of `cycle_settings`
+raises. (Direct `consent_log` inserts stay possible and harmless — an extra
+receipt grants nothing; the table is append-only audit.)
+
 ### Settings doc — `user_goals('cycle_settings')`
 
 `{ optIn: boolean, share: boolean }`. Owner-only by construction (user_goals RLS).
@@ -174,17 +194,33 @@ is never served to the website, so a mobile-side canonical would force a twin.
 
 `bsDeriveCycle(starts, today)` → derived state. Calendar method:
 
-- **Personal length `L`** = mean of the last ≤12 intervals (13 starts). `<2` starts →
+- **Personal length `L`** = mean of the last ≤12 intervals (13 starts),
+  **rounded half-up to an integer, then clamped to [15, 60]** — L is a day
+  boundary and must be deterministic across implementations. `<2` starts →
   `L = 28`, confidence `low`. Intervals outside 15–60 days are discarded as
   data-entry noise before averaging (never silently mutated — just excluded from L).
 - **Day of cycle** `d` = days since last logged start + 1.
-- **Phases** (windows in days): menstrual `1–5` (fixed — no end dates collected) ·
-  follicular `6 … L−17` · ovulatory `L−16 … L−12` (centered L−14) · luteal `L−11 … L`.
-  Degenerate short cycles clamp windows in that priority order; never negative spans.
+- **Phases** — integer day windows, ALL boundaries inclusive, derived in this
+  exact order (priority: menstrual > luteal > ovulatory > follicular — luteal
+  is the physiologically fixed span, so a short cycle compresses the
+  follicular side, which is what actually happens):
+  1. menstrual = `[1, 5]` (fixed — no end dates collected).
+  2. luteal = `[max(6, L−11), L]`.
+  3. ovulatory = `[max(6, L−16), min(L−12, luteal.start − 1)]`; if end < start
+     the window is **EMPTY** (short cycle — no ovulatory window is claimed and
+     the prediction line renders none; honest absence over fabrication).
+  4. follicular = `[6, ovulatory.start − 1]` (when ovulatory is empty:
+     `[6, luteal.start − 1]`); empty when end < start.
+  Windows never overlap and never go negative **by construction**. Vectors the
+  tests pin: `L=28` → M 1–5 · F 6–11 · O 12–16 · Lu 17–28 (textbook). `L=17` →
+  M 1–5 · Lu 6–17 · O and F empty. `L=16` → M 1–5 · Lu 6–16 · O/F empty.
+  `L=15` → M 1–5 · Lu 6–15 · O/F empty.
 - **Confidence:** `high` = ≥3 intervals and stdev ≤ 3d · `medium` = 2 intervals or
   stdev ≤ 5d · `low` = otherwise (incl. the 28-default). stdev > 5d additionally
-  widens the ovulatory window to ±4 and forces `low` — irregular cycles get honest
-  vagueness, not false precision. Prediction renders as a **window**, not a date.
+  widens the ovulatory window to ±4 — i.e. ovulatory becomes
+  `[max(6, L−18), min(L−10, luteal.start − 1)]`, same clamps, same empty rule —
+  and forces `low`: irregular cycles get honest vagueness, not false precision.
+  Prediction renders as a **window**, not a date.
 - **Paused:** `today > lastStart + L + 7` → `{ phase: 'paused' }` and every
   prediction field null. The paused copy is fixed by doctrine (above).
 - **No starts** → `{ phase: null }` → setup state renders.

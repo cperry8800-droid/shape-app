@@ -35,8 +35,19 @@ design below is unchanged except the write is additionally gated on a
 
 `user_activity_live_coach` (migration `2026-07-19-user-activity-live-coach.sql`):
 `(user_id PK, payload jsonb, started_at, updated_at, expires_at)` — the v1
-table's shape minus `visibility` (the audience is structural, not stamped).
-RLS: owner writes own; read = `user_id = auth.uid() OR is_coach_on_client(user_id)`.
+table's shape minus `visibility` (the audience is structural, not stamped),
+plus a cheap write-boundary bound: `check (pg_column_size(payload) <= 8192)`
+(a direct owner write can't park megabytes; the CONTENT contract stays
+enforced by the one shared validator on read — a SQL twin of it would be
+exactly the drift the one-module rule exists to prevent, and the only author
+of a member's own row is that member). RLS: **owner `for all` policy**
+(SELECT/INSERT/UPDATE/**DELETE** — the v1 table's exact policy shape, spelled
+out because the SECURITY INVOKER `live_clear()` depends on the owner DELETE
+leg on BOTH tables); coach read = a separate SELECT policy
+`is_coach_on_client(user_id)`. **Expiry is 30 minutes, not v1's 6 hours** —
+the writer refreshes it on every push (≤4s apart mid-session), so a live
+session never lapses, while a crashed session's loads — or a row visible to a
+since-REVOKED coach — dies fast.
 **A separate table because RLS is row-level, not column-level** — one row with
 a public half and a coach half would leak one to the other's audience (the
 lesson that killed the `user_activity` jsonb column in the v1 spec). Realtime
@@ -66,7 +77,13 @@ stays the crash-path backstop.
   row too, dropping it from an already-open console the moment it lapses. The
   set grid shows real loads/reps/RPE as they land (replacing `—`); falls back
   to the public row, then to the neutral line. The demo-roster grid rule is
-  untouched.
+  untouched. **Revocation bound, stated honestly:** RLS stops future reads and
+  realtime events the instant a link is revoked, but pixels already delivered
+  can't be recalled — the exposure is bounded by (a) component-local state
+  only (no persistent cache anywhere; unmount/back drops it instantly) and
+  (b) the 30-minute rolling expiry + the subscription-side timer, which
+  clears an untouched console at expiry. A revoked coach's console goes dark
+  within minutes and can never re-fetch.
 - **Web coach station** (from the live-progress-web spec): same preference
   order, same validator.
 
@@ -80,12 +97,15 @@ Sets only — the live mirror of what the session log will say post-hoc.
 Module vectors for the coach payload + validator (bounds, malformed, sums) ·
 writer test that clear() wipes both rows atomically via `live_clear()` ·
 expired-row fallback (consumer drops the coach row at expiry, falls to public)
-· the **full RLS denial matrix** post-migration, every leg an explicit
-negative test: a non-coach authenticated user reads zero rows · a coach reads
-ONLY their own linked clients (cross-client read denied) · coach
-INSERT/UPDATE/DELETE on a client's row denied · a REVOKED coach link stops
-reading · anon reads nothing AND an anonymous realtime subscription receives
-no events. On-device: coach watches live loads land; session end removes both
+· `live_clear()` asserts BOTH rows actually deleted (the owner DELETE leg of
+each table's `for all` policy is what the invoker RPC rides — proven, not
+assumed) · the **full RLS denial matrix** post-migration, every leg an
+explicit negative test: a non-coach authenticated user reads zero rows **of
+another member** (their OWN row, if any, is the owner policy working — tested
+separately as a positive) · a coach reads ONLY their own linked clients
+(cross-client read denied) · coach INSERT/UPDATE/DELETE on a client's row
+denied · a REVOKED coach link stops reading · anon reads nothing AND an
+anonymous realtime subscription receives no events. On-device: coach watches live loads land; session end removes both
 rows.
 
 ## Build

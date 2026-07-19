@@ -1,6 +1,7 @@
 # Live cooking detail — the boost sheet learns what's on the stove
 
-**Date:** 2026-07-19 · **Status:** spec for owner review · **Migration:** none
+**Date:** 2026-07-19 · **Status:** spec for owner review · **Migration:** one
+tiny hardening (`2026-07-19-user-activity-live-expiry-rls.sql` — see Design)
 
 ## Why
 
@@ -39,30 +40,54 @@ already frames it as live-activity sharing. The plan renames nothing.)
 ## Design
 
 - **Payload:** `user_activity_live` rows gain `payload.kind: 'workout' |
-  'cooking'`; the cooking payload is `{ v:1, kind:'cooking', title }` (title
-  ≤80, validated). `bsValidLivePayload` branches on `kind` — the workout
-  contract is untouched; a cooking payload validates title-only.
+  'cooking'`. **`bsValidLivePayload` dispatches on `raw.kind` FIRST**, before
+  any workout-shape check (the current validator would reject a cooking
+  payload at the `exercises` check before ever seeing it): `kind` absent or
+  `'workout'` → the existing workout contract, byte-identical; `kind ===
+  'cooking'` → exactly `{ v:1, kind:'cooking', title }` where title is a
+  non-empty string ≤80 with no control characters or markup — **rejected to
+  null, never truncated** (truncation is the builder's courtesy; the wire gets
+  no such benefit of the doubt). Any other `kind` → null.
 - **Writer:** `BSLogMealFlow` (the meal logger) — which already sets the
   presence activity to `'cooking'` — pushes a cooking row via the same
   `window.ShapeLiveProgress` serialized queue when (and only when) the meal is
   plan/recipe-sourced; `clear()` on logger close (the existing
-  cooking-scoped-to-logger-open behavior).
+  cooking-scoped-to-logger-open behavior). **Provenance is live, not
+  open-time:** if mid-session the state becomes ineligible (the member pivots
+  a plan meal to freehand, or provenance is lost), the writer actively
+  `clear()`s the row THEN — never waits for logger close (the
+  eligible→ineligible transition is a required test vector). And **audience
+  changes take effect immediately, not on the next push:** the Settings save
+  path fires a `shape:liveAudienceChanged` event; an open logger (or session
+  player) re-pushes on it, which re-resolves the audience per push — a flip
+  to private deletes the row within the serialized queue's turn, not at the
+  next organic transition.
 - **Consumer:** `BSLiveBoostSheet`'s cooking branch renders the title line
   ("Cooking · *Salmon rice bowl* — 12 min in") above the existing cook-themed
   boost phrases. No row / freehand → today's rendering, byte-identical.
-- **No migration:** the table, RLS, realtime, expiry, and audience stamping all
-  ship today; this is a payload variant plus one writer and one consumer.
+- **One tiny hardening migration** — `2026-07-19-user-activity-live-expiry-rls.sql`:
+  the shipped v1 SELECT policy leaves an expired row directly readable until
+  cleanup (consumers filter `expires_at > now()` in code; a direct query
+  needn't). Titles raise the sensitivity, so expiry moves INTO the read path:
+  the audience legs of the `live read` policy gain `and expires_at > now()`
+  (the OWNER leg stays unfiltered — she must be able to see and clear her own
+  stale row). Idempotent drop-and-recreate of the one policy; everything else
+  (table, realtime, audience stamping) ships today — this stays a payload
+  variant plus one writer, one consumer, one policy tightening.
 
 ## Testing
 
 Module vectors: cooking payload build (plan/recipe-sourced yes · freehand null
-· absent/unsafe provenance null) · validator branch (title bounds ·
-empty/control-character/markup titles rejected · kind gating · workout-contract
-regression) · audience unchanged + **mid-cook withdrawal** (a settings flip
-re-resolves on the next push and deletes the row — the v1 retro-tightening
-rule) · **failed-clear honesty** (the row survives to `expires_at` and the
-consumer suppresses it there — the stale-row vector). Boost-sheet render check
-on the dev server.
+· absent/unsafe provenance null) · validator kind-dispatch (cooking accepted ·
+unknown kind null · workout-contract regression byte-identical) · title
+rejection (empty · control characters · markup · >80 — null, never truncated)
+· **eligible→ineligible transition** (plan → freehand mid-session actively
+clears) · **immediate audience withdrawal** (`shape:liveAudienceChanged` →
+re-push → private deletes now, not next push) · **failed-clear honesty** (the
+row survives to `expires_at`; consumers suppress it there AND — post-migration
+— the read policy itself stops serving it). RLS proof: an expired row is
+unreadable to the audience legs, still readable/clearable by its owner.
+Boost-sheet render check on the dev server.
 
 ## Build
 
