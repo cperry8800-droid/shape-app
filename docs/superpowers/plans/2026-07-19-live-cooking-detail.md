@@ -130,15 +130,16 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   // settings change re-pushes immediately via shape:liveAudienceChanged.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
   const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
-  const cookPushedRef = React.useRef(false);             // fresh=true on the FIRST push only —
-  React.useEffect(() => {                                // a re-push must never reset started_at
-    if (!window.ShapeLiveProgress) return undefined;
+  const cookPushedRef = React.useRef(null);              // last-pushed MEAL KEY — fresh=true when
+  React.useEffect(() => {                                // the key changes; a re-push of the SAME
+    if (!window.ShapeLiveProgress) return undefined;     // meal must never reset started_at
     if (cookPayload) {
-      window.ShapeLiveProgress.push(cookPayload, !cookPushedRef.current);
-      cookPushedRef.current = true;
+      const mealKey = (meal && (meal.id != null ? String(meal.id) : null)) || cookPayload.title;
+      window.ShapeLiveProgress.push(cookPayload, cookPushedRef.current !== mealKey);
+      cookPushedRef.current = mealKey;
     } else {
       window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
-      cookPushedRef.current = false;                     // a NEW eligible meal restarts the clock
+      cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
     }
     const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, false); };
     window.addEventListener('shape:liveAudienceChanged', rePush);
@@ -149,7 +150,7 @@ and inside `bsValidLivePayload`, as the FIRST checks after the `!raw || v !== 1`
   }, [cookPayload]);
 ```
 
-⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). The `cookPushedRef` dance above IS the fresh-flag contract: `started_at` stamps once per eligible meal, never on a re-push.
+⚠ Anchor check before editing: confirm the component at ~1899 has `meal` in scope (it's the flow that computes `hasPlanned` at ~2052 — if the presence effect lives in a parent wrapper, put the push effect in the component where `meal` lives and leave the presence effect alone). The `cookPushedRef` dance above IS the fresh-flag contract: `started_at` stamps once per eligible meal, never on a re-push — and the ref holds a meal KEY (id, else payload title), not a boolean, so a DIRECT swap from one eligible meal to another (A → B with no ineligible gap between renders) still restamps `started_at` for B (#1768 round-1 outside-diff finding).
 
 - [ ] **Step 2: Settings mutation acts DIRECTLY (spec round-3 revision)** — in BOTH prefs-save branches (~22988, ~23002), directly after `bsMaybeRetightenAutoPosts(p, next)`:
 

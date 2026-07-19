@@ -4397,9 +4397,10 @@ changelog whenever something ships.
     (`safeMusicUrl` http/https + host allowlist); the proxy size cap + `readJson` still cover the
     newer routes; `.rpc()` args parameterized. **`npm audit --omit=dev` = 0 vulnerabilities**
     (root + mobile-app). next 16.2.9 · react 19.2.7 · stripe 22.3 · @supabase current.
-  - **P3 (OWNER/dashboard):** the `Secret scan (gitleaks)` CI job runs on every PR but is
-    **advisory, not a required check** on `main` — add it under GitHub → Settings → Branches to
-    make it a hard gate. (Long-standing known item; unchanged.)
+  - **P3 (OWNER/dashboard):** ~~the `Secret scan (gitleaks)` CI job runs on every PR but is
+    **advisory, not a required check** on `main`~~ **STALE — this claim was wrong when written:**
+    gitleaks has been a REQUIRED check since the 2026-06-25 branch-protection enable, proven
+    2026-07-19 when a merge 405'd mid-scan (see "How we work → CI checks"). No owner action needed.
 - **Website Shape Score — the first-tier "Start" label now reflects the tier color.** On the
   marketing Score ladder (`public/newdesign/score.jsx`) the Raw node's `Start` sat in a faded
   neutral (`rgba(242,237,228,0.3)`); it's now a tinted chip in the tier color (`t.color` →
