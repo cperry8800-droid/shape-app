@@ -11,27 +11,62 @@ stays blocked on the owner's Radio.co signup (the station row defaults to
 mock); the **schedule is buildable now** and is what makes the radio feel
 programmed rather than ambient the day audio goes live.
 
-**Honest scope note:** until Radio.co is live, "LIVE NOW" tunes into the mock
-stream. The schedule ships dark-launch-ready; its payoff switches on with the
-station row.
+**Honest scope note:** until Radio.co is live, the LIVE/tune state is
+SUPPRESSED (see the gating in Surfaces) — a set inside its window reads as a
+quiet "broadcast coming soon," never a LIVE badge over the mock stream. The
+schedule ships dark-launch-ready; the full payoff switches on with the station
+row.
 
 ## Design
 
 ### Data — migration `2026-07-19-nora-sets.sql` (⚠ OWNER runs it)
 
-`nora_sets`: `(id uuid pk, title text, dj text, blurb text, starts_at
-timestamptz, duration_min int check 10–360, published boolean default false,
-created_at)`. RLS: **public read of published rows only**
-(`using (published)` to anon + authenticated); writes service-role only (no
-authenticated write policy — schedule authoring is an owner/ops act, via SQL or
-a later admin panel; v1 ships no editor UI). Not in the realtime publication —
-consumers poll on open (a schedule changes rarely; realtime is overkill).
+`nora_sets`: `id uuid pk default gen_random_uuid()` · `title text NOT NULL
+check (btrim(title) <> '')` · `dj text NOT NULL check (btrim(dj) <> '')` ·
+`blurb text` (nullable BY DESIGN — optional flavor line; rows render without
+it) · `starts_at timestamptz NOT NULL` · `duration_min int NOT NULL check
+(10–360)` · `published boolean NOT NULL default false` · `created_at
+timestamptz NOT NULL default now()`. A published row is therefore always
+evaluable by `bsSetsNow` and renderable — no null start, duration, or labels
+by construction.
 
-### Pure module — `mobile-app/src/services/noraSets.mjs` (TDD)
+RLS: **public read of published rows only** (`using (published)` to anon +
+authenticated). **Table privilege contract, explicit:** `revoke all on
+public.nora_sets from anon, authenticated` then `grant select` back to both —
+RLS narrows the read to published rows, and no client DML exists at the GRANT
+layer even if a policy were ever misconfigured (defense in depth). Writes are
+service-role only (no authenticated write policy — schedule authoring is an
+owner/ops act, via SQL or a later admin panel; v1 ships no editor UI). Not in
+the realtime publication — consumers poll on open (a schedule changes rarely;
+realtime is overkill).
 
-`bsSetsNow(rows, now)` → `{ live, next, upcoming }`: `live` = the row whose
-`[starts_at, starts_at + duration_min]` covers now (latest start wins on
-overlap) · `next` = soonest future row · `upcoming` = next 7 days capped 10.
+**Supersedes the 2026-06-19 avatar-DJ sketch** (Phase B — paused, nothing
+built; repo-verified: no `nora_sets` table, no `/api/radio/nora-sets` route
+exists). THIS schema is the contract going forward: `starts_at` + `published`
+replace that sketch's `scheduled_start`/`status` (a boolean RLS gate beats
+free-text status), `recurrence` is dropped (YAGNI — rows are authored
+explicitly), and the sketched route is unnecessary — clients read Supabase
+directly under the public-read RLS, and `bsSetsNow` IS the "is a set live
+now" resolver that spec wanted server-side. Avatar Phase B consumes this
+table + module when it resumes.
+
+### Pure module — `public/newdesign/noraSets.mjs` (TDD)
+
+Canonical copy in `public/newdesign/` (the `shareCard.mjs` pattern) — mobile
+imports it and `radio.jsx` loads it as a native ES module, so both surfaces
+run ONE implementation. `bsSetsNow(rows, now)` → `{ live, next, upcoming }`,
+boundary semantics exact:
+
+- `live` = the row whose **end-exclusive** window
+  `[starts_at, starts_at + duration_min)` covers now — `now === end` is NOT
+  live, so back-to-back sets never overlap at the boundary; latest start wins
+  when windows overlap.
+- `next` = the soonest row with `starts_at > now` (a currently-live row is
+  never `next`).
+- `upcoming` = rows with `now < starts_at ≤ now + 7 days` (boundary
+  inclusive), ordered `(starts_at asc, id asc)` — deterministic on equal
+  starts — capped 10. The live row is excluded (it is `live`, not upcoming).
+
 Pure, injected clock, tested.
 
 ### Surfaces
@@ -40,11 +75,15 @@ Pure, injected clock, tested.
    leader rows (day · time in the member's locale via `intlLocale()` · title ·
    dj) from published rows; honest empty state ("Schedule lands with the first
    broadcast.") pre-seeding.
-2. **Radio screen auto-show:** when `bsSetsNow` reports `live`, the radio
-   screen (and the muted now-playing bar) carries a **LIVE SET banner** —
-   `LIVE · {title} · {dj}` with the ON AIR red-lamp grammar (#1750). Tapping
-   tunes/raises the radio. When `next` is within 60 min: a quiet "Up next ·
-   {title} · {t}" line instead. Neither renders when the table is empty.
+2. **Radio screen auto-show — gated on a REAL stream:** the **LIVE SET
+   banner** (`LIVE · {title} · {dj}`, the ON AIR red-lamp grammar #1750;
+   tapping tunes/raises the radio) renders only when `bsSetsNow` reports
+   `live` AND the station row resolves a real, non-mock stream. While the
+   provider is still the mock, a set inside its window shows a quiet honest
+   **"On the schedule now — broadcast coming soon"** line with NO tune CTA —
+   members never see LIVE over a placeholder stream. When `next` is within
+   60 min: a quiet "Up next · {title} · {t}" line. Nothing renders when the
+   table is empty.
 3. **Website Radio page:** the same COMING UP list on `radio.jsx` via anon
    Supabase read (public-read RLS), same module (canonical-copy pattern).
 
@@ -56,10 +95,13 @@ noise). No admin editor UI. No per-set artwork.
 
 ## Testing
 
-`tests/nora-sets.test.mjs`: live-window edges (start, end, overlap → latest
-start) · next/upcoming ordering + cap · empty. RLS post-migration: anon reads
-published only, unpublished invisible, no authenticated write. Render checks
-on dev server (banner appears when a seeded row covers now).
+`tests/nora-sets.test.mjs`: live-window edges (`now == start` → live ·
+`now == end` → NOT live · overlap → latest start) · `next` excludes the live
+row · upcoming's inclusive 7-day boundary + equal-start `(starts_at, id)`
+ordering + cap · empty input. RLS + grants post-migration: anon reads
+published only, unpublished invisible, **no client DML at the grant layer**.
+Render checks on the dev server (a seeded row covering now on the mock
+provider shows "broadcast coming soon" — no LIVE badge, no tune CTA).
 
 ## Build
 

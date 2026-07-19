@@ -24,8 +24,12 @@ rule, because of what it carries:
   member's own composition (intake-class data); the sheet keeps today's
   generic "In the kitchen."
 - **Never macros, never portions, never adjustments** — that is intake, and
-  intake is share-by-choice. Nothing this feature sends survives past the
-  cooking session (same 6h-max ephemeral row).
+  intake is share-by-choice. **Retention, stated honestly:** visibility ends on
+  a successful `clear()` OR at row expiry — clear is best-effort, so a crash or
+  failed request leaves the row until `expires_at`; consumers already suppress
+  expired rows (the shipped `expires_at` guard + subscription-side timer), so a
+  stale title is never RENDERED past expiry even while the row awaits cleanup.
+  Nothing persists beyond the ephemeral row.
 
 Audience = the member's same resolved live-audience rule
 (`bsLiveAudience` — public / followers / private→nothing), reusing the shipped
@@ -51,11 +55,19 @@ already frames it as live-activity sharing. The plan renames nothing.)
 
 ## Testing
 
-Module vectors: cooking payload build (plan-sourced yes / freehand null) ·
-validator branch (title bounds, kind gating, workout contract regression) ·
-audience unchanged. Boost-sheet render check on the dev server.
+Module vectors: cooking payload build (plan/recipe-sourced yes · freehand null
+· absent/unsafe provenance null) · validator branch (title bounds ·
+empty/control-character/markup titles rejected · kind gating · workout-contract
+regression) · audience unchanged + **mid-cook withdrawal** (a settings flip
+re-resolves on the next push and deletes the row — the v1 retro-tightening
+rule) · **failed-clear honesty** (the row survives to `expires_at` and the
+consumer suppresses it there — the stale-row vector). Boost-sheet render check
+on the dev server.
 
 ## Build
 
-One small PR after live-progress-web (so the web coach station's validator
-lands the `kind` branch once, not twice).
+One small PR after live-progress-web merges. That spec moves `liveProgress.mjs`
+to the ONE canonical copy in `public/newdesign/` — mobile imports it, the web
+station loads it — so mobile and web genuinely share a single validator and the
+`kind` branch lands exactly once; there is no second web validator to keep in
+sync (parity by construction, not by convention).

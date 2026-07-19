@@ -56,7 +56,12 @@ approved, changes that separately and explicitly).
 - Reuses `tests/live-progress.test.mjs` (module unchanged, path move only —
   import paths asserted).
 - Headless browser proof on the branch preview: station renders from a seeded
-  row; DELETE removes it; `share:false`-equivalent (no row) renders no station.
+  row; DELETE removes it; `share:false`-equivalent (no row) renders no station;
+  **plus the race/timer paths module tests can't reach** — a LATE initial fetch
+  resolving after a realtime DELETE/update leaves the newer state standing (the
+  `evented` guard), an already-open page drops the row when `expires_at` passes
+  (the subscription timer), and a malformed or expired-timestamp payload
+  renders honest absence, never a partial station.
 - Standard gates: JSX parse · `build-newdesign --check` · LF · `/m/` build
   (import re-point touches mobile).
 

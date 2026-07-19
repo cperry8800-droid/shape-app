@@ -49,14 +49,23 @@ the v1 payload PLUS per-exercise `sets: [{load, reps, rpe, done}]` (raw strings
 as entered, ≤12 chars each, ≤10 sets serialized), and `bsValidLiveCoachPayload`
 — the same full-contract validator discipline (sums equal, bounded, typed;
 malformed → null → honest-absent). Same push throttle, same generation-guarded
-serialized queue: the writer pushes both payloads in one `_liveEnqueue` job so
-clear() ordering covers both tables; `clear()` deletes both rows.
+serialized queue: the writer pushes both payloads in one `_liveEnqueue` job.
+**Two-table consistency is engineered, not assumed:** pushes are last-write-
+wins upserts, so a one-leg push failure self-heals on the next push (seconds);
+**clear() becomes ONE RPC — `live_clear()`** (SECURITY INVOKER; owner RLS is
+the scope) that deletes BOTH rows in a single statement/transaction, so session
+end can never strand a coach row behind a deleted public one. `expires_at`
+stays the crash-path backstop.
 
 ### Consumers
 
-- **Mobile `BSProLiveWatch`:** prefers the coach row when readable — the set
-  grid shows real loads/reps/RPE as they land (replacing `—`); falls back to
-  the public row, then to the neutral line. The demo-roster grid rule is
+- **Mobile `BSProLiveWatch`:** prefers the coach row when readable AND live —
+  **`expires_at > now()` is part of the read contract**, so an expired coach
+  row (or a late realtime event for one) is ineligible and can never override
+  fresher public data; the v1 subscription-side expiry timer runs on the coach
+  row too, dropping it from an already-open console the moment it lapses. The
+  set grid shows real loads/reps/RPE as they land (replacing `—`); falls back
+  to the public row, then to the neutral line. The demo-roster grid rule is
   untouched.
 - **Web coach station** (from the live-progress-web spec): same preference
   order, same validator.
@@ -69,10 +78,15 @@ Sets only — the live mirror of what the session log will say post-hoc.
 ## Testing
 
 Module vectors for the coach payload + validator (bounds, malformed, sums) ·
-writer test that clear() wipes both rows via the serialized queue · RLS proof
-post-migration (non-coach authenticated user reads zero rows; the client's own
-coach reads; anon nothing). On-device: coach watches live loads land; session
-end removes both rows.
+writer test that clear() wipes both rows atomically via `live_clear()` ·
+expired-row fallback (consumer drops the coach row at expiry, falls to public)
+· the **full RLS denial matrix** post-migration, every leg an explicit
+negative test: a non-coach authenticated user reads zero rows · a coach reads
+ONLY their own linked clients (cross-client read denied) · coach
+INSERT/UPDATE/DELETE on a client's row denied · a REVOKED coach link stops
+reading · anon reads nothing AND an anonymous realtime subscription receives
+no events. On-device: coach watches live loads land; session end removes both
+rows.
 
 ## Build
 

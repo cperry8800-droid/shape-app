@@ -86,22 +86,41 @@ drop policy if exists "cycle owner all" on public.cycle_events;
 create policy "cycle owner all" on public.cycle_events
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- Coach read: the get_client_goals pattern. Gated on BOTH an active coach link
--- AND the member's own share flag (user_goals('cycle_settings').share). Returns
--- share:false (and nothing else) when not shared — the caller renders absence.
--- Returns RAW recent starts, not derived phase: consumers derive via the ONE
--- pure module (cyclePhase.mjs) so SQL and JS can never drift.
-create or replace function public.get_client_cycle(p_user_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare v_share boolean; v_starts jsonb;
+-- Storage-boundary guard: no future-dated starts, judged in the MEMBER'S OWN
+-- timezone (shape_user_tz — the 2026-07-06 helper). A calendar-UI bug or a
+-- direct write can't seed the engine with a future "latest start" and a
+-- negative day-of-cycle. Historical + same-day rows pass untouched.
+create or replace function public.cycle_events_no_future()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if not is_coach_on_client(p_user_id) then return null; end if;
-  select coalesce((data->>'share')::boolean, false) into v_share
-    from user_goals where user_id = p_user_id and kind = 'cycle_settings';
-  if not coalesce(v_share, false) then return jsonb_build_object('share', false); end if;
+  if new.event_date > (now() at time zone public.shape_user_tz(new.user_id))::date then
+    raise exception 'future_event_date';
+  end if;
+  return new;
+end $$;
+drop trigger if exists cycle_events_no_future on public.cycle_events;
+create trigger cycle_events_no_future before insert or update on public.cycle_events
+  for each row execute function public.cycle_events_no_future();
+
+-- Coach read: the get_client_goals pattern. Gated on an active coach link AND
+-- BOTH member flags — optIn AND share (a share flag on a non-opted-in doc is
+-- inconsistent state and reads as not shared). Returns share:false (and
+-- nothing else) otherwise — the caller renders absence. Returns RAW recent
+-- starts, not derived phase: consumers derive via the ONE pure module
+-- (cyclePhase.mjs) so SQL and JS can never drift. search_path pinned with
+-- pg_temp LAST + every reference schema-qualified (definer shadowing guard).
+create or replace function public.get_client_cycle(p_user_id uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_ok boolean; v_starts jsonb;
+begin
+  if not public.is_coach_on_client(p_user_id) then return null; end if;
+  select coalesce((data->>'optIn')::boolean, false)
+     and coalesce((data->>'share')::boolean, false) into v_ok
+    from public.user_goals where user_id = p_user_id and kind = 'cycle_settings';
+  if not coalesce(v_ok, false) then return jsonb_build_object('share', false); end if;
   select coalesce(jsonb_agg(event_date order by event_date desc), '[]'::jsonb)
     into v_starts
-    from (select event_date from cycle_events
+    from (select event_date from public.cycle_events
           where user_id = p_user_id and kind = 'period_start'
           order by event_date desc limit 13) s;
   return jsonb_build_object('share', true, 'starts', v_starts);
@@ -110,6 +129,13 @@ end $$;
 revoke execute on function public.get_client_cycle(uuid) from public, anon;
 grant  execute on function public.get_client_cycle(uuid) to authenticated;
 ```
+
+The same migration also ships two small **invoker** RPCs named by the sections
+below — `cycle_set_settings(...)` (a settings flip + its consent receipt in one
+transaction) and `cycle_opt_out()` (the full delete + withdrawal receipt in one
+transaction). Invoker rights on purpose: the owner RLS on `cycle_events` /
+`user_goals` / `consent_log` IS the scope — no definer privilege to misuse.
+All idempotent; EXECUTE revoked from public/anon, granted to authenticated.
 
 ### Settings doc — `user_goals('cycle_settings')`
 
@@ -121,17 +147,30 @@ Dedicated key, never merged into `client_settings` (the no-clobber convention).
 - `kind: 'cycle_tracking'` written on opt-in, with the exact disclaimer text shown.
 - `kind: 'cycle_share'` written on enabling the coach share toggle, with its exact text.
 - Withdrawal receipts on opt-out / share-off.
+- **Atomic with the flag they record:** every settings flip and its receipt are
+  written in ONE transaction via `cycle_set_settings(...)`, so a granted
+  `share` flag can never exist without its receipt (or vice versa). The
+  read-side RPC authorizes on the flags (both of them — optIn AND share); the
+  ledger stays what it is — an audit trail, made consistent-by-construction at
+  the write, not a second authorization source parsed at read time.
 
 ### Deletion (WA MHMD story)
 
-Opt-out (Settings → Cycle → "Stop tracking & delete") deletes **all** `cycle_events`
-rows + the `cycle_settings` doc, writes a withdrawal receipt, and the account-deletion
+Opt-out (Settings → Cycle → "Stop tracking & delete") is ONE server-side
+transaction — `cycle_opt_out()` (invoker; owner RLS is the scope) deletes
+**all** the caller's `cycle_events` rows, deletes the `cycle_settings` doc, and
+writes the withdrawal receipt atomically. **Safe to retry:** a timeout or
+repeat call converges on the same fully-withdrawn state (the deletes are
+naturally idempotent; a re-run just re-records the withdrawal) — partial state
+where events outlive their consent is unrepresentable. The account-deletion
 route (`/api/account/delete`) adds `cycle_events` to its purge list.
 
-## Phase engine — pure `mobile-app/src/services/cyclePhase.mjs` (TDD)
+## Phase engine — pure `public/newdesign/cyclePhase.mjs` (TDD)
 
-One implementation, three consumers (member mobile, coach mobile, website — the
-canonical-copy pattern; the website loads it like `shareCard.mjs`).
+One implementation, three consumers (member mobile, coach mobile, website).
+The **canonical copy lives in `public/newdesign/`** and mobile imports it —
+the exact `shareCard.mjs` pattern. Not `mobile-app/src/services/`: that path
+is never served to the website, so a mobile-side canonical would force a twin.
 
 `bsDeriveCycle(starts, today)` → derived state. Calendar method:
 
