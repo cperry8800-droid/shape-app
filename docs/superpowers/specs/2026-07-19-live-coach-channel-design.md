@@ -65,8 +65,13 @@ serialized queue: the writer pushes both payloads in one `_liveEnqueue` job.
 wins upserts, so a one-leg push failure self-heals on the next push (seconds);
 **clear() becomes ONE RPC — `live_clear()`** (SECURITY INVOKER; owner RLS is
 the scope) that deletes BOTH rows in a single statement/transaction, so session
-end can never strand a coach row behind a deleted public one. `expires_at`
-stays the crash-path backstop.
+end can never strand a coach row behind a deleted public one. The residual
+divergence window is a one-leg push failure with NO clean end and NO further
+push — bounded by the coach row's 30-minute TTL, and its harm is cosmetic
+staleness between two honest-per-their-timestamp rows, never exposure; a
+transactional push RPC was considered and declined (it would fork the shipped
+v1 write path for that cosmetic bound). `expires_at` stays the crash-path
+backstop.
 
 ### Consumers
 
@@ -77,13 +82,15 @@ stays the crash-path backstop.
   row too, dropping it from an already-open console the moment it lapses. The
   set grid shows real loads/reps/RPE as they land (replacing `—`); falls back
   to the public row, then to the neutral line. The demo-roster grid rule is
-  untouched. **Revocation bound, stated honestly:** RLS stops future reads and
-  realtime events the instant a link is revoked, but pixels already delivered
-  can't be recalled — the exposure is bounded by (a) component-local state
-  only (no persistent cache anywhere; unmount/back drops it instantly) and
-  (b) the 30-minute rolling expiry + the subscription-side timer, which
-  clears an untouched console at expiry. A revoked coach's console goes dark
-  within minutes and can never re-fetch.
+  untouched. **Revocation clearing is ACTIVE, not just bounded:** when the
+  expiry timer fires, the consumer **re-fetches** (`getCoach`) instead of
+  merely nulling — after a revocation the protected re-read returns nothing
+  under RLS and local coach state clears and stays cleared; any failed/empty
+  protected read likewise drops the held coach row immediately. Beneath that:
+  component-local state only (no persistent cache; unmount/back drops it
+  instantly) and the 30-minute rolling expiry as the crash-path backstop.
+  Delivered pixels can't be recalled, but a revoked coach's console clears at
+  the first re-check and can never re-fetch.
 - **Web coach station** (from the live-progress-web spec): same preference
   order, same validator.
 
@@ -104,8 +111,10 @@ explicit negative test: a non-coach authenticated user reads zero rows **of
 another member** (their OWN row, if any, is the owner policy working — tested
 separately as a positive) · a coach reads ONLY their own linked clients
 (cross-client read denied) · coach INSERT/UPDATE/DELETE on a client's row
-denied · a REVOKED coach link stops reading · anon reads nothing AND an
-anonymous realtime subscription receives no events. On-device: coach watches live loads land; session end removes both
+denied · **a stranger member's INSERT/UPDATE/DELETE on another member's row
+denied** (cross-member writes, not just coach writes) · a REVOKED coach link
+stops reading AND its consumer clears held state on the next re-check · anon
+reads nothing AND an anonymous realtime subscription receives no events. On-device: coach watches live loads land; session end removes both
 rows.
 
 ## Build

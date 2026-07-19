@@ -44,10 +44,12 @@ already frames it as live-activity sharing. The plan renames nothing.)
   any workout-shape check (the current validator would reject a cooking
   payload at the `exercises` check before ever seeing it): `kind` absent or
   `'workout'` → the existing workout contract, byte-identical; `kind ===
-  'cooking'` → exactly `{ v:1, kind:'cooking', title }` where title is a
-  non-empty string ≤80 with no control characters or markup — **rejected to
-  null, never truncated** (truncation is the builder's courtesy; the wire gets
-  no such benefit of the doubt). Any other `kind` → null.
+  'cooking'` → exactly `{ v:1, kind:'cooking', title }` where title is
+  **non-empty AFTER trimming** (whitespace-only is invalid — a blank line is
+  not a title; explicit test vector), ≤80 characters, no control characters or
+  markup — **rejected to null, never truncated** (truncation is the builder's
+  courtesy; the wire gets no such benefit of the doubt). Any other `kind` →
+  null.
 - **Writer:** `BSLogMealFlow` (the meal logger) — which already sets the
   presence activity to `'cooking'` — pushes a cooking row via the same
   `window.ShapeLiveProgress` serialized queue when (and only when) the meal is
@@ -57,11 +59,15 @@ already frames it as live-activity sharing. The plan renames nothing.)
   a plan meal to freehand, or provenance is lost), the writer actively
   `clear()`s the row THEN — never waits for logger close (the
   eligible→ineligible transition is a required test vector). And **audience
-  changes take effect immediately, not on the next push:** the Settings save
-  path fires a `shape:liveAudienceChanged` event; an open logger (or session
-  player) re-pushes on it, which re-resolves the audience per push — a flip
-  to private deletes the row within the serialized queue's turn, not at the
-  next organic transition.
+  withdrawal is enforced by the settings mutation itself, not a listener:**
+  the Settings save path — on whichever device the change happens — resolves
+  the NEW audience and directly acts on the member's own `user_activity_live`
+  row: null audience → delete it, tightened audience → restamp `visibility`
+  (any of the member's devices may write their own row, so this works
+  cross-device with no dependency on the broadcasting device being awake).
+  The `shape:liveAudienceChanged` event is fired IN ADDITION, so a local open
+  logger/session also re-pushes fresh state — but the row's correctness never
+  depends on that listener existing.
 - **Consumer:** `BSLiveBoostSheet`'s cooking branch renders the title line
   ("Cooking · *Salmon rice bowl* — 12 min in") above the existing cook-themed
   boost phrases. No row / freehand → today's rendering, byte-identical.

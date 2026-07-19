@@ -153,9 +153,14 @@ true)` — and a `cycle_settings_guard` BEFORE INSERT/UPDATE trigger on
 exact `shape.adjust_regen` GUC-guard pattern from the #1707 regeneration
 migration). So a direct owner upsert can never set `share = true` without its
 receipt — the flag/receipt invariant the read RPC relies on is structural, not
-best-effort. Negative test: a direct `user_goals` upsert of `cycle_settings`
-raises. (Direct `consent_log` inserts stay possible and harmless — an extra
-receipt grants nothing; the table is append-only audit.)
+best-effort. The SAME guard extends to the ledger side: a
+`cycle_consent_guard` BEFORE INSERT trigger on `consent_log` rejects
+`kind in ('cycle_tracking','cycle_share')` rows written without the RPC flag —
+a member can't hand-fabricate a granted/withdrawn cycle receipt or its
+disclaimer text, so the compliance history stays trustworthy for any future
+consumer. Negative tests: a direct `user_goals` upsert of `cycle_settings`
+raises · a direct `consent_log` insert of a cycle kind raises · non-cycle
+consent kinds (banner/GPC/signup) pass both triggers untouched.
 
 ### Settings doc — `user_goals('cycle_settings')`
 
@@ -215,11 +220,19 @@ is never served to the website, so a mobile-side canonical would force a twin.
   tests pin: `L=28` → M 1–5 · F 6–11 · O 12–16 · Lu 17–28 (textbook). `L=17` →
   M 1–5 · Lu 6–17 · O and F empty. `L=16` → M 1–5 · Lu 6–16 · O/F empty.
   `L=15` → M 1–5 · Lu 6–15 · O/F empty.
-- **Confidence:** `high` = ≥3 intervals and stdev ≤ 3d · `medium` = 2 intervals or
-  stdev ≤ 5d · `low` = otherwise (incl. the 28-default). stdev > 5d additionally
-  widens the ovulatory window to ±4 — i.e. ovulatory becomes
-  `[max(6, L−18), min(L−10, luteal.start − 1)]`, same clamps, same empty rule —
-  and forces `low`: irregular cycles get honest vagueness, not false precision.
+- **Confidence — a deterministic ordered ladder** (first match wins; `n` =
+  kept intervals after outlier discard; stdev = **population** stdev of those
+  intervals, defined only for `n ≥ 2`):
+  1. `n === 0` → `low` (the L=28 default).
+  2. `n === 1` → `low` (one interval carries no spread evidence).
+  3. `n ≥ 2 && stdev > 5` → `low`, AND the ovulatory window widens to ±4 —
+     i.e. `[max(6, L−18), min(L−10, luteal.start − 1)]`, same clamps, same
+     empty rule (irregular cycles get honest vagueness, not false precision).
+  4. `n ≥ 3 && stdev ≤ 3` → `high`.
+  5. otherwise → `medium` (covers `n === 2` with stdev ≤ 5, and `n ≥ 3` with
+     3 < stdev ≤ 5).
+  The old "medium = 2 intervals OR stdev ≤ 5d" phrasing is superseded — rung 3
+  outranks rung 5, so an n=2, stdev=10 history reads `low`, never `medium`.
   Prediction renders as a **window**, not a date.
 - **Paused:** `today > lastStart + L + 7` → `{ phase: 'paused' }` and every
   prediction field null. The paused copy is fixed by doctrine (above).

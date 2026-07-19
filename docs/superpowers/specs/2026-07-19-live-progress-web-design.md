@@ -40,10 +40,11 @@ app-native chat), and any new data — this consumes the existing
    realtime event, especially the end-of-session DELETE), the subscription-
    side `expires_at` timer (an already-open page drops the row when it
    expires), and the mobile cleanup pattern made explicit — the effect keys
-   on the client id and its teardown unsubscribes the realtime channel AND
-   clears the expiry timer on unmount and on every client change, so
-   navigating client A → client B can never leave A's subscription or timer
-   alive behind B's station.
+   on the client id and its teardown **clears the rendered live row**,
+   unsubscribes the realtime channel, AND clears the expiry timer on unmount
+   and on every client change: the state reset is synchronous BEFORE the next
+   client's fetch/subscription arms, so navigating client A → client B can
+   never render A's payload — even for a frame — under B's station.
 5. **Chat-widget presence line (small):** where the site chat widget shows a
    member with the activity dot, the label gains "in a workout · N min" from the
    existing `user_activity` read — presence-tier info only, no set detail. No
@@ -67,8 +68,9 @@ approved, changes that separately and explicitly).
   `evented` guard), an already-open page drops the row when `expires_at` passes
   (the subscription timer), and a malformed or expired-timestamp payload
   renders honest absence, never a partial station — and an **A → B client
-  navigation** tears down A's channel + timer before B's station arms (no
-  cross-client bleed).
+  navigation** clears A's rendered state and tears down A's channel + timer
+  before B's station arms, asserting no A payload is ever rendered during the
+  navigation gap (no cross-client bleed).
 - Standard gates: JSX parse · `build-newdesign --check` · LF · `/m/` build
   (import re-point touches mobile).
 
