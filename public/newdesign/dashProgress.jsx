@@ -356,6 +356,234 @@ function DprCheckinForm({ kit, onSaved }) {
 }
 
 // ── The page ─────────────────────────────────────────────────────────────────
+// ── THE CYCLE — member card + calendar + opt-in/out (spec 2026-07-19) ────────
+// Web parity of the mobile Progress card + calendar. Reads/writes cycle_events
+// + the GUC-gated settings RPCs directly via window.shapeDb.client (owner RLS —
+// a direct settings write would RAISE, correctly; only cycle_events is a plain
+// owner upsert/delete). Phase derivation is the ONE canonical engine
+// (window.ShapeCycleLib.bsDeriveCycle). English-only (the website isn't
+// localized). Doctrine: verbatim disclaimer (ONE constant), absence-not-a-
+// padlock (signed-out/pre-migration → nothing), no points, confirm-gated deletes.
+const DPR_CYCLE_DISCLAIMER = "The Cycle is for training and recovery context only. It is not medical advice, not a diagnostic tool, and must never be used for contraception or fertility planning. Predictions are estimates from the dates you log.";
+const DPR_CYCLE_HEAT = "#34d6c5"; // house teal (line-only) — deliberately NOT pink; the spec names no cycle colour and a pink would gender the surface.
+function dprCycleShortDate(isoStr) {
+  try {
+    const d = new Date(`${String(isoStr).slice(0, 10)}T00:00:00Z`);
+    if (isNaN(d.getTime())) return String(isoStr);
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
+  } catch (e) { return String(isoStr); }
+}
+function DprCycleCard() {
+  const client = (typeof window !== "undefined" && window.shapeDb && window.shapeDb.client) || null;
+  const lib = (typeof window !== "undefined" && window.ShapeCycleLib) || null;
+  const [uid, setUid] = React.useState(null);
+  const [settings, setSettings] = React.useState(undefined); // undefined=loading | {optIn,share}
+  const [starts, setStarts] = React.useState([]);
+  const [unavailable, setUnavailable] = React.useState(false); // RPC pre-migration
+  const [calOpen, setCalOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState(null);
+  const now0 = new Date();
+  const [view, setView] = React.useState({ y: now0.getFullYear(), m: now0.getMonth() });
+  const [optimistic, setOptimistic] = React.useState({});
+
+  const load = React.useCallback(async () => {
+    if (!client) { setSettings({ optIn: false, share: false }); setStarts([]); return; }
+    let id = null;
+    try { const { data } = await client.auth.getUser(); id = data && data.user && data.user.id; } catch (e) {}
+    setUid(id || null);
+    if (!id) { setSettings({ optIn: false, share: false }); setStarts([]); return; }
+    let s = { optIn: false, share: false };
+    try {
+      const { data } = await client.from("user_goals").select("data").eq("user_id", id).eq("kind", "cycle_settings").maybeSingle();
+      if (data && data.data) s = { optIn: !!data.data.optIn, share: !!data.data.share };
+    } catch (e) {}
+    setSettings(s);
+    if (s.optIn) {
+      try {
+        const { data } = await client.from("cycle_events").select("event_date").eq("user_id", id).eq("kind", "period_start").order("event_date", { ascending: false }).limit(60);
+        setStarts((data || []).map((r) => r.event_date));
+      } catch (e) { setStarts([]); }
+    } else setStarts([]);
+  }, [client]);
+  React.useEffect(() => { load(); }, [load]);
+
+  const startSet = React.useMemo(() => {
+    const set = new Set((starts || []).map(String));
+    Object.entries(optimistic).forEach(([iso, on]) => { if (on) set.add(iso); else set.delete(iso); });
+    return set;
+  }, [starts, optimistic]);
+  const startList = React.useMemo(() => Array.from(startSet).sort().reverse(), [startSet]);
+  const cycle = (lib && lib.bsDeriveCycle && settings && settings.optIn)
+    ? (() => { try { return lib.bsDeriveCycle(startList, new Date()); } catch (e) { return null; } })() : null;
+
+  const confirm = (opts) => (window.ShapeConfirm && window.ShapeConfirm.open) ? window.ShapeConfirm.open(opts) : Promise.resolve(false);
+  const setSharePref = async (optIn, share, consentKind) => {
+    if (!client) return { unavailable: true };
+    try {
+      const { error } = await client.rpc("cycle_set_settings", { p_opt_in: !!optIn, p_share: !!share, p_consent_kind: consentKind, p_granted: !!(consentKind === "cycle_tracking" ? optIn : share), p_consent_text: DPR_CYCLE_DISCLAIMER });
+      if (error) {
+        const m = String(error.message || "");
+        if (m.includes("cycle_set_settings") || error.code === "PGRST202" || error.code === "42883") return { unavailable: true };
+        return { error: true };
+      }
+      return { ok: true };
+    } catch (e) { return { error: true }; }
+  };
+  const startTracking = async () => {
+    if (!client || busy) return;
+    setBusy(true); setMsg(null);
+    const r = await setSharePref(true, false, "cycle_tracking");
+    if (r.unavailable) setUnavailable(true); else if (r.error) setMsg("That didn't save. Try again."); else await load();
+    setBusy(false);
+  };
+  const toggleShare = async () => {
+    if (!client || busy || !settings) return;
+    setBusy(true); setMsg(null);
+    const r = await setSharePref(true, !settings.share, "cycle_coach_share");
+    if (r.unavailable) setUnavailable(true); else if (r.error) setMsg("That didn't save. Try again."); else await load();
+    setBusy(false);
+  };
+  const stopDelete = async () => {
+    if (!client || busy) return;
+    const ok = await confirm({ title: "Stop & delete?", message: "This turns off cycle tracking and permanently deletes every date you've logged.", confirmLabel: "Stop & delete" });
+    if (!ok) return;
+    setBusy(true); setMsg(null);
+    try {
+      const { error } = await client.rpc("cycle_opt_out");
+      if (error) setMsg("That didn't save. Try again."); else { setCalOpen(false); setOptimistic({}); setStarts([]); await load(); }
+    } catch (e) { setMsg("That didn't save. Try again."); }
+    setBusy(false);
+  };
+  const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const tapDay = async (d) => {
+    if (!client || busy || !uid) return;
+    const iso = isoOf(view.y, view.m, d);
+    const logged = startSet.has(iso);
+    if (logged) {
+      const ok = await confirm({ title: "Remove this date?", message: "This removes the period start you logged on this day.", confirmLabel: "Remove" });
+      if (!ok) return;
+      setBusy(true); setMsg(null); setOptimistic((o) => ({ ...o, [iso]: false }));
+      let err = null;
+      try { const r = await client.from("cycle_events").delete().eq("user_id", uid).eq("event_date", iso).eq("kind", "period_start"); err = r.error; } catch (e) { err = e; }
+      setBusy(false); setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+      if (err) { setMsg("That didn't save. Try again."); return; }
+      await load(); return;
+    }
+    setBusy(true); setMsg(null); setOptimistic((o) => ({ ...o, [iso]: true }));
+    let err = null;
+    try { const r = await client.from("cycle_events").upsert({ user_id: uid, event_date: iso, kind: "period_start" }, { onConflict: "user_id,event_date,kind" }); err = r.error; } catch (e) { err = e; }
+    setBusy(false); setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+    if (err) { setMsg(String(err.message || "").includes("future_event_date") ? "Can't log a future date." : "That didn't save. Try again."); return; }
+    await load();
+  };
+
+  if (settings === undefined) return null; // loading — no flash
+
+  const PHASE = { menstrual: "Menstrual", follicular: "Follicular", ovulatory: "Ovulatory", luteal: "Luteal" };
+  const eyebrow = <span className="dash-eyebrow" style={{ color: DPR_CYCLE_HEAT }}>The cycle · private to you</span>;
+
+  // ── Opt-in prompt (never opted in) — the ONLY cycle entry on web (no settings page) ──
+  if (!settings.optIn) {
+    return (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_CYCLE_HEAT, paddingLeft: 24 }}>
+        {eyebrow}
+        <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.015em", lineHeight: 1.3 }}>Cycle-aware training & recovery.</div>
+        <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.55, color: DPR_INK50 }}>{DPR_CYCLE_DISCLAIMER}</div>
+        {unavailable ? (
+          <div style={{ marginTop: 12, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>Setup isn't available yet.</div>
+        ) : (
+          <button type="button" onClick={startTracking} disabled={busy}
+            style={{ marginTop: 14, background: DPR_CYCLE_HEAT, color: "#0b0f0f", border: 0, borderRadius: 8, padding: "9px 16px", fontFamily: DPR_MONO, fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>Start tracking</button>
+        )}
+        {msg ? <div style={{ marginTop: 10, fontSize: 12, color: DPR_AMBER }}>{msg}</div> : null}
+      </div>
+    );
+  }
+
+  // ── Opted in — the card (+ calendar toggle + settings) ──
+  const cyclesN = Math.max(0, startList.length - 1);
+  const head = !cycle ? "Log a period start to begin."
+    : cycle.phase === "paused" ? "Cycle running long"
+      : cycle.phase === "late" ? `Cycle day ${cycle.day}`
+        : `${PHASE[cycle.phase] || ""} · day ${cycle.day}`;
+  const conf = cycle ? ({ high: "High confidence", medium: "Medium confidence", low: "Low confidence" }[cycle.confidence] || "") : "";
+  const meta = cycle ? [`Your cycle ~${cycle.L} days`, `${cyclesN} cycles of data`, conf].filter(Boolean).join(" · ") : "";
+  const pred = cycle && cycle.predictedStart ? cycle.predictedStart : null;
+
+  // calendar cells (Mon-first)
+  const monthName = new Date(view.y, view.m, 1).toLocaleDateString("en", { month: "long", year: "numeric" });
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const todayIso = isoOf(now0.getFullYear(), now0.getMonth(), now0.getDate());
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const inPred = (iso) => !!(pred && iso >= pred.from && iso <= pred.to);
+  const step = (delta) => setView((v) => { const d = new Date(v.y, v.m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+
+  return (
+    <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_CYCLE_HEAT, paddingLeft: 24 }}>
+      {eyebrow}
+      <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{head}</div>
+      {meta ? <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DPR_INK50 }}>{meta}</div> : null}
+      {pred ? <div style={{ marginTop: 6, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", color: DPR_INK50 }}>Next period window · {dprCycleShortDate(pred.from)} – {dprCycleShortDate(pred.to)}</div> : null}
+      {cycle && cycle.phase === "luteal" && pred ? <div style={{ marginTop: 7, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(242,237,228,0.7)" }}>Week of the {dprCycleShortDate(pred.from)} is a natural deload window.</div> : null}
+
+      <button type="button" onClick={() => setCalOpen((o) => !o)}
+        style={{ marginTop: 14, background: "transparent", border: 0, padding: "6px 0", fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_CYCLE_HEAT, cursor: "pointer" }}>
+        {calOpen ? "Close calendar ▴" : "Open calendar ▾"}
+      </button>
+
+      {calOpen ? (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <button type="button" onClick={() => step(-1)} style={{ background: "transparent", border: 0, color: DPR_INK50, cursor: "pointer", fontSize: 14, padding: "4px 8px" }}>‹</button>
+            <div style={{ fontFamily: DPR_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase" }}>{monthName}</div>
+            <button type="button" onClick={() => step(1)} style={{ background: "transparent", border: 0, color: DPR_INK50, cursor: "pointer", fontSize: 14, padding: "4px 8px" }}>›</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontFamily: DPR_MONO, fontSize: 8, color: "rgba(242,237,228,0.4)" }}>{d}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {cells.map((d, i) => {
+              if (!d) return <div key={i} />;
+              const iso = isoOf(view.y, view.m, d);
+              const isStart = startSet.has(iso);
+              const isToday = iso === todayIso;
+              const isPred = !isStart && inPred(iso);
+              return (
+                <button key={i} type="button" onClick={() => tapDay(d)} disabled={busy}
+                  style={{ aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 11, fontVariantNumeric: "tabular-nums",
+                    background: isStart ? DPR_CYCLE_HEAT : "transparent", color: isStart ? "#0b0f0f" : (isToday ? DPR_CYCLE_HEAT : "rgba(242,237,228,0.75)"),
+                    border: isPred ? `1px dotted ${DPR_CYCLE_HEAT}` : (isToday ? `1px solid ${DPR_CYCLE_HEAT}66` : "1px solid transparent"),
+                    borderRadius: 7, cursor: busy ? "default" : "pointer" }}>{d}</button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap", fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.06em", textTransform: "uppercase", color: DPR_INK50 }}>
+            <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 3, background: DPR_CYCLE_HEAT, verticalAlign: "middle", marginRight: 5 }} />Logged start</span>
+            <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 3, border: `1px dotted ${DPR_CYCLE_HEAT}`, verticalAlign: "middle", marginRight: 5 }} />Predicted window</span>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11.5, color: DPR_INK50, lineHeight: 1.5 }}>Tap any past day to log or remove a period start.</div>
+        </div>
+      ) : null}
+
+      {msg ? <div style={{ marginTop: 10, fontSize: 12, color: DPR_AMBER }}>{msg}</div> : null}
+
+      {/* Settings footer — share with coaches + stop & delete (the web opt-out entry). */}
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={toggleShare} disabled={busy}
+          style={{ background: "transparent", border: `1px solid ${settings.share ? DPR_CYCLE_HEAT : "rgba(242,237,228,0.25)"}`, color: settings.share ? DPR_CYCLE_HEAT : DPR_INK50, borderRadius: 999, padding: "5px 12px", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>
+          {settings.share ? "Shared with coaches ✓" : "Share with coaches"}
+        </button>
+        <button type="button" onClick={stopDelete} disabled={busy}
+          style={{ background: "transparent", border: 0, color: "#c0533b", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>Stop &amp; delete</button>
+      </div>
+    </div>
+  );
+}
 function ClientProgressPage() {
   const [progress, setProgress] = React.useState(null);
   const [kit, setKit] = React.useState(null);
@@ -512,6 +740,11 @@ function ClientProgressPage() {
         </div>
       </div>
     ) } : null,
+    // THE CYCLE — member card + calendar + opt-in/out (spec 2026-07-19). Shows
+    // for any signed-in member (the opt-in prompt or the card); DprCycleCard
+    // self-manages settings/starts + the GUC-gated RPC writes. Absence for the
+    // signed-out demo (gated on `live`).
+    live ? { key: "cycle", title: "The cycle", size: "half", render: () => <DprCycleCard /> } : null,
     { key: "weight", title: "Weight · then vs today", size: "half", render: () => (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>

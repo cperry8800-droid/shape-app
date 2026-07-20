@@ -37,6 +37,71 @@ function CKSecHead({ children }) {
   return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{children}</div>;
 }
 
+// THE CYCLE — coach station (spec 2026-07-19, web parity of the mobile Case File
+// station). Cycle predicted-window dates are date-only ISO strings; format short,
+// pinned to UTC so the calendar date never drifts. English-only (web isn't localized).
+function ckCycleShortDate(isoStr) {
+  try {
+    const d = new Date(`${String(isoStr).slice(0, 10)}T00:00:00Z`);
+    if (isNaN(d.getTime())) return String(isoStr);
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
+  } catch (e) { return String(isoStr); }
+}
+// Pure: the current month as a tick row — logged period starts as taller filled
+// marks, today a faint ring. `today` is the MEMBER's local date (from the RPC),
+// read as calendar-date PARTS (no timezone reinterpretation) so month/today are
+// in her frame, not the coach's. Heat-only coloring reads on the fixed-dark card.
+function CkCycleMonthStrip({ starts, today, heat }) {
+  let y, mo, todayDay;
+  if (typeof today === "string" && /^\d{4}-\d{2}-\d{2}/.test(today)) {
+    const p = today.slice(0, 10).split("-").map(Number); y = p[0]; mo = p[1]; todayDay = p[2];
+  } else { const n = new Date(); y = n.getFullYear(); mo = n.getMonth() + 1; todayDay = n.getDate(); }
+  const days = new Date(y, mo, 0).getDate();
+  const startDays = new Set((Array.isArray(starts) ? starts : [])
+    .map((s) => String(s).slice(0, 10).split("-").map(Number))
+    .filter((p) => p.length === 3 && p[0] === y && p[1] === mo)
+    .map((p) => p[2]));
+  return (
+    <div style={{ display: "flex", gap: 2, marginTop: 12, alignItems: "flex-end" }}>
+      {Array.from({ length: days }, (_, i) => {
+        const day = i + 1; const isStart = startDays.has(day);
+        return <div key={day} style={{ flex: 1, height: isStart ? 9 : 3, borderRadius: isStart ? 5 : 2, background: isStart ? heat : `${heat}2a`, boxShadow: day === todayDay ? `0 0 0 1px ${heat}` : "none" }} />;
+      })}
+    </div>
+  );
+}
+// Absence, never a padlock: renders ONLY for { share:true } with an array of
+// starts. null / { share:false } / pre-migration all render NOTHING — a coach
+// can't tell never-opted-in from not-shared. Phase + timing only.
+function CKCycleStation({ cycle, accent }) {
+  if (!cycle || cycle.share !== true || !Array.isArray(cycle.starts)) return null;
+  const lib = typeof window !== "undefined" ? window.ShapeCycleLib : null;
+  if (!lib || !lib.bsDeriveCycle) return null;
+  const c = lib.bsDeriveCycle(cycle.starts, cycle.today || new Date());
+  if (!c || c.phase === null) return null;
+  const PHASE = { menstrual: "Menstrual", follicular: "Follicular", ovulatory: "Ovulatory", luteal: "Luteal", paused: "Predictions paused", late: "Awaiting next log" };
+  const phaseLabel = PHASE[c.phase];
+  if (!phaseLabel) return null;
+  const timing = (c.phase === "paused" || c.phase === "late") ? phaseLabel : `${phaseLabel} · day ${c.day}`;
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <CKSecHead>CYCLE · SHARED BY THE MEMBER</CKSecHead>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 6 }}>{timing}</div>
+      {c.predictedStart && (
+        <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>
+          Next period window · {ckCycleShortDate(c.predictedStart.from)} – {ckCycleShortDate(c.predictedStart.to)}
+        </div>
+      )}
+      <CkCycleMonthStrip starts={cycle.starts} today={cycle.today} heat={accent} />
+      {c.phase === "luteal" && c.predictedStart && (
+        <div style={{ marginTop: 8, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(242,237,228,0.7)" }}>
+          Week of the {ckCycleShortDate(c.predictedStart.from)} is a natural deload window.
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // THE LIVE STATION (spec 2026-07-19): a realtime view of the client's
 // in-progress session. Consumer-side hygiene ported from the mobile console
 // (iosAppBroadsheetPros.jsx BSProLiveWatch): the `evented` TOCTOU guard (a
@@ -613,6 +678,8 @@ function CoachClientDetailPage() {
               </Card>
             );
           })()}
+
+          <CKCycleStation cycle={data.cycle} accent={accent} />
 
           {data.healthProfile && (() => {
             const h = data.healthProfile;
