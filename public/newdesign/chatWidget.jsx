@@ -33,7 +33,11 @@ function cwUseActivity(userId, open) {
   React.useEffect(() => {
     const sdb = window.shapeDb;
     const db = sdb && sdb.client;
-    if (!db || !userId || !open) { setAct(null); return undefined; }
+    // Reset FIRST, unconditionally. Switching from member A to member B leaves
+    // `act` populated across the await of getSession() + the new query, so the
+    // preview would render A's presence line under B's name (review: CodeRabbit).
+    setAct(null);
+    if (!db || !userId || !open) return undefined;
     let on = true; let expTimer = null;
     (async () => {
       // user_activity is authenticated-read. A session that lives only in the
@@ -1293,7 +1297,7 @@ function ChatWidget(props) {
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{isNora ? "Always online" : tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{isNora ? "Shape's Concierge" : roleLabel}</span>
                         </div>
-                        {actLine && <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "#2ee0c4" }}>{actLine}</div>}
+                        {actLine && <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: TEAL_BRIGHT }}>{actLine}</div>}
                         <div style={{ marginTop: 5, fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
                         <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>{handle}</div>
                         {(followers != null || following != null) && (

@@ -52,11 +52,13 @@ function CKLiveStation({ clientId, accent }) {
     // clientId rides straight from the URL into a RAW postgres_changes filter
     // string — validate it as a UUID before interpolating (review: CodeRabbit).
     const okId = typeof clientId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
-    // SYNCHRONOUS reset on client change — B must never render A's payload, even
-    // for a frame (spec review). This runs BEFORE the bail-out guard on purpose:
-    // switching to a malformed clientId (or a momentarily-missing db) must still
-    // drop A's row, or the early return would leave A rendered under B's header —
-    // the exact leak this reset exists to prevent (review: CodeRabbit).
+    // Defence in depth, NOT the frame guarantee: an in-effect reset lands after
+    // commit, so it cannot stop a stale frame on its own — `key={clientId}` at
+    // the mount site is what actually guarantees "B never renders A's payload"
+    // by remounting with fresh null state. This still matters for any re-run
+    // that does NOT remount, and it runs BEFORE the bail-out guard so switching
+    // to a malformed clientId still drops A's row instead of leaving it under
+    // B's header (review: CodeRabbit).
     setRow(null);
     if (!db || !okId) return undefined;
     let on = true; let evented = false; let expTimer = null; let channel = null;
@@ -118,6 +120,17 @@ function CKLiveStation({ clientId, accent }) {
     })();
     return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
   }, [clientId]);
+  // Elapsed minutes are derived from Date.now() at RENDER time, so a quiet live
+  // row (a long rest, a paused session) would stay pinned to its first "N min in"
+  // until some unrelated update arrived — a stale figure presented as current
+  // (review: CodeRabbit). Tick once a minute while a row is on screen.
+  const [, setTick] = React.useState(0);
+  const hasRow = !!row;
+  React.useEffect(() => {
+    if (!hasRow) return undefined;
+    const id = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, [hasRow]);
   const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
   // Workout payloads only (review round): the cooking-detail PR later teaches
   // the validator a {kind:'cooking'} shape with NO exercises — this station
@@ -270,7 +283,11 @@ function CoachClientDetailPage() {
       subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
       <React.Fragment>
-          <CKLiveStation clientId={clientId} accent={accent} />
+          {/* key={clientId} REMOUNTS the station per client. Without it React
+              renders B's clientId with A's still-committed `row` for one frame
+              before the effect's reset runs — the in-effect setRow(null) lands
+              after commit, so it cannot prevent that frame (review: CodeRabbit). */}
+          <CKLiveStation key={clientId} clientId={clientId} accent={accent} />
           <Card style={{ marginBottom: 16 }}>
             <CKSecHead>{isNutri ? "ADHERENCE · THIS WEEK" : "TRAINING · THIS BLOCK"}</CKSecHead>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
