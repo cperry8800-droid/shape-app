@@ -42,6 +42,18 @@ test('read window: lookback is exactly the duration cap, horizon is 7d', () => {
   assert.ok(Number.isFinite(Date.parse(bsSetsWindow(undefined).from)));   // bad clock → still a usable window
 });
 
+// "Never throws" has to survive the inputs that actually raise. Number() RAISES
+// on a Symbol rather than returning NaN, and a finite-but-extreme epoch pushes
+// the window edges out of Date range where toISOString() raises — so both are
+// pinned, on BOTH exports.
+test('never throws on hostile clocks: Symbol, out-of-range, NaN', () => {
+  for (const bad of [Symbol('x'), 8.64e15, -8.64e15, Infinity, NaN, 'nope', {}]) {
+    const w = bsSetsWindow(bad);
+    assert.ok(Number.isFinite(Date.parse(w.from)) && Number.isFinite(Date.parse(w.to)), `window usable for ${String(bad)}`);
+    assert.deepEqual(bsSetsNow([], bad), { live: null, next: null, upcoming: [] }, `resolver survives ${String(bad)}`);
+  }
+});
+
 test('empty + garbage: never throws, honest nulls', () => {
   assert.deepEqual(bsSetsNow([], T0), { live: null, next: null, upcoming: [] });
   assert.deepEqual(bsSetsNow(null, T0), { live: null, next: null, upcoming: [] });

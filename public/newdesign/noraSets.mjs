@@ -20,9 +20,29 @@ const CAP = 10;
 // (review: CodeRabbit) — one definition, both callers.
 export const MAX_DURATION_MIN = 360;
 
+// The ECMAScript Date range (±100,000,000 days from the epoch). Past it,
+// toISOString() raises rather than returning a string.
+const MAX_TIME = 8.64e15;
+
+// ⚠ `Number(x)` RAISES on a Symbol — it does not return NaN. So a bare
+// `Number(now)` defeats the "never throws" contract both exports below claim,
+// and the guard that follows it never gets to run (review: CodeRabbit, who
+// flagged the window; the same defect was in bsSetsNow, which it did not).
+// One coercion, used by both, so the claim is actually true.
+function toEpoch(now) {
+  if (now instanceof Date) return now.getTime();
+  try { return Number(now); } catch (e) { return NaN; }
+}
+
 export function bsSetsWindow(now) {
-  const t = now instanceof Date ? now.getTime() : Number(now);
-  const base = Number.isFinite(t) ? t : Date.now();
+  let base = toEpoch(now);
+  // A finite but extreme epoch can push an edge out of Date range even though
+  // the input itself looked fine — validate the EDGES, not just the input.
+  const lo = base - MAX_DURATION_MIN * 60000;
+  const hi = base + WEEK_MS;
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || Math.abs(lo) > MAX_TIME || Math.abs(hi) > MAX_TIME) {
+    base = Date.now();
+  }
   return {
     from: new Date(base - MAX_DURATION_MIN * 60000).toISOString(),
     to: new Date(base + WEEK_MS).toISOString(),
@@ -30,7 +50,7 @@ export function bsSetsWindow(now) {
 }
 
 export function bsSetsNow(rows, now) {
-  const t = now instanceof Date ? now.getTime() : Number(now);
+  const t = toEpoch(now);
   const out = { live: null, next: null, upcoming: [] };
   if (!Array.isArray(rows) || !Number.isFinite(t)) return out;
   const clean = rows.filter((r) => {
