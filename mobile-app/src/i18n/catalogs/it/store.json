@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Attrezzatura &",
   "page.titleB": "vantaggi.",
-  "page.terms": "Tutto si spedisce con i punti · 20 pt = $1 · senza scadenza",
+  "page.terms": "Tutto si spedisce con i punti · {rate} pt = $1 · crediti in dollari 2× · senza scadenza",
   "balance.available": "Disponibile",
   "unit.pts": "pt",
   "unit.toGo": "{gap, number} mancanti",

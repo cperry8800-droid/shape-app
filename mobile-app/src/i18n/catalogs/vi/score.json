@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "Tiếp nhận khách dinh dưỡng mới",
   "earn.newNutritionClientOnboarded.note": "Xong hồ sơ và kế hoạch đầu",
   "tierPerk.raw": "Bậc khởi đầu",
-  "tierPerk.tempo": "Giá trị đổi thưởng x2",
+  "tierPerk.tempo": "Mở khóa các đợt hàng giới hạn",
   "tierPerk.form": "Mở bán sớm + tăng chuỗi",
   "tierPerk.peak": "Ưu tiên đặt lịch + 1 buổi mở đầu miễn phí / tháng",
   "tierPerk.legend": "Đồ Shape hằng năm + tín dụng dịch vụ",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Lỡ buổi tập được giao",
   "ledger.kind.penalty_habit": "Đứt chuỗi thói quen",
   "ledger.kind.commitment_win": "Đã đạt cam kết",
-  "ledger.kind.commitment_loss": "Lỡ cam kết"
+  "ledger.kind.commitment_loss": "Lỡ cam kết",
+  "checkpoint.toGo": "Còn {toGo} đến mốc {at} · {toNext} đến {next}",
+  "checkpoint.passed": "Đã qua mốc {at} ✓ · còn {toNext} đến {next}",
+  "checkpoint.toast": "Đã đạt 10.000 — Legend trong tầm tay."
 }

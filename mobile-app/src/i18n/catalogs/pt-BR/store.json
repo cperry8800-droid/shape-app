@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Equipamento &",
   "page.titleB": "vantagens.",
-  "page.terms": "Tudo é enviado com pontos · 20 pts = $1 · sem validade",
+  "page.terms": "Tudo é enviado com pontos · {rate} pts = $1 · créditos em dólar 2× · sem validade",
   "balance.available": "Disponível",
   "unit.pts": "pts",
   "unit.toGo": "faltam {gap, number}",

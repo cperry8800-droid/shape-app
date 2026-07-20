@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Экипировка &",
   "page.titleB": "бонусы.",
-  "page.terms": "Всё отправляется за баллы · 20 б. = $1 · без срока",
+  "page.terms": "Всё отправляется за баллы · {rate} б. = $1 · денежные сертификаты 2× · без срока",
   "balance.available": "Доступно",
   "unit.pts": "б.",
   "unit.toGo": "{gap, number} до цели",

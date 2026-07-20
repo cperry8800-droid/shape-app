@@ -6,7 +6,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
-import { bsScoreStanding } from '../services/scoreStanding.mjs';
+import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
@@ -15837,7 +15837,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 // ═══════════════════════════════════════════════════════════
 const SHAPE_SCORE_TIERS = [
   { name: 'Raw', range: '0+', perk: 'Starting level' },
-  { name: 'Tempo', range: '750+', perk: '2x redemption value' },
+  { name: 'Tempo', range: '750+', perk: 'Limited drops unlock' },
   { name: 'Form', range: '2,000+', perk: 'Early access drops + streak boosts' },
   { name: 'Peak', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
   { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
@@ -15845,7 +15845,7 @@ const SHAPE_SCORE_TIERS = [
 // Coaches climb the same 5 rungs under their own names (scheme J).
 const SHAPE_SCORE_TIERS_COACH = [
   { name: 'Certified', range: '0+', perk: 'Starting level' },
-  { name: 'Pro', range: '750+', perk: '2x redemption value' },
+  { name: 'Pro', range: '750+', perk: 'Priority in search' },
   { name: 'Elite', range: '2,000+', perk: 'Early access drops + streak boosts' },
   { name: 'Master', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
   { name: 'Icon', range: '15,000+', perk: 'Annual Shape merch + service credit' },
@@ -20548,11 +20548,16 @@ function BSCommitmentCard() {
 // the dot + figure are an HTML overlay, the BSSdTrace pattern). THIS TIER: the
 // current lane zoomed — {tier}→{next} with a heat fill to `frac`.
 function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
+  const tr = useShapeTr();
   const INK = t.INK;
   const reduced = bsSdReduced();
   const fmt = (n) => Number(n).toLocaleString();
   if (!Array.isArray(tiers) || tiers.length < 2) return null;
   const s = bsScoreStanding(tiers, tier, total);
+  // The 10,000 Peak checkpoint (owner call, pacing option B): a marker inside
+  // the Peak→Legend stretch — recognition only, no points. Null in every other
+  // lane, so no other tier ever grows a tick.
+  const chk = bsPeakCheckpoint(tiers, tier, total);
   if (scale === 'tier') {
     // Zoomed ladder — the LADDER's own SVG grammar narrowed to one segment: the
     // current tier node bottom-left, the next tier node top-right, a dashed ink
@@ -20570,7 +20575,10 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
     const dotCol = s.atRisk ? riskRed : heat;
     const caption = s.atRisk
       ? `⚠ ${fmt(Math.max(0, s.curThr - total))} below ${tier} — earn it back to hold`
-      : s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
+      : s.topTier ? 'Top tier — nothing above.'
+      : (chk && !chk.reached) ? tr('score:checkpoint.toGo', { toGo: fmt(chk.toGo), at: fmt(chk.at), toNext: fmt(s.toNext), next: s.nextName, defaultValue: '{toGo} to the {at} checkpoint · {toNext} to {next}' })
+      : (chk && chk.reached) ? tr('score:checkpoint.passed', { at: fmt(chk.at), toNext: fmt(s.toNext), next: s.nextName, defaultValue: 'Checkpoint {at} passed ✓ · {toNext} to {next}' })
+      : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
     return (
       <div aria-label={s.atRisk ? `${fmt(total)} points — ${fmt(Math.max(0, s.curThr - total))} below ${tier}, earn it back to hold` : `${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -20585,6 +20593,10 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
               style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
             <circle cx={x0} cy={y0} r="3" fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
             <circle cx={x1} cy={y1} r="3" fill={s.topTier ? heat : bsTHexA(INK, 0.35)} stroke={nextColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            {chk && (
+              <circle cx={x0 + (x1 - x0) * chk.laneFrac} cy={y0 + (y1 - y0) * chk.laneFrac} r="3.5"
+                fill={chk.reached ? heat : 'none'} stroke={chk.reached ? heat : bsTHexA(INK, 0.45)} strokeWidth="1.5" strokeDasharray={chk.reached ? undefined : '2 2'} vectorEffect="non-scaling-stroke" />
+            )}
           </svg>
           <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 999, background: dotCol, ['--sd-glow']: bsTHexA(dotCol, 0.5), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
           <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY - 20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: dotCol, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
@@ -20885,6 +20897,38 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const [momRef, momSeen] = useBSSdInView();
   const heat = bsTierColor(tier);
   const st = bsScoreStanding(tiers, tier, scoreTotal);
+  // The 10,000 celebration (owner call): fires ONCE per account, the first
+  // time the member sees her standing past the checkpoint. Recognition only —
+  // no points, no ledger row, so it can never touch the economy.
+  // localStorage is the per-device fast path; a dedicated
+  // user_goals('peak_checkpoint') doc is the ACCOUNT-wide truth, so a new
+  // device or a cleared storage can't re-celebrate. Deliberately suppressed at
+  // the top tier: bsPeakCheckpoint() is null for a Legend, and toasting
+  // "Legend is in reach" at an actual Legend would be a false sentence — a
+  // member who first opens the page already AT Legend has outrun the
+  // checkpoint (their celebration was the tier itself).
+  const peakFiredRef = React.useRef(false);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+        if (!uid) return;
+        const chk = bsPeakCheckpoint(tiers, tier, scoreTotal);
+        if (!(chk && chk.reached)) return;
+        const key = 'shape.peak10k.' + uid;
+        if (peakFiredRef.current || window.localStorage?.getItem(key)) return;
+        peakFiredRef.current = true;
+        const cloud = await window.shapeDb?.getUserGoals?.('peak_checkpoint');
+        if (!on) return;
+        try { window.localStorage?.setItem(key, '1'); } catch (e) {}
+        if (cloud && cloud.seen) return;
+        window.shapeDb?.saveUserGoals?.('peak_checkpoint', { seen: true, at: new Date().toISOString() });
+        window.__bsToast?.(tr('score:checkpoint.toast', { defaultValue: '10,000 in the book — Legend is in reach.' }), 'ok');
+      } catch (e) {}
+    })();
+    return () => { on = false; };
+  }, [scoreTotal, tier]);
   const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
   const atRisk = !!profile.atRisk || st.atRisk;
   const riskRed = t.isLight ? '#c0392b' : '#e0463c';
@@ -21133,8 +21177,8 @@ const BS_STORE_PRODUCTS = [
     { id: 'merch_cap_black', cat: 'Shape Merch', name: 'Shape Cap · Black', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_cap_white', cat: 'Shape Merch', name: 'Shape Cap · White', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
+    { id: 'merch_canteen', cat: 'Shape Merch', name: 'Shape Canteen', brand: 'Shape Merch', cost: 6300, retail: 42, tag: 'New', stock: 'In stock' },
     { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
-    { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
     { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
     { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
     { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
@@ -21151,10 +21195,14 @@ const BS_STORE_PRODUCTS = [
     { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
   ];
 
-// Uniform store value: 1 Shape point = $0.05 (20 points = $1) — derived ONCE
+// Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value) — derived ONCE
 // here so every consumer (Store page, Score Rewards tab) shows the same cost.
-const BS_SHAPE_PTS_PER_USD = 20;
-BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * BS_SHAPE_PTS_PER_USD); });
+const BS_SHAPE_PTS_PER_USD = 150;
+// Dollar-credits price at 2x the base rate (owner call 2026-07-20, option 2A):
+// they cost Shape real cash, unlike merch margin. Credit items are the two
+// session credits, the nutrition credit, and the annual membership credit.
+const BS_STORE_CREDIT_IDS = new Set(['train_credit_25', 'train_credit_50', 'nutri_credit_25', 'perk_annual_credit']);
+BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * (BS_STORE_CREDIT_IDS.has(p.id) ? BS_SHAPE_PTS_PER_USD * 2 : BS_SHAPE_PTS_PER_USD)); });
 
 // Product stand-in glyph (stroke line-art) — shown until real product photos are
 // dropped into mobile-app/public/store/<id>.png. Keyed by id first, then category.
@@ -21162,6 +21210,7 @@ function BSStoreGlyph({ id = '', cat = '', size = 40, color = 'currentColor' }) 
   const key = /cap/.test(id) ? 'cap'
     : /crew/.test(id) ? 'crewneck'
     : /bottle/.test(id) ? 'bottle'
+    : /canteen/.test(id) ? 'canteen'
     : /towel/.test(id) ? 'towel'
     : /duffel/.test(id) ? 'duffel'
     : /tee/.test(id) ? 'tee'
@@ -21171,6 +21220,7 @@ function BSStoreGlyph({ id = '', cat = '', size = 40, color = 'currentColor' }) 
     tee: <path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" />,
     crewneck: <React.Fragment><path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" /><path d="M15 32 v2 M25 32 v2" /></React.Fragment>,
     bottle: <React.Fragment><rect x="15" y="13" width="10" height="20" rx="4" /><path d="M17 13 v-3 h6 v3" /></React.Fragment>,
+    canteen: <React.Fragment><rect x="13" y="15" width="14" height="18" rx="6" /><path d="M16 15 c0 -3 1.5 -4.5 4 -4.5 c2.5 0 4 1.5 4 4.5" /><path d="M18 8 h4" /></React.Fragment>,
     towel: <React.Fragment><rect x="9" y="12" width="22" height="16" rx="2" /><path d="M9 24 h22" /></React.Fragment>,
     duffel: <React.Fragment><rect x="7" y="17" width="26" height="14" rx="7" /><path d="M15 17 a5 5 0 0 1 10 0" /></React.Fragment>,
     tag: <React.Fragment><path d="M11 11 h9 l9 9 -9 9 -9 -9 Z" /><circle cx="15.5" cy="15.5" r="1.4" /></React.Fragment>,
@@ -21534,7 +21584,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           )}
 
-          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { defaultValue: 'Everything ships on points · 20 pts = $1 · no expiry' })}</div>
+          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { rate: BS_SHAPE_PTS_PER_USD, defaultValue: 'Everything ships on points · {rate} pts = $1 · dollar credits 2× · no expiry' })}</div>
         </React.Fragment>
       )}
 
@@ -21589,18 +21639,136 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
   return surface ? createPortal(sheet, surface) : sheet;
 }
 
+// The one shipping address form — shared by cart checkout and a free tier-reward
+// claim, so the two can never collect different fields than the server validates.
+const BS_SHIP_EMPTY = { name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' };
+function bsShipValid(f) {
+  return !!(f && f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim());
+}
+function BSShipFields({ t, tr, f, setF }) {
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' };
+  const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK70, margin: '14px 0 8px' };
+  const focus = { onFocus: (e) => { e.target.style.borderColor = t.ACCENT; }, onBlur: (e) => { e.target.style.borderColor = t.HAIR; } };
+  return (
+    <>
+      <span style={lbl}>{tr('store:checkout.fullName', { defaultValue: 'Full name' })}</span>
+      <input value={f.name} onChange={set('name')} placeholder={tr('store:checkout.fullName', { defaultValue: 'Full name' })} aria-label={tr('store:checkout.fullName', { defaultValue: 'Full name' })} maxLength={120} style={field} {...focus} />
+      <span style={lbl}>{tr('store:checkout.address', { defaultValue: 'Address' })}</span>
+      <input value={f.line1} onChange={set('line1')} placeholder={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} aria-label={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} maxLength={200} style={field} {...focus} />
+      <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder={tr('store:checkout.aptPlaceholder', { defaultValue: 'Apt, suite (optional)' })} aria-label={tr('store:checkout.aptAria', { defaultValue: 'Apartment or suite (optional)' })} maxLength={200} style={field} {...focus} /></div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
+        <input value={f.city} onChange={set('city')} placeholder={tr('store:checkout.city', { defaultValue: 'City' })} aria-label={tr('store:checkout.city', { defaultValue: 'City' })} maxLength={100} style={field} {...focus} />
+        <input value={f.region} onChange={set('region')} placeholder={tr('store:checkout.statePlaceholder', { defaultValue: 'State' })} aria-label={tr('store:checkout.stateAria', { defaultValue: 'State or region' })} maxLength={100} style={field} {...focus} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
+        <input value={f.postal} onChange={set('postal')} placeholder={tr('store:checkout.zipPlaceholder', { defaultValue: 'ZIP' })} aria-label={tr('store:checkout.zipAria', { defaultValue: 'ZIP or postal code' })} maxLength={20} style={field} {...focus} />
+        <input value={f.country} onChange={set('country')} placeholder={tr('store:checkout.country', { defaultValue: 'Country' })} aria-label={tr('store:checkout.country', { defaultValue: 'Country' })} maxLength={60} style={field} {...focus} />
+      </div>
+    </>
+  );
+}
+
+// THE UNLOCKED SHELF — the free rewards the ladder earned, claimed at 0 points.
+// Renders NOTHING when there's nothing unclaimed (a member who hasn't reached a
+// tier, or has claimed everything, sees no empty promise). The server owns which
+// tier unlocks what and which picks are legal; this only renders what it returns.
+function BSTierRewardShelf({ t, tr, teal, rewards, busyKey, onClaim }) {
+  const open = (rewards || []).filter((r) => !r.claimedAt);
+  const [picks, setPicks] = useStateBSC({});
+  if (!open.length) return null;
+  const nameOf = (id) => (BS_STORE_PRODUCTS.find((p) => p.id === id) || {}).name || id;
+  return (
+    <div style={{ padding: `16px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ width: 9, height: 9, background: teal, transform: 'translateY(1px)' }} aria-hidden />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
+          {tr('store:unlocked.head', { count: open.length, defaultValue: 'Unlocked · {count, plural, one {# reward} other {# rewards}} · free' })}
+        </span>
+      </div>
+      <div style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal})` }} aria-hidden />
+      {open.map((r) => {
+        const choices = Array.isArray(r.choices) ? r.choices : [];
+        const pick = picks[r.rewardKey] || (choices.length === 1 ? choices[0] : '');
+        const ready = choices.length === 0 || !!pick;
+        const busy = busyKey === r.rewardKey;
+        return (
+          <div key={r.rewardKey} style={{ padding: '14px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>
+              {tr('store:unlocked.earnedAt', { tier: r.tier, defaultValue: 'Earned at {tier}' })}
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{r.name}</div>
+            {choices.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {choices.map((c) => {
+                  const on = pick === c;
+                  return (
+                    <button key={c} onClick={() => setPicks((p) => ({ ...p, [r.rewardKey]: c }))} aria-pressed={on}
+                      style={{ minHeight: 36, padding: '8px 12px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
+                        border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1a` : 'transparent',
+                        color: on ? t.INK : t.INK70, fontFamily: t.BODY, fontSize: 12.5, fontWeight: on ? 700 : 600 }}>
+                      {nameOf(c)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => ready && !busy && onClaim(r, pick || null)} disabled={!ready || busy}
+              style={{ marginTop: 12, minHeight: 44, padding: '11px 18px', borderRadius: t.RADIUS_SM, border: 0,
+                background: ready && !busy ? teal : t.RULE, color: ready && !busy ? t.PAPER : t.INK50,
+                fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                cursor: ready && !busy ? 'pointer' : 'default' }}>
+              {busy
+                ? tr('store:unlocked.claiming', { defaultValue: 'Claiming…' })
+                : !ready
+                  ? tr('store:unlocked.pickOne', { defaultValue: 'Pick one' })
+                  : tr('store:unlocked.claim', { defaultValue: 'Claim · free' })}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Where a claimed piece of merch is sent. Vouchers never reach this screen —
+// the server rejects an address on a non-shipped reward.
+function BSTierClaimShip({ t, reward, busy, notice, onBack, onConfirm }) {
+  const tr = useShapeTr();
+  const [f, setF] = useStateBSC(BS_SHIP_EMPTY);
+  const ok = bsShipValid(f) && !busy;
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} kicker={reward.name}
+        title={<>{tr('store:unlocked.shipTitleA', { defaultValue: 'Where do we' })}<br/>{tr('store:unlocked.shipTitleB', { defaultValue: 'send it?' })}</>} />
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>
+          {tr('store:unlocked.shipBlurb', { tier: reward.tier, defaultValue: 'You earned this at {tier}. It costs nothing — we just need an address.' })}
+        </div>
+        <BSShipFields t={t} tr={tr} f={f} setF={setF} />
+        <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{tr('store:checkout.freeShipping', { defaultValue: 'Free shipping · points only.' })}</div>
+        {!!notice && (
+          <div style={{ marginTop: 14, borderRadius: 12, border: `1px solid ${t.RUST}66`, background: `${t.RUST}14`, padding: '11px 14px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{notice}</div>
+        )}
+        <button onClick={() => ok && onConfirm(f)} disabled={!ok}
+          style={{ width: '100%', minHeight: 52, marginTop: 14, borderRadius: 14, border: 0, background: ok ? t.ACCENT : t.RULE, color: ok ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 700, cursor: ok ? 'pointer' : 'default' }}>
+          {busy ? tr('store:unlocked.claiming', { defaultValue: 'Claiming…' }) : tr('store:unlocked.confirmShip', { defaultValue: 'Claim it · free' })}
+        </button>
+      </div>
+      <BSFooter right={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} />
+    </BSPage>
+  );
+}
+
 // (b) Merch cart checkout — review lines + qty, enter ONE shipping address, see
 // the points total + the balance it leaves, place the order (one shipment).
 function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack, onPlace }) {
   const tr = useShapeTr();
-  const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
+  const [f, setF] = useStateBSC(BS_SHIP_EMPTY);
+  const validShip = bsShipValid(f);
   const after = (balance || 0) - total;
   const short = after < 0;
   const canPlace = lines.length > 0 && validShip && !short && !busy;
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' };
-  const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK70, margin: '14px 0 8px' };
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
@@ -21644,19 +21812,7 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
 
             {/* Shipping — one address for the whole order */}
             <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 700, color: t.INK50, margin: '20px 0 4px' }}>{tr('store:checkout.shipTo', { defaultValue: 'Ship to' })}</div>
-            <span style={lbl}>{tr('store:checkout.fullName', { defaultValue: 'Full name' })}</span>
-            <input value={f.name} onChange={set('name')} placeholder={tr('store:checkout.fullName', { defaultValue: 'Full name' })} aria-label={tr('store:checkout.fullName', { defaultValue: 'Full name' })} maxLength={120} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            <span style={lbl}>{tr('store:checkout.address', { defaultValue: 'Address' })}</span>
-            <input value={f.line1} onChange={set('line1')} placeholder={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} aria-label={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder={tr('store:checkout.aptPlaceholder', { defaultValue: 'Apt, suite (optional)' })} aria-label={tr('store:checkout.aptAria', { defaultValue: 'Apartment or suite (optional)' })} maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.city} onChange={set('city')} placeholder={tr('store:checkout.city', { defaultValue: 'City' })} aria-label={tr('store:checkout.city', { defaultValue: 'City' })} maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.region} onChange={set('region')} placeholder={tr('store:checkout.statePlaceholder', { defaultValue: 'State' })} aria-label={tr('store:checkout.stateAria', { defaultValue: 'State or region' })} maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.postal} onChange={set('postal')} placeholder={tr('store:checkout.zipPlaceholder', { defaultValue: 'ZIP' })} aria-label={tr('store:checkout.zipAria', { defaultValue: 'ZIP or postal code' })} maxLength={20} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.country} onChange={set('country')} placeholder={tr('store:checkout.country', { defaultValue: 'Country' })} aria-label={tr('store:checkout.country', { defaultValue: 'Country' })} maxLength={60} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            </div>
+            <BSShipFields t={t} tr={tr} f={f} setF={setF} />
             <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{tr('store:checkout.freeShipping', { defaultValue: 'Free shipping · points only.' })}</div>
 
             {/* Surface a checkout error here — the store-page notice is hidden behind this view */}

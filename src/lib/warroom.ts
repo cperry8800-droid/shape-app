@@ -728,7 +728,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Platform price ID set', status: auto(present(process.env.STRIPE_PLATFORM_PRICE_ID)) },
         { label: 'Connect activated for coach payouts', status: 'manual' },
         { label: 'Shape Store gated to members (mobile + website): upgrade prompt unless active subscription (coaches allowed); Me-row 🔒 hint; checked via /api/stripe/subscription', status: 'done' },
-        { label: 'Store redemption is real: points spend via /api/store/redeem (atomic balance check + negative score_ledger row + one-time code); 20 pts = $1; live balance + locker on both surfaces', status: 'done' },
+        { label: 'Store redemption is real: points spend via /api/store/redeem (atomic balance check + negative score_ledger row + one-time code); 150 pts = $1 (repriced 2026-07-20; was 20 — the old rate minted ~12x the sub price monthly); live balance + locker on both surfaces', status: 'done' },
         { label: 'Store fulfillment wired: merch collects a shipping address (member + ops emailed via Resend), credits fund a coach-credit wallet that auto-applies at /api/stripe/checkout-session and is debited in the webhook on a completed payment', status: 'done' },
         { label: 'Shape Store + Score redesigned to the Open Ledger language (#1552): Store "The Shop/Drop" (drop hero + product grid + Shape-discounts department), Score "The Standing" (ladder/tier chart). Presentation only', status: 'done' },
         { label: 'Shape Store product photography — drop real product shots into mobile-app/public/store/<id>.png; tiles fall back to line-art glyphs (BSStoreImg onError) until then', status: 'pending' },

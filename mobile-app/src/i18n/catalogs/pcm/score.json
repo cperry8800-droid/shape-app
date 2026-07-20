@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "New nutrition client don enter",
   "earn.newNutritionClientOnboarded.note": "Intake and first plan don finish",
   "tierPerk.raw": "Where you dey start",
-  "tierPerk.tempo": "2x value wen you redeem am",
+  "tierPerk.tempo": "You fit unlock limited drops",
   "tierPerk.form": "You see drop first + streak boost",
   "tierPerk.peak": "You dey book first + 1 free intro / month",
   "tierPerk.legend": "Shape merch every year + money for service",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "You miss workout wey dem assign",
   "ledger.kind.penalty_habit": "You break habit streak",
   "ledger.kind.commitment_win": "You do wetin you promise",
-  "ledger.kind.commitment_loss": "You miss wetin you promise"
+  "ledger.kind.commitment_loss": "You miss wetin you promise",
+  "checkpoint.toGo": "{toGo} remain to reach di {at} checkpoint · {toNext} to {next}",
+  "checkpoint.passed": "Checkpoint {at} don pass ✓ · {toNext} to {next}",
+  "checkpoint.toast": "10,000 don enter book — Legend dey near."
 }

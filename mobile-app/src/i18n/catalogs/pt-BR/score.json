@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "Novo cliente de nutrição integrado",
   "earn.newNutritionClientOnboarded.note": "Cadastro concluído e primeiro plano",
   "tierPerk.raw": "Nível inicial",
-  "tierPerk.tempo": "Valor de resgate em dobro",
+  "tierPerk.tempo": "Acesso a drops limitados",
   "tierPerk.form": "Acesso antecipado a drops + impulsos de sequência",
   "tierPerk.peak": "Reserva prioritária + 1 intro grátis / mês",
   "tierPerk.legend": "Produtos Shape por ano + crédito em serviços",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Treino atribuído perdido",
   "ledger.kind.penalty_habit": "Sequência de hábito quebrada",
   "ledger.kind.commitment_win": "Compromisso cumprido",
-  "ledger.kind.commitment_loss": "Compromisso não cumprido"
+  "ledger.kind.commitment_loss": "Compromisso não cumprido",
+  "checkpoint.toGo": "{toGo} para o checkpoint de {at} · {toNext} para {next}",
+  "checkpoint.passed": "Checkpoint {at} concluído ✓ · {toNext} para {next}",
+  "checkpoint.toast": "10.000 no bolso — Legend está ao alcance."
 }

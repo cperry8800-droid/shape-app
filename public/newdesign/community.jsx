@@ -87,7 +87,7 @@ const LIVE_ACTIVITY = [
   {
     kind: "tier", who: "Ana P.", city: "Miami, FL", tier: "Tempo", ago: "18m",
     avatarHue: 14,
-    body: "Three weeks in. Tempo unlocked — 2× redemption value at the store, here we come.",
+    body: "Three weeks in. Tempo unlocked — limited drops open up at the store, here we come.",
     from: "Raw", to: "Tempo", earnedThisMonth: 752, kudos: 56, replies: 14,
   },
   {

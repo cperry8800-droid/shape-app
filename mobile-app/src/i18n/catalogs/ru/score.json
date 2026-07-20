@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "Новый клиент по питанию",
   "earn.newNutritionClientOnboarded.note": "Анкета и первый план готовы",
   "tierPerk.raw": "Начальный уровень",
-  "tierPerk.tempo": "2x при обмене баллов",
+  "tierPerk.tempo": "Доступ к лимитированным дропам",
   "tierPerk.form": "Ранний доступ к дропам + бусты серий",
   "tierPerk.peak": "Приоритет записи + 1 бесплатное интро / мес",
   "tierPerk.legend": "Мерч Shape каждый год + сервисный кредит",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Пропущена назначенная тренировка",
   "ledger.kind.penalty_habit": "Прервана серия привычки",
   "ledger.kind.commitment_win": "Обязательство выполнено",
-  "ledger.kind.commitment_loss": "Обязательство не выполнено"
+  "ledger.kind.commitment_loss": "Обязательство не выполнено",
+  "checkpoint.toGo": "{toGo} до отметки {at} · {toNext} до {next}",
+  "checkpoint.passed": "Отметка {at} взята ✓ · {toNext} до {next}",
+  "checkpoint.toast": "10 000 позади — Legend уже близко."
 }

@@ -6,10 +6,14 @@
 //   - public/newdesign/store.jsx  (website)
 //   - BSShapeStorePage in mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
 //
-// Uniform value: 1 Shape point = $0.05 (20 points = $1). Cost derives from the
+// Uniform value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value). Cost derives from the
 // item's retail $, so the rate is consistent across the whole catalogue.
 
-export const SHAPE_PTS_PER_USD = 20;
+export const SHAPE_PTS_PER_USD = 150;
+// Dollar-credits cost Shape REAL cash (we still pay the coach), unlike merch
+// (margin) — so they price at 2x the base rate (owner call 2026-07-20, option
+// 2A). The kind === 'credit' branch below is the ONE place the split lives.
+export const SHAPE_PTS_PER_USD_CREDIT = 300;
 
 export type StoreItem = {
   id: string;
@@ -28,8 +32,10 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
   { id: 'merch_cap_black', name: 'Shape Cap · Black', cat: 'Shape Merch', retail: 35, kind: 'merch' },
   { id: 'merch_cap_white', name: 'Shape Cap · White', cat: 'Shape Merch', retail: 35, kind: 'merch' },
   { id: 'merch_bottle', name: 'Shape Training Bottle', cat: 'Shape Merch', retail: 28, kind: 'merch' },
+  { id: 'merch_canteen', name: 'Shape Canteen', cat: 'Shape Merch', retail: 42, kind: 'merch' },
   { id: 'merch_towel', name: 'Shape Gym Towel', cat: 'Shape Merch', retail: 22, kind: 'merch' },
-  { id: 'merch_duffel', name: 'Shape Training Duffel', cat: 'Shape Merch', retail: 165, kind: 'merch', locked: true },
+  // merch_duffel removed 2026-07-20 (owner call: "remove duffel bag for now") —
+  // the reprice migration DELETEs its live store_catalogue row.
 
   // Training
   { id: 'train_credit_25', name: '$25 session credit', cat: 'Training', retail: 25, kind: 'credit' },
@@ -56,7 +62,8 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
 export const STORE_CATALOGUE: StoreItem[] = RAW.map((p) => ({ ...p }));
 
 export function storeItemCost(item: StoreItem): number {
-  return Math.round(item.retail * SHAPE_PTS_PER_USD);
+  const rate = item.kind === 'credit' ? SHAPE_PTS_PER_USD_CREDIT : SHAPE_PTS_PER_USD;
+  return Math.round(item.retail * rate);
 }
 
 export function findStoreItem(id: string): StoreItem | undefined {

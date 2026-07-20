@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "New nutrition client onboarded",
   "earn.newNutritionClientOnboarded.note": "Completed intake and first plan",
   "tierPerk.raw": "Starting level",
-  "tierPerk.tempo": "2x redemption value",
+  "tierPerk.tempo": "Limited drops unlock",
   "tierPerk.form": "Early access drops + streak boosts",
   "tierPerk.peak": "Priority booking + 1 free intro / mo",
   "tierPerk.legend": "Annual Shape merch + service credit",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Skipped assigned workout",
   "ledger.kind.penalty_habit": "Broke a habit streak",
   "ledger.kind.commitment_win": "Commitment kept",
-  "ledger.kind.commitment_loss": "Commitment missed"
+  "ledger.kind.commitment_loss": "Commitment missed",
+  "checkpoint.toGo": "{toGo} to the {at} checkpoint · {toNext} to {next}",
+  "checkpoint.passed": "Checkpoint {at} passed ✓ · {toNext} to {next}",
+  "checkpoint.toast": "10,000 in the book — Legend is in reach."
 }

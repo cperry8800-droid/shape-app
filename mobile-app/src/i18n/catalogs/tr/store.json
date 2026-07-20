@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Ekipman &",
   "page.titleB": "ayrıcalıklar.",
-  "page.terms": "Her şey puanla gönderilir · 20 puan = $1 · süresiz",
+  "page.terms": "Her şey puanla gönderilir · {rate} puan = $1 · dolar kredileri 2× · süresiz",
   "balance.available": "Mevcut",
   "unit.pts": "puan",
   "unit.toGo": "{gap, number} kaldı",

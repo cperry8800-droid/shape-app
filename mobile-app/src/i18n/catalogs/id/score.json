@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "Klien gizi baru bergabung",
   "earn.newNutritionClientOnboarded.note": "Pendaftaran dan rencana pertama selesai",
   "tierPerk.raw": "Tingkat awal",
-  "tierPerk.tempo": "Nilai penukaran 2x",
+  "tierPerk.tempo": "Akses drop terbatas",
   "tierPerk.form": "Akses awal drop + dorongan runtutan",
   "tierPerk.peak": "Pemesanan prioritas + 1 sesi perkenalan gratis / bln",
   "tierPerk.legend": "Merch Shape tahunan + kredit layanan",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Latihan yang diberikan terlewat",
   "ledger.kind.penalty_habit": "Rentetan kebiasaan putus",
   "ledger.kind.commitment_win": "Komitmen terpenuhi",
-  "ledger.kind.commitment_loss": "Komitmen terlewat"
+  "ledger.kind.commitment_loss": "Komitmen terlewat",
+  "checkpoint.toGo": "{toGo} menuju checkpoint {at} · {toNext} menuju {next}",
+  "checkpoint.passed": "Checkpoint {at} tercapai ✓ · {toNext} menuju {next}",
+  "checkpoint.toast": "10.000 tercapai — Legend sudah di depan mata."
 }

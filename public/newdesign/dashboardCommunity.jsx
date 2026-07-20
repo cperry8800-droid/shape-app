@@ -264,7 +264,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           elevTrace: [40, 48, 62, 80, 72, 64, 84, 98, 90, 76, 92, 116, 108, 94, 88, 104, 128, 118, 100, 112, 136, 122, 110, 128, 148, 134, 116, 100, 86, 68]
         },
         breakdown: { label: "Mile splits", rows: [["Miles 1–3", "7:52/mi", "Warm-up"], ["Miles 4–6", "7:41/mi", "Steady"], ["Miles 7–8", "7:24/mi", "Negative split"]] } } },
-    { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — 2× redemption value on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
+    { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — limited drops open up on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
     { kind: "meal", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
     { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
     { kind: "post", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },

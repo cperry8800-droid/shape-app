@@ -109,7 +109,7 @@
   "earn.newNutritionClientOnboarded.name": "An shigar da sabon abokin ciniki na abinci",
   "earn.newNutritionClientOnboarded.note": "An kammala rajista da shiri na farko",
   "tierPerk.raw": "Matakin farko",
-  "tierPerk.tempo": "Darajar musaya sau 2",
+  "tierPerk.tempo": "Damar kayan keɓaɓɓu",
   "tierPerk.form": "Shiga da wuri + ƙarin jeri",
   "tierPerk.peak": "Fifikon yin rajista + gabatarwa 1 kyauta / wata",
   "tierPerk.legend": "Kayan Shape na shekara + kuɗin hidima",
@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "An tsallake motsa jikin da aka ba ka",
   "ledger.kind.penalty_habit": "An karya jerin ɗabi'a",
   "ledger.kind.commitment_win": "An cika alkawari",
-  "ledger.kind.commitment_loss": "An rasa alkawari"
+  "ledger.kind.commitment_loss": "An rasa alkawari",
+  "checkpoint.toGo": "Saura {toGo} zuwa matakin {at} · {toNext} zuwa {next}",
+  "checkpoint.passed": "An wuce matakin {at} ✓ · saura {toNext} zuwa {next}",
+  "checkpoint.toast": "An kai 10,000 — Legend na gabatowa."
 }
