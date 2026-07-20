@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "{count} danışan ara",
   "roster.show": "GÖSTER ›",
   "roster.theRoster": "KADRO",
+  "roster.variable": "DEĞİŞKEN",
   "roster.verdictAllHolding": "{m} kişinin hepsi sağlam — bugün kimsenin sana ihtiyacı yok",
   "roster.verdictNeed": "{k} kişinin sana ihtiyacı var — diğer {m} kişi sağlam",
   "roster.wkndGap": "HAFTA SONU −{gap}",

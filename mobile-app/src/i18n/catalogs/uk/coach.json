@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Пошук серед {count} клієнтів",
   "roster.show": "ПОКАЗАТИ ›",
   "roster.theRoster": "СПИСОК КЛІЄНТІВ",
+  "roster.variable": "СТРИБКИ",
   "roster.verdictAllHolding": "Усі {m} тримаються — сьогодні ви нікому не потрібні",
   "roster.verdictNeed": "{k} потрібні ви — решта {m} тримаються",
   "roster.wkndGap": "ВИХ −{gap}",

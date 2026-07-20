@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "{count} Klienten durchsuchen",
   "roster.show": "ANZEIGEN ›",
   "roster.theRoster": "DER KADER",
+  "roster.variable": "SCHWANKEND",
   "roster.verdictAllHolding": "Alle {m} halten — heute braucht dich niemand",
   "roster.verdictNeed": "{k} brauchen dich — die anderen {m} halten",
   "roster.wkndGap": "WE −{gap}",

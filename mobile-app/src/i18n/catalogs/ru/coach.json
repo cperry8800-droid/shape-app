@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Поиск среди {count} клиентов",
   "roster.show": "ПОКАЗАТЬ ›",
   "roster.theRoster": "СПИСОК КЛИЕНТОВ",
+  "roster.variable": "СКАЧКИ",
   "roster.verdictAllHolding": "Все {m} держатся — сегодня вы никому не нужны",
   "roster.verdictNeed": "{k} нужны вы — остальные {m} держатся",
   "roster.wkndGap": "ВЫХ −{gap}",

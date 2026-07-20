@@ -1946,17 +1946,27 @@ function useBSProRoster(role) {
       if (!Array.isArray(feed) || !feed.length) return;
       const rows = feed.map((r) => bsRowFromTriage(r, role, t));
       setLive(rows);
-      // Fire one batch weekend-split fetch and merge each client's split as _wknd.
-      // Degrades silently (ShapeRosterWeekend.get always resolves).
+      // Two batch enrichments off the SAME `rows` closure: the weekend split
+      // (_wknd) and the weekly-adherence variance band (_var). They MUST be
+      // merged in ONE setLive — two independent setLive(rows.map(...)) calls
+      // both map the captured `rows`, so whichever resolved second would erase
+      // the other's key. Both degrade silently to an empty map.
       const W = (typeof window !== 'undefined' && window.ShapeRosterWeekend) || null;
-      if (W && W.get) {
-        W.get(rows.map((r) => r.userId)).then((res) => {
-          if (!on) return;
-          const split = (res && res.split) || {};
-          if (!Object.keys(split).length) return;
-          setLive(rows.map((r) => (split[r.userId] ? { ...r, _wknd: split[r.userId] } : r)));
-        }).catch(() => {});
-      }
+      const V = (typeof window !== 'undefined' && window.ShapeRosterVariance) || null;
+      const ids = rows.map((r) => r.userId);
+      Promise.all([
+        W && W.get ? W.get(ids).then((res) => (res && res.split) || {}).catch(() => ({})) : Promise.resolve({}),
+        V && V.get ? V.get(ids).catch(() => ({})) : Promise.resolve({}),
+      ]).then(([split, varMap]) => {
+        if (!on) return;
+        if (!Object.keys(split).length && !Object.keys(varMap).length) return;
+        setLive(rows.map((r) => {
+          const extra = {};
+          if (split[r.userId]) extra._wknd = split[r.userId];
+          if (varMap[r.userId]) extra._var = varMap[r.userId];
+          return Object.keys(extra).length ? { ...r, ...extra } : r;
+        }));
+      }).catch(() => {});
     }).catch(() => {});
     return () => { on = false; };
   }, [role]);
@@ -2121,6 +2131,12 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                       {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
                         <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.RUST, whiteSpace: 'nowrap' }}>{tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) })}</span>
+                      )}
+                      {/* WATCH-tier signal, deliberately NOT the rust FLAG colour —
+                          a variable week-to-week pattern is something to coach, not
+                          a failure. `steady` renders nothing (never-shaming). */}
+                      {c._var && c._var.band === 'variable' && (
+                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.AMBER, whiteSpace: 'nowrap' }}>{tr('coach:roster.variable', { defaultValue: 'VARIABLE' })}</span>
                       )}
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: col, whiteSpace: 'nowrap' }}>{sevWord} · {c.r || sig.label}</span>
                     </div>

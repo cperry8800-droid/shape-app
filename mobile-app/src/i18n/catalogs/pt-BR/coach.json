@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Buscar {count} clientes",
   "roster.show": "MOSTRAR ›",
   "roster.theRoster": "A LISTA",
+  "roster.variable": "VARIÁVEL",
   "roster.verdictAllHolding": "Todos os {m} estáveis — hoje ninguém precisa de você",
   "roster.verdictNeed": "{k} precisam de você — os outros {m} estão estáveis",
   "roster.wkndGap": "FDS −{gap}",

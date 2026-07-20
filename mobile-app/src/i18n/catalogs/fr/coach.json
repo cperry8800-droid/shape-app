@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Rechercher parmi {count} clients",
   "roster.show": "AFFICHER ›",
   "roster.theRoster": "LA LISTE",
+  "roster.variable": "VARIABLE",
   "roster.verdictAllHolding": "Les {m} se maintiennent — personne n'a besoin de vous aujourd'hui",
   "roster.verdictNeed": "{k} ont besoin de vous — les {m} autres se maintiennent",
   "roster.wkndGap": "WEEK-END −{gap}",
