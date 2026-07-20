@@ -6,6 +6,7 @@ import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '..
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
+import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -3497,6 +3498,61 @@ function ProWeekendPlate({ split }) {
   );
 }
 
+// Cycle predicted-window dates are date-only ISO strings ("2026-07-25", the
+// engine's iso()); format short + localized, pinned to UTC so the calendar date
+// never drifts ±1 for a viewer behind UTC. Falls back to the raw string.
+function bsCycleShortDate(isoStr) {
+  try {
+    const d = new Date(`${String(isoStr).slice(0, 10)}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return String(isoStr);
+    const loc = (typeof window !== 'undefined' && window.ShapeI18n && window.ShapeI18n.intlLocale && window.ShapeI18n.intlLocale()) || 'en';
+    return new Intl.DateTimeFormat(loc, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
+  } catch (e) { return String(isoStr); }
+}
+
+// Pure presentational: the current month as a tick row — each day a thin bar, a
+// day the member logged a period start renders as a taller filled heat mark,
+// today carries a faint heat ring. Date-only strings compared as pure calendar
+// dates (parts split, no timezone) so a start "on the 25th" reads on the 25th.
+// `today` is the MEMBER's local calendar date (YYYY-MM-DD, from the definer) —
+// used as calendar-date PARTS, never reinterpreted through a Date's timezone —
+// so the month/today mark match her frame, not the coach's (Codex P2). Falls
+// back to the device date only if absent. Heat-only coloring reads on any paper.
+function BSCycleMonthStrip({ starts, heat, today }) {
+  let y, mo, todayDay;
+  if (typeof today === 'string' && /^\d{4}-\d{2}-\d{2}/.test(today)) {
+    const p = today.slice(0, 10).split('-').map(Number);
+    y = p[0]; mo = p[1]; todayDay = p[2];
+  } else {
+    const now = today instanceof Date ? today : new Date();
+    y = now.getFullYear(); mo = now.getMonth() + 1; todayDay = now.getDate();
+  }
+  const days = new Date(y, mo, 0).getDate();  // days in the current month
+  const startDays = new Set(
+    (Array.isArray(starts) ? starts : [])
+      .map((s) => String(s).slice(0, 10).split('-').map(Number))
+      .filter((p) => p.length === 3 && p[0] === y && p[1] === mo)
+      .map((p) => p[2])
+  );
+  return (
+    <div style={{ display: 'flex', gap: 2, marginTop: 10, alignItems: 'flex-end' }}>
+      {Array.from({ length: days }, (_, i) => {
+        const day = i + 1;
+        const isStart = startDays.has(day);
+        return (
+          <div key={day} style={{
+            flex: 1,
+            height: isStart ? 9 : 3,
+            borderRadius: isStart ? 5 : 2,
+            background: isStart ? heat : `${heat}2a`,
+            boxShadow: day === todayDay ? `0 0 0 1px ${heat}` : 'none',
+          }} />
+        );
+      })}
+    </div>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -3567,14 +3623,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
   const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
+  // THE CYCLE (spec 2026-07-19) — share-gated, derived from the SAME overview
+  // payload (d.cycle) so there's no second roundtrip / duplicate get_client_cycle
+  // RPC. State is set ONLY for { share:true }: null (not my client),
+  // { share:false }, and pre-migration all leave it null → the station renders
+  // NOTHING — absence, never a padlock (a coach can't tell never-opted-in from
+  // not-shared).
+  const [cycleShared, setCycleShared] = useStateBSP(null);
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
-    // client A's care team / sleep on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCareLoaded(false);
+    // client A's care team / sleep / cycle on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setCareLoaded(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setCareLoaded(true); })
       .catch(() => { if (!ignore) setCareLoaded(true); });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -4174,6 +4237,51 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           );
         })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.sleepRedact', { defaultValue: 'SLEEP · RECOVERY · NOT SYNCED' })} /> : emptyNote(tr('coach:case.noRecovery', { defaultValue: 'No recovery data yet' })))}
       </div>
+
+      {/* CYCLE — share-gated (spec 2026-07-19): renders ONLY when the member
+          left sharing on (cycleShared is set only for { share:true }). Phase +
+          timing only — never a symptom read. Absence, never a padlock: nothing
+          renders otherwise, so a coach can't tell never-opted-in from not-shared. */}
+      {cycleShared && (() => {
+        // Derive against the MEMBER's local today (from the definer via
+        // shape_user_tz), never the coach device clock — a coach a calendar day
+        // behind her would otherwise read the wrong day/phase (Codex P2). Falls
+        // back to new Date() only if the RPC predates the today field.
+        const c = bsDeriveCycle(cycleShared.starts, cycleShared.today || new Date());
+        if (!c || c.phase === null) return null;
+        // Enumerated phase labels — NOT a `coach:cycle.phase.${c.phase}` dynamic
+        // key (the resolve-check can't see template keys; the #1759 lesson).
+        let phaseLabel;
+        switch (c.phase) {
+          case 'menstrual': phaseLabel = tr('coach:cycle.phase.menstrual', { defaultValue: 'Menstrual' }); break;
+          case 'follicular': phaseLabel = tr('coach:cycle.phase.follicular', { defaultValue: 'Follicular' }); break;
+          case 'ovulatory': phaseLabel = tr('coach:cycle.phase.ovulatory', { defaultValue: 'Ovulatory' }); break;
+          case 'luteal': phaseLabel = tr('coach:cycle.phase.luteal', { defaultValue: 'Luteal' }); break;
+          case 'paused': phaseLabel = tr('coach:cycle.phase.paused', { defaultValue: 'Predictions paused' }); break;
+          case 'late': phaseLabel = tr('coach:cycle.phase.late', { defaultValue: 'Awaiting next log' }); break;
+          default: return null;
+        }
+        const timing = (c.phase === 'paused' || c.phase === 'late')
+          ? phaseLabel
+          : tr('coach:cycle.phaseDay', { defaultValue: '{phase} · day {day}', phase: phaseLabel, day: c.day });
+        return (
+          <div style={{ marginTop: 22 }}>
+            {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:cycle.head', { defaultValue: 'CYCLE · SHARED BY THE MEMBER' })} />}
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{timing}</div>
+            {c.predictedStart && (
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>
+                {tr('coach:cycle.window', { defaultValue: 'Next period window · {from} – {to}', from: bsCycleShortDate(c.predictedStart.from), to: bsCycleShortDate(c.predictedStart.to) })}
+              </div>
+            )}
+            <BSCycleMonthStrip starts={cycleShared.starts} heat={heat} today={cycleShared.today} />
+            {c.phase === 'luteal' && c.predictedStart && (
+              <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70 }}>
+                {tr('coach:cycle.deload', { defaultValue: 'Week of the {d} is a natural deload window.', d: bsCycleShortDate(c.predictedStart.from) })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ACTIVITY — recent sessions/logs as dot-leader rows. */}
       <div style={{ marginTop: 22 }}>

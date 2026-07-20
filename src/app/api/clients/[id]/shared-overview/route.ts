@@ -182,6 +182,7 @@ export async function GET(
   const [
     { data: goals }, { data: stats }, { data: lifts },
     { data: checkins }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+    { data: cycle },
     { data: programRow },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
@@ -191,6 +192,11 @@ export async function GET(
     supabase.rpc('get_client_measurements', { p_user_id: clientId }),
     supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
     supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
+    // The cycle — share-gated: get_client_cycle gates on is_coach_on_client AND
+    // the member's optIn AND share, all inside the definer (the get_client_goals
+    // precedent above). Returns null / { share:false } / { share:true, starts }
+    // raw; the mobile Case File + PR D's web page derive the phase client-side.
+    supabase.rpc('get_client_cycle', { p_user_id: clientId }),
     // client_programs: coach-readable by RLS — carries the pro-set goals
     // (detail.goals, the Goals-page store) and the program phases.
     supabase.from('client_programs').select('training_phase, nutrition_phase, detail').eq('user_id', clientId).maybeSingle(),
@@ -265,6 +271,7 @@ export async function GET(
     measurements: measurements ?? [],
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,
+    cycle: cycle ?? null,
     coachGoals: Array.isArray(programDetail.goals) ? programDetail.goals : null,
     programPhases: programRow
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
