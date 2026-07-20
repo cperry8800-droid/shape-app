@@ -54,19 +54,36 @@ begin
     from win w,
          generate_series(w.this_week_start - 56, w.this_week_start - 1, interval '1 day') gs
   ),
-  daily_habits as (
-    select a.client_id, count(*) as n_daily
-    from allowed a
-    join public.user_habits h on h.user_id = a.client_id
-      and lower(coalesce(h.cadence,'daily')) in ('daily','everyday') and h.archived_at is null
-    group by a.client_id
+  -- Habit units are scoped PER DAY, not to a current snapshot (review:
+  -- CodeRabbit). A habit added or archived mid-window must only count on the
+  -- days it actually existed: counting today's active set against all 8 weeks
+  -- would inflate `scheduled` across the weeks before a habit existed (and drop
+  -- the weeks an archived one was live), fabricating exactly the week-to-week
+  -- swing this RPC exists to measure.
+  -- created_at/archived_at are timestamptz — compared in the MEMBER's own zone
+  -- so the boundary day matches the day they actually experienced.
+  per_day_habits as (
+    select d.client_id, d.day, count(h.id) as n_daily
+    from days d
+    join public.user_habits h
+      on h.user_id = d.client_id
+     and lower(coalesce(h.cadence,'daily')) in ('daily','everyday')
+     and (h.created_at at time zone d.zone)::date <= d.day
+     and (h.archived_at is null or (h.archived_at at time zone d.zone)::date > d.day)
+    group by d.client_id, d.day
   ),
   completions as (
     select uh.user_id, uhc.done_on, count(*) as done
     from public.user_habit_completions uhc
     join public.user_habits uh on uh.id = uhc.habit_id
-      and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday') and uh.archived_at is null
+      and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday')
+    join tz z on z.client_id = uh.user_id
     where uh.user_id in (select a.client_id from allowed a)
+      -- the SAME active-on-that-day window as the scheduled side: a completion
+      -- must never outlive its habit's scheduled units, or least() below would
+      -- silently discard it and under-report that day.
+      and (uh.created_at at time zone z.zone)::date <= uhc.done_on
+      and (uh.archived_at is null or (uh.archived_at at time zone z.zone)::date > uhc.done_on)
     group by uh.user_id, uhc.done_on
   ),
   per_day as (
@@ -79,7 +96,7 @@ begin
       1                                                                         as nutrition_sched,
       case when coalesce(s.protein_g, 0) >= 10 then 1 else 0 end                as nutrition_done
     from days d
-    left join daily_habits dh on dh.client_id = d.client_id
+    left join per_day_habits dh on dh.client_id = d.client_id and dh.day = d.day
     left join completions c on c.user_id = d.client_id and c.done_on = d.day
     -- EXISTS, not a join: several workout rows on one date must not fan per_day
     -- out and multiply the habit/nutrition units.

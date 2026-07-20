@@ -718,6 +718,20 @@ changelog whenever something ships.
   within **±1 day**. Scheduled = a `client_workouts` row on that day with
   **`status = 'published'`** (the accountability cron's filter). The band and the
   penalty engine therefore cannot disagree about what "done" means.
+- **⚠ Habit units are scoped PER DAY, not to a current snapshot** (CodeRabbit
+  Major, real). The first cut counted **today's** active daily habits against
+  **every** day in the 8-week window, so adding one habit two weeks ago inflated
+  `scheduled` across the six weeks before it existed — and an archived habit
+  (filtered by `archived_at is null`) vanished from the weeks it *was* live.
+  Both directions **fabricate the very week-to-week swing the band measures**.
+  Both the scheduled and completed sides now gate on
+  `created_at <= day AND (archived_at is null OR archived_at > day)`, compared in
+  the **member's own zone** so the boundary day is the one they experienced —
+  and both use the SAME window, or `least()` would silently discard a completion
+  whose habit no longer counted as scheduled. Proven with a synthetic
+  seven-day/three-habit fixture: an always-on habit counts every day, one created
+  mid-window counts only from its creation day, one archived mid-window stops on
+  its archive day.
 - **RPC hardening:** SECURITY DEFINER with `search_path = public, pg_temp`; every
   client gated through the caller's own **active subscription** (unauthorized or
   nonexistent ids are simply **ABSENT** — fail-closed and indistinguishable);
