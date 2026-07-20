@@ -152,9 +152,27 @@ test('coach payload carries the base contract PLUS per-set load/reps/rpe', () =>
   assert.ok(bsValidLiveCoachPayload(c), 'builder output must validate');
 });
 
+// ⚠ The session player PRE-FILLS setInputs for EVERY set from the prescription
+// (buildSetInputs seeds m.l / m.reps / m.rpe||'8'), so "has a value" cannot mean
+// "the athlete logged it". Only `done` distinguishes a fact from a plan — and the
+// coach grid renders any non-empty figure as a real live result, so serializing a
+// prefill would show a coach numbers the athlete never lifted (review: Codex).
+test('coach payload: an UNDONE set never leaks its prescription prefill', () => {
+  const prefilled = {
+    '0-0': { load: '225', reps: '5', rpe: '8' },   // done → a fact
+    '0-1': { load: '225', reps: '5', rpe: '8' },   // NOT done → planned default
+    '0-2': { load: '225', reps: '5', rpe: '8' },   // NOT done → planned default
+  };
+  const built = bsLiveCoachPayload([{ m: 'Deadlift', sets: 3 }], { '0-0': true }, 0, false, prefilled);
+  assert.deepEqual(built.exercises[0].sets[0], { load: '225', reps: '5', rpe: '8', done: true });
+  assert.deepEqual(built.exercises[0].sets[1], { load: '', reps: '', rpe: '', done: false });
+  assert.deepEqual(built.exercises[0].sets[2], { load: '', reps: '', rpe: '', done: false });
+  assert.ok(bsValidLiveCoachPayload(built), 'the gated payload must still validate');
+});
+
 test('coach payload: builder clamps long strings, the WIRE rejects them', () => {
   const long = { '0-0': { load: 'x'.repeat(40), reps: '8', rpe: '7' } };
-  const built = bsLiveCoachPayload([{ m: 'Squat', sets: 1 }], {}, 0, false, long);
+  const built = bsLiveCoachPayload([{ m: 'Squat', sets: 1 }], { '0-0': true }, 0, false, long);
   assert.equal(built.exercises[0].sets[0].load.length, 12);   // builder is courteous
   assert.ok(bsValidLiveCoachPayload(built));
   // hand-built wire data gets NO courtesy

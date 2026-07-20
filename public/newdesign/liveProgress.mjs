@@ -84,9 +84,17 @@ export function bsLiveCoachPayload(moves, completed, moveIdx, resting, setInputs
     const sets = [];
     for (let s = 0; s < n; s++) {
       const src = inputs[`${i}-${s}`] || {};
-      // An un-entered set is honest-absent ('' → the consumer renders '—'),
-      // never a fabricated figure.
-      sets.push({ load: setStr(src.load), reps: setStr(src.reps), rpe: setStr(src.rpe), done: !!done[`${i}-${s}`] });
+      const isDone = !!done[`${i}-${s}`];
+      // ⚠ BSSession PRE-FILLS setInputs for EVERY set from the PRESCRIPTION
+      // (buildSetInputs seeds m.l / m.reps / m.rpe||'8'), so an untouched set
+      // already carries planned figures that are indistinguishable here from
+      // typed ones. Serializing those would show the coach a PLAN as if it
+      // were a FACT — fabrication, the one thing this channel must never do.
+      // Actuals therefore ride only once the set is marked done; until then
+      // the cell is honest-absent ('' → the consumer renders '—').
+      sets.push(isDone
+        ? { load: setStr(src.load), reps: setStr(src.reps), rpe: setStr(src.rpe), done: true }
+        : { load: '', reps: '', rpe: '', done: false });
     }
     return { ...e, sets };
   });

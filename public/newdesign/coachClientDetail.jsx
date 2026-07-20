@@ -66,12 +66,19 @@ function CKLiveStation({ clientId, accent }) {
       // actively clears at the first re-check.
       db.from("user_activity_live_coach").select("payload, started_at, updated_at, expires_at")
         .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle()
-        .then((res) => { if (on) take((res && !res.error && res.data) || null, false); })
+        .then((res) => { if (on) take((res && !res.error && res.data) || null, "refetch"); })
         .catch(() => { if (on) setCoachRow(null); });
     };
-    const take = (r, fromEvent) => {
+    // `src`: "init" | "event" | "refetch". The evented guard exists ONLY to stop
+    // the slow initial read from clobbering a realtime event that landed first
+    // (TOCTOU). A "refetch" is the expiry/revocation re-check and is
+    // AUTHORITATIVE — it must be able to clear a row that arrived by event, or
+    // a revoked coach's loads stay on screen. In the private-member case there
+    // is no public row to drive an unrelated re-render and hide the bug.
+    const take = (r, src) => {
       if (!on) return;
-      if (fromEvent) evented = true; else if (evented) return;
+      if (src === "event") evented = true;
+      else if (src === "init" && evented) return;
       const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
       if (r && !(expMs > 0)) r = null;
       setCoachRow(r);
@@ -86,8 +93,8 @@ function CKLiveStation({ clientId, accent }) {
           .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live_coach", filter: `user_id=eq.${clientId}` },
             (p) => {
               try {
-                if (p.eventType === "DELETE") { if (mine(p.old)) take(null, true); return; }
-                if (mine(p.new)) take(p.new, true);
+                if (p.eventType === "DELETE") { if (mine(p.old)) take(null, "event"); return; }
+                if (mine(p.new)) take(p.new, "event");
               } catch (e) { console.warn("[shape] live coach: bad realtime payload", e); }
             })
           .subscribe((status, err) => {
@@ -103,7 +110,7 @@ function CKLiveStation({ clientId, accent }) {
           .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle();
         // Pre-migration the table doesn't exist — degrade quietly to no coach row.
         if (res && res.error) return;
-        take((res && res.data) || null, false);
+        take((res && res.data) || null, "init");
       } catch (e) { /* absent table / network — the public row still drives */ }
     })();
     return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
