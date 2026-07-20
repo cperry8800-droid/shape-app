@@ -43,6 +43,12 @@ function toEpoch(now) {
 function numOf(v) { try { return Number(v); } catch (e) { return NaN; } }
 function timeOf(v) { try { return Date.parse(v); } catch (e) { return NaN; } }
 
+// Tie-breaks compare by CODE UNIT, not localeCompare(): the (starts_at, id)
+// ordering is a cross-surface contract, and locale collation varies by the
+// runtime's locale/ICU build — two devices could order the same schedule
+// differently (review: CodeRabbit). Code units are identical everywhere.
+function idCmp(a, b) { const x = String(a.id), y = String(b.id); return x < y ? -1 : x > y ? 1 : 0; }
+
 export function bsSetsWindow(now) {
   let base = toEpoch(now);
   // A finite but extreme epoch can push an edge out of Date range even though
@@ -75,10 +81,10 @@ export function bsSetsNow(rows, now) {
       && Number.isFinite(s + d * 60000);
   }).map((r) => ({ ...r, _s: timeOf(r.starts_at), _e: timeOf(r.starts_at) + numOf(r.duration_min) * 60000 }));
   const liveCands = clean.filter((r) => r._s <= t && t < r._e);
-  liveCands.sort((a, b) => b._s - a._s || String(a.id).localeCompare(String(b.id)));
+  liveCands.sort((a, b) => b._s - a._s || idCmp(a, b));
   out.live = liveCands[0] || null;
   const future = clean.filter((r) => r._s > t);
-  future.sort((a, b) => a._s - b._s || String(a.id).localeCompare(String(b.id)));
+  future.sort((a, b) => a._s - b._s || idCmp(a, b));
   out.next = future[0] || null;
   out.upcoming = future.filter((r) => r._s <= t + WEEK_MS).slice(0, CAP);
   return out;
