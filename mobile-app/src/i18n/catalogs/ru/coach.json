@@ -344,7 +344,7 @@
   "common.weekOf": " · Неделя {week} из {weeks}",
   "common.yes": "ДА",
   "common.yourCoach": "Ваш тренер",
-  "cycle.head": "ЦИКЛ · ПОДЕЛИЛАСЬ УЧАСТНИЦА",
+  "cycle.head": "ЦИКЛ · ПОДЕЛЕН УЧАСТНИЦЕЙ",
   "cycle.phaseDay": "{phase} · день {day}",
   "cycle.window": "Следующее окно менструации · {from} – {to}",
   "cycle.deload": "Неделя с {d} — естественное окно разгрузки.",

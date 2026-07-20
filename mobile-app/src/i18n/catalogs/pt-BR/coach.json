@@ -344,7 +344,7 @@
   "common.weekOf": " · Semana {week} de {weeks}",
   "common.yes": "SIM",
   "common.yourCoach": "Seu coach",
-  "cycle.head": "CICLO · COMPARTILHADO PELA MEMBRO",
+  "cycle.head": "CICLO · COMPARTILHADO PELO MEMBRO",
   "cycle.phaseDay": "{phase} · dia {day}",
   "cycle.window": "Próxima janela menstrual · {from} – {to}",
   "cycle.deload": "A semana de {d} é uma janela natural de descarga.",

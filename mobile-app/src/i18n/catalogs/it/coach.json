@@ -344,7 +344,7 @@
   "common.weekOf": " · Settimana {week} di {weeks}",
   "common.yes": "SÌ",
   "common.yourCoach": "Il tuo coach",
-  "cycle.head": "CICLO · CONDIVISO DALLA MEMBRO",
+  "cycle.head": "CICLO · CONDIVISO DAL MEMBRO",
   "cycle.phaseDay": "{phase} · giorno {day}",
   "cycle.window": "Prossima finestra mestruale · {from} – {to}",
   "cycle.deload": "La settimana del {d} è una naturale finestra di scarico.",

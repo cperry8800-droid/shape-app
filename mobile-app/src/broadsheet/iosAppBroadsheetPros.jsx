@@ -3616,14 +3616,21 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
   const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
+  // THE CYCLE (spec 2026-07-19) — share-gated, derived from the SAME overview
+  // payload (d.cycle) so there's no second roundtrip / duplicate get_client_cycle
+  // RPC. State is set ONLY for { share:true }: null (not my client),
+  // { share:false }, and pre-migration all leave it null → the station renders
+  // NOTHING — absence, never a padlock (a coach can't tell never-opted-in from
+  // not-shared).
+  const [cycleShared, setCycleShared] = useStateBSP(null);
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
-    // client A's care team / sleep on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCareLoaded(false);
+    // client A's care team / sleep / cycle on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setCareLoaded(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts } : null); setCareLoaded(true); })
       .catch(() => { if (!ignore) setCareLoaded(true); });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -3663,22 +3670,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     ]).then(([checkins, health, meas]) => { if (on) setCKit({ checkins: checkins || [], health: health || null, meas: meas || [] }); }).catch(() => {});
     return () => { on = false; };
   }, [clientUid]);
-  // THE CYCLE (spec 2026-07-19) — share-gated coach read. State exists ONLY
-  // when the definer returned { share:true }: null (not my client),
-  // { share:false }, and pre-migration all leave it null, so the station
-  // renders NOTHING — absence, never a padlock (a coach must not be able to
-  // distinguish never-opted-in from not-shared).
-  const [cycleShared, setCycleShared] = useStateBSP(null);
-  useEffectBSP(() => {
-    setCycleShared(null);
-    if (!clientUid || !window.ShapeCycle?.forClient) return undefined;
-    let on = true;
-    window.ShapeCycle.forClient(clientUid)
-      .then((r) => { if (on && r && r.share === true && Array.isArray(r.starts)) setCycleShared({ starts: r.starts }); })
-      .catch(() => {});
-    return () => { on = false; };
-  }, [clientUid]);
-
   // Accountability penalties (coach read) — recent, un-waived, for the Waive affordance.
   const [pens, setPens] = useStateBSP([]);
   const loadPens = () => {
