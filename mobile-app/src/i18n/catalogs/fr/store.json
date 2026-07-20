@@ -82,5 +82,22 @@
   "notice.redeemFailed": "L’échange a échoué. Réessayez.",
   "notice.orderPlaced": "Commande passée — {n, plural, one {# article} other {# articles}} en route. Les codes sont dans votre casier et par e-mail.",
   "notice.cartShort": "Pas assez de points pour le panier — retirez un article ou gagnez-en plus.",
-  "notice.checkoutFailed": "Le paiement a échoué. Réessayez."
+  "notice.checkoutFailed": "Le paiement a échoué. Réessayez.",
+  "unlocked.head": "Débloqué · {count, plural, one {# récompense} other {# récompenses}} · gratuit",
+  "unlocked.earnedAt": "Obtenu au niveau {tier}",
+  "unlocked.claim": "Réclamer · gratuit",
+  "unlocked.claiming": "Réclamation…",
+  "unlocked.pickOne": "Choisis-en un",
+  "unlocked.eyebrow": "Débloqué",
+  "unlocked.shipTitleA": "Où doit-on",
+  "unlocked.shipTitleB": "l'envoyer ?",
+  "unlocked.shipBlurb": "Tu l'as obtenu au niveau {tier}. Ça ne coûte rien — il nous faut juste une adresse.",
+  "unlocked.confirmShip": "Le réclamer · gratuit",
+  "unlocked.claimedShip": "{name} est en route — code {code}. Gratuit, obtenu à ton niveau.",
+  "unlocked.claimedVoucher": "{name} est à toi — code {code}. Montre-le à ton coach ou à l'équipe Shape.",
+  "unlocked.alreadyClaimed": "Tu l'as déjà réclamé — il est dans ton casier.",
+  "unlocked.notUnlocked": "Cette récompense n'est pas encore débloquée.",
+  "unlocked.needsShipping": "Il nous faut une adresse de livraison complète pour l'envoyer.",
+  "unlocked.badChoice": "Choisis l'une des options affichées.",
+  "unlocked.claimFailed": "Impossible de réclamer. Réessaie."
 }

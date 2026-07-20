@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Đổi không thành công. Vui lòng thử lại.",
   "notice.orderPlaced": "Đã đặt hàng — {n, plural, one {# món} other {# món}} đang trên đường. Mã ở trong tủ đồ và email của bạn.",
   "notice.cartShort": "Không đủ điểm cho giỏ hàng — bớt một món hoặc kiếm thêm.",
-  "notice.checkoutFailed": "Thanh toán không thành công. Vui lòng thử lại."
+  "notice.checkoutFailed": "Thanh toán không thành công. Vui lòng thử lại.",
+  "unlocked.head": "Đã mở khóa · {count, plural, other {# phần thưởng}} · miễn phí",
+  "unlocked.earnedAt": "Đạt được ở {tier}",
+  "unlocked.claim": "Nhận · miễn phí",
+  "unlocked.claiming": "Đang nhận…",
+  "unlocked.pickOne": "Chọn một",
+  "unlocked.eyebrow": "Đã mở khóa",
+  "unlocked.shipTitleA": "Gửi đến",
+  "unlocked.shipTitleB": "đâu nhỉ?",
+  "unlocked.shipBlurb": "Bạn đạt được ở {tier}. Hoàn toàn miễn phí — chỉ cần một địa chỉ.",
+  "unlocked.confirmShip": "Nhận · miễn phí",
+  "unlocked.claimedShip": "{name} đang trên đường — mã {code}. Miễn phí, do hạng của bạn.",
+  "unlocked.claimedVoucher": "{name} là của bạn — mã {code}. Đưa cho coach hoặc đội ngũ Shape.",
+  "unlocked.alreadyClaimed": "Bạn đã nhận phần đó rồi — nó nằm trong tủ của bạn.",
+  "unlocked.notUnlocked": "Phần thưởng đó chưa được mở khóa.",
+  "unlocked.needsShipping": "Chúng tôi cần địa chỉ giao hàng đầy đủ để gửi.",
+  "unlocked.badChoice": "Hãy chọn một trong các lựa chọn hiển thị.",
+  "unlocked.claimFailed": "Không nhận được. Vui lòng thử lại."
 }

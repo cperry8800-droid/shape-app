@@ -82,5 +82,22 @@
   "notice.redeemFailed": "O resgate falhou. Tente novamente.",
   "notice.orderPlaced": "Pedido feito — {n, plural, one {# item} other {# itens}} a caminho. Os códigos estão no seu armário e e-mail.",
   "notice.cartShort": "Pontos insuficientes para o carrinho — remova um item ou ganhe mais.",
-  "notice.checkoutFailed": "O pagamento falhou. Tente novamente."
+  "notice.checkoutFailed": "O pagamento falhou. Tente novamente.",
+  "unlocked.head": "Desbloqueado · {count, plural, one {# recompensa} other {# recompensas}} · grátis",
+  "unlocked.earnedAt": "Conquistado no {tier}",
+  "unlocked.claim": "Resgatar · grátis",
+  "unlocked.claiming": "Resgatando…",
+  "unlocked.pickOne": "Escolha um",
+  "unlocked.eyebrow": "Desbloqueado",
+  "unlocked.shipTitleA": "Para onde",
+  "unlocked.shipTitleB": "enviamos?",
+  "unlocked.shipBlurb": "Você conquistou isso no {tier}. Não custa nada — só precisamos de um endereço.",
+  "unlocked.confirmShip": "Resgatar · grátis",
+  "unlocked.claimedShip": "{name} está a caminho — código {code}. Grátis, conquistado no seu nível.",
+  "unlocked.claimedVoucher": "{name} é seu — código {code}. Mostre ao seu coach ou à equipe Shape.",
+  "unlocked.alreadyClaimed": "Você já resgatou esse — está no seu armário.",
+  "unlocked.notUnlocked": "Essa recompensa ainda não foi desbloqueada.",
+  "unlocked.needsShipping": "Precisamos de um endereço de entrega completo para enviar.",
+  "unlocked.badChoice": "Escolha uma das opções mostradas.",
+  "unlocked.claimFailed": "Não foi possível resgatar. Tente de novo."
 }

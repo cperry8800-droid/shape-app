@@ -15836,19 +15836,28 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 // ME — masthead profile
 // ═══════════════════════════════════════════════════════════
 const SHAPE_SCORE_TIERS = [
+  // Every perk here is a REAL unlock a member claims for free in the Shape Store
+  // (2026-07-20-tier-rewards.sql grants it; claim_tier_reward ships it). The old
+  // copy named mechanics that were never built — early access, priority booking,
+  // a free intro — and is deliberately gone. Do not add a perk here that nothing
+  // grants.
   { name: 'Raw', range: '0+', perk: 'Starting level' },
-  { name: 'Tempo', range: '750+', perk: 'Limited drops unlock' },
-  { name: 'Form', range: '2,000+', perk: 'Early access drops + streak boosts' },
-  { name: 'Peak', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
-  { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
+  { name: 'Tempo', range: '750+', perk: 'Free cap + bottle or canteen' },
+  { name: 'Form', range: '2,000+', perk: 'Free coach workout or plan' },
+  { name: 'Peak', range: '5,000+', perk: 'A free month with a coach' },
+  { name: 'Legend', range: '15,000+', perk: 'A free year of Shape + merch' },
 ];
 // Coaches climb the same 5 rungs under their own names (scheme J).
 const SHAPE_SCORE_TIERS_COACH = [
+  // The coach ladder shares the client thresholds AND the same grant —
+  // award_tier_bonuses() writes tier_rewards by points, not by role — so a coach
+  // unlocks the same free things. The copy says so rather than naming marketplace
+  // mechanics (priority in search, featured placement) that nothing implements.
   { name: 'Certified', range: '0+', perk: 'Starting level' },
-  { name: 'Pro', range: '750+', perk: 'Priority in search' },
-  { name: 'Elite', range: '2,000+', perk: 'Early access drops + streak boosts' },
-  { name: 'Master', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
-  { name: 'Icon', range: '15,000+', perk: 'Annual Shape merch + service credit' },
+  { name: 'Pro', range: '750+', perk: 'Free cap + bottle or canteen' },
+  { name: 'Elite', range: '2,000+', perk: 'Free coach workout or plan' },
+  { name: 'Master', range: '5,000+', perk: 'A free month with a coach' },
+  { name: 'Icon', range: '15,000+', perk: 'A free year of Shape + merch' },
 ];
 
 // Per-tier accent colors — a cool→warm→premium progression. Used wherever a
@@ -21284,10 +21293,19 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const cartTotal = cartLines.reduce((s, l) => s + l.p.cost * l.qty, 0);
   const addToCart = (p) => setCart((c) => ({ ...c, [p.id]: Math.min(9, (c[p.id] || 0) + 1) }));
   const setQty = (id, qty) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = Math.min(9, qty); return n; });
+  // Tier rewards — the free unlocks the ladder earned. Claims write a 0-point
+  // redemption, so a claimed reward shows up in the locker with everything else.
+  const [tierRewards, setTierRewards] = useStateBSC([]);
+  const [claimKey, setClaimKey] = useStateBSC('');     // reward mid-claim (busy)
+  const [shipFor, setShipFor] = useStateBSC(null);     // { reward, choice } awaiting an address
   const reloadStore = React.useCallback(async () => {
     try {
       const d = window.ShapeStore ? await window.ShapeStore.get() : null;
       if (d) setStore({ balance: typeof d.balance === 'number' ? d.balance : null, redemptions: Array.isArray(d.redemptions) ? d.redemptions : [], credit: (d.credit && typeof d.credit === 'object') ? d.credit : { session: 0, nutrition: 0 } });
+    } catch (e) {}
+    try {
+      const rs = window.ShapeTierRewards ? await window.ShapeTierRewards.list() : null;
+      if (Array.isArray(rs)) setTierRewards(rs);
     } catch (e) {}
   }, []);
   // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
@@ -21401,6 +21419,42 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     }
   }
 
+  // Claim a free tier reward. Merch needs an address first (the server rejects
+  // a shipped reward without one); a voucher claims straight through.
+  async function claimReward(reward, choice, shipping) {
+    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (claimKey) return;
+    const needsShip = reward.kind === 'merch';
+    if (needsShip && !shipping) { setShipFor({ reward, choice }); setNotice(''); return; }
+    setClaimKey(reward.rewardKey); setNotice('');
+    try {
+      const d = await window.ShapeTierRewards.claim(reward.rewardKey, choice, needsShip ? shipping : null);
+      setShipFor(null);
+      setNotice(needsShip
+        ? tr('store:unlocked.claimedShip', { name: d.name || reward.name, code: d.code, defaultValue: '{name} is on its way — code {code}. Free, earned at your tier.' })
+        : tr('store:unlocked.claimedVoucher', { name: d.name || reward.name, code: d.code, defaultValue: '{name} is yours — code {code}. Show it to your coach or the Shape team.' }));
+      await reloadStore();
+    } catch (e) {
+      const m = String((e && e.message) || '');
+      if (m.includes('already_claimed')) setNotice(tr('store:unlocked.alreadyClaimed', { defaultValue: 'You already claimed that one — it is in your locker.' }));
+      else if (m.includes('not_unlocked')) setNotice(tr('store:unlocked.notUnlocked', { defaultValue: 'That reward is not unlocked yet.' }));
+      else if (m.includes('needs_shipping')) setNotice(tr('store:unlocked.needsShipping', { defaultValue: 'We need a full shipping address to send that.' }));
+      else if (m.includes('bad_choice')) setNotice(tr('store:unlocked.badChoice', { defaultValue: 'Pick one of the options shown.' }));
+      else if (m.includes('membership_required')) setNotice(tr('store:notice.memberRequired', { defaultValue: 'Become a Shape member to redeem your points.' }));
+      else setNotice(tr('store:unlocked.claimFailed', { defaultValue: 'Could not claim that. Please try again.' }));
+      if (m.includes('already_claimed') || m.includes('not_unlocked')) { setShipFor(null); await reloadStore(); }
+    } finally {
+      setClaimKey('');
+    }
+  }
+
+  // Address screen for a claimed piece of merch.
+  if (shipFor) {
+    return <BSTierClaimShip t={t} reward={shipFor.reward} busy={!!claimKey} notice={notice}
+      onBack={() => { setShipFor(null); setNotice(''); }}
+      onConfirm={(ship) => claimReward(shipFor.reward, shipFor.choice, ship)} />;
+  }
+
   // The cart checkout is its own full-screen view.
   if (checkoutOpen) {
     return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
@@ -21427,6 +21481,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         <span aria-hidden style={dotLead} />
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color: teal, whiteSpace: 'nowrap' }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</span>
       </div>
+
+      {/* THE UNLOCKED SHELF — free rewards the ladder earned, above the paid
+          catalogue because they cost nothing. Renders only when something is
+          unclaimed. */}
+      <BSTierRewardShelf t={t} tr={tr} teal={teal} rewards={tierRewards} busyKey={claimKey} onClaim={(r, pick) => claimReward(r, pick, null)} />
 
       {/* Category index (typographic) + Within-balance toggle */}
       <div className="bs-hide-scroll" style={{ display: 'flex', gap: 14, padding: `12px ${t.padX}px 0`, overflowX: 'auto', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>

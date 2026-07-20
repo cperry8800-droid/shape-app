@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Обмін не вдався. Спробуйте ще раз.",
   "notice.orderPlaced": "Замовлення оформлено — {n, plural, one {# товар} few {# товари} many {# товарів} other {# товарів}} у дорозі. Коди у вашій шафці та на пошті.",
   "notice.cartShort": "Недостатньо балів для кошика — приберіть товар або заробіть ще.",
-  "notice.checkoutFailed": "Оплата не вдалася. Спробуйте ще раз."
+  "notice.checkoutFailed": "Оплата не вдалася. Спробуйте ще раз.",
+  "unlocked.head": "Відкрито · {count, plural, one {# нагорода} few {# нагороди} many {# нагород} other {# нагороди}} · безкоштовно",
+  "unlocked.earnedAt": "Отримано на рівні {tier}",
+  "unlocked.claim": "Забрати · безкоштовно",
+  "unlocked.claiming": "Забираємо…",
+  "unlocked.pickOne": "Обери одне",
+  "unlocked.eyebrow": "Відкрито",
+  "unlocked.shipTitleA": "Куди це",
+  "unlocked.shipTitleB": "надіслати?",
+  "unlocked.shipBlurb": "Ти отримав це на рівні {tier}. Це безкоштовно — потрібна лише адреса.",
+  "unlocked.confirmShip": "Забрати безкоштовно",
+  "unlocked.claimedShip": "{name} уже в дорозі — код {code}. Безкоштовно, зароблено твоїм рівнем.",
+  "unlocked.claimedVoucher": "{name} твій — код {code}. Покажи його тренеру або команді Shape.",
+  "unlocked.alreadyClaimed": "Ти вже забрав це — воно у твоїй шафці.",
+  "unlocked.notUnlocked": "Цю нагороду ще не відкрито.",
+  "unlocked.needsShipping": "Щоб надіслати, потрібна повна адреса доставки.",
+  "unlocked.badChoice": "Обери один із показаних варіантів.",
+  "unlocked.claimFailed": "Не вдалося забрати. Спробуй ще раз."
 }

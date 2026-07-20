@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Penukaran gagal. Silakan coba lagi.",
   "notice.orderPlaced": "Pesanan dibuat — {n, plural, one {# item} other {# item}} sedang dikirim. Kode ada di loker dan email kamu.",
   "notice.cartShort": "Poin tidak cukup untuk keranjang — hapus satu item atau kumpulkan lebih banyak.",
-  "notice.checkoutFailed": "Pembayaran gagal. Silakan coba lagi."
+  "notice.checkoutFailed": "Pembayaran gagal. Silakan coba lagi.",
+  "unlocked.head": "Terbuka · {count, plural, other {# hadiah}} · gratis",
+  "unlocked.earnedAt": "Didapat di {tier}",
+  "unlocked.claim": "Ambil · gratis",
+  "unlocked.claiming": "Mengambil…",
+  "unlocked.pickOne": "Pilih satu",
+  "unlocked.eyebrow": "Terbuka",
+  "unlocked.shipTitleA": "Ke mana kami",
+  "unlocked.shipTitleB": "kirim ini?",
+  "unlocked.shipBlurb": "Kamu mendapatkannya di {tier}. Gratis — kami cuma butuh alamat.",
+  "unlocked.confirmShip": "Ambil · gratis",
+  "unlocked.claimedShip": "{name} sedang dikirim — kode {code}. Gratis, hasil tingkatmu.",
+  "unlocked.claimedVoucher": "{name} jadi milikmu — kode {code}. Tunjukkan ke coach atau tim Shape.",
+  "unlocked.alreadyClaimed": "Kamu sudah mengambil yang itu — ada di lokermu.",
+  "unlocked.notUnlocked": "Hadiah itu belum terbuka.",
+  "unlocked.needsShipping": "Kami butuh alamat pengiriman lengkap untuk mengirimnya.",
+  "unlocked.badChoice": "Pilih salah satu opsi yang ditampilkan.",
+  "unlocked.claimFailed": "Tidak bisa mengambilnya. Coba lagi."
 }

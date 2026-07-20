@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Redemption failed. Please try again.",
   "notice.orderPlaced": "Order placed — {n, plural, one {# item} other {# items}} on the way. Codes are in your locker + email.",
   "notice.cartShort": "Not enough points to cover the cart — remove an item or earn more.",
-  "notice.checkoutFailed": "Checkout failed. Please try again."
+  "notice.checkoutFailed": "Checkout failed. Please try again.",
+  "unlocked.head": "Unlocked · {count, plural, one {# reward} other {# rewards}} · free",
+  "unlocked.earnedAt": "Earned at {tier}",
+  "unlocked.claim": "Claim · free",
+  "unlocked.claiming": "Claiming…",
+  "unlocked.pickOne": "Pick one",
+  "unlocked.eyebrow": "Unlocked",
+  "unlocked.shipTitleA": "Where do we",
+  "unlocked.shipTitleB": "send it?",
+  "unlocked.shipBlurb": "You earned this at {tier}. It costs nothing — we just need an address.",
+  "unlocked.confirmShip": "Claim it · free",
+  "unlocked.claimedShip": "{name} is on its way — code {code}. Free, earned at your tier.",
+  "unlocked.claimedVoucher": "{name} is yours — code {code}. Show it to your coach or the Shape team.",
+  "unlocked.alreadyClaimed": "You already claimed that one — it is in your locker.",
+  "unlocked.notUnlocked": "That reward is not unlocked yet.",
+  "unlocked.needsShipping": "We need a full shipping address to send that.",
+  "unlocked.badChoice": "Pick one of the options shown.",
+  "unlocked.claimFailed": "Could not claim that. Please try again."
 }

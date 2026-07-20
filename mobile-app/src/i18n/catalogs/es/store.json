@@ -82,5 +82,22 @@
   "notice.redeemFailed": "El canje falló. Inténtalo de nuevo.",
   "notice.orderPlaced": "Pedido realizado — {n, plural, one {# artículo} other {# artículos}} en camino. Los códigos están en tu casillero y correo.",
   "notice.cartShort": "No tienes puntos suficientes para el carrito — quita un artículo o gana más.",
-  "notice.checkoutFailed": "El pago falló. Inténtalo de nuevo."
+  "notice.checkoutFailed": "El pago falló. Inténtalo de nuevo.",
+  "unlocked.head": "Desbloqueado · {count, plural, one {# recompensa} other {# recompensas}} · gratis",
+  "unlocked.earnedAt": "Ganado en {tier}",
+  "unlocked.claim": "Reclamar · gratis",
+  "unlocked.claiming": "Reclamando…",
+  "unlocked.pickOne": "Elige uno",
+  "unlocked.eyebrow": "Desbloqueado",
+  "unlocked.shipTitleA": "¿A dónde lo",
+  "unlocked.shipTitleB": "enviamos?",
+  "unlocked.shipBlurb": "Lo ganaste en {tier}. No cuesta nada — solo necesitamos una dirección.",
+  "unlocked.confirmShip": "Reclamarlo · gratis",
+  "unlocked.claimedShip": "{name} va en camino — código {code}. Gratis, ganado en tu nivel.",
+  "unlocked.claimedVoucher": "{name} es tuyo — código {code}. Muéstraselo a tu coach o al equipo de Shape.",
+  "unlocked.alreadyClaimed": "Ya reclamaste ese — está en tu casillero.",
+  "unlocked.notUnlocked": "Esa recompensa aún no está desbloqueada.",
+  "unlocked.needsShipping": "Necesitamos una dirección de envío completa para enviarlo.",
+  "unlocked.badChoice": "Elige una de las opciones mostradas.",
+  "unlocked.claimFailed": "No se pudo reclamar. Inténtalo de nuevo."
 }
