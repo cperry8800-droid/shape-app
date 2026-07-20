@@ -162,6 +162,64 @@ function RadioPitch() {
   );
 }
 
+// COMING UP — the real broadcast schedule (spec 2026-07-19), read straight from
+// the public-read nora_sets table. Schedule ONLY: the website has no stream
+// player, so v1 deliberately carries no LIVE badge and nothing to tune — a
+// scheduled row is not a broadcast, and the site can't honor a tune action.
+// Times follow the visitor's browser locale (the site is not i18n'd).
+// Degrades to nothing if the loaders/module/table aren't there yet.
+function RdSetsComingUp() {
+  const [rows, setRows] = React.useState(null);   // null = still loading → render nothing
+  React.useEffect(() => {
+    let on = true;
+    const db = window.shapeDb && window.shapeDb.client;
+    const lib = window.ShapeSetsLib;
+    if (!db || !lib || !lib.bsSetsNow) { setRows([]); return undefined; }
+    // Same window + no row limit as the app: a limit could truncate away the
+    // set that is on air, and the window is already the bound. The 6h lookback
+    // is the schema's 360-minute duration cap.
+    const from = new Date(Date.now() - 360 * 60000).toISOString();
+    const to = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    db.from("nora_sets").select("*").eq("published", true)
+      .gte("starts_at", from).lte("starts_at", to)
+      .order("starts_at", { ascending: true })
+      .then((res) => {
+        if (!on) return;
+        const data = res && !res.error && Array.isArray(res.data) ? res.data : [];
+        // UPCOMING ONLY — deliberately no live/"Now" row. The website has no
+        // player and no stream gate, so marking a set as on air here would
+        // claim a broadcast the page cannot support (and would say it even on
+        // the mock provider). A set already under way simply isn't "coming up".
+        setRows(lib.bsSetsNow(data, Date.now()).upcoming);
+      })
+      .catch(() => { if (on) setRows([]); });
+    return () => { on = false; };
+  }, []);
+  if (rows === null) return null;
+  const fmt = (iso) => {
+    const d = new Date(iso);
+    if (!isFinite(d.getTime())) return "";
+    try { return new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }).format(d); }
+    catch (e) { return ""; }
+  };
+  return (
+    <div style={{ marginTop: 40, textAlign: "left", maxWidth: 560, marginLeft: "auto", marginRight: "auto" }}>
+      <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>Coming up</div>
+      {rows.length === 0 ? (
+        <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>Schedule lands with the first broadcast.</div>
+      ) : rows.map((s, i) => (
+        <div key={s.id} style={{ display: "flex", alignItems: "baseline", gap: 14, padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.14)" : "none" }}>
+          <span style={{ flex: "0 0 auto", minWidth: 96, fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", fontWeight: 500 }}>
+            {fmt(s.starts_at)}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, fontFamily: serif, fontSize: 19, fontWeight: 500, letterSpacing: "-0.01em", color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+          <span style={{ flex: "0 0 auto", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>{s.dj}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
@@ -181,6 +239,7 @@ function RadioShapeSets() {
           <div style={{ marginTop: 36, fontFamily: mono, fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: TEAL_BRIGHT, fontWeight: 500 }}>
             Coming soon
           </div>
+          <RdSetsComingUp />
         </div>
       </RdReveal>
     </section>
