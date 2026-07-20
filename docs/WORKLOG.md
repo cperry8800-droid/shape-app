@@ -178,7 +178,59 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 7/9): THE CYCLE PR B — the member's surfaces.**
+> **Latest (2026-07-20, later): THE SHAPE SCORE ECONOMY + TIER REWARDS + RADIO
+> SONG SOCIAL — 5 PRs (#1778 · #1780 · #1781 · #1782 · #1783), all merged;
+> all 3 migrations APPLIED + VERIFIED LIVE.** A cluster of owner-directed
+> features after build 7, plus a process correction.
+> **① Score economy reprice (#1778):** points→dollars goes **20 → 150 pts = $1**
+> (the old rate minted ~12× the $5/mo sub in monthly redemption value), dollar-
+> credits price at **2× base** (they cost Shape real cash, not merch margin), the
+> **Shape Canteen** joins Shape Merch, the **Duffel is removed** (its live
+> `store_catalogue` row DELETEd). ⚠ The load-bearing half was the migration:
+> `store_catalogue` is the CHARGING authority (the redeem RPCs ignore the client
+> cost), so the TS/UI reprice alone would have kept production charging the old
+> 20× (Codex P1). A new **four-layer contract test** (`tests/store-catalogue-sync.test.mjs`)
+> pins the TS authority · the migration · the mobile list · the website list on
+> id/retail/cost/credit-rate — proven to fail on a one-point drift.
+> **② Tier rewards (#1780):** the ladder finally unlocks REAL things. Every named
+> perk was vapor (no tier-gating code existed anywhere; `locked:true` blocked an
+> item for EVERYONE). Now each tier grants **free store claims** (0 points, add to
+> cart): **Tempo** a cap + a bottle-or-canteen · **Form** a free coach workout/plan
+> · **Peak** a **FREE MONTH with a coach** (Shape pays the coach their full rate)
+> · **Legend** a free year of Shape + premium merch. `tier_rewards` (SELECT-only
+> policy → RPC-only writes, forge-proof), `award_tier_bonuses` also grants the
+> unlocks, `claim_tier_reward` (merch ships / vouchers issue a code, author +
+> choice validated server-side). The perk copy — which lived in FOUR places
+> (mobile tiers · website score.jsx + clientScore.jsx · the score API) — now names
+> only real unlocks. ⚠ **Found a LIVE drift:** production's `award_tier_bonuses`
+> was an older build granting **+500 at threshold ZERO** (a free welcome bonus
+> ⅔ of the way to Tempo); `dc35bbfb` fixing it was never re-run on Supabase. The
+> migration re-applies the correct version; verified harmless (score_ledger empty).
+> **③ Radio song social (#1781, crash-fixed #1782):** the device-only 👍/👎 on the
+> now-playing bar is promoted to a **shared backend** — visible up/down counts +
+> **comments on the track that's playing**. A song has NO stable id, so the key is
+> the client's normalized `title::artist` composite. Reads PUBLIC (anyone sees
+> counts/comments — radio is public-facing), writes require sign-in; three
+> SECURITY DEFINER RPCs over SELECT-only tables (forge-proof), author name resolved
+> server-side. Renders ONLY on a real non-null track. **HONESTY:** the station is
+> still a mock provider, so counts accrue on the demo track until a real stream is
+> configured — the mechanism is built ahead of the stream (the Nora Sets pattern)
+> and lights up on real titles with zero change. ⚠ **#1781 shipped a TDZ CRASH**
+> (a load effect referenced `loadSongSocial` in its dep array ABOVE the const →
+> `ReferenceError` on every render, and BSRadioProvider wraps the app shell) + a
+> P2 key mismatch; both Codex findings landed AFTER a timed auto-merge fired.
+> Recovered in **#1782** — render-verified this time by mounting BSRadioProvider
+> via react-dom/server (threw before, mounts clean now).
+> **④ Splash (#1783):** removed the ON AIR tuning dial + lifted the loading readout
+> (owner call); dead-code swept (BSWireDial + its orphaned CSS).
+> **⚠ PROCESS CORRECTION (owner: "stop doing that … i told you to wait for reviews
+> to complete"):** the timed check-and-merge watcher merged #1781 before Codex's
+> async review posted. **No more timed auto-merge** — wait for BOTH CodeRabbit AND
+> Codex to actually review, and the owner has the final say. (#1782/#1783 merged
+> only on the owner's explicit "reviews done" + a clean check.) Next: build 8/9
+> `cycle-c-coach-share` (saved pros patch waiting).
+>
+> **Prior (2026-07-20, build 7/9): THE CYCLE PR B — the member's surfaces.**
 > The flagship differentiator becomes visible: **Settings → Cycle** (opt-in
 > behind the VERBATIM disclaimer · share-with-coach · stop-and-delete), the
 > **cycle calendar** (unboxed month, tap to log a period start, tap again to
@@ -798,6 +850,88 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (later) — Score economy reprice · tier rewards · radio song social · splash · a merge-process correction
+
+- **#1778 — Shape Score economy reprice.** Points→dollars **20 → 150 pts = $1**
+  across every surface + the DB. `SHAPE_PTS_PER_USD = 150`; dollar-credits at
+  `SHAPE_PTS_PER_USD_CREDIT = 300` (2× — they cost real cash). **Shape Canteen**
+  added, **Duffel removed** (`store_catalogue` row DELETEd by the migration).
+  ⚠ **The migration is the load-bearing half** — `store_catalogue` is the
+  charging authority (`redeem_store_item`/`redeem_store_order` ignore the client
+  `p_cost`), so the TS/UI reprice alone would have kept production charging 20×
+  (Codex P1). **`tests/store-catalogue-sync.test.mjs`** now parses all four layers
+  (TS authority · reprice SQL · mobile list · website list) and asserts id/retail/
+  computed-cost/credit-rate agree — proven to fail on a 1-point drift. The website
+  store marks credits with an explicit `kind:"credit"` (never inferred from the
+  product name — CodeRabbit). `credit_cents` is deliberately OUT of the migration's
+  `ON CONFLICT` update list so a re-run can't revert a live dollar value (CodeRabbit,
+  outside-diff Major).
+- **#1780 — tier rewards: the ladder unlocks real things.** Deleted the vapor
+  perks (2× redemption, early access, priority booking, a free intro, priority in
+  search, featured placement, lower fee, partner status — none had any code). New
+  free **store claims** at 0 points: Tempo cap + bottle/canteen · Form free coach
+  workout/plan · **Peak a free MONTH with a coach** (Shape pays full rate) · Legend
+  free year + premium merch. `2026-07-20-tier-rewards.sql`: `tier_rewards`
+  (SELECT-only policy → RPC-only writes), `tier_reward_defs` (the ONE source of
+  which tier unlocks what + which picks are legal), `award_tier_bonuses` extended
+  to grant the unlocks, `get_my_tier_rewards`, `claim_tier_reward` (per-user
+  advisory lock; merch requires an address + ships / vouchers issue a code; choice
+  validated against `store_catalogue`; the guarded UPDATE re-checks `claimed_at is
+  null` so a shipment order can't strand behind an unclaimed reward). Claim decision
+  table **probed live on temp constructs** (11 vectors: legit, no-address, blank
+  name, smuggle the removed duffel / free-text choice, canteen-pre-reprice,
+  voucher+address, voucher+choice, unknown key). Perk copy rewritten in all four
+  places it lived (mobile tiers · `score.jsx` · `clientScore.jsx` · the score API).
+  Store UI: an **UNLOCKED shelf** above the paid catalogue (both surfaces), renders
+  nothing when nothing's unclaimed; the mobile address form is now shared with cart
+  checkout. i18n `store:unlocked.*` + rewritten `score:tierPerk.*` ×13.
+  ⚠ **Live drift found:** production `award_tier_bonuses` was an older build
+  granting **+500 at threshold 0** (a free welcome bonus); `dc35bbfb` was never
+  re-run. The migration corrects it — verified harmless (score_ledger empty, 0
+  members). Coach payout for a claimed free month/plan stays **manual** (ops honours
+  the emailed code) — registered in the War Room.
+- **#1781 → #1782 — radio song social.** The now-playing 👍/👎 (device-only
+  localStorage) becomes a **shared backend**: visible up/down counts + **comments
+  on the playing track**. No stable song id → key is the client's normalized
+  `title::artist` composite. `2026-07-20-radio-song-social.sql`:
+  `radio_song_reactions` + `radio_song_comments` (both SELECT-only policy),
+  `radio_norm_key` (one shared normalizer), `get_radio_song_social` (anon+authed
+  read), `set_radio_song_vote` (set/switch/toggle-off) + `add_radio_song_comment`
+  (authed-only, author name server-resolved). `window.ShapeRadioSong {get,vote,
+  comment}` (reads degrade to neutral pre-migration/signed-out, never throw). Bar
+  shows real counts (optimistic vote math mirrors the RPC, clamped ≥0); the full
+  radio screen gains a vote row + a comments sheet (`BSSongCommentsSheet`, portaled,
+  dark). Signed-in-only writes (inline nudge, not a dead tap). Renders ONLY on a
+  real non-null track. i18n `radio:social.*` ×13. Toggle/guard semantics probed
+  live; the read RPC proven live (case/whitespace normalized → correct aggregate).
+  ⚠ **#1781 shipped a TDZ crash** — a load effect referenced `loadSongSocial` in
+  its dep array ABOVE the `const` (dep arrays evaluate at render → `ReferenceError:
+  Cannot access 'loadSongSocial' before initialization`, and BSRadioProvider wraps
+  the app shell). No static gate catches a TDZ (parse/tsc/tests/build all pass),
+  and I **skipped the render check** — the real gap. Plus a P2: the bar/screen keyed
+  off `np`'s `—`-substituted display copy instead of the raw `currentSongKey`, so a
+  title-only track would read + write under different keys. Both Codex findings
+  landed AFTER a timed auto-merge fired. **#1782** moves the effect below the
+  callbacks + keys everything off `currentSongKey`, **render-verified** by mounting
+  BSRadioProvider via react-dom/server (threw before, mounts clean now).
+- **#1783 — splash.** Removed the ON AIR tuning dial (`BSWireDial`) from the
+  wire-beat splash + the membership-hold that mirrors it; lifted the loading readout
+  higher (paddingBottom 44→112). Dead-code swept: BSWireDial had no other caller, so
+  it + its orphaned CSS (`bsWireTune`/`bsWireLockOn` keyframes, `.bs-wire-needle`/
+  `.bs-wire-lock-bar` + reduced-motion overrides) are removed.
+- ⚠ **PROCESS CORRECTION (owner: "stop doing that … i told you to wait for reviews
+  to complete").** The timed check-and-merge watcher merged #1781 while Codex's
+  async review was still in flight (Codex fires once at PR-open with real latency;
+  a clean check at minute-9 is a guess, not "reviews done"). **No more timed
+  auto-merge.** Wait for BOTH CodeRabbit AND Codex to actually post; the owner has
+  the final say. #1782/#1783 merged only on the owner's explicit "reviews done" +
+  a clean CI/findings check. Also: #1780's squash title was wrong (the merge script
+  reused #1778's template) — cosmetic, code correct; script fixed for later PRs.
+- All 3 migrations **APPLIED + VERIFIED LIVE** (owner ran them). Verified per PR:
+  `npm test` 679 · `tsc --noEmit` clean · PowerShell `/m/` build exit 0 ·
+  `build-newdesign --check` · JSX parse · tr-shadow · catalog parity 3/3 · LF.
+  Next: build 8/9 `cycle-c-coach-share`.
 
 ### 2026-07-20 (build 7/9) — THE CYCLE PR B: the member's surfaces
 
