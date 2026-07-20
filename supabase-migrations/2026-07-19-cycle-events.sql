@@ -134,20 +134,34 @@ create trigger cycle_consent_guard before insert on public.consent_log
 --    user_goals + consent_log is the scope. p_consent_kind names which receipt
 --    this flip records ('cycle_tracking' | 'cycle_share'); p_granted false =
 --    a withdrawal receipt (share-off / opt-out path records its own).
---    ⚠ ONE receipt per call, while the data blob overwrites BOTH flags
---    (review: CodeRabbit) — a caller that changes both flags in one call
---    would leave the unnamed flag's transition receipt-less. The UI contract
---    for PR B–D: opt-in then share-on = TWO calls (tracking receipt, then
---    share receipt); share-off = one call (kind cycle_share, share=false,
---    p_opt_in stays TRUE); tracking-off = cycle_opt_out() ONLY — p_opt_in
---    = false is rejected on EVERY path below.
+--    ⚠ ONE receipt per call, ENFORCED (round 4, Codex P1): the data blob
+--    overwrites BOTH flags, so the flag the receipt does NOT name must be
+--    UNCHANGED from the stored state (missing doc reads false/false; the row
+--    is locked FOR UPDATE so a concurrent call can't slip a transition
+--    between the read and the write). Before this the two-call sequence was
+--    a documented UI contract only — a single hand-built call could flip
+--    share ON with just a tracking receipt (coach visibility granted with no
+--    share receipt — get_client_cycle authorizes from the flags alone),
+--    clear share with no withdrawal receipt, or flip optIn true around a
+--    share receipt with no tracking receipt. Legit sequences are unchanged:
+--    opt-in (tracking receipt, share stays false) → share-on (share receipt,
+--    optIn stays true) → share-off (share receipt, optIn stays true);
+--    tracking-off = cycle_opt_out() ONLY — p_opt_in = false is rejected on
+--    EVERY path below.
 create or replace function public.cycle_set_settings(
   p_opt_in boolean, p_share boolean,
   p_consent_kind text, p_granted boolean, p_consent_text text
 ) returns void language plpgsql security invoker set search_path = public, pg_temp as $$
+declare
+  v_cur_opt boolean; v_cur_share boolean;
 begin
   if p_consent_kind not in ('cycle_tracking', 'cycle_share') then
     raise exception 'bad_consent_kind';
+  end if;
+  -- A NULL flag would slide past the boolean guards below (`not NULL` is
+  -- NULL, so `if not p_opt_in` never fires) and write incoherent state.
+  if p_opt_in is null or p_share is null or p_granted is null then
+    raise exception 'bad_flag_value';
   end if;
   -- Invariants (review round): the flags and the receipt must describe ONE
   -- coherent transition. Sharing requires opt-in; the receipt's granted value
@@ -170,6 +184,22 @@ begin
   end if;
   if p_consent_kind = 'cycle_share' and p_granted <> p_share then
     raise exception 'receipt_flag_mismatch';
+  end if;
+  -- Round 4 (Codex P1): the flag this receipt does NOT name must not move.
+  -- Lock + read the stored flags; a missing doc is the pre-opt-in state
+  -- (false/false). This turns the two-call UI contract into a DB rule.
+  select coalesce((data->>'optIn')::boolean, false),
+         coalesce((data->>'share')::boolean, false)
+    into v_cur_opt, v_cur_share
+    from public.user_goals
+   where user_id = auth.uid() and kind = 'cycle_settings'
+   for update;
+  if not found then v_cur_opt := false; v_cur_share := false; end if;
+  if p_consent_kind = 'cycle_tracking' and p_share <> v_cur_share then
+    raise exception 'one_flag_per_receipt';
+  end if;
+  if p_consent_kind = 'cycle_share' and p_opt_in <> v_cur_opt then
+    raise exception 'one_flag_per_receipt';
   end if;
   perform set_config('shape.cycle_rpc', '1', true);
   insert into public.user_goals (user_id, kind, data)
