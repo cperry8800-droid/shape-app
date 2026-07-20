@@ -6,7 +6,6 @@ import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '..
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
-import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -3615,22 +3614,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     ]).then(([checkins, health, meas]) => { if (on) setCKit({ checkins: checkins || [], health: health || null, meas: meas || [] }); }).catch(() => {});
     return () => { on = false; };
   }, [clientUid]);
-  // THE CYCLE (spec 2026-07-19) — share-gated coach read. State exists ONLY
-  // when the definer returned { share:true }: null (not my client),
-  // { share:false }, and pre-migration all leave it null, so the station
-  // renders NOTHING — absence, never a padlock (a coach must not be able to
-  // distinguish never-opted-in from not-shared).
-  const [cycleShared, setCycleShared] = useStateBSP(null);
-  useEffectBSP(() => {
-    setCycleShared(null);
-    if (!clientUid || !window.ShapeCycle?.forClient) return undefined;
-    let on = true;
-    window.ShapeCycle.forClient(clientUid)
-      .then((r) => { if (on && r && r.share === true && Array.isArray(r.starts)) setCycleShared({ starts: r.starts }); })
-      .catch(() => {});
-    return () => { on = false; };
-  }, [clientUid]);
-
   // Accountability penalties (coach read) — recent, un-waived, for the Waive affordance.
   const [pens, setPens] = useStateBSP([]);
   const loadPens = () => {

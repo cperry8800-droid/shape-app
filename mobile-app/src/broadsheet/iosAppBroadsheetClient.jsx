@@ -20405,17 +20405,34 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   // The 10,000 celebration (owner call): fires ONCE per account, the first
   // time the member sees her standing past the checkpoint. Recognition only —
   // no points, no ledger row, so it can never touch the economy.
+  // localStorage is the per-device fast path; a dedicated
+  // user_goals('peak_checkpoint') doc is the ACCOUNT-wide truth, so a new
+  // device or a cleared storage can't re-celebrate. Deliberately suppressed at
+  // the top tier: bsPeakCheckpoint() is null for a Legend, and toasting
+  // "Legend is in reach" at an actual Legend would be a false sentence — a
+  // member who first opens the page already AT Legend has outrun the
+  // checkpoint (their celebration was the tier itself).
+  const peakFiredRef = React.useRef(false);
   React.useEffect(() => {
-    try {
-      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
-      if (!uid) return;
-      const chk = bsPeakCheckpoint(tiers, tier, scoreTotal);
-      if (!(chk && chk.reached)) return;
-      const key = 'shape.peak10k.' + uid;
-      if (window.localStorage?.getItem(key)) return;
-      window.localStorage?.setItem(key, '1');
-      window.__bsToast?.(tr('score:checkpoint.toast', { defaultValue: '10,000 in the book — Legend is in reach.' }), 'ok');
-    } catch (e) {}
+    let on = true;
+    (async () => {
+      try {
+        const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+        if (!uid) return;
+        const chk = bsPeakCheckpoint(tiers, tier, scoreTotal);
+        if (!(chk && chk.reached)) return;
+        const key = 'shape.peak10k.' + uid;
+        if (peakFiredRef.current || window.localStorage?.getItem(key)) return;
+        peakFiredRef.current = true;
+        const cloud = await window.shapeDb?.getUserGoals?.('peak_checkpoint');
+        if (!on) return;
+        try { window.localStorage?.setItem(key, '1'); } catch (e) {}
+        if (cloud && cloud.seen) return;
+        window.shapeDb?.saveUserGoals?.('peak_checkpoint', { seen: true, at: new Date().toISOString() });
+        window.__bsToast?.(tr('score:checkpoint.toast', { defaultValue: '10,000 in the book — Legend is in reach.' }), 'ok');
+      } catch (e) {}
+    })();
+    return () => { on = false; };
   }, [scoreTotal, tier]);
   const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
   const atRisk = !!profile.atRisk || st.atRisk;
@@ -20665,8 +20682,8 @@ const BS_STORE_PRODUCTS = [
     { id: 'merch_cap_black', cat: 'Shape Merch', name: 'Shape Cap · Black', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_cap_white', cat: 'Shape Merch', name: 'Shape Cap · White', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
+    { id: 'merch_canteen', cat: 'Shape Merch', name: 'Shape Canteen', brand: 'Shape Merch', cost: 6300, retail: 42, tag: 'New', stock: 'In stock' },
     { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
-    { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
     { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
     { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
     { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
@@ -20698,6 +20715,7 @@ function BSStoreGlyph({ id = '', cat = '', size = 40, color = 'currentColor' }) 
   const key = /cap/.test(id) ? 'cap'
     : /crew/.test(id) ? 'crewneck'
     : /bottle/.test(id) ? 'bottle'
+    : /canteen/.test(id) ? 'canteen'
     : /towel/.test(id) ? 'towel'
     : /duffel/.test(id) ? 'duffel'
     : /tee/.test(id) ? 'tee'
@@ -20707,6 +20725,7 @@ function BSStoreGlyph({ id = '', cat = '', size = 40, color = 'currentColor' }) 
     tee: <path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" />,
     crewneck: <React.Fragment><path d="M13 8 C14.5 10.5 17 12 20 12 C23 12 25.5 10.5 27 8 L33 11 L30 17 L27 15 L27 32 L13 32 L13 15 L10 17 L7 11 Z" /><path d="M15 32 v2 M25 32 v2" /></React.Fragment>,
     bottle: <React.Fragment><rect x="15" y="13" width="10" height="20" rx="4" /><path d="M17 13 v-3 h6 v3" /></React.Fragment>,
+    canteen: <React.Fragment><rect x="13" y="15" width="14" height="18" rx="6" /><path d="M16 15 c0 -3 1.5 -4.5 4 -4.5 c2.5 0 4 1.5 4 4.5" /><path d="M18 8 h4" /></React.Fragment>,
     towel: <React.Fragment><rect x="9" y="12" width="22" height="16" rx="2" /><path d="M9 24 h22" /></React.Fragment>,
     duffel: <React.Fragment><rect x="7" y="17" width="26" height="14" rx="7" /><path d="M15 17 a5 5 0 0 1 10 0" /></React.Fragment>,
     tag: <React.Fragment><path d="M11 11 h9 l9 9 -9 9 -9 -9 Z" /><circle cx="15.5" cy="15.5" r="1.4" /></React.Fragment>,

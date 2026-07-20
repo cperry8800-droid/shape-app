@@ -14,23 +14,23 @@ const PRODUCTS = [
   { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited · 30" },
   { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited · 30" },
   { id: 3, cat: "Shape Merch", name: "Shape Training Bottle", brand: "Shape Merch", cost: 280, retail: 28, img: "bottle · steel", stock: "In stock" },
+  { id: 21, cat: "Shape Merch", name: "Shape Canteen", brand: "Shape Merch", cost: 6300, retail: 42, img: "canteen · steel", tag: "New", stock: "In stock" },
   { id: 4, cat: "Shape Merch", name: "Shape Gym Towel", brand: "Shape Merch", cost: 220, retail: 22, img: "towel · cream", stock: "In stock" },
-  { id: 5, cat: "Shape Merch", name: "Shape Training Duffel", brand: "Shape Merch", cost: 1640, retail: 165, img: "duffel · canvas", tag: "Peak tier", stock: "In stock", locked: true },
 
   // Training
-  { id: 6, cat: "Training", name: "$25 session credit", brand: "Any Shape coach", cost: 500, retail: 25, img: "credit · 25", stock: "Unlimited" },
-  { id: 7, cat: "Training", name: "$50 session credit", brand: "Any Shape coach", cost: 950, retail: 50, img: "credit · 50", stock: "Unlimited" },
+  { id: 6, cat: "Training", name: "$25 session credit", brand: "Any Shape coach", cost: 500, retail: 25, img: "credit · 25", stock: "Unlimited", kind: "credit" },
+  { id: 7, cat: "Training", name: "$50 session credit", brand: "Any Shape coach", cost: 950, retail: 50, img: "credit · 50", stock: "Unlimited", kind: "credit" },
   { id: 8, cat: "Training", name: "Coach 2nd-opinion", brand: "Free 30-min trainer intro", cost: 900, retail: 95, img: "intro · call", stock: "Monthly" },
   { id: 9, cat: "Training", name: "Program review credit", brand: "Shape trainer review", cost: 780, retail: 85, img: "program · review", stock: "Unlimited" },
 
   // Nutrition
   { id: 10, cat: "Nutrition", name: "Meal-plan Refresh", brand: "With your Shape RD", cost: 1200, retail: 140, img: "meal · plan", tag: "Popular", stock: "Unlimited" },
-  { id: 11, cat: "Nutrition", name: "$25 nutrition credit", brand: "Any Shape nutritionist", cost: 500, retail: 25, img: "nutrition · credit", stock: "Unlimited" },
+  { id: 11, cat: "Nutrition", name: "$25 nutrition credit", brand: "Any Shape nutritionist", cost: 500, retail: 25, img: "nutrition · credit", stock: "Unlimited", kind: "credit" },
   { id: 12, cat: "Nutrition", name: "Grocery list buildout", brand: "Shape nutrition service", cost: 420, retail: 45, img: "grocery · list", stock: "Unlimited" },
   { id: 13, cat: "Nutrition", name: "Recipe archive pack", brand: "Shape nutrition templates", cost: 340, retail: 35, img: "recipes · pack", stock: "Unlimited" },
 
   // Shape Perks
-  { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$60 toward next year — a full year of Shape", cost: 1200, retail: 60, img: "annual · 60", tag: "Peak tier", stock: "Unlimited", locked: true },
+  { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$60 toward next year — a full year of Shape", cost: 1200, retail: 60, img: "annual · 60", tag: "Peak tier", stock: "Unlimited", locked: true, kind: "credit" },
 ];
 
 const COACH_LEAD_BOOST_PRODUCTS = [
@@ -39,7 +39,10 @@ const COACH_LEAD_BOOST_PRODUCTS = [
   { id: 103, cat: "Coach Tools", name: "Lead Boost · 30 days", brand: "Marketplace featured placement", cost: 3000, retail: 249, img: "boost · 30d", stock: "Activate now", kind: "lead_boost", days: 30 },
 ];
 
-// Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value) — clients + coaches.
+// Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner
+// call: the old rate minted ~12x the subscription price in monthly redemption
+// value) — clients + coaches. KEEP IN SYNC with src/lib/store-catalogue.ts
+// (tests/store-catalogue-sync.test.mjs enforces the parity).
 const SHAPE_PTS_PER_USD = 150;
 // Stable item ids matching the server catalogue (src/lib/store-catalogue.ts) so
 // the redemption endpoint can charge the authoritative cost by id.
@@ -49,8 +52,8 @@ const STORE_ITEM_IDS = {
   "Shape Cap · Black": "merch_cap_black",
   "Shape Cap · White": "merch_cap_white",
   "Shape Training Bottle": "merch_bottle",
+  "Shape Canteen": "merch_canteen",
   "Shape Gym Towel": "merch_towel",
-  "Shape Training Duffel": "merch_duffel",
   "$25 session credit": "train_credit_25",
   "$50 session credit": "train_credit_50",
   "Coach 2nd-opinion": "train_second_opinion",
@@ -65,10 +68,10 @@ const STORE_ITEM_IDS = {
   "Lead Boost · 30 days": "lead_boost_30",
 };
 [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS].forEach((p) => {
-  // Dollar-credits at 2x base (owner call 2026-07-20 — real cash vs merch margin).
-  const _cid = STORE_ITEM_IDS[p.name] || '';
-  const _isCredit = /credit/.test(_cid);
-  if (p.retail) p.cost = Math.round(p.retail * (_isCredit ? SHAPE_PTS_PER_USD * 2 : SHAPE_PTS_PER_USD));
+  // Dollar-credits price at 2x base (owner call 2026-07-20, option 2A — they
+  // cost Shape real cash, unlike merch margin). kind:"credit" mirrors the
+  // authoritative catalogue's kind field, never inferred from the name.
+  if (p.retail) p.cost = Math.round(p.retail * (p.kind === "credit" ? SHAPE_PTS_PER_USD * 2 : SHAPE_PTS_PER_USD));
   p.itemId = STORE_ITEM_IDS[p.name] || "";
 });
 

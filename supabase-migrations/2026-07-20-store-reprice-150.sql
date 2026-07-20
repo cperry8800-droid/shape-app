@@ -17,8 +17,8 @@ insert into public.store_catalogue (id, cost_points, credit_cents, credit_kind, 
   ('merch_cap_black', 5250, 0, null, 'merch', false),
   ('merch_cap_white', 5250, 0, null, 'merch', false),
   ('merch_bottle', 4200, 0, null, 'merch', false),
+  ('merch_canteen', 6300, 0, null, 'merch', false),
   ('merch_towel', 3300, 0, null, 'merch', false),
-  ('merch_duffel', 24750, 0, null, 'merch', true),
   ('train_credit_25', 7500, 2500, 'session', 'credit', false),
   ('train_credit_50', 15000, 5000, 'session', 'credit', false),
   ('train_second_opinion', 14250, 0, null, 'service', false),
@@ -37,3 +37,8 @@ on conflict (id) do update set
   credit_kind  = excluded.credit_kind,
   kind         = excluded.kind,
   locked       = excluded.locked;
+
+-- merch_canteen is NEW (owner add 2026-07-20); merch_duffel leaves the store
+-- for now (owner call 2026-07-20) — remove its live row so the charging table
+-- matches the catalogue (it was locked:true, so no redemption ever referenced it).
+delete from public.store_catalogue where id = 'merch_duffel';
