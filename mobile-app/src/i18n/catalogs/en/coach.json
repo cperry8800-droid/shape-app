@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Search {count} clients",
   "roster.show": "SHOW ›",
   "roster.theRoster": "THE ROSTER",
+  "roster.variable": "VARIABLE",
   "roster.verdictAllHolding": "All {m} holding — nobody needs you today",
   "roster.verdictNeed": "{k} need you — the other {m} are holding",
   "roster.wkndGap": "WKND −{gap}",

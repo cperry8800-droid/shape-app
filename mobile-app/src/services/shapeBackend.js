@@ -6,6 +6,7 @@ import { registerPush } from './push.js';
 import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
+import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -4075,6 +4076,31 @@ async function rosterWeekendGet(clientIds) {
   } catch { return { ok: true, split: {} }; }
 }
 window.ShapeRosterWeekend = { get: rosterWeekendGet };
+
+// Weekly-adherence variance (spec 2026-07-19): direct definer RPC — the
+// get_client_lifts pattern, NO route. Degrades to {} pre-migration/on error
+// so the roster simply shows no chip. The band judgement is made by the ONE
+// canonical module (public/newdesign/varianceBand.mjs); the RPC only buckets.
+async function rosterVarianceGet(clientIds) {
+  const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
+  if (!supabase || !state.user?.id || !ids.length) return {};
+  try {
+    const { data, error } = await supabase.rpc('get_roster_weekly_adherence', { p_client_ids: ids });
+    if (error || !Array.isArray(data)) return {};
+    const byClient = {};
+    for (const r of data) {
+      if (!r || !r.client_id) continue;
+      (byClient[r.client_id] = byClient[r.client_id] || []).push(r);
+    }
+    const out = {};
+    for (const [uid, rows] of Object.entries(byClient)) {
+      const v = bsVarianceBand(rows);
+      if (v) out[uid] = v;
+    }
+    return out;
+  } catch { return {}; }
+}
+window.ShapeRosterVariance = { get: rosterVarianceGet };
 
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the

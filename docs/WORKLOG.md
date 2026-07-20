@@ -178,7 +178,25 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-19, build 1/9): THE LIVE STATION — coach live-watch parity
+> **Latest (2026-07-20, build 2/9): THE VARIANCE BAND — steady-vs-variable
+> weekly adherence.** Coaches see who holds a steady week and who swings: a
+> roster **VARIABLE** chip (AMBER/WATCH — never the rust FLAG colour; steady
+> shows nothing), a Case File line, and the same line on the website. **Members
+> never see it. No new routes** — both surfaces call the definer RPC directly.
+> One canonical `public/newdesign/varianceBand.mjs` owns both the maths and the
+> COPY, so the two surfaces can't word it differently; the RPC only buckets.
+> Pipeline is law: trailing 8 closed ISO weeks in the member's tz → drop weeks
+> under 6 scheduled units → **≥4 weeks or null**; population stdev in pp compared
+> **unrounded** (steady ≤8.0 · variable ≥18.0 · between = a real range line).
+> ⚠ **OWNER MIGRATION `2026-07-19-roster-weekly-adherence.sql`** — everything
+> degrades silently to no chip / no line until it's applied. ⚠ **The plan's SQL
+> sketch was wrong** (it read `workout_sessions.user_id`/`performed_on`, neither
+> of which exists); workout completion now mirrors `apply_obligation_penalty`
+> EXACTLY, so the band and the penalty engine can't disagree about "done".
+> Validated read-only against prod pre-merge; **not applied**. Next: build 3/9
+> `live-cooking-detail`.
+>
+> **Prior (2026-07-19, build 1/9): THE LIVE STATION — coach live-watch parity
 > on the website (#1769).** The buildable wave starts shipping. The pure half of
 > `liveProgress.mjs` is promoted to the **canonical `public/newdesign/`copy**
 > (mobile keeps a re-export shim holding `bsLiveAudience`, whose `workoutShare`
@@ -666,6 +684,96 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 2/9) — THE VARIANCE BAND: steady-vs-variable weekly adherence
+
+- **Build 2 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-variance-band.md`. Coaches see which clients
+  hold a steady week and which swing — a roster **VARIABLE** chip, a Case File
+  line, and the same line on the website. **Members never see any of it**, and
+  **no new routes**: both surfaces call the definer RPC directly.
+- **⚠ OWNER MIGRATION — `2026-07-19-roster-weekly-adherence.sql`.** Until it's
+  applied the RPC simply doesn't exist and every surface degrades to no chip /
+  no line (by design, silent).
+- **One canonical module, no SQL twin.** `public/newdesign/varianceBand.mjs` —
+  `bsVarianceBand` (the deterministic pipeline) + `bsVarianceCopy` (the ONE copy
+  source, the `crossoverCopy` precedent, so the Case File and the web line can
+  never word a different sentence). The RPC **only buckets**; it makes no band
+  judgement. Suite **639 → 647**.
+- **The pipeline is law** (spec order): the trailing 8 CLOSED ISO weeks in the
+  member's own tz → drop weeks under **6 scheduled units** (zero and thin alike
+  — too noisy to be a rate) → survivors are the series → **≥4 weeks or the whole
+  call returns null**. Band = **population stdev** of the weekly rates in pp,
+  compared **UNROUNDED**: steady ≤ 8.0 · variable ≥ 18.0 · between is a **real
+  result with `band: null`** (a range line, no chip). Rounding happens only for
+  display, inside `bsVarianceCopy`. The boundary vectors were checked to land on
+  **exactly** 8.0 and 18.0 stdev — otherwise they'd test nothing about `≤`/`≥`.
+- **⚠ The plan's SQL sketch was wrong and would have shipped a broken RPC.** It
+  read workout completion from `workout_sessions` via `ws.user_id` /
+  `ws.performed_on` — **neither column exists**; that table has `client_id` /
+  `created_at` and **no per-day date column at all**. The repo's authoritative
+  "logged a workout near day D" signal is `apply_obligation_penalty`'s
+  exoneration pair, and it is mirrored **exactly**: a `daily_health_snapshot`
+  with `workout_minutes > 0` on the day **or the next**, OR an `activities` row
+  within **±1 day**. Scheduled = a `client_workouts` row on that day with
+  **`status = 'published'`** (the accountability cron's filter). The band and the
+  penalty engine therefore cannot disagree about what "done" means.
+- **⚠ Habit units are scoped PER DAY, not to a current snapshot** (CodeRabbit
+  Major, real). The first cut counted **today's** active daily habits against
+  **every** day in the 8-week window, so adding one habit two weeks ago inflated
+  `scheduled` across the six weeks before it existed — and an archived habit
+  (filtered by `archived_at is null`) vanished from the weeks it *was* live.
+  Both directions **fabricate the very week-to-week swing the band measures**.
+  Both the scheduled and completed sides now gate on
+  `created_at <= day AND (archived_at is null OR archived_at > day)`, compared in
+  the **member's own zone** so the boundary day is the one they experienced —
+  and both use the SAME window, or `least()` would silently discard a completion
+  whose habit no longer counted as scheduled. Proven with a synthetic
+  seven-day/three-habit fixture: an always-on habit counts every day, one created
+  mid-window counts only from its creation day, one archived mid-window stops on
+  its archive day.
+- **RPC hardening:** SECURITY DEFINER with `search_path = public, pg_temp`; every
+  client gated through the caller's own **active subscription** (unauthorized or
+  nonexistent ids are simply **ABSENT** — fail-closed and indistinguishable);
+  **raises `too_many_clients` above 100** rather than silently truncating (a
+  truncated roster would read as "those clients have no data"); `DISTINCT` ids so
+  duplicates can't multiply joined rows; **`EXISTS`-not-join** for workouts so
+  several rows on one date can't fan the day out and multiply the habit/nutrition
+  units; `least(habit_done, habit_sched)` so a stray completion can't push a week
+  over 100%; unknown-tz clients **drop out** rather than being bucketed in a
+  fabricated zone; EXECUTE revoked from `public, anon` before re-granting.
+- **Validated read-only against prod before merge** (never applied): all **24**
+  referenced columns exist, and the **full CTE chain parses, plans and executes**
+  (0 rows on an empty id array).
+- **Roster merge bug avoided:** the weekend-split and variance enrichments both
+  map the SAME captured `rows` closure, so two independent `setLive(rows.map(…))`
+  calls would have had whichever resolved second **erase the other's key**. They
+  now compose through one `Promise.all` → one `setLive` carrying both `_wknd` and
+  `_var`.
+- **Never-shaming:** the chip is `t.AMBER` (**WATCH** tier), deliberately not the
+  rust FLAG colour — a variable pattern is something to coach, not a failure;
+  **steady renders no chip at all**. `roster.variable` added to **all 13** coach
+  catalogs, abbreviated per locale the way `roster.wkndGap` is (de `SCHWANKEND` ·
+  ru `СКАЧКИ` · pcm `UP AND DOWN`); LLM-generated → standing human review.
+- **The line renders BARE, not through `tr()`** — deliberate: `bsVarianceCopy`
+  bakes words and figures together, and wrapping it would invite catalogs to
+  rebuild the sentence from parts and fork the one copy source.
+- **Website:** the RPC is called straight from the browser, and the **cookie
+  session bridge is bootstrapped first** — an anon client makes the RPC see no
+  `auth.uid()`, every client then fails the subscription gate, and the line would
+  silently never appear (the #1769 live-station lesson, applied pre-emptively).
+  Supabase loaders already existed from #1769, so only the `ShapeVariance` module
+  tag was added (no double-insertion); `coachClientDetail.jsx?v=20260719a`.
+- **Browser-verified** that the module tag resolves and — importantly — that the
+  module handles `numeric` arriving as **STRINGS**, which is what PostgREST
+  actually returns for `numeric` columns; the unit tests only cover the JS-number
+  shape, so this was a real production gap.
+- Verified: `npm test` **647** · `tsc --noEmit` clean · PowerShell `/m/` build
+  exit 0 · `build-newdesign --check` exit 0 · JSX/JS parses · tr-shadow greps
+  (both forms) clean · all 21 files LF.
+- **Deferred (recorded, not silently dropped):** feeding the WATCH-tier band into
+  `bsRosterSeverity` is spec'd as MAY — left for a follow-up rather than piling
+  risk into v1.
 
 ### 2026-07-19 (build 1/9) — THE LIVE STATION: coach live-watch parity on the website (#1769)
 

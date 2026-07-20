@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Tìm {count} khách hàng",
   "roster.show": "HIỆN ›",
   "roster.theRoster": "DANH SÁCH KHÁCH HÀNG",
+  "roster.variable": "THẤT THƯỜNG",
   "roster.verdictAllHolding": "Cả {m} đều ổn định — hôm nay không ai cần bạn",
   "roster.verdictNeed": "{k} cần bạn — {m} người còn lại đều ổn định",
   "roster.wkndGap": "CUỐI TUẦN −{gap}",

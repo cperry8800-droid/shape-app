@@ -164,6 +164,10 @@ function CoachClientDetailPage() {
   const params = new URLSearchParams(window.location.search);
   const clientId = params.get("id");
   const [data, setData] = React.useState(null);
+  // Week-to-week variance line (spec 2026-07-19). No route: the definer RPC is
+  // called straight from the browser, and bsVarianceCopy is the ONE copy source
+  // shared with the mobile Case File, so the two surfaces cannot drift.
+  const [varRead, setVarRead] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -175,6 +179,32 @@ function CoachClientDetailPage() {
       .then(d => { if (!cancelled) setData(d); })
       .catch(e => { if (!cancelled) setErr((e && e.error) || "Could not load."); });
     return () => { cancelled = true; };
+  }, [clientId]);
+
+  React.useEffect(() => {
+    setVarRead(null);   // SYNCHRONOUS reset: client A's line must never sit under
+                        // client B while B's fetch is in flight, and missing
+                        // prereqs must clear any held line too.
+    const db = window.shapeDb && window.shapeDb.client;
+    const VB = window.ShapeVariance;
+    if (!db || !VB || !clientId) return undefined;
+    let on = true;
+    (async () => {
+      // Bootstrap the cookie-session bridge before the definer RPC — a session
+      // that lives only in Next.js HTTP cookies leaves this client ANON, the RPC
+      // then sees no auth.uid(), every client fails the subscription gate, and
+      // the line would silently never appear (the live-station lesson, #1769).
+      try { if (window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      try {
+        const res = await db.rpc("get_roster_weekly_adherence", { p_client_ids: [clientId] });
+        if (!on) return;
+        if (res && res.error) { console.warn("[shape] variance: read failed", res.error.message || res.error); return; }
+        const rows = Array.isArray(res && res.data) ? res.data : null;
+        if (rows) setVarRead(VB.bsVarianceCopy(VB.bsVarianceBand(rows)));
+      } catch (e) { console.warn("[shape] variance: read threw", e); }
+    })();
+    return () => { on = false; };
   }, [clientId]);
 
   async function openMessage(counterpart) {
@@ -293,6 +323,13 @@ function CoachClientDetailPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
               {statGrid.map((s, i) => <CKStat key={i} {...s} />)}
             </div>
+            {/* Week-to-week variance — bare, from the ONE canonical copy source
+                (bsVarianceCopy), identical to the mobile Case File line. */}
+            {varRead && (
+              <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: varRead.chip ? "#e8b14a" : "rgba(242,237,228,0.55)" }}>
+                {varRead.line}
+              </div>
+            )}
           </Card>
 
           {!isNutri && (

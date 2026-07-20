@@ -672,6 +672,7 @@
   "roster.searchPlaceholder": "Cari {count} klien",
   "roster.show": "TAMPILKAN ›",
   "roster.theRoster": "DAFTAR KLIEN",
+  "roster.variable": "FLUKTUATIF",
   "roster.verdictAllHolding": "Semua {m} stabil — hari ini tidak ada yang membutuhkanmu",
   "roster.verdictNeed": "{k} membutuhkanmu — {m} lainnya stabil",
   "roster.wkndGap": "AKPKN −{gap}",
