@@ -65,7 +65,10 @@ const STORE_ITEM_IDS = {
   "Lead Boost · 30 days": "lead_boost_30",
 };
 [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS].forEach((p) => {
-  if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD);
+  // Dollar-credits at 2x base (owner call 2026-07-20 — real cash vs merch margin).
+  const _cid = STORE_ITEM_IDS[p.name] || '';
+  const _isCredit = /credit/.test(_cid);
+  if (p.retail) p.cost = Math.round(p.retail * (_isCredit ? SHAPE_PTS_PER_USD * 2 : SHAPE_PTS_PER_USD));
   p.itemId = STORE_ITEM_IDS[p.name] || "";
 });
 

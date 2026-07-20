@@ -15703,7 +15703,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 // ═══════════════════════════════════════════════════════════
 const SHAPE_SCORE_TIERS = [
   { name: 'Raw', range: '0+', perk: 'Starting level' },
-  { name: 'Tempo', range: '750+', perk: '2x redemption value' },
+  { name: 'Tempo', range: '750+', perk: 'Limited drops unlock' },
   { name: 'Form', range: '2,000+', perk: 'Early access drops + streak boosts' },
   { name: 'Peak', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
   { name: 'Legend', range: '15,000+', perk: 'Annual Shape merch + service credit' },
@@ -15711,7 +15711,7 @@ const SHAPE_SCORE_TIERS = [
 // Coaches climb the same 5 rungs under their own names (scheme J).
 const SHAPE_SCORE_TIERS_COACH = [
   { name: 'Certified', range: '0+', perk: 'Starting level' },
-  { name: 'Pro', range: '750+', perk: '2x redemption value' },
+  { name: 'Pro', range: '750+', perk: 'Priority in search' },
   { name: 'Elite', range: '2,000+', perk: 'Early access drops + streak boosts' },
   { name: 'Master', range: '5,000+', perk: 'Priority booking + 1 free intro / mo' },
   { name: 'Icon', range: '15,000+', perk: 'Annual Shape merch + service credit' },
@@ -20659,7 +20659,11 @@ const BS_STORE_PRODUCTS = [
 // Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value) — derived ONCE
 // here so every consumer (Store page, Score Rewards tab) shows the same cost.
 const BS_SHAPE_PTS_PER_USD = 150;
-BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * BS_SHAPE_PTS_PER_USD); });
+// Dollar-credits price at 2x the base rate (owner call 2026-07-20, option 2A):
+// they cost Shape real cash, unlike merch margin. Credit items are the two
+// session credits, the nutrition credit, and the annual membership credit.
+const BS_STORE_CREDIT_IDS = new Set(['train_credit_25', 'train_credit_50', 'nutri_credit_25', 'perk_annual_credit']);
+BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * (BS_STORE_CREDIT_IDS.has(p.id) ? BS_SHAPE_PTS_PER_USD * 2 : BS_SHAPE_PTS_PER_USD)); });
 
 // Product stand-in glyph (stroke line-art) — shown until real product photos are
 // dropped into mobile-app/public/store/<id>.png. Keyed by id first, then category.
@@ -21039,7 +21043,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           )}
 
-          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { rate: BS_SHAPE_PTS_PER_USD, defaultValue: 'Everything ships on points · {rate} pts = $1 · no expiry' })}</div>
+          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { rate: BS_SHAPE_PTS_PER_USD, defaultValue: 'Everything ships on points · {rate} pts = $1 · dollar credits 2× · no expiry' })}</div>
         </React.Fragment>
       )}
 

@@ -99,7 +99,7 @@ function ClientScorePage() {
   // [name, threshold (number), display "PTS / N+", benefit copy]
   const tiers = [
     ["Raw",    0,     "0+",      "Starting level"],
-    ["Tempo",  750,   "750+",    "2× redemption value"],
+    ["Tempo",  750,   "750+",    "Limited drops unlock"],
     ["Form",   2000,  "2,000+",  "Early access drops + streak boosts"],
     ["Peak",   5000,  "5,000+",  "Priority booking + 1 free intro / mo"],
     ["Legend", 15000, "15,000+", "Annual Shape merch + service credit"],

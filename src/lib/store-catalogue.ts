@@ -10,6 +10,10 @@
 // item's retail $, so the rate is consistent across the whole catalogue.
 
 export const SHAPE_PTS_PER_USD = 150;
+// Dollar-credits cost Shape REAL cash (we still pay the coach), unlike merch
+// (margin) — so they price at 2x the base rate (owner call 2026-07-20, option
+// 2A). The kind === 'credit' branch below is the ONE place the split lives.
+export const SHAPE_PTS_PER_USD_CREDIT = 300;
 
 export type StoreItem = {
   id: string;
@@ -56,7 +60,8 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
 export const STORE_CATALOGUE: StoreItem[] = RAW.map((p) => ({ ...p }));
 
 export function storeItemCost(item: StoreItem): number {
-  return Math.round(item.retail * SHAPE_PTS_PER_USD);
+  const rate = item.kind === 'credit' ? SHAPE_PTS_PER_USD_CREDIT : SHAPE_PTS_PER_USD;
+  return Math.round(item.retail * rate);
 }
 
 export function findStoreItem(id: string): StoreItem | undefined {
