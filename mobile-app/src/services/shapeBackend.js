@@ -4679,7 +4679,9 @@ async function cycleForClient(userId) {
     const { data, error } = await supabase.rpc('get_client_cycle', { p_user_id: userId });
     if (error || data == null) return null;               // not their coach / pre-migration
     if (data.share !== true) return { share: false };     // absence — the caller renders nothing
-    return { share: true, starts: Array.isArray(data.starts) ? data.starts : [] };
+    // `today` = the member's OWN local date (get_client_cycle, via shape_user_tz)
+    // so a consumer derives her cycle day against her today, not the device clock.
+    return { share: true, starts: Array.isArray(data.starts) ? data.starts : [], today: typeof data.today === 'string' ? data.today : null };
   } catch (e) { return null; }
 }
 window.ShapeCycle = {

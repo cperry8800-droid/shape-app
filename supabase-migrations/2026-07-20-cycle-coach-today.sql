@@ -15,7 +15,7 @@
 
 create or replace function public.get_client_cycle(p_user_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_ok boolean; v_starts jsonb;
+declare v_ok boolean; v_starts jsonb; v_tz text; v_today date;
 begin
   if not public.is_coach_on_client(p_user_id) then return null; end if;
   select coalesce((data->>'optIn')::boolean, false)
@@ -27,12 +27,18 @@ begin
     from (select event_date from public.cycle_events
           where user_id = p_user_id and kind = 'period_start'
           order by event_date desc limit 13) s;
+  -- The member's OWN local calendar date, computed IDENTICALLY to the
+  -- cycle_events_no_future trigger (same v_tz, same UTC+1d slack when the zone
+  -- was never captured) — so a start the trigger accepted as "her today" is
+  -- never returned with a `today` a day behind it, which would derive day 0
+  -- (Codex P2). With a captured tz the date is her exact local today.
+  v_tz := public.shape_user_tz(p_user_id);
+  v_today := (now() at time zone coalesce(v_tz, 'UTC'))::date
+             + (case when v_tz is null then 1 else 0 end);
   return jsonb_build_object(
     'share', true,
     'starts', v_starts,
-    -- the member's OWN local calendar date, so the coach view derives her cycle
-    -- day against her today rather than the coach device clock.
-    'today', to_char((now() at time zone coalesce(public.shape_user_tz(p_user_id), 'UTC'))::date, 'YYYY-MM-DD'));
+    'today', to_char(v_today, 'YYYY-MM-DD'));
 end $$;
 
 revoke execute on function public.get_client_cycle(uuid) from public, anon;
