@@ -59,5 +59,10 @@
   "cal.ariaPredicted": "expected window",
   "cal.legendLogged": "Logged",
   "cal.legendExpected": "Expected",
-  "cal.hint": "Tap a day to log the first day of a period. Tap it again to remove it."
+  "cal.hint": "Tap a day to log the first day of a period. Tap it again to remove it.",
+  "card.station": "The cycle",
+  "card.meta": "Private to you",
+  "card.setup": "Log a period start to begin.",
+  "card.cycles": "{n} cycles of data",
+  "todayChip": "Period started? Log it"
 }

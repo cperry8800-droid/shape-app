@@ -2894,6 +2894,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // goal slip · score drop). Honest: only a real flag from the live self record;
   // null otherwise, and the plan-based moves below lead instead. {key, reason}.
   const [engineFlag, setEngineFlag] = useStateBSC(null);
+  // THE CYCLE — Home's ONLY cycle input, and it never names it (doctrine:
+  // plain cycle language lives on cycle surfaces alone). Read here, spent as a
+  // neutral recovery note on the day's directive.
+  const { optIn: cycleOptIn } = useBSCycleSettings();
+  const { cycle: cycleNow } = useBSCycleDerived(cycleOptIn);
   React.useEffect(() => {
     let on = true;
     (async () => {
@@ -3225,6 +3230,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       // Sleep · last night row + recovery readiness), so it never spawns a
       // separate directive box.
     }[engineFlag.lever]) : null;
+    // THE CYCLE — the neutral note (spec 2026-07-19, Task 4). Deliberate
+    // deviation: the plan allows this to LEAD ("MAY lead"), but leading is
+    // only reachable when nothing else is pending — exactly where the
+    // kept-promise echo lives, and replacing a member's "you kept your word"
+    // with a body-state note is a worse close. So it rides as the SUB of the
+    // done state: it can never outrank real work, and the echo survives.
+    // ⚠ Gated on 'menstrual' ONLY. The plan also names luteal-with-a-fired-
+    // recovery-read, but that read is the Progress card's (it needs 120 days
+    // of series + every statistical floor); asserting "lighter load reads
+    // well" in luteal without it would be a claim we cannot back. Deferred,
+    // not fabricated.
+    const cycleNote = (cycleOptIn && cycleNow && cycleNow.phase === 'menstrual')
+      ? tr('home:lever.recoverySub', { defaultValue: 'Lighter load reads well today.' })
+      : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: [tr('home:lead.workout.cta', { defaultValue: "I'll train today →" }), () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
@@ -3232,7 +3251,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: tr('home:lead.habitsToFinish', { defaultValue: '{count, plural, one {# habit to finish} other {# habits to finish}}', count: habitsLeft }), cta: [tr('home:lead.habits.cta', { defaultValue: "I'll finish my habits →" }), () => setHabitsPage(true)], c: t.GREEN });
     // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
-    if (!todo.length) return { done: true, head: tr('home:lead.done.head', { defaultValue: 'You kept your word today.' }), sub: tr('home:lead.done.sub', { defaultValue: "Everything you said you'd do — done." }), c: t.GREEN, leadIsWorkout: false, leadMeal: null };
+    if (!todo.length) return { done: true, head: tr('home:lead.done.head', { defaultValue: 'You kept your word today.' }), sub: cycleNote || tr('home:lead.done.sub', { defaultValue: "Everything you said you'd do — done." }), c: t.GREEN, leadIsWorkout: false, leadMeal: null };
     const lead = todo[0];
     return {
       head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
@@ -18872,6 +18891,10 @@ function BSTodayCard() {
           <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>{tr('home:today.sleepDetail', { defaultValue: 'Sleep detail →' })}</button>
         </div>
       )}
+      {/* THE CYCLE — the quiet Today chip. Renders itself only inside the
+          expected window (opted in · a real prediction · today not already
+          logged); on every other day it is simply absent. */}
+      <BSCycleTodayChip />
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
     </div>
   );
@@ -25641,6 +25664,154 @@ function BSCrossoverCard({ isSelf }) {
   );
 }
 
+// ── THE CYCLE — the Progress card (spec 2026-07-19) ─────────────────────────
+// Renders ONLY when the member opted in. Station grammar, tier heat; the
+// headline states the engine's facts, and a statistical read appears ONLY when
+// bsCycleRead fires past every floor — below them the card shows the headline
+// with NO read, never a fabricated insight.
+//
+// ⚠ Engine seam (found building this): bsDeriveCycle does NOT return
+// completeCycles, but bsCycleRead REQUIRES it (>= 2) — the two halves were
+// never integrated (build 6's tests only ever passed hand-built
+// { completeCycles: n } objects). The caller owns it, so it's derived here
+// from the logged starts: a complete cycle is an INTERVAL between two
+// consecutive starts, hence starts.length - 1.
+function bsCycleCompleteCycles(starts) {
+  const n = (Array.isArray(starts) ? starts : []).length;
+  return n > 1 ? n - 1 : 0;
+}
+// Label each day with the phase she was ACTUALLY in then — derived from only
+// the starts that existed on or before that day, never retro-fitted from
+// today's data.
+function bsCycleLabelDays(starts, rows) {
+  const sorted = (Array.isArray(starts) ? starts : []).map(String).sort();
+  const out = [];
+  for (const r of rows) {
+    if (!r || !r.d) continue;
+    const upTo = sorted.filter((s) => s <= r.d);
+    if (!upTo.length) continue;
+    let c = null;
+    try { c = bsDeriveCycle(upTo, r.d); } catch (e) { c = null; }
+    if (!c || typeof c.phase !== 'string') continue;
+    out.push({ ...r, phase: c.phase });
+  }
+  return out;
+}
+function BSCycleCard({ isSelf }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const { optIn } = useBSCycleSettings();
+  const { starts, cycle } = useBSCycleDerived(isSelf && optIn);
+  const [read, setRead] = React.useState(null);
+  React.useEffect(() => {
+    if (!isSelf || !optIn || !cycle) { setRead(null); return undefined; }
+    let alive = true;
+    (async () => {
+      try {
+        const [prog, habRes] = await Promise.all([
+          window.ShapeProgress?.progress?.(),
+          window.ShapeHabitsData?.list?.() ?? null,
+        ]);
+        const ser = (prog && prog.series) || {};
+        const byDate = (arr) => new Map((Array.isArray(arr) ? arr : []).map((r) => [r.date, r.value]));
+        const sleepBy = byDate(ser.sleep);
+        const energyBy = byDate(ser.energy);
+        const restedBy = byDate(ser.sleepQuality);
+        const habits = ((habRes && habRes.habits) || []).filter((h) => h && !h.archived_at);
+        const rows = [];
+        const now = new Date();
+        for (let i = 119; i >= 0; i--) {
+          const d = new Date(now); d.setDate(d.getDate() - i);
+          const key = d.toLocaleDateString('en-CA');           // the member's LOCAL day
+          const scheduled = habits.filter((h) => String(h.created_at || '').slice(0, 10) <= key).length;
+          const done = habits.reduce((a, h) => a + ((Array.isArray(h.history) && h.history.includes(key)) ? 1 : 0), 0);
+          rows.push({
+            d: key,
+            // Absence stays ABSENT — bsCycleRead's valOf drops the day rather
+            // than reading a missing value as zero (the fabrication class).
+            sleepH: sleepBy.has(key) ? sleepBy.get(key) : null,
+            energy: energyBy.has(key) ? energyBy.get(key) : null,
+            rested: restedBy.has(key) ? restedBy.get(key) : null,
+            adherence: scheduled > 0 ? Math.min(1, done / scheduled) : null,
+          });
+        }
+        const days = bsCycleLabelDays(starts, rows);
+        const r = bsCycleRead(days, { ...cycle, completeCycles: bsCycleCompleteCycles(starts) });
+        if (alive) setRead(r || null);
+      } catch (e) { if (alive) setRead(null); }
+    })();
+    return () => { alive = false; };
+  }, [isSelf, optIn, cycle, starts]);
+
+  if (!isSelf || !optIn) return null;                          // absence, never a padlock
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const phaseLabel = {
+    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
+    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
+    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
+    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
+  }[cycle && cycle.phase] || '';
+  const head = !cycle
+    ? tr('cycle:card.setup', { defaultValue: 'Log a period start to begin.' })
+    : cycle.phase === 'paused'
+      ? tr('cycle:cal.pausedHead', { defaultValue: 'Cycle running long' })
+      : cycle.phase === 'late'
+        ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
+        : tr('cycle:cal.phaseHead', { phase: phaseLabel, d: cycle.day, defaultValue: '{phase} · day {d}' });
+  const cycles = bsCycleCompleteCycles(starts);
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <BSTStationHead heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
+      <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+        style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', minHeight: 44 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{head}</div>
+        {cycle ? (
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }}>
+            {[tr('cycle:cal.lengthMeta', { L: cycle.L, defaultValue: 'Your cycle ~{L} days' }),
+              tr('cycle:card.cycles', { n: cycles, defaultValue: '{n} cycles of data' })].join(' · ')}
+          </div>
+        ) : null}
+        {/* The read fires only past every floor; below them the card simply
+            carries no read — never an invented one. Copy is baked in-module
+            (the crossoverCopy no-drift rule). */}
+        {read && read.copy ? (
+          <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{read.copy}</div>
+          </div>
+        ) : null}
+      </button>
+    </div>
+  );
+}
+
+// ── THE CYCLE — the Today chip (spec 2026-07-19) ────────────────────────────
+// Quiet, and ONLY inside the expected window: opted in AND the engine actually
+// has a prediction (predictedStart is null for no-starts and for 'paused' —
+// the window arithmetic must never run on it) AND today sits in
+// [from − 2d, to + 7d] AND today isn't already logged. Lives on the Today
+// page, never the Home slate (doctrine: Home stays neutral).
+function BSCycleTodayChip() {
+  const t = useBS();
+  const tr = useShapeTr();
+  const { optIn } = useBSCycleSettings();
+  const { starts, cycle } = useBSCycleDerived(optIn);
+  if (!optIn || !cycle || !cycle.predictedStart) return null;
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if ((starts || []).map(String).includes(todayIso)) return null;
+  const shift = (iso, days) => { const d = new Date(`${iso}T00:00:00`); if (Number.isNaN(d.getTime())) return null; d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const from = shift(cycle.predictedStart.from, -2);
+  const to = shift(cycle.predictedStart.to, 7);
+  if (!from || !to || todayIso < from || todayIso > to) return null;
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  return (
+    <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '10px 0 2px', minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>
+      {tr('cycle:todayChip', { defaultValue: 'Period started? Log it' })} →
+    </button>
+  );
+}
+
 // The `embedded` (Me → Stats) mode died with the Route Card profile — both
 // remaining consumers are full-page. Full chrome only.
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
@@ -25748,6 +25919,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       {registers(oRegs, oRegRef, oRegSeen)}
       <BSWeekendsCard isSelf={signedIn} />
       <BSCrossoverCard isSelf={signedIn} />
+      <BSCycleCard isSelf={signedIn} />
       {station('The trend', activeTrend.unit ? activeTrend.unit.toUpperCase() : null, (
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginBottom: 4 }}>
