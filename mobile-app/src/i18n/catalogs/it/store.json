@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Riscatto non riuscito. Riprova.",
   "notice.orderPlaced": "Ordine inviato — {n, plural, one {# articolo} other {# articoli}} in arrivo. I codici sono nel tuo armadietto e via email.",
   "notice.cartShort": "Punti insufficienti per il carrello — rimuovi un articolo o guadagnane altri.",
-  "notice.checkoutFailed": "Pagamento non riuscito. Riprova."
+  "notice.checkoutFailed": "Pagamento non riuscito. Riprova.",
+  "unlocked.head": "Sbloccato · {count, plural, one {# premio} other {# premi}} · gratis",
+  "unlocked.earnedAt": "Ottenuto a {tier}",
+  "unlocked.claim": "Richiedi · gratis",
+  "unlocked.claiming": "Richiesta…",
+  "unlocked.pickOne": "Scegline uno",
+  "unlocked.eyebrow": "Sbloccato",
+  "unlocked.shipTitleA": "Dove te lo",
+  "unlocked.shipTitleB": "spediamo?",
+  "unlocked.shipBlurb": "L'hai ottenuto a {tier}. Non costa nulla — ci serve solo un indirizzo.",
+  "unlocked.confirmShip": "Richiedilo · gratis",
+  "unlocked.claimedShip": "{name} è in arrivo — codice {code}. Gratis, ottenuto al tuo livello.",
+  "unlocked.claimedVoucher": "{name} è tuo — codice {code}. Mostralo al tuo coach o al team Shape.",
+  "unlocked.alreadyClaimed": "L'hai già richiesto — è nel tuo armadietto.",
+  "unlocked.notUnlocked": "Quel premio non è ancora sbloccato.",
+  "unlocked.needsShipping": "Ci serve un indirizzo di spedizione completo per inviarlo.",
+  "unlocked.badChoice": "Scegli una delle opzioni mostrate.",
+  "unlocked.claimFailed": "Impossibile richiederlo. Riprova."
 }

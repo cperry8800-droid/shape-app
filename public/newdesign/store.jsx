@@ -275,6 +275,60 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   }, []);
   const roleCats = isCoach ? ["Shape Merch", "Coach Tools"] : ["Shape Merch", "Training", "Nutrition", "Shape Perks"];
 
+  // Tier rewards — the free unlocks the ladder earned. The server owns which tier
+  // unlocks what and which picks are legal; pre-migration (or signed out) the
+  // list is empty and the shelf renders nothing.
+  const [tierRewards, setTierRewards] = useSStore([]);
+  const [claimKey, setClaimKey] = useSStore("");
+  const [claimShipFor, setClaimShipFor] = useSStore(null);  // { reward, choice }
+  const loadTierRewards = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/store/tier-rewards", { credentials: "include" });
+      if (!res.ok) return;
+      const d = await res.json().catch(() => ({}));
+      if (Array.isArray(d.rewards)) setTierRewards(d.rewards);
+    } catch (_) {}
+  }, []);
+  useEStore(() => { if (signedIn) loadTierRewards(); }, [signedIn, loadTierRewards]);
+
+  async function claimReward(reward, choice, shipping) {
+    if (locked) { window.location.href = "Pricing.html"; return; }
+    if (claimKey) return;
+    const needsShip = reward.kind === "merch";
+    if (needsShip && !shipping) { setClaimShipFor({ reward, choice }); setNotice(""); return; }
+    setClaimKey(reward.rewardKey); setNotice("");
+    try {
+      const res = await fetch("/api/store/tier-rewards", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rewardKey: reward.rewardKey, choice: choice || null, shipping: needsShip ? shipping : null }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const e = d && d.error;
+        if (e === "already_claimed") setNotice("You already claimed that one — it's in your locker.");
+        else if (e === "not_unlocked") setNotice("That reward isn't unlocked yet.");
+        else if (e === "needs_shipping") setNotice("We need a full shipping address to send that.");
+        else if (e === "bad_choice") setNotice("Pick one of the options shown.");
+        else if (e === "membership_required") setNotice("Become a Shape member to claim your rewards.");
+        else setNotice("Could not claim that. Please try again.");
+        if (e === "already_claimed" || e === "not_unlocked") { setClaimShipFor(null); loadTierRewards(); }
+        return;
+      }
+      setClaimShipFor(null);
+      setNotice(needsShip
+        ? `${d.name || reward.name} is on its way — code ${d.code}. Free, earned at your tier.`
+        : `${d.name || reward.name} is yours — code ${d.code}. Show it to your coach or the Shape team.`);
+      loadTierRewards();
+      if (onRedeemed) onRedeemed();
+    } catch (err) {
+      setNotice("Could not claim that. Please try again.");
+    } finally {
+      setClaimKey("");
+    }
+  }
+
   // Merch cart (one shipment) — persisted across visits.
   useEStore(() => { try { const r = JSON.parse(localStorage.getItem("shape.storeCart") || "{}"); if (r && typeof r === "object") { const clean = {}; Object.entries(r).forEach(([id, q]) => { const p = allProducts.find((x) => x.itemId === id); const n = Math.floor(Number(q)); if (p && p.cat === "Shape Merch" && n > 0) clean[id] = Math.min(9, n); }); setCart(clean); } } catch (_) {} }, []);
   useEStore(() => { try { localStorage.setItem("shape.storeCart", JSON.stringify(cart)); } catch (_) {} }, [cart]);
@@ -385,6 +439,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   return (
     <>
       <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} categories={["All", ...roleCats]} />
+      <UnlockedShelf rewards={tierRewards} busyKey={claimKey} onClaim={claimReward} />
       <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           {locked && (
@@ -428,9 +483,115 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{cartTotal.toLocaleString()} pts · Review →</span>
         </button>
       )}
+      {claimShipFor && <ClaimShipModal reward={claimShipFor.reward} busy={!!claimKey} notice={notice} onClose={() => { if (!claimKey) { setClaimShipFor(null); setNotice(""); } }} onConfirm={(ship) => claimReward(claimShipFor.reward, claimShipFor.choice, ship)} />}
       {confirmFor && <ConfirmModal item={confirmFor} balance={balance} busy={busy === (confirmFor.itemId || confirmFor.name)} onCancel={() => { if (!busy) setConfirmFor(null); }} onConfirm={() => confirmRedeem(confirmFor)} />}
       {checkoutOpen && <CheckoutModal lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onClose={() => { if (!checkoutBusy) setCheckoutOpen(false); }} onPlace={doCheckout} />}
     </>
+  );
+}
+
+// THE UNLOCKED SHELF — free rewards the Shape Score ladder earned, above the
+// paid catalogue because they cost nothing. Renders NOTHING when there's nothing
+// unclaimed, so a member who hasn't reached a tier is never shown an empty
+// promise. A claimed reward drops out of here and into the locker.
+function UnlockedShelf({ rewards, busyKey, onClaim }) {
+  const open = (rewards || []).filter((r) => !r.claimedAt);
+  const [picks, setPicks] = useSStore({});
+  if (!open.length) return null;
+  const nameOf = (id) => {
+    const hit = PRODUCTS.find((p) => STORE_ITEM_IDS[p.name] === id);
+    return hit ? hit.name : id;
+  };
+  return (
+    <section style={{ padding: "40px 72px 0" }}>
+      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ width: 10, height: 10, background: TEAL }} aria-hidden />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>
+            Unlocked · {open.length} {open.length === 1 ? "reward" : "rewards"} · free
+          </span>
+        </div>
+        <div style={{ height: 2, marginTop: 10, background: `linear-gradient(90deg, rgba(242,237,228,0.45), ${TEAL})` }} aria-hidden />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginTop: 22 }}>
+          {open.map((r) => {
+            const choices = Array.isArray(r.choices) ? r.choices : [];
+            const pick = picks[r.rewardKey] || (choices.length === 1 ? choices[0] : "");
+            const ready = choices.length === 0 || !!pick;
+            const busy = busyKey === r.rewardKey;
+            return (
+              <article key={r.rewardKey} style={{ padding: "20px 22px", borderRadius: 12, border: `1px solid ${TEAL}55`, background: "rgba(10,197,168,0.06)" }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Earned at {r.tier}</div>
+                <div style={{ marginTop: 6, fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK }}>{r.name}</div>
+                {choices.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                    {choices.map((c) => {
+                      const on = pick === c;
+                      return (
+                        <button key={c} type="button" onClick={() => setPicks((p) => ({ ...p, [r.rewardKey]: c }))} aria-pressed={on ? "true" : "false"}
+                          style={{ padding: "9px 14px", borderRadius: 999, cursor: "pointer",
+                            border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.25)"}`,
+                            background: on ? "rgba(10,197,168,0.16)" : "transparent",
+                            color: on ? INK : "rgba(242,237,228,0.75)", fontFamily: sans, fontSize: 13, fontWeight: on ? 700 : 500 }}>
+                          {nameOf(c)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <button type="button" onClick={() => ready && !busy && onClaim(r, pick || null, null)} disabled={!ready || busy}
+                  style={{ marginTop: 16, padding: "11px 20px", borderRadius: 999, border: 0,
+                    background: ready && !busy ? TEAL : "rgba(242,237,228,0.12)",
+                    color: ready && !busy ? "#04201d" : "rgba(242,237,228,0.5)",
+                    fontFamily: sans, fontSize: 13, fontWeight: 700, letterSpacing: "0.06em",
+                    cursor: ready && !busy ? "pointer" : "default" }}>
+                  {busy ? "Claiming…" : !ready ? "Pick one" : "Claim · free"}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Where a claimed piece of merch is sent. Vouchers never open this — the server
+// rejects an address on a reward that isn't shipped.
+function ClaimShipModal({ reward, busy, notice, onClose, onConfirm }) {
+  const [f, setF] = useSStore({ name: "", line1: "", line2: "", city: "", region: "", postal: "", country: "US" });
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const valid = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
+  const field = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 8, border: "1px solid rgba(242,237,228,0.18)", background: "rgba(242,237,228,0.05)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`Claim ${reward.name}`} onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", borderRadius: 14, border: "1px solid rgba(242,237,228,0.14)", background: "#12100e", padding: "24px 26px" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Unlocked · earned at {reward.tier}</div>
+        <h3 style={{ margin: "8px 0 4px", fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", color: INK }}>Where do we send it?</h3>
+        <p style={{ margin: "0 0 16px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.65)" }}>{reward.name} costs nothing — we just need an address.</p>
+        <div style={{ display: "grid", gap: 9 }}>
+          <input value={f.name} onChange={set("name")} placeholder="Full name" aria-label="Full name" maxLength={120} style={field} />
+          <input value={f.line1} onChange={set("line1")} placeholder="Address" aria-label="Street address" maxLength={200} style={field} />
+          <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" aria-label="Apartment or suite (optional)" maxLength={200} style={field} />
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 9 }}>
+            <input value={f.city} onChange={set("city")} placeholder="City" aria-label="City" maxLength={100} style={field} />
+            <input value={f.region} onChange={set("region")} placeholder="State" aria-label="State or region" maxLength={100} style={field} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+            <input value={f.postal} onChange={set("postal")} placeholder="ZIP" aria-label="ZIP or postal code" maxLength={20} style={field} />
+            <input value={f.country} onChange={set("country")} placeholder="Country" aria-label="Country" maxLength={60} style={field} />
+          </div>
+        </div>
+        {!!notice && <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(224,70,60,0.4)", background: "rgba(224,70,60,0.1)", fontFamily: sans, fontSize: 13, color: INK }}>{notice}</div>}
+        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+          <button type="button" onClick={onClose} disabled={busy} style={{ flex: "none", padding: "11px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>Cancel</button>
+          <button type="button" onClick={() => valid && !busy && onConfirm(f)} disabled={!valid || busy}
+            style={{ flex: 1, padding: "11px 18px", borderRadius: 999, border: 0, background: valid && !busy ? TEAL : "rgba(242,237,228,0.12)", color: valid && !busy ? "#04201d" : "rgba(242,237,228,0.5)", fontFamily: sans, fontSize: 13.5, fontWeight: 700, cursor: valid && !busy ? "pointer" : "default" }}>
+            {busy ? "Claiming…" : "Claim it · free"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

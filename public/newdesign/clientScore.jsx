@@ -99,10 +99,10 @@ function ClientScorePage() {
   // [name, threshold (number), display "PTS / N+", benefit copy]
   const tiers = [
     ["Raw",    0,     "0+",      "Starting level"],
-    ["Tempo",  750,   "750+",    "Limited drops unlock"],
-    ["Form",   2000,  "2,000+",  "Early access drops + streak boosts"],
-    ["Peak",   5000,  "5,000+",  "Priority booking + 1 free intro / mo"],
-    ["Legend", 15000, "15,000+", "Annual Shape merch + service credit"],
+    ["Tempo",  750,   "750+",    "Free cap + bottle or canteen"],
+    ["Form",   2000,  "2,000+",  "Free coach workout or plan"],
+    ["Peak",   5000,  "5,000+",  "A free month with a coach"],
+    ["Legend", 15000, "15,000+", "A free year of Shape + merch"],
   ];
 
   // Live score state. When signed in, the API hydrates this with the

@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Amfani ya kasa. Da fatan sake gwadawa.",
   "notice.orderPlaced": "An yi oda — {n, plural, one {kaya #} other {kayayyaki #}} suna kan hanya. Lambobin suna cikin kabad ɗinka da imel.",
   "notice.cartShort": "Maki bai isa don kwandon ba — cire kaya ɗaya ko sami ƙari.",
-  "notice.checkoutFailed": "Biyan kuɗi ya kasa. Da fatan sake gwadawa."
+  "notice.checkoutFailed": "Biyan kuɗi ya kasa. Da fatan sake gwadawa.",
+  "unlocked.head": "An buɗe · {count, plural, one {kyauta #} other {kyaututtuka #}} · kyauta",
+  "unlocked.earnedAt": "An samu a {tier}",
+  "unlocked.claim": "Karɓa · kyauta",
+  "unlocked.claiming": "Ana karɓa…",
+  "unlocked.pickOne": "Zaɓi ɗaya",
+  "unlocked.eyebrow": "An buɗe",
+  "unlocked.shipTitleA": "Ina za mu",
+  "unlocked.shipTitleB": "aika shi?",
+  "unlocked.shipBlurb": "Ka samu wannan a {tier}. Ba ya kashe komai — muna buƙatar adireshi kawai.",
+  "unlocked.confirmShip": "Karɓa · kyauta",
+  "unlocked.claimedShip": "{name} yana kan hanya — lambar {code}. Kyauta ce, ka samu ta matakinka.",
+  "unlocked.claimedVoucher": "{name} naka ne — lambar {code}. Nuna wa kocinka ko ƙungiyar Shape.",
+  "unlocked.alreadyClaimed": "Ka riga ka karɓi wannan — yana cikin ajiyarka.",
+  "unlocked.notUnlocked": "Ba a buɗe wannan kyautar ba tukuna.",
+  "unlocked.needsShipping": "Muna buƙatar cikakken adireshin aikawa don mu aika.",
+  "unlocked.badChoice": "Zaɓi ɗaya daga cikin zaɓuɓɓukan da aka nuna.",
+  "unlocked.claimFailed": "An kasa karɓa. Ka sake gwadawa."
 }

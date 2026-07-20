@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Обмен не удался. Попробуйте ещё раз.",
   "notice.orderPlaced": "Заказ оформлен — {n, plural, one {# товар} few {# товара} many {# товаров} other {# товаров}} в пути. Коды в вашем шкафчике и на почте.",
   "notice.cartShort": "Недостаточно баллов для корзины — удалите товар или заработайте ещё.",
-  "notice.checkoutFailed": "Оплата не удалась. Попробуйте ещё раз."
+  "notice.checkoutFailed": "Оплата не удалась. Попробуйте ещё раз.",
+  "unlocked.head": "Открыто · {count, plural, one {# награда} few {# награды} many {# наград} other {# награды}} · бесплатно",
+  "unlocked.earnedAt": "Получено на уровне {tier}",
+  "unlocked.claim": "Забрать · бесплатно",
+  "unlocked.claiming": "Забираем…",
+  "unlocked.pickOne": "Выбери одно",
+  "unlocked.eyebrow": "Открыто",
+  "unlocked.shipTitleA": "Куда это",
+  "unlocked.shipTitleB": "отправить?",
+  "unlocked.shipBlurb": "Ты получил это на уровне {tier}. Это бесплатно — нужен только адрес.",
+  "unlocked.confirmShip": "Забрать бесплатно",
+  "unlocked.claimedShip": "{name} уже в пути — код {code}. Бесплатно, заработано твоим уровнем.",
+  "unlocked.claimedVoucher": "{name} твой — код {code}. Покажи его тренеру или команде Shape.",
+  "unlocked.alreadyClaimed": "Ты уже забрал это — оно в твоём шкафчике.",
+  "unlocked.notUnlocked": "Эта награда ещё не открыта.",
+  "unlocked.needsShipping": "Чтобы отправить, нужен полный адрес доставки.",
+  "unlocked.badChoice": "Выбери один из показанных вариантов.",
+  "unlocked.claimFailed": "Не удалось забрать. Попробуй ещё раз."
 }

@@ -22,12 +22,17 @@ type LedgerRow = {
   source_kind: string | null;
 };
 
+// Each benefit is a REAL unlock granted by award_tier_bonuses() and claimed via
+// claim_tier_reward (2026-07-20-tier-rewards.sql). The previous copy — 2x
+// redemption value, early access, priority booking, a free intro — named
+// mechanics that no code implemented. KEEP IN SYNC with SHAPE_SCORE_TIERS in
+// the mobile client and TIERS_CLIENT in public/newdesign/score.jsx.
 const TIERS: Array<[name: string, threshold: number, display: string, benefit: string]> = [
   ['Raw',    0,     '0+',      'Starting level'],
-  ['Tempo',  750,   '750+',    '2× redemption value'],
-  ['Form',   2000,  '2,000+',  'Early access drops + streak boosts'],
-  ['Peak',   5000,  '5,000+',  'Priority booking + 1 free intro / mo'],
-  ['Legend', 15000, '15,000+', 'Annual Shape merch + service credit'],
+  ['Tempo',  750,   '750+',    'Free cap + bottle or canteen'],
+  ['Form',   2000,  '2,000+',  'Free coach workout or plan'],
+  ['Peak',   5000,  '5,000+',  'A free month with a coach'],
+  ['Legend', 15000, '15,000+', 'A free year of Shape + merch'],
 ];
 
 type SnapRow = {

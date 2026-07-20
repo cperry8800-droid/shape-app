@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Einlösung fehlgeschlagen. Bitte versuche es erneut.",
   "notice.orderPlaced": "Bestellung aufgegeben — {n, plural, one {# Artikel} other {# Artikel}} unterwegs. Die Codes sind in deinem Schließfach und per E-Mail.",
   "notice.cartShort": "Nicht genug Punkte für den Warenkorb — entferne einen Artikel oder sammle mehr.",
-  "notice.checkoutFailed": "Bezahlung fehlgeschlagen. Bitte versuche es erneut."
+  "notice.checkoutFailed": "Bezahlung fehlgeschlagen. Bitte versuche es erneut.",
+  "unlocked.head": "Freigeschaltet · {count, plural, one {# Belohnung} other {# Belohnungen}} · gratis",
+  "unlocked.earnedAt": "Erreicht bei {tier}",
+  "unlocked.claim": "Einlösen · gratis",
+  "unlocked.claiming": "Wird eingelöst…",
+  "unlocked.pickOne": "Wähl eins aus",
+  "unlocked.eyebrow": "Freigeschaltet",
+  "unlocked.shipTitleA": "Wohin sollen",
+  "unlocked.shipTitleB": "wir es schicken?",
+  "unlocked.shipBlurb": "Das hast du bei {tier} verdient. Es kostet nichts — wir brauchen nur eine Adresse.",
+  "unlocked.confirmShip": "Gratis einlösen",
+  "unlocked.claimedShip": "{name} ist unterwegs — Code {code}. Gratis, auf deiner Stufe verdient.",
+  "unlocked.claimedVoucher": "{name} gehört dir — Code {code}. Zeig ihn deinem Coach oder dem Shape-Team.",
+  "unlocked.alreadyClaimed": "Das hast du schon eingelöst — es liegt in deinem Fach.",
+  "unlocked.notUnlocked": "Diese Belohnung ist noch nicht freigeschaltet.",
+  "unlocked.needsShipping": "Wir brauchen eine vollständige Lieferadresse zum Versenden.",
+  "unlocked.badChoice": "Wähl eine der angezeigten Optionen.",
+  "unlocked.claimFailed": "Einlösen fehlgeschlagen. Bitte versuch es nochmal."
 }

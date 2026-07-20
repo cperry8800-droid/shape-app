@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Kullanım başarısız oldu. Lütfen tekrar dene.",
   "notice.orderPlaced": "Sipariş verildi — {n, plural, one {# ürün} other {# ürün}} yolda. Kodlar dolabında ve e-postanda.",
   "notice.cartShort": "Sepet için yeterli puan yok — bir ürün çıkar veya daha fazla kazan.",
-  "notice.checkoutFailed": "Ödeme başarısız oldu. Lütfen tekrar dene."
+  "notice.checkoutFailed": "Ödeme başarısız oldu. Lütfen tekrar dene.",
+  "unlocked.head": "Açıldı · {count, plural, one {# ödül} other {# ödül}} · ücretsiz",
+  "unlocked.earnedAt": "Şu seviyede kazanıldı: {tier}",
+  "unlocked.claim": "Al · ücretsiz",
+  "unlocked.claiming": "Alınıyor…",
+  "unlocked.pickOne": "Birini seç",
+  "unlocked.eyebrow": "Açıldı",
+  "unlocked.shipTitleA": "Nereye",
+  "unlocked.shipTitleB": "gönderelim?",
+  "unlocked.shipBlurb": "Bunu şu seviyede kazandın: {tier}. Hiçbir ücreti yok — sadece bir adres gerekiyor.",
+  "unlocked.confirmShip": "Ücretsiz al",
+  "unlocked.claimedShip": "{name} yola çıktı — kod {code}. Ücretsiz, seviyenle kazandın.",
+  "unlocked.claimedVoucher": "{name} senin — kod {code}. Koçuna ya da Shape ekibine göster.",
+  "unlocked.alreadyClaimed": "Onu zaten aldın — dolabında duruyor.",
+  "unlocked.notUnlocked": "O ödül henüz açılmadı.",
+  "unlocked.needsShipping": "Göndermek için eksiksiz bir teslimat adresi gerekiyor.",
+  "unlocked.badChoice": "Gösterilen seçeneklerden birini seç.",
+  "unlocked.claimFailed": "Alınamadı. Lütfen tekrar dene."
 }

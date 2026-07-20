@@ -82,5 +82,22 @@
   "notice.redeemFailed": "Redemption fail. Abeg try again.",
   "notice.orderPlaced": "Dem don place your order — {n, plural, one {# item} other {# items}} dey come. The codes dey your locker and email.",
   "notice.cartShort": "Points no reach to cover the cart — remove one item or earn more.",
-  "notice.checkoutFailed": "Checkout fail. Abeg try again."
+  "notice.checkoutFailed": "Checkout fail. Abeg try again.",
+  "unlocked.head": "You don unlock · {count, plural, one {# reward} other {# rewards}} · free",
+  "unlocked.earnedAt": "You win am for {tier}",
+  "unlocked.claim": "Collect · free",
+  "unlocked.claiming": "Dey collect…",
+  "unlocked.pickOne": "Pick one",
+  "unlocked.eyebrow": "Don unlock",
+  "unlocked.shipTitleA": "Where we go",
+  "unlocked.shipTitleB": "send am?",
+  "unlocked.shipBlurb": "You win dis one for {tier}. E no cost anything — na address we just need.",
+  "unlocked.confirmShip": "Collect am · free",
+  "unlocked.claimedShip": "{name} dey come — code na {code}. Free, na your level win am.",
+  "unlocked.claimedVoucher": "{name} na your own — code na {code}. Show am to your coach or di Shape team.",
+  "unlocked.alreadyClaimed": "You don collect dat one — e dey your locker.",
+  "unlocked.notUnlocked": "Dat reward never unlock.",
+  "unlocked.needsShipping": "We need full shipping address before we fit send am.",
+  "unlocked.badChoice": "Pick one of di options wey dey show.",
+  "unlocked.claimFailed": "We no fit collect am. Abeg try again."
 }
