@@ -5,6 +5,7 @@ import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsP
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -3518,6 +3519,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       .catch(() => {});
     return () => { ignore = true; };
   }, [clientUid]);
+  // Weekly-adherence variance for THIS client — reset per-client, ignore stale.
+  // Demo roster rows carry no real clientUid, so they simply never fetch → no line.
+  const [clientVar, setClientVar] = useStateBSP(null);
+  useEffectBSP(() => {
+    setClientVar(null);
+    if (!clientUid || !window.ShapeRosterVariance?.get) return undefined;
+    let ignore = false;
+    window.ShapeRosterVariance.get([clientUid])
+      .then(map => { if (ignore) return; setClientVar((map && map[clientUid]) || null); })
+      .catch(() => {});
+    return () => { ignore = true; };
+  }, [clientUid]);
+  const varRead = clientVar ? bsVarianceCopy(clientVar) : null;
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
   const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });
   useEffectBSP(() => {
@@ -3910,6 +3924,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             still
           />}
         </div>
+        {/* Week-to-week variance. Rendered BARE — bsVarianceCopy is the ONE copy
+            source (words + figures baked together, the crossoverCopy precedent),
+            so the Case File and the website line can never disagree. Wrapping it
+            in tr() would invite catalogs to rebuild the sentence from parts and
+            fork that source; it is a ledger-note, English by design. */}
+        {varRead && (
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: varRead.chip ? t.AMBER : t.INK50 }}>
+            {varRead.line}
+          </div>
+        )}
       </div>
 
       {/* KEY LIFTS (trainer) / MACROS VS TARGET (nutri). */}
