@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bsLiveProgressPayload, bsLiveAudience, bsShouldPushProgress, bsValidLivePayload } from '../mobile-app/src/services/liveProgress.mjs';
-import { bsValidLivePayload as bsValidCanonical } from '../public/newdesign/liveProgress.mjs';
+import { bsValidLivePayload as bsValidCanonical, bsCookingPayload } from '../public/newdesign/liveProgress.mjs';
 
 const MOVES = [ { m: 'Pull-up', sets: 4 }, { m: 'Barbell row', sets: 4 }, { m: '', sets: 3 } ];
 const DONE = { '0-0': true, '0-1': true, '0-2': true, '0-3': true, '1-0': true, '1-1': true };
@@ -83,4 +83,53 @@ test('throttle: unchanged never pushes; changed pushes only past the 4s floor', 
 
 test('mobile shim re-exports the canonical implementation (no twin)', () => {
   assert.equal(bsValidLivePayload, bsValidCanonical);
+});
+
+test('cooking payload: plan/recipe-sourced yes, freehand/absent/unsafe null', () => {
+  assert.deepEqual(bsCookingPayload({ title: 'Salmon rice bowl', kcal: 620 }),
+    { v: 1, kind: 'cooking', title: 'Salmon rice bowl' });
+  assert.deepEqual(bsCookingPayload({ title: 'Overnight oats', recipeId: 'r-oats' }),
+    { v: 1, kind: 'cooking', title: 'Overnight oats' });
+  assert.equal(bsCookingPayload({ title: 'My own thing' }), null);            // freehand — intake class
+  assert.equal(bsCookingPayload({ kcal: 500, title: '' }), null);             // no clean title
+  assert.equal(bsCookingPayload(null), null);
+  assert.equal(bsCookingPayload({ kcal: 500, title: 'x'.repeat(81) }), null); // builder rejects too — no truncate-then-send
+});
+
+test('cooking payload: falsy-but-finite kcal must NOT read as planned', () => {
+  // Number(null)/Number('')/Number(false) are all finite 0 — a freehand meal
+  // carrying one of those must stay silent (intake class).
+  assert.equal(bsCookingPayload({ title: 'Freehand', kcal: null }), null);
+  assert.equal(bsCookingPayload({ title: 'Freehand', kcal: '' }), null);
+  assert.equal(bsCookingPayload({ title: 'Freehand', kcal: false }), null);
+  assert.equal(bsCookingPayload({ title: 'Freehand', recipeId: '   ' }), null);
+  // a real 0-kcal planned meal IS planned (an explicit number)
+  assert.ok(bsCookingPayload({ title: 'Black coffee', kcal: 0 }));
+  assert.ok(bsCookingPayload({ title: 'Planned', kcal: '620' }));
+});
+
+test('validator dispatches on kind FIRST; cooking strictly validated; workout contract untouched', () => {
+  assert.deepEqual(bsValidLivePayload({ v: 1, kind: 'cooking', title: 'Salmon rice bowl' }),
+    { v: 1, kind: 'cooking', title: 'Salmon rice bowl' });
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: '' }), null);
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: '  ' }), null);
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: 'x'.repeat(81) }), null);   // REJECT, never truncate
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: 'a\u0007b' }), null);       // control char
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: '<b>hi</b>' }), null);      // markup
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title: 'ok', extra: 1 }).extra, undefined); // sanitized shape only
+  assert.equal(bsValidLivePayload({ v: 1, kind: 'mystery', title: 'x' }), null);              // unknown kind
+  // workout regression: the existing builder output still validates unchanged
+  const w = bsLiveProgressPayload(MOVES, DONE, 1, true);
+  assert.ok(bsValidLivePayload(w));
+  assert.ok(bsValidLivePayload({ ...w, kind: 'workout' }));
+});
+
+test('cooking rejection cannot be smuggled past the builder into the wire', () => {
+  // Everything the builder refuses the validator must also refuse — the two
+  // ends share ONE contract, so a hand-built row cannot out-flank the writer.
+  const bad = ['x'.repeat(81), '<b>hi</b>', 'a\u0000b', 'a\u007fb', '   '];
+  for (const title of bad) {
+    assert.equal(bsCookingPayload({ kcal: 100, title }), null, `builder accepted: ${JSON.stringify(title)}`);
+    assert.equal(bsValidLivePayload({ v: 1, kind: 'cooking', title }), null, `validator accepted: ${JSON.stringify(title)}`);
+  }
 });

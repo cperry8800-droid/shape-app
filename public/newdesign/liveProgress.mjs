@@ -18,6 +18,11 @@ const PUSH_FLOOR_MS = 4000;
 const MAX_SETS = 50;      // per-move bound — also blocks Infinity/fractional state (review: CodeRabbit)
 const MAX_EXERCISES = 60;
 
+// Cooking titles are member-authored text going onto someone else's screen:
+// no control characters (they can hide or reorder rendered text) and no markup
+// delimiters. REJECT, never sanitise-and-send — see bsCookingPayload.
+const COOK_TITLE_BAD = /[\u0000-\u001f\u007f<>]/;
+
 const intSets = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(MAX_SETS, Math.max(1, Math.floor(n))) : 1;
@@ -38,6 +43,26 @@ export function bsLiveProgressPayload(moves, completed, moveIdx, resting) {
   return { v: 1, exercises, curIdx, resting: !!resting, setsDone, setsTotal };
 }
 
+// Cooking payload (spec 2026-07-19): the planned meal's TITLE only — never
+// macros, portions, or adjustments. Eligible ONLY for a plan/recipe-sourced
+// meal; a freehand meal is intake, and intake stays silent (the presence dot
+// already says "cooking"). Rejects rather than truncates, so the builder and
+// the wire validator enforce one identical contract.
+export function bsCookingPayload(meal) {
+  if (!meal || typeof meal !== 'object') return null;
+  // Planned-meal predicate, STRICT: Number(null)/Number('')/Number(false) are
+  // all finite 0 — a freehand meal carrying one of those must NOT read as
+  // planned. Only a real number, or a non-empty numeric string, counts.
+  const kcalPlanned =
+    (typeof meal.kcal === 'number' && Number.isFinite(meal.kcal)) ||
+    (typeof meal.kcal === 'string' && meal.kcal.trim() !== '' && Number.isFinite(Number(meal.kcal)));
+  const eligible = kcalPlanned || (typeof meal.recipeId === 'string' && !!meal.recipeId.trim());
+  if (!eligible) return null;                              // freehand = intake = silence
+  const title = String(meal.title || '').trim();
+  if (!title || title.length > 80 || COOK_TITLE_BAD.test(title)) return null;
+  return { v: 1, kind: 'cooking', title };
+}
+
 export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) {
   if (!nextPayload) return false;
   if (JSON.stringify(prevPayload) === JSON.stringify(nextPayload)) return false;
@@ -54,6 +79,18 @@ export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) 
 // honest-absent render; a v1 consumer never guesses at a partial shape.
 export function bsValidLivePayload(raw) {
   if (!raw || typeof raw !== 'object' || raw.v !== 1) return null;
+  // Kind dispatch FIRST — before any workout-shaped check. A cooking row has
+  // no exercises, so the workout contract below would reject it outright.
+  if (raw.kind === 'cooking') {
+    // Cooking contract: exactly {v,kind,title}. The wire gets no truncation
+    // courtesy — an out-of-contract title is REJECTED (the builder never
+    // emits one, so a violation is by definition not ours).
+    if (typeof raw.title !== 'string') return null;
+    const title = raw.title.trim();
+    if (!title || raw.title.length > 80 || COOK_TITLE_BAD.test(raw.title)) return null;
+    return { v: 1, kind: 'cooking', title };
+  }
+  if (raw.kind !== undefined && raw.kind !== 'workout') return null;
   if (!Array.isArray(raw.exercises) || raw.exercises.length === 0 || raw.exercises.length > MAX_EXERCISES) return null;
   const okInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
   let sumDone = 0; let sumTotal = 0;

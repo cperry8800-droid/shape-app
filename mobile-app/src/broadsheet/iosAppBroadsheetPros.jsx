@@ -497,7 +497,12 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
     const off = window.ShapeLiveProgress.subscribe(clientId, (r) => take(r, true));
     return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [clientId]);
-  const lp = liveRow ? bsValidLivePayload(liveRow.payload) : null;   // malformed → honest-absent
+  // malformed → honest-absent. bsValidLivePayload now returns a DISCRIMINATED
+  // UNION (workout | cooking, spec 2026-07-19), and this console renders
+  // workout scaffolding — a cooking row must fall through to the neutral
+  // no-detail line, never an exercise grid built from fields it doesn't carry.
+  const lpAny = liveRow ? bsValidLivePayload(liveRow.payload) : null;
+  const lp = lpAny && (!lpAny.kind || lpAny.kind === 'workout') ? lpAny : null;
   const liveMode = !!clientId;   // real client → NEVER the demo data, row or not
 
   const demoMoves = [
