@@ -4,7 +4,7 @@ import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
-import { bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
@@ -501,7 +501,49 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
   // UNION (workout | cooking, spec 2026-07-19), and this console renders
   // workout scaffolding — a cooking row must fall through to the neutral
   // no-detail line, never an exercise grid built from fields it doesn't carry.
-  const lpAny = liveRow ? bsValidLivePayload(liveRow.payload) : null;
+  // Coach channel (spec 2026-07-19, owner-ratified): real loads/reps/RPE for
+  // the client's OWN coach, from a separate coach-only row. RLS decides — a
+  // non-coach, and a SINCE-REVOKED coach, simply reads nothing. NO persistent
+  // cache anywhere: component state only, so a revoked link cannot keep
+  // showing stale loads (the revocation bound).
+  const [coachRow, setCoachRow] = useStateBSP(null);
+  useEffectBSP(() => {
+    setCoachRow(null);                       // reset on client change
+    if (!clientId || !window.ShapeLiveProgress?.getCoach) return undefined;
+    let on = true; let expTimer = null; let evented = false;
+    const refetch = () => {
+      // On expiry, RE-FETCH rather than merely nulling (spec round 3): a
+      // revoked link's protected re-read returns nothing under RLS, so held
+      // coach state actively clears at the first re-check — and a failed or
+      // empty re-read clears it too.
+      window.ShapeLiveProgress.getCoach(clientId)
+        .then((r) => { if (on) take(r, false); })
+        .catch(() => { if (on) setCoachRow(null); });
+    };
+    const take = (r, fromEvent) => {
+      if (!on) return;
+      if (fromEvent) evented = true; else if (evented && !fromEvent) return;
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (r && !(expMs > 0)) r = null;        // expired / NaN expiry = absence
+      setCoachRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, expMs);
+    };
+    window.ShapeLiveProgress.getCoach(clientId).then((r) => take(r, false)).catch(() => {});
+    const offC = window.ShapeLiveProgress.subscribeCoach
+      ? window.ShapeLiveProgress.subscribeCoach(clientId, (r) => take(r, true))
+      : () => {};
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); offC(); };
+  }, [clientId]);
+  // malformed → honest-absent. bsValidLivePayload now returns a DISCRIMINATED
+  // UNION (workout | cooking, spec 2026-07-19), and this console renders
+  // workout scaffolding — a cooking row must fall through to the neutral
+  // no-detail line, never an exercise grid built from fields it doesn't carry.
+  // Preference: an unexpired, VALID coach row wins; else the public row; else
+  // neutral. A malformed coach payload falls back rather than blanking.
+  const cp = coachRow && coachRow.expires_at && new Date(coachRow.expires_at).getTime() > Date.now()
+    ? bsValidLiveCoachPayload(coachRow.payload) : null;
+  const lpAny = cp || (liveRow ? bsValidLivePayload(liveRow.payload) : null);
   const lp = lpAny && (!lpAny.kind || lpAny.kind === 'workout') ? lpAny : null;
   const liveMode = !!clientId;   // real client → NEVER the demo data, row or not
 
@@ -513,12 +555,19 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
     { name: 'Incline curl', scheme: '3 × 12', rest: '60s', load: '27.5 lb', sets: 3, done: 0 },
     { name: 'Farmer carry', scheme: '3 × 40m', rest: '60s', load: '80 lb', sets: 3, done: 0 },
   ];
-  // Live payload → the same row shape the demo grid renders. Loads are honest-
-  // absent ('—'): v1 deliberately broadcasts no loads/RPE (owner decision 2).
+  // Live payload → the same row shape the demo grid renders. `setRows` carries
+  // the per-set figures ONLY when the coach payload drives (cp); on the public
+  // payload it is null and every cell stays an honest '—'. Note `sets` is the
+  // COUNT (pre-existing); `setRows` is the array — deliberately different keys.
   const shownMoves = liveMode
-    ? (lp ? lp.exercises.map((e, i) => ({ name: e.n, scheme: `${e.done}/${e.total}`, rest: '—', load: '—', sets: e.total, done: e.done, active: i === lp.curIdx })) : [])
+    ? (lp ? lp.exercises.map((e, i) => ({ name: e.n, scheme: `${e.done}/${e.total}`, rest: '—', load: '—', sets: e.total, setRows: (cp && Array.isArray(e.sets)) ? e.sets : null, done: e.done, active: i === lp.curIdx })) : [])
     : demoMoves;
-  const shownStartedAt = liveMode ? (liveRow && liveRow.started_at ? new Date(liveRow.started_at).getTime() : null) : startedAt;
+  // Prefer the coach row's start when it drives — otherwise a coach-only stream
+  // (private member: no public row at all) would have no clock to read.
+  const shownStartedAt = liveMode
+    ? ((cp && coachRow && coachRow.started_at) ? new Date(coachRow.started_at).getTime()
+      : (liveRow && liveRow.started_at ? new Date(liveRow.started_at).getTime() : null))
+    : startedAt;
   // ⚠ Crash guard (spec review, Codex P1): with shownMoves = [] every `cur.*`
   // read below would throw. `noDetail` short-circuits the header counter, the
   // exercise section and the set grid; `cur` is null-safe regardless.
@@ -592,9 +641,12 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {cell(liveMode ? '—' : String(cur.load || '').replace(/\s*lb/i, '') + ' lb')}
-              {cell(liveMode ? '—' : (done ? '8' : '—'))}
-              {cell(liveMode ? '—' : (done ? '8.0' : '—'))}
+              {/* Real figures when the COACH payload drives; '—' per set when a
+                  field wasn't entered, and '—' throughout on the public payload.
+                  Honest-absent per cell — never a fabricated load. */}
+              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].load) || '—') : String(cur.load || '').replace(/\s*lb/i, '') + ' lb')}
+              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].reps) || '—') : (done ? '8' : '—'))}
+              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].rpe) || '—') : (done ? '8.0' : '—'))}
               <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || active) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
             </div>
           );
