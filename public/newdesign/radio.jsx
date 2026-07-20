@@ -174,12 +174,15 @@ function RdSetsComingUp() {
     let on = true;
     const db = window.shapeDb && window.shapeDb.client;
     const lib = window.ShapeSetsLib;
-    if (!db || !lib || !lib.bsSetsNow) { setRows([]); return undefined; }
-    // Same window + no row limit as the app: a limit could truncate away the
-    // set that is on air, and the window is already the bound. The 6h lookback
-    // is the schema's 360-minute duration cap.
-    const from = new Date(Date.now() - 360 * 60000).toISOString();
-    const to = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    // Guard BOTH exports: a browser holding an older cached copy of the module
+    // would have bsSetsNow but not bsSetsWindow, and calling through would
+    // throw rather than degrade (the module-cache lesson from #1772).
+    if (!db || !lib || !lib.bsSetsNow || !lib.bsSetsWindow) { setRows([]); return undefined; }
+    // The SAME window the app queries, from the same canonical definition —
+    // recomputing it here is how the two surfaces drift (review: CodeRabbit).
+    // No row limit: a limit could truncate away the set that is on air, and the
+    // window is already the bound.
+    const { from, to } = lib.bsSetsWindow(Date.now());
     db.from("nora_sets").select("*").eq("published", true)
       .gte("starts_at", from).lte("starts_at", to)
       .order("starts_at", { ascending: true })

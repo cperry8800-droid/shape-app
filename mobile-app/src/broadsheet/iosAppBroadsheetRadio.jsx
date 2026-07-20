@@ -699,7 +699,11 @@ function BSSetsLine({ tone = 'dark', style }) {
   const r = useBSRadio();
   const s = r.sets || {};
   const RUST = t.RUST || '#c0533b';
-  const ACC = tone === 'dark' ? t.ACCENT : t.ACCENT;
+  // The accent is the same on both surfaces by design — `tone` swaps the
+  // FOREGROUND (cream on the dark radio screen vs theme ink on the paper bar),
+  // not the accent. A ternary with identical branches only implied otherwise
+  // (review: CodeRabbit).
+  const ACC = t.ACCENT;
   const FG = tone === 'dark' ? '#f4ede0' : t.INK;
   const DIM = tone === 'dark' ? 'rgba(244,237,224,0.6)' : t.INK50;
   const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 };

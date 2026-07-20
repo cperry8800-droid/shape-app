@@ -9,6 +9,26 @@
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 const CAP = 10;
 
+// The read window BOTH surfaces query with. It lives here rather than at each
+// call site because the numbers are load-bearing and coupled to the schema:
+// ⚠ MAX_DURATION_MIN is the table's own `duration_min` CHECK ceiling, and the
+// lookback IS that ceiling — a set that started MAX_DURATION_MIN ago has at
+// most just ended (end-exclusive, so it is no longer live), which makes it the
+// earliest a live set can possibly have started. Widen the CHECK without
+// widening this and a long set that is on air right now silently disappears.
+// Duplicating that reasoning per consumer is exactly how the two drift
+// (review: CodeRabbit) — one definition, both callers.
+export const MAX_DURATION_MIN = 360;
+
+export function bsSetsWindow(now) {
+  const t = now instanceof Date ? now.getTime() : Number(now);
+  const base = Number.isFinite(t) ? t : Date.now();
+  return {
+    from: new Date(base - MAX_DURATION_MIN * 60000).toISOString(),
+    to: new Date(base + WEEK_MS).toISOString(),
+  };
+}
+
 export function bsSetsNow(rows, now) {
   const t = now instanceof Date ? now.getTime() : Number(now);
   const out = { live: null, next: null, upcoming: [] };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bsSetsNow } from '../public/newdesign/noraSets.mjs';
+import { bsSetsNow, bsSetsWindow, MAX_DURATION_MIN } from '../public/newdesign/noraSets.mjs';
 
 const T0 = Date.parse('2026-07-20T18:00:00Z');
 const row = (id, startIso, dur = 60, x = {}) => ({ id, title: `Set ${id}`, dj: 'Nora', starts_at: startIso, duration_min: dur, ...x });
@@ -25,6 +25,21 @@ test('next excludes the live row; upcoming = 7d inclusive, (starts_at, id) order
   assert.deepEqual(bsSetsNow(dup, T0).upcoming.map(x => x.id), ['a1', 'b2']);      // equal starts → id order
   const many = Array.from({ length: 14 }, (_, i) => row(`m${String(i).padStart(2, '0')}`, `2026-07-2${1 + (i % 5)}T1${i % 9}:00:00Z`));
   assert.equal(bsSetsNow(many, T0).upcoming.length, 10);
+});
+
+// The window is shared by both surfaces, so the coupling it encodes is worth
+// pinning: the lookback must be EXACTLY the schema's duration ceiling, or the
+// longest possible live set falls outside the query on whichever surface drifts.
+test('read window: lookback is exactly the duration cap, horizon is 7d', () => {
+  const w = bsSetsWindow(T0);
+  assert.equal(Date.parse(w.from), T0 - MAX_DURATION_MIN * 60000);
+  assert.equal(Date.parse(w.to), T0 + 7 * 24 * 3600 * 1000);
+  // A set of max duration that started at the lookback edge is NOT live (end
+  // exclusive) but anything later still is — so nothing live can be missed.
+  const edge = row('e', w.from, MAX_DURATION_MIN);
+  assert.equal(bsSetsNow([edge], T0).live, null);
+  assert.equal(bsSetsNow([row('e2', new Date(Date.parse(w.from) + 60000).toISOString(), MAX_DURATION_MIN)], T0).live.id, 'e2');
+  assert.ok(Number.isFinite(Date.parse(bsSetsWindow(undefined).from)));   // bad clock → still a usable window
 });
 
 test('empty + garbage: never throws, honest nulls', () => {

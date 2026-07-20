@@ -7,6 +7,7 @@ import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
+import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -6193,13 +6194,10 @@ window.ShapeNoraSets = {
   list: async () => {
     if (!supabase) return [];
     try {
-      // ⚠ The 6h lookback IS the schema's 360-minute duration cap: a set that
-      // started 6h ago has, at most, just ended (and end-exclusive means it is
-      // no longer live), so nothing live can start earlier than this. Raising
-      // duration_min without widening this would silently hide a long set that
-      // is on air right now.
-      const from = new Date(Date.now() - 360 * 60000).toISOString();
-      const to = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      // The window is defined ONCE in the canonical module — it encodes a
+      // schema coupling (the lookback IS the duration_min ceiling) that would
+      // silently rot if each surface computed it (review: CodeRabbit).
+      const { from, to } = bsSetsWindow(Date.now());
       const { data, error } = await supabase.from('nora_sets')
         .select('*').eq('published', true)
         .gte('starts_at', from).lte('starts_at', to)
