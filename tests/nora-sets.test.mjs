@@ -54,6 +54,20 @@ test('never throws on hostile clocks: Symbol, out-of-range, NaN', () => {
   }
 });
 
+// Rows are attacker-shaped jsonb off the wire, so the ROW coercions matter more
+// than the clock one: Number() raises on a Symbol duration and Date.parse()
+// raises on a Symbol start. A single hostile row must be dropped, not take the
+// whole schedule down with it.
+test('a hostile row is dropped, never thrown on — and never hides the good rows', () => {
+  const good = row('ok', '2026-07-20T19:00:00Z');
+  for (const field of ['duration_min', 'starts_at', 'id', 'title', 'dj']) {
+    const hostile = { ...row('bad', '2026-07-20T19:30:00Z'), [field]: Symbol('boom') };
+    const r = bsSetsNow([hostile, good], T0);
+    assert.equal(r.next.id, 'ok', `Symbol ${field} must be dropped, not thrown on`);
+    assert.equal(r.upcoming.length, 1, `Symbol ${field} must not survive into upcoming`);
+  }
+});
+
 test('empty + garbage: never throws, honest nulls', () => {
   assert.deepEqual(bsSetsNow([], T0), { live: null, next: null, upcoming: [] });
   assert.deepEqual(bsSetsNow(null, T0), { live: null, next: null, upcoming: [] });

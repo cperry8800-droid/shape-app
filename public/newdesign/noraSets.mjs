@@ -31,8 +31,17 @@ const MAX_TIME = 8.64e15;
 // One coercion, used by both, so the claim is actually true.
 function toEpoch(now) {
   if (now instanceof Date) return now.getTime();
-  try { return Number(now); } catch (e) { return NaN; }
+  return numOf(now);
 }
+
+// EVERY coercion in this module goes through one of these two. A Symbol raises
+// on BOTH paths — Number() on the numeric path, Date.parse() on the string
+// path — so an eager coercion defeats the very guard written to protect it.
+// The row filter below reads attacker-shaped jsonb off the wire, which is
+// exactly where that matters (review round 2: CodeRabbit flagged duration_min;
+// starts_at had the same defect and was not flagged).
+function numOf(v) { try { return Number(v); } catch (e) { return NaN; } }
+function timeOf(v) { try { return Date.parse(v); } catch (e) { return NaN; } }
 
 export function bsSetsWindow(now) {
   let base = toEpoch(now);
@@ -57,14 +66,14 @@ export function bsSetsNow(rows, now) {
     // Mirror the schema's contract (review round): required non-empty text
     // fields, integer 10–360 duration, parseable start, finite end.
     if (!r || typeof r !== 'object') return false;
-    const s = Date.parse(r.starts_at); const d = Number(r.duration_min);
+    const s = timeOf(r.starts_at); const d = numOf(r.duration_min);
     return typeof r.id === 'string'
       && typeof r.title === 'string' && r.title.trim() !== ''
       && typeof r.dj === 'string' && r.dj.trim() !== ''
       && Number.isFinite(s)
       && Number.isInteger(d) && d >= 10 && d <= 360
       && Number.isFinite(s + d * 60000);
-  }).map((r) => ({ ...r, _s: Date.parse(r.starts_at), _e: Date.parse(r.starts_at) + Number(r.duration_min) * 60000 }));
+  }).map((r) => ({ ...r, _s: timeOf(r.starts_at), _e: timeOf(r.starts_at) + numOf(r.duration_min) * 60000 }));
   const liveCands = clean.filter((r) => r._s <= t && t < r._e);
   liveCands.sort((a, b) => b._s - a._s || String(a.id).localeCompare(String(b.id)));
   out.live = liveCands[0] || null;
