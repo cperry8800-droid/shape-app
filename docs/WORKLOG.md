@@ -178,7 +178,30 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 4/9): THE COACH CHANNEL — real loads/reps/RPE for
+> **Latest (2026-07-20, build 5/9): NORA SETS — the Shape Sets broadcast
+> schedule, stream-gated.** A real `nora_sets` schedule behind the Shape Sets
+> page (COMING UP station, live row pinned with a NOW tag), a 3-state line on
+> the radio screen + muted bar, and the same list on the website Radio page.
+> **The honesty state is the point:** the LIVE banner + tune CTA are gated on
+> `ShapeRadioLive.station().configured` — on the mock provider a set covering
+> now reads "On the schedule now — broadcast coming soon," NO tune CTA, no
+> lamp (browser-proved). Canonical `public/newdesign/noraSets.mjs` owns the
+> boundary semantics (end-exclusive live windows · latest start wins · next
+> never the live row · upcoming ≤7d inclusive, `(starts_at, id)` order, cap
+> 10) AND the shared read window — ⚠ the lookback IS the schema's 360-min
+> duration cap; widen the CHECK without widening it and a long live set
+> silently disappears. Web namespace is `ShapeSetsLib` (never `ShapeNoraSets`,
+> the mobile data layer — they collide on `/m/`). ⚠ **OWNER MIGRATION
+> `2026-07-19-nora-sets.sql`** (public-read PUBLISHED only · service-role
+> writes · NO editor UI v1 — rows are authored by ops). ⚠ Two plan errors
+> caught pre-build: the plan reused the EXISTING `radio:sets.comingSoon` key
+> for different copy (would have broken the venue banner ×13) and anchored
+> the station "after the example cards" — which are dead code. 5 review
+> rounds; process lessons in the dated entry (clean-review detection · outside-
+> diff-range findings · the Codex `@codex review` re-trigger). Suite **663**.
+> Next: build 6/9 `cycle-a-engine`.
+>
+> **Prior (2026-07-20, build 4/9): THE COACH CHANNEL — real loads/reps/RPE for
 > the client's own coach.** The honest `—` in the coach live-watch becomes real
 > figures, through a **separate coach-only table** (never a column — RLS is
 > row-level, the v1 lesson) gated on the **coach link alone** (owner-ratified, no
@@ -716,6 +739,72 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 5/9) — NORA SETS: the Shape Sets schedule, stream-gated (#1773)
+
+- **Build 5 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-nora-sets-schedule.md`. Suite **656 → 663**.
+- **⚠ OWNER MIGRATION — `2026-07-19-nora-sets.sql`.** Until applied the table is
+  absent and every surface renders its honest empty state ("Schedule lands with
+  the first broadcast"). Public read of PUBLISHED rows only; **writes are
+  service-role only** (schedule authoring is an ops act — v1 ships no editor
+  UI); the revoke-then-grant layer is defense in depth — client DML is
+  impossible even if a policy were misconfigured. Deliberately NOT in the
+  realtime publication — consumers poll on open + re-derive liveness per minute
+  from the fetched rows. **Supersedes the 2026-06-19 avatar-DJ sketch's
+  schema/route** (verified never built — `nora_sets` did not exist).
+- **One canonical module** — `public/newdesign/noraSets.mjs` (web loads it as a
+  native ES module → `window.ShapeSetsLib`; mobile imports it; tests import
+  directly). `bsSetsNow` owns the boundary semantics: live =
+  `[starts_at, start + duration)` (now === end is NOT live; latest start wins on
+  overlap), next = soonest future start (never the live row), upcoming =
+  `now < start ≤ now+7d` inclusive, `(starts_at, id)` ascending, cap 10.
+  `bsSetsWindow` owns the shared READ window both surfaces query with —
+  ⚠ **the lookback IS the schema's `duration_min ≤ 360` cap** (a set that
+  started 360 min ago has at most just ended); widening the CHECK without
+  widening the window silently hides a long set that is on air right now.
+- **The honesty state (the spec's key state, browser-proved):** a seeded row
+  covering NOW on the mock provider shows the quiet "On the schedule now —
+  broadcast coming soon" line with **no tune CTA and no ON AIR lamp**; the
+  LIVE banner (red-lamp grammar, tap-to-tune) renders only when
+  `station().configured` is true. Empty table → nothing.
+- **Surfaces:** Shape Sets page COMING UP station (Glass card — its first real
+  use: the module's `Glass`/`examples` were dead code, so the plan's "after the
+  example cards" anchor pointed at nothing); the radio screen's 3-state line +
+  the muted bar (hook hoisted to the radio provider, exposed via `r.sets`);
+  the website Radio page list (anon supabase read — public RLS).
+  Times render via `window.ShapeI18n.intlLocale()` (the #1595 rule).
+- **⚠ Plan error — i18n key collision caught pre-build:** the plan specified
+  `radio:sets.comingSoon` for the no-stream line, but that key ALREADY exists
+  as the Shape Sets venue banner ("Coming soon") — following it verbatim would
+  have rewritten that banner across 13 locales. Distinct keys used; new
+  `radio:sets.*` keys authored ×13, catalog parity green.
+- **5 review rounds** (CodeRabbit ×4 + Codex clean via manual trigger):
+  duplicated read-window logic collapsed into ONE `bsSetsWindow` (the two
+  copies could drift on the duration-cap coupling); the module's "never
+  throws" contract was FALSE — `Number(Symbol)` RAISES (it does not return
+  NaN) and a finite-but-extreme epoch pushes `toISOString()` out of Date
+  range — and my first fix repaired only the flagged coercion, leaving the
+  identical defect in `bsSetsNow` AND in the row filter's
+  `Date.parse(r.starts_at)` (rows are attacker-shaped jsonb — the path that
+  matters); every coercion now routes through one safe pair, tests sweep a
+  Symbol through all five row fields; `localeCompare()` tie-breaks →
+  code-unit comparator (the `(starts_at, id)` ordering is a cross-surface
+  contract; locale collation varies by ICU build).
+- **⚠ Process lessons (all three now standing):** (1) a CLEAN CodeRabbit
+  review submits **no review record** — polling the reviews API for the head
+  SHA hangs by construction on a passing PR; the edited-in-place summary
+  comment is the signal. (2) Findings can arrive as **"outside diff range"
+  comments in the review BODY** — an inline-comments check alone read two
+  consecutive finding rounds as clean passes. (3) **Codex auto-review fires
+  once, at PR-open, with no retry** — a failed trigger leaves zero trace;
+  the manual `@codex review` comment is the recovery (proven here; #1770
+  shipped with no Codex review the same way).
+- Verified: `npm test` **663** · `tsc --noEmit` clean · PowerShell `/m/` build
+  exit 0 · `build-newdesign --check` exit 0 · JSX parses · LF · TEMP-table
+  probe of the CHECK constraints pre-ship.
+- **Open (OWNER):** run the migration, then author the first published rows
+  (service-role — no editor UI by design).
 
 ### 2026-07-20 (build 4/9) — THE COACH CHANNEL: real loads/reps/RPE for the client's own coach
 
