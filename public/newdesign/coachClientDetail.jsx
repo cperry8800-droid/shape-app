@@ -44,6 +44,8 @@ function CKSecHead({ children }) {
 // subscription-side expires_at timer (an open page drops the row at expiry).
 // No readable row → null — THE STATION DOES NOT EXIST (absence; never a
 // "private" label: RLS makes private / not-visible / expired indistinguishable).
+// How often an on-screen coach row re-proves the coach still has access.
+const COACH_RECHECK_MS = 60000;
 function CKLiveStation({ clientId, accent }) {
   const [row, setRow] = React.useState(null);
   // Coach channel (spec 2026-07-19, owner-ratified): loads/reps/RPE from a
@@ -83,7 +85,14 @@ function CKLiveStation({ clientId, accent }) {
       if (r && !(expMs > 0)) r = null;
       setCoachRow(r);
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, expMs);
+      // Re-check on a BOUNDED interval, not at the row's full remaining life.
+      // Revocation is silent to this client: once the link is cut, RLS simply
+      // stops delivering realtime events, so the last snapshot would otherwise
+      // sit on screen until expiry — and the writer refreshes expires_at to 30
+      // MINUTES on every push, so "clears at the first re-check" meant up to
+      // half an hour (review: CodeRabbit). Each re-check is the RLS-protected
+      // read, which returns nothing once revoked, so the window is now ≤60s.
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, Math.min(expMs, COACH_RECHECK_MS));
     };
     (async () => {
       try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }

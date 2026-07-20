@@ -504,9 +504,11 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
   // Coach channel (spec 2026-07-19, owner-ratified): real loads/reps/RPE for
   // the client's OWN coach, from a separate coach-only row. RLS decides — a
   // non-coach, and a SINCE-REVOKED coach, simply reads nothing. NO persistent
-  // cache anywhere: component state only, so a revoked link cannot keep
-  // showing stale loads (the revocation bound).
+  // cache anywhere: component state only. That alone is not the revocation
+  // bound though — revocation is SILENT to an open page (RLS just stops
+  // delivering events), so the bound is the periodic protected re-read below.
   const [coachRow, setCoachRow] = useStateBSP(null);
+  const COACH_RECHECK_MS = 60000;            // how often an on-screen row re-proves access
   useEffectBSP(() => {
     setCoachRow(null);                       // reset on client change
     if (!clientId || !window.ShapeLiveProgress?.getCoach) return undefined;
@@ -517,21 +519,32 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
       // coach state actively clears at the first re-check — and a failed or
       // empty re-read clears it too.
       window.ShapeLiveProgress.getCoach(clientId)
-        .then((r) => { if (on) take(r, false); })
+        .then((r) => { if (on) take(r, 'refetch'); })
         .catch(() => { if (on) setCoachRow(null); });
     };
-    const take = (r, fromEvent) => {
+    // `src`: 'init' | 'event' | 'refetch'. The evented guard exists ONLY to stop
+    // a slow initial read from clobbering a realtime event that landed first.
+    // A 'refetch' is the expiry/revocation re-check and is AUTHORITATIVE — the
+    // old boolean form swallowed it once any event had arrived, so a revoked
+    // coach's loads could never clear. Same defect as the web station carried;
+    // it was reported there and is fixed here for parity.
+    const take = (r, src) => {
       if (!on) return;
-      if (fromEvent) evented = true; else if (evented && !fromEvent) return;
+      if (src === 'event') evented = true;
+      else if (src === 'init' && evented) return;
       const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
       if (r && !(expMs > 0)) r = null;        // expired / NaN expiry = absence
       setCoachRow(r);
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, expMs);
+      // Bounded re-check, not the row's full remaining life: revocation is
+      // silent (RLS just stops delivering events) and the writer refreshes
+      // expires_at to 30 MINUTES on every push, so an unbounded timer left the
+      // last snapshot on screen for up to half an hour.
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, Math.min(expMs, COACH_RECHECK_MS));
     };
-    window.ShapeLiveProgress.getCoach(clientId).then((r) => take(r, false)).catch(() => {});
+    window.ShapeLiveProgress.getCoach(clientId).then((r) => take(r, 'init')).catch(() => {});
     const offC = window.ShapeLiveProgress.subscribeCoach
-      ? window.ShapeLiveProgress.subscribeCoach(clientId, (r) => take(r, true))
+      ? window.ShapeLiveProgress.subscribeCoach(clientId, (r) => take(r, 'event'))
       : () => {};
     return () => { on = false; if (expTimer) clearTimeout(expTimer); offC(); };
   }, [clientId]);
