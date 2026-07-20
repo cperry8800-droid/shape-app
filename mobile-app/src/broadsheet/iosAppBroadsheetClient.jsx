@@ -8,7 +8,7 @@ import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLed
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
-import { bsLiveProgressPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsLiveProgressPayload, bsCookingPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -1896,8 +1896,34 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     }, 350);
     return () => { clearTimeout(timer); ctl.abort(); };
   }, [foodQuery, signedIn, showAddFood]);
-  // Broadcast "cooking" presence while the meal logger is open (amber dot).
+  // Broadcast "cooking" presence while the meal logger is open (amber dot) — and,
+  // for a PLAN/RECIPE-sourced meal, the live cooking TITLE (spec 2026-07-19).
+  // Provenance is LIVE: pivoting to freehand mid-session actively clears the
+  // row (never waits for close); the audience re-resolves per push, and a
+  // settings change re-pushes immediately via shape:liveAudienceChanged.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
+  const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
+  const cookPushedRef = React.useRef(null);              // last-pushed MEAL KEY — fresh=true when
+  React.useEffect(() => {                                // the key changes; a re-push of the SAME
+    if (!window.ShapeLiveProgress) return undefined;     // meal must never reset started_at
+    if (cookPayload) {
+      // The ref holds a meal KEY (id, else the payload title), not a boolean, so
+      // a DIRECT swap from one eligible meal to another (A → B with no
+      // ineligible gap between renders) still restamps started_at for B.
+      const mealKey = (meal && (meal.id != null ? String(meal.id) : null)) || cookPayload.title;
+      window.ShapeLiveProgress.push(cookPayload, cookPushedRef.current !== mealKey);
+      cookPushedRef.current = mealKey;
+    } else {
+      window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
+      cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
+    }
+    const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, false); };
+    window.addEventListener('shape:liveAudienceChanged', rePush);
+    return () => {
+      window.removeEventListener('shape:liveAudienceChanged', rePush);
+      window.ShapeLiveProgress.clear();                  // logger close → absence
+    };
+  }, [cookPayload]);
 
   // Resolve the member's linked coach for the dispatch register — prefer the
   // nutritionist thread, else any linked coach. No thread → coach stays null and
@@ -2565,6 +2591,51 @@ function bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs) {
     const before = ws.rule(prevPrefs); const after = ws.rule(nextPrefs);
     if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
   } catch (e) {}
+}
+
+// Live-row withdrawal is enforced by the MUTATION, not a listener (spec
+// 2026-07-19): whichever device changes the setting resolves the new audience
+// and acts on the member's own user_activity_live row directly — null audience
+// → delete, tightened → restamp visibility. Works even when the broadcasting
+// device is asleep; the shape:liveAudienceChanged event is only the LOCAL
+// re-push. Returns {ok}; the caller must await and dispatch that event ONLY on
+// success, or a failed withdrawal could be followed by a re-push that
+// resurrects the row the member just tried to pull down.
+//
+// ACCEPTED RESIDUAL (TOCTOU, documented not hidden): the settings write and the
+// row mutation are two operations, not one transaction. The bound: one retry,
+// an honest toast on failure, no re-push on failure, and expiry caps the worst
+// case. Folding both into a single serialized RPC would re-route the entire
+// settings write path for that bound — declined at this scope.
+async function bsRetightenLiveRow(nextPrefs) {
+  try {
+    const { bsLiveAudience } = await import('../services/liveProgress.mjs');
+    const vis = bsLiveAudience(nextPrefs, false);
+    const db = window.shapeDb; const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!db?.client || !uid) return { ok: false };
+    const run = () => (!vis
+      ? db.client.from('user_activity_live').delete().eq('user_id', uid)
+      : db.client.from('user_activity_live').update({ visibility: vis }).eq('user_id', uid));
+    const { error } = await run();
+    if (error) {                                   // one retry, then honest failure
+      const { error: e2 } = await run();
+      if (e2) return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+}
+
+// Shared by both preference-update handlers so the rule can't drift between
+// them (the same reason bsMaybeRetightenAutoPosts is shared).
+function bsOnShareSettingChanged(prevPrefs, nextPrefs) {
+  bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs);
+  bsRetightenLiveRow(nextPrefs).then((r) => {
+    if (r && r.ok) {
+      try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged')); } catch (e) {}
+    } else {
+      try { window.__bsToast?.('Live-sharing change didn\'t save — check your connection.', 'info'); } catch (e) {}
+    }
+  });
 }
 
 // ── Live home week ───────────────────────────────────────────────────────────
@@ -22985,7 +23056,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
     });
   };
@@ -22999,7 +23070,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
     });
   };
