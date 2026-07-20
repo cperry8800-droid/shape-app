@@ -9,7 +9,7 @@ import enOnboarding from './catalogs/en/onboarding.json';
 import enSettings from './catalogs/en/settings.json';
 import enScore from './catalogs/en/score.json';
 
-const NS = ['common', 'onboarding', 'settings', 'score', 'home', 'profile', 'session', 'feed', 'marketplace', 'radio', 'calendar', 'habits', 'store', 'coach'];
+const NS = ['common', 'onboarding', 'settings', 'score', 'home', 'profile', 'session', 'feed', 'marketplace', 'radio', 'calendar', 'habits', 'store', 'coach', 'cycle'];
 
 // Vite: load every catalog file that exists so ar/ja (added in the pilot
 // translation task) light up automatically once their JSON is present.

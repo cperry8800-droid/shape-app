@@ -1359,6 +1359,60 @@ function useBSMembership() {
   return m;
 }
 
+// ── THE CYCLE — shared member settings state (spec 2026-07-19) ───────────────
+// ONE resolved truth for every cycle consumer (Settings pane · calendar page ·
+// Today chip · Progress card · the neutral Home lever): fetched once, cached on
+// window.ShapeCycleState, and re-broadcast on 'shape:cycleSettings' after any
+// write so every mounted consumer flips together. Signed-out, pre-migration,
+// and never-opted-in all resolve to { optIn:false, share:false } — absence,
+// never a fabricated opt-in (the doctrine's absence-not-a-padlock rule starts
+// here: a member who never opted in has NO cycle surfaces at all).
+function bsCycleStatePut(next) {
+  const clean = { optIn: next?.optIn === true, share: next?.share === true };
+  try { window.ShapeCycleState = clean; } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:cycleSettings', { detail: clean })); } catch (e) {}
+  return clean;
+}
+function useBSCycleSettings() {
+  const [s, setS] = useStateBSC(() => {
+    const cached = (typeof window !== 'undefined' && window.ShapeCycleState) || null;
+    return cached ? { ...cached, loading: false } : { loading: true, optIn: false, share: false };
+  });
+  // Sync every mounted consumer on a write from any other surface.
+  React.useEffect(() => {
+    const onChange = (e) => {
+      const d = (e && e.detail) || (typeof window !== 'undefined' ? window.ShapeCycleState : null);
+      if (d) setS({ optIn: d.optIn === true, share: d.share === true, loading: false });
+    };
+    window.addEventListener('shape:cycleSettings', onChange);
+    return () => window.removeEventListener('shape:cycleSettings', onChange);
+  }, []);
+  React.useEffect(() => {
+    if (!s.loading) return undefined;
+    let cancelled = false;
+    (async () => {
+      let next = { optIn: false, share: false };
+      try {
+        const r = await window.ShapeCycle?.settings?.();
+        if (r && typeof r === 'object') next = { optIn: r.optIn === true, share: r.share === true };
+      } catch (e) { /* absent doc / pre-migration → the false/false default */ }
+      if (cancelled) return;
+      bsCycleStatePut(next);
+      setS({ ...next, loading: false });
+    })();
+    return () => { cancelled = true; };
+  }, [s.loading]);
+  return s;
+}
+
+// The not-medical-advice disclaimer is legally material and VERBATIM (spec
+// doctrine). One reader, so the string a member consents to is byte-identical
+// to the string she was shown — the consent receipt records exactly this, in
+// her own language.
+function bsCycleDisclaimer(tr) {
+  return tr('cycle:disclaimer', { defaultValue: 'The Cycle is for training and recovery context only. It is not medical advice, not a diagnostic tool, and must never be used for contraception or fertility planning. Predictions are estimates from the dates you log.' });
+}
+
 // ── Client Library — saved coach content (workouts, programs, meals) ─────────
 // Persists to localStorage immediately, mirrored to window.shapeDb (user_goals)
 // for cross-device sync. Screens subscribe via the `bs-library` window event.
@@ -17284,6 +17338,87 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
 
 
 
+// ── THE CYCLE — the opt-in sheet (spec 2026-07-19) ──────────────────────────
+// The one door INTO cycle tracking. Full-page panel (the BSOverallEditSheet
+// grammar) because consent deserves the whole screen, not a bottom sheet: the
+// doctrine paragraph, then the VERBATIM disclaimer above the CTA. The consent
+// text recorded is the exact string rendered here (bsCycleDisclaimer), so the
+// receipt in consent_log matches what she read, in her language.
+function BSCycleOptInSheet({ onClose, onDone }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [busy, setBusy] = useStateBSC(false);
+  const [err, setErr] = useStateBSC('');
+  const disclaimer = bsCycleDisclaimer(tr);
+
+  const start = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    let r = null;
+    try {
+      r = await window.ShapeCycle?.setSettings?.({
+        optIn: true, share: false,
+        consentKind: 'cycle_tracking', granted: true,
+        consentText: disclaimer,
+      });
+    } catch (e) { r = null; }
+    if (r && r.ok) {
+      bsCycleStatePut({ optIn: true, share: false });
+      onDone && onDone();
+      return;
+    }
+    // Honest failure — the toggle never claims a state the DB doesn't hold.
+    setBusy(false);
+    setErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : r && r.reason === 'signed_out'
+        ? tr('cycle:err.signedOut', { defaultValue: 'Sign in to start tracking.' })
+        : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+
+  const sheet = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <button onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('cycle:optIn.eyebrow', { defaultValue: 'Tracking · Private' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
+        <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, lineHeight: 1.55, color: t.INK }}>
+          {tr('cycle:optIn.body', { defaultValue: 'Log the first day of your period and Shape reads the rhythm — where you are in your cycle, and what usually shows up there for you in sleep, energy and training.' })}
+        </p>
+        <p style={{ margin: '13px 0 0', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, lineHeight: 1.55, color: t.INK70 }}>
+          {tr('cycle:optIn.privacy', { defaultValue: 'It stays yours. Nothing is shared with a coach unless you turn sharing on, and stopping deletes every date you logged.' })}
+        </p>
+        {/* The verbatim disclaimer — legally material, sits directly above the CTA. */}
+        <div style={{ marginTop: 18, padding: '13px 14px', border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderLeft: `3px solid ${teal}`, borderRadius: 2 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cycle:optIn.disclaimerHead', { defaultValue: 'Before you start' })}</div>
+          <p style={{ margin: '7px 0 0', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK }}>{disclaimer}</p>
+        </div>
+        {err ? <div style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{err}</div> : null}
+      </div>
+
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('cycle:optIn.notNow', { defaultValue: 'Not now' })}</span></button>
+        <button onClick={start} disabled={busy} style={{ flex: 1, minHeight: 44, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.65 : 1, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          {busy ? tr('cycle:optIn.starting', { defaultValue: 'Starting…' }) : tr('cycle:optIn.cta', { defaultValue: 'I understand — start tracking' })}
+        </button>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 // Small headline editor (title + subtitle) for the Training / Nutrition tabs.
 function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const t = useBS();
@@ -22966,6 +23101,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
+  // the in-flight write so a double-tap can't fire two consent RPCs.
+  const cycle = useBSCycleSettings();
+  const [showCycleOptIn, setShowCycleOptIn] = useStateBSC(false);
+  const [cycleBusy, setCycleBusy] = useStateBSC('');
+  const [cycleErr, setCycleErr] = useStateBSC('');
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showRadio, setShowRadio] = useStateBSC(false);
@@ -23840,6 +23981,53 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const cardHealthSummary = tr('settings:card.healthSummary', { defaultValue: 'Apple Health · WHOOP · Strava' });
   const cardAboutSummary = tr('settings:card.aboutSummary', { defaultValue: 'Help · contact · legal' });
   const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
+  // ── THE CYCLE handlers ────────────────────────────────────────────────────
+  // Share on/off is ONE call with consentKind 'cycle_share' and p_opt_in
+  // staying TRUE — the DB enforces one flag per receipt, so a share flip must
+  // never carry a tracking transition. Stopping tracking has exactly one door:
+  // cycle_opt_out(), which deletes the events AND the settings doc AND writes
+  // the withdrawal receipt(s) in one transaction.
+  const cycleShareText = () => tr('cycle:share.consent', { defaultValue: 'I agree to share my cycle phase and recent period start dates with my linked coach(es). I can turn this off at any time.' });
+  const toggleCycleShare = async () => {
+    if (cycleBusy || !cycle.optIn) return;
+    const next = !cycle.share;
+    setCycleBusy('share'); setCycleErr('');
+    let r = null;
+    try {
+      r = await window.ShapeCycle?.setSettings?.({
+        optIn: true, share: next,
+        consentKind: 'cycle_share', granted: next,
+        consentText: cycleShareText(),
+      });
+    } catch (e) { r = null; }
+    setCycleBusy('');
+    if (r && r.ok) { bsCycleStatePut({ optIn: true, share: next }); return; }
+    setCycleErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+  const doCycleOptOut = async () => {
+    if (cycleBusy) return;
+    const ok = await window.bsAskConfirm?.({
+      title: tr('cycle:optOut.title', { defaultValue: 'Stop tracking and delete?' }),
+      message: tr('cycle:optOut.message', { defaultValue: 'This deletes every date you logged and turns off cycle tracking. If you were sharing with a coach, that stops too. This cannot be undone.' }),
+      confirmLabel: tr('cycle:optOut.confirm', { defaultValue: 'Stop & delete' }),
+    });
+    if (!ok) return;
+    setCycleBusy('optout'); setCycleErr('');
+    let r = null;
+    try { r = await window.ShapeCycle?.optOut?.(); } catch (e) { r = null; }
+    setCycleBusy('');
+    if (r && r.ok) {
+      bsCycleStatePut({ optIn: false, share: false });
+      window.__bsToast?.(tr('cycle:optOut.done', { defaultValue: 'Cycle tracking stopped — your dates are deleted.' }), 'ok');
+      return;
+    }
+    setCycleErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+
   const settingCards = isCoachRole ? [
     { title: tr('settings:section.account', { defaultValue: 'Account' }),             summary: cardAccountSummary,                                            detail: 'account' },
     { title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
@@ -23853,6 +24041,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   ] : [
     { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
     { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
+    { icon: 'moon',    title: tr('cycle:settings.card', { defaultValue: 'Cycle' }),                     summary: cycle.optIn ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' })) : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' }), detail: 'cycle' },
     { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: nutritionPrefs.dietary_style, defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
     { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: trainingPrefs.experience, defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
     { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
@@ -23874,6 +24063,64 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'notifications' && (<><DetailBack title={tr('settings:section.notifications', { defaultValue: 'Notifications' })} />{renderRows(findSec('Notifications').rows)}</>)}
       {detail === 'preferences' && (<><DetailBack title={tr('settings:section.preferences', { defaultValue: 'Preferences' })} />{renderRows(findSec('Preferences').rows)}</>)}
       {detail === 'privacy' && (<><DetailBack title={tr('settings:section.privacy', { defaultValue: 'Privacy & data' })} />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {/* ── THE CYCLE (spec 2026-07-19) — hand-rendered, not renderRows: this
+          pane needs real toggles with async consent writes + a disabled-until-
+          opted-in state, which the shared row shapes (dropdown/segmented/
+          pref-cycle/action) can't express. Plain cycle language is allowed
+          HERE (a cycle surface); the Home lever stays neutral. */}
+      {detail === 'cycle' && (() => {
+        const rowPad = { padding: `${t.rowY + 12}px 0`, borderBottom: `1px solid ${t.HAIR}` };
+        const rowTitle = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' };
+        const rowDesc = { marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 };
+        return (<>
+          <DetailBack title={tr('cycle:settings.card', { defaultValue: 'Cycle' })} />
+          <div style={{ padding: `4px ${t.padX}px` }}>
+            {/* Tracking — OFF→ON opens the consent sheet; ON→OFF routes to the
+                confirmed delete (never a silent flag flip). */}
+            <div style={rowPad}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={rowTitle}>{tr('cycle:settings.tracking', { defaultValue: 'Cycle tracking' })}</span>
+                <Toggle on={cycle.optIn} onClick={() => { if (cycleBusy) return; setCycleErr(''); if (cycle.optIn) doCycleOptOut(); else setShowCycleOptIn(true); }} />
+              </div>
+              <div style={rowDesc}>{tr('cycle:settings.trackingDesc', { defaultValue: 'Log the first day of your period; Shape reads your phase and the patterns that come with it. Private to you unless you share it.' })}</div>
+            </div>
+
+            {/* Share — disabled until opted in (absence, not a padlock: the row
+                simply can't move, and says why in plain language). */}
+            <div style={{ ...rowPad, opacity: cycle.optIn ? 1 : 0.45 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={rowTitle}>{tr('cycle:settings.share', { defaultValue: 'Share with your coach' })}</span>
+                <Toggle on={cycle.share} onClick={toggleCycleShare} />
+              </div>
+              <div style={rowDesc}>{cycle.optIn
+                ? tr('cycle:settings.shareDesc', { defaultValue: 'Your linked coach(es) see your phase and recent start dates — so training and food can follow your week. Turn it off any time.' })
+                : tr('cycle:settings.shareOffDesc', { defaultValue: 'Available once cycle tracking is on.' })}</div>
+            </div>
+
+            {cycle.optIn ? (
+              <div style={rowPad}>
+                <button onClick={() => { setDetail(''); onBack && onBack(); try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+                  style={{ width: '100%', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 24 }}>
+                  <span style={rowTitle}>{tr('cycle:settings.openCalendar', { defaultValue: 'Open cycle calendar' })}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
+                </button>
+              </div>
+            ) : null}
+
+            {cycleErr ? <div style={{ padding: '12px 0 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{cycleErr}</div> : null}
+
+            {cycle.optIn ? (
+              <div style={{ padding: `${t.rowY + 14}px 0 8px` }}>
+                <button onClick={doCycleOptOut} disabled={!!cycleBusy}
+                  style={{ background: 'transparent', border: 0, padding: '10px 0', minHeight: 44, cursor: cycleBusy ? 'default' : 'pointer', opacity: cycleBusy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}>
+                  <span style={{ borderBottom: `2px solid ${bsTHexA(t.RUST, 0.4)}`, paddingBottom: 2 }}>{cycleBusy === 'optout' ? tr('cycle:settings.stopping', { defaultValue: 'Stopping…' }) : tr('cycle:settings.stop', { defaultValue: 'Stop tracking & delete' })}</span>
+                </button>
+                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{tr('cycle:settings.stopDesc', { defaultValue: 'Deletes every date you logged and stops sharing. This cannot be undone.' })}</div>
+              </div>
+            ) : null}
+          </div>
+        </>);
+      })()}
       {detail === 'practice' && (<><DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />{renderRows(practiceRows)}</>)}
       {detail === 'nutrition' && (<><DetailBack title={tr('settings:section.nutrition', { defaultValue: 'Nutrition' })} />{renderRows(findSec('Nutrition').rows)}</>)}
       {detail === 'training' && (<><DetailBack title={tr('settings:section.training', { defaultValue: 'Training' })} />{renderRows(findSec('Training').rows)}</>)}
@@ -24540,6 +24787,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
       </div>
       </div>
+
+      {/* THE CYCLE — the consent sheet (portals over the phone surface). */}
+      {showCycleOptIn && (
+        <BSCycleOptInSheet
+          onClose={() => setShowCycleOptIn(false)}
+          onDone={() => { setShowCycleOptIn(false); window.__bsToast?.(tr('cycle:optIn.done', { defaultValue: 'Cycle tracking on — log your last period to begin.' }), 'ok'); }}
+        />
+      )}
 
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
       {dropdown && (
