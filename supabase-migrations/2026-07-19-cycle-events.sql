@@ -81,12 +81,18 @@ grant  execute on function public.get_client_cycle(uuid) to authenticated;
 -- ZERO-ROW no-op, leaving optIn/share standing after "delete everything" —
 -- the coach RPC would read share:true over empty starts instead of absence.
 -- The narrowest fix that preserves both spec choices (invoker on purpose;
--- the doc is DELETED, not zeroed): a DELETE policy scoped to THIS kind only.
--- Every other user_goals kind stays undeletable, exactly as before.
+-- the doc is DELETED, not zeroed): a DELETE policy scoped to THIS kind only —
+-- AND gated on the RPC GUC (review round 2: an unguarded delete policy was
+-- itself a bypass — a member could delete the doc DIRECTLY, clearing the
+-- flags while cycle_events stayed on disk with no withdrawal receipt). With
+-- the GUC condition a direct delete is a zero-row no-op; the doc leaves only
+-- through cycle_opt_out(), which deletes the events and writes the receipt
+-- in the same transaction. Every other user_goals kind stays undeletable.
 drop policy if exists user_goals_delete_cycle on public.user_goals;
 create policy user_goals_delete_cycle on public.user_goals
   for delete to authenticated
-  using (user_id = auth.uid() and kind = 'cycle_settings');
+  using (user_id = auth.uid() and kind = 'cycle_settings'
+         and coalesce(current_setting('shape.cycle_rpc', true), '') = '1');
 
 -- ── RPC-only settings/consent writes (GUC-guard, the #1707 shape.adjust_regen
 --    pattern): a direct owner upsert of the cycle settings doc, or a direct
@@ -126,8 +132,9 @@ create trigger cycle_consent_guard before insert on public.consent_log
 --    (review: CodeRabbit) — a caller that changes both flags in one call
 --    would leave the unnamed flag's transition receipt-less. The UI contract
 --    for PR B–D: opt-in then share-on = TWO calls (tracking receipt, then
---    share receipt); share-off = one call (kind cycle_share, granted false);
---    tracking-off = cycle_opt_out() ONLY (enforced below).
+--    share receipt); share-off = one call (kind cycle_share, share=false,
+--    p_opt_in stays TRUE); tracking-off = cycle_opt_out() ONLY — p_opt_in
+--    = false is rejected on EVERY path below.
 create or replace function public.cycle_set_settings(
   p_opt_in boolean, p_share boolean,
   p_consent_kind text, p_granted boolean, p_consent_text text
@@ -141,12 +148,15 @@ begin
   -- must match the flag it records (tracking receipt ↔ p_opt_in, share
   -- receipt ↔ p_share). Anything else is an incoherent audit row.
   if p_share and not p_opt_in then raise exception 'share_requires_opt_in'; end if;
-  -- A tracking WITHDRAWAL through this RPC would flip optIn off while leaving
-  -- the member's cycle_events rows standing — a withdrawn state that retains
-  -- the health data, contradicting the opt-out contract (review: Codex P2).
-  -- Stopping tracking is cycle_opt_out()'s job (delete + receipt, atomic);
-  -- this RPC only ever records tracking as GRANTED.
-  if p_consent_kind = 'cycle_tracking' and not p_opt_in then
+  -- Turning tracking OFF through this RPC — via EITHER consent path — would
+  -- flip optIn while the member's cycle_events rows stay on disk, with no
+  -- tracking-withdrawal receipt: a withdrawn state that retains the health
+  -- data (review: Codex P2; round 2 caught the share-branch variant — the
+  -- upsert writes BOTH flags, so a cycle_share call with p_opt_in=false
+  -- cleared tracking around a kind-scoped guard). Universal rule instead:
+  -- every call through this RPC has tracking ON. Stopping tracking is
+  -- cycle_opt_out()'s job — delete + receipt, one transaction, one door.
+  if not p_opt_in then
     raise exception 'use_cycle_opt_out';
   end if;
   if p_consent_kind = 'cycle_tracking' and p_granted <> p_opt_in then
