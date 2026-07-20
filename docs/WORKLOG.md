@@ -748,6 +748,16 @@ changelog whenever something ships.
   **Accepted TOCTOU residual, documented in-code:** the settings write and the row
   mutation are two operations, bounded by one retry + honest failure + no re-push
   on failure + expiry.
+- **⚠ The withdrawal race (Codex P1, caught in review — real privacy leak).**
+  `saveUserGoals('client_settings', …)` is **fire-and-forget**, but the re-push's
+  `_liveAudience()` re-reads that persisted doc. So turning sharing OFF could
+  go: row deleted → re-push fires → audience read hits the **stale** doc →
+  returns the OLD, wider audience → **the row is re-created with the meal title
+  still on it**, visible until another push or expiry. The resolved audience is
+  now carried on the `shape:liveAudienceChanged` event and passed straight into
+  `livePush(payload, fresh, visOverride)`, so the re-push never consults
+  settings that may not have landed. `undefined` = resolve normally; `null` =
+  private → delete. **A withdrawal can no longer be undone by its own re-push.**
 - **⚠ Expiry now rejects the ROW, not just the timer (CWE-359).** The shipped
   boost-sheet consumer set state for every incoming realtime row and only
   scheduled a timer when expiry was in the future — so an **already-expired**

@@ -1917,7 +1917,13 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
       window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
       cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
     }
-    const rePush = () => { if (cookPayload) window.ShapeLiveProgress.push(cookPayload, false); };
+    // Pass the audience the settings change already resolved straight through —
+    // never let this push re-read the (possibly not-yet-persisted) settings doc.
+    const rePush = (e) => {
+      if (!cookPayload) return;
+      const vis = e && e.detail ? e.detail.visibility : undefined;
+      window.ShapeLiveProgress.push(cookPayload, false, vis);
+    };
     window.addEventListener('shape:liveAudienceChanged', rePush);
     return () => {
       window.removeEventListener('shape:liveAudienceChanged', rePush);
@@ -2621,7 +2627,8 @@ async function bsRetightenLiveRow(nextPrefs) {
       const { error: e2 } = await run();
       if (e2) return { ok: false };
     }
-    return { ok: true };
+    // Hand the RESOLVED audience back so the local re-push can use it directly.
+    return { ok: true, visibility: vis };
   } catch (e) { return { ok: false }; }
 }
 
@@ -2631,7 +2638,12 @@ function bsOnShareSettingChanged(prevPrefs, nextPrefs) {
   bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs);
   bsRetightenLiveRow(nextPrefs).then((r) => {
     if (r && r.ok) {
-      try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged')); } catch (e) {}
+      // Carry the RESOLVED audience on the event. The re-push must NOT re-read
+      // user_goals: saveUserGoals('client_settings', …) above is
+      // fire-and-forget, so that read can still return the OLD doc and the
+      // wider previous audience — resurrecting the row we just withdrew, with
+      // its payload (a meal title) intact (Codex P1).
+      try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged', { detail: { visibility: r.visibility } })); } catch (e) {}
     } else {
       try { window.__bsToast?.('Live-sharing change didn\'t save — check your connection.', 'info'); } catch (e) {}
     }
