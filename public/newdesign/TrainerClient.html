@@ -14,13 +14,13 @@
 <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js"></script>
 <!-- Live-progress validator (canonical ES module, spec 2026-07-19): assigns window.ShapeLiveValidate before babel runs the page code. -->
-<script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260719"; window.ShapeLiveValidate = LP;</script>
+<script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260720"; window.ShapeLiveValidate = LP;</script>
 <!-- Variance band (canonical ES module, spec 2026-07-19): assigns window.ShapeVariance before babel runs the page code. -->
 <script type="module">import * as VB from "/newdesign/varianceBand.mjs?v=20260719"; window.ShapeVariance = VB;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
-<script type="text/babel" src="coachClientDetail.jsx?v=20260719a"></script>
+<script type="text/babel" src="coachClientDetail.jsx?v=20260719b"></script>
 <script type="text/babel">
 ReactDOM.createRoot(document.getElementById("root")).render(<CoachClientDetailPage />);
 </script>

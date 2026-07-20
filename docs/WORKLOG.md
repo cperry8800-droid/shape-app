@@ -178,7 +178,22 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 3/9): LIVE COOKING DETAIL — the planned meal's
+> **Latest (2026-07-20, build 4/9): THE COACH CHANNEL — real loads/reps/RPE for
+> the client's own coach.** The honest `—` in the coach live-watch becomes real
+> figures, through a **separate coach-only table** (never a column — RLS is
+> row-level, the v1 lesson) gated on the **coach link alone** (owner-ratified, no
+> new toggle): it changes WHEN the coach reads what the session log already tells
+> them, not WHAT. SELECT-only for the coach, **30-minute** expiry gated inside the
+> read policy, 8KB bound. **A private member still streams to her own coach** —
+> the coach upsert runs even when the public audience is null, so the private
+> branch deletes the PUBLIC row only. Builder is courteous (clamps/truncates), the
+> **wire rejects**; per-set objects are rebuilt field-by-field so extras can't ride
+> through. Revocation bound: component state only, and the expiry timer
+> **re-fetches** so a revoked link clears at the first re-check. ⚠ **OWNER
+> MIGRATION `2026-07-19-user-activity-live-coach.sql`** + the post-migration
+> **denial matrix** (registered). Next: build 5/9 `nora-sets-schedule`.
+>
+> **Prior (2026-07-20, build 3/9): LIVE COOKING DETAIL — the planned meal's
 > title on the boost sheet.** A boost sender sees **what** a member is cooking,
 > on the existing `user_activity_live` rails. **The doctrine line holds:** a
 > plan/recipe-sourced meal broadcasts its TITLE (menu info — the coach wrote it);
@@ -701,6 +716,81 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 4/9) — THE COACH CHANNEL: real loads/reps/RPE for the client's own coach
+
+- **Build 4 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-live-coach-channel.md`. A coach watching a
+  live session sees **real loads/reps/RPE** instead of the honest `—`. Suite
+  **651 → 656**.
+- **⚠ OWNER MIGRATION — `2026-07-19-user-activity-live-coach.sql`.** Until applied
+  the table doesn't exist and every path degrades silently to today's `—`.
+- **Owner-ratified gate:** the coach link ALONE, no new toggle. It changes **WHEN**
+  the coach reads what the session log will already tell them, **not WHAT**.
+- **A separate TABLE, never a column** on `user_activity_live` — RLS is row-level,
+  so a coach-only jsonb column would have leaked set data to every authenticated
+  reader AND every realtime subscriber of that row (the v1 lesson). No
+  `visibility` column: the audience is **structural**, so there is nothing for a
+  member to mis-set. Coach policy is **SELECT-only** — a coach can never write a
+  member's live row. **30-minute** rolling expiry gated **inside the read policy**,
+  so a crashed session's loads (or a row visible to a since-revoked coach) dies
+  fast. 8KB `pg_column_size` bound.
+- **⚠ A private member still streams to her own coach.** The plan flagged this as
+  the implementer's call: the coach upsert runs **even when the public audience
+  resolves null**, because the coach channel is gated on the link at the DB, not
+  on her share rule — exactly as her session logs already are. The private branch
+  therefore deletes the **public row only**, never taking the coach row with it.
+- **⚠ Signature conflict with build 3, resolved deliberately.** The plan specified
+  `push(payload, fresh, coachPayload)` but #1771 had already shipped `visOverride`
+  as the third positional. Rather than a fourth positional (forcing callers to
+  pass `undefined` to reach the other), the third arg is now an **options bag**
+  `push(payload, fresh, { visOverride, coachPayload })`. One existing caller
+  migrated; plain `push(p, fresh)` sites untouched.
+- **No coach payload = DELETE the coach row**, so a stale set of loads can never
+  outlive the state that produced them — which is why the **rest-expiry re-push
+  carries the coach payload too**; without it that push would have silently wiped
+  the coach row mid-session.
+- **`live_clear()`** — one statement with a data-modifying CTE, so session end can
+  never strand a coach row behind a deleted public one. INVOKER; owner RLS is the
+  scope; the two-delete fallback covers pre-migration.
+- **Asymmetric bounds by design:** the BUILDER is courteous (clamps set strings to
+  12 chars, truncates the serialized tail at 10 sets) because that's our own
+  state; the **WIRE gets no courtesy** and rejects either violation, because a
+  hand-built row isn't ours. Per-set objects are rebuilt field-by-field, so extra
+  keys (an HR reading, a note) can never ride through to the render.
+- **Revocation bound:** consumers hold **component state only, no persistent
+  cache**, and the expiry timer **RE-FETCHES** rather than merely nulling — a
+  revoked link's protected re-read returns nothing under RLS, so held coach state
+  actively clears at the first re-check.
+- **⚠ Crash fixed before it shipped:** the web station read `row.started_at`
+  unguarded, but `row` is **NULL whenever the coach payload drives alone** — the
+  exact private-member case this build exists to support. Both the clock source
+  and the render now prefer the coach row and null-guard the public one.
+  Browser-proved on that precise case (no public row + coach row only → station
+  renders with the real in-progress load and the coach row's elapsed, 0 console
+  errors).
+- **⚠ Two plan corrections from reading the code** (both flagged by the plan
+  itself): the session player's real per-set shape is **`{ load, reps, rpe }`**,
+  not the assumed `{ l, r, rpe }`; and **`setInputs` was declared BELOW the
+  live-broadcast effect**, so adding it to that effect's dep array would have
+  thrown a TDZ ReferenceError at render (dep arrays evaluate during render) — the
+  same class as the #1769 `fs` bug that no static gate catches. Declaration moved
+  above the effect.
+- **`setInputs` is deliberately NOT in the effect deps** — a load edit doesn't
+  change the PUBLIC payload the throttle compares, so a keystroke dep would fire
+  no push and cost pure overhead. The effect already re-runs on the completed map,
+  rebuilding the coach payload from current inputs exactly when a set is toggled
+  done, which is when a load becomes a fact worth sending.
+- **Pre-verified against prod read-only:** `is_coach_on_client(uuid)` exists and is
+  SECURITY DEFINER; and the `pg_column_size` CHECK was probed on a TEMP table
+  because `pg_column_size` is **STABLE, not IMMUTABLE**, and could have been
+  rejected at apply time — it is accepted, and genuinely rejects a 20KB payload
+  (`23514`).
+- Verified: `npm test` **656** · `tsc --noEmit` clean · PowerShell `/m/` build exit
+  0 · `build-newdesign --check` exit 0 · JSX parses · LF.
+- **⚠ Post-migration, still owed:** the full **denial matrix** (three seeded
+  accounts — member M, coach C, stranger S) is registered as an OWNER item; it
+  cannot be run from here for the same reason as #1769's RLS vector.
 
 ### 2026-07-20 (build 3/9) — LIVE COOKING DETAIL: the planned meal's title on the boost sheet
 

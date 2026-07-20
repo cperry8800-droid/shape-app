@@ -63,6 +63,71 @@ export function bsCookingPayload(meal) {
   return { v: 1, kind: 'cooking', title };
 }
 
+// ── Coach channel (spec 2026-07-19, owner-ratified) ─────────────────────────
+// The COACH-only payload: the public contract plus per-set load/reps/rpe. It
+// changes WHEN the client's own coach reads what the session log will already
+// tell them, not WHAT — so it is gated on the coach link alone, and it rides a
+// SEPARATE table (RLS is row-level, not column-level).
+// NEVER HR, notes, video or location. Strings as the member typed them.
+const MAX_SET_STR = 12;     // per-field character bound
+const MAX_SETS_SERIALIZED = 10;   // per-exercise bound on the serialized tail
+
+const setStr = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v)).trim().slice(0, MAX_SET_STR);
+
+export function bsLiveCoachPayload(moves, completed, moveIdx, resting, setInputs) {
+  const base = bsLiveProgressPayload(moves, completed, moveIdx, resting);
+  if (!base) return null;
+  const done = completed && typeof completed === 'object' ? completed : {};
+  const inputs = setInputs && typeof setInputs === 'object' ? setInputs : {};
+  const exercises = base.exercises.map((e, i) => {
+    const n = Math.min(e.total, MAX_SETS_SERIALIZED);   // truncate the tail at BUILD
+    const sets = [];
+    for (let s = 0; s < n; s++) {
+      const src = inputs[`${i}-${s}`] || {};
+      const isDone = !!done[`${i}-${s}`];
+      // ⚠ BSSession PRE-FILLS setInputs for EVERY set from the PRESCRIPTION
+      // (buildSetInputs seeds m.l / m.reps / m.rpe||'8'), so an untouched set
+      // already carries planned figures that are indistinguishable here from
+      // typed ones. Serializing those would show the coach a PLAN as if it
+      // were a FACT — fabrication, the one thing this channel must never do.
+      // Actuals therefore ride only once the set is marked done; until then
+      // the cell is honest-absent ('' → the consumer renders '—').
+      sets.push(isDone
+        ? { load: setStr(src.load), reps: setStr(src.reps), rpe: setStr(src.rpe), done: true }
+        : { load: '', reps: '', rpe: '', done: false });
+    }
+    return { ...e, sets };
+  });
+  return { ...base, exercises };
+}
+
+// Full-contract discipline: everything the public validator checks on the base
+// shape, PLUS the per-set bounds. The wire gets no truncation courtesy — any
+// violation returns null and the consumer falls back to the public row.
+export function bsValidLiveCoachPayload(raw) {
+  const base = bsValidLivePayload(raw);
+  if (!base || base.kind === 'cooking') return null;   // coach channel is workout-only
+  if (!raw || !Array.isArray(raw.exercises)) return null;
+  const exercises = [];
+  for (let i = 0; i < base.exercises.length; i++) {
+    const src = raw.exercises[i];
+    const sets = src && src.sets;
+    if (!Array.isArray(sets) || sets.length > MAX_SETS_SERIALIZED) return null;
+    const clean = [];
+    for (const s of sets) {
+      if (!s || typeof s !== 'object') return null;
+      if (typeof s.load !== 'string' || typeof s.reps !== 'string' || typeof s.rpe !== 'string') return null;
+      if (s.load.length > MAX_SET_STR || s.reps.length > MAX_SET_STR || s.rpe.length > MAX_SET_STR) return null;
+      if (typeof s.done !== 'boolean') return null;
+      // Rebuilt field-by-field: extra keys (an HR reading, a note) can never
+      // ride through to the render even if the wire carries them.
+      clean.push({ load: s.load, reps: s.reps, rpe: s.rpe, done: s.done });
+    }
+    exercises.push({ ...base.exercises[i], sets: clean });
+  }
+  return { ...base, exercises };
+}
+
 export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) {
   if (!nextPayload) return false;
   if (JSON.stringify(prevPayload) === JSON.stringify(nextPayload)) return false;

@@ -44,8 +44,86 @@ function CKSecHead({ children }) {
 // subscription-side expires_at timer (an open page drops the row at expiry).
 // No readable row → null — THE STATION DOES NOT EXIST (absence; never a
 // "private" label: RLS makes private / not-visible / expired indistinguishable).
+// How often an on-screen coach row re-proves the coach still has access.
+const COACH_RECHECK_MS = 60000;
 function CKLiveStation({ clientId, accent }) {
   const [row, setRow] = React.useState(null);
+  // Coach channel (spec 2026-07-19, owner-ratified): loads/reps/RPE from a
+  // separate coach-only row. RLS decides — a non-coach, and a SINCE-REVOKED
+  // coach, read nothing. Component state only, no persistent cache, so a
+  // revoked link cannot keep showing stale loads (the revocation bound).
+  const [coachRow, setCoachRow] = React.useState(null);
+  React.useEffect(() => {
+    const sdb = window.shapeDb;
+    const db = sdb && sdb.client;
+    const okId = typeof clientId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+    setCoachRow(null);
+    if (!db || !okId) return undefined;
+    const wantId = clientId.toLowerCase();
+    let on = true; let evented = false; let expTimer = null; let channel = null;
+    const mine = (rec) => !!(rec && typeof rec.user_id === "string" && rec.user_id.toLowerCase() === wantId);
+    const refetch = () => {
+      // RE-FETCH at expiry rather than merely nulling: a revoked link's
+      // protected re-read returns nothing under RLS, so held coach state
+      // actively clears at the first re-check.
+      db.from("user_activity_live_coach").select("payload, started_at, updated_at, expires_at")
+        .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle()
+        .then((res) => { if (on) take((res && !res.error && res.data) || null, "refetch"); })
+        .catch(() => { if (on) setCoachRow(null); });
+    };
+    // `src`: "init" | "event" | "refetch". The evented guard exists ONLY to stop
+    // the slow initial read from clobbering a realtime event that landed first
+    // (TOCTOU). A "refetch" is the expiry/revocation re-check and is
+    // AUTHORITATIVE — it must be able to clear a row that arrived by event, or
+    // a revoked coach's loads stay on screen. In the private-member case there
+    // is no public row to drive an unrelated re-render and hide the bug.
+    const take = (r, src) => {
+      if (!on) return;
+      if (src === "event") evented = true;
+      else if (src === "init" && evented) return;
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (r && !(expMs > 0)) r = null;
+      setCoachRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      // Re-check on a BOUNDED interval, not at the row's full remaining life.
+      // Revocation is silent to this client: once the link is cut, RLS simply
+      // stops delivering realtime events, so the last snapshot would otherwise
+      // sit on screen until expiry — and the writer refreshes expires_at to 30
+      // MINUTES on every push, so "clears at the first re-check" meant up to
+      // half an hour (review: CodeRabbit). Each re-check is the RLS-protected
+      // read, which returns nothing once revoked, so the window is now ≤60s.
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, Math.min(expMs, COACH_RECHECK_MS));
+    };
+    (async () => {
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      try {
+        channel = db.channel(`ck-live-coach-${clientId}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live_coach", filter: `user_id=eq.${clientId}` },
+            (p) => {
+              try {
+                if (p.eventType === "DELETE") { if (mine(p.old)) take(null, "event"); return; }
+                if (mine(p.new)) take(p.new, "event");
+              } catch (e) { console.warn("[shape] live coach: bad realtime payload", e); }
+            })
+          .subscribe((status, err) => {
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              console.warn("[shape] live coach: realtime channel " + status, err || "");
+            }
+          });
+      } catch (e) { console.warn("[shape] live coach: subscribe failed", e); }
+      if (!on) return;
+      try {
+        const res = await db.from("user_activity_live_coach")
+          .select("payload, started_at, updated_at, expires_at")
+          .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        // Pre-migration the table doesn't exist — degrade quietly to no coach row.
+        if (res && res.error) return;
+        take((res && res.data) || null, "init");
+      } catch (e) { /* absent table / network — the public row still drives */ }
+    })();
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
+  }, [clientId]);
   React.useEffect(() => {
     const sdb = window.shapeDb;
     const db = sdb && sdb.client;
@@ -125,19 +203,48 @@ function CKLiveStation({ clientId, accent }) {
   // until some unrelated update arrived — a stale figure presented as current
   // (review: CodeRabbit). Tick once a minute while a row is on screen.
   const [, setTick] = React.useState(0);
-  const hasRow = !!row;
+  // A private member has NO public row but still drives the station from her
+  // coach row, so gating the ticker on `row` alone froze her elapsed clock at
+  // its first value (review: CodeRabbit).
+  const hasRow = !!(row || coachRow);
   React.useEffect(() => {
     if (!hasRow) return undefined;
     const id = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(id);
   }, [hasRow]);
-  const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
+  // Preference: an unexpired, VALID coach row wins (real loads); else the
+  // public row (loads honest-absent); else nothing. A malformed coach payload
+  // falls back rather than blanking the station.
+  const V = window.ShapeLiveValidate;
+  const cp = (V && V.bsValidLiveCoachPayload && coachRow && coachRow.expires_at
+    && new Date(coachRow.expires_at).getTime() > Date.now())
+    ? V.bsValidLiveCoachPayload(coachRow.payload) : null;
+  const lp = cp || (row && V ? V.bsValidLivePayload(row.payload) : null);
   // Workout payloads only (review round): the cooking-detail PR later teaches
   // the validator a {kind:'cooking'} shape with NO exercises — this station
   // must gate on the discriminator or that row would crash the render.
   if (!lp || (lp.kind && lp.kind !== 'workout')) return null;   // absence — the station does not exist
-  const started = row.started_at ? new Date(row.started_at).getTime() : null;
+  // ⚠ `row` can be NULL while cp drives: a member whose share rule is Private
+  // has NO public row at all, but still streams to her own coach. Reading
+  // row.started_at unguarded would throw on exactly that case.
+  const startSrc = (cp && coachRow && coachRow.started_at) ? coachRow.started_at : (row && row.started_at);
+  const started = startSrc ? new Date(startSrc).getTime() : null;
   const mins = started != null ? Math.max(0, Math.floor((Date.now() - started) / 60000)) : null;
+  // The load cell shows the most recent set that actually CARRIES a figure.
+  // ⚠ It cannot index by e.done any more: now that the builder gates actuals on
+  // `done` (no prescription prefills), the set at e.done is always present but
+  // always EMPTY, so `sets[e.done] || sets[e.done - 1]` selected that empty
+  // object and every in-progress exercise read '—' — the feature's whole point,
+  // lost (review: CodeRabbit). Scanning back also survives out-of-order
+  // completion, where e.done is a COUNT and not an index.
+  const loadFor = (e) => {
+    if (!cp || !Array.isArray(e.sets)) return "—";
+    for (let s = e.sets.length - 1; s >= 0; s--) {
+      const v = e.sets[s] && e.sets[s].load;
+      if (typeof v === "string" && v !== "") return v;
+    }
+    return "—";   // nothing logged yet — honest-absent per exercise
+  };
   return (
     <Card style={{ marginBottom: 16, border: `1px solid ${accent}55` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -152,7 +259,7 @@ function CKLiveStation({ clientId, accent }) {
           <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, color: i === lp.curIdx ? "#f2ede4" : "rgba(242,237,228,0.7)" }}>
             {i === lp.curIdx ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: accent, marginRight: 8 }}>NOW ▸</span> : null}{e.n}
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>—</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: loadFor(e) === "—" ? "rgba(242,237,228,0.55)" : "rgba(242,237,228,0.85)" }}>{loadFor(e)}</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: e.done >= e.total ? accent : "rgba(242,237,228,0.75)" }}>{e.done}/{e.total}</span>
         </div>
       ))}

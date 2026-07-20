@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bsLiveProgressPayload, bsLiveAudience, bsShouldPushProgress, bsValidLivePayload } from '../mobile-app/src/services/liveProgress.mjs';
-import { bsValidLivePayload as bsValidCanonical, bsCookingPayload } from '../public/newdesign/liveProgress.mjs';
+import { bsValidLivePayload as bsValidCanonical, bsCookingPayload, bsLiveCoachPayload, bsValidLiveCoachPayload } from '../public/newdesign/liveProgress.mjs';
 
 const MOVES = [ { m: 'Pull-up', sets: 4 }, { m: 'Barbell row', sets: 4 }, { m: '', sets: 3 } ];
 const DONE = { '0-0': true, '0-1': true, '0-2': true, '0-3': true, '1-0': true, '1-1': true };
@@ -122,6 +122,99 @@ test('validator dispatches on kind FIRST; cooking strictly validated; workout co
   const w = bsLiveProgressPayload(MOVES, DONE, 1, true);
   assert.ok(bsValidLivePayload(w));
   assert.ok(bsValidLivePayload({ ...w, kind: 'workout' }));
+});
+
+// setInputs uses the SESSION PLAYER's real key shape (verified in BSSession's
+// buildSetInputs): `${moveIdx}-${setIdx}` -> { load, reps, rpe } as STRINGS.
+const INPUTS = {
+  '0-0': { load: '135', reps: '8', rpe: '7' },
+  '0-1': { load: '145', reps: '6', rpe: '8' },
+  '0-2': { load: '145', reps: '6', rpe: '9' },
+  '0-3': { load: '155', reps: '5', rpe: '9' },
+  '1-0': { load: '95', reps: '10', rpe: '7' },
+  '1-1': { load: '95', reps: '10', rpe: '8' },
+};
+
+test('coach payload carries the base contract PLUS per-set load/reps/rpe', () => {
+  const c = bsLiveCoachPayload(MOVES, DONE, 1, false, INPUTS);
+  assert.equal(c.v, 1);
+  assert.equal(c.exercises.length, 3);
+  assert.equal(c.setsDone, 6);
+  assert.equal(c.setsTotal, 11);
+  // exercise 0: 4 sets, all done
+  assert.deepEqual(c.exercises[0].sets[0], { load: '135', reps: '8', rpe: '7', done: true });
+  assert.deepEqual(c.exercises[0].sets[3], { load: '155', reps: '5', rpe: '9', done: true });
+  // exercise 1: 4 sets, first two done
+  assert.equal(c.exercises[1].sets[1].done, true);
+  assert.equal(c.exercises[1].sets[2].done, false);
+  // an un-entered set is honest-absent, never invented
+  assert.deepEqual(c.exercises[1].sets[2], { load: '', reps: '', rpe: '', done: false });
+  assert.ok(bsValidLiveCoachPayload(c), 'builder output must validate');
+});
+
+// ⚠ The session player PRE-FILLS setInputs for EVERY set from the prescription
+// (buildSetInputs seeds m.l / m.reps / m.rpe||'8'), so "has a value" cannot mean
+// "the athlete logged it". Only `done` distinguishes a fact from a plan — and the
+// coach grid renders any non-empty figure as a real live result, so serializing a
+// prefill would show a coach numbers the athlete never lifted (review: Codex).
+test('coach payload: an UNDONE set never leaks its prescription prefill', () => {
+  const prefilled = {
+    '0-0': { load: '225', reps: '5', rpe: '8' },   // done → a fact
+    '0-1': { load: '225', reps: '5', rpe: '8' },   // NOT done → planned default
+    '0-2': { load: '225', reps: '5', rpe: '8' },   // NOT done → planned default
+  };
+  const built = bsLiveCoachPayload([{ m: 'Deadlift', sets: 3 }], { '0-0': true }, 0, false, prefilled);
+  assert.deepEqual(built.exercises[0].sets[0], { load: '225', reps: '5', rpe: '8', done: true });
+  assert.deepEqual(built.exercises[0].sets[1], { load: '', reps: '', rpe: '', done: false });
+  assert.deepEqual(built.exercises[0].sets[2], { load: '', reps: '', rpe: '', done: false });
+  assert.ok(bsValidLiveCoachPayload(built), 'the gated payload must still validate');
+});
+
+test('coach payload: builder clamps long strings, the WIRE rejects them', () => {
+  const long = { '0-0': { load: 'x'.repeat(40), reps: '8', rpe: '7' } };
+  const built = bsLiveCoachPayload([{ m: 'Squat', sets: 1 }], { '0-0': true }, 0, false, long);
+  assert.equal(built.exercises[0].sets[0].load.length, 12);   // builder is courteous
+  assert.ok(bsValidLiveCoachPayload(built));
+  // hand-built wire data gets NO courtesy
+  const hostile = JSON.parse(JSON.stringify(built));
+  hostile.exercises[0].sets[0].load = 'y'.repeat(13);
+  assert.equal(bsValidLiveCoachPayload(hostile), null);
+});
+
+test('coach payload: >10 sets truncated at BUILD, rejected on the WIRE', () => {
+  const many = [{ m: 'Squat', sets: 14 }];
+  const built = bsLiveCoachPayload(many, {}, 0, false, {});
+  assert.equal(built.exercises[0].sets.length, 10);          // tail dropped
+  assert.ok(bsValidLiveCoachPayload(built));
+  const hostile = JSON.parse(JSON.stringify(built));
+  hostile.exercises[0].sets = Array.from({ length: 11 }, () => ({ load: '1', reps: '1', rpe: '1', done: false }));
+  assert.equal(bsValidLiveCoachPayload(hostile), null);
+});
+
+test('coach validator enforces the FULL base contract too, and strips extras', () => {
+  const ok = bsLiveCoachPayload(MOVES, DONE, 1, false, INPUTS);
+  // base-contract violations must still fail through the coach validator
+  assert.equal(bsValidLiveCoachPayload({ ...ok, setsDone: 999 }), null);   // aggregates must sum
+  assert.equal(bsValidLiveCoachPayload({ ...ok, resting: 'yes' }), null);  // real boolean only
+  assert.equal(bsValidLiveCoachPayload({ ...ok, v: 2 }), null);
+  assert.equal(bsValidLiveCoachPayload(null), null);
+  // per-set type discipline
+  const bad = JSON.parse(JSON.stringify(ok));
+  bad.exercises[0].sets[0].done = 1;                                        // not a boolean
+  assert.equal(bsValidLiveCoachPayload(bad), null);
+  const bad2 = JSON.parse(JSON.stringify(ok));
+  bad2.exercises[0].sets[0].load = 42;                                      // not a string
+  assert.equal(bsValidLiveCoachPayload(bad2), null);
+  // extra keys are stripped, never passed through to the render
+  const extra = JSON.parse(JSON.stringify(ok));
+  extra.exercises[0].sets[0].hr = 172;
+  const clean = bsValidLiveCoachPayload(extra);
+  assert.equal(clean.exercises[0].sets[0].hr, undefined);
+});
+
+test('coach payload is null when the base payload is (no moves)', () => {
+  assert.equal(bsLiveCoachPayload([], {}, 0, false, INPUTS), null);
+  assert.equal(bsLiveCoachPayload(null, {}, 0, false, INPUTS), null);
 });
 
 test('cooking rejection cannot be smuggled past the builder into the wire', () => {

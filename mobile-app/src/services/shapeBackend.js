@@ -5437,6 +5437,16 @@ window.ShapePresence = {
 // The generation is still bumped on EVERY clear path (incl. the private/
 // read-failed one) so a queued push that is now obsolete drops out cheaply.
 let _liveGen = 0;
+// The COACH row supersedes INDEPENDENTLY of the public one. _liveGen is bumped
+// on every clear path INCLUDING the private/read-failed branch — correct for the
+// public row (absence must win), but fatal if it also gated the coach leg: for a
+// PRIVATE member every push takes that branch, so any push already queued behind
+// it would drop out before writing its coachPayload and the coach row would sit
+// stale until its 30-minute expiry — in precisely the private-member case this
+// channel exists to serve (review: CodeRabbit). This counter is therefore bumped
+// ONLY by a real session-end clear, never by a privacy withdrawal.
+let _liveCoachGen = 0;
+const _okUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 let _liveQueue = Promise.resolve();
 function _liveEnqueue(fn) {
   const run = () => fn().catch(() => {});
@@ -5463,29 +5473,92 @@ async function _liveAudience() {
 // OLD doc and hand back the previous, WIDER audience — which would resurrect
 // the row the member just withdrew, with its payload intact (Codex P1).
 // `undefined` = not supplied (resolve normally); `null` = resolved to private.
-async function livePush(payload, fresh, visOverride) {
+// `opts` (optional object; the 3rd positional was `visOverride` before the coach
+// channel needed a second payload — an options bag rather than a 4th positional
+// so neither caller has to pass `undefined` to reach the other):
+//   · visOverride — a caller that has ALREADY resolved the audience passes it
+//     through instead of letting us re-read it. saveUserGoals('client_settings')
+//     is fire-and-forget, so _liveAudience()'s read can still see the OLD doc and
+//     hand back the previous, WIDER audience — resurrecting a row the member
+//     just withdrew (Codex P1). `undefined` = resolve normally; `null` = private.
+//   · coachPayload — the coach-channel payload. Present → upsert the coach row;
+//     absent/null → DELETE it, so a stale set of loads can never outlive the
+//     state that produced them.
+async function livePush(payload, fresh, opts) {
   if (!supabase || !state.user || !payload) return;
+  const visOverride = opts && Object.prototype.hasOwnProperty.call(opts, 'visOverride') ? opts.visOverride : undefined;
+  const coachPayload = opts ? opts.coachPayload : null;
   const gen = _liveGen;
+  const cgen = _liveCoachGen;
   return _liveEnqueue(async () => {
-    if (gen !== _liveGen) return;              // superseded before we ran
-    const vis = visOverride !== undefined ? visOverride : await _liveAudience();
-    if (gen !== _liveGen) return;
-    if (!vis) { _liveGen++; await _liveDelete(); return; }   // private/read-failed → absence
+    // Each leg is checked against its OWN generation: a superseded public write
+    // must not carry the coach write down with it, or vice versa.
+    const pubLive = () => gen === _liveGen;
+    const coachLive = () => cgen === _liveCoachGen;
+    if (!pubLive() && !coachLive()) return;    // fully superseded before we ran
+    // Only the public leg needs the audience — skip the read when it is dead.
+    const vis = pubLive() ? (visOverride !== undefined ? visOverride : await _liveAudience()) : null;
+    if (!pubLive() && !coachLive()) return;
     const now = new Date();
-    const row = {
-      user_id: state.user.id, visibility: vis, payload,
-      updated_at: now.toISOString(),
-      expires_at: new Date(now.getTime() + 6 * 3600 * 1000).toISOString(),
-    };
-    if (fresh) row.started_at = now.toISOString();
-    await supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' });
+    // PUBLIC row — the member's OWN share rule decides.
+    if (!pubLive()) {
+      /* superseded — the coach leg below still runs */
+    } else if (!vis) {
+      _liveGen++;                              // private/read-failed → absence
+      await _livePublicDelete();
+    } else {
+      const row = {
+        user_id: state.user.id, visibility: vis, payload,
+        updated_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + 6 * 3600 * 1000).toISOString(),
+      };
+      if (fresh) row.started_at = now.toISOString();
+      await supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' });
+    }
+    // COACH row — gated on the COACH LINK at the DB (RLS), never on the
+    // member's share rule. This runs EVEN WHEN vis is null: a private member
+    // still streams to her own coach, exactly as her session logs already do.
+    // That is the owner-ratified decision — it changes WHEN the coach reads
+    // what the log will tell them, not WHAT.
+    try {
+      if (!coachLive()) {
+        /* a session-end clear landed while we waited — leave the row deleted */
+      } else if (coachPayload) {
+        const crow = {
+          user_id: state.user.id, payload: coachPayload,
+          updated_at: now.toISOString(),
+          expires_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+        };
+        if (fresh) crow.started_at = now.toISOString();
+        await supabase.from('user_activity_live_coach').upsert(crow, { onConflict: 'user_id' });
+      } else {
+        // No coach payload (malformed state, or a non-workout push) must not
+        // leave the old loads readable until expiry.
+        await supabase.from('user_activity_live_coach').delete().eq('user_id', state.user.id);
+      }
+    } catch (e) { /* pre-migration: the table doesn't exist yet — degrade silently */ }
   });
 }
-async function _liveDelete() {
+// Public row only — used by the private-audience branch, which must NOT take
+// the coach row down with it.
+async function _livePublicDelete() {
   try { if (supabase && state.user) await supabase.from('user_activity_live').delete().eq('user_id', state.user.id); } catch (e) {}
+}
+// Session end: BOTH rows, transactionally, so a coach row can never be
+// stranded behind a deleted public one.
+async function _liveDelete() {
+  if (!supabase || !state.user) return;
+  try {
+    const { error } = await supabase.rpc('live_clear');
+    if (!error) return;
+  } catch (e) {}
+  // pre-migration fallback: two best-effort deletes
+  await _livePublicDelete();
+  try { await supabase.from('user_activity_live_coach').delete().eq('user_id', state.user.id); } catch (e) {}
 }
 function liveClear() {
   _liveGen++;                                   // obsolete any queued push
+  _liveCoachGen++;                              // session end DOES obsolete the coach leg
   return _liveEnqueue(_liveDelete);             // runs AFTER any in-flight upsert
 }
 window.ShapeLiveProgress = {
@@ -5506,6 +5579,45 @@ window.ShapeLiveProgress = {
       const channel = supabase.channel(`live-progress-${uid}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'user_activity_live', filter: `user_id=eq.${uid}` },
           (payload) => { try { cb(payload.eventType === 'DELETE' ? null : (payload.new || null)); } catch (e) {} })
+        .subscribe();
+      return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+    } catch (e) { return () => {}; }
+  },
+  // Coach channel (spec 2026-07-19). Same reader pair against the coach table.
+  // RLS decides: a non-coach — and a SINCE-REVOKED coach — simply gets nothing,
+  // which is why consumers hold no persistent cache (the revocation bound).
+  // Absent table (pre-migration) / error → null, so the consumer falls back to
+  // the public row and then to the neutral line.
+  getCoach: async (uid) => {
+    if (!supabase || !_okUuid(uid)) return null;
+    try {
+      const { data } = await supabase.from('user_activity_live_coach')
+        .select('payload, started_at, updated_at, expires_at')
+        .eq('user_id', uid).gt('expires_at', new Date().toISOString()).maybeSingle();
+      return data || null;
+    } catch (e) { return null; }
+  },
+  subscribeCoach: (uid, cb) => {
+    // uid is interpolated RAW into the realtime filter string below, so it is
+    // shape-checked first — parity with the web station (review: CodeRabbit).
+    if (!supabase || !_okUuid(uid)) return () => {};
+    const want = uid.toLowerCase();
+    // Realtime does NOT apply postgres_changes filters to DELETE events, so a
+    // DELETE for ANOTHER member lands here too. Unguarded it would blank the
+    // watched client's loads when some OTHER client ended a session. user_id is
+    // the table's PRIMARY KEY, so the default replica identity carries it in
+    // `old`. Match case-insensitively: Postgres emits uuid lowercased, so a
+    // strict === against a mixed-case id would drop every event (review: Codex).
+    const mine = (rec) => !!(rec && typeof rec.user_id === 'string' && rec.user_id.toLowerCase() === want);
+    try {
+      const channel = supabase.channel(`live-coach-${uid}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_activity_live_coach', filter: `user_id=eq.${uid}` },
+          (payload) => {
+            try {
+              if (payload.eventType === 'DELETE') { if (mine(payload.old)) cb(null); return; }
+              if (mine(payload.new)) cb(payload.new);
+            } catch (e) {}
+          })
         .subscribe();
       return () => { try { supabase.removeChannel(channel); } catch (e) {} };
     } catch (e) { return () => {}; }
