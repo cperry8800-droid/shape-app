@@ -11,10 +11,14 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
+<script src="/supabase.js"></script>
+<!-- Live-progress validator (canonical ES module, spec 2026-07-19): assigns window.ShapeLiveValidate before babel runs the page code. -->
+<script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260719"; window.ShapeLiveValidate = LP;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
-<script type="text/babel" src="coachClientDetail.jsx?v=20260713"></script>
+<script type="text/babel" src="coachClientDetail.jsx?v=20260719"></script>
 <script type="text/babel">
 ReactDOM.createRoot(document.getElementById("root")).render(<CoachClientDetailPage />);
 </script>

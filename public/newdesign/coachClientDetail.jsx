@@ -37,6 +37,129 @@ function CKSecHead({ children }) {
   return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{children}</div>;
 }
 
+// THE LIVE STATION (spec 2026-07-19): a realtime view of the client's
+// in-progress session. Consumer-side hygiene ported from the mobile console
+// (iosAppBroadsheetPros.jsx BSProLiveWatch): the `evented` TOCTOU guard (a
+// late initial fetch never overwrites a newer realtime event/DELETE) and the
+// subscription-side expires_at timer (an open page drops the row at expiry).
+// No readable row → null — THE STATION DOES NOT EXIST (absence; never a
+// "private" label: RLS makes private / not-visible / expired indistinguishable).
+function CKLiveStation({ clientId, accent }) {
+  const [row, setRow] = React.useState(null);
+  React.useEffect(() => {
+    const sdb = window.shapeDb;
+    const db = sdb && sdb.client;
+    // clientId rides straight from the URL into a RAW postgres_changes filter
+    // string — validate it as a UUID before interpolating (review: CodeRabbit).
+    const okId = typeof clientId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+    // Defence in depth, NOT the frame guarantee: an in-effect reset lands after
+    // commit, so it cannot stop a stale frame on its own — `key={clientId}` at
+    // the mount site is what actually guarantees "B never renders A's payload"
+    // by remounting with fresh null state. This still matters for any re-run
+    // that does NOT remount, and it runs BEFORE the bail-out guard so switching
+    // to a malformed clientId still drops A's row instead of leaving it under
+    // B's header (review: CodeRabbit).
+    setRow(null);
+    if (!db || !okId) return undefined;
+    let on = true; let evented = false; let expTimer = null; let channel = null;
+    const take = (r, fromEvent) => {
+      if (!on) return;
+      if (fromEvent) evented = true; else if (evented) return;   // TOCTOU guard
+      // Expiry gates EVENTS too (review round): an already-expired realtime
+      // INSERT/UPDATE would set no timer and pin the station forever.
+      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
+      if (r && !(expMs > 0)) r = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
+      setRow(r);
+      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
+      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
+    };
+    // Realtime does NOT apply postgres_changes filters to DELETE events, so a
+    // DELETE for ANOTHER member's row can land here and would blank this card.
+    // user_id is the table's PRIMARY KEY, so the default replica identity
+    // carries it in `old` — only act on a real match (review: CodeRabbit).
+    // Case-INSENSITIVE match: okId accepts any-case UUID, but Postgres emits
+    // uuid lowercased. A strict === against an upper/mixed-case URL value would
+    // drop EVERY event for this client, silently (review: CodeRabbit).
+    const wantId = clientId.toLowerCase();
+    const mine = (rec) => !!(rec && typeof rec.user_id === "string" && rec.user_id.toLowerCase() === wantId);
+    (async () => {
+      // The page's own /api/... fetch rides the Next.js cookie session, but this
+      // DIRECT query does not: client.auth.getSession() is empty when the session
+      // lives only in HTTP cookies, so the read would run as ANON, RLS would hide
+      // every row, and the station would SILENTLY never appear for a cookie-session
+      // coach (review: Codex P2). Bootstrap the session bridge first.
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      // Subscribe BEFORE the initial read so no event can slip through the gap;
+      // the `evented` guard still lets a live event beat a slow first fetch.
+      try {
+        channel = db.channel(`ck-live-${clientId}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live", filter: `user_id=eq.${clientId}` },
+            (p) => {
+              try {
+                if (p.eventType === "DELETE") { if (mine(p.old)) take(null, true); return; }
+                if (mine(p.new)) take(p.new, true);
+              } catch (e) { console.warn("[shape] live station: bad realtime payload", e); }
+            })
+          .subscribe((status, err) => {
+            // Don't fail silently: a dropped/erroring channel leaves the station
+            // frozen with no clue why (review: CodeRabbit).
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              console.warn("[shape] live station: realtime channel " + status, err || "");
+            }
+          });
+      } catch (e) { console.warn("[shape] live station: subscribe failed", e); }
+      if (!on) return;
+      try {
+        const res = await db.from("user_activity_live")
+          .select("payload, started_at, updated_at, expires_at")
+          .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        if (res && res.error) { console.warn("[shape] live station: initial read failed", res.error.message || res.error); return; }
+        take((res && res.data) || null, false);
+      } catch (e) { console.warn("[shape] live station: initial read threw", e); }
+    })();
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
+  }, [clientId]);
+  // Elapsed minutes are derived from Date.now() at RENDER time, so a quiet live
+  // row (a long rest, a paused session) would stay pinned to its first "N min in"
+  // until some unrelated update arrived — a stale figure presented as current
+  // (review: CodeRabbit). Tick once a minute while a row is on screen.
+  const [, setTick] = React.useState(0);
+  const hasRow = !!row;
+  React.useEffect(() => {
+    if (!hasRow) return undefined;
+    const id = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, [hasRow]);
+  const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
+  // Workout payloads only (review round): the cooking-detail PR later teaches
+  // the validator a {kind:'cooking'} shape with NO exercises — this station
+  // must gate on the discriminator or that row would crash the render.
+  if (!lp || (lp.kind && lp.kind !== 'workout')) return null;   // absence — the station does not exist
+  const started = row.started_at ? new Date(row.started_at).getTime() : null;
+  const mins = started != null ? Math.max(0, Math.floor((Date.now() - started) / 60000)) : null;
+  return (
+    <Card style={{ marginBottom: 16, border: `1px solid ${accent}55` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+        <CKSecHead>LIVE · IN A SESSION NOW</CKSecHead>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>
+          <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 999, background: accent, boxShadow: "0 0 8px " + accent, marginRight: 6 }} />
+          {lp.resting ? "Resting" : "Working"}{mins != null ? ` · ${mins} min in` : ""} · Sets {lp.setsDone}/{lp.setsTotal}
+        </span>
+      </div>
+      {lp.exercises.map((e, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "baseline", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, color: i === lp.curIdx ? "#f2ede4" : "rgba(242,237,228,0.7)" }}>
+            {i === lp.curIdx ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: accent, marginRight: 8 }}>NOW ▸</span> : null}{e.n}
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>—</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: e.done >= e.total ? accent : "rgba(242,237,228,0.75)" }}>{e.done}/{e.total}</span>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 function CoachClientDetailPage() {
   const params = new URLSearchParams(window.location.search);
   const clientId = params.get("id");
@@ -160,6 +283,11 @@ function CoachClientDetailPage() {
       subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
       <React.Fragment>
+          {/* key={clientId} REMOUNTS the station per client. Without it React
+              renders B's clientId with A's still-committed `row` for one frame
+              before the effect's reset runs — the in-effect setRow(null) lands
+              after commit, so it cannot prevent that frame (review: CodeRabbit). */}
+          <CKLiveStation key={clientId} clientId={clientId} accent={accent} />
           <Card style={{ marginBottom: 16 }}>
             <CKSecHead>{isNutri ? "ADHERENCE · THIS WEEK" : "TRAINING · THIS BLOCK"}</CKSecHead>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>

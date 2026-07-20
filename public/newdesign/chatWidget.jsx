@@ -19,6 +19,61 @@ function cwInitials(name) {
 }
 function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
 function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Presence-tier activity line (spec 2026-07-19): what the member is DOING now
+// ('workout' | 'cooking') + minutes in, from the existing authenticated-read
+// user_activity table. Presence info only — never set detail (that is the
+// coach station's job, behind its own RLS).
+// Known kinds ONLY. An unrecognised kind is absence, never a defaulted verb —
+// rendering "In a workout" for a kind we don't understand fabricates a claim
+// about what the member is doing (review: CodeRabbit, honest-data).
+const CW_ACTIVITY_VERBS = { workout: "In a workout", cooking: "In the kitchen" };
+
+function cwUseActivity(userId, open) {
+  const [act, setAct] = React.useState(null);
+  React.useEffect(() => {
+    const sdb = window.shapeDb;
+    const db = sdb && sdb.client;
+    // Reset FIRST, unconditionally. Switching from member A to member B leaves
+    // `act` populated across the await of getSession() + the new query, so the
+    // preview would render A's presence line under B's name (review: CodeRabbit).
+    setAct(null);
+    if (!db || !userId || !open) return undefined;
+    let on = true; let expTimer = null;
+    (async () => {
+      // user_activity is authenticated-read. A session that lives only in the
+      // Next.js HTTP cookies leaves this client ANON until the bridge runs, so
+      // the row would be invisible and the line would silently never show
+      // (review: Codex P2).
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      try {
+        const res = await db.from("user_activity").select("kind, started_at, expires_at")
+          .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        if (!on) return;
+        const data = (res && res.error) ? null : (res && res.data);
+        // Require a FINITE future expiry — malformed expires_at (NaN) must read
+        // as absence, never an untimed forever-line.
+        const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
+        const known = !!(data && Object.prototype.hasOwnProperty.call(CW_ACTIVITY_VERBS, data.kind));
+        const ok = known && expMs > 0;
+        setAct(ok ? data : null);
+        // Clear the line AT expiry (review round) — an open preview must not
+        // keep saying "In a workout" after the activity row lapses.
+        if (ok) expTimer = setTimeout(() => { if (on) setAct(null); }, expMs);
+      } catch (e) { if (on) setAct(null); }
+    })();
+    return () => { on = false; if (expTimer) clearTimeout(expTimer); };
+  }, [userId, open]);
+  if (!act) return null;
+  const verb = CW_ACTIVITY_VERBS[act.kind];
+  if (!verb) return null;
+  // A malformed started_at parses to NaN, and NaN != null — without the finite
+  // check the UI would render a fabricated "NaN min in" (review: CodeRabbit).
+  const startMs = act.started_at ? new Date(act.started_at).getTime() : NaN;
+  const mins = Number.isFinite(startMs) ? Math.max(0, Math.floor((Date.now() - startMs) / 60000)) : null;
+  return mins != null ? `${verb} · ${mins} min in` : verb;
+}
+
 // Facet avatar (matches the mobile app) — a tier-coloured rounded-diamond gem,
 // initials inside, optional pulsing "online" ring.
 function CwFacetAvatar({ size = 40, c = "#34d6c5", initial = "S", live = false, onClick, photo }) {
@@ -751,6 +806,10 @@ function ChatWidget(props) {
     setProfileFor({ who, role: (m && m.coach) ? "Coach" : ((active && active.role) || ""), coach, userId: (m && m.userId) || (active && active.userId) || null, tier: (m && m.tier) || null });
   };
   const profUid = profileFor && profileFor.userId;
+  // Hoisted to the component's top level (hooks rule): the profile preview
+  // below is an inline IIFE, not its own component, so the hook cannot live
+  // there. `open` gates the read on the preview actually being up.
+  const actLine = cwUseActivity(profUid, !!profileFor);
   React.useEffect(() => {
     setProfLive(null);
     setProfFollow(null);
@@ -1238,6 +1297,7 @@ function ChatWidget(props) {
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{isNora ? "Always online" : tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{isNora ? "Shape's Concierge" : roleLabel}</span>
                         </div>
+                        {actLine && <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: TEAL_BRIGHT }}>{actLine}</div>}
                         <div style={{ marginTop: 5, fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
                         <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>{handle}</div>
                         {(followers != null || following != null) && (
