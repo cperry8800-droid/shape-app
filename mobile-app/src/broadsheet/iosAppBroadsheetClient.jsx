@@ -21423,6 +21423,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     });
     return acc;
   }, {});
+  // Declared HERE, above the live-broadcast effect, because that effect's
+  // dependency array is evaluated during RENDER — a `setInputs` declared below
+  // it would be in the temporal dead zone and throw a ReferenceError that no
+  // static gate catches (parse, tsc, tests and the Vite build all pass on it).
+  const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [moveIdx, setMoveIdx] = useStateBSC(0);
   const [completed, setCompleted] = useStateBSC({}); // key `${moveIdx}-${setIdx}` → true
   const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
@@ -21527,7 +21532,6 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     onBack();
   };
   const [setLogs, setSetLogs] = useStateBSC([]);
-  const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
   // "The Meter" — the page's heat tracks live effort (HR zone → last-set RPE →
   // neutral). Damped: re-evaluated at most every 5s; color rides a 1.2s CSS

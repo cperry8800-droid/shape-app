@@ -6,6 +6,8 @@
 export {
   bsLiveProgressPayload,
   bsCookingPayload,
+  bsLiveCoachPayload,
+  bsValidLiveCoachPayload,
   bsShouldPushProgress,
   bsValidLivePayload,
 } from '../../../public/newdesign/liveProgress.mjs';
