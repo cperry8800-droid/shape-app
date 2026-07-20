@@ -98,10 +98,16 @@ create policy user_goals_delete_cycle on public.user_goals
 --    pattern): a direct owner upsert of the cycle settings doc, or a direct
 --    insert of a cycle consent receipt, raises — flag and receipt can only
 --    move together, inside the RPCs below.
+-- Guards BOTH sides of an UPDATE (review round 3, Codex P1): a NEW.kind-only
+-- check lets an owner RENAME the row out of 'cycle_settings' via the ordinary
+-- update policy — the doc vanishes from cycle scope while the period rows
+-- stay on disk, receipt-less; the third variant of the same bypass class.
+-- Renaming IN, renaming OUT, and in-place edits all require the RPC GUC.
 create or replace function public.cycle_settings_guard()
 returns trigger language plpgsql as $$
 begin
-  if new.kind = 'cycle_settings'
+  if (new.kind = 'cycle_settings'
+      or (tg_op = 'UPDATE' and old.kind = 'cycle_settings'))
      and coalesce(current_setting('shape.cycle_rpc', true), '') <> '1' then
     raise exception 'cycle_settings_rpc_only';
   end if;
