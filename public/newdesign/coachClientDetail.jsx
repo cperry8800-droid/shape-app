@@ -194,7 +194,10 @@ function CKLiveStation({ clientId, accent }) {
   // until some unrelated update arrived — a stale figure presented as current
   // (review: CodeRabbit). Tick once a minute while a row is on screen.
   const [, setTick] = React.useState(0);
-  const hasRow = !!row;
+  // A private member has NO public row but still drives the station from her
+  // coach row, so gating the ticker on `row` alone froze her elapsed clock at
+  // its first value (review: CodeRabbit).
+  const hasRow = !!(row || coachRow);
   React.useEffect(() => {
     if (!hasRow) return undefined;
     const id = setInterval(() => setTick((t) => t + 1), 60000);
@@ -218,12 +221,20 @@ function CKLiveStation({ clientId, accent }) {
   const startSrc = (cp && coachRow && coachRow.started_at) ? coachRow.started_at : (row && row.started_at);
   const started = startSrc ? new Date(startSrc).getTime() : null;
   const mins = started != null ? Math.max(0, Math.floor((Date.now() - started) / 60000)) : null;
-  // The load cell shows the set in progress, else the last completed set —
-  // whichever carries a figure. Absent → '—' (honest-absent per exercise).
+  // The load cell shows the most recent set that actually CARRIES a figure.
+  // ⚠ It cannot index by e.done any more: now that the builder gates actuals on
+  // `done` (no prescription prefills), the set at e.done is always present but
+  // always EMPTY, so `sets[e.done] || sets[e.done - 1]` selected that empty
+  // object and every in-progress exercise read '—' — the feature's whole point,
+  // lost (review: CodeRabbit). Scanning back also survives out-of-order
+  // completion, where e.done is a COUNT and not an index.
   const loadFor = (e) => {
     if (!cp || !Array.isArray(e.sets)) return "—";
-    const s = e.sets[e.done] || e.sets[Math.max(0, e.done - 1)];
-    return (s && s.load) || "—";
+    for (let s = e.sets.length - 1; s >= 0; s--) {
+      const v = e.sets[s] && e.sets[s].load;
+      if (typeof v === "string" && v !== "") return v;
+    }
+    return "—";   // nothing logged yet — honest-absent per exercise
   };
   return (
     <Card style={{ marginBottom: 16, border: `1px solid ${accent}55` }}>
