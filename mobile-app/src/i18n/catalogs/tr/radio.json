@@ -53,7 +53,13 @@
   "screen.stationBpm": "İstasyon BPM",
   "screen.stop": "Durdur",
   "sets.comingSoon": "Çok yakında",
+  "sets.comingUp": "Sırada",
+  "sets.empty": "Program ilk yayınla birlikte gelecek.",
   "sets.introA": "Sanal konser serimiz, ",
   "sets.introB": " adlı amiral mekânımızdan doğrudan yayınlanıyor. Harekete göre mikslenen DJ'ler ve canlı performanslar — pistte kaydedilip Shape Radio üzerinden yayınlanıyor.",
-  "sets.liveFrom": "Canlı yayın:"
+  "sets.liveBanner": "CANLI · {title} · {dj}",
+  "sets.liveFrom": "Canlı yayın:",
+  "sets.nowTag": "Şimdi",
+  "sets.onScheduleNow": "Şu an programda — yayın yakında",
+  "sets.upNext": "Sırada · {title} · {time}"
 }

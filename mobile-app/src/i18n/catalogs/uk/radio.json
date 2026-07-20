@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM станції",
   "screen.stop": "Стоп",
   "sets.comingSoon": "Незабаром",
+  "sets.comingUp": "Далі",
+  "sets.empty": "Розклад з’явиться з першим ефіром.",
   "sets.introA": "Серія віртуальних концертів, що транслюється прямо з",
   "sets.introB": ", нашого флагманського майданчика. Діджеї та живі виступи, зведені для руху — записані на танцполі та транслюються через Shape Radio.",
-  "sets.liveFrom": "Наживо з"
+  "sets.liveBanner": "В ЕФІРІ · {title} · {dj}",
+  "sets.liveFrom": "Наживо з",
+  "sets.nowTag": "Зараз",
+  "sets.onScheduleNow": "Зараз у розкладі — ефір незабаром",
+  "sets.upNext": "Далі · {title} · {time}"
 }

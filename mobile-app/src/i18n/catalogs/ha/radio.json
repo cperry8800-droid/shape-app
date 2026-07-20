@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM na tasha",
   "screen.stop": "Tsaya",
   "sets.comingSoon": "Nan ba da jimawa ba",
+  "sets.comingUp": "Mai zuwa",
+  "sets.empty": "Jadawali zai zo da watsa shirin farko.",
   "sets.introA": "Jerin kide-kide na virtual da ake watsawa kai tsaye daga",
   "sets.introB": ", babbar cibiyarmu. DJ da wasannin kai tsaye da aka gauraya don motsi — an ɗauka a kan dandali kuma ana watsawa ta Shape Radio.",
-  "sets.liveFrom": "Kai tsaye daga"
+  "sets.liveBanner": "KAI TSAYE · {title} · {dj}",
+  "sets.liveFrom": "Kai tsaye daga",
+  "sets.nowTag": "Yanzu",
+  "sets.onScheduleNow": "Yana cikin jadawali yanzu — watsawa na zuwa",
+  "sets.upNext": "Na gaba · {title} · {time}"
 }

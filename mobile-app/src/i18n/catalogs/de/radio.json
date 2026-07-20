@@ -53,7 +53,13 @@
   "screen.stationBpm": "Sender-BPM",
   "screen.stop": "Stopp",
   "sets.comingSoon": "Bald verfügbar",
+  "sets.comingUp": "Demnächst",
+  "sets.empty": "Der Sendeplan kommt mit der ersten Übertragung.",
   "sets.introA": "Eine virtuelle Konzertreihe, direkt übertragen aus dem",
   "sets.introB": ", unserer Flaggschiff-Location. DJs und Live-Acts, gemixt für Bewegung — auf der Fläche eingefangen und über Shape Radio gestreamt.",
-  "sets.liveFrom": "Live aus"
+  "sets.liveBanner": "LIVE · {title} · {dj}",
+  "sets.liveFrom": "Live aus",
+  "sets.nowTag": "Jetzt",
+  "sets.onScheduleNow": "Jetzt im Programm — Übertragung folgt bald",
+  "sets.upNext": "Als Nächstes · {title} · {time}"
 }

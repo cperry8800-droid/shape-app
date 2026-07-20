@@ -7,6 +7,7 @@ import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
+import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
@@ -6182,3 +6183,27 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   }
   window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser };
 })();
+
+// Shape Sets broadcast schedule (spec 2026-07-19). Public read — the table's RLS
+// exposes PUBLISHED rows only, so a signed-out preview sees the same schedule a
+// member does. Reads the WHOLE relevant window with NO row limit: a limit could
+// truncate away the row that is live right now, and the window is already the
+// bound. Degrades silent — an unreachable table (or one that predates the
+// migration) yields [] and every consumer renders its honest empty state.
+window.ShapeNoraSets = {
+  list: async () => {
+    if (!supabase) return [];
+    try {
+      // The window is defined ONCE in the canonical module — it encodes a
+      // schema coupling (the lookback IS the duration_min ceiling) that would
+      // silently rot if each surface computed it (review: CodeRabbit).
+      const { from, to } = bsSetsWindow(Date.now());
+      const { data, error } = await supabase.from('nora_sets')
+        .select('*').eq('published', true)
+        .gte('starts_at', from).lte('starts_at', to)
+        .order('starts_at', { ascending: true });
+      if (error) return [];
+      return Array.isArray(data) ? data : [];
+    } catch (e) { return []; }
+  },
+};
