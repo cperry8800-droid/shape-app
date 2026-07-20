@@ -199,7 +199,9 @@ changelog whenever something ships.
 > the station "after the example cards" — which are dead code. 5 review
 > rounds; process lessons in the dated entry (clean-review detection · outside-
 > diff-range findings · the Codex `@codex review` re-trigger). Suite **663**.
-> Next: build 6/9 `cycle-a-engine`.
+> Session handoff:
+> **[`docs/HANDOFF-2026-07-20.md`](HANDOFF-2026-07-20.md)** (builds 2–5 in one
+> day). Next: build 6/9 `cycle-a-engine`.
 >
 > **Prior (2026-07-20, build 4/9): THE COACH CHANNEL — real loads/reps/RPE for
 > the client's own coach.** The honest `—` in the coach live-watch becomes real
