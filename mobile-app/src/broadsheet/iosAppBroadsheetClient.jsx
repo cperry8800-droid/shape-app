@@ -18,6 +18,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
+import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
@@ -429,6 +430,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
   const [eatStart, setEatStart] = useStateBSC('');
   const [meStart, setMeStart] = useStateBSC('');
+  // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
+  // back returns to wherever the member opened it from.
+  const [showCycle, setShowCycle] = useStateBSC(false);
   // The shell-visible location. Child-owned sub-state (Settings' active
   // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
   // announce register at compose time — see bsNavCompose.
@@ -436,6 +440,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
     if (showCalendar) return { tab, overlay: 'calendar' };
     if (showSearch) return { tab, overlay: 'search' };
+    if (showCycle) return { tab, overlay: 'cycle' };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
     return { tab };
@@ -445,6 +450,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (!loc) return;
     setShowSearch(loc.overlay === 'search');
     setShowCalendar(loc.overlay === 'calendar');
+    setShowCycle(loc.overlay === 'cycle');
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
@@ -458,6 +464,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
+  const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
   const goTrain    = () => { navPush(); setTab('train'); };
   const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setMarketCoach(null); setTab('market'); };
@@ -482,16 +489,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (navBack()) return;
       if (showSearch) { setShowSearch(false); return; }
       if (showSettings) { setShowSettings(false); setSettingsStart(''); return; }
-      if (showCalendar) setShowCalendar(false);
+      if (showCalendar) { setShowCalendar(false); return; }
+      if (showCycle) setShowCycle(false);
       return;
     }
-    if (showSettings || showCalendar || showSearch) return;
+    if (showSettings || showCalendar || showSearch || showCycle) return;
     const next = bsNavStepTab(['home', 'train', 'eat', 'chat', 'me'], tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
   };
-  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, onNavGesture };
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
   React.useEffect(() => {
@@ -505,6 +513,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => navJumpRef.current.goIntegrations();
     window.addEventListener('shape:openIntegrations', open);
     return () => window.removeEventListener('shape:openIntegrations', open);
+  }, []);
+
+  // THE CYCLE — Settings' "Open cycle calendar", the Today chip and the
+  // Progress card all fire this one event, so no prop threading.
+  React.useEffect(() => {
+    const open = () => navJumpRef.current.goCycle();
+    window.addEventListener('shape:openCycle', open);
+    return () => window.removeEventListener('shape:openCycle', open);
   }, []);
 
   // Tapping the top-right profile avatar on any screen opens Settings/profile
@@ -749,6 +765,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
+        <BSRadioFx />
+      </div>
+    );
+  }
+  if (showCycle) {
+    return (
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
       </div>
     );
@@ -1357,6 +1381,97 @@ function useBSMembership() {
     return () => { cancelled = true; };
   }, []);
   return m;
+}
+
+// ── THE CYCLE — shared member settings state (spec 2026-07-19) ───────────────
+// ONE resolved truth for every cycle consumer (Settings pane · calendar page ·
+// Today chip · Progress card · the neutral Home lever): fetched once, cached on
+// window.ShapeCycleState, and re-broadcast on 'shape:cycleSettings' after any
+// write so every mounted consumer flips together. Signed-out, pre-migration,
+// and never-opted-in all resolve to { optIn:false, share:false } — absence,
+// never a fabricated opt-in (the doctrine's absence-not-a-padlock rule starts
+// here: a member who never opted in has NO cycle surfaces at all).
+// ⚠ Both cycle caches are keyed by the AUTH USER ID (review: Codex P1). A
+// logout→login without a full reload leaves the window globals in place, so an
+// unscoped cache let the NEXT account inherit the previous member's opt-in /
+// share state — and briefly her period dates through ShapeCycleDerived. That is
+// the most sensitive data in the app leaking across accounts, the same class as
+// the _followCache/_avatarCache leak fixed 2026-06-29. A cache whose uid does
+// not match the CURRENT uid is treated as absent, so the new account always
+// re-reads its own state; signed-out (uid null) is a distinct key, never a
+// wildcard that matches a signed-in cache.
+function bsCycleUid() {
+  try { return (window.ShapeAuth?.getCachedState?.()?.user?.id) || null; } catch (e) { return null; }
+}
+function bsCycleStatePut(next, uid) {
+  const clean = { uid: uid === undefined ? bsCycleUid() : uid, optIn: next?.optIn === true, share: next?.share === true };
+  try { window.ShapeCycleState = clean; } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:cycleSettings', { detail: clean })); } catch (e) {}
+  return clean;
+}
+function useBSCycleSettings() {
+  const uid = bsCycleUid();
+  const [s, setS] = useStateBSC(() => {
+    const cached = (typeof window !== 'undefined' && window.ShapeCycleState) || null;
+    return (cached && cached.uid === uid) ? { ...cached, loading: false } : { loading: true, optIn: false, share: false, uid };
+  });
+  // Account switch mid-session: drop straight back to loading so the previous
+  // member's state can never render for even one frame.
+  React.useEffect(() => {
+    if (s.uid !== uid) setS({ loading: true, optIn: false, share: false, uid });
+  }, [uid, s.uid]);
+  // Sync every mounted consumer on a write from any other surface — but only
+  // when the write belongs to the account this hook is rendering for.
+  React.useEffect(() => {
+    const onChange = (e) => {
+      const d = (e && e.detail) || (typeof window !== 'undefined' ? window.ShapeCycleState : null);
+      if (d && d.uid === uid) setS({ optIn: d.optIn === true, share: d.share === true, loading: false, uid });
+    };
+    window.addEventListener('shape:cycleSettings', onChange);
+    return () => window.removeEventListener('shape:cycleSettings', onChange);
+  }, [uid]);
+  React.useEffect(() => {
+    if (!s.loading) return undefined;
+    let cancelled = false;
+    (async () => {
+      let next = { optIn: false, share: false };
+      try {
+        const r = await window.ShapeCycle?.settings?.();
+        if (r && typeof r === 'object') next = { optIn: r.optIn === true, share: r.share === true };
+      } catch (e) { /* absent doc / pre-migration → the false/false default */ }
+      // The account can change WHILE this read is in flight (logout mid-fetch):
+      // a response resolved for the previous uid must never be cached or
+      // rendered under the new one.
+      if (cancelled || bsCycleUid() !== uid) return;
+      bsCycleStatePut(next, uid);
+      setS({ ...next, loading: false, uid });
+    })();
+    return () => { cancelled = true; };
+  }, [s.loading, uid]);
+  return s;
+}
+
+// One reader for the phase words and the surface heat (review: CodeRabbit) —
+// the calendar page and the Progress card had hand-copied maps, so a fifth
+// phase or a key rename meant editing them in lockstep.
+function bsCyclePhaseLabel(tr, phase) {
+  return {
+    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
+    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
+    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
+    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
+  }[phase] || '';
+}
+function bsCycleHeat(t) {
+  return (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+}
+
+// The not-medical-advice disclaimer is legally material and VERBATIM (spec
+// doctrine). One reader, so the string a member consents to is byte-identical
+// to the string she was shown — the consent receipt records exactly this, in
+// her own language.
+function bsCycleDisclaimer(tr) {
+  return tr('cycle:disclaimer', { defaultValue: 'The Cycle is for training and recovery context only. It is not medical advice, not a diagnostic tool, and must never be used for contraception or fertility planning. Predictions are estimates from the dates you log.' });
 }
 
 // ── Client Library — saved coach content (workouts, programs, meals) ─────────
@@ -2816,6 +2931,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // goal slip · score drop). Honest: only a real flag from the live self record;
   // null otherwise, and the plan-based moves below lead instead. {key, reason}.
   const [engineFlag, setEngineFlag] = useStateBSC(null);
+  // THE CYCLE — Home's ONLY cycle input, and it never names it (doctrine:
+  // plain cycle language lives on cycle surfaces alone). Read here, spent as a
+  // neutral recovery note on the day's directive.
+  const { optIn: cycleOptIn } = useBSCycleSettings();
+  const { cycle: cycleNow } = useBSCycleDerived(cycleOptIn);
   React.useEffect(() => {
     let on = true;
     (async () => {
@@ -3147,6 +3267,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       // Sleep · last night row + recovery readiness), so it never spawns a
       // separate directive box.
     }[engineFlag.lever]) : null;
+    // THE CYCLE — the neutral note (spec 2026-07-19, Task 4). Deliberate
+    // deviation: the plan allows this to LEAD ("MAY lead"), but leading is
+    // only reachable when nothing else is pending — exactly where the
+    // kept-promise echo lives, and replacing a member's "you kept your word"
+    // with a body-state note is a worse close. So it rides as the SUB of the
+    // done state: it can never outrank real work, and the echo survives.
+    // ⚠ Gated on 'menstrual' ONLY. The plan also names luteal-with-a-fired-
+    // recovery-read, but that read is the Progress card's (it needs 120 days
+    // of series + every statistical floor); asserting "lighter load reads
+    // well" in luteal without it would be a claim we cannot back. Deferred,
+    // not fabricated.
+    const cycleNote = (cycleOptIn && cycleNow && cycleNow.phase === 'menstrual')
+      ? tr('home:lever.recoverySub', { defaultValue: 'Lighter load reads well today.' })
+      : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: [tr('home:lead.workout.cta', { defaultValue: "I'll train today →" }), () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
@@ -3154,7 +3288,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: tr('home:lead.habitsToFinish', { defaultValue: '{count, plural, one {# habit to finish} other {# habits to finish}}', count: habitsLeft }), cta: [tr('home:lead.habits.cta', { defaultValue: "I'll finish my habits →" }), () => setHabitsPage(true)], c: t.GREEN });
     // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
-    if (!todo.length) return { done: true, head: tr('home:lead.done.head', { defaultValue: 'You kept your word today.' }), sub: tr('home:lead.done.sub', { defaultValue: "Everything you said you'd do — done." }), c: t.GREEN, leadIsWorkout: false, leadMeal: null };
+    if (!todo.length) return { done: true, head: tr('home:lead.done.head', { defaultValue: 'You kept your word today.' }), sub: cycleNote || tr('home:lead.done.sub', { defaultValue: "Everything you said you'd do — done." }), c: t.GREEN, leadIsWorkout: false, leadMeal: null };
     const lead = todo[0];
     return {
       head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
@@ -17284,6 +17418,363 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
 
 
 
+// ── THE CYCLE — the opt-in sheet (spec 2026-07-19) ──────────────────────────
+// The one door INTO cycle tracking. Full-page panel (the BSOverallEditSheet
+// grammar) because consent deserves the whole screen, not a bottom sheet: the
+// doctrine paragraph, then the VERBATIM disclaimer above the CTA. The consent
+// text recorded is the exact string rendered here (bsCycleDisclaimer), so the
+// receipt in consent_log matches what she read, in her language.
+function BSCycleOptInSheet({ onClose, onDone }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [busy, setBusy] = useStateBSC(false);
+  const [err, setErr] = useStateBSC('');
+  const disclaimer = bsCycleDisclaimer(tr);
+
+  const start = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    let r = null;
+    try {
+      r = await window.ShapeCycle?.setSettings?.({
+        optIn: true, share: false,
+        consentKind: 'cycle_tracking', granted: true,
+        consentText: disclaimer,
+      });
+    } catch (e) { r = null; }
+    if (r && r.ok) {
+      bsCycleStatePut({ optIn: true, share: false });
+      onDone && onDone();
+      return;
+    }
+    // Honest failure — the toggle never claims a state the DB doesn't hold.
+    setBusy(false);
+    setErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : r && r.reason === 'signed_out'
+        ? tr('cycle:err.signedOut', { defaultValue: 'Sign in to start tracking.' })
+        : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+
+  const sheet = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <button onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('cycle:optIn.eyebrow', { defaultValue: 'Tracking · Private' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
+        <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, lineHeight: 1.55, color: t.INK }}>
+          {tr('cycle:optIn.body', { defaultValue: 'Log the first day of your period and Shape reads the rhythm — where you are in your cycle, and what usually shows up there for you in sleep, energy and training.' })}
+        </p>
+        <p style={{ margin: '13px 0 0', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, lineHeight: 1.55, color: t.INK70 }}>
+          {tr('cycle:optIn.privacy', { defaultValue: 'It stays yours. Nothing is shared with a coach unless you turn sharing on, and stopping deletes every date you logged.' })}
+        </p>
+        {/* The verbatim disclaimer — legally material, sits directly above the CTA. */}
+        <div style={{ marginTop: 18, padding: '13px 14px', border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderLeft: `3px solid ${teal}`, borderRadius: 2 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cycle:optIn.disclaimerHead', { defaultValue: 'Before you start' })}</div>
+          <p style={{ margin: '7px 0 0', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK }}>{disclaimer}</p>
+        </div>
+        {err ? <div style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{err}</div> : null}
+      </div>
+
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('cycle:optIn.notNow', { defaultValue: 'Not now' })}</span></button>
+        <button onClick={start} disabled={busy} style={{ flex: 1, minHeight: 44, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.65 : 1, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          {busy ? tr('cycle:optIn.starting', { defaultValue: 'Starting…' }) : tr('cycle:optIn.cta', { defaultValue: 'I understand — start tracking' })}
+        </button>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+// ── THE CYCLE — shared derivation for every consumer ────────────────────────
+// Fetches the member's logged starts ONCE per mount and derives through the
+// canonical engine. Cached on window.ShapeCycleDerived so the calendar page,
+// the Today chip and the Progress card don't each re-fetch; a
+// 'shape:cycleLogged' event re-derives every mounted consumer after a write.
+// Never opted in → { starts: [], cycle: null } and every surface renders
+// nothing (absence, per doctrine).
+function useBSCycleDerived(optIn) {
+  const uid = bsCycleUid();
+  const [s, setS] = useStateBSC(() => {
+    const c = (typeof window !== 'undefined' && window.ShapeCycleDerived) || null;
+    // uid-keyed for the same reason as ShapeCycleState — an unscoped cache here
+    // would briefly render the PREVIOUS member's period dates (Codex P1) — AND
+    // never accepted while opted out, so a cache can't outlive an opt-out.
+    return (c && c.uid === uid && optIn) ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null, uid };
+  });
+  React.useEffect(() => {
+    if (s.uid !== uid) setS({ loading: !!optIn, starts: [], cycle: null, uid });
+  }, [uid, s.uid, optIn]);
+  const load = React.useCallback(async () => {
+    if (!optIn) {
+      // Opt-out DELETED the rows, so the in-memory derivation must not outlive
+      // them (review: CodeRabbit named this third clearing condition — I had
+      // covered logout and auth changes structurally via the uid key, but not
+      // this one). A surviving cache would render period dates for data that
+      // no longer exists — the exact opposite of what "stop & delete" promised.
+      try { window.ShapeCycleDerived = null; } catch (e) {}
+      setS({ loading: false, starts: [], cycle: null, uid });
+      return;
+    }
+    let starts = [];
+    try { starts = (await window.ShapeCycle?.list?.()) || []; } catch (e) { starts = []; }
+    // The engine returns null when there is nothing to derive from — the
+    // setup state, not an error.
+    let cycle = null;
+    try { cycle = bsDeriveCycle(starts, new Date()); } catch (e) { cycle = null; }
+    if (bsCycleUid() !== uid) return;                    // account changed mid-read
+    // Opt-out can flip WHILE this read is in flight (review: CodeRabbit,
+    // CWE-459): the closure's optIn was true at call time, so without this
+    // re-check a stale resolve would write the just-deleted dates straight
+    // back into the global cache. The settings cache is uid-keyed and updated
+    // synchronously by the opt-out path, so it is the current truth here.
+    const st = (typeof window !== 'undefined' && window.ShapeCycleState) || null;
+    if (st && st.uid === uid && st.optIn !== true) return;
+    const next = { uid, starts, cycle };
+    try { window.ShapeCycleDerived = next; } catch (e) {}
+    setS({ ...next, loading: false });
+  }, [optIn, uid]);
+  React.useEffect(() => { let dead = false; (async () => { if (!dead) await load(); })(); return () => { dead = true; }; }, [load]);
+  React.useEffect(() => {
+    const onLogged = () => { load(); };
+    window.addEventListener('shape:cycleLogged', onLogged);
+    return () => window.removeEventListener('shape:cycleLogged', onLogged);
+  }, [load]);
+  return { ...s, reload: load };
+}
+const bsCycleLoggedPing = () => { try { window.dispatchEvent(new CustomEvent('shape:cycleLogged')); } catch (e) {} };
+
+// ── THE CYCLE — the calendar page (spec 2026-07-19) ─────────────────────────
+// The #1712 unboxed month grammar, BORROWED (not imported — the calendar
+// module owns its own theme context): hairline week rows of bare numerals.
+// Heat = the member's TIER colour (bsMyTierColor), line-only. Deliberate: the
+// spec names no cycle colour, and inventing a pink genders the surface — tier
+// heat is the house rule everywhere else and stays the rule here.
+function BSCycleCalendarPage({ onBack }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const heat = bsMyTierColor();
+  const { starts, cycle, loading, reload } = useBSCycleDerived(true);
+  const today = new Date();
+  const [view, setView] = useStateBSC({ y: today.getFullYear(), m: today.getMonth() });
+  const [busyDay, setBusyDay] = useStateBSC('');
+  // Optimistic set — the tapped date shows its new state immediately and rolls
+  // back on failure (the row is the truth the moment the DB accepts it).
+  const [optimistic, setOptimistic] = useStateBSC({});
+
+  const locale = (typeof window !== 'undefined' && window.ShapeI18n?.intlLocale?.()) || 'en';
+  const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const todayIso = isoOf(today.getFullYear(), today.getMonth(), today.getDate());
+  const startSet = React.useMemo(() => {
+    const s = new Set((starts || []).map(String));
+    Object.entries(optimistic).forEach(([iso, on]) => { if (on) s.add(iso); else s.delete(iso); });
+    return s;
+  }, [starts, optimistic]);
+
+  const monthName = new Date(view.y, view.m, 1).toLocaleDateString(locale, { month: 'long' });
+  const abbr = (delta) => new Date(view.y, view.m + delta, 1).toLocaleDateString(locale, { month: 'short' });
+  const dowNarrow = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(locale, { weekday: 'narrow', timeZone: 'UTC' }));
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;   // Mon = 0
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  // Predicted window — null whenever the engine says so (no starts, or
+  // 'paused': a cycle running long predicts NOTHING rather than guessing).
+  const pred = cycle && cycle.predictedStart ? cycle.predictedStart : null;
+  const inPredicted = (iso) => !!(pred && iso >= pred.from && iso <= pred.to);
+
+  const step = (delta) => setView((v) => {
+    const d = new Date(v.y, v.m + delta, 1);
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+
+  const tapDay = async (d) => {
+    const iso = isoOf(view.y, view.m, d);
+    if (busyDay) return;
+    const logged = startSet.has(iso);
+    if (logged) {
+      const ok = await window.bsAskConfirm?.({
+        title: tr('cycle:cal.unlogTitle', { defaultValue: 'Remove this date?' }),
+        message: tr('cycle:cal.unlogMessage', { defaultValue: 'This removes the period start you logged on this day.' }),
+        confirmLabel: tr('cycle:cal.unlogConfirm', { defaultValue: 'Remove' }),
+      });
+      if (!ok) return;
+      setBusyDay(iso); setOptimistic((o) => ({ ...o, [iso]: false }));
+      let r = null;
+      try { r = await window.ShapeCycle?.unlog?.(iso); } catch (e) { r = null; }
+      setBusyDay('');
+      if (!(r && r.ok)) {
+        setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+        window.__bsToast?.(tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }), 'err');
+        return;
+      }
+      setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+      await reload(); bsCycleLoggedPing();
+      return;
+    }
+    setBusyDay(iso); setOptimistic((o) => ({ ...o, [iso]: true }));
+    let r = null;
+    try { r = await window.ShapeCycle?.log?.(iso); } catch (e) { r = null; }
+    setBusyDay('');
+    if (!(r && r.ok)) {
+      setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+      // The storage boundary names its own rejection — say the true reason.
+      window.__bsToast?.(r && r.reason === 'future'
+        ? tr('cycle:cal.noFuture', { defaultValue: "Can't log a future date." })
+        : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }), r && r.reason === 'future' ? 'info' : 'err');
+      return;
+    }
+    setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+    await reload(); bsCycleLoggedPing();
+  };
+
+  // ── The register — what the engine actually knows, stated plainly ─────────
+  const phaseLabel = (p) => bsCyclePhaseLabel(tr, p);
+  const confLabel = (c) => ({
+    high: tr('cycle:conf.high', { defaultValue: 'High confidence' }),
+    medium: tr('cycle:conf.medium', { defaultValue: 'Medium confidence' }),
+    low: tr('cycle:conf.low', { defaultValue: 'Low confidence' }),
+  }[c] || '');
+  const fmtDay = (iso) => { try { return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { month: 'short', day: 'numeric' }); } catch (e) { return iso; } };
+
+  const register = (() => {
+    if (loading) return null;
+    if (!cycle) {
+      return (
+        <div style={{ padding: `2px ${t.padX}px 10px` }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.25 }}>{tr('cycle:cal.setupTitle', { defaultValue: "Log your last period's first day to begin." })}</div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>{tr('cycle:cal.setupBody', { defaultValue: 'Tap any past day on the calendar. Two or three cycles in, Shape starts reading your pattern.' })}</div>
+        </div>
+      );
+    }
+    // 'paused' and 'late' are ENGINE states, never surfaced as phases (doctrine).
+    const head = cycle.phase === 'paused'
+      ? tr('cycle:cal.pausedHead', { defaultValue: 'Cycle running long' })
+      : cycle.phase === 'late'
+        ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
+        : tr('cycle:cal.phaseHead', { phase: phaseLabel(cycle.phase), d: cycle.day, defaultValue: '{phase} · day {d}' });
+    const sub = cycle.phase === 'paused'
+      ? tr('cycle:paused', { defaultValue: 'Cycle running long — predictions paused.' })
+      : cycle.phase === 'late'
+        ? tr('cycle:late', { defaultValue: 'A new cycle starts when you log it.' })
+        : null;
+    return (
+      <div style={{ padding: `2px ${t.padX}px 10px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.15 }}>{head}</div>
+        {sub ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
+        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          {[confLabel(cycle.confidence),
+            tr('cycle:cal.lengthMeta', { L: cycle.L, defaultValue: 'Your cycle ~{L} days' }),
+            tr('cycle:cal.loggedMeta', { n: (cycle.starts || []).length, defaultValue: '{n} logged' })].join(' · ')}
+        </div>
+        {pred ? (
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>
+            {tr('cycle:cal.predicted', { from: fmtDay(pred.from), to: fmtDay(pred.to), defaultValue: 'Next expected {from} – {to}' })}
+          </div>
+        ) : null}
+      </div>
+    );
+  })();
+
+  return (
+    <BSPage tabBarHeight={0}>
+      <BSDetailHeader onBack={onBack} eyebrow={tr('cycle:cal.eyebrow', { defaultValue: 'Tracking · Private' })}
+        title={<>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: heat }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></>} />
+
+      {register}
+
+      {/* Month headline + nav */}
+      <div style={{ padding: `6px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
+          <span style={{ fontStyle: 'italic', color: heat }}>{monthName}</span> <span>{view.y}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={() => step(-1)} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: '6px 2px', minHeight: 32, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {abbr(-1)}</button>
+          <button onClick={() => step(1)} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: '6px 2px', minHeight: 32, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{abbr(1)} ›</button>
+        </div>
+      </div>
+
+      {/* DOW header */}
+      <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+        {dowNarrow.map((d, i) => (
+          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, fontWeight: 700, textAlign: 'center' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Grid — hairline week rows; logged = filled heat disc, predicted =
+          dotted heat outline, today = heat numeral. Future days stay tappable
+          and the DB rejects them by name (the toast says why) — the storage
+          boundary is the authority, not a disabled button. */}
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {weeks.map((row, ri) => (
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
+            {row.map((d, ci) => {
+              if (d == null) return <div key={ci} aria-hidden />;
+              const iso = isoOf(view.y, view.m, d);
+              const logged = startSet.has(iso);
+              const predicted = !logged && inPredicted(iso);
+              const isToday = iso === todayIso;
+              return (
+                <button key={ci} type="button" onClick={() => tapDay(d)} disabled={busyDay === iso}
+                  aria-label={[fmtDay(iso),
+                    ...(logged ? [tr('cycle:cal.ariaLogged', { defaultValue: 'period start logged' })] : []),
+                    ...(predicted ? [tr('cycle:cal.ariaPredicted', { defaultValue: 'expected window' })] : []),
+                    ...(isToday ? [tr('calendar:aria.today', { defaultValue: 'today' })] : [])].join(', ')}
+                  style={{ background: 'transparent', border: 0, cursor: busyDay === iso ? 'default' : 'pointer', minHeight: 44, padding: '9px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: busyDay === iso ? 0.5 : 1 }}>
+                  <span style={{
+                    width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                    fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 13, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums',
+                    background: logged ? heat : 'transparent',
+                    border: predicted ? `1.5px dotted ${heat}` : '1.5px solid transparent',
+                    color: logged ? t.PAPER : (isToday ? heat : t.INK70),
+                  }}>{d}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend — only the non-null windows, so nothing implies precision the
+          engine doesn't have. */}
+      <div style={{ padding: `10px ${t.padX}px 6px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: heat, display: 'inline-block' }} />{tr('cycle:cal.legendLogged', { defaultValue: 'Logged' })}
+        </span>
+        {pred ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1.5px dotted ${heat}`, display: 'inline-block' }} />{tr('cycle:cal.legendExpected', { defaultValue: 'Expected' })}
+          </span>
+        ) : null}
+      </div>
+
+      <div style={{ padding: `4px ${t.padX}px 26px`, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>
+        {tr('cycle:cal.hint', { defaultValue: 'Tap a day to log the first day of a period. Tap it again to remove it.' })}
+      </div>
+
+      <div style={{ marginTop: 'auto' }}><BSFooter left="Shape v2.4.0" right="Build 2026.04" /></div>
+    </BSPage>
+  );
+}
+
 // Small headline editor (title + subtitle) for the Training / Nutrition tabs.
 function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const t = useBS();
@@ -18456,6 +18947,10 @@ function BSTodayCard() {
           <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>{tr('home:today.sleepDetail', { defaultValue: 'Sleep detail →' })}</button>
         </div>
       )}
+      {/* THE CYCLE — the quiet Today chip. Renders itself only inside the
+          expected window (opted in · a real prediction · today not already
+          logged); on every other day it is simply absent. */}
+      <BSCycleTodayChip />
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
     </div>
   );
@@ -22966,6 +23461,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
+  // the in-flight write so a double-tap can't fire two consent RPCs.
+  const cycle = useBSCycleSettings();
+  const [showCycleOptIn, setShowCycleOptIn] = useStateBSC(false);
+  const [cycleBusy, setCycleBusy] = useStateBSC('');
+  const [cycleErr, setCycleErr] = useStateBSC('');
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const [showRadio, setShowRadio] = useStateBSC(false);
@@ -23840,6 +24341,53 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const cardHealthSummary = tr('settings:card.healthSummary', { defaultValue: 'Apple Health · WHOOP · Strava' });
   const cardAboutSummary = tr('settings:card.aboutSummary', { defaultValue: 'Help · contact · legal' });
   const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
+  // ── THE CYCLE handlers ────────────────────────────────────────────────────
+  // Share on/off is ONE call with consentKind 'cycle_share' and p_opt_in
+  // staying TRUE — the DB enforces one flag per receipt, so a share flip must
+  // never carry a tracking transition. Stopping tracking has exactly one door:
+  // cycle_opt_out(), which deletes the events AND the settings doc AND writes
+  // the withdrawal receipt(s) in one transaction.
+  const cycleShareText = () => tr('cycle:share.consent', { defaultValue: 'I agree to share my cycle phase and recent period start dates with my linked coach(es). I can turn this off at any time.' });
+  const toggleCycleShare = async () => {
+    if (cycleBusy || !cycle.optIn) return;
+    const next = !cycle.share;
+    setCycleBusy('share'); setCycleErr('');
+    let r = null;
+    try {
+      r = await window.ShapeCycle?.setSettings?.({
+        optIn: true, share: next,
+        consentKind: 'cycle_share', granted: next,
+        consentText: cycleShareText(),
+      });
+    } catch (e) { r = null; }
+    setCycleBusy('');
+    if (r && r.ok) { bsCycleStatePut({ optIn: true, share: next }); return; }
+    setCycleErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+  const doCycleOptOut = async () => {
+    if (cycleBusy) return;
+    const ok = await window.bsAskConfirm?.({
+      title: tr('cycle:optOut.title', { defaultValue: 'Stop tracking and delete?' }),
+      message: tr('cycle:optOut.message', { defaultValue: 'This deletes every date you logged and turns off cycle tracking. If you were sharing with a coach, that stops too. This cannot be undone.' }),
+      confirmLabel: tr('cycle:optOut.confirm', { defaultValue: 'Stop & delete' }),
+    });
+    if (!ok) return;
+    setCycleBusy('optout'); setCycleErr('');
+    let r = null;
+    try { r = await window.ShapeCycle?.optOut?.(); } catch (e) { r = null; }
+    setCycleBusy('');
+    if (r && r.ok) {
+      bsCycleStatePut({ optIn: false, share: false });
+      window.__bsToast?.(tr('cycle:optOut.done', { defaultValue: 'Cycle tracking stopped — your dates are deleted.' }), 'ok');
+      return;
+    }
+    setCycleErr(r && r.reason === 'unavailable'
+      ? tr('cycle:err.unavailable', { defaultValue: "Cycle setup isn't available yet. Try again shortly." })
+      : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
+  };
+
   const settingCards = isCoachRole ? [
     { title: tr('settings:section.account', { defaultValue: 'Account' }),             summary: cardAccountSummary,                                            detail: 'account' },
     { title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
@@ -23853,6 +24401,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   ] : [
     { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
     { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
+    { icon: 'moon',    title: tr('cycle:settings.card', { defaultValue: 'Cycle' }),                     summary: cycle.optIn ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' })) : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' }), detail: 'cycle' },
     { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: nutritionPrefs.dietary_style, defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
     { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: trainingPrefs.experience, defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
     { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
@@ -23874,6 +24423,64 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'notifications' && (<><DetailBack title={tr('settings:section.notifications', { defaultValue: 'Notifications' })} />{renderRows(findSec('Notifications').rows)}</>)}
       {detail === 'preferences' && (<><DetailBack title={tr('settings:section.preferences', { defaultValue: 'Preferences' })} />{renderRows(findSec('Preferences').rows)}</>)}
       {detail === 'privacy' && (<><DetailBack title={tr('settings:section.privacy', { defaultValue: 'Privacy & data' })} />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {/* ── THE CYCLE (spec 2026-07-19) — hand-rendered, not renderRows: this
+          pane needs real toggles with async consent writes + a disabled-until-
+          opted-in state, which the shared row shapes (dropdown/segmented/
+          pref-cycle/action) can't express. Plain cycle language is allowed
+          HERE (a cycle surface); the Home lever stays neutral. */}
+      {detail === 'cycle' && (() => {
+        const rowPad = { padding: `${t.rowY + 12}px 0`, borderBottom: `1px solid ${t.HAIR}` };
+        const rowTitle = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' };
+        const rowDesc = { marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 };
+        return (<>
+          <DetailBack title={tr('cycle:settings.card', { defaultValue: 'Cycle' })} />
+          <div style={{ padding: `4px ${t.padX}px` }}>
+            {/* Tracking — OFF→ON opens the consent sheet; ON→OFF routes to the
+                confirmed delete (never a silent flag flip). */}
+            <div style={rowPad}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={rowTitle}>{tr('cycle:settings.tracking', { defaultValue: 'Cycle tracking' })}</span>
+                <Toggle on={cycle.optIn} onClick={() => { if (cycleBusy) return; setCycleErr(''); if (cycle.optIn) doCycleOptOut(); else setShowCycleOptIn(true); }} />
+              </div>
+              <div style={rowDesc}>{tr('cycle:settings.trackingDesc', { defaultValue: 'Log the first day of your period; Shape reads your phase and the patterns that come with it. Private to you unless you share it.' })}</div>
+            </div>
+
+            {/* Share — disabled until opted in (absence, not a padlock: the row
+                simply can't move, and says why in plain language). */}
+            <div style={{ ...rowPad, opacity: cycle.optIn ? 1 : 0.45 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={rowTitle}>{tr('cycle:settings.share', { defaultValue: 'Share with your coach' })}</span>
+                <Toggle on={cycle.share} onClick={toggleCycleShare} />
+              </div>
+              <div style={rowDesc}>{cycle.optIn
+                ? tr('cycle:settings.shareDesc', { defaultValue: 'Your linked coach(es) see your phase and recent start dates — so training and food can follow your week. Turn it off any time.' })
+                : tr('cycle:settings.shareOffDesc', { defaultValue: 'Available once cycle tracking is on.' })}</div>
+            </div>
+
+            {cycle.optIn ? (
+              <div style={rowPad}>
+                <button onClick={() => { setDetail(''); onBack && onBack(); try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+                  style={{ width: '100%', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 24 }}>
+                  <span style={rowTitle}>{tr('cycle:settings.openCalendar', { defaultValue: 'Open cycle calendar' })}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
+                </button>
+              </div>
+            ) : null}
+
+            {cycleErr ? <div style={{ padding: '12px 0 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{cycleErr}</div> : null}
+
+            {cycle.optIn ? (
+              <div style={{ padding: `${t.rowY + 14}px 0 8px` }}>
+                <button onClick={doCycleOptOut} disabled={!!cycleBusy}
+                  style={{ background: 'transparent', border: 0, padding: '10px 0', minHeight: 44, cursor: cycleBusy ? 'default' : 'pointer', opacity: cycleBusy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}>
+                  <span style={{ borderBottom: `2px solid ${bsTHexA(t.RUST, 0.4)}`, paddingBottom: 2 }}>{cycleBusy === 'optout' ? tr('cycle:settings.stopping', { defaultValue: 'Stopping…' }) : tr('cycle:settings.stop', { defaultValue: 'Stop tracking & delete' })}</span>
+                </button>
+                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{tr('cycle:settings.stopDesc', { defaultValue: 'Deletes every date you logged and stops sharing. This cannot be undone.' })}</div>
+              </div>
+            ) : null}
+          </div>
+        </>);
+      })()}
       {detail === 'practice' && (<><DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />{renderRows(practiceRows)}</>)}
       {detail === 'nutrition' && (<><DetailBack title={tr('settings:section.nutrition', { defaultValue: 'Nutrition' })} />{renderRows(findSec('Nutrition').rows)}</>)}
       {detail === 'training' && (<><DetailBack title={tr('settings:section.training', { defaultValue: 'Training' })} />{renderRows(findSec('Training').rows)}</>)}
@@ -24541,6 +25148,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       </div>
       </div>
 
+      {/* THE CYCLE — the consent sheet (portals over the phone surface). */}
+      {showCycleOptIn && (
+        <BSCycleOptInSheet
+          onClose={() => setShowCycleOptIn(false)}
+          onDone={() => { setShowCycleOptIn(false); window.__bsToast?.(tr('cycle:optIn.done', { defaultValue: 'Cycle tracking on — log your last period to begin.' }), 'ok'); }}
+        />
+      )}
+
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
       {dropdown && (
         <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
@@ -25105,6 +25720,149 @@ function BSCrossoverCard({ isSelf }) {
   );
 }
 
+// ── THE CYCLE — the Progress card (spec 2026-07-19) ─────────────────────────
+// Renders ONLY when the member opted in. Station grammar, tier heat; the
+// headline states the engine's facts, and a statistical read appears ONLY when
+// bsCycleRead fires past every floor — below them the card shows the headline
+// with NO read, never a fabricated insight.
+//
+// ⚠ Engine seam (found building this): bsDeriveCycle does NOT return
+// completeCycles, but bsCycleRead REQUIRES it (>= 2) — the two halves were
+// never integrated (build 6's tests only ever passed hand-built
+// { completeCycles: n } objects). The caller owns it, so it's derived here
+// from the logged starts: a complete cycle is an INTERVAL between two
+// consecutive starts, hence starts.length - 1.
+function bsCycleCompleteCycles(starts) {
+  const n = (Array.isArray(starts) ? starts : []).length;
+  return n > 1 ? n - 1 : 0;
+}
+// Label each day with the phase she was ACTUALLY in then — derived from only
+// the starts that existed on or before that day, never retro-fitted from
+// today's data.
+function bsCycleLabelDays(starts, rows) {
+  const sorted = (Array.isArray(starts) ? starts : []).map(String).sort();
+  const out = [];
+  for (const r of rows) {
+    if (!r || !r.d) continue;
+    const upTo = sorted.filter((s) => s <= r.d);
+    if (!upTo.length) continue;
+    let c = null;
+    try { c = bsDeriveCycle(upTo, r.d); } catch (e) { c = null; }
+    if (!c || typeof c.phase !== 'string') continue;
+    out.push({ ...r, phase: c.phase });
+  }
+  return out;
+}
+function BSCycleCard({ isSelf }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const { optIn } = useBSCycleSettings();
+  const { starts, cycle } = useBSCycleDerived(isSelf && optIn);
+  const [read, setRead] = React.useState(null);
+  React.useEffect(() => {
+    if (!isSelf || !optIn || !cycle) { setRead(null); return undefined; }
+    let alive = true;
+    (async () => {
+      try {
+        const [prog, habRes] = await Promise.all([
+          window.ShapeProgress?.progress?.(),
+          window.ShapeHabitsData?.list?.() ?? null,
+        ]);
+        const ser = (prog && prog.series) || {};
+        const byDate = (arr) => new Map((Array.isArray(arr) ? arr : []).map((r) => [r.date, r.value]));
+        const sleepBy = byDate(ser.sleep);
+        const energyBy = byDate(ser.energy);
+        const restedBy = byDate(ser.sleepQuality);
+        const habits = ((habRes && habRes.habits) || []).filter((h) => h && !h.archived_at);
+        const rows = [];
+        const now = new Date();
+        for (let i = 119; i >= 0; i--) {
+          const d = new Date(now); d.setDate(d.getDate() - i);
+          const key = d.toLocaleDateString('en-CA');           // the member's LOCAL day
+          const scheduled = habits.filter((h) => String(h.created_at || '').slice(0, 10) <= key).length;
+          const done = habits.reduce((a, h) => a + ((Array.isArray(h.history) && h.history.includes(key)) ? 1 : 0), 0);
+          rows.push({
+            d: key,
+            // Absence stays ABSENT — bsCycleRead's valOf drops the day rather
+            // than reading a missing value as zero (the fabrication class).
+            sleepH: sleepBy.has(key) ? sleepBy.get(key) : null,
+            energy: energyBy.has(key) ? energyBy.get(key) : null,
+            rested: restedBy.has(key) ? restedBy.get(key) : null,
+            adherence: scheduled > 0 ? Math.min(1, done / scheduled) : null,
+          });
+        }
+        const days = bsCycleLabelDays(starts, rows);
+        const r = bsCycleRead(days, { ...cycle, completeCycles: bsCycleCompleteCycles(starts) });
+        if (alive) setRead(r || null);
+      } catch (e) { if (alive) setRead(null); }
+    })();
+    return () => { alive = false; };
+  }, [isSelf, optIn, cycle, starts]);
+
+  if (!isSelf || !optIn) return null;                          // absence, never a padlock
+  const heat = bsCycleHeat(t);
+  const phaseLabel = bsCyclePhaseLabel(tr, cycle && cycle.phase);
+  const head = !cycle
+    ? tr('cycle:card.setup', { defaultValue: 'Log a period start to begin.' })
+    : cycle.phase === 'paused'
+      ? tr('cycle:cal.pausedHead', { defaultValue: 'Cycle running long' })
+      : cycle.phase === 'late'
+        ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
+        : tr('cycle:cal.phaseHead', { phase: phaseLabel, d: cycle.day, defaultValue: '{phase} · day {d}' });
+  const cycles = bsCycleCompleteCycles(starts);
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <BSTStationHead heat={heat} INK={t.INK} label={tr('cycle:card.station', { defaultValue: 'The cycle' })} meta={tr('cycle:card.meta', { defaultValue: 'Private to you' })} />
+      <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+        style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', minHeight: 44 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{head}</div>
+        {cycle ? (
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }}>
+            {[tr('cycle:cal.lengthMeta', { L: cycle.L, defaultValue: 'Your cycle ~{L} days' }),
+              tr('cycle:card.cycles', { n: cycles, defaultValue: '{n} cycles of data' })].join(' · ')}
+          </div>
+        ) : null}
+        {/* The read fires only past every floor; below them the card simply
+            carries no read — never an invented one. Copy is baked in-module
+            (the crossoverCopy no-drift rule). */}
+        {read && read.copy ? (
+          <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(t.INK, 0.09)}` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, color: t.INK }}>{read.copy}</div>
+          </div>
+        ) : null}
+      </button>
+    </div>
+  );
+}
+
+// ── THE CYCLE — the Today chip (spec 2026-07-19) ────────────────────────────
+// Quiet, and ONLY inside the expected window: opted in AND the engine actually
+// has a prediction (predictedStart is null for no-starts and for 'paused' —
+// the window arithmetic must never run on it) AND today sits in
+// [from − 2d, to + 7d] AND today isn't already logged. Lives on the Today
+// page, never the Home slate (doctrine: Home stays neutral).
+function BSCycleTodayChip() {
+  const t = useBS();
+  const tr = useShapeTr();
+  const { optIn } = useBSCycleSettings();
+  const { starts, cycle } = useBSCycleDerived(optIn);
+  if (!optIn || !cycle || !cycle.predictedStart) return null;
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if ((starts || []).map(String).includes(todayIso)) return null;
+  const shift = (iso, days) => { const d = new Date(`${iso}T00:00:00`); if (Number.isNaN(d.getTime())) return null; d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const from = shift(cycle.predictedStart.from, -2);
+  const to = shift(cycle.predictedStart.to, 7);
+  if (!from || !to || todayIso < from || todayIso > to) return null;
+  const heat = bsCycleHeat(t);
+  return (
+    <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '10px 0 2px', minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>
+      {tr('cycle:todayChip', { defaultValue: 'Period started? Log it' })} →
+    </button>
+  );
+}
+
 // The `embedded` (Me → Stats) mode died with the Route Card profile — both
 // remaining consumers are full-page. Full chrome only.
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
@@ -25212,6 +25970,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
       {registers(oRegs, oRegRef, oRegSeen)}
       <BSWeekendsCard isSelf={signedIn} />
       <BSCrossoverCard isSelf={signedIn} />
+      <BSCycleCard isSelf={signedIn} />
       {station('The trend', activeTrend.unit ? activeTrend.unit.toUpperCase() : null, (
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginBottom: 4 }}>

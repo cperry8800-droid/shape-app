@@ -174,5 +174,6 @@
   "workoutPreview.reminderSet": "✓ Напоминание установлено",
   "workoutPreview.soundtrack": "Саундтрек",
   "workoutPreview.preWorkout": "Перед тренировкой",
-  "workoutPreview.begin": "Начать тренировку →"
+  "workoutPreview.begin": "Начать тренировку →",
+  "lever.recoverySub": "Сегодня лучше зайдёт нагрузка полегче."
 }
