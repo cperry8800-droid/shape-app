@@ -21144,18 +21144,136 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
   return surface ? createPortal(sheet, surface) : sheet;
 }
 
+// The one shipping address form — shared by cart checkout and a free tier-reward
+// claim, so the two can never collect different fields than the server validates.
+const BS_SHIP_EMPTY = { name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' };
+function bsShipValid(f) {
+  return !!(f && f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim());
+}
+function BSShipFields({ t, tr, f, setF }) {
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' };
+  const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK70, margin: '14px 0 8px' };
+  const focus = { onFocus: (e) => { e.target.style.borderColor = t.ACCENT; }, onBlur: (e) => { e.target.style.borderColor = t.HAIR; } };
+  return (
+    <>
+      <span style={lbl}>{tr('store:checkout.fullName', { defaultValue: 'Full name' })}</span>
+      <input value={f.name} onChange={set('name')} placeholder={tr('store:checkout.fullName', { defaultValue: 'Full name' })} aria-label={tr('store:checkout.fullName', { defaultValue: 'Full name' })} maxLength={120} style={field} {...focus} />
+      <span style={lbl}>{tr('store:checkout.address', { defaultValue: 'Address' })}</span>
+      <input value={f.line1} onChange={set('line1')} placeholder={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} aria-label={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} maxLength={200} style={field} {...focus} />
+      <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder={tr('store:checkout.aptPlaceholder', { defaultValue: 'Apt, suite (optional)' })} aria-label={tr('store:checkout.aptAria', { defaultValue: 'Apartment or suite (optional)' })} maxLength={200} style={field} {...focus} /></div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
+        <input value={f.city} onChange={set('city')} placeholder={tr('store:checkout.city', { defaultValue: 'City' })} aria-label={tr('store:checkout.city', { defaultValue: 'City' })} maxLength={100} style={field} {...focus} />
+        <input value={f.region} onChange={set('region')} placeholder={tr('store:checkout.statePlaceholder', { defaultValue: 'State' })} aria-label={tr('store:checkout.stateAria', { defaultValue: 'State or region' })} maxLength={100} style={field} {...focus} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
+        <input value={f.postal} onChange={set('postal')} placeholder={tr('store:checkout.zipPlaceholder', { defaultValue: 'ZIP' })} aria-label={tr('store:checkout.zipAria', { defaultValue: 'ZIP or postal code' })} maxLength={20} style={field} {...focus} />
+        <input value={f.country} onChange={set('country')} placeholder={tr('store:checkout.country', { defaultValue: 'Country' })} aria-label={tr('store:checkout.country', { defaultValue: 'Country' })} maxLength={60} style={field} {...focus} />
+      </div>
+    </>
+  );
+}
+
+// THE UNLOCKED SHELF — the free rewards the ladder earned, claimed at 0 points.
+// Renders NOTHING when there's nothing unclaimed (a member who hasn't reached a
+// tier, or has claimed everything, sees no empty promise). The server owns which
+// tier unlocks what and which picks are legal; this only renders what it returns.
+function BSTierRewardShelf({ t, tr, teal, rewards, busyKey, onClaim }) {
+  const open = (rewards || []).filter((r) => !r.claimedAt);
+  const [picks, setPicks] = useStateBSC({});
+  if (!open.length) return null;
+  const nameOf = (id) => (BS_STORE_PRODUCTS.find((p) => p.id === id) || {}).name || id;
+  return (
+    <div style={{ padding: `16px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ width: 9, height: 9, background: teal, transform: 'translateY(1px)' }} aria-hidden />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
+          {tr('store:unlocked.head', { count: open.length, defaultValue: 'Unlocked · {count, plural, one {# reward} other {# rewards}} · free' })}
+        </span>
+      </div>
+      <div style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal})` }} aria-hidden />
+      {open.map((r) => {
+        const choices = Array.isArray(r.choices) ? r.choices : [];
+        const pick = picks[r.rewardKey] || (choices.length === 1 ? choices[0] : '');
+        const ready = choices.length === 0 || !!pick;
+        const busy = busyKey === r.rewardKey;
+        return (
+          <div key={r.rewardKey} style={{ padding: '14px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>
+              {tr('store:unlocked.earnedAt', { tier: r.tier, defaultValue: 'Earned at {tier}' })}
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{r.name}</div>
+            {choices.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {choices.map((c) => {
+                  const on = pick === c;
+                  return (
+                    <button key={c} onClick={() => setPicks((p) => ({ ...p, [r.rewardKey]: c }))} aria-pressed={on}
+                      style={{ minHeight: 36, padding: '8px 12px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
+                        border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1a` : 'transparent',
+                        color: on ? t.INK : t.INK70, fontFamily: t.BODY, fontSize: 12.5, fontWeight: on ? 700 : 600 }}>
+                      {nameOf(c)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => ready && !busy && onClaim(r, pick || null)} disabled={!ready || busy}
+              style={{ marginTop: 12, minHeight: 44, padding: '11px 18px', borderRadius: t.RADIUS_SM, border: 0,
+                background: ready && !busy ? teal : t.RULE, color: ready && !busy ? t.PAPER : t.INK50,
+                fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                cursor: ready && !busy ? 'pointer' : 'default' }}>
+              {busy
+                ? tr('store:unlocked.claiming', { defaultValue: 'Claiming…' })
+                : !ready
+                  ? tr('store:unlocked.pickOne', { defaultValue: 'Pick one' })
+                  : tr('store:unlocked.claim', { defaultValue: 'Claim · free' })}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Where a claimed piece of merch is sent. Vouchers never reach this screen —
+// the server rejects an address on a non-shipped reward.
+function BSTierClaimShip({ t, reward, busy, notice, onBack, onConfirm }) {
+  const tr = useShapeTr();
+  const [f, setF] = useStateBSC(BS_SHIP_EMPTY);
+  const ok = bsShipValid(f) && !busy;
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} kicker={reward.name}
+        title={<>{tr('store:unlocked.shipTitleA', { defaultValue: 'Where do we' })}<br/>{tr('store:unlocked.shipTitleB', { defaultValue: 'send it?' })}</>} />
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>
+          {tr('store:unlocked.shipBlurb', { tier: reward.tier, defaultValue: 'You earned this at {tier}. It costs nothing — we just need an address.' })}
+        </div>
+        <BSShipFields t={t} tr={tr} f={f} setF={setF} />
+        <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{tr('store:checkout.freeShipping', { defaultValue: 'Free shipping · points only.' })}</div>
+        {!!notice && (
+          <div style={{ marginTop: 14, borderRadius: 12, border: `1px solid ${t.RUST}66`, background: `${t.RUST}14`, padding: '11px 14px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{notice}</div>
+        )}
+        <button onClick={() => ok && onConfirm(f)} disabled={!ok}
+          style={{ width: '100%', minHeight: 52, marginTop: 14, borderRadius: 14, border: 0, background: ok ? t.ACCENT : t.RULE, color: ok ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 700, cursor: ok ? 'pointer' : 'default' }}>
+          {busy ? tr('store:unlocked.claiming', { defaultValue: 'Claiming…' }) : tr('store:unlocked.confirmShip', { defaultValue: 'Claim it · free' })}
+        </button>
+      </div>
+      <BSFooter right={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} />
+    </BSPage>
+  );
+}
+
 // (b) Merch cart checkout — review lines + qty, enter ONE shipping address, see
 // the points total + the balance it leaves, place the order (one shipment).
 function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack, onPlace }) {
   const tr = useShapeTr();
-  const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
+  const [f, setF] = useStateBSC(BS_SHIP_EMPTY);
+  const validShip = bsShipValid(f);
   const after = (balance || 0) - total;
   const short = after < 0;
   const canPlace = lines.length > 0 && validShip && !short && !busy;
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' };
-  const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK70, margin: '14px 0 8px' };
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
@@ -21199,19 +21317,7 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
 
             {/* Shipping — one address for the whole order */}
             <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 700, color: t.INK50, margin: '20px 0 4px' }}>{tr('store:checkout.shipTo', { defaultValue: 'Ship to' })}</div>
-            <span style={lbl}>{tr('store:checkout.fullName', { defaultValue: 'Full name' })}</span>
-            <input value={f.name} onChange={set('name')} placeholder={tr('store:checkout.fullName', { defaultValue: 'Full name' })} aria-label={tr('store:checkout.fullName', { defaultValue: 'Full name' })} maxLength={120} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            <span style={lbl}>{tr('store:checkout.address', { defaultValue: 'Address' })}</span>
-            <input value={f.line1} onChange={set('line1')} placeholder={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} aria-label={tr('store:checkout.streetAddress', { defaultValue: 'Street address' })} maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder={tr('store:checkout.aptPlaceholder', { defaultValue: 'Apt, suite (optional)' })} aria-label={tr('store:checkout.aptAria', { defaultValue: 'Apartment or suite (optional)' })} maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.city} onChange={set('city')} placeholder={tr('store:checkout.city', { defaultValue: 'City' })} aria-label={tr('store:checkout.city', { defaultValue: 'City' })} maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.region} onChange={set('region')} placeholder={tr('store:checkout.statePlaceholder', { defaultValue: 'State' })} aria-label={tr('store:checkout.stateAria', { defaultValue: 'State or region' })} maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.postal} onChange={set('postal')} placeholder={tr('store:checkout.zipPlaceholder', { defaultValue: 'ZIP' })} aria-label={tr('store:checkout.zipAria', { defaultValue: 'ZIP or postal code' })} maxLength={20} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.country} onChange={set('country')} placeholder={tr('store:checkout.country', { defaultValue: 'Country' })} aria-label={tr('store:checkout.country', { defaultValue: 'Country' })} maxLength={60} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            </div>
+            <BSShipFields t={t} tr={tr} f={f} setF={setF} />
             <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{tr('store:checkout.freeShipping', { defaultValue: 'Free shipping · points only.' })}</div>
 
             {/* Surface a checkout error here — the store-page notice is hidden behind this view */}

@@ -33,10 +33,16 @@ insert into public.store_catalogue (id, cost_points, credit_cents, credit_kind, 
   ('lead_boost_30', 37350, 0, null, 'lead_boost', false)
 on conflict (id) do update set
   cost_points  = excluded.cost_points,
-  credit_cents = excluded.credit_cents,
   credit_kind  = excluded.credit_kind,
   kind         = excluded.kind,
   locked       = excluded.locked;
+-- ⚠ credit_cents is DELIBERATELY not in the update list (review: CodeRabbit on
+-- #1778). This migration reprices what a credit COSTS in points, never the
+-- dollar value it mints — so a live credit_cents (a promo, a corrected value)
+-- must survive a re-run. New rows still take the value from the insert above.
+-- Verified read-only against prod: the live values already equal the insert
+-- values, so today this changes nothing; it stops a future re-run from
+-- silently reverting an adjustment.
 
 -- merch_canteen is NEW (owner add 2026-07-20); merch_duffel leaves the store
 -- for now (owner call 2026-07-20) — remove its live row so the charging table

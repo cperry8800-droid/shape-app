@@ -3766,6 +3766,31 @@ async function redeemLeadBoost(role, days) {
   if (!res.ok) throw new Error(data.error || 'Lead Boost failed.');
   return data;
 }
+// Tier rewards — the free unlocks earned by climbing the ladder. The server
+// owns the whole definition (which tier unlocks what, which picks are legal),
+// so this layer only carries it through; a pre-migration read is an empty
+// shelf, never an error.
+async function listTierRewards() {
+  const d = await getJsonOrDefault(`${apiBaseUrl || ''}/api/store/tier-rewards`, { rewards: [] },
+    (data) => ({ rewards: Array.isArray(data.rewards) ? data.rewards : [] }));
+  return d.rewards;
+}
+async function claimTierReward(rewardKey, choice, shipping) {
+  const body = { rewardKey };
+  if (choice) body.choice = choice;
+  if (shipping) body.shipping = shipping;
+  const res = await fetch(`${apiBaseUrl || ''}/api/store/tier-rewards`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Claim failed.');
+  return data;
+}
+window.ShapeTierRewards = { list: listTierRewards, claim: claimTierReward };
+
 window.ShapeStore = { get: getStore, redeem: redeemStoreItem, checkout: checkoutStoreCart, redeemLeadBoost };
 
 window.ShapeNotifications = {
