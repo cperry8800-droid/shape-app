@@ -36,6 +36,7 @@ const PURGE: { table: string; col: string }[] = [
   { table: 'client_measurements', col: 'user_id' },
   { table: 'client_checkins', col: 'user_id' },
   { table: 'client_progress_photos', col: 'user_id' },
+  { table: 'cycle_events', col: 'user_id' },               // WA MHMD consumer health data (The Cycle)
   { table: 'daily_health_snapshot', col: 'user_id' },
   { table: 'score_ledger', col: 'user_id' },
   { table: 'member_playlists', col: 'user_id' },

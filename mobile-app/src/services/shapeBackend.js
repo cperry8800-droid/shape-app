@@ -4560,6 +4560,109 @@ async function awardGoalMilestones() {
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
 window.ShapeGoalAwards = { check: awardGoalMilestones };
 
+// ── The Cycle (spec 2026-07-19, PR A) ───────────────────────────────────────
+// Data layer only — PR B–D consume. Every write path is RPC-first with NO
+// fallback write: a direct settings/consent write would raise on the DB's
+// GUC-guard triggers, CORRECTLY (flag and receipt may only move together,
+// inside the RPCs). Pre-migration the RPCs are absent → honest
+// { ok:false, reason:'unavailable' } and the UI says so; reads degrade to
+// empty/null. Phase derivation lives ONLY in cyclePhase.mjs — nothing here
+// interprets dates.
+async function cycleList() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase
+      .from('cycle_events')
+      .select('event_date')
+      .eq('user_id', state.user.id)
+      .eq('kind', 'period_start')
+      .order('event_date', { ascending: false })
+      .limit(60);
+    if (error) return [];
+    return (data || []).map((r) => r.event_date);
+  } catch (e) { return []; }
+}
+async function cycleLog(isoDate) {
+  if (!supabase || !state.user?.id || !isoDate) return { ok: false };
+  try {
+    const { error } = await supabase.from('cycle_events').upsert(
+      { user_id: state.user.id, event_date: isoDate, kind: 'period_start' },
+      { onConflict: 'user_id,event_date,kind' },
+    );
+    if (error) {
+      // The storage-boundary trigger names its rejection; PR B's calendar
+      // toasts honestly instead of showing a generic failure.
+      if (String(error.message || '').includes('future_event_date')) return { ok: false, reason: 'future' };
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+}
+async function cycleUnlog(isoDate) {
+  if (!supabase || !state.user?.id || !isoDate) return { ok: false };
+  try {
+    const { error } = await supabase.from('cycle_events').delete()
+      .eq('user_id', state.user.id).eq('event_date', isoDate).eq('kind', 'period_start');
+    return { ok: !error };
+  } catch (e) { return { ok: false }; }
+}
+async function cycleSettings() {
+  // READ direct is fine — only WRITES are RPC-gated.
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const { data, error } = await supabase.from('user_goals').select('data')
+      .eq('user_id', state.user.id).eq('kind', 'cycle_settings').maybeSingle();
+    if (error || !data || !data.data) return null;
+    return { optIn: !!data.data.optIn, share: !!data.data.share };
+  } catch (e) { return null; }
+}
+async function cycleSetSettings({ optIn, share, consentKind, granted, consentText } = {}) {
+  if (!supabase || !state.user?.id) return { ok: false, reason: 'signed_out' };
+  try {
+    const { error } = await supabase.rpc('cycle_set_settings', {
+      p_opt_in: !!optIn, p_share: !!share,
+      p_consent_kind: consentKind, p_granted: !!granted, p_consent_text: String(consentText || ''),
+    });
+    if (error) {
+      const msg = String(error.message || '');
+      // PGRST202/42883 = the RPC doesn't exist yet (pre-migration).
+      if (msg.includes('cycle_set_settings') || error.code === 'PGRST202' || error.code === '42883') {
+        return { ok: false, reason: 'unavailable' };
+      }
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+}
+async function cycleOptOut() {
+  if (!supabase || !state.user?.id) return { ok: false, reason: 'signed_out' };
+  try {
+    const { error } = await supabase.rpc('cycle_opt_out');
+    if (error) {
+      const msg = String(error.message || '');
+      if (msg.includes('cycle_opt_out') || error.code === 'PGRST202' || error.code === '42883') {
+        return { ok: false, reason: 'unavailable' };
+      }
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+}
+async function cycleForClient(userId) {
+  if (!supabase || !state.user?.id || !userId) return null;
+  try {
+    const { data, error } = await supabase.rpc('get_client_cycle', { p_user_id: userId });
+    if (error || data == null) return null;               // not their coach / pre-migration
+    if (data.share !== true) return { share: false };     // absence — the caller renders nothing
+    return { share: true, starts: Array.isArray(data.starts) ? data.starts : [] };
+  } catch (e) { return null; }
+}
+window.ShapeCycle = {
+  list: cycleList, log: cycleLog, unlog: cycleUnlog,
+  settings: cycleSettings, setSettings: cycleSetSettings,
+  optOut: cycleOptOut, forClient: cycleForClient,
+};
+
 // Momentum weekly bonus: the RPC grants +25 once per ISO week when the caller's
 // momentum is ≥ 80, derived server-side from real activity (idempotent — same
 // pattern as award_my_goal_milestones). Returns the jsonb result, or null on

@@ -18,6 +18,8 @@ const OWNED: { key: string; table: string; col: string }[] = [
   { key: 'measurements', table: 'client_measurements', col: 'user_id' },
   { key: 'weekly_checkins', table: 'client_checkins', col: 'user_id' },
   { key: 'progress_photos', table: 'client_progress_photos', col: 'user_id' },
+  { key: 'cycle_events', table: 'cycle_events', col: 'user_id' },  // WA MHMD consumer health data (The Cycle)
+  { key: 'consent_receipts', table: 'consent_log', col: 'user_id' },  // incl. cycle_tracking/cycle_share grants + withdrawals
   { key: 'daily_health_snapshots', table: 'daily_health_snapshot', col: 'user_id' },
   { key: 'score_ledger', table: 'score_ledger', col: 'user_id' },
   { key: 'playlists', table: 'member_playlists', col: 'user_id' },
