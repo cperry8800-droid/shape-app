@@ -122,6 +122,12 @@ create trigger cycle_consent_guard before insert on public.consent_log
 --    user_goals + consent_log is the scope. p_consent_kind names which receipt
 --    this flip records ('cycle_tracking' | 'cycle_share'); p_granted false =
 --    a withdrawal receipt (share-off / opt-out path records its own).
+--    ⚠ ONE receipt per call, while the data blob overwrites BOTH flags
+--    (review: CodeRabbit) — a caller that changes both flags in one call
+--    would leave the unnamed flag's transition receipt-less. The UI contract
+--    for PR B–D: opt-in then share-on = TWO calls (tracking receipt, then
+--    share receipt); share-off = one call (kind cycle_share, granted false);
+--    tracking-off = cycle_opt_out() ONLY (enforced below).
 create or replace function public.cycle_set_settings(
   p_opt_in boolean, p_share boolean,
   p_consent_kind text, p_granted boolean, p_consent_text text
@@ -135,6 +141,14 @@ begin
   -- must match the flag it records (tracking receipt ↔ p_opt_in, share
   -- receipt ↔ p_share). Anything else is an incoherent audit row.
   if p_share and not p_opt_in then raise exception 'share_requires_opt_in'; end if;
+  -- A tracking WITHDRAWAL through this RPC would flip optIn off while leaving
+  -- the member's cycle_events rows standing — a withdrawn state that retains
+  -- the health data, contradicting the opt-out contract (review: Codex P2).
+  -- Stopping tracking is cycle_opt_out()'s job (delete + receipt, atomic);
+  -- this RPC only ever records tracking as GRANTED.
+  if p_consent_kind = 'cycle_tracking' and not p_opt_in then
+    raise exception 'use_cycle_opt_out';
+  end if;
   if p_consent_kind = 'cycle_tracking' and p_granted <> p_opt_in then
     raise exception 'receipt_flag_mismatch';
   end if;

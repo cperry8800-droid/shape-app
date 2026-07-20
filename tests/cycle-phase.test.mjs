@@ -99,3 +99,28 @@ test('never throws: Symbols and garbage through every entry point', () => {
   assert.equal(bsCycleRead(null, { completeCycles: 2 }), null);
   assert.equal(bsCycleRead([{ phase: 42, sleepH: 7 }], { completeCycles: 2 }), null);
 });
+
+// A missing observation is ABSENCE, never a zero-value day (Codex P1 — the
+// food-search lesson: Number(null) and Number('') are both finite 0). Eight
+// null-sleep rows against real values must yield honest null, not a fabricated
+// significant gap. Numeric STRINGS (the PostgREST shape) still count as real.
+test('null/blank observations never fabricate a read; numeric strings still count', () => {
+  const mk = (n, phase, sleepH) => Array.from({ length: n }, () => ({ sleepH, phase }));
+  assert.equal(bsCycleRead([...mk(12, 'follicular', 7.6), ...mk(8, 'luteal', null)], { completeCycles: 2 }), null);
+  assert.equal(bsCycleRead([...mk(12, 'follicular', 7.6), ...mk(8, 'luteal', '')], { completeCycles: 2 }), null);
+  assert.equal(bsCycleRead([...mk(12, 'follicular', 7.6), ...mk(8, 'luteal', undefined)], { completeCycles: 2 }), null);
+  const strDays = [...mk(12, 'follicular', '7.6'), ...mk(12, 'luteal', '6.5')];
+  const r = bsCycleRead(strDays, { completeCycles: 2 });
+  assert.ok(r && r.metric === 'sleep');
+});
+
+// 'late' and 'paused' are internal engine states, not physiological phases
+// (Codex P2 — doctrine): they must never form a compared bucket or reach copy.
+test('late/paused days are excluded from read buckets', () => {
+  const mk = (n, phase, sleepH) => Array.from({ length: n }, () => ({ sleepH, phase }));
+  assert.equal(bsCycleRead([...mk(12, 'follicular', 7.6), ...mk(12, 'paused', 6.5)], { completeCycles: 2 }), null);
+  assert.equal(bsCycleRead([...mk(12, 'follicular', 7.6), ...mk(12, 'late', 6.5)], { completeCycles: 2 }), null);
+  const real = [...mk(12, 'follicular', 7.6), ...mk(12, 'luteal', 6.5), ...mk(12, 'paused', 1)];
+  const r = bsCycleRead(real, { completeCycles: 2 });
+  assert.ok(r && !r.copy.includes('paused') && !/\blate\b/.test(r.copy));
+});

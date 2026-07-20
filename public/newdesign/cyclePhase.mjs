@@ -101,6 +101,24 @@ const READ_COPY = {
   adherence: (hi, lo, f) => `Your habits land ${f} less often in your ${lo} phase than your ${hi} — shaving the load there keeps the streak honest, not smaller.`,
 };
 
+// A missing observation must NEVER read as a zero-value day (review: Codex P1
+// — the food-search lesson again: Number(null) and Number('') are BOTH finite
+// 0, so a bare coercion turns 8 null-sleep rows into a fabricated significant
+// gap). Real values are finite numbers, or non-empty numeric strings (the
+// PostgREST numeric-as-string shape); everything else — null, undefined, '',
+// booleans, Symbols — is absence and drops the DAY, not the module.
+const valOf = (v) => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
+  if (typeof v === 'string' && v.trim() !== '') { const n = numOf(v); return Number.isFinite(n) ? n : NaN; }
+  return NaN;
+};
+
+// Doctrine (review: Codex P2): 'late' and 'paused' are INTERNAL engine states,
+// not physiological phases — they must never form a compared bucket or appear
+// in read copy ("in your paused phase" would speculate exactly where the
+// doctrine forbids it). Reads compare the four real phases only.
+const READ_PHASES = new Set(['menstrual', 'follicular', 'ovulatory', 'luteal']);
+
 export function bsCycleRead(days, cycle) {
   if (!Array.isArray(days) || !cycle || !(numOf(cycle.completeCycles) >= 2)) return null;
   let best = null;
@@ -108,7 +126,8 @@ export function bsCycleRead(days, cycle) {
     const buckets = new Map();
     for (const d of days) {
       if (!d || typeof d !== 'object' || typeof d.phase !== 'string') continue;
-      const v = numOf(d[m.key]);
+      if (!READ_PHASES.has(d.phase)) continue;
+      const v = valOf(d[m.key]);
       if (!Number.isFinite(v)) continue;
       if (!buckets.has(d.phase)) buckets.set(d.phase, []);
       buckets.get(d.phase).push(v);
