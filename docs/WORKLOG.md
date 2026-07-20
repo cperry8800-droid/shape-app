@@ -178,7 +178,32 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 6/9): THE CYCLE PR A — migration + phase engine +
+> **Latest (2026-07-20, build 7/9): THE CYCLE PR B — the member's surfaces.**
+> The flagship differentiator becomes visible: **Settings → Cycle** (opt-in
+> behind the VERBATIM disclaimer · share-with-coach · stop-and-delete), the
+> **cycle calendar** (unboxed month, tap to log a period start, tap again to
+> remove), a quiet **Today chip**, **THE CYCLE** card on Progress, and a Home
+> lever that **never says the word cycle**. Consent is recorded as the exact
+> string she was shown, in her language. **The doctrine holds at every
+> surface:** never opted in = the surfaces don't exist (absence, not a
+> padlock) · `late`/`paused` are ENGINE states and never render as phases ·
+> the Progress read appears ONLY past every statistical floor, and below them
+> the card carries its headline with no read rather than an invented one · a
+> future date stays tappable and the DB rejects it BY NAME (the toast says
+> why) — the storage boundary is the authority, not a disabled button.
+> ⚠ **Three plan/seam errors caught pre-ship:** the shared Settings row
+> renderer cannot express toggles (pane hand-rendered — the Account-actions
+> precedent) · **the plan's catalog path was wrong** (`i18n/locales/` vs the
+> real `i18n/catalogs/`), and a file there loads NOTHING while the parity gate
+> passes **silently** — corrected, and the gate then failed loudly naming the
+> missing keys, which is the proof the namespace is wired · **an engine seam
+> from build 6**: `bsDeriveCycle` never returns `completeCycles` but
+> `bsCycleRead` REQUIRES it (≥2), so the two halves were never integrated
+> (build 6's tests only ever passed hand-built `{completeCycles:n}`) — the
+> caller now derives it from the logged starts. i18n: new `cycle` namespace
+> ×13. Next: build 8/9 `cycle-c-coach-share`.
+>
+> **Prior (2026-07-20, build 6/9): THE CYCLE PR A — migration + phase engine +
 > data layer (#1775).** The flagship differentiator's foundation, no UI (PRs
 > B–D consume): `cycle_events` (owner-only RLS · a no-future trigger judged in
 > the member's OWN timezone with a UTC+1d fallback) · **GUC-guarded RPC-only
@@ -773,6 +798,114 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 7/9) — THE CYCLE PR B: the member's surfaces
+
+- **Build 7 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-cycle-b-member-surfaces.md`. Consumes PR
+  A's `ShapeCycle` + `cyclePhase.mjs`; no migration, no new route.
+- **Settings → Cycle** — the consent surface and the ONE door into tracking:
+  the tracking toggle (OFF→ON opens the consent sheet; ON→OFF routes to the
+  confirmed delete, never a silent flag flip), the share toggle (disabled
+  until opted in — one call with `p_opt_in` staying TRUE, per the DB's
+  `one_flag_per_receipt` rule), open-calendar, and a rust stop-and-delete
+  behind `bsAskConfirm`. Honest failure everywhere: pre-migration reads
+  `reason:'unavailable'` and SAYS so, and the toggle stays where the DB
+  actually is.
+- **The opt-in sheet** — a full-page panel (the `BSOverallEditSheet`
+  grammar), because consent deserves the whole screen: the doctrine
+  paragraph, then the **verbatim disclaimer directly above the CTA**. The
+  consent text recorded is the exact string RENDERED (`bsCycleDisclaimer` is
+  the single reader), so the `consent_log` receipt matches what she read, in
+  her own language.
+- **The calendar page** — the #1712 unboxed month grammar BORROWED, not
+  imported (the calendar module owns its own theme context): hairline week
+  rows of bare numerals. **Heat = the member's TIER colour, line-only** — a
+  deliberate call, since the spec names no cycle colour and inventing a pink
+  genders the surface. Logged = filled heat disc · predicted = dotted heat
+  outline · today = heat numeral; the "expected" legend swatch renders ONLY
+  when the engine actually has a prediction. Log/unlog is optimistic with
+  rollback; un-log is confirm-gated.
+- **The register states only what the engine knows** — phase + day,
+  confidence, cycle length, logged count, predicted window. `paused` says
+  predictions are paused; `late` says a new cycle starts when she logs it;
+  no starts at all is the setup state. Neither ever renders as a phase name.
+- **Today chip + Progress card** — the chip lives on the Today page, **never
+  the Home slate** (doctrine), and only when the engine HAS a prediction
+  (null for no-starts AND for paused, so the window arithmetic never runs on
+  it), today is inside `[from−2d, to+7d]`, and today isn't already logged.
+  The card labels each day with the phase she was ACTUALLY in then (derived
+  from only the starts on/before that day — never retro-fitted), and every
+  missing metric stays null so the engine's `valOf` drops the DAY rather than
+  reading absence as a zero.
+- **⚠ Engine seam (build 6, found while wiring the card):** `bsDeriveCycle`
+  does **not** return `completeCycles`, but `bsCycleRead` **requires** it
+  (≥2) — so the two exported halves of the engine had never actually been
+  integrated; build 6's tests only ever passed hand-built
+  `{ completeCycles: n }` objects, which is exactly why it went unseen. The
+  caller owns it, so it's derived from the logged starts: a complete cycle is
+  an INTERVAL between consecutive starts (`starts.length - 1`).
+- **⚠ Plan error — the catalog path, and why it mattered:** the plan names
+  `mobile-app/src/i18n/locales/en/cycle.json`, but catalogs live in
+  `mobile-app/src/i18n/catalogs/<loc>/`. A file at the plan's path loads
+  nothing AND the parity gate passes **silently** (the loader returns `{}`
+  for a missing file, so `enKeys` is empty and every locale trivially
+  matches). Corrected; with the file in `catalogs/en` the gate immediately
+  FAILED naming all 34 missing `es/cycle` keys — the failing gate is the
+  proof the namespace is wired.
+- **⚠ Plan error — Settings row shapes:** `renderRows` supports only
+  dropdown / segmented / pref-cycle / action rows, so it cannot express a
+  toggle with an async consent write or a disabled-until-opted-in state. The
+  Cycle pane is hand-rendered (the Account-actions precedent in the same
+  file).
+- **⚠ Deliberate deviation — the Home lever.** The plan allows it to LEAD,
+  but leading is only reachable when nothing else is pending — exactly where
+  the kept-promise echo ("You kept your word today.") lives, and replacing
+  that with a body-state note is a worse close. It rides as the **sub** of
+  the done state instead: it can never outrank real work, and the echo
+  survives. Gated on **`menstrual` only** — the plan's luteal branch needs
+  the Progress card's statistical read, and asserting "lighter load reads
+  well" in luteal without it would be a claim we cannot back. Deferred, not
+  fabricated. **Home names the cycle nowhere**: the copy reads "Lighter load
+  reads well today." and the home catalog contains no cycle/period/menstrual
+  string at all (swept).
+- **i18n** — new `cycle` namespace registered in BOTH the runtime NS array
+  and the catalog-parity test (or it ships ungated), 66 keys ×13 locales.
+  Translations are LLM-generated → **the standing human review**, with the
+  **disclaimer key flagged PRIORITY** (legally material). **OWNER RULINGS
+  (2026-07-20, recorded so the review doesn't re-litigate):** Hausa keeps the
+  translator's calls — the obligatorily-gendered second person stays FEMININE
+  on this surface (the masculine house default would read as a grammatical
+  error here), and the physiological egg-naming phase terms stay (accurate
+  biology, not fertility speculation).
+- **⚠ Review rounds (4 — three of them privacy, all on MY code):**
+  - **Codex P1 — a real cross-account leak of the most sensitive data in the
+    app.** Both cycle caches were unscoped window globals, so a logout→login
+    WITHOUT a full reload let the next account inherit the previous member's
+    opt-in/share state — and briefly her PERIOD DATES. Same class as the
+    _followCache leak fixed 2026-06-29. Both caches are now keyed by the auth
+    uid; signed-out (null) is a distinct key, never a wildcard.
+  - **CodeRabbit round 2 — opt-out was the third clearing condition.** The
+    uid key covered logout + account switches, but `cycle_opt_out()` deletes
+    the rows while the in-memory derivation survived under her OWN uid — a
+    remounting surface would render period dates for data that no longer
+    exists, the exact opposite of what "Stop & delete" promised. The !optIn
+    path now nulls the cache and the initializer refuses any cache while
+    opted out.
+  - **CodeRabbit round 3 (CWE-459) — the same family one level deeper:** a
+    fetch already in flight when she taps opt-out resolves AFTER the delete
+    and writes the just-deleted dates back. The read now re-checks the
+    current (uid-keyed, synchronously-updated) settings truth after the
+    await and drops stale results.
+  - Round 1 also: six catalog grammar fixes (de dangling adjective · it/
+    pt-BR ICU plurals + gender agreement · pcm singular · my uk lever verb)
+    + `bsCyclePhaseLabel`/`bsCycleHeat` extracted — and a scope correction
+    on my own refactor (it had swept two NON-cycle cards into a cycle-named
+    helper; reverted). Round 4: real Naija phrasing for the pcm count.
+- Verified: JSX parse · `npm test` 674 · `tsc --noEmit` clean · PowerShell
+  `/m/` build exit 0 · tr-shadow BOTH grep forms clean · LF · catalog parity
+  3/3 · discretion sweep (all 70 cycle/period strings live in `cycle:`) ·
+  every privacy fix replayed against the real guard logic before pushing.
 
 ### 2026-07-20 (build 6/9) — THE CYCLE PR A: migration + phase engine + ShapeCycle (#1775)
 
