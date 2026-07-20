@@ -729,8 +729,15 @@ changelog whenever something ships.
   stranger S, asserted at the query/event layer before the DOM). A static stub
   **cannot exercise RLS**, so per the plan's own instruction this is recorded as
   NOT RUN rather than passed — it needs the branch preview with two distinct
-  authenticated sessions. Registered as an OWNER item in the War Room. The
-  server-side guarantee is unchanged from #1764; this build adds no new read path.
+  authenticated sessions. Registered as a **blocking OWNER release gate** in the
+  War Room: it stays open until a stranger session demonstrably returns **zero
+  rows AND zero realtime callbacks** while the linked coach gets both. ⚠ **Be
+  precise about what this build does and does not add:** it adds **no new
+  server/API route** (nothing was added to `/api/clients/:id/shared-overview`),
+  but it DOES add a **new browser-side read path** — the direct
+  `user_activity_live` query + realtime subscription — whose only authorization
+  is the RLS shipped with #1764. That is exactly why the denial vector is a gate
+  and not a nice-to-have.
 - Verified: `npm test` **639** · `tsc --noEmit` clean · PowerShell `VITE_BASE=/m/`
   build exit 0 · `build-newdesign --check` exit 0 · all 7 files LF (CR=0, index
   + worktree).

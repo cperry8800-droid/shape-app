@@ -23,31 +23,50 @@ function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); 
 // ('workout' | 'cooking') + minutes in, from the existing authenticated-read
 // user_activity table. Presence info only — never set detail (that is the
 // coach station's job, behind its own RLS).
+// Known kinds ONLY. An unrecognised kind is absence, never a defaulted verb —
+// rendering "In a workout" for a kind we don't understand fabricates a claim
+// about what the member is doing (review: CodeRabbit, honest-data).
+const CW_ACTIVITY_VERBS = { workout: "In a workout", cooking: "In the kitchen" };
+
 function cwUseActivity(userId, open) {
   const [act, setAct] = React.useState(null);
   React.useEffect(() => {
-    const db = window.shapeDb && window.shapeDb.client;
+    const sdb = window.shapeDb;
+    const db = sdb && sdb.client;
     if (!db || !userId || !open) { setAct(null); return undefined; }
     let on = true; let expTimer = null;
-    db.from("user_activity").select("kind, started_at, expires_at")
-      .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle()
-      .then(({ data }) => {
+    (async () => {
+      // user_activity is authenticated-read. A session that lives only in the
+      // Next.js HTTP cookies leaves this client ANON until the bridge runs, so
+      // the row would be invisible and the line would silently never show
+      // (review: Codex P2).
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      try {
+        const res = await db.from("user_activity").select("kind, started_at, expires_at")
+          .eq("user_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle();
         if (!on) return;
+        const data = (res && res.error) ? null : (res && res.data);
         // Require a FINITE future expiry — malformed expires_at (NaN) must read
         // as absence, never an untimed forever-line.
-        const expOk = data && data.expires_at && (new Date(data.expires_at).getTime() - Date.now()) > 0;
-        setAct(expOk ? data : null);
+        const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
+        const known = !!(data && Object.prototype.hasOwnProperty.call(CW_ACTIVITY_VERBS, data.kind));
+        const ok = known && expMs > 0;
+        setAct(ok ? data : null);
         // Clear the line AT expiry (review round) — an open preview must not
         // keep saying "In a workout" after the activity row lapses.
-        const expMs = data && data.expires_at ? new Date(data.expires_at).getTime() - Date.now() : 0;
-        if (expMs > 0) expTimer = setTimeout(() => { if (on) setAct(null); }, expMs);
-      })
-      .catch(() => { if (on) setAct(null); });
+        if (ok) expTimer = setTimeout(() => { if (on) setAct(null); }, expMs);
+      } catch (e) { if (on) setAct(null); }
+    })();
     return () => { on = false; if (expTimer) clearTimeout(expTimer); };
   }, [userId, open]);
   if (!act) return null;
-  const mins = act.started_at ? Math.max(0, Math.floor((Date.now() - new Date(act.started_at).getTime()) / 60000)) : null;
-  const verb = act.kind === "cooking" ? "In the kitchen" : "In a workout";
+  const verb = CW_ACTIVITY_VERBS[act.kind];
+  if (!verb) return null;
+  // A malformed started_at parses to NaN, and NaN != null — without the finite
+  // check the UI would render a fabricated "NaN min in" (review: CodeRabbit).
+  const startMs = act.started_at ? new Date(act.started_at).getTime() : NaN;
+  const mins = Number.isFinite(startMs) ? Math.max(0, Math.floor((Date.now() - startMs) / 60000)) : null;
   return mins != null ? `${verb} · ${mins} min in` : verb;
 }
 

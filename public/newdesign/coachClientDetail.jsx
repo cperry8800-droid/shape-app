@@ -47,8 +47,12 @@ function CKSecHead({ children }) {
 function CKLiveStation({ clientId, accent }) {
   const [row, setRow] = React.useState(null);
   React.useEffect(() => {
-    const db = window.shapeDb && window.shapeDb.client;
-    if (!db || !clientId) return undefined;
+    const sdb = window.shapeDb;
+    const db = sdb && sdb.client;
+    // clientId rides straight from the URL into a RAW postgres_changes filter
+    // string — validate it as a UUID before interpolating (review: CodeRabbit).
+    const okId = typeof clientId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+    if (!db || !okId) return undefined;
     setRow(null);   // SYNCHRONOUS reset on client change — B must never render A's payload, even for a frame (spec review)
     let on = true; let evented = false; let expTimer = null; let channel = null;
     const take = (r, fromEvent) => {
@@ -62,17 +66,47 @@ function CKLiveStation({ clientId, accent }) {
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
       if (r && expMs > 0) expTimer = setTimeout(() => { if (on) setRow(null); }, expMs);
     };
-    db.from("user_activity_live")
-      .select("payload, started_at, updated_at, expires_at")
-      .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle()
-      .then(({ data }) => take(data || null, false))
-      .catch(() => {});
-    try {
-      channel = db.channel(`ck-live-${clientId}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live", filter: `user_id=eq.${clientId}` },
-          (p) => { try { take(p.eventType === "DELETE" ? null : (p.new || null), true); } catch (e) {} })
-        .subscribe();
-    } catch (e) {}
+    // Realtime does NOT apply postgres_changes filters to DELETE events, so a
+    // DELETE for ANOTHER member's row can land here and would blank this card.
+    // user_id is the table's PRIMARY KEY, so the default replica identity
+    // carries it in `old` — only act on a real match (review: CodeRabbit).
+    const mine = (rec) => !!(rec && rec.user_id === clientId);
+    (async () => {
+      // The page's own /api/... fetch rides the Next.js cookie session, but this
+      // DIRECT query does not: client.auth.getSession() is empty when the session
+      // lives only in HTTP cookies, so the read would run as ANON, RLS would hide
+      // every row, and the station would SILENTLY never appear for a cookie-session
+      // coach (review: Codex P2). Bootstrap the session bridge first.
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through as anon */ }
+      if (!on) return;
+      // Subscribe BEFORE the initial read so no event can slip through the gap;
+      // the `evented` guard still lets a live event beat a slow first fetch.
+      try {
+        channel = db.channel(`ck-live-${clientId}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "user_activity_live", filter: `user_id=eq.${clientId}` },
+            (p) => {
+              try {
+                if (p.eventType === "DELETE") { if (mine(p.old)) take(null, true); return; }
+                if (mine(p.new)) take(p.new, true);
+              } catch (e) { console.warn("[shape] live station: bad realtime payload", e); }
+            })
+          .subscribe((status, err) => {
+            // Don't fail silently: a dropped/erroring channel leaves the station
+            // frozen with no clue why (review: CodeRabbit).
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              console.warn("[shape] live station: realtime channel " + status, err || "");
+            }
+          });
+      } catch (e) { console.warn("[shape] live station: subscribe failed", e); }
+      if (!on) return;
+      try {
+        const res = await db.from("user_activity_live")
+          .select("payload, started_at, updated_at, expires_at")
+          .eq("user_id", clientId).gt("expires_at", new Date().toISOString()).maybeSingle();
+        if (res && res.error) { console.warn("[shape] live station: initial read failed", res.error.message || res.error); return; }
+        take((res && res.data) || null, false);
+      } catch (e) { console.warn("[shape] live station: initial read threw", e); }
+    })();
     return () => { on = false; if (expTimer) clearTimeout(expTimer); if (channel) { try { db.removeChannel(channel); } catch (e) {} } };
   }, [clientId]);
   const lp = row && window.ShapeLiveValidate ? window.ShapeLiveValidate.bsValidLivePayload(row.payload) : null;
