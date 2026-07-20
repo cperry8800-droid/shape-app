@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Entreno asignado perdido",
   "ledger.kind.penalty_habit": "Racha de hábitos rota",
   "ledger.kind.commitment_win": "Compromiso cumplido",
-  "ledger.kind.commitment_loss": "Compromiso no cumplido"
+  "ledger.kind.commitment_loss": "Compromiso no cumplido",
+  "checkpoint.toGo": "{toGo} para el punto de control de {at} · {toNext} para {next}",
+  "checkpoint.passed": "Punto de control {at} superado ✓ · {toNext} para {next}",
+  "checkpoint.toast": "10,000 en el bolsillo — Legend está al alcance."
 }

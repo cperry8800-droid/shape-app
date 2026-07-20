@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Atlanan planlı antrenman",
   "ledger.kind.penalty_habit": "Kırılan alışkanlık serisi",
   "ledger.kind.commitment_win": "Taahhüt tutuldu",
-  "ledger.kind.commitment_loss": "Taahhüt kaçırıldı"
+  "ledger.kind.commitment_loss": "Taahhüt kaçırıldı",
+  "checkpoint.toGo": "{at} kontrol noktasına {toGo} · {next} için {toNext}",
+  "checkpoint.passed": "{at} kontrol noktası geçildi ✓ · {next} için {toNext}",
+  "checkpoint.toast": "10.000 tamam — Legend artık yakın."
 }

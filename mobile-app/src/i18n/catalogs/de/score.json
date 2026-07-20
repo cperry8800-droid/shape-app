@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Zugewiesenes Workout verpasst",
   "ledger.kind.penalty_habit": "Gewohnheits-Serie unterbrochen",
   "ledger.kind.commitment_win": "Verpflichtung erfüllt",
-  "ledger.kind.commitment_loss": "Verpflichtung verpasst"
+  "ledger.kind.commitment_loss": "Verpflichtung verpasst",
+  "checkpoint.toGo": "Noch {toGo} bis zum Checkpoint bei {at} · {toNext} bis {next}",
+  "checkpoint.passed": "Checkpoint {at} geschafft ✓ · {toNext} bis {next}",
+  "checkpoint.toast": "10.000 in der Tasche — Legend ist in Reichweite."
 }

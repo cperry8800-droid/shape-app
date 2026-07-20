@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Пропущена назначенная тренировка",
   "ledger.kind.penalty_habit": "Прервана серия привычки",
   "ledger.kind.commitment_win": "Обязательство выполнено",
-  "ledger.kind.commitment_loss": "Обязательство не выполнено"
+  "ledger.kind.commitment_loss": "Обязательство не выполнено",
+  "checkpoint.toGo": "{toGo} до отметки {at} · {toNext} до {next}",
+  "checkpoint.passed": "Отметка {at} взята ✓ · {toNext} до {next}",
+  "checkpoint.toast": "10 000 позади — Legend уже близко."
 }

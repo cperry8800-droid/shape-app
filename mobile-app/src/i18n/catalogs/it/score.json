@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Allenamento assegnato saltato",
   "ledger.kind.penalty_habit": "Serie di abitudine interrotta",
   "ledger.kind.commitment_win": "Impegno mantenuto",
-  "ledger.kind.commitment_loss": "Impegno mancato"
+  "ledger.kind.commitment_loss": "Impegno mancato",
+  "checkpoint.toGo": "{toGo} al checkpoint di {at} · {toNext} a {next}",
+  "checkpoint.passed": "Checkpoint {at} superato ✓ · {toNext} a {next}",
+  "checkpoint.toast": "10.000 raggiunti — Legend è a portata."
 }

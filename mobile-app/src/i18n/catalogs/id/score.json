@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Latihan yang diberikan terlewat",
   "ledger.kind.penalty_habit": "Rentetan kebiasaan putus",
   "ledger.kind.commitment_win": "Komitmen terpenuhi",
-  "ledger.kind.commitment_loss": "Komitmen terlewat"
+  "ledger.kind.commitment_loss": "Komitmen terlewat",
+  "checkpoint.toGo": "{toGo} menuju checkpoint {at} · {toNext} menuju {next}",
+  "checkpoint.passed": "Checkpoint {at} tercapai ✓ · {toNext} menuju {next}",
+  "checkpoint.toast": "10.000 tercapai — Legend sudah di depan mata."
 }

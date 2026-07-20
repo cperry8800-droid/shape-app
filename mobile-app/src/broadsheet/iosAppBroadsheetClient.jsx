@@ -6,7 +6,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
-import { bsScoreStanding } from '../services/scoreStanding.mjs';
+import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
@@ -20053,11 +20053,16 @@ function BSCommitmentCard() {
 // the dot + figure are an HTML overlay, the BSSdTrace pattern). THIS TIER: the
 // current lane zoomed — {tier}→{next} with a heat fill to `frac`.
 function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
+  const tr = useShapeTr();
   const INK = t.INK;
   const reduced = bsSdReduced();
   const fmt = (n) => Number(n).toLocaleString();
   if (!Array.isArray(tiers) || tiers.length < 2) return null;
   const s = bsScoreStanding(tiers, tier, total);
+  // The 10,000 Peak checkpoint (owner call, pacing option B): a marker inside
+  // the Peak→Legend stretch — recognition only, no points. Null in every other
+  // lane, so no other tier ever grows a tick.
+  const chk = bsPeakCheckpoint(tiers, tier, total);
   if (scale === 'tier') {
     // Zoomed ladder — the LADDER's own SVG grammar narrowed to one segment: the
     // current tier node bottom-left, the next tier node top-right, a dashed ink
@@ -20075,7 +20080,10 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
     const dotCol = s.atRisk ? riskRed : heat;
     const caption = s.atRisk
       ? `⚠ ${fmt(Math.max(0, s.curThr - total))} below ${tier} — earn it back to hold`
-      : s.topTier ? 'Top tier — nothing above.' : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
+      : s.topTier ? 'Top tier — nothing above.'
+      : (chk && !chk.reached) ? tr('score:checkpoint.toGo', { toGo: fmt(chk.toGo), at: fmt(chk.at), toNext: fmt(s.toNext), next: s.nextName, defaultValue: '{toGo} to the {at} checkpoint · {toNext} to {next}' })
+      : (chk && chk.reached) ? tr('score:checkpoint.passed', { at: fmt(chk.at), toNext: fmt(s.toNext), next: s.nextName, defaultValue: 'Checkpoint {at} passed ✓ · {toNext} to {next}' })
+      : `${fmt(s.toNext)} to ${s.nextName} · ${s.pct}% through the tier`;
     return (
       <div aria-label={s.atRisk ? `${fmt(total)} points — ${fmt(Math.max(0, s.curThr - total))} below ${tier}, earn it back to hold` : `${fmt(total)} points — ${tier}, ${s.pct}% to ${s.nextName || 'the top'}, ${fmt(s.toNext)} to go`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -20090,6 +20098,10 @@ function BSScoreStandingChart({ tiers, tier, total, heat, t, seen, scale }) {
               style={{ ['--sd-len']: 1, strokeDashoffset: reduced ? 0 : 1, ...(reduced ? null : seen ? { animation: 'bsSdDrawLine 900ms ease forwards' } : null) }} />
             <circle cx={x0} cy={y0} r="3" fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
             <circle cx={x1} cy={y1} r="3" fill={s.topTier ? heat : bsTHexA(INK, 0.35)} stroke={nextColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            {chk && (
+              <circle cx={x0 + (x1 - x0) * chk.laneFrac} cy={y0 + (y1 - y0) * chk.laneFrac} r="3.5"
+                fill={chk.reached ? heat : 'none'} stroke={chk.reached ? heat : bsTHexA(INK, 0.45)} strokeWidth="1.5" strokeDasharray={chk.reached ? undefined : '2 2'} vectorEffect="non-scaling-stroke" />
+            )}
           </svg>
           <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY, width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 999, background: dotCol, ['--sd-glow']: bsTHexA(dotCol, 0.5), ...(reduced ? null : { animation: 'bsSdPrBreath 2.6s ease-in-out infinite' }) }} />
           <div aria-hidden style={{ position: 'absolute', left: `${youLeftPct}%`, top: youY - 20, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: dotCol, whiteSpace: 'nowrap' }}>{fmt(total)}</div>
@@ -20390,6 +20402,21 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const [momRef, momSeen] = useBSSdInView();
   const heat = bsTierColor(tier);
   const st = bsScoreStanding(tiers, tier, scoreTotal);
+  // The 10,000 celebration (owner call): fires ONCE per account, the first
+  // time the member sees her standing past the checkpoint. Recognition only —
+  // no points, no ledger row, so it can never touch the economy.
+  React.useEffect(() => {
+    try {
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+      if (!uid) return;
+      const chk = bsPeakCheckpoint(tiers, tier, scoreTotal);
+      if (!(chk && chk.reached)) return;
+      const key = 'shape.peak10k.' + uid;
+      if (window.localStorage?.getItem(key)) return;
+      window.localStorage?.setItem(key, '1');
+      window.__bsToast?.(tr('score:checkpoint.toast', { defaultValue: '10,000 in the book — Legend is in reach.' }), 'ok');
+    } catch (e) {}
+  }, [scoreTotal, tier]);
   const weekTxt = profile.week != null && String(profile.week) !== '' ? String(profile.week) : '+0';
   const atRisk = !!profile.atRisk || st.atRisk;
   const riskRed = t.isLight ? '#c0392b' : '#e0463c';

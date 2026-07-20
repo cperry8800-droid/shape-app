@@ -204,5 +204,8 @@
   "ledger.kind.penalty_workout": "Пропущено призначене тренування",
   "ledger.kind.penalty_habit": "Перервано серію звички",
   "ledger.kind.commitment_win": "Зобов'язання виконано",
-  "ledger.kind.commitment_loss": "Зобов'язання не виконано"
+  "ledger.kind.commitment_loss": "Зобов'язання не виконано",
+  "checkpoint.toGo": "{toGo} до позначки {at} · {toNext} до {next}",
+  "checkpoint.passed": "Позначку {at} взято ✓ · {toNext} до {next}",
+  "checkpoint.toast": "10 000 позаду — Legend уже близько."
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsScoreStanding } from '../mobile-app/src/services/scoreStanding.mjs';
+import { bsScoreStanding, bsPeakCheckpoint } from '../mobile-app/src/services/scoreStanding.mjs';
 
 const TIERS = [
   { name: 'Raw', range: '0+' },
@@ -83,4 +83,22 @@ test('empty tiers -> safe zeros', () => {
   assert.equal(s.laneIndex, 0);
   assert.equal(s.laneCount, 0);
   assert.equal(s.topTier, true); // nothing above -> treat as top
+});
+
+test('peak checkpoint: only inside the Peak lane, reached at 10k, null elsewhere', () => {
+  const tiers = [
+    { name: 'Raw', range: '0+' }, { name: 'Tempo', range: '750+' },
+    { name: 'Form', range: '2,000+' }, { name: 'Peak', range: '5,000+' },
+    { name: 'Legend', range: '15,000+' },
+  ];
+  const below = bsPeakCheckpoint(tiers, 'Peak', 8200);
+  assert.equal(below.reached, false);
+  assert.equal(below.toGo, 1800);
+  assert.ok(Math.abs(below.laneFrac - 0.5) < 1e-9);          // 10k is halfway through 5k→15k
+  const above = bsPeakCheckpoint(tiers, 'Peak', 12000);
+  assert.equal(above.reached, true);
+  assert.equal(above.toGo, 0);
+  assert.equal(bsPeakCheckpoint(tiers, 'Form', 2500), null);  // other lanes: no marker
+  assert.equal(bsPeakCheckpoint(tiers, 'Legend', 16000), null); // top tier: no marker
+  assert.equal(bsPeakCheckpoint(tiers, 'Raw', 100), null);
 });
