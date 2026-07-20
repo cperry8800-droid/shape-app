@@ -17511,14 +17511,24 @@ function useBSCycleDerived(optIn) {
   const [s, setS] = useStateBSC(() => {
     const c = (typeof window !== 'undefined' && window.ShapeCycleDerived) || null;
     // uid-keyed for the same reason as ShapeCycleState — an unscoped cache here
-    // would briefly render the PREVIOUS member's period dates (Codex P1).
-    return (c && c.uid === uid) ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null, uid };
+    // would briefly render the PREVIOUS member's period dates (Codex P1) — AND
+    // never accepted while opted out, so a cache can't outlive an opt-out.
+    return (c && c.uid === uid && optIn) ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null, uid };
   });
   React.useEffect(() => {
     if (s.uid !== uid) setS({ loading: !!optIn, starts: [], cycle: null, uid });
   }, [uid, s.uid, optIn]);
   const load = React.useCallback(async () => {
-    if (!optIn) { setS({ loading: false, starts: [], cycle: null, uid }); return; }
+    if (!optIn) {
+      // Opt-out DELETED the rows, so the in-memory derivation must not outlive
+      // them (review: CodeRabbit named this third clearing condition — I had
+      // covered logout and auth changes structurally via the uid key, but not
+      // this one). A surviving cache would render period dates for data that
+      // no longer exists — the exact opposite of what "stop & delete" promised.
+      try { window.ShapeCycleDerived = null; } catch (e) {}
+      setS({ loading: false, starts: [], cycle: null, uid });
+      return;
+    }
     let starts = [];
     try { starts = (await window.ShapeCycle?.list?.()) || []; } catch (e) { starts = []; }
     // The engine returns null when there is nothing to derive from — the
