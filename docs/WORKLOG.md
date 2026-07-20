@@ -178,7 +178,39 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 5/9): NORA SETS — the Shape Sets broadcast
+> **Latest (2026-07-20, build 6/9): THE CYCLE PR A — migration + phase engine +
+> data layer (#1775).** The flagship differentiator's foundation, no UI (PRs
+> B–D consume): `cycle_events` (owner-only RLS · a no-future trigger judged in
+> the member's OWN timezone with a UTC+1d fallback) · **GUC-guarded RPC-only
+> settings/consent writes** (flag + receipt move together or not at all — a
+> direct write RAISES) · the definer coach read gated on the link AND both
+> member flags (absence, never a padlock) · transactional opt-out. Pure
+> deterministic `cyclePhase.mjs` — every spec vector green on the first run;
+> `bsCycleRead` fires only past ALL floors, never-shaming copy baked
+> in-module. ⚠ **Plan error #6 (live-schema check): `user_goals` has NO
+> DELETE policy** — the spec's INVOKER opt-out would have deleted its
+> settings doc as a silent zero-row no-op, leaving `share:true` standing over
+> empty starts; fixed with a kind-scoped, GUC-gated DELETE policy. ⚠ **Five
+> rounds hardened the consent machinery** — the standout: my own Symbol-safe
+> coercion was quietly FABRICATING observations (`Number(null)` = finite 0 —
+> eight missing-sleep rows produced a "significant" 7.6h gap from data that
+> does not exist); rounds 1–4 each audited the PREVIOUS fix, not the plan —
+> renaming the settings row OUT of `kind='cycle_settings'` escaped the guard
+> (it now fires on BOTH sides of an UPDATE), and the two-call consent
+> sequence was a documented contract only (one call could flip share ON with
+> just a tracking receipt — now `one_flag_per_receipt`: the flag a receipt
+> doesn't name must match STORED state, serialized by a per-user ADVISORY
+> lock both RPCs share, because FOR UPDATE can't lock a row that doesn't
+> exist and an opt-out racing a share-on could strand a grant receipt with
+> no withdrawal). The withdrawal rule is STRUCTURAL (`p_opt_in=false`
+> rejected on every path; the settings doc leaves only through
+> `cycle_opt_out()`). Flagged for the
+> OWNER: `phase:'late'` + training volume CANNOT fire in reads (the spec
+> ratifies no materiality floor for it). ⚠ **OWNER MIGRATION
+> `2026-07-19-cycle-events.sql`.** Suite **674**. Next: build 7/9
+> `cycle-b-member-surfaces`.
+>
+> **Prior (2026-07-20, build 5/9): NORA SETS — the Shape Sets broadcast
 > schedule, stream-gated.** A real `nora_sets` schedule behind the Shape Sets
 > page (COMING UP station, live row pinned with a NOW tag), a 3-state line on
 > the radio screen + muted bar, and the same list on the website Radio page.
@@ -741,6 +773,116 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 6/9) — THE CYCLE PR A: migration + phase engine + ShapeCycle (#1775)
+
+- **Build 6 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-cycle-a-engine.md`. **No UI in this PR** —
+  PRs B–D consume it. Suite **663 → 674**.
+- **⚠ OWNER MIGRATION — `2026-07-19-cycle-events.sql`** (not applied).
+  Post-apply validation (throwaway test account): direct `cycle_settings`
+  upsert raises · direct cycle consent insert raises · non-cycle consent kinds
+  pass untouched · `cycle_set_settings` writes flag+receipt atomically · a
+  share receipt while NOT opted in raises `one_flag_per_receipt` (and a
+  tracking receipt can't move the share flag) ·
+  future-dated insert raises `future_event_date` · `get_client_cycle`
+  anon=false/authenticated=true · opt-out empties EVERYTHING incl. the
+  settings doc + writes the withdrawal receipt(s) · a direct settings-doc
+  DELETE is a zero-row no-op.
+- **The consent machinery is structural, not conventional:** GUC-guard
+  triggers make cycle settings AND cycle consent receipts RPC-only at the DB
+  (`shape.cycle_rpc`, the #1707 pattern); `cycle_set_settings` writes the flag
+  and its receipt in ONE transaction with coherence invariants; **stopping
+  tracking has exactly one door** — `cycle_opt_out()` deletes the events AND
+  the settings doc AND writes withdrawal receipts for every granted scope,
+  atomically. `p_opt_in=false` is rejected on EVERY settings path.
+- **⚠ Plan error #6 — the live-schema check caught it pre-build:**
+  `user_goals` has **NO DELETE policy** (insert/select/update only — the
+  account-delete route documents the fact). The spec's INVOKER opt-out would
+  have deleted its settings doc as a **silent zero-row no-op**: events erased,
+  `{optIn:true, share:true}` left standing — so `get_client_cycle` would read
+  `share:true` over empty starts instead of absence, and the member's UI would
+  still show tracking on, after "delete everything." Fixed with a DELETE
+  policy scoped to `kind='cycle_settings'` only — and **GUC-gated** (round 2:
+  an unguarded policy was itself a bypass — a member could delete the doc
+  DIRECTLY, clearing flags while the period rows stayed on disk, receipt-less).
+- **The engine** (`public/newdesign/cyclePhase.mjs`, canonical; mobile shim;
+  9→11 pinned vectors): L = round-half-up mean of kept 15–60 intervals;
+  menstrual > luteal > ovulatory > follicular window derivation with
+  short-cycle O/F honestly null; the ordered confidence ladder (population
+  stdev; wild n=2 reads LOW); `late` (L < d ≤ L+7, predictions intact) then
+  `paused` (every prediction null); **Date inputs normalize to the LOCAL
+  calendar date** (23:59 never reads as tomorrow); prediction slop scales
+  with confidence (±1/±2/±4).
+- **`bsCycleRead`**: two most-populated buckets · ≥2 cycles AND ≥8 days each ·
+  per-metric materiality floor AND 1.65·SE · firing metrics ranked by gap
+  standardized on each metric's own floor (|gap|/se degenerates to ∞ on
+  zero-variance buckets) · never-shaming copy baked in-module (crossoverCopy
+  no-drift rule) · **reads compare the four physiological phases ONLY**.
+- **⚠ Flagged for the OWNER (both in the PR body):** `phase:'late'` — the
+  window-algebra addition the plan itself flags; and **training volume cannot
+  fire in reads** — the spec names it as a bucketed series but ratifies NO
+  materiality floor, and volume arrives in caller units, so any floor invented
+  here would be fabricated precision. Bucketed-but-silent until ratified.
+- **⚠ Review rounds (5 with findings; each Codex pass came from a manual
+  `@codex review` re-trigger — its auto-review fires once, at PR-open):**
+  - **Codex P1 — my Symbol-safe coercion was FABRICATING observations.**
+    `Number(null)` and `Number('')` are both finite **0**, so eight
+    missing-sleep rows in one phase produced a "significant" 7.6h gap from
+    data that does not exist (reproduced empirically before fixing) — the
+    food-search `Number(null)` lesson from this file, missed in the same
+    module where the throw-class was audited proactively. A missing value is
+    now ABSENCE (drops the day); finite numbers + non-empty numeric strings
+    (the PostgREST shape) count.
+  - **Codex P2 ×3:** `late`/`paused` could form read buckets → "in your paused
+    phase" reproduced verbatim in copy (doctrine violation; now structurally
+    excluded) · `cycle_events` was in the deletion purge list but NOT the
+    account **export** roster (both WA MHMD halves now hold) · the settings
+    RPC could record a tracking withdrawal while period rows stayed on disk.
+  - **Round 2 (CodeRabbit ×2, both fair hits on MY round-1 fixes):** the
+    DELETE policy bypass + the kind-scoped guard bypassed via the share
+    branch (the upsert writes BOTH flags).
+  - **Round 3 (Codex P1, on a manual `@codex review` re-trigger — its
+    auto-review fires once at PR-open only):** the guard checked `NEW.kind`
+    alone, so an UPDATE renaming the row OUT of `cycle_settings` escaped its
+    scope entirely — flags mutated with the period rows still on disk,
+    receipt-less. The guard now fires when EITHER side of the row is
+    `cycle_settings` (the update policy's WITH CHECK pins `user_id`, so the
+    rename can't gift the row either).
+  - **Round 4 (Codex P1, on the round-3 head):** ONE receipt per call was a
+    documented UI contract, not a rule — the receipt checks compared the
+    receipt to the flag it NAMES while the upsert overwrites BOTH flags, so
+    one hand-built call could flip share ON with only a tracking receipt
+    (coach visibility, no share receipt), clear share receipt-lessly, or opt
+    in receipt-lessly around a share receipt. Now **`one_flag_per_receipt`**:
+    the RPC locks + reads the STORED flags (missing doc = false/false) and
+    rejects any call where the unnamed flag moves; NULL flags rejected
+    outright (`not NULL` is NULL — they slid past every boolean guard). All
+    3 smuggling vectors + the legit sequences probed on TEMP constructs
+    against live Postgres before pushing.
+  - **Round 5 (CodeRabbit Major + Codex P2):** FOR UPDATE can't lock a row
+    that doesn't exist — and chasing that surfaced a receipt race it could
+    never fix: `cycle_opt_out()` racing a share-on reads `share=false`, then
+    deletes AFTER the grant commits — a share-grant receipt with NO
+    withdrawal receipt. Both RPCs now take the same per-user
+    `pg_advisory_xact_lock` before reading stored state (FOR UPDATE
+    dropped). And the self-serve export had gained `cycle_events` but not
+    the consent HISTORY — `consent_log` (grants + withdrawals) joins the
+    export roster, caller-RLS-scoped (`consent_log_select_own` verified
+    live). **The pattern, named:** five rounds where each guard was right
+    for the path just named and blind to the adjacent one — derive rules
+    from STORED STATE under ONE serializer, not caller claims, and
+    enumerate the bypass class; two builds in a row now.
+- **Data layer** (`window.ShapeCycle`): list/log/unlog on own rows (upsert on
+  the unique key = idempotent re-log; the no-future rejection surfaces as
+  `reason:'future'`); settings READ direct, WRITES RPC-first with **no
+  fallback** (a direct write raises on the guards, correctly); pre-migration
+  → `reason:'unavailable'`; `forClient` → null / `{share:false}` (absence) /
+  `{share:true, starts}` raw for the ONE pure module to derive from.
+- Verified: `npm test` **674** · `tsc --noEmit` clean · `node --check`
+  shapeBackend · PowerShell `/m/` build exit 0 · `build-newdesign --check`
+  exit 0 · LF · CHECK/trigger/GUC expressions probed live without applying ·
+  `shape_user_tz` NULL-for-unknown confirmed (the fallback branch is real).
 
 ### 2026-07-20 (build 5/9) — NORA SETS: the Shape Sets schedule, stream-gated (#1773)
 
