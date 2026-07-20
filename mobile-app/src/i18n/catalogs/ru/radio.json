@@ -61,5 +61,19 @@
   "sets.liveFrom": "Прямой эфир из",
   "sets.nowTag": "Сейчас",
   "sets.onScheduleNow": "Сейчас в расписании — эфир скоро",
-  "sets.upNext": "Далее · {title} · {time}"
+  "sets.upNext": "Далее · {title} · {time}",
+  "social.signInToReact": "Войдите, чтобы реагировать и комментировать",
+  "social.openComments": "Комментарии",
+  "social.commentsOn": "Комментарии к {title}",
+  "social.commentsTitle": "{count, plural, one {# комментарий} few {# комментария} many {# комментариев} other {# комментария}}",
+  "social.close": "Закрыть",
+  "social.beFirst": "Пока нет комментариев — скажите что-нибудь об этом треке.",
+  "social.member": "Участник",
+  "social.placeholder": "Скажите что-нибудь…",
+  "social.posting": "Публикуется…",
+  "social.post": "Отправить",
+  "social.now": "сейчас",
+  "social.mAgo": "{n} мин",
+  "social.hAgo": "{n} ч",
+  "social.dAgo": "{n} дн"
 }

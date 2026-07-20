@@ -61,5 +61,19 @@
   "sets.liveFrom": "Langsung dari",
   "sets.nowTag": "Sekarang",
   "sets.onScheduleNow": "Ada di jadwal sekarang — siaran segera hadir",
-  "sets.upNext": "Berikutnya · {title} · {time}"
+  "sets.upNext": "Berikutnya · {title} · {time}",
+  "social.signInToReact": "Masuk untuk bereaksi & berkomentar",
+  "social.openComments": "Komentar",
+  "social.commentsOn": "Komentar tentang {title}",
+  "social.commentsTitle": "{count, plural, other {# komentar}}",
+  "social.close": "Tutup",
+  "social.beFirst": "Belum ada komentar — katakan sesuatu tentang lagu ini.",
+  "social.member": "Anggota",
+  "social.placeholder": "Katakan sesuatu…",
+  "social.posting": "Mengirim…",
+  "social.post": "Kirim",
+  "social.now": "sekarang",
+  "social.mAgo": "{n} mnt",
+  "social.hAgo": "{n} j",
+  "social.dAgo": "{n} h"
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
@@ -15,8 +16,36 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 //   - Pulsing accent radial that breathes with BPM.
 //   - Optional "stage lights" — diagonal cream/dark sweep at edges.
 
-const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, createContext: createContextBR, useContext: useContextBR } = React;
+const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, useCallback: useCallbackBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
+
+// The neutral song-social shape — every read/write path returns this or a filled
+// version of it, so a signed-out or pre-migration reader never sees undefined.
+const RADIO_SOCIAL_EMPTY = { up: 0, down: 0, myVote: null, commentCount: 0, comments: [], loading: false };
+
+// Optimistic vote math — mirrors set_radio_song_vote exactly (same vote toggles
+// off, a different vote switches, no vote adds) so the instant UI matches what the
+// server will return. Clamped at 0 so a stale cache can't render a negative count.
+// Can the viewer write? Counts + comments are public to read; voting/commenting
+// needs a signed-in account. The radio player is member-gated in-app, so this is
+// almost always true — but a signed-out preview reads counts and is nudged, never
+// given a dead tap.
+function bsRadioSignedIn() {
+  try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; }
+}
+
+function bsApplyOptimisticVote(s, vote) {
+  const cur = s.myVote;
+  let up = s.up || 0, down = s.down || 0, my = cur;
+  if (cur === 'up') up -= 1; else if (cur === 'down') down -= 1;
+  if (cur === vote) {
+    my = null;                                   // tapping the current vote clears it
+  } else {
+    if (vote === 'up') up += 1; else down += 1;
+    my = vote;
+  }
+  return { ...s, up: Math.max(0, up), down: Math.max(0, down), myVote: my };
+}
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -160,7 +189,10 @@ function BSRadioProvider({ children }) {
   const fxMode = fx.mode, fxColor = fx.color;
   const setFxMode = (mode) => setFx(prev => ({ ...prev, mode: BS_FX_MODE_KEYS.includes(mode) ? mode : 'off' }));
   const setFxColor = (color) => setFx(prev => ({ ...prev, color: bsValidFxColor(color) ? color : 'cycle' }));
-  const [trackFeedback, setTrackFeedbackState] = useStateBR(() => safeReadRadioJSON('shape.radio.feedback', {}));
+  // Shared song social (like/dislike + comments), cached by song key. Server-backed
+  // now (window.ShapeRadioSong) — the old device-only localStorage feedback is
+  // retired. Each entry: { up, down, myVote, commentCount, comments, loading }.
+  const [songSocial, setSongSocial] = useStateBR({});
   const [musicLibraries, setMusicLibrariesState] = useStateBR(() => safeReadRadioJSON('shape.radio.musicLibraries', { spotify: [], apple: [] }));
 
   // Auto-prompt once after first render (post-login simulation)
@@ -192,6 +224,16 @@ function BSRadioProvider({ children }) {
     return () => window.ShapeRadioLive?.stopPolling?.();
   }, [radioOn, paused]);
 
+  // Load the shared social whenever the track changes to a REAL one (a non-null
+  // title/artist). An honest-empty track loads nothing, so counts/comments never
+  // attach to a placeholder. Re-runs on the derived key, so a re-fetch on the same
+  // song is skipped by React's dep equality.
+  const currentSongKey = (nowPlaying && (nowPlaying.title || nowPlaying.artist))
+    ? makeRadioTrackKey({ a: nowPlaying.title, b: nowPlaying.artist }) : null;
+  useEffectBR(() => {
+    if (radioOn && currentSongKey) loadSongSocial(currentSongKey);
+  }, [radioOn, currentSongKey, loadSongSocial]);
+
   function persistRadioPref(asked, on) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
   }
@@ -217,32 +259,52 @@ function BSRadioProvider({ children }) {
     persistRadioPref(true, !!enabled);
   }
 
-  function persistFeedback(next) {
-    setTrackFeedbackState(next);
-    try { window.localStorage && window.localStorage.setItem('shape.radio.feedback', JSON.stringify(next)); } catch {}
-  }
+  // Fetch the shared social for a track key (counts + my vote + recent comments)
+  // and cache it. Public read — works signed-out (myVote just stays null).
+  const loadSongSocial = useCallbackBR(async (key) => {
+    if (!key || key === 'unknown') return;
+    setSongSocial(prev => ({ ...prev, [key]: { ...RADIO_SOCIAL_EMPTY, ...(prev[key] || {}), loading: !prev[key] } }));
+    try {
+      const s = window.ShapeRadioSong ? await window.ShapeRadioSong.get(key) : null;
+      if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
+      else setSongSocial(prev => ({ ...prev, [key]: { ...(prev[key] || RADIO_SOCIAL_EMPTY), loading: false } }));
+    } catch (e) {
+      setSongSocial(prev => ({ ...prev, [key]: { ...(prev[key] || RADIO_SOCIAL_EMPTY), loading: false } }));
+    }
+  }, []);
 
-  function setTrackFeedback(track, vote) {
+  // Like/dislike the track. Optimistic (the tap feels instant), then reconciled
+  // with the server's authoritative counts; reverts on failure. Returns true on
+  // success, false if it couldn't (e.g. signed out) so the caller can nudge.
+  const voteSong = useCallbackBR(async (track, vote) => {
     const key = makeRadioTrackKey(track);
-    const prev = trackFeedback[key] || { vote: null, comments: [] };
-    const nextVote = prev.vote === vote ? null : vote;
-    persistFeedback({ ...trackFeedback, [key]: { ...prev, vote: nextVote } });
-  }
+    if (!key || key === 'unknown') return false;
+    const before = songSocial[key] || { ...RADIO_SOCIAL_EMPTY };
+    setSongSocial(prev => ({ ...prev, [key]: bsApplyOptimisticVote(prev[key] || RADIO_SOCIAL_EMPTY, vote) }));
+    try {
+      const s = window.ShapeRadioSong ? await window.ShapeRadioSong.vote(key, vote) : null;
+      if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
+      return true;
+    } catch (e) {
+      setSongSocial(prev => ({ ...prev, [key]: before }));   // revert
+      return false;
+    }
+  }, [songSocial]);
 
-  function addTrackComment(track, text) {
+  // Comment on the track. The server returns the fresh social (comments included),
+  // so we replace the cache entry with server truth. Returns true on success.
+  const commentSong = useCallbackBR(async (track, text) => {
+    const key = makeRadioTrackKey(track);
     const body = (text || '').trim();
-    if (!body) return;
-    const key = makeRadioTrackKey(track);
-    const prev = trackFeedback[key] || { vote: null, comments: [] };
-    const next = {
-      ...trackFeedback,
-      [key]: {
-        ...prev,
-        comments: [{ who: 'You', text: body, time: 'now' }, ...(prev.comments || [])].slice(0, 12),
-      },
-    };
-    persistFeedback(next);
-  }
+    if (!key || key === 'unknown' || !body) return false;
+    try {
+      const s = window.ShapeRadioSong ? await window.ShapeRadioSong.comment(key, body) : null;
+      if (s) setSongSocial(prev => ({ ...prev, [key]: { ...s, loading: false } }));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }, []);
 
   function saveTrackToLibrary(track, service) {
     const payload = makeRadioTrackPayload(track);
@@ -263,7 +325,7 @@ function BSRadioProvider({ children }) {
     trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode, fxColor, setFxColor,
-    trackFeedback, setTrackFeedback, addTrackComment,
+    songSocial, voteSong, commentSong, loadSongSocial, currentSongKey,
     musicLibraries, saveTrackToLibrary, isTrackSaved,
     sets,
     LIVE: BS_LIVE_STATION,
@@ -574,7 +636,8 @@ function BSNowPlaying({ onOpen }) {
   if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onOpen={onOpen} />;
 
   const np = radioNowPlayingDisplay(r.nowPlaying);
-  const homeFeedback = (np.hasTrack && r.trackFeedback[makeRadioTrackKey({ a: np.title, b: np.artist })]) || { vote: null, comments: [] };
+  const homeKey = np.hasTrack ? makeRadioTrackKey({ a: np.title, b: np.artist }) : null;
+  const homeSocial = (homeKey && r.songSocial[homeKey]) || RADIO_SOCIAL_EMPTY;
 
   return (
     <div onClick={onOpen} style={{
@@ -629,36 +692,32 @@ function BSNowPlaying({ onOpen }) {
             }}>{np.artist}</div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
             {[
-              { key: 'like', label: '👍' },
-              { key: 'dislike', label: '👎' },
+              { key: 'up', glyph: '+', count: homeSocial.up },
+              { key: 'down', glyph: '−', count: homeSocial.down },
             ].map(item => {
-              const active = homeFeedback.vote === item.key;
+              const active = homeSocial.myVote === item.key;
               return (
                 <button
                   key={item.key}
-                  aria-label={item.key === 'like' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
-                  onClick={(e) => { e.stopPropagation(); r.setTrackFeedback({ a: np.title, b: np.artist }, item.key); }}
+                  aria-label={item.key === 'up' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
+                  onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong({ a: np.title, b: np.artist }, item.key); }}
+                  disabled={!homeKey}
                   style={{
-                    width: 24,
-                    height: 26,
-                    flexShrink: 0,
-                    border: 0,
-                    background: 'transparent',
+                    minWidth: 24, height: 26, flexShrink: 0, border: 0, padding: '0 4px',
+                    background: active ? `${t.ACCENT}22` : 'transparent', borderRadius: 5,
                     color: active ? t.INK : (t.isLight ? 'rgba(5,7,7,0.92)' : '#ffffff'),
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: t.MONO,
-                    fontSize: 18,
-                    fontWeight: 900,
-                    lineHeight: 1,
+                    cursor: homeKey ? 'pointer' : 'default',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                    fontFamily: t.MONO, fontWeight: 900, lineHeight: 1,
                     textShadow: active || t.isLight ? 'none' : '0 1px 3px rgba(0,0,0,0.38)',
                     opacity: active ? 1 : 0.95,
                   }}
-                >{item.key === 'like' ? '+' : '-'}</button>
+                >
+                  <span style={{ fontSize: 18 }}>{item.glyph}</span>
+                  {item.count > 0 && <span style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>{item.count}</span>}
+                </button>
               );
             })}
           </div>
@@ -813,6 +872,107 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
 // ═══════════════════════════════════════════════════════════
 // BSRadioScreen — full Radio page (live + playlists + ticker)
 // ═══════════════════════════════════════════════════════════
+// Comments on the track on air — a bottom sheet portaled into the phone surface
+// (dark, matching the radio screen). Reads the shared comment list; posting goes
+// through onComment (server-backed, which returns the fresh list). Signed-out
+// readers see the thread but get a sign-in line instead of the composer.
+function BSSongCommentsSheet({ t, tr, title, artist, social, onComment, onClose }) {
+  const [draft, setDraft] = useStateBR('');
+  const [busy, setBusy] = useStateBR(false);
+  const canWrite = bsRadioSignedIn();
+  const comments = Array.isArray(social.comments) ? social.comments : [];
+  const CREAM = '#f4ede0', CREAM70 = 'rgba(244,237,224,0.72)', CREAM50 = 'rgba(244,237,224,0.5)', CREAM25 = 'rgba(244,237,224,0.25)';
+  const TEAL = t.ACCENT;
+  const submit = async () => {
+    const body = draft.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    const ok = await onComment(body);
+    setBusy(false);
+    if (ok) setDraft('');
+  };
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('radio:social.commentsOn', { title, defaultValue: 'Comments on {title}' })}
+        style={{ width: '100%', maxHeight: '80%', display: 'flex', flexDirection: 'column',
+          background: '#0b0f0f', borderTop: `2px solid ${TEAL}`, borderTopLeftRadius: 16, borderTopRightRadius: 16, color: CREAM }}>
+        {/* Header */}
+        <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${CREAM25}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>
+              {tr('radio:social.commentsTitle', { count: social.commentCount || 0, defaultValue: '{count, plural, one {# comment} other {# comments}}' })}
+            </span>
+            <button onClick={onClose} aria-label={tr('radio:social.close', { defaultValue: 'Close' })} style={{ border: 0, background: 'transparent', color: CREAM70, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 2 }}>{artist}</div>
+        </div>
+        {/* List */}
+        <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 18px' }}>
+          {comments.length === 0 ? (
+            <div style={{ padding: '26px 0', textAlign: 'center', fontFamily: t.BODY, fontSize: 13, color: CREAM50 }}>
+              {tr('radio:social.beFirst', { defaultValue: 'No comments yet — say something about this track.' })}
+            </div>
+          ) : comments.map((c) => (
+            <div key={c.id} style={{ padding: '9px 0', borderBottom: `1px solid rgba(244,237,224,0.1)` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: CREAM }}>{c.name || tr('radio:social.member', { defaultValue: 'Member' })}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: CREAM50 }}>{bsRadioTimeAgo(c.at, tr)}</span>
+              </div>
+              <div style={{ marginTop: 3, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.4, color: CREAM70, wordBreak: 'break-word' }}>{c.body}</div>
+            </div>
+          ))}
+        </div>
+        {/* Composer */}
+        <div style={{ padding: '10px 14px', borderTop: `1px solid ${CREAM25}` }}>
+          {canWrite ? (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 500))}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+                placeholder={tr('radio:social.placeholder', { defaultValue: 'Say something…' })}
+                rows={1}
+                style={{ flex: 1, resize: 'none', boxSizing: 'border-box', maxHeight: 90, padding: '10px 12px', borderRadius: 12,
+                  border: `1px solid ${CREAM25}`, background: 'rgba(244,237,224,0.05)', color: CREAM, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
+              <button onClick={submit} disabled={!draft.trim() || busy}
+                style={{ flex: 'none', minHeight: 40, padding: '0 16px', borderRadius: 12, border: 0,
+                  background: draft.trim() && !busy ? TEAL : 'rgba(244,237,224,0.12)', color: draft.trim() && !busy ? '#050707' : CREAM50,
+                  fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                  cursor: draft.trim() && !busy ? 'pointer' : 'default' }}>
+                {busy ? tr('radio:social.posting', { defaultValue: 'Posting…' }) : tr('radio:social.post', { defaultValue: 'Post' })}
+              </button>
+            </div>
+          ) : (
+            <div style={{ padding: '8px 2px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM50 }}>
+              {tr('radio:social.signInToReact', { defaultValue: 'Sign in to react & comment' })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+  return surface ? createPortal(sheet, surface) : sheet;
+}
+
+// Compact relative time for a comment stamp (ISO string in). Localized buckets;
+// falls to a short date past a week.
+function bsRadioTimeAgo(iso, tr) {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return '';
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 45) return tr('radio:social.now', { defaultValue: 'now' });
+  const m = Math.round(s / 60);
+  if (m < 60) return tr('radio:social.mAgo', { n: m, defaultValue: '{n}m' });
+  const h = Math.round(m / 60);
+  if (h < 24) return tr('radio:social.hAgo', { n: h, defaultValue: '{n}h' });
+  const d = Math.round(h / 24);
+  if (d < 7) return tr('radio:social.dAgo', { n: d, defaultValue: '{n}d' });
+  try {
+    const loc = (window.ShapeI18n?.intlLocale?.()) || undefined;
+    return new Date(ms).toLocaleDateString(loc, { month: 'short', day: 'numeric' });
+  } catch (e) { return new Date(ms).toLocaleDateString(); }
+}
+
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
@@ -820,6 +980,9 @@ function BSRadioScreen({ onBack }) {
   const onLive = true;
   const playlist = null;
   const np = radioNowPlayingDisplay(r.nowPlaying);
+  // Shared like/dislike + comments for the track on air (null social pre-load).
+  const screenKey = np.hasTrack ? makeRadioTrackKey({ a: np.title, b: np.artist }) : null;
+  const screenSocial = (screenKey && r.songSocial[screenKey]) || RADIO_SOCIAL_EMPTY;
   // Station tempo — the live now-playing payload carries no per-track BPM, so this
   // is the STATION's nominal BPM (labeled as such), used as the HR-match target.
   const stationBpm = r.LIVE.bpm;
@@ -828,6 +991,7 @@ function BSRadioScreen({ onBack }) {
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
   const [showSets, setShowSets] = useStateBR(false);
+  const [commentsOpen, setCommentsOpen] = useStateBR(false);
   const youHr = liveHr != null ? liveHr : demoHr;
   const signedDelta = youHr - stationBpm;
   const syncDelta = Math.abs(signedDelta);
@@ -1051,6 +1215,58 @@ function BSRadioScreen({ onBack }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>■</button>
           </div>
+
+          {/* Song social — shared like/dislike + a comments door. Renders ONLY on
+              a real track (honest-absent on a placeholder). Counts are public;
+              voting/commenting is signed-in only (an inline nudge, never a dead tap). */}
+          {screenKey && (() => {
+            const canReact = bsRadioSignedIn();
+            return (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {[
+                    { key: 'up', glyph: '+', count: screenSocial.up, label: tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) },
+                    { key: 'down', glyph: '−', count: screenSocial.down, label: tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' }) },
+                  ].map(item => {
+                    const active = screenSocial.myVote === item.key;
+                    return (
+                      <button key={item.key} aria-label={item.label} disabled={!canReact}
+                        onClick={() => r.voteSong({ a: np.title, b: np.artist }, item.key)}
+                        style={{ flex: 1, minHeight: 40, borderRadius: 12, cursor: canReact ? 'pointer' : 'default',
+                          border: `1px solid ${active ? TEAL : CREAM25}`, background: active ? `${TEAL}1f` : 'transparent',
+                          color: active ? CREAM : CREAM70, fontFamily: t.MONO, fontWeight: 800,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 17 }}>{item.glyph}</span>
+                        <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{item.count}</span>
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setCommentsOpen(true)} aria-label={tr('radio:social.openComments', { defaultValue: 'Comments' })}
+                    style={{ flex: 1, minHeight: 40, borderRadius: 12, cursor: 'pointer',
+                      border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM70,
+                      fontFamily: t.MONO, fontWeight: 800, fontSize: 11, letterSpacing: '0.08em',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 15 }}>❝</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{screenSocial.commentCount || 0}</span>
+                  </button>
+                </div>
+                {!canReact && (
+                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM50, textAlign: 'center' }}>
+                    {tr('radio:social.signInToReact', { defaultValue: 'Sign in to react & comment' })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {commentsOpen && screenKey && (
+            <BSSongCommentsSheet
+              t={t} tr={tr} title={np.title} artist={np.artist}
+              social={screenSocial}
+              onComment={(text) => r.commentSong({ a: np.title, b: np.artist }, text)}
+              onClose={() => setCommentsOpen(false)}
+            />
+          )}
 
           <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } }`}</style>
 

@@ -61,5 +61,19 @@
   "sets.liveFrom": "Наживо з",
   "sets.nowTag": "Зараз",
   "sets.onScheduleNow": "Зараз у розкладі — ефір незабаром",
-  "sets.upNext": "Далі · {title} · {time}"
+  "sets.upNext": "Далі · {title} · {time}",
+  "social.signInToReact": "Увійдіть, щоб реагувати й коментувати",
+  "social.openComments": "Коментарі",
+  "social.commentsOn": "Коментарі до {title}",
+  "social.commentsTitle": "{count, plural, one {# коментар} few {# коментарі} many {# коментарів} other {# коментаря}}",
+  "social.close": "Закрити",
+  "social.beFirst": "Ще немає коментарів — скажіть щось про цей трек.",
+  "social.member": "Учасник",
+  "social.placeholder": "Скажіть щось…",
+  "social.posting": "Публікується…",
+  "social.post": "Надіслати",
+  "social.now": "щойно",
+  "social.mAgo": "{n} хв",
+  "social.hAgo": "{n} год",
+  "social.dAgo": "{n} дн"
 }

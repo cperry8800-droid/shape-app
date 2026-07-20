@@ -61,5 +61,19 @@
   "sets.liveFrom": "Ao vivo do",
   "sets.nowTag": "Agora",
   "sets.onScheduleNow": "Na programação agora — transmissão em breve",
-  "sets.upNext": "A seguir · {title} · {time}"
+  "sets.upNext": "A seguir · {title} · {time}",
+  "social.signInToReact": "Entre para reagir e comentar",
+  "social.openComments": "Comentários",
+  "social.commentsOn": "Comentários sobre {title}",
+  "social.commentsTitle": "{count, plural, one {# comentário} other {# comentários}}",
+  "social.close": "Fechar",
+  "social.beFirst": "Nenhum comentário ainda — diga algo sobre esta faixa.",
+  "social.member": "Membro",
+  "social.placeholder": "Diga algo…",
+  "social.posting": "Publicando…",
+  "social.post": "Publicar",
+  "social.now": "agora",
+  "social.mAgo": "{n} min",
+  "social.hAgo": "{n} h",
+  "social.dAgo": "{n} d"
 }

@@ -5018,6 +5018,51 @@ window.ShapeCommunity = {
 // share-toggle seed (the client module can't import service modules directly).
 window.ShapeWorkoutShare = { rule: bsWorkoutSharePrivacy, rank: BS_PRIVACY_RANK };
 
+// ─── Shape Radio song social (shared like/dislike + comments) ────────────────
+// A "song" has no stable id, so the key is the client's normalized title::artist
+// composite. Reads are public (anyone sees counts); writes require sign-in — all
+// three go through SECURITY DEFINER RPCs (2026-07-20-radio-song-social.sql), so
+// the tables stay forge-proof and the author name is resolved server-side.
+// Every call degrades to a neutral empty state pre-migration / signed-out, never
+// throwing on the read path.
+const RADIO_SOCIAL_EMPTY = { up: 0, down: 0, myVote: null, commentCount: 0, comments: [] };
+function normRadioSocial(d) {
+  if (!d || typeof d !== 'object') return { ...RADIO_SOCIAL_EMPTY };
+  return {
+    up: Number(d.up) || 0,
+    down: Number(d.down) || 0,
+    myVote: d.myVote === 'up' || d.myVote === 'down' ? d.myVote : null,
+    commentCount: Number(d.commentCount) || 0,
+    comments: Array.isArray(d.comments) ? d.comments : [],
+  };
+}
+async function getRadioSongSocial(songKey) {
+  if (!supabase || !songKey) return { ...RADIO_SOCIAL_EMPTY };
+  try {
+    const { data, error } = await supabase.rpc('get_radio_song_social', { p_song_key: songKey });
+    if (error) return { ...RADIO_SOCIAL_EMPTY };   // pre-migration → neutral, never an error
+    return normRadioSocial(data);
+  } catch (e) { return { ...RADIO_SOCIAL_EMPTY }; }
+}
+async function setRadioSongVote(songKey, vote) {
+  if (!state.user?.id) throw new Error('Sign in to react to a song.');
+  if (!songKey) throw new Error('No song is playing.');
+  if (!supabase) return { ...RADIO_SOCIAL_EMPTY };
+  const { data, error } = await supabase.rpc('set_radio_song_vote', { p_song_key: songKey, p_vote: vote ?? null });
+  if (error) throw error;
+  return normRadioSocial(data);
+}
+async function addRadioSongComment(songKey, body) {
+  if (!state.user?.id) throw new Error('Sign in to comment on a song.');
+  const clean = String(body || '').trim();
+  if (!songKey || !clean) throw new Error('A song and a comment are required.');
+  if (!supabase) return { ...RADIO_SOCIAL_EMPTY };
+  const { data, error } = await supabase.rpc('add_radio_song_comment', { p_song_key: songKey, p_body: clean });
+  if (error) throw error;
+  return normRadioSocial(data);
+}
+window.ShapeRadioSong = { get: getRadioSongSocial, vote: setRadioSongVote, comment: addRadioSongComment };
+
 // Public profile card + batch tier points (for chat avatars / profile page).
 async function getPublicProfile(userId) {
   if (!supabase || !userId) return null;

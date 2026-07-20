@@ -61,5 +61,19 @@
   "sets.liveFrom": "Kai tsaye daga",
   "sets.nowTag": "Yanzu",
   "sets.onScheduleNow": "Yana cikin jadawali yanzu — watsawa na zuwa",
-  "sets.upNext": "Na gaba · {title} · {time}"
+  "sets.upNext": "Na gaba · {title} · {time}",
+  "social.signInToReact": "Shiga don ba da ra'ayi da yin sharhi",
+  "social.openComments": "Sharhi",
+  "social.commentsOn": "Sharhi kan {title}",
+  "social.commentsTitle": "{count, plural, one {sharhi #} other {sharhi #}}",
+  "social.close": "Rufe",
+  "social.beFirst": "Babu sharhi tukuna — faɗi wani abu game da wannan waƙar.",
+  "social.member": "Memba",
+  "social.placeholder": "Faɗi wani abu…",
+  "social.posting": "Ana turawa…",
+  "social.post": "Aika",
+  "social.now": "yanzu",
+  "social.mAgo": "minti {n}",
+  "social.hAgo": "awa {n}",
+  "social.dAgo": "kwana {n}"
 }

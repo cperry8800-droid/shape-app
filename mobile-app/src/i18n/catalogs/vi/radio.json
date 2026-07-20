@@ -61,5 +61,19 @@
   "sets.liveFrom": "Trực tiếp từ",
   "sets.nowTag": "Bây giờ",
   "sets.onScheduleNow": "Đang trong lịch — sắp lên sóng",
-  "sets.upNext": "Tiếp theo · {title} · {time}"
+  "sets.upNext": "Tiếp theo · {title} · {time}",
+  "social.signInToReact": "Đăng nhập để bày tỏ cảm xúc & bình luận",
+  "social.openComments": "Bình luận",
+  "social.commentsOn": "Bình luận về {title}",
+  "social.commentsTitle": "{count, plural, other {# bình luận}}",
+  "social.close": "Đóng",
+  "social.beFirst": "Chưa có bình luận — nói gì đó về bản nhạc này.",
+  "social.member": "Thành viên",
+  "social.placeholder": "Nói gì đó…",
+  "social.posting": "Đang đăng…",
+  "social.post": "Đăng",
+  "social.now": "vừa xong",
+  "social.mAgo": "{n} phút",
+  "social.hAgo": "{n} giờ",
+  "social.dAgo": "{n} ngày"
 }

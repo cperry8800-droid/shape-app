@@ -61,5 +61,19 @@
   "sets.liveFrom": "Live from",
   "sets.nowTag": "Now",
   "sets.onScheduleNow": "E dey di schedule now — broadcast go soon start",
-  "sets.upNext": "Next one · {title} · {time}"
+  "sets.upNext": "Next one · {title} · {time}",
+  "social.signInToReact": "Sign in make you fit react & comment",
+  "social.openComments": "Comments",
+  "social.commentsOn": "Comments on {title}",
+  "social.commentsTitle": "{count, plural, one {# comment} other {# comments}}",
+  "social.close": "Close",
+  "social.beFirst": "No comment dey yet — talk something about dis song.",
+  "social.member": "Member",
+  "social.placeholder": "Talk something…",
+  "social.posting": "Dey post…",
+  "social.post": "Post",
+  "social.now": "just now",
+  "social.mAgo": "{n}m",
+  "social.hAgo": "{n}h",
+  "social.dAgo": "{n}d"
 }

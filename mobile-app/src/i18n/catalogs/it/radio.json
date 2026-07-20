@@ -61,5 +61,19 @@
   "sets.liveFrom": "In diretta dal",
   "sets.nowTag": "Ora",
   "sets.onScheduleNow": "In programma ora — diretta in arrivo",
-  "sets.upNext": "Poi · {title} · {time}"
+  "sets.upNext": "Poi · {title} · {time}",
+  "social.signInToReact": "Accedi per reagire e commentare",
+  "social.openComments": "Commenti",
+  "social.commentsOn": "Commenti su {title}",
+  "social.commentsTitle": "{count, plural, one {# commento} other {# commenti}}",
+  "social.close": "Chiudi",
+  "social.beFirst": "Ancora nessun commento — di' qualcosa su questo brano.",
+  "social.member": "Membro",
+  "social.placeholder": "Di' qualcosa…",
+  "social.posting": "Pubblicazione…",
+  "social.post": "Pubblica",
+  "social.now": "ora",
+  "social.mAgo": "{n} min",
+  "social.hAgo": "{n} h",
+  "social.dAgo": "{n} g"
 }
