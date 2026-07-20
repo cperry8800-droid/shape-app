@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM stasiun",
   "screen.stop": "Hentikan",
   "sets.comingSoon": "Segera hadir",
+  "sets.comingUp": "Berikutnya",
+  "sets.empty": "Jadwal muncul saat siaran pertama.",
   "sets.introA": "Seri konser virtual yang disiarkan langsung dari",
   "sets.introB": ", tempat unggulan kami. DJ dan penampilan langsung yang dimiks untuk gerakan — direkam di lantai dansa dan disiarkan melalui Shape Radio.",
-  "sets.liveFrom": "Langsung dari"
+  "sets.liveBanner": "LIVE · {title} · {dj}",
+  "sets.liveFrom": "Langsung dari",
+  "sets.nowTag": "Sekarang",
+  "sets.onScheduleNow": "Ada di jadwal sekarang — siaran segera hadir",
+  "sets.upNext": "Berikutnya · {title} · {time}"
 }

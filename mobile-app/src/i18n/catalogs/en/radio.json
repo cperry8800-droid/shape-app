@@ -53,7 +53,13 @@
   "screen.stationBpm": "Station BPM",
   "screen.stop": "Stop",
   "sets.comingSoon": "Coming soon",
+  "sets.comingUp": "Coming up",
+  "sets.empty": "Schedule lands with the first broadcast.",
   "sets.introA": "A virtual concert series broadcast straight from",
   "sets.introB": ", our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.",
-  "sets.liveFrom": "Live from"
+  "sets.liveBanner": "LIVE · {title} · {dj}",
+  "sets.liveFrom": "Live from",
+  "sets.nowTag": "Now",
+  "sets.onScheduleNow": "On the schedule now — broadcast coming soon",
+  "sets.upNext": "Up next · {title} · {time}"
 }

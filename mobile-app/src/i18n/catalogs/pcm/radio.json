@@ -53,7 +53,13 @@
   "screen.stationBpm": "Station BPM",
   "screen.stop": "Stop",
   "sets.comingSoon": "E dey come soon",
+  "sets.comingUp": "Wetin dey come",
+  "sets.empty": "Di schedule go show once di first broadcast start.",
   "sets.introA": "Virtual concert series wey dem dey broadcast straight from",
   "sets.introB": ", our flagship venue. DJs and live acts wey dem mix for movement — dem capture am for di floor and stream am through Shape Radio.",
-  "sets.liveFrom": "Live from"
+  "sets.liveBanner": "LIVE · {title} · {dj}",
+  "sets.liveFrom": "Live from",
+  "sets.nowTag": "Now",
+  "sets.onScheduleNow": "E dey di schedule now — broadcast go soon start",
+  "sets.upNext": "Next one · {title} · {time}"
 }

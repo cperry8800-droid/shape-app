@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM da estação",
   "screen.stop": "Parar",
   "sets.comingSoon": "Em breve",
+  "sets.comingUp": "A seguir",
+  "sets.empty": "A programação chega com a primeira transmissão.",
   "sets.introA": "Uma série de shows virtuais transmitida direto do",
   "sets.introB": ", nosso espaço principal. DJs e apresentações ao vivo mixados para o movimento — capturados na pista e transmitidos pela Shape Radio.",
-  "sets.liveFrom": "Ao vivo do"
+  "sets.liveBanner": "AO VIVO · {title} · {dj}",
+  "sets.liveFrom": "Ao vivo do",
+  "sets.nowTag": "Agora",
+  "sets.onScheduleNow": "Na programação agora — transmissão em breve",
+  "sets.upNext": "A seguir · {title} · {time}"
 }

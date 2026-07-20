@@ -1,5 +1,6 @@
 import React from 'react';
 import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
+import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
 // Provides:
 //   • BSRadioPrompt    — full-screen overlay asking "Listen to Shape Radio while in the app?"
@@ -137,6 +138,11 @@ function BSRadioProvider({ children }) {
   const [trackIdx, setTrackIdx]     = useStateBR(0);
   const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
+  // The Shape Sets schedule + the stream gate, resolved ONCE here and shared
+  // through context (`r.sets`) — the station, the radio screen and the muted bar
+  // must never disagree about what is on air. `useBSSetsSchedule` is a hoisted
+  // function declaration, so calling it above its definition is safe.
+  const sets = useBSSetsSchedule();
   // Light-effects intensity ('off' | 'subtle' | 'immersive' | 'hologram') +
   // color ('cycle' | 'accent' | '#rrggbb') — ONE state object persisted from
   // an effect, so mode and color can never clobber each other's stored value
@@ -259,6 +265,7 @@ function BSRadioProvider({ children }) {
     fxMode, setFxMode, fxColor, setFxColor,
     trackFeedback, setTrackFeedback, addTrackComment,
     musicLibraries, saveTrackToLibrary, isTrackSaved,
+    sets,
     LIVE: BS_LIVE_STATION,
   };
   return <BSRadioContext.Provider value={value}>{children}</BSRadioContext.Provider>;
@@ -677,6 +684,59 @@ function BSNowPlaying({ onOpen }) {
 // station so the user knows what they're missing, with a "Tune in" CTA.
 // Same clipped instrument frame as the live bar, quiet: rule-colored frame,
 // ink-alpha spine, no light-fx layers (the station is muted).
+// THE SCHEDULE LINE — one implementation for every surface that reports what is
+// on air, so the radio screen and the muted bar can never word it differently.
+//
+// ⚠ The honesty contract: a scheduled row is NOT a broadcast. The LIVE tag and
+// the tune action appear ONLY when the stream is actually configured
+// (`sets.real`). On the mock provider a set that covers right now reads
+// "on the schedule now — broadcast coming soon", with no lamp and nothing to
+// tap, because tapping would raise silence. Nothing scheduled → renders nothing
+// rather than a placeholder.
+function BSSetsLine({ tone = 'dark', style }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const r = useBSRadio();
+  const s = r.sets || {};
+  const RUST = t.RUST || '#c0533b';
+  const ACC = tone === 'dark' ? t.ACCENT : t.ACCENT;
+  const FG = tone === 'dark' ? '#f4ede0' : t.INK;
+  const DIM = tone === 'dark' ? 'rgba(244,237,224,0.6)' : t.INK50;
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 };
+
+  if (s.live && s.real) {
+    return (
+      <button
+        type="button"
+        // stopPropagation: the muted bar's own wrapper is clickable (it opens the
+        // radio screen), and tuning in is a different intent from opening.
+        onClick={(e) => { e.stopPropagation(); r.setRadioPreference(true); }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, margin: 0, cursor: 'pointer', background: 'transparent', border: `1px solid ${ACC}59`, borderRadius: 3, padding: '4px 6px', boxShadow: `0 0 10px ${ACC}26`, color: ACC, ...mono, ...style }}
+      >
+        <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: RUST, boxShadow: `0 0 6px ${RUST}`, flex: '0 0 auto' }} />
+        {tr('radio:sets.liveBanner', { title: s.live.title, dj: s.live.dj, defaultValue: 'LIVE · {title} · {dj}' })}
+      </button>
+    );
+  }
+  if (s.live) {
+    return (
+      <div style={{ ...mono, fontWeight: 600, letterSpacing: '0.1em', color: DIM, ...style }}>
+        {tr('radio:sets.onScheduleNow', { defaultValue: 'On the schedule now — broadcast coming soon' })}
+      </div>
+    );
+  }
+  // "Up next" is deliberately near-term only: a set six days out is the COMING UP
+  // station's job, not a line on the player.
+  if (s.next && Date.parse(s.next.starts_at) - Date.now() <= 60 * 60000) {
+    return (
+      <div style={{ ...mono, fontWeight: 600, letterSpacing: '0.1em', color: DIM, ...style }}>
+        {tr('radio:sets.upNext', { title: s.next.title, time: bsSetsTimeLabel(s.next.starts_at), defaultValue: 'Up next · {title} · {time}' })}
+      </div>
+    );
+  }
+  return null;
+}
+
 function BSNowPlayingMuted({ onTurnOn, onOpen }) {
   const t = useBS();
   const r = useBSRadio();
@@ -735,6 +795,9 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
             whiteSpace: 'nowrap',
           }}>▶ {tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
         </div>
+
+        {/* Schedule state — renders nothing unless a set is on air or imminent. */}
+        <BSSetsLine tone="paper" style={{ marginTop: 8 }} />
       </div>
       </div>
       {/* muted spine over the frame (live carries the accent; muted stays quiet) */}
@@ -1109,6 +1172,8 @@ function BSRadioScreen({ onBack }) {
 
         {/* CHANNEL */}
         <DarkSection title={tr('radio:screen.channel', { defaultValue: 'Channel' })} meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
+        {/* Schedule state — the ON AIR tag appears only over a real stream. */}
+        <div style={{ padding: `0 ${t.padX}px` }}><BSSetsLine tone="dark" /></div>
         {false && (
         <DarkSection title="Channels" meta={onLive ? 'Live · always on' : 'Coach · sent to you'} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         )}
@@ -1219,6 +1284,50 @@ function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, r
 // ── Shape Sets — an editorial "about Shape Radio + Shape Sets" page (mirrors the
 // website's Shape Radio page), reached from the Radio screen. Sits on the Club
 // Shape venue background (the same image the website radio page uses).
+// Schedule times render in the MEMBER's selected UI language, not the device
+// locale (the #1595 rule) — window.ShapeI18n.intlLocale() maps catalog codes
+// Intl doesn't know. Falls back to 'en' rather than throwing on a bad tag.
+function bsSetsTimeLabel(iso) {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const loc = (window.ShapeI18n && window.ShapeI18n.intlLocale && window.ShapeI18n.intlLocale()) || 'en';
+  const opts = { weekday: 'short', hour: 'numeric', minute: '2-digit' };
+  try { return new Intl.DateTimeFormat(loc, opts).format(d); }
+  catch (e) { try { return new Intl.DateTimeFormat('en', opts).format(d); } catch (e2) { return ''; } }
+}
+
+// The schedule read, hoisted to the radio provider so the Shape Sets station,
+// the radio screen and the muted bar all share ONE fetch. Polls once on open
+// (the table is deliberately out of the realtime publication) and re-derives
+// liveness every minute from the SAME fetched rows, so a set going on or off
+// air flips every surface without a refetch.
+//
+// `real` is the stream gate: `station()` reports configured:false on the mock
+// provider, and a scheduled row is NOT a broadcast. Members never see a LIVE
+// badge over a stream that cannot play — that is the whole honesty contract of
+// this build, so the flag is resolved here rather than at each render site.
+function useBSSetsSchedule() {
+  const [state, setState] = useStateBR({ live: null, next: null, upcoming: [], real: false });
+  const rowsRef = useRefBR([]);
+  const realRef = useRefBR(false);
+  useEffectBR(() => {
+    let on = true;
+    const derive = () => { if (on) setState({ ...bsSetsNow(rowsRef.current, Date.now()), real: realRef.current }); };
+    Promise.all([
+      window.ShapeNoraSets ? window.ShapeNoraSets.list() : Promise.resolve([]),
+      window.ShapeRadioLive ? window.ShapeRadioLive.station() : Promise.resolve(null),
+    ]).then(([rows, cfg]) => {
+      if (!on) return;
+      rowsRef.current = Array.isArray(rows) ? rows : [];
+      realRef.current = !!(cfg && cfg.configured);
+      derive();
+    }).catch(() => {});
+    const id = setInterval(derive, 60000);
+    return () => { on = false; clearInterval(id); };
+  }, []);
+  return state;
+}
+
 function BSShapeSetsScreen({ onBack }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -1232,6 +1341,14 @@ function BSShapeSetsScreen({ onBack }) {
     { from: 'Rae Lindqvist', role: 'Nutritionist', ctx: 'SUNDAY PREP · 2 PM', title: 'Sunday Meal Prep', meta: '95–120 BPM · 32 tracks · 2h 18m', note: '2 hours. Enough to batch-cook without burning out — ends right as you’re plating.', accent: '#f2a94e', provider: 'Spotify' },
     { from: 'Diego Alvarez', role: 'Run coach', ctx: 'LONG RUN · SAT', title: '90-Minute Zone 2', meta: '168–172 BPM · 22 tracks · 1h 32m', note: 'Locked cadence. Don’t let the tempo drop after the 45-min mark — this’ll carry you.', accent: '#78d8a4', provider: 'Apple Music' },
   ];
+  // A live set pins to the top of the list carrying a NOW tag; `_now` is a render
+  // flag only and never rides back to the data layer. Reads the ONE schedule the
+  // provider resolved — a second fetch here could disagree with the radio screen.
+  const sched = useBSRadio().sets;
+  const schedRows = useMemoBR(
+    () => (sched.live ? [{ ...sched.live, _now: true }, ...sched.upcoming] : sched.upcoming),
+    [sched.live, sched.upcoming],
+  );
   const Glass = ({ children, style }) => (
     <div style={{ position: 'relative', overflow: 'hidden', background: CARD, backdropFilter: 'blur(14px) saturate(1.1)', WebkitBackdropFilter: 'blur(14px) saturate(1.1)', border: `1px solid ${RULE_DK}`, borderRadius: 14, padding: 20, ...style }}>
       <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
@@ -1277,6 +1394,27 @@ function BSShapeSetsScreen({ onBack }) {
               <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>{tr('radio:sets.introA', { defaultValue: 'A virtual concert series broadcast straight from' })} <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>{tr('radio:sets.introB', { defaultValue: ', our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.' })}</p>
               <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingSoon', { defaultValue: 'Coming soon' })}</div>
             </div>
+          </div>
+
+          {/* COMING UP — the real schedule. A set that is on air right now pins to
+              the top with a NOW tag; everything else is the next 7 days. Absent a
+              schedule (pre-migration, or simply nothing booked) this says so
+              plainly rather than staging an empty grid. */}
+          <div style={{ padding: `0 ${t.padX}px 12px` }}>
+            <Glass>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingUp', { defaultValue: 'Coming up' })}</div>
+              {schedRows.length === 0 ? (
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: CREAM50 }}>{tr('radio:sets.empty', { defaultValue: 'Schedule lands with the first broadcast.' })}</div>
+              ) : schedRows.map((s, i) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 0', borderTop: i ? `1px solid ${RULE_DK}` : 'none' }}>
+                  <span style={{ flex: '0 0 auto', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s._now ? TEAL : CREAM70, fontWeight: s._now ? 800 : 600 }}>
+                    {s._now ? tr('radio:sets.nowTag', { defaultValue: 'Now' }) : bsSetsTimeLabel(s.starts_at)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+                  <span style={{ flex: '0 0 auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: CREAM50 }}>{s.dj}</span>
+                </div>
+              ))}
+            </Glass>
           </div>
         </div>
       </div>

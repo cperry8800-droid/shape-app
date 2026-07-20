@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM stazione",
   "screen.stop": "Ferma",
   "sets.comingSoon": "In arrivo",
+  "sets.comingUp": "In arrivo",
+  "sets.empty": "Il palinsesto arriva con la prima diretta.",
   "sets.introA": "Una serie di concerti virtuali trasmessa direttamente dal",
   "sets.introB": ", la nostra sede di punta. DJ e artisti live mixati per il movimento — catturati in pista e trasmessi tramite Shape Radio.",
-  "sets.liveFrom": "In diretta dal"
+  "sets.liveBanner": "IN DIRETTA · {title} · {dj}",
+  "sets.liveFrom": "In diretta dal",
+  "sets.nowTag": "Ora",
+  "sets.onScheduleNow": "In programma ora — diretta in arrivo",
+  "sets.upNext": "Poi · {title} · {time}"
 }

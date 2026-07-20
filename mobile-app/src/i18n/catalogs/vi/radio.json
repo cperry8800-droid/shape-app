@@ -53,7 +53,13 @@
   "screen.stationBpm": "BPM của trạm",
   "screen.stop": "Dừng",
   "sets.comingSoon": "Sắp ra mắt",
+  "sets.comingUp": "Sắp phát",
+  "sets.empty": "Lịch phát sóng sẽ có khi buổi đầu tiên lên sóng.",
   "sets.introA": "Chuỗi hòa nhạc ảo được phát trực tiếp ngay từ",
   "sets.introB": ", địa điểm hàng đầu của chúng tôi. Các DJ và tiết mục biểu diễn trực tiếp được phối cho vận động — ghi lại ngay trên sàn và phát qua Shape Radio.",
-  "sets.liveFrom": "Trực tiếp từ"
+  "sets.liveBanner": "TRỰC TIẾP · {title} · {dj}",
+  "sets.liveFrom": "Trực tiếp từ",
+  "sets.nowTag": "Bây giờ",
+  "sets.onScheduleNow": "Đang trong lịch — sắp lên sóng",
+  "sets.upNext": "Tiếp theo · {title} · {time}"
 }

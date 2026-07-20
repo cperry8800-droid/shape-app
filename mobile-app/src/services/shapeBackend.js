@@ -6182,3 +6182,30 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   }
   window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser };
 })();
+
+// Shape Sets broadcast schedule (spec 2026-07-19). Public read — the table's RLS
+// exposes PUBLISHED rows only, so a signed-out preview sees the same schedule a
+// member does. Reads the WHOLE relevant window with NO row limit: a limit could
+// truncate away the row that is live right now, and the window is already the
+// bound. Degrades silent — an unreachable table (or one that predates the
+// migration) yields [] and every consumer renders its honest empty state.
+window.ShapeNoraSets = {
+  list: async () => {
+    if (!supabase) return [];
+    try {
+      // ⚠ The 6h lookback IS the schema's 360-minute duration cap: a set that
+      // started 6h ago has, at most, just ended (and end-exclusive means it is
+      // no longer live), so nothing live can start earlier than this. Raising
+      // duration_min without widening this would silently hide a long set that
+      // is on air right now.
+      const from = new Date(Date.now() - 360 * 60000).toISOString();
+      const to = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      const { data, error } = await supabase.from('nora_sets')
+        .select('*').eq('published', true)
+        .gte('starts_at', from).lte('starts_at', to)
+        .order('starts_at', { ascending: true });
+      if (error) return [];
+      return Array.isArray(data) ? data : [];
+    } catch (e) { return []; }
+  },
+};
