@@ -3514,13 +3514,20 @@ function bsCycleShortDate(isoStr) {
 // day the member logged a period start renders as a taller filled heat mark,
 // today carries a faint heat ring. Date-only strings compared as pure calendar
 // dates (parts split, no timezone) so a start "on the 25th" reads on the 25th.
-// Heat-only coloring (faded-heat track), so it needs no theme + reads on any paper.
-function BSCycleMonthStrip({ starts, heat }) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const mo = now.getMonth() + 1;              // 1-based, matches the ISO month
+// `today` is the MEMBER's local calendar date (YYYY-MM-DD, from the definer) —
+// used as calendar-date PARTS, never reinterpreted through a Date's timezone —
+// so the month/today mark match her frame, not the coach's (Codex P2). Falls
+// back to the device date only if absent. Heat-only coloring reads on any paper.
+function BSCycleMonthStrip({ starts, heat, today }) {
+  let y, mo, todayDay;
+  if (typeof today === 'string' && /^\d{4}-\d{2}-\d{2}/.test(today)) {
+    const p = today.slice(0, 10).split('-').map(Number);
+    y = p[0]; mo = p[1]; todayDay = p[2];
+  } else {
+    const now = today instanceof Date ? today : new Date();
+    y = now.getFullYear(); mo = now.getMonth() + 1; todayDay = now.getDate();
+  }
   const days = new Date(y, mo, 0).getDate();  // days in the current month
-  const today = now.getDate();
   const startDays = new Set(
     (Array.isArray(starts) ? starts : [])
       .map((s) => String(s).slice(0, 10).split('-').map(Number))
@@ -3538,7 +3545,7 @@ function BSCycleMonthStrip({ starts, heat }) {
             height: isStart ? 9 : 3,
             borderRadius: isStart ? 5 : 2,
             background: isStart ? heat : `${heat}2a`,
-            boxShadow: day === today ? `0 0 0 1px ${heat}` : 'none',
+            boxShadow: day === todayDay ? `0 0 0 1px ${heat}` : 'none',
           }} />
         );
       })}
@@ -3630,7 +3637,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts } : null); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setCareLoaded(true); })
       .catch(() => { if (!ignore) setCareLoaded(true); });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -4236,7 +4243,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           timing only — never a symptom read. Absence, never a padlock: nothing
           renders otherwise, so a coach can't tell never-opted-in from not-shared. */}
       {cycleShared && (() => {
-        const c = bsDeriveCycle(cycleShared.starts, new Date());
+        // Derive against the MEMBER's local today (from the definer via
+        // shape_user_tz), never the coach device clock — a coach a calendar day
+        // behind her would otherwise read the wrong day/phase (Codex P2). Falls
+        // back to new Date() only if the RPC predates the today field.
+        const c = bsDeriveCycle(cycleShared.starts, cycleShared.today || new Date());
         if (!c || c.phase === null) return null;
         // Enumerated phase labels — NOT a `coach:cycle.phase.${c.phase}` dynamic
         // key (the resolve-check can't see template keys; the #1759 lesson).
@@ -4262,7 +4273,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                 {tr('coach:cycle.window', { defaultValue: 'Next period window · {from} – {to}', from: bsCycleShortDate(c.predictedStart.from), to: bsCycleShortDate(c.predictedStart.to) })}
               </div>
             )}
-            <BSCycleMonthStrip starts={cycleShared.starts} heat={heat} />
+            <BSCycleMonthStrip starts={cycleShared.starts} heat={heat} today={cycleShared.today} />
             {c.phase === 'luteal' && c.predictedStart && (
               <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12, fontStyle: 'italic', color: t.INK70 }}>
                 {tr('coach:cycle.deload', { defaultValue: 'Week of the {d} is a natural deload window.', d: bsCycleShortDate(c.predictedStart.from) })}
