@@ -52,8 +52,13 @@ function CKLiveStation({ clientId, accent }) {
     // clientId rides straight from the URL into a RAW postgres_changes filter
     // string — validate it as a UUID before interpolating (review: CodeRabbit).
     const okId = typeof clientId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+    // SYNCHRONOUS reset on client change — B must never render A's payload, even
+    // for a frame (spec review). This runs BEFORE the bail-out guard on purpose:
+    // switching to a malformed clientId (or a momentarily-missing db) must still
+    // drop A's row, or the early return would leave A rendered under B's header —
+    // the exact leak this reset exists to prevent (review: CodeRabbit).
+    setRow(null);
     if (!db || !okId) return undefined;
-    setRow(null);   // SYNCHRONOUS reset on client change — B must never render A's payload, even for a frame (spec review)
     let on = true; let evented = false; let expTimer = null; let channel = null;
     const take = (r, fromEvent) => {
       if (!on) return;
@@ -70,7 +75,11 @@ function CKLiveStation({ clientId, accent }) {
     // DELETE for ANOTHER member's row can land here and would blank this card.
     // user_id is the table's PRIMARY KEY, so the default replica identity
     // carries it in `old` — only act on a real match (review: CodeRabbit).
-    const mine = (rec) => !!(rec && rec.user_id === clientId);
+    // Case-INSENSITIVE match: okId accepts any-case UUID, but Postgres emits
+    // uuid lowercased. A strict === against an upper/mixed-case URL value would
+    // drop EVERY event for this client, silently (review: CodeRabbit).
+    const wantId = clientId.toLowerCase();
+    const mine = (rec) => !!(rec && typeof rec.user_id === "string" && rec.user_id.toLowerCase() === wantId);
     (async () => {
       // The page's own /api/... fetch rides the Next.js cookie session, but this
       // DIRECT query does not: client.auth.getSession() is empty when the session
