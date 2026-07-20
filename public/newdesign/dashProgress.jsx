@@ -440,7 +440,7 @@ function DprCycleCard() {
   const toggleShare = async () => {
     if (!client || busy || !settings) return;
     setBusy(true); setMsg(null);
-    const r = await setSharePref(true, !settings.share, "cycle_coach_share");
+    const r = await setSharePref(true, !settings.share, "cycle_share");
     if (r.unavailable) setUnavailable(true); else if (r.error) setMsg("That didn't save. Try again."); else await load();
     setBusy(false);
   };
