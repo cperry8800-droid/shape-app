@@ -8,7 +8,7 @@ import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLed
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
-import { bsLiveProgressPayload, bsCookingPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -1922,7 +1922,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     const rePush = (e) => {
       if (!cookPayload) return;
       const vis = e && e.detail ? e.detail.visibility : undefined;
-      window.ShapeLiveProgress.push(cookPayload, false, vis);
+      window.ShapeLiveProgress.push(cookPayload, false, { visOverride: vis });
     };
     window.addEventListener('shape:liveAudienceChanged', rePush);
     return () => {
@@ -21493,11 +21493,23 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     const resting = !!restEnd && restEnd > Date.now();
     const base = bsLiveProgressPayload(moves, completed, moveIdx, resting);
     const next = base ? { ...base, title: String(title || '').slice(0, 80) } : null;
+    // The COACH payload carries the same shape plus per-set load/reps/rpe. It
+    // rides the SAME enqueued job as the public push (one write per turn), and
+    // is gated at the DB by the coach link — not by the member's share rule.
+    //
+    // `setInputs` is deliberately NOT in this effect's deps. Adding it would
+    // re-run on every keystroke, but the throttle compares the PUBLIC payload —
+    // which a load edit does not change — so no push would fire anyway: pure
+    // overhead. The effect already re-runs on `completed`, so the coach payload
+    // is rebuilt from the CURRENT inputs at the moment a set is toggled done,
+    // which is when a load becomes a fact worth sending.
+    const coachBase = bsLiveCoachPayload(moves, completed, moveIdx, resting, setInputs);
+    const coachNext = coachBase ? { ...coachBase, title: String(title || '').slice(0, 80) } : null;
     const lr = liveRef.current;
     const fire = () => {
       const fresh = lr.prev == null;   // first push of this session → stamp started_at
       lr.prev = next; lr.lastAt = Date.now();
-      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next, fresh); } catch (e) {}
+      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next, fresh, { coachPayload: coachNext }); } catch (e) {}
     };
     if (lr.timer) { clearTimeout(lr.timer); lr.timer = null; }
     if (lr.restTimer) { clearTimeout(lr.restTimer); lr.restTimer = null; }
@@ -21515,7 +21527,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         const after = { ...next, resting: false };
         if (bsShouldPushProgress(lr.prev, after, lr.lastAt, Date.now())) {
           lr.prev = after; lr.lastAt = Date.now();
-          try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(after); } catch (e) {}
+          // Carry the coach payload here too — otherwise the rest-expiry push
+          // would DELETE the coach row mid-session (no coachPayload = delete).
+          const coachAfter = coachNext ? { ...coachNext, resting: false } : null;
+          try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(after, false, { coachPayload: coachAfter }); } catch (e) {}
         }
       }, Math.max(250, restEnd - Date.now() + 4050));   // past the floor by construction
     }
