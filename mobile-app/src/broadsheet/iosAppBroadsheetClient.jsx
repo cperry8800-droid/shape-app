@@ -7754,7 +7754,9 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   // existence of a setting choice). Demo people (no userId) never fetch.
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => {
-    if (!person.userId || kind !== 'workout' || !window.ShapeLiveProgress) return undefined;
+    // Both kinds now (spec 2026-07-19) — the ROW's own payload.kind decides what
+    // renders, so the sheet no longer gates the subscription on the activity.
+    if (!person.userId || !window.ShapeLiveProgress) return undefined;
     let on = true; let expTimer = null; let evented = false;
     // TOCTOU guard (review: CodeRabbit): the initial get() can resolve AFTER a
     // newer realtime event (incl. a DELETE on session end) and restore a stale
@@ -7762,19 +7764,29 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
     const take = (row, fromEvent) => {
       if (!on) return;
       if (fromEvent) evented = true; else if (evented) return;
+      // Expiry gates the ROW ITSELF, not just the timer (CWE-359): the shipped
+      // version set state for every incoming row and only scheduled a timer when
+      // expiry was in the future, so an ALREADY-EXPIRED realtime row rendered
+      // until unmount. Titles raise the stakes, so reject it outright.
+      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
+      if (row && !(expMs > 0)) row = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
       setLive(row);
       // Subscription-side expiry (spec review): the SQL filter protects get()
       // only — an already-open sheet must drop a row when its expires_at passes.
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
-      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
+      if (row && expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
     };
     window.ShapeLiveProgress.get(person.userId).then((r) => take(r, false)).catch(() => {});
     const off = window.ShapeLiveProgress.subscribe(person.userId, (r) => take(r, true));
     return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [person.userId, kind]);
   const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
-  const lpCur = lp && lp.curIdx >= 0 && lp.exercises[lp.curIdx] ? lp.exercises[lp.curIdx] : null;
+  // lp is a DISCRIMINATED UNION (workout | cooking). Split it here so neither
+  // branch can touch the other's fields: lpWork carries exercises/sets, lpCook
+  // carries a title and nothing else.
+  const lpWork = lp && (!lp.kind || lp.kind === 'workout') ? lp : null;
+  const lpCook = lp && lp.kind === 'cooking' ? lp : null;
+  const lpCur = lpWork && lpWork.curIdx >= 0 && lpWork.exercises[lpWork.curIdx] ? lpWork.exercises[lpWork.curIdx] : null;
   const sendBoost = async (body) => {
     const msg = String(body || '').trim();
     if (!msg || busy || sent) return;
@@ -7813,7 +7825,15 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
               <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33`, ...(reduced ? null : { '--sd-glow': bsTHexA(accent, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
             </div>
-            {lp && (
+            {/* Cooking: the PLANNED meal's title only — never macros, portions
+                or adjustments. A freehand meal pushes nothing, so this simply
+                doesn't render and the generic presence line above stands. */}
+            {lpCook && (
+              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ color: t.INK, fontWeight: 800 }}>{lpCook.title}</span>
+              </div>
+            )}
+            {lpWork && (
               <div style={{ marginTop: 5 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {lpCur ? <>
@@ -7821,10 +7841,10 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
                     {' · '}{tr('feed:boost.liveSet', { done: Math.min(lpCur.done + 1, lpCur.total), total: lpCur.total, defaultValue: 'set {done, number} of {total, number}' })}
                     {' — '}
                   </> : null}
-                  {tr('feed:boost.liveSets', { done: lp.setsDone, total: lp.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
+                  {tr('feed:boost.liveSets', { done: lpWork.setsDone, total: lpWork.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
                 </div>
                 <div aria-hidden style={{ marginTop: 4, height: 2, background: bsTHexA(t.INK, 0.12) }}>
-                  <div style={{ height: 2, width: `${lp.setsTotal ? Math.round((lp.setsDone / lp.setsTotal) * 100) : 0}%`, background: accent }} />
+                  <div style={{ height: 2, width: `${lpWork.setsTotal ? Math.round((lpWork.setsDone / lpWork.setsTotal) * 100) : 0}%`, background: accent }} />
                 </div>
               </div>
             )}
