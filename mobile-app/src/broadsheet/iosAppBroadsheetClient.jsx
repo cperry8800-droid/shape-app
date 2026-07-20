@@ -18,6 +18,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
+import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { BS_LEVER_HEADS } from '../services/dailyWire.mjs';
@@ -429,6 +430,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
   const [eatStart, setEatStart] = useStateBSC('');
   const [meStart, setMeStart] = useStateBSC('');
+  // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
+  // back returns to wherever the member opened it from.
+  const [showCycle, setShowCycle] = useStateBSC(false);
   // The shell-visible location. Child-owned sub-state (Settings' active
   // sub-page, Eat's view, Me's sub-page, Chat's open thread) rides in via the
   // announce register at compose time — see bsNavCompose.
@@ -436,6 +440,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
     if (showCalendar) return { tab, overlay: 'calendar' };
     if (showSearch) return { tab, overlay: 'search' };
+    if (showCycle) return { tab, overlay: 'cycle' };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
     return { tab };
@@ -445,6 +450,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (!loc) return;
     setShowSearch(loc.overlay === 'search');
     setShowCalendar(loc.overlay === 'calendar');
+    setShowCycle(loc.overlay === 'cycle');
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
@@ -458,6 +464,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
+  const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
   const goTrain    = () => { navPush(); setTab('train'); };
   const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setMarketCoach(null); setTab('market'); };
@@ -482,16 +489,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (navBack()) return;
       if (showSearch) { setShowSearch(false); return; }
       if (showSettings) { setShowSettings(false); setSettingsStart(''); return; }
-      if (showCalendar) setShowCalendar(false);
+      if (showCalendar) { setShowCalendar(false); return; }
+      if (showCycle) setShowCycle(false);
       return;
     }
-    if (showSettings || showCalendar || showSearch) return;
+    if (showSettings || showCalendar || showSearch || showCycle) return;
     const next = bsNavStepTab(['home', 'train', 'eat', 'chat', 'me'], tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
   };
-  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, onNavGesture };
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
   React.useEffect(() => {
@@ -505,6 +513,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => navJumpRef.current.goIntegrations();
     window.addEventListener('shape:openIntegrations', open);
     return () => window.removeEventListener('shape:openIntegrations', open);
+  }, []);
+
+  // THE CYCLE — Settings' "Open cycle calendar", the Today chip and the
+  // Progress card all fire this one event, so no prop threading.
+  React.useEffect(() => {
+    const open = () => navJumpRef.current.goCycle();
+    window.addEventListener('shape:openCycle', open);
+    return () => window.removeEventListener('shape:openCycle', open);
   }, []);
 
   // Tapping the top-right profile avatar on any screen opens Settings/profile
@@ -749,6 +765,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
+        <BSRadioFx />
+      </div>
+    );
+  }
+  if (showCycle) {
+    return (
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
       </div>
     );
@@ -17417,6 +17441,263 @@ function BSCycleOptInSheet({ onClose, onDone }) {
   );
   const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   return target ? createPortal(sheet, target) : sheet;
+}
+
+// ── THE CYCLE — shared derivation for every consumer ────────────────────────
+// Fetches the member's logged starts ONCE per mount and derives through the
+// canonical engine. Cached on window.ShapeCycleDerived so the calendar page,
+// the Today chip and the Progress card don't each re-fetch; a
+// 'shape:cycleLogged' event re-derives every mounted consumer after a write.
+// Never opted in → { starts: [], cycle: null } and every surface renders
+// nothing (absence, per doctrine).
+function useBSCycleDerived(optIn) {
+  const [s, setS] = useStateBSC(() => {
+    const c = (typeof window !== 'undefined' && window.ShapeCycleDerived) || null;
+    return c ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null };
+  });
+  const load = React.useCallback(async () => {
+    if (!optIn) { setS({ loading: false, starts: [], cycle: null }); return; }
+    let starts = [];
+    try { starts = (await window.ShapeCycle?.list?.()) || []; } catch (e) { starts = []; }
+    // The engine returns null when there is nothing to derive from — the
+    // setup state, not an error.
+    let cycle = null;
+    try { cycle = bsDeriveCycle(starts, new Date()); } catch (e) { cycle = null; }
+    const next = { starts, cycle };
+    try { window.ShapeCycleDerived = next; } catch (e) {}
+    setS({ ...next, loading: false });
+  }, [optIn]);
+  React.useEffect(() => { let dead = false; (async () => { if (!dead) await load(); })(); return () => { dead = true; }; }, [load]);
+  React.useEffect(() => {
+    const onLogged = () => { load(); };
+    window.addEventListener('shape:cycleLogged', onLogged);
+    return () => window.removeEventListener('shape:cycleLogged', onLogged);
+  }, [load]);
+  return { ...s, reload: load };
+}
+const bsCycleLoggedPing = () => { try { window.dispatchEvent(new CustomEvent('shape:cycleLogged')); } catch (e) {} };
+
+// ── THE CYCLE — the calendar page (spec 2026-07-19) ─────────────────────────
+// The #1712 unboxed month grammar, BORROWED (not imported — the calendar
+// module owns its own theme context): hairline week rows of bare numerals.
+// Heat = the member's TIER colour (bsMyTierColor), line-only. Deliberate: the
+// spec names no cycle colour, and inventing a pink genders the surface — tier
+// heat is the house rule everywhere else and stays the rule here.
+function BSCycleCalendarPage({ onBack }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const heat = bsMyTierColor();
+  const { starts, cycle, loading, reload } = useBSCycleDerived(true);
+  const today = new Date();
+  const [view, setView] = useStateBSC({ y: today.getFullYear(), m: today.getMonth() });
+  const [busyDay, setBusyDay] = useStateBSC('');
+  // Optimistic set — the tapped date shows its new state immediately and rolls
+  // back on failure (the row is the truth the moment the DB accepts it).
+  const [optimistic, setOptimistic] = useStateBSC({});
+
+  const locale = (typeof window !== 'undefined' && window.ShapeI18n?.intlLocale?.()) || 'en';
+  const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const todayIso = isoOf(today.getFullYear(), today.getMonth(), today.getDate());
+  const startSet = React.useMemo(() => {
+    const s = new Set((starts || []).map(String));
+    Object.entries(optimistic).forEach(([iso, on]) => { if (on) s.add(iso); else s.delete(iso); });
+    return s;
+  }, [starts, optimistic]);
+
+  const monthName = new Date(view.y, view.m, 1).toLocaleDateString(locale, { month: 'long' });
+  const abbr = (delta) => new Date(view.y, view.m + delta, 1).toLocaleDateString(locale, { month: 'short' });
+  const dowNarrow = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(locale, { weekday: 'narrow', timeZone: 'UTC' }));
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;   // Mon = 0
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  // Predicted window — null whenever the engine says so (no starts, or
+  // 'paused': a cycle running long predicts NOTHING rather than guessing).
+  const pred = cycle && cycle.predictedStart ? cycle.predictedStart : null;
+  const inPredicted = (iso) => !!(pred && iso >= pred.from && iso <= pred.to);
+
+  const step = (delta) => setView((v) => {
+    const d = new Date(v.y, v.m + delta, 1);
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+
+  const tapDay = async (d) => {
+    const iso = isoOf(view.y, view.m, d);
+    if (busyDay) return;
+    const logged = startSet.has(iso);
+    if (logged) {
+      const ok = await window.bsAskConfirm?.({
+        title: tr('cycle:cal.unlogTitle', { defaultValue: 'Remove this date?' }),
+        message: tr('cycle:cal.unlogMessage', { defaultValue: 'This removes the period start you logged on this day.' }),
+        confirmLabel: tr('cycle:cal.unlogConfirm', { defaultValue: 'Remove' }),
+      });
+      if (!ok) return;
+      setBusyDay(iso); setOptimistic((o) => ({ ...o, [iso]: false }));
+      let r = null;
+      try { r = await window.ShapeCycle?.unlog?.(iso); } catch (e) { r = null; }
+      setBusyDay('');
+      if (!(r && r.ok)) {
+        setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+        window.__bsToast?.(tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }), 'err');
+        return;
+      }
+      setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+      await reload(); bsCycleLoggedPing();
+      return;
+    }
+    setBusyDay(iso); setOptimistic((o) => ({ ...o, [iso]: true }));
+    let r = null;
+    try { r = await window.ShapeCycle?.log?.(iso); } catch (e) { r = null; }
+    setBusyDay('');
+    if (!(r && r.ok)) {
+      setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+      // The storage boundary names its own rejection — say the true reason.
+      window.__bsToast?.(r && r.reason === 'future'
+        ? tr('cycle:cal.noFuture', { defaultValue: "Can't log a future date." })
+        : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }), r && r.reason === 'future' ? 'info' : 'err');
+      return;
+    }
+    setOptimistic((o) => { const n = { ...o }; delete n[iso]; return n; });
+    await reload(); bsCycleLoggedPing();
+  };
+
+  // ── The register — what the engine actually knows, stated plainly ─────────
+  const phaseLabel = (p) => ({
+    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
+    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
+    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
+    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
+  }[p] || '');
+  const confLabel = (c) => ({
+    high: tr('cycle:conf.high', { defaultValue: 'High confidence' }),
+    medium: tr('cycle:conf.medium', { defaultValue: 'Medium confidence' }),
+    low: tr('cycle:conf.low', { defaultValue: 'Low confidence' }),
+  }[c] || '');
+  const fmtDay = (iso) => { try { return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { month: 'short', day: 'numeric' }); } catch (e) { return iso; } };
+
+  const register = (() => {
+    if (loading) return null;
+    if (!cycle) {
+      return (
+        <div style={{ padding: `2px ${t.padX}px 10px` }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.25 }}>{tr('cycle:cal.setupTitle', { defaultValue: "Log your last period's first day to begin." })}</div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>{tr('cycle:cal.setupBody', { defaultValue: 'Tap any past day on the calendar. Two or three cycles in, Shape starts reading your pattern.' })}</div>
+        </div>
+      );
+    }
+    // 'paused' and 'late' are ENGINE states, never surfaced as phases (doctrine).
+    const head = cycle.phase === 'paused'
+      ? tr('cycle:cal.pausedHead', { defaultValue: 'Cycle running long' })
+      : cycle.phase === 'late'
+        ? tr('cycle:cal.lateHead', { d: cycle.day, defaultValue: 'Cycle day {d}' })
+        : tr('cycle:cal.phaseHead', { phase: phaseLabel(cycle.phase), d: cycle.day, defaultValue: '{phase} · day {d}' });
+    const sub = cycle.phase === 'paused'
+      ? tr('cycle:paused', { defaultValue: 'Cycle running long — predictions paused.' })
+      : cycle.phase === 'late'
+        ? tr('cycle:late', { defaultValue: 'A new cycle starts when you log it.' })
+        : null;
+    return (
+      <div style={{ padding: `2px ${t.padX}px 10px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.15 }}>{head}</div>
+        {sub ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
+        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          {[confLabel(cycle.confidence),
+            tr('cycle:cal.lengthMeta', { L: cycle.L, defaultValue: 'Your cycle ~{L} days' }),
+            tr('cycle:cal.loggedMeta', { n: (cycle.starts || []).length, defaultValue: '{n} logged' })].join(' · ')}
+        </div>
+        {pred ? (
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: heat }}>
+            {tr('cycle:cal.predicted', { from: fmtDay(pred.from), to: fmtDay(pred.to), defaultValue: 'Next expected {from} – {to}' })}
+          </div>
+        ) : null}
+      </div>
+    );
+  })();
+
+  return (
+    <BSPage tabBarHeight={0}>
+      <BSDetailHeader onBack={onBack} eyebrow={tr('cycle:cal.eyebrow', { defaultValue: 'Tracking · Private' })}
+        title={<>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: heat }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></>} />
+
+      {register}
+
+      {/* Month headline + nav */}
+      <div style={{ padding: `6px ${t.padX}px 10px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, letterSpacing: '-0.035em', lineHeight: 1, color: t.INK }}>
+          <span style={{ fontStyle: 'italic', color: heat }}>{monthName}</span> <span>{view.y}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={() => step(-1)} aria-label={tr('calendar:nav.prevMonth', { defaultValue: 'Previous month' })} style={{ background: 'transparent', border: 0, padding: '6px 2px', minHeight: 32, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>‹ {abbr(-1)}</button>
+          <button onClick={() => step(1)} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: '6px 2px', minHeight: 32, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{abbr(1)} ›</button>
+        </div>
+      </div>
+
+      {/* DOW header */}
+      <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+        {dowNarrow.map((d, i) => (
+          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, fontWeight: 700, textAlign: 'center' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Grid — hairline week rows; logged = filled heat disc, predicted =
+          dotted heat outline, today = heat numeral. Future days stay tappable
+          and the DB rejects them by name (the toast says why) — the storage
+          boundary is the authority, not a disabled button. */}
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {weeks.map((row, ri) => (
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: `1px solid ${t.HAIR}` }}>
+            {row.map((d, ci) => {
+              if (d == null) return <div key={ci} aria-hidden />;
+              const iso = isoOf(view.y, view.m, d);
+              const logged = startSet.has(iso);
+              const predicted = !logged && inPredicted(iso);
+              const isToday = iso === todayIso;
+              return (
+                <button key={ci} type="button" onClick={() => tapDay(d)} disabled={busyDay === iso}
+                  aria-label={[fmtDay(iso),
+                    ...(logged ? [tr('cycle:cal.ariaLogged', { defaultValue: 'period start logged' })] : []),
+                    ...(predicted ? [tr('cycle:cal.ariaPredicted', { defaultValue: 'expected window' })] : []),
+                    ...(isToday ? [tr('calendar:aria.today', { defaultValue: 'today' })] : [])].join(', ')}
+                  style={{ background: 'transparent', border: 0, cursor: busyDay === iso ? 'default' : 'pointer', minHeight: 44, padding: '9px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, opacity: busyDay === iso ? 0.5 : 1 }}>
+                  <span style={{
+                    width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                    fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 13, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums',
+                    background: logged ? heat : 'transparent',
+                    border: predicted ? `1.5px dotted ${heat}` : '1.5px solid transparent',
+                    color: logged ? t.PAPER : (isToday ? heat : t.INK70),
+                  }}>{d}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend — only the non-null windows, so nothing implies precision the
+          engine doesn't have. */}
+      <div style={{ padding: `10px ${t.padX}px 6px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: heat, display: 'inline-block' }} />{tr('cycle:cal.legendLogged', { defaultValue: 'Logged' })}
+        </span>
+        {pred ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1.5px dotted ${heat}`, display: 'inline-block' }} />{tr('cycle:cal.legendExpected', { defaultValue: 'Expected' })}
+          </span>
+        ) : null}
+      </div>
+
+      <div style={{ padding: `4px ${t.padX}px 26px`, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, lineHeight: 1.5, color: t.INK50 }}>
+        {tr('cycle:cal.hint', { defaultValue: 'Tap a day to log the first day of a period. Tap it again to remove it.' })}
+      </div>
+
+      <div style={{ marginTop: 'auto' }}><BSFooter left="Shape v2.4.0" right="Build 2026.04" /></div>
+    </BSPage>
+  );
 }
 
 // Small headline editor (title + subtitle) for the Training / Nutrition tabs.
