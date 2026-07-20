@@ -5,6 +5,7 @@
 // never resolves an audience (that is the writer's job).
 export {
   bsLiveProgressPayload,
+  bsCookingPayload,
   bsShouldPushProgress,
   bsValidLivePayload,
 } from '../../../public/newdesign/liveProgress.mjs';

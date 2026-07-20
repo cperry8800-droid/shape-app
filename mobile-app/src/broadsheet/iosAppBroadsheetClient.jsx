@@ -8,7 +8,7 @@ import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLed
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
-import { bsLiveProgressPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsLiveProgressPayload, bsCookingPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -1896,8 +1896,40 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     }, 350);
     return () => { clearTimeout(timer); ctl.abort(); };
   }, [foodQuery, signedIn, showAddFood]);
-  // Broadcast "cooking" presence while the meal logger is open (amber dot).
+  // Broadcast "cooking" presence while the meal logger is open (amber dot) — and,
+  // for a PLAN/RECIPE-sourced meal, the live cooking TITLE (spec 2026-07-19).
+  // Provenance is LIVE: pivoting to freehand mid-session actively clears the
+  // row (never waits for close); the audience re-resolves per push, and a
+  // settings change re-pushes immediately via shape:liveAudienceChanged.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
+  const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
+  const cookPushedRef = React.useRef(null);              // last-pushed MEAL KEY — fresh=true when
+  React.useEffect(() => {                                // the key changes; a re-push of the SAME
+    if (!window.ShapeLiveProgress) return undefined;     // meal must never reset started_at
+    if (cookPayload) {
+      // The ref holds a meal KEY (id, else the payload title), not a boolean, so
+      // a DIRECT swap from one eligible meal to another (A → B with no
+      // ineligible gap between renders) still restamps started_at for B.
+      const mealKey = (meal && (meal.id != null ? String(meal.id) : null)) || cookPayload.title;
+      window.ShapeLiveProgress.push(cookPayload, cookPushedRef.current !== mealKey);
+      cookPushedRef.current = mealKey;
+    } else {
+      window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
+      cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
+    }
+    // Pass the audience the settings change already resolved straight through —
+    // never let this push re-read the (possibly not-yet-persisted) settings doc.
+    const rePush = (e) => {
+      if (!cookPayload) return;
+      const vis = e && e.detail ? e.detail.visibility : undefined;
+      window.ShapeLiveProgress.push(cookPayload, false, vis);
+    };
+    window.addEventListener('shape:liveAudienceChanged', rePush);
+    return () => {
+      window.removeEventListener('shape:liveAudienceChanged', rePush);
+      window.ShapeLiveProgress.clear();                  // logger close → absence
+    };
+  }, [cookPayload]);
 
   // Resolve the member's linked coach for the dispatch register — prefer the
   // nutritionist thread, else any linked coach. No thread → coach stays null and
@@ -2565,6 +2597,57 @@ function bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs) {
     const before = ws.rule(prevPrefs); const after = ws.rule(nextPrefs);
     if (ws.rank[after] > ws.rank[before]) window.ShapeCommunity?.tightenAutoPosts?.(after);
   } catch (e) {}
+}
+
+// Live-row withdrawal is enforced by the MUTATION, not a listener (spec
+// 2026-07-19): whichever device changes the setting resolves the new audience
+// and acts on the member's own user_activity_live row directly — null audience
+// → delete, tightened → restamp visibility. Works even when the broadcasting
+// device is asleep; the shape:liveAudienceChanged event is only the LOCAL
+// re-push. Returns {ok}; the caller must await and dispatch that event ONLY on
+// success, or a failed withdrawal could be followed by a re-push that
+// resurrects the row the member just tried to pull down.
+//
+// ACCEPTED RESIDUAL (TOCTOU, documented not hidden): the settings write and the
+// row mutation are two operations, not one transaction. The bound: one retry,
+// an honest toast on failure, no re-push on failure, and expiry caps the worst
+// case. Folding both into a single serialized RPC would re-route the entire
+// settings write path for that bound — declined at this scope.
+async function bsRetightenLiveRow(nextPrefs) {
+  try {
+    const { bsLiveAudience } = await import('../services/liveProgress.mjs');
+    const vis = bsLiveAudience(nextPrefs, false);
+    const db = window.shapeDb; const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!db?.client || !uid) return { ok: false };
+    const run = () => (!vis
+      ? db.client.from('user_activity_live').delete().eq('user_id', uid)
+      : db.client.from('user_activity_live').update({ visibility: vis }).eq('user_id', uid));
+    const { error } = await run();
+    if (error) {                                   // one retry, then honest failure
+      const { error: e2 } = await run();
+      if (e2) return { ok: false };
+    }
+    // Hand the RESOLVED audience back so the local re-push can use it directly.
+    return { ok: true, visibility: vis };
+  } catch (e) { return { ok: false }; }
+}
+
+// Shared by both preference-update handlers so the rule can't drift between
+// them (the same reason bsMaybeRetightenAutoPosts is shared).
+function bsOnShareSettingChanged(prevPrefs, nextPrefs) {
+  bsMaybeRetightenAutoPosts(prevPrefs, nextPrefs);
+  bsRetightenLiveRow(nextPrefs).then((r) => {
+    if (r && r.ok) {
+      // Carry the RESOLVED audience on the event. The re-push must NOT re-read
+      // user_goals: saveUserGoals('client_settings', …) above is
+      // fire-and-forget, so that read can still return the OLD doc and the
+      // wider previous audience — resurrecting the row we just withdrew, with
+      // its payload (a meal title) intact (Codex P1).
+      try { window.dispatchEvent(new CustomEvent('shape:liveAudienceChanged', { detail: { visibility: r.visibility } })); } catch (e) {}
+    } else {
+      try { window.__bsToast?.('Live-sharing change didn\'t save — check your connection.', 'info'); } catch (e) {}
+    }
+  });
 }
 
 // ── Live home week ───────────────────────────────────────────────────────────
@@ -7683,7 +7766,9 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   // existence of a setting choice). Demo people (no userId) never fetch.
   const [live, setLive] = useStateBSC(null);
   React.useEffect(() => {
-    if (!person.userId || kind !== 'workout' || !window.ShapeLiveProgress) return undefined;
+    // Both kinds now (spec 2026-07-19) — the ROW's own payload.kind decides what
+    // renders, so the sheet no longer gates the subscription on the activity.
+    if (!person.userId || !window.ShapeLiveProgress) return undefined;
     let on = true; let expTimer = null; let evented = false;
     // TOCTOU guard (review: CodeRabbit): the initial get() can resolve AFTER a
     // newer realtime event (incl. a DELETE on session end) and restore a stale
@@ -7691,19 +7776,29 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
     const take = (row, fromEvent) => {
       if (!on) return;
       if (fromEvent) evented = true; else if (evented) return;
+      // Expiry gates the ROW ITSELF, not just the timer (CWE-359): the shipped
+      // version set state for every incoming row and only scheduled a timer when
+      // expiry was in the future, so an ALREADY-EXPIRED realtime row rendered
+      // until unmount. Titles raise the stakes, so reject it outright.
+      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
+      if (row && !(expMs > 0)) row = null;   // expired OR invalid/NaN expiry = absence (NaN fails > 0)
       setLive(row);
       // Subscription-side expiry (spec review): the SQL filter protects get()
       // only — an already-open sheet must drop a row when its expires_at passes.
       if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      const expMs = row && row.expires_at ? new Date(row.expires_at).getTime() - Date.now() : 0;
-      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
+      if (row && expMs > 0) expTimer = setTimeout(() => { if (on) setLive(null); }, expMs);
     };
     window.ShapeLiveProgress.get(person.userId).then((r) => take(r, false)).catch(() => {});
     const off = window.ShapeLiveProgress.subscribe(person.userId, (r) => take(r, true));
     return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
   }, [person.userId, kind]);
   const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
-  const lpCur = lp && lp.curIdx >= 0 && lp.exercises[lp.curIdx] ? lp.exercises[lp.curIdx] : null;
+  // lp is a DISCRIMINATED UNION (workout | cooking). Split it here so neither
+  // branch can touch the other's fields: lpWork carries exercises/sets, lpCook
+  // carries a title and nothing else.
+  const lpWork = lp && (!lp.kind || lp.kind === 'workout') ? lp : null;
+  const lpCook = lp && lp.kind === 'cooking' ? lp : null;
+  const lpCur = lpWork && lpWork.curIdx >= 0 && lpWork.exercises[lpWork.curIdx] ? lpWork.exercises[lpWork.curIdx] : null;
   const sendBoost = async (body) => {
     const msg = String(body || '').trim();
     if (!msg || busy || sent) return;
@@ -7742,7 +7837,15 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
               <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33`, ...(reduced ? null : { '--sd-glow': bsTHexA(accent, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
             </div>
-            {lp && (
+            {/* Cooking: the PLANNED meal's title only — never macros, portions
+                or adjustments. A freehand meal pushes nothing, so this simply
+                doesn't render and the generic presence line above stands. */}
+            {lpCook && (
+              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ color: t.INK, fontWeight: 800 }}>{lpCook.title}</span>
+              </div>
+            )}
+            {lpWork && (
               <div style={{ marginTop: 5 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {lpCur ? <>
@@ -7750,10 +7853,10 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
                     {' · '}{tr('feed:boost.liveSet', { done: Math.min(lpCur.done + 1, lpCur.total), total: lpCur.total, defaultValue: 'set {done, number} of {total, number}' })}
                     {' — '}
                   </> : null}
-                  {tr('feed:boost.liveSets', { done: lp.setsDone, total: lp.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
+                  {tr('feed:boost.liveSets', { done: lpWork.setsDone, total: lpWork.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
                 </div>
                 <div aria-hidden style={{ marginTop: 4, height: 2, background: bsTHexA(t.INK, 0.12) }}>
-                  <div style={{ height: 2, width: `${lp.setsTotal ? Math.round((lp.setsDone / lp.setsTotal) * 100) : 0}%`, background: accent }} />
+                  <div style={{ height: 2, width: `${lpWork.setsTotal ? Math.round((lpWork.setsDone / lpWork.setsTotal) * 100) : 0}%`, background: accent }} />
                 </div>
               </div>
             )}
@@ -22985,7 +23088,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
     });
   };
@@ -22999,7 +23102,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
       if (key === 'onlineVisible') { try { window.ShapeOnlineVisible = (next[key] !== 'Off'); window.ShapePresence?.setVisible?.(next[key] !== 'Off'); window.dispatchEvent(new Event('shape:identity')); } catch (e) {} }
       if (key === 'trainingPhase' || key === 'nutritionPhase') { window.ShapeProgram?.set?.({ [key]: next[key] }); try { window.ShapeProgramApi?.set?.({ [key]: next[key] }); } catch (e) {} }
-      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsMaybeRetightenAutoPosts(p, next);
+      if (key === 'shareWorkoutData' || key === 'profileVisibility') bsOnShareSettingChanged(p, next);
       return next;
     });
   };

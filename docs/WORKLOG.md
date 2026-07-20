@@ -178,7 +178,24 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, build 2/9): THE VARIANCE BAND — steady-vs-variable
+> **Latest (2026-07-20, build 3/9): LIVE COOKING DETAIL — the planned meal's
+> title on the boost sheet.** A boost sender sees **what** a member is cooking,
+> on the existing `user_activity_live` rails. **The doctrine line holds:** a
+> plan/recipe-sourced meal broadcasts its TITLE (menu info — the coach wrote it);
+> a **freehand meal broadcasts NOTHING**, not even a generic marker, because
+> freehand is *intake* and the presence dot already says "cooking".
+> `bsValidLivePayload` now dispatches on `kind` FIRST and returns a
+> **discriminated union** — every consumer is gated (`BSProLiveWatch` gains its
+> guard here; the web station already had one), so a cooking row can never render
+> exercise scaffolding. Titles are member-authored text on someone else's screen:
+> control characters and markup are **rejected at both ends, never truncated**.
+> Provenance is LIVE (pivot to freehand → the row clears immediately), settings
+> changes act on the row directly, and ⚠ **expiry now rejects the ROW, not just
+> the timer** (an already-expired realtime row used to render until unmount —
+> CWE-359). ⚠ **OWNER MIGRATION `2026-07-19-user-activity-live-expiry-rls.sql`**
+> (hardening only). Next: build 4/9 `live-coach-channel`.
+>
+> **Prior (2026-07-20, build 2/9): THE VARIANCE BAND — steady-vs-variable
 > weekly adherence.** Coaches see who holds a steady week and who swings: a
 > roster **VARIABLE** chip (AMBER/WATCH — never the rust FLAG colour; steady
 > shows nothing), a Case File line, and the same line on the website. **Members
@@ -684,6 +701,84 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 3/9) — LIVE COOKING DETAIL: the planned meal's title on the boost sheet
+
+- **Build 3 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-live-cooking-detail.md`. A boost sender sees
+  **what** a member is cooking — the **planned meal's TITLE only** — on the
+  existing `user_activity_live` rails. Suite **647 → 651**.
+- **⚠ OWNER MIGRATION — `2026-07-19-user-activity-live-expiry-rls.sql`** (hardening
+  only; nothing depends on it to function).
+- **The doctrine line, held:** a **plan/recipe-sourced** meal broadcasts its title
+  (menu info — the coach wrote it). A **freehand** meal broadcasts **nothing** —
+  not even a generic marker, because freehand is *intake*, and intake is the
+  member's own business (the meal share-by-choice doctrine). The presence dot
+  already says "cooking"; that's the whole signal for freehand.
+- **`bsValidLivePayload` now dispatches on `kind` FIRST** and returns a
+  **discriminated union**. This had to come before any workout-shaped check — a
+  cooking row carries no `exercises`, so the workout contract would have rejected
+  it outright. Unknown kinds are rejected.
+- **Reject, never truncate.** Cooking titles are member-authored text landing on
+  someone else's screen, so control characters (they can hide or reorder rendered
+  text) and markup delimiters are **refused at both ends** — builder and wire
+  validator share ONE contract, proven by a test that runs every refused title
+  through both. A hand-built row cannot out-flank the writer.
+- **Planned-meal predicate is type-strict:** `Number(null)` / `Number('')` /
+  `Number(false)` are all finite `0`, so the logger's looser `hasPlanned` would
+  read those as planned. The builder does not — it requires a real number or a
+  non-empty numeric string. A genuine 0-kcal planned meal (black coffee) still
+  counts. The divergence errs toward **silence**, which is the safe direction.
+- **Every existing validator consumer gated on the union:** the web
+  `CKLiveStation` already had its guard from #1769; **`BSProLiveWatch` gains one
+  here** so a cooking row falls through to the neutral no-detail line instead of
+  exercise scaffolding built from fields it doesn't carry; the boost sheet splits
+  `lp` into `lpWork`/`lpCook` so neither branch can touch the other's fields.
+- **Provenance is LIVE, not open-time:** pivoting to freehand mid-session
+  **actively clears** the row rather than waiting for close. `cookPushedRef` holds
+  a meal **KEY** (id, else title), not a boolean, so a direct A→B swap between two
+  eligible meals restamps `started_at` for B while a re-push of the SAME meal
+  never resets the clock.
+- **Settings act on the row DIRECTLY** (`bsRetightenLiveRow`) instead of relying
+  on the broadcasting device being awake: null audience deletes, a tightened
+  audience restamps visibility. The local re-push event fires **only on success**
+  — a failed withdrawal followed by a re-push could resurrect the row the member
+  just tried to pull down; failure surfaces an honest toast. Both prefs-save
+  branches route through one shared helper so the rule can't drift.
+  **Accepted TOCTOU residual, documented in-code:** the settings write and the row
+  mutation are two operations, bounded by one retry + honest failure + no re-push
+  on failure + expiry.
+- **⚠ The withdrawal race (Codex P1, caught in review — real privacy leak).**
+  `saveUserGoals('client_settings', …)` is **fire-and-forget**, but the re-push's
+  `_liveAudience()` re-reads that persisted doc. So turning sharing OFF could
+  go: row deleted → re-push fires → audience read hits the **stale** doc →
+  returns the OLD, wider audience → **the row is re-created with the meal title
+  still on it**, visible until another push or expiry. The resolved audience is
+  now carried on the `shape:liveAudienceChanged` event and passed straight into
+  `livePush(payload, fresh, visOverride)`, so the re-push never consults
+  settings that may not have landed. `undefined` = resolve normally; `null` =
+  private → delete. **A withdrawal can no longer be undone by its own re-push.**
+- **⚠ Expiry now rejects the ROW, not just the timer (CWE-359).** The shipped
+  boost-sheet consumer set state for every incoming realtime row and only
+  scheduled a timer when expiry was in the future — so an **already-expired**
+  realtime row rendered until unmount. Harmless-ish for set counts; not for a meal
+  title. Mirrors the web station's guard.
+- **Deviation from the plan's render snippet:** it emitted
+  `Cooking · {title} — N min in`, which duplicates both the verb and the elapsed
+  already shown by the presence line directly above (`COOKING NOW · 12 MIN IN`).
+  The title renders **bare on its own line**, matching the workout branch (which
+  likewise doesn't repeat the verb or minutes) — so **no new i18n key** was needed:
+  the title is member data passing through, not UI copy.
+- **Browser-verified** against the canonical module: cooking validates and carries
+  no workout fields; workout still validates; the web station's **real gate**
+  rejects a cooking payload and accepts a workout one (the cross-contamination
+  check); 81-char, markup (`<img src=x onerror=…>`), control-char and unknown-kind
+  payloads all rejected; freehand builds nothing.
+- Verified: `npm test` **651** · `tsc --noEmit` clean · PowerShell `/m/` build exit
+  0 · `build-newdesign --check` exit 0 · JSX parses ×3 · tr-shadow greps clean · LF.
+- **Deferred (recorded):** the session player's `shape:liveAudienceChanged`
+  listener — the workout writer already re-resolves the audience per transition, so
+  its gap is strictly smaller; noted rather than bundled in.
 
 ### 2026-07-20 (build 2/9) — THE VARIANCE BAND: steady-vs-variable weekly adherence
 

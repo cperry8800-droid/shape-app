@@ -5456,12 +5456,19 @@ async function _liveAudience() {
 // survived a crash / failed clear can't lend its OLD start time to the new
 // session (the coach clock would read hours old — Codex P2). Later pushes omit
 // started_at so the session's real start survives the upsert.
-async function livePush(payload, fresh) {
+// `visOverride` (optional): a caller that has ALREADY resolved the audience
+// passes it through instead of letting us re-read it. This exists for the
+// settings-change re-push: `saveUserGoals('client_settings', …)` is
+// fire-and-forget, so _liveAudience()'s read of user_goals can still see the
+// OLD doc and hand back the previous, WIDER audience — which would resurrect
+// the row the member just withdrew, with its payload intact (Codex P1).
+// `undefined` = not supplied (resolve normally); `null` = resolved to private.
+async function livePush(payload, fresh, visOverride) {
   if (!supabase || !state.user || !payload) return;
   const gen = _liveGen;
   return _liveEnqueue(async () => {
     if (gen !== _liveGen) return;              // superseded before we ran
-    const vis = await _liveAudience();
+    const vis = visOverride !== undefined ? visOverride : await _liveAudience();
     if (gen !== _liveGen) return;
     if (!vis) { _liveGen++; await _liveDelete(); return; }   // private/read-failed → absence
     const now = new Date();
