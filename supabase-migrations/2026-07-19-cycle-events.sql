@@ -136,18 +136,22 @@ create trigger cycle_consent_guard before insert on public.consent_log
 --    a withdrawal receipt (share-off / opt-out path records its own).
 --    ⚠ ONE receipt per call, ENFORCED (round 4, Codex P1): the data blob
 --    overwrites BOTH flags, so the flag the receipt does NOT name must be
---    UNCHANGED from the stored state (missing doc reads false/false; the row
---    is locked FOR UPDATE so a concurrent call can't slip a transition
---    between the read and the write). Before this the two-call sequence was
---    a documented UI contract only — a single hand-built call could flip
---    share ON with just a tracking receipt (coach visibility granted with no
---    share receipt — get_client_cycle authorizes from the flags alone),
---    clear share with no withdrawal receipt, or flip optIn true around a
---    share receipt with no tracking receipt. Legit sequences are unchanged:
---    opt-in (tracking receipt, share stays false) → share-on (share receipt,
---    optIn stays true) → share-off (share receipt, optIn stays true);
---    tracking-off = cycle_opt_out() ONLY — p_opt_in = false is rejected on
---    EVERY path below.
+--    UNCHANGED from the stored state (missing doc reads false/false). Before
+--    this the two-call sequence was a documented UI contract only — a single
+--    hand-built call could flip share ON with just a tracking receipt (coach
+--    visibility granted with no share receipt — get_client_cycle authorizes
+--    from the flags alone), clear share with no withdrawal receipt, or flip
+--    optIn true around a share receipt with no tracking receipt.
+--    ⚠ Serialization (round 5, CodeRabbit): a per-user ADVISORY XACT LOCK —
+--    shared with cycle_opt_out() — not FOR UPDATE, which cannot lock a row
+--    that doesn't exist yet (two first-time calls would both read the
+--    default false/false), and which can't serialize against opt-out's
+--    was-sharing read (an opt-out racing a share-on could read share=false,
+--    then delete AFTER the grant commits — a share-grant receipt with no
+--    withdrawal receipt). Legit sequences are unchanged: opt-in (tracking
+--    receipt, share stays false) → share-on (share receipt, optIn stays
+--    true) → share-off (share receipt, optIn stays true); tracking-off =
+--    cycle_opt_out() ONLY — p_opt_in = false is rejected on EVERY path below.
 create or replace function public.cycle_set_settings(
   p_opt_in boolean, p_share boolean,
   p_consent_kind text, p_granted boolean, p_consent_text text
@@ -186,14 +190,15 @@ begin
     raise exception 'receipt_flag_mismatch';
   end if;
   -- Round 4 (Codex P1): the flag this receipt does NOT name must not move.
-  -- Lock + read the stored flags; a missing doc is the pre-opt-in state
-  -- (false/false). This turns the two-call UI contract into a DB rule.
+  -- Round 5 (CodeRabbit): serialize per user BEFORE reading — the advisory
+  -- lock covers the no-row-yet window FOR UPDATE can't, and cycle_opt_out()
+  -- takes the same lock so a share receipt can never race its withdrawal.
+  perform pg_advisory_xact_lock(hashtext('shape_cycle_settings'), hashtext(auth.uid()::text));
   select coalesce((data->>'optIn')::boolean, false),
          coalesce((data->>'share')::boolean, false)
     into v_cur_opt, v_cur_share
     from public.user_goals
-   where user_id = auth.uid() and kind = 'cycle_settings'
-   for update;
+   where user_id = auth.uid() and kind = 'cycle_settings';
   if not found then v_cur_opt := false; v_cur_share := false; end if;
   if p_consent_kind = 'cycle_tracking' and p_share <> v_cur_share then
     raise exception 'one_flag_per_receipt';
@@ -220,6 +225,10 @@ create or replace function public.cycle_opt_out()
 returns void language plpgsql security invoker set search_path = public, pg_temp as $$
 declare v_was_sharing boolean;
 begin
+  -- Same per-user advisory lock as cycle_set_settings (round 5): without it,
+  -- an opt-out racing a share-on could read share=false, then delete AFTER
+  -- the grant commits — leaving a share-grant receipt with no withdrawal.
+  perform pg_advisory_xact_lock(hashtext('shape_cycle_settings'), hashtext(auth.uid()::text));
   perform set_config('shape.cycle_rpc', '1', true);
   select coalesce((data->>'share')::boolean, false) into v_was_sharing
     from public.user_goals where user_id = auth.uid() and kind = 'cycle_settings';
