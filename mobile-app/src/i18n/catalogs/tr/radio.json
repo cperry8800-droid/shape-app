@@ -61,5 +61,19 @@
   "sets.liveFrom": "Canlı yayın:",
   "sets.nowTag": "Şimdi",
   "sets.onScheduleNow": "Şu an programda — yayın yakında",
-  "sets.upNext": "Sırada · {title} · {time}"
+  "sets.upNext": "Sırada · {title} · {time}",
+  "social.signInToReact": "Tepki vermek ve yorum yapmak için giriş yap",
+  "social.openComments": "Yorumlar",
+  "social.commentsOn": "{title} hakkında yorumlar",
+  "social.commentsTitle": "{count, plural, one {# yorum} other {# yorum}}",
+  "social.close": "Kapat",
+  "social.beFirst": "Henüz yorum yok — bu parça hakkında bir şeyler söyle.",
+  "social.member": "Üye",
+  "social.placeholder": "Bir şeyler yaz…",
+  "social.posting": "Gönderiliyor…",
+  "social.post": "Gönder",
+  "social.now": "şimdi",
+  "social.mAgo": "{n} dk",
+  "social.hAgo": "{n} sa",
+  "social.dAgo": "{n} g"
 }
