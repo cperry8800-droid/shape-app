@@ -17536,6 +17536,13 @@ function useBSCycleDerived(optIn) {
     let cycle = null;
     try { cycle = bsDeriveCycle(starts, new Date()); } catch (e) { cycle = null; }
     if (bsCycleUid() !== uid) return;                    // account changed mid-read
+    // Opt-out can flip WHILE this read is in flight (review: CodeRabbit,
+    // CWE-459): the closure's optIn was true at call time, so without this
+    // re-check a stale resolve would write the just-deleted dates straight
+    // back into the global cache. The settings cache is uid-keyed and updated
+    // synchronously by the opt-out path, so it is the current truth here.
+    const st = (typeof window !== 'undefined' && window.ShapeCycleState) || null;
+    if (st && st.uid === uid && st.optIn !== true) return;
     const next = { uid, starts, cycle };
     try { window.ShapeCycleDerived = next; } catch (e) {}
     setS({ ...next, loading: false });
