@@ -49,7 +49,7 @@
   "cal.lateHead": "Dia {d} do ciclo",
   "cal.pausedHead": "Ciclo mais longo que o habitual",
   "cal.lengthMeta": "Seu ciclo ~{L} dias",
-  "cal.loggedMeta": "{n} registrados",
+  "cal.loggedMeta": "{n, plural, one {# registrada} other {# registradas}}",
   "cal.predicted": "Próxima prevista {from} – {to}",
   "cal.noFuture": "Não dá para registrar uma data futura.",
   "cal.unlogTitle": "Remover esta data?",
@@ -63,6 +63,6 @@
   "card.station": "O ciclo",
   "card.meta": "Privado para você",
   "card.setup": "Registre um início de menstruação para começar.",
-  "card.cycles": "{n} ciclos de dados",
+  "card.cycles": "{n, plural, one {# ciclo de dados} other {# ciclos de dados}}",
   "todayChip": "Começou a menstruar? Registre"
 }

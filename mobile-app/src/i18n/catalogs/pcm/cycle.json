@@ -63,6 +63,6 @@
   "card.station": "The cycle",
   "card.meta": "Na your own alone",
   "card.setup": "Log period start make e begin.",
-  "card.cycles": "{n} cycles of data",
+  "card.cycles": "{n, plural, one {# cycle of data} other {# cycles of data}}",
   "todayChip": "Period don start? Log am"
 }

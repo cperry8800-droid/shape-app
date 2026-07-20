@@ -50,7 +50,7 @@
   "cal.pausedHead": "Zyklus dauert länger",
   "cal.lengthMeta": "Dein Zyklus ~{L} Tage",
   "cal.loggedMeta": "{n} eingetragen",
-  "cal.predicted": "Nächste erwartet {from} – {to}",
+  "cal.predicted": "Nächste Periode erwartet {from} – {to}",
   "cal.noFuture": "Ein zukünftiges Datum lässt sich nicht eintragen.",
   "cal.unlogTitle": "Dieses Datum entfernen?",
   "cal.unlogMessage": "Das entfernt den Periodenstart, den du an diesem Tag eingetragen hast.",

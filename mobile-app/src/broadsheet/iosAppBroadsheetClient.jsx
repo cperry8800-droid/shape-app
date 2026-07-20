@@ -1451,6 +1451,21 @@ function useBSCycleSettings() {
   return s;
 }
 
+// One reader for the phase words and the surface heat (review: CodeRabbit) —
+// the calendar page and the Progress card had hand-copied maps, so a fifth
+// phase or a key rename meant editing them in lockstep.
+function bsCyclePhaseLabel(tr, phase) {
+  return {
+    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
+    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
+    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
+    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
+  }[phase] || '';
+}
+function bsCycleHeat(t) {
+  return (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+}
+
 // The not-medical-advice disclaimer is legally material and VERBATIM (spec
 // doctrine). One reader, so the string a member consents to is byte-identical
 // to the string she was shown — the consent receipt records exactly this, in
@@ -17615,12 +17630,7 @@ function BSCycleCalendarPage({ onBack }) {
   };
 
   // ── The register — what the engine actually knows, stated plainly ─────────
-  const phaseLabel = (p) => ({
-    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
-    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
-    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
-    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
-  }[p] || '');
+  const phaseLabel = (p) => bsCyclePhaseLabel(tr, p);
   const confLabel = (c) => ({
     high: tr('cycle:conf.high', { defaultValue: 'High confidence' }),
     medium: tr('cycle:conf.medium', { defaultValue: 'Medium confidence' }),
@@ -25773,13 +25783,8 @@ function BSCycleCard({ isSelf }) {
   }, [isSelf, optIn, cycle, starts]);
 
   if (!isSelf || !optIn) return null;                          // absence, never a padlock
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
-  const phaseLabel = {
-    menstrual: tr('cycle:phase.menstrual', { defaultValue: 'Menstrual' }),
-    follicular: tr('cycle:phase.follicular', { defaultValue: 'Follicular' }),
-    ovulatory: tr('cycle:phase.ovulatory', { defaultValue: 'Ovulatory' }),
-    luteal: tr('cycle:phase.luteal', { defaultValue: 'Luteal' }),
-  }[cycle && cycle.phase] || '';
+  const heat = bsCycleHeat(t);
+  const phaseLabel = bsCyclePhaseLabel(tr, cycle && cycle.phase);
   const head = !cycle
     ? tr('cycle:card.setup', { defaultValue: 'Log a period start to begin.' })
     : cycle.phase === 'paused'
@@ -25832,7 +25837,7 @@ function BSCycleTodayChip() {
   const from = shift(cycle.predictedStart.from, -2);
   const to = shift(cycle.predictedStart.to, 7);
   if (!from || !to || todayIso < from || todayIso > to) return null;
-  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const heat = bsCycleHeat(t);
   return (
     <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '10px 0 2px', minHeight: 44, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: heat }}>
