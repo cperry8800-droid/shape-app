@@ -1391,26 +1391,45 @@ function useBSMembership() {
 // and never-opted-in all resolve to { optIn:false, share:false } — absence,
 // never a fabricated opt-in (the doctrine's absence-not-a-padlock rule starts
 // here: a member who never opted in has NO cycle surfaces at all).
-function bsCycleStatePut(next) {
-  const clean = { optIn: next?.optIn === true, share: next?.share === true };
+// ⚠ Both cycle caches are keyed by the AUTH USER ID (review: Codex P1). A
+// logout→login without a full reload leaves the window globals in place, so an
+// unscoped cache let the NEXT account inherit the previous member's opt-in /
+// share state — and briefly her period dates through ShapeCycleDerived. That is
+// the most sensitive data in the app leaking across accounts, the same class as
+// the _followCache/_avatarCache leak fixed 2026-06-29. A cache whose uid does
+// not match the CURRENT uid is treated as absent, so the new account always
+// re-reads its own state; signed-out (uid null) is a distinct key, never a
+// wildcard that matches a signed-in cache.
+function bsCycleUid() {
+  try { return (window.ShapeAuth?.getCachedState?.()?.user?.id) || null; } catch (e) { return null; }
+}
+function bsCycleStatePut(next, uid) {
+  const clean = { uid: uid === undefined ? bsCycleUid() : uid, optIn: next?.optIn === true, share: next?.share === true };
   try { window.ShapeCycleState = clean; } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('shape:cycleSettings', { detail: clean })); } catch (e) {}
   return clean;
 }
 function useBSCycleSettings() {
+  const uid = bsCycleUid();
   const [s, setS] = useStateBSC(() => {
     const cached = (typeof window !== 'undefined' && window.ShapeCycleState) || null;
-    return cached ? { ...cached, loading: false } : { loading: true, optIn: false, share: false };
+    return (cached && cached.uid === uid) ? { ...cached, loading: false } : { loading: true, optIn: false, share: false, uid };
   });
-  // Sync every mounted consumer on a write from any other surface.
+  // Account switch mid-session: drop straight back to loading so the previous
+  // member's state can never render for even one frame.
+  React.useEffect(() => {
+    if (s.uid !== uid) setS({ loading: true, optIn: false, share: false, uid });
+  }, [uid, s.uid]);
+  // Sync every mounted consumer on a write from any other surface — but only
+  // when the write belongs to the account this hook is rendering for.
   React.useEffect(() => {
     const onChange = (e) => {
       const d = (e && e.detail) || (typeof window !== 'undefined' ? window.ShapeCycleState : null);
-      if (d) setS({ optIn: d.optIn === true, share: d.share === true, loading: false });
+      if (d && d.uid === uid) setS({ optIn: d.optIn === true, share: d.share === true, loading: false, uid });
     };
     window.addEventListener('shape:cycleSettings', onChange);
     return () => window.removeEventListener('shape:cycleSettings', onChange);
-  }, []);
+  }, [uid]);
   React.useEffect(() => {
     if (!s.loading) return undefined;
     let cancelled = false;
@@ -1420,12 +1439,15 @@ function useBSCycleSettings() {
         const r = await window.ShapeCycle?.settings?.();
         if (r && typeof r === 'object') next = { optIn: r.optIn === true, share: r.share === true };
       } catch (e) { /* absent doc / pre-migration → the false/false default */ }
-      if (cancelled) return;
-      bsCycleStatePut(next);
-      setS({ ...next, loading: false });
+      // The account can change WHILE this read is in flight (logout mid-fetch):
+      // a response resolved for the previous uid must never be cached or
+      // rendered under the new one.
+      if (cancelled || bsCycleUid() !== uid) return;
+      bsCycleStatePut(next, uid);
+      setS({ ...next, loading: false, uid });
     })();
     return () => { cancelled = true; };
-  }, [s.loading]);
+  }, [s.loading, uid]);
   return s;
 }
 
@@ -17470,22 +17492,29 @@ function BSCycleOptInSheet({ onClose, onDone }) {
 // Never opted in → { starts: [], cycle: null } and every surface renders
 // nothing (absence, per doctrine).
 function useBSCycleDerived(optIn) {
+  const uid = bsCycleUid();
   const [s, setS] = useStateBSC(() => {
     const c = (typeof window !== 'undefined' && window.ShapeCycleDerived) || null;
-    return c ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null };
+    // uid-keyed for the same reason as ShapeCycleState — an unscoped cache here
+    // would briefly render the PREVIOUS member's period dates (Codex P1).
+    return (c && c.uid === uid) ? { ...c, loading: false } : { loading: !!optIn, starts: [], cycle: null, uid };
   });
+  React.useEffect(() => {
+    if (s.uid !== uid) setS({ loading: !!optIn, starts: [], cycle: null, uid });
+  }, [uid, s.uid, optIn]);
   const load = React.useCallback(async () => {
-    if (!optIn) { setS({ loading: false, starts: [], cycle: null }); return; }
+    if (!optIn) { setS({ loading: false, starts: [], cycle: null, uid }); return; }
     let starts = [];
     try { starts = (await window.ShapeCycle?.list?.()) || []; } catch (e) { starts = []; }
     // The engine returns null when there is nothing to derive from — the
     // setup state, not an error.
     let cycle = null;
     try { cycle = bsDeriveCycle(starts, new Date()); } catch (e) { cycle = null; }
-    const next = { starts, cycle };
+    if (bsCycleUid() !== uid) return;                    // account changed mid-read
+    const next = { uid, starts, cycle };
     try { window.ShapeCycleDerived = next; } catch (e) {}
     setS({ ...next, loading: false });
-  }, [optIn]);
+  }, [optIn, uid]);
   React.useEffect(() => { let dead = false; (async () => { if (!dead) await load(); })(); return () => { dead = true; }; }, [load]);
   React.useEffect(() => {
     const onLogged = () => { load(); };
