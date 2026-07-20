@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Dụng cụ &",
   "page.titleB": "đặc quyền.",
-  "page.terms": "Mọi thứ đều đổi bằng điểm · 20 điểm = $1 · không hết hạn",
+  "page.terms": "Mọi thứ đều đổi bằng điểm · {rate} điểm = $1 · không hết hạn",
   "balance.available": "Khả dụng",
   "unit.pts": "điểm",
   "unit.toGo": "còn thiếu {gap, number}",

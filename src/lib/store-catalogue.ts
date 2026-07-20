@@ -6,10 +6,10 @@
 //   - public/newdesign/store.jsx  (website)
 //   - BSShapeStorePage in mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
 //
-// Uniform value: 1 Shape point = $0.05 (20 points = $1). Cost derives from the
+// Uniform value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value). Cost derives from the
 // item's retail $, so the rate is consistent across the whole catalogue.
 
-export const SHAPE_PTS_PER_USD = 20;
+export const SHAPE_PTS_PER_USD = 150;
 
 export type StoreItem = {
   id: string;

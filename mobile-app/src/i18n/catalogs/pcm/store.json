@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Gear &",
   "page.titleB": "perks.",
-  "page.terms": "Everything dey ship with points · 20 pts = $1 · e no dey expire",
+  "page.terms": "Everything dey ship with points · {rate} pts = $1 · e no dey expire",
   "balance.available": "Wetin dey",
   "unit.pts": "pts",
   "unit.toGo": "{gap, number} remain",

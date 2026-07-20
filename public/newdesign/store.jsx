@@ -39,8 +39,8 @@ const COACH_LEAD_BOOST_PRODUCTS = [
   { id: 103, cat: "Coach Tools", name: "Lead Boost · 30 days", brand: "Marketplace featured placement", cost: 3000, retail: 249, img: "boost · 30d", stock: "Activate now", kind: "lead_boost", days: 30 },
 ];
 
-// Uniform store value: 1 Shape point = $0.05 (20 points = $1) — clients + coaches.
-const SHAPE_PTS_PER_USD = 20;
+// Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value) — clients + coaches.
+const SHAPE_PTS_PER_USD = 150;
 // Stable item ids matching the server catalogue (src/lib/store-catalogue.ts) so
 // the redemption endpoint can charge the authoritative cost by id.
 const STORE_ITEM_IDS = {
@@ -122,7 +122,7 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
             Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
-            <span style={{ display: "block", marginTop: 14, fontSize: 13, color: TEAL, fontWeight: 600 }}>20 points = $1 · every point is worth 5¢.</span>
+            <span style={{ display: "block", marginTop: 14, fontSize: 13, color: TEAL, fontWeight: 600 }}>150 points = $1 · earned by showing up.</span>
           </p>
         </div>
 

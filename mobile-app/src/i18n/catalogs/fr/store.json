@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Équipement &",
   "page.titleB": "avantages.",
-  "page.terms": "Tout s’expédie avec des points · 20 pts = $1 · sans expiration",
+  "page.terms": "Tout s’expédie avec des points · {rate} pts = $1 · sans expiration",
   "balance.available": "Disponible",
   "unit.pts": "pts",
   "unit.toGo": "encore {gap, number}",

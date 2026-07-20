@@ -20656,9 +20656,9 @@ const BS_STORE_PRODUCTS = [
     { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
   ];
 
-// Uniform store value: 1 Shape point = $0.05 (20 points = $1) — derived ONCE
+// Uniform store value: 150 points = $1 (repriced from 20 — 2026-07-20 owner call: the old rate minted ~12x the subscription price in monthly redemption value) — derived ONCE
 // here so every consumer (Store page, Score Rewards tab) shows the same cost.
-const BS_SHAPE_PTS_PER_USD = 20;
+const BS_SHAPE_PTS_PER_USD = 150;
 BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * BS_SHAPE_PTS_PER_USD); });
 
 // Product stand-in glyph (stroke line-art) — shown until real product photos are
@@ -21039,7 +21039,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           )}
 
-          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { defaultValue: 'Everything ships on points · 20 pts = $1 · no expiry' })}</div>
+          <div style={{ padding: `14px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.3), textAlign: 'center' }}>{tr('store:page.terms', { rate: BS_SHAPE_PTS_PER_USD, defaultValue: 'Everything ships on points · {rate} pts = $1 · no expiry' })}</div>
         </React.Fragment>
       )}
 

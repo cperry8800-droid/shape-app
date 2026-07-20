@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Спорядження &",
   "page.titleB": "бонуси.",
-  "page.terms": "Усе надсилається за бали · 20 б. = $1 · без терміну",
+  "page.terms": "Усе надсилається за бали · {rate} б. = $1 · без терміну",
   "balance.available": "Доступно",
   "unit.pts": "б.",
   "unit.toGo": "{gap, number} до цілі",

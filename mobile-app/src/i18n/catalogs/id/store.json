@@ -3,7 +3,7 @@
   "page.score": "Score",
   "page.titleA": "Perlengkapan &",
   "page.titleB": "keuntungan.",
-  "page.terms": "Semua dikirim dengan poin · 20 poin = $1 · tanpa kedaluwarsa",
+  "page.terms": "Semua dikirim dengan poin · {rate} poin = $1 · tanpa kedaluwarsa",
   "balance.available": "Tersedia",
   "unit.pts": "poin",
   "unit.toGo": "kurang {gap, number}",
