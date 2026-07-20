@@ -224,15 +224,15 @@ function BSRadioProvider({ children }) {
     return () => window.ShapeRadioLive?.stopPolling?.();
   }, [radioOn, paused]);
 
-  // Load the shared social whenever the track changes to a REAL one (a non-null
-  // title/artist). An honest-empty track loads nothing, so counts/comments never
-  // attach to a placeholder. Re-runs on the derived key, so a re-fetch on the same
-  // song is skipped by React's dep equality.
+  // The key for the track on air, built from the RAW now-playing fields (NOT the
+  // '—'-substituted display copy), so a title-only or artist-only track keys the
+  // same everywhere — the read (loadSongSocial) and the writes (voteSong /
+  // commentSong) must agree on it (Codex P2 on #1781). Null when nothing real is
+  // playing. The load effect lives BELOW loadSongSocial's declaration (Codex P1:
+  // referencing it in a dep array above its const is a render-time TDZ crash, and
+  // BSRadioProvider wraps the whole app shell).
   const currentSongKey = (nowPlaying && (nowPlaying.title || nowPlaying.artist))
     ? makeRadioTrackKey({ a: nowPlaying.title, b: nowPlaying.artist }) : null;
-  useEffectBR(() => {
-    if (radioOn && currentSongKey) loadSongSocial(currentSongKey);
-  }, [radioOn, currentSongKey, loadSongSocial]);
 
   function persistRadioPref(asked, on) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
@@ -305,6 +305,13 @@ function BSRadioProvider({ children }) {
       return false;
     }
   }, []);
+
+  // Load the shared social whenever the track changes to a REAL one. Defined AFTER
+  // loadSongSocial so the dep array can reference it without a TDZ (Codex P1 #1781).
+  // An honest-empty track keys null, so counts/comments never attach to a placeholder.
+  useEffectBR(() => {
+    if (radioOn && currentSongKey) loadSongSocial(currentSongKey);
+  }, [radioOn, currentSongKey, loadSongSocial]);
 
   function saveTrackToLibrary(track, service) {
     const payload = makeRadioTrackPayload(track);
@@ -636,7 +643,11 @@ function BSNowPlaying({ onOpen }) {
   if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onOpen={onOpen} />;
 
   const np = radioNowPlayingDisplay(r.nowPlaying);
-  const homeKey = np.hasTrack ? makeRadioTrackKey({ a: np.title, b: np.artist }) : null;
+  // Key off the provider's raw-derived currentSongKey (NOT np, whose '—' fillers
+  // fork a title-only/artist-only track's key) so the count read + the vote write
+  // agree (Codex P2 #1781). np is display-only. The raw track feeds voteSong.
+  const homeKey = r.currentSongKey;
+  const homeTrack = { a: r.nowPlaying?.title, b: r.nowPlaying?.artist };
   const homeSocial = (homeKey && r.songSocial[homeKey]) || RADIO_SOCIAL_EMPTY;
 
   return (
@@ -702,7 +713,7 @@ function BSNowPlaying({ onOpen }) {
                 <button
                   key={item.key}
                   aria-label={item.key === 'up' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
-                  onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong({ a: np.title, b: np.artist }, item.key); }}
+                  onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong(homeTrack, item.key); }}
                   disabled={!homeKey}
                   style={{
                     minWidth: 24, height: 26, flexShrink: 0, border: 0, padding: '0 4px',
@@ -980,8 +991,11 @@ function BSRadioScreen({ onBack }) {
   const onLive = true;
   const playlist = null;
   const np = radioNowPlayingDisplay(r.nowPlaying);
-  // Shared like/dislike + comments for the track on air (null social pre-load).
-  const screenKey = np.hasTrack ? makeRadioTrackKey({ a: np.title, b: np.artist }) : null;
+  // Shared like/dislike + comments for the track on air. Key off the provider's
+  // raw-derived currentSongKey (not np's '—'-filled display copy) so the read and
+  // the writes agree (Codex P2 #1781); the raw track feeds vote/comment.
+  const screenKey = r.currentSongKey;
+  const screenTrack = { a: r.nowPlaying?.title, b: r.nowPlaying?.artist };
   const screenSocial = (screenKey && r.songSocial[screenKey]) || RADIO_SOCIAL_EMPTY;
   // Station tempo — the live now-playing payload carries no per-track BPM, so this
   // is the STATION's nominal BPM (labeled as such), used as the HR-match target.
@@ -1231,7 +1245,7 @@ function BSRadioScreen({ onBack }) {
                     const active = screenSocial.myVote === item.key;
                     return (
                       <button key={item.key} aria-label={item.label} disabled={!canReact}
-                        onClick={() => r.voteSong({ a: np.title, b: np.artist }, item.key)}
+                        onClick={() => r.voteSong(screenTrack, item.key)}
                         style={{ flex: 1, minHeight: 40, borderRadius: 12, cursor: canReact ? 'pointer' : 'default',
                           border: `1px solid ${active ? TEAL : CREAM25}`, background: active ? `${TEAL}1f` : 'transparent',
                           color: active ? CREAM : CREAM70, fontFamily: t.MONO, fontWeight: 800,
@@ -1263,7 +1277,7 @@ function BSRadioScreen({ onBack }) {
             <BSSongCommentsSheet
               t={t} tr={tr} title={np.title} artist={np.artist}
               social={screenSocial}
-              onComment={(text) => r.commentSong({ a: np.title, b: np.artist }, text)}
+              onComment={(text) => r.commentSong(screenTrack, text)}
               onClose={() => setCommentsOpen(false)}
             />
           )}
