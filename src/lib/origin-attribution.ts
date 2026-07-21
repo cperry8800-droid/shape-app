@@ -73,7 +73,7 @@ export async function buildOriginFeed(
       otpError.message
     );
     return subs.map((r) => ({
-      name: activeNames.get(String(r.client_id ?? '')) || 'Client',
+      name: activeNames.get(String(r.client_id ?? '')) || '—', // — = unknown name, never a fabricated placeholder
       kind: 'subscription' as const,
       origin: r.origin ?? 'marketplace',
       feeBps: r.fee_bps ?? 1500,
@@ -95,7 +95,7 @@ export async function buildOriginFeed(
   }
 
   const row = (r: OriginSourceRow, kind: OriginFeedRow['kind']): OriginFeedRow => ({
-    name: activeNames.get(String(r.client_id ?? '')) || 'Client',
+    name: activeNames.get(String(r.client_id ?? '')) || '—', // — = unknown name, never a fabricated placeholder
     kind,
     origin: r.origin ?? 'marketplace',
     feeBps: r.fee_bps ?? 1500,
