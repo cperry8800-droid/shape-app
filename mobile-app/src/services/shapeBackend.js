@@ -3270,19 +3270,40 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 }
 
 // Ask the in-app support assistant. Works signed-out (server returns a
-// rule-based reply); signed-in users get the AI assistant.
-async function askSupportBot(messages, tone) {
+// rule-based reply); signed-in users get the AI assistant. `extra` (optional):
+// { cookContext } rides Cook Mode's sous-chef grounding on the same rail, and
+// { signal } lets the caller bound a stalled request with an AbortController —
+// Cook Mode must never leave its mic stuck on a hung fetch (CodeRabbit #1805).
+async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' };
+  if (extra.cookContext) body.cookContext = extra.cookContext;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' }),
+    body: JSON.stringify(body),
+    signal: extra.signal,
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
   return payload;
+}
+
+// Server STT (Whisper) for hold-to-talk callers (Cook Mode's mic). Routes
+// through apiBaseUrl + the Bearer session — a root-relative fetch never reaches
+// the backend on the NATIVE build, whose WebView has no same origin and no
+// cookie (Codex, PR #1805). On the /m/ web build apiBaseUrl is the page origin,
+// so the cookie session still rides via same-origin credentials.
+async function transcribeVoice(blob, { filename = 'nora.webm', signal } = {}) {
+  const fd = new FormData();
+  fd.append('audio', blob, filename);
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/transcribe`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
+  const payload = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, transcript: payload && payload.transcript ? String(payload.transcript).trim() : '' };
 }
 
 // List the signed-in user's own Spotify playlists (coach Soundtracks importer).
@@ -5885,6 +5906,7 @@ async function undoNoraProposal(auditId) {
 }
 window.ShapeSupport = {
   ask: askSupportBot,
+  transcribe: transcribeVoice,
   confirm: confirmNoraProposal,
   undo: undoNoraProposal,
 };

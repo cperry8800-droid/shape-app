@@ -39,7 +39,7 @@ const PHRASE = [
 
 // Single-token commands (after filler is stripped, exactly one meaningful word).
 const SINGLE = {
-  next: 'next', continue: 'next', forward: 'next', done: 'next', next: 'next',
+  next: 'next', continue: 'next', forward: 'next', done: 'next',
   back: 'back', previous: 'back',
   repeat: 'repeat', again: 'repeat',
   skip: 'skip',

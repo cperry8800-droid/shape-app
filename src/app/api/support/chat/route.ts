@@ -21,7 +21,7 @@ import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
-import { formatCookContext } from '@/lib/ai/cookContext.mjs';
+import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
@@ -577,16 +577,31 @@ async function askOpenAI(
   // The tone shapes the framing (supportive vs direct) but never the facts.
   // The memory note rides ONLY for verified members (their tool list carries
   // remember/forget) — the base prompt stays byte-identical for everyone else.
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}\n\n${toneInstruction(tone)}`;
+  // COOK MODE (CodeRabbit PR #1805, outside-diff): tools=[] makes every
+  // advertised action impossible, so the member note is SUPPRESSED and an
+  // explicit no-tools override rides instead — without it the base prompt's
+  // "you can DO things" framing invites a false "done" claim mid-cook.
+  const cookOverride = member.cookMsg
+    ? "\n\nCOOK MODE: No tools are available on this turn — you are answering a cooking question only. Never say you logged, saved, drafted, assigned, remembered, or changed anything; if asked to, say you can't do that mid-cook and that it's one tap in the app once they're done cooking."
+    : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${cookOverride}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // The server-built member-context block (or the honest unavailable note on
     // a fetch FAILURE) — never client-supplied, members only.
     ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
-    // Cook-mode sous-chef context (spec §7.3) — sanitized+bounded from the
-    // client's payload; sits AFTER member facts so "does this fit my day?" can
-    // use both. Read-only: when cooking, NO write/coach/member tools are exposed.
-    ...(member.cookMsg ? [{ role: 'system', content: member.cookMsg }] : []),
+    // Cook-mode sous-chef context (spec §7.3) — TWO messages: the fixed header
+    // (our text) rides system, while the recipe payload — CLIENT-supplied,
+    // sanitized + bounded — rides as a plain USER-role data message, so
+    // client-controlled text never sits in the system trust tier (CWE-1427,
+    // CodeRabbit PR #1805). Sits AFTER member facts so "does this fit my
+    // day?" can use both. Read-only: when cooking, NO write/coach/member tools.
+    ...(member.cookMsg
+      ? [
+          { role: 'system', content: COOK_CONTEXT_HEADER },
+          { role: 'user', content: member.cookMsg },
+        ]
+      : []),
     ...recent,
   ];
   const actions: SupportAction[] = [];

@@ -6192,12 +6192,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   }, [readsOn, phase, stepIdx, hasMethod]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => () => stopSpeak(), [stopSpeak]);   // silence on unmount
   const toggleReads = () => {
-    setReadsOn((on) => {
-      const next = !on;
-      try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch (e) {}
-      if (!next) stopSpeak(); else if (phase === 'method' && hasMethod) speak(steps[stepIdx]);
-      return next;
-    });
+    // Side effects live OUTSIDE the setState updater — Strict Mode dev runs
+    // functional updaters twice, so storage/audio in there can double-fire
+    // (CodeRabbit #1805). Speaking on toggle-ON belongs to the auto-speak
+    // effect ALONE (readsOn is in its deps): a second explicit speak() here
+    // would read the step twice.
+    const next = !readsOn;
+    try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch (e) {}
+    if (!next) stopSpeak();
+    setReadsOn(next);
   };
   // Execute a recognized local command. Returns true when handled.
   const runCommand = (cmd) => {
@@ -6223,25 +6226,39 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     }
     return false;
   };
+  // The active ask/transcribe request — aborted on unmount so a captured clip
+  // or question can't keep traveling after Cook Mode closes (CodeRabbit #1805).
+  const abortRef = React.useRef(null);
   // A transcript → command grammar FIRST, else a grounded Q&A to Nora.
+  // Routed through window.ShapeSupport.ask (apiBaseUrl + Bearer) — a
+  // root-relative fetch never reaches the backend on the NATIVE build (Codex,
+  // PR #1805) — and BOUNDED by an AbortController: micStart gates on
+  // micState === 'idle', so a hung request would otherwise brick the mic for
+  // the rest of the session (CodeRabbit).
   const askNora = async (transcript) => {
     setMicState('thinking');
     setMicNote({ who: 'you', text: transcript });
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 30000);
     try {
-      const res = await fetch('/api/support/chat', {
-        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: transcript }], cookContext: {
+      const ask = window.ShapeSupport && window.ShapeSupport.ask;
+      if (!ask) throw new Error('unavailable');
+      const data = await ask([{ role: 'user', content: transcript }], undefined, {
+        signal: ctrl.signal,
+        cookContext: {
           recipeTitle: cookable.recipeTitle || cookable.title,
           stepIndex: phase === 'method' ? stepIdx : undefined,
           stepText: phase === 'method' && hasMethod ? steps[stepIdx] : undefined,
           ingredients: cookable.ingredients.map((i) => `${i.n} ${i.m}`.trim()).filter(Boolean),
           servings: cookable.servings || undefined,
-        } }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
+      if (data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
       else setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) });
     } catch (e) { setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
+    clearTimeout(timer);
+    if (abortRef.current === ctrl) abortRef.current = null;
     setMicState('idle');
   };
   const onTranscript = (transcript) => {
@@ -6269,14 +6286,22 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {}
         if (mr._cancel) { setMicState('idle'); return; }
         setMicState('thinking');
+        // window.ShapeSupport.transcribe = apiBaseUrl + Bearer (never
+        // root-relative — dead on native, Codex #1805), bounded at 20s so a
+        // stalled upload can't strand micState off 'idle' (CodeRabbit).
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        const timer = setTimeout(() => { try { ctrl.abort(); } catch (er) {} }, 20000);
         try {
           const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
-          const fd = new FormData(); fd.append('audio', blob, 'cook.webm');
-          const r = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
-          const d = await r.json().catch(() => ({}));
-          if (r.ok && d && d.transcript) onTranscript(d.transcript);
+          const stt = window.ShapeSupport && window.ShapeSupport.transcribe;
+          if (!stt) throw new Error('unavailable');
+          const d = await stt(blob, { filename: 'cook.webm', signal: ctrl.signal });
+          if (d.ok && d.transcript) onTranscript(d.transcript);
           else { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
         } catch (er) { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
+        clearTimeout(timer);
+        if (abortRef.current === ctrl) abortRef.current = null;
       };
       recRef.current = mr; setMicState('listening'); mr.start();
       if (!holdingRef.current) { mr._cancel = true; try { mr.stop(); } catch (er) {} }
@@ -6284,8 +6309,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   };
   const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };
   React.useEffect(() => () => {
-    try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {}
+    // CANCEL before stop — mr.stop() still fires onstop, which would post the
+    // captured clip to transcription AFTER Cook Mode closed (CWE-201,
+    // CodeRabbit #1805); abort any in-flight ask/transcribe the same way.
+    try { const mr = recRef.current; if (mr && mr.state === 'recording') { mr._cancel = true; mr.stop(); } } catch (e) {}
     try { streamRef.current && streamRef.current.getTracks().forEach((tk) => tk.stop()); } catch (e) {}
+    try { abortRef.current && abortRef.current.abort(); } catch (e) {}
   }, []);
 
   if (loggedState) {
@@ -6371,6 +6400,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           {voiceCanHear && (
             <button
               onPointerDown={micStart} onPointerUp={micEnd} onPointerLeave={micEnd} onPointerCancel={micEnd}
+              // Keyboard hold-to-talk (CodeRabbit #1805): Enter/Space fire a
+              // synthetic click, never pointerdown/up — mirror the pair on
+              // keydown/keyup (e.repeat guarded so auto-repeat can't re-enter;
+              // preventDefault stops the click synthesis). Blur = key-release
+              // lost mid-hold → treat as an early release, like pointerleave.
+              onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); micStart(e); } }}
+              onKeyUp={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); micEnd(); } }}
+              onBlur={micEnd}
               aria-label={tr('cook:voice.holdAria', { defaultValue: 'Hold to talk to Nora' })}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: micState === 'listening' ? heat : 'transparent', border: `1.5px solid ${micState === 'idle' ? bsTHexA(heat, 0.5) : heat}`, borderRadius: 999, padding: '9px 15px', minHeight: 44, cursor: 'pointer', touchAction: 'none', ...bandEyebrow, fontSize: 8.5, color: micState === 'listening' ? '#04211c' : heat }}
             >

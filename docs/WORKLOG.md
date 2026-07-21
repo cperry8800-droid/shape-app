@@ -919,7 +919,26 @@ changelog whenever something ships.
   build exit 0 · LF · **render-mount proof** on the dev server (Cook Mode mounts
   with the voice row, NORA READS toggles + persists, stepping with reads-on
   fires the auto-speak effect with 0 new console errors — the hook-order/TDZ
-  gate). Open: PR C (Prep Session), PR D (orchestration), PR E (coach
+  gate). **Review round (9 findings — 1 Codex P2 + 7 CodeRabbit + 1
+  outside-diff Major — all real, all fixed):** cook voice calls routed through
+  **`window.ShapeSupport.ask/.transcribe`** (apiBaseUrl + Bearer — root-relative
+  fetches never reach the backend on NATIVE; new shared `transcribeVoice`) ·
+  **AbortController + 30s/20s bounds** on ask/transcribe so a stalled request
+  can't strand `micState` off idle (the mic's re-entry gate) · unmount cleanup
+  sets **`mr._cancel` BEFORE `mr.stop()`** + aborts in-flight requests (CWE-201
+  — onstop was posting the clip after exit) · **keyboard hold-to-talk**
+  (Enter/Space keydown/keyup mirror the pointer pair, `e.repeat`-guarded) ·
+  toggleReads side effects moved out of the setState updater — which also
+  killed a latent **double-speak** (explicit speak + the effect both fired on
+  toggle-ON; live-proven exactly 1 speak now) · **cook context demoted out of
+  the system role** (CWE-1427: fixed header rides system, the client payload is
+  a USER-role data message — `COOK_DATA_PREFIX`) · **COOK MODE prompt
+  override** (tools=[] made the base prompt's advertised actions impossible —
+  member note suppressed + "never say you logged/saved" override, no false
+  "done" claims mid-cook) · dup `next` key + ha `Saurun`→`Sauran`. Re-proven in
+  the browser post-fix: both cook tiers mount, toggle/persist/speak-once,
+  keyboard mic → getUserMedia → honest blocked note, 0 new console errors.
+  Open: PR C (Prep Session), PR D (orchestration), PR E (coach
   step-authoring + polish); on-device voice pass (real TTS/STT round-trip).
 
 ### 2026-07-21 — Cook Mode PR A: the cookable contract + the guided walkthrough (#1804)
