@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+import { feeSplit, bpsToRate } from '@/lib/platform-fee';
 import { approveRefund, denyRefund } from './actions';
 
 export const metadata = { title: 'Refunds - Shape' };
@@ -80,20 +81,23 @@ async function loadTargetInfo(
   if (row.subscription_id) {
     const { data } = await admin
       .from('subscriptions')
-      .select('price_cents, provider_role, provider_id, status')
+      .select('price_cents, provider_role, provider_id, status, fee_bps')
       .eq('id', row.subscription_id)
       .maybeSingle<{
         price_cents: number | null;
         provider_role: string | null;
         provider_id: number | null;
         status: string | null;
+        fee_bps: number | null;
       }>();
     const price = data?.price_cents ?? null;
     return {
       label: 'Coach subscription',
       priceCents: price,
-      // Coach subs charge a flat 15% application fee (application_fee_percent).
-      applicationFeeCents: price != null ? Math.round(price * 0.15) : null,
+      // The application fee at the row's STORED rate (BYO subs pay 0%; the
+      // stored fee_bps is the billing truth, never a hardcoded 15%).
+      applicationFeeCents:
+        price != null ? feeSplit(price, price, bpsToRate(data?.fee_bps ?? 1500)).applicationFeeCents : null,
       coachName: await coachName(admin, data?.provider_role ?? null, data?.provider_id ?? null),
       targetStatus: data?.status ?? null,
     };
