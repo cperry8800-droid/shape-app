@@ -9,6 +9,7 @@ import {
   bsSplitMethodProse,
   bsStepTimers,
   bsCookSlug,
+  bsCookKey,
 } from '../mobile-app/src/services/cookable.mjs';
 
 const RECIPE = {
@@ -153,4 +154,17 @@ test('slug helper matches the library id grammar', () => {
   assert.equal(bsCookSlug('One-pan chicken and rice'), 'one-pan-chicken-and-rice');
   assert.equal(bsCookSlug('  Tempo — turkey! cups  '), 'tempo-turkey-cups');
   assert.equal(bsCookSlug(null), '');
+});
+
+test('resume key: meal id wins, non-Latin titles never collide on an empty slug (Codex #1804 r2)', () => {
+  const a = bsCookableFromMeal({ id: 'm1', title: 'Chicken bowl', kcal: 600, p: 45, c: 60, f: 15 });
+  const b = bsCookableFromMeal({ id: 'm2', title: 'Chicken bowl', kcal: 500, p: 40, c: 50, f: 12 });
+  assert.notEqual(bsCookKey(a), bsCookKey(b));               // same title, distinct meals
+  const cyrA = bsCookableFromMeal({ title: 'Куриная миска', kcal: 600, p: 45, c: 60, f: 15 });
+  const cyrB = bsCookableFromMeal({ title: 'Лосось и рис', kcal: 610, p: 44, c: 42, f: 22 });
+  assert.notEqual(bsCookKey(cyrA), 'cook:');                 // never the bare shared key
+  assert.notEqual(bsCookKey(cyrA), bsCookKey(cyrB));         // distinct non-Latin titles differ
+  assert.equal(bsCookKey(cyrA), bsCookKey(bsCookableFromMeal({ title: 'Куриная миска', kcal: 1 }))); // stable per title
+  assert.equal(bsCookKey(bsCookableFromRecipe(RECIPE)), 'cook:one-pan-chicken-and-rice');
+  assert.equal(bsCookKey(null), 'cook:');
 });

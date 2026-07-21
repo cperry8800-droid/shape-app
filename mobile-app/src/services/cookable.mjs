@@ -32,6 +32,21 @@ export const bsCookSlug = (title) => {
   return s ? s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '';
 };
 
+// The resume-stamp identity for a cookable. A bare title slug collides (two
+// same-titled meals share a slot) and slugs to '' on non-Latin titles (every
+// Cyrillic meal would share ONE key) — so identity prefers the meal id, then
+// the recipe/title slug, then a stable char-code hash of the raw title.
+export const bsCookKey = (c) => {
+  if (typeof c !== 'object' || c === null) return 'cook:';
+  if (str(c.mealId)) return 'cook:meal:' + str(c.mealId);
+  const slug = bsCookSlug(c.recipeTitle || c.title);
+  if (slug) return 'cook:' + slug;
+  const s = str(c.title) || '';
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h * 31) + s.charCodeAt(i)) >>> 0;
+  return 'cook:h' + h.toString(36);
+};
+
 // ---------------------------------------------------------------------------
 // Steps + ingredients normalization
 

@@ -18,7 +18,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -6056,7 +6056,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
   const steps = cookable.steps;
   const hasMethod = steps.length > 0;
   const tierQuick = cookable.tier === BS_COOK_TIERS.QUICK;
-  const resumeKey = 'cook:' + bsCookSlug(cookable.title);
+  const resumeKey = bsCookKey(cookable);
   // Lazy init — the localStorage read runs ONCE, not on every heartbeat render.
   const [resumeAt] = useStateBSC(() => bsCookResumeRead(resumeKey));
 
@@ -6142,7 +6142,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
   const logIt = () => {
     const m = cookable.macros || {};
     try {
-      if (m.kcal != null) window.ShapeMealLog?.log?.({ kcal: m.kcal, protein: m.p ?? 0, carbs: m.c ?? 0, fat: m.f ?? 0 });
+      // Absent macros are OMITTED, never posted as fabricated 0s (the
+      // honest-absent contract — a 0 would corrupt the day's macro totals).
+      if (m.kcal != null) {
+        const payload = { kcal: m.kcal };
+        if (m.p != null) payload.protein = m.p;
+        if (m.c != null) payload.carbs = m.c;
+        if (m.f != null) payload.fat = m.f;
+        window.ShapeMealLog?.log?.(payload);
+      }
     } catch (e) {}
     bsCookResumeClear();
     setLoggedState(true);
@@ -6152,7 +6160,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
   if (loggedState) {
     const m = cookable.macros || {};
     return <BSMealLogged kcal={m.kcal ?? 0} p={m.p ?? 0} time={''} onDone={onClose} onUndo={() => setLoggedState(false)}
-      share={{ name: cookable.title, kcal: m.kcal ?? 0, p: m.p ?? 0, c: m.c ?? 0, f: m.f ?? 0, planned: true, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: (cookable.coach && cookable.coach.name) || '' }} />;
+      share={{ name: cookable.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, planned: true, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: (cookable.coach && cookable.coach.name) || '' }} />;
   }
 
   const running = timers.filter((x) => now < x.endsAt);
