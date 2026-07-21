@@ -2441,7 +2441,11 @@ function BSProAddClientSheet({ role, onClose }) {
     (async () => {
       if (mine === undefined) return; // provider row still resolving
       if (!mine || !myUid) { if (on) setRefToken(null); return; }
-      const tok = await window.ShapeReferrals?.link?.(role, mine.providerId);
+      // The helper resolves null on failure, but a rejection here must still
+      // land on the documented null fallback — undefined forever would lock
+      // the send buttons.
+      let tok = null;
+      try { tok = await window.ShapeReferrals?.link?.(role, mine.providerId); } catch (e) { tok = null; }
       if (on) setRefToken(tok || null);
     })();
     return () => { on = false; };

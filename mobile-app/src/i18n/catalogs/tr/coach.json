@@ -10,7 +10,7 @@
   "addClient.inviteFailed": "Davet gönderilemedi",
   "addClient.inviteLabel": "Shape'te bir üye davet et",
   "addClient.inviteSent": "Davet gönderildi ✓ — sohbetlerine düşer",
-  "addClient.inviteSentNoTag": "Davet gönderildi ✓ — %0 etiketi kaydedilmedi; Yeniden dene'ye dokun",
+  "addClient.inviteSentNoTag": "Davet gönderildi ✓ — %0 etiketi kaydedilmedi; Yeniden dene’ye dokun",
   "addClient.invited": "Davet edildi ✓",
   "addClient.linkCopied": "İlan bağlantısı kopyalandı ✓",
   "addClient.member": "Üye",

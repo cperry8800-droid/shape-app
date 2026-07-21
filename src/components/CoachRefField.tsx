@@ -24,11 +24,14 @@ export default function CoachRefField({ initial }: { initial?: string | null }) 
         // Persist a direct-URL ref BEFORE anything else can navigate away —
         // a signed-out submit redirects to /login?next= without the query
         // string, and only this stored copy survives the round trip (the
-        // post-login page re-reads it below; supabase.js binds it).
+        // post-login page re-reads it below; supabase.js binds it). State
+        // follows too, so a client navigation from referral A to referral B
+        // submits B, not the first-mounted token.
         localStorage.setItem(
           'shape.coachRef',
           JSON.stringify({ token: initial.toLowerCase(), at: Date.now(), bound: false })
         );
+        setToken(initial.toLowerCase());
         return;
       }
       if (token) return;
