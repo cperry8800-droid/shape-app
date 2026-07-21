@@ -959,6 +959,16 @@ changelog whenever something ships.
     TEAL_BRIGHT hardcode declined (the page's own brand literal, used 5×);
     #1791 the cream-at-opacity rgba flag declined (about.jsx's own 19× pattern,
     no INK-opacity helper exists to reuse).
+  - **Follow-up polish (#1793, owner-directed):** the eyebrow shortened to
+    **FOUNDER · SHAPE**, and the bio trimmed ("...shouldn't be a luxury or
+    unaffordable, and shouldn't mean doing it alone"). The **portrait was
+    reprocessed to sit native to the dark editorial page** (from the 1024px
+    original via sharp): muted color grade + a darkening radial vignette that
+    recedes the office background into the page tone (#1a1612), and **feathered
+    edges baked into the WebP alpha** so the frame dissolves — background-agnostic,
+    so it also blends on any mobile paper. The hard hairline frame is gone; a soft
+    cream/teal radial glow pools light behind it (theme-toned on mobile via
+    `bsTHexA`).
 
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 
