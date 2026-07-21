@@ -240,10 +240,11 @@ function DbzChurnZone({ live, churn }) {
 // each active client from the STORED fee_bps — never re-derived from origin +
 // the current constant, so a future rate change alters no existing label.
 const DBZ_DEMO_ORIGIN = [
-  { name: "Casey Morgan", origin: "coach_link", feeBps: 0, priceCents: 22000 },
-  { name: "Alex Rivera", origin: "marketplace", feeBps: 1500, priceCents: 18000 },
-  { name: "Riley Kim", origin: "coach_invite", feeBps: 0, priceCents: 16000 },
-  { name: "Sam Patel", origin: "marketplace", feeBps: 1500, priceCents: 20000 },
+  { name: "Casey Morgan", kind: "subscription", origin: "coach_link", feeBps: 0, priceCents: 22000 },
+  { name: "Alex Rivera", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 18000 },
+  { name: "Riley Kim", kind: "subscription", origin: "coach_invite", feeBps: 0, priceCents: 16000 },
+  { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
+  { name: "Sam Patel", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 20000 },
 ];
 const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.";
 function DbzBringClientsZone({ live, role, providerId }) {
@@ -324,7 +325,7 @@ function DbzOriginZone({ live, byOrigin }) {
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
             <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
             <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
-              {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee
+              {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee{r.kind === "purchase" ? " · one-time" : ""}
             </span>
           </div>
         );

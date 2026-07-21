@@ -233,14 +233,39 @@ export async function GET() {
   // Per-client attribution + fee from the STORED pair — never re-derived from
   // origin + the current constant; pre-migration rows read the select('*')'s
   // absent columns as marketplace/1500, which is correct for every one.
-  const byOrigin = subs.map(
-    (r: { client_id: string; price_cents: number | null; origin?: string | null; fee_bps?: number | null }) => ({
-      name: activeNames.get(String(r.client_id)) || 'Client',
-      origin: r.origin ?? 'marketplace',
-      feeBps: r.fee_bps ?? 1500,
-      priceCents: r.price_cents ?? 0,
-    })
-  );
+  // One-time purchases carry the same stamped pair (a BYO client who only
+  // books or buys never appears in subscriptions), so recent paid rows join
+  // the feed. Read under the caller's RLS — until the OWNER runs the
+  // provider-read policy migration this returns zero rows and the feed
+  // degrades honestly to subscriptions-only.
+  const { data: otpRows } = await supabase
+    .from('one_time_purchases')
+    .select('*') // migration-safe like the subs read
+    .eq('provider_role', 'trainer')
+    .eq('provider_id', providerId)
+    .eq('status', 'paid')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  const otps = otpRows ?? [];
+  const otpMissing = [...new Set(
+    otps.map((r: { client_id: string | null }) => String(r.client_id ?? '')).filter((id) => id && !activeNames.has(id))
+  )];
+  if (otpMissing.length) {
+    const { data } = await supabase.from('profiles').select('id, full_name').in('id', otpMissing);
+    for (const r of data ?? []) activeNames.set(String(r.id), String(r.full_name ?? '').trim());
+  }
+  type OriginSourceRow = { client_id: string | null; price_cents: number | null; origin?: string | null; fee_bps?: number | null };
+  const originRow = (r: OriginSourceRow, kind: 'subscription' | 'purchase') => ({
+    name: activeNames.get(String(r.client_id ?? '')) || 'Client',
+    kind,
+    origin: r.origin ?? 'marketplace',
+    feeBps: r.fee_bps ?? 1500,
+    priceCents: r.price_cents ?? 0,
+  });
+  const byOrigin = [
+    ...subs.map((r: OriginSourceRow) => originRow(r, 'subscription')),
+    ...otps.map((r: OriginSourceRow) => originRow(r, 'purchase')),
+  ];
 
   const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
 
