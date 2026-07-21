@@ -885,6 +885,82 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — BYO commission split PR B: the surfaces (#1799) — the coach-facing half
+
+- **The visible half of the BYO split** (rails: PR A #1794). Everything a
+  coach touches to bring a client at 0% commission.
+- **Add-client sheet** (`BSProAddClientSheet`, both coach roles): the single
+  "↗ Share your listing link" becomes **three send channels** — ✉ Email it
+  (`mailto:` with a localized subject + pitch) · ✆ Text it (iOS `sms:&body=`
+  vs Android `sms:?body=`) · ↗ Share/copy — all carrying the coach's **durable
+  ref-tagged listing URL** (`create_coach_referral_link` via new
+  `window.ShapeReferrals`); every interpolation `encodeURIComponent`-wrapped,
+  glyphs pinned to text presentation (︎), the pitch line carrying the
+  **waitlist qualifier** so it never promises 0% where checkout applies 15%.
+  The **invite DM now writes the client-bound referral** (`create_coach_referral`)
+  — the DM card carries no token, so this row IS what resolves 0% at checkout;
+  delivery and attribution are **separate states** (`lock.sent` gates the DM;
+  a failed referral write shows a **Retry 0% tag** action that re-runs ONLY the
+  referral, never a duplicate DM).
+- **⚠ The share machinery is entirely ROLE-KEYED** (six review rounds hardened
+  this one component): `invited` + the send lock key by `role:userId`; a single
+  **`resolvedRole`** state is the readiness authority (reset on every role
+  change, stamped only when the current role's provider lookup settles — a
+  listing-less `null` carries a role marker, so no post-switch stale frame can
+  ship the previous role's token or provider id); the 0% pitch renders ONLY
+  with a real token (else honest "links from here count as Shape-found" copy);
+  the send buttons wait for token resolution so a fast tap can't ship an
+  untagged link; share failures surface honestly (only an intentional cancel is
+  silent). i18n: 10 new `coach:` keys ×13 (`retryTag`/`noTagNote`/`shareFailed`
+  + the channels/pitch); fr→vous, ru coach-keys→вы (prospect pitch keeps the
+  file's informal ты); Turkish curly apostrophe; parity 3/3.
+- **Web `?ref=` capture** (`public/supabase.js` `ShapeCoachRef`): any page load
+  with `?ref=<uuid>` stores `{token, at, bound:false}` to
+  `localStorage('shape.coachRef')` and **binds it** (`bind_coach_referral` —
+  the touch that starts/refreshes the 30-day window) the moment a signed-in
+  session exists; a re-open is a fresh touch. Client storage is hygiene only —
+  the server re-validates token + provider + window regardless. Checkout
+  passthrough: `livingShared.jsx` POSTs `body.ref`; the legacy `/subscribe` +
+  `/purchase` server-action forms gain a hidden ref field (**`CoachRefField`**
+  — URL param first, then the stored value, state synced so navigating A→B
+  submits B; **persists a direct-URL ref BEFORE the signed-out /login redirect**
+  can drop it).
+- **Business page** (`dashBusiness.jsx`): a **"Bring your clients · 0%
+  commission"** plate (copy / email / raw URL for an Instagram bio, generated
+  from the coach's durable link) + a **"who found whom"** origin zone —
+  per-client **"You brought · 0% fee"** vs **"Found you on Shape · 15% fee"**,
+  keyed off the **STORED `fee_bps`** (`isByo = feeBps === 0`, never re-derived
+  from origin + the current constant). Both analytics routes gained a shared
+  **`buildOriginFeed`** (`src/lib/origin-attribution.ts`) folding subscriptions
+  **+ recent paid one-time purchases** (a BYO client who only books/buys never
+  appears in subscriptions) — each labelled from its stored pair, `· one-time`
+  marker on purchase rows; a genuine read fault logs loudly + degrades to
+  subs-only (never a silent empty feed).
+- **⚠ OWNER MIGRATION — `2026-07-21-one-time-purchases-provider-read.sql`**
+  (**APPLIED + verified live**): a `providers read own purchases` SELECT policy
+  on `one_time_purchases` (mirrors `providers read own subscriptions` verbatim),
+  so the origin feed can surface one-time BYO sales under the caller's RLS.
+  Until applied the purchases read returns zero rows and the feed degrades to
+  subscriptions-only.
+- **War Room**: BYO section registered incl. the origin-mix SQL health metric
+  + the owner on-device pass (both subscribe AND one-time /purchase).
+- **~19 review findings across 8 rounds**, nearly all render-frame hardening on
+  the add-client sheet (the attribution logic itself — rails-level — was correct
+  from round 1). Gates each round: parse · tsc · 697 tests · catalog parity 3/3
+  · build-newdesign --check · PowerShell /m/ build · LF · tr-shadow.
+
+### 2026-07-21 — deps(mobile): brace-expansion high (Dependabot #11) + tar critical + body-parser (#1800)
+
+- Dev-scope dependency sweep. **`brace-expansion` 5.0.6 → 5.0.7** via the house
+  `overrides` block (CVE-2026-13149, exponential-time expansion DoS — one
+  instance under `@capacitor/cli → rimraf → glob → minimatch`, all 5.x, so the
+  override is safe), clearing **Dependabot alert #11 (high)**. `npm audit fix`
+  then took **tar → 7.5.20** (four node-tar DoS advisories, **critical**) and
+  **body-parser → 2.3.0** (low). All build-time/dev-scope — no shipped runtime
+  code changed. **`npm audit` = 0 vulnerabilities in mobile-app AND root.** The
+  two git-tracked `@capacitor/android` shim files refreshed to the lockfile's
+  7.6.7.
+
 ### 2026-07-21 — BYO commission split PR A: the rails (#1794) — 0% on coach-brought clients
 
 - **The marketplace fee becomes origin-aware** (spec #1789 → `a6cdf7fc`): Shape's

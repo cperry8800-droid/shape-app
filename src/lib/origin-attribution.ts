@@ -50,7 +50,13 @@ export async function buildOriginFeed(
   subs: OriginSourceRow[],
   activeNames: Map<string, string>
 ): Promise<OriginFeedRow[]> {
-  const { data: otpRows } = await supabase
+  // A denied RLS read (pre-migration, before the provider-read policy is
+  // applied) returns zero rows with NO error — that's the honest empty state.
+  // A real DB/query FAULT is different: it must not masquerade as "no
+  // purchases", so it's logged loudly and the feed degrades to
+  // subscriptions-only (never crash the whole analytics response over a
+  // supplementary read).
+  const { data: otpRows, error: otpError } = await supabase
     .from('one_time_purchases')
     .select('*')
     .eq('provider_role', providerRole)
@@ -58,6 +64,19 @@ export async function buildOriginFeed(
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
     .limit(20);
+  if (otpError) {
+    console.warn(
+      `[shape-app] origin feed: one_time_purchases read failed for ${providerRole} ${providerId} — subscriptions-only:`,
+      otpError.message
+    );
+    return subs.map((r) => ({
+      name: activeNames.get(String(r.client_id ?? '')) || 'Client',
+      kind: 'subscription' as const,
+      origin: r.origin ?? 'marketplace',
+      feeBps: r.fee_bps ?? 1500,
+      priceCents: r.price_cents ?? 0,
+    }));
+  }
   const otps = (otpRows ?? []) as OriginSourceRow[];
 
   const otpMissing = [
