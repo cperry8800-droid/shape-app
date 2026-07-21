@@ -2,9 +2,10 @@
 
 // Admin refund processing. A client files a refund request (refunds/actions.ts);
 // an admin reviews it here and, on approval, Shape issues the Stripe refund with
-// the Connect transfer + application fee unwound so the coach's 85% is clawed
-// back and Shape's 15% is returned to the coach (platform nets zero — no more
-// "refund the client, coach keeps their pay, Shape eats the loss" leak).
+// the Connect transfer + application fee unwound — each at the charge's own
+// stored rate (15% marketplace / 0% BYO), so the coach's cut is clawed back and
+// any platform fee is returned (platform nets zero — no more "refund the client,
+// coach keeps their pay, Shape eats the loss" leak).
 //
 // Admin-guarded via requireAdminUser(). The charge.refunded webhook independently
 // flips purchase status (and reconciles a dashboard-issued refund), so this

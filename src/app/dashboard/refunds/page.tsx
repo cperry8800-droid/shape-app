@@ -161,8 +161,9 @@ export default async function RefundsPage({
           <div>
             <h2 className="text-2xl font-light tracking-tight">Refund requests</h2>
             <p className="text-sm text-neutral-400 mt-1 max-w-2xl">
-              Approving a request refunds the client and unwinds the Connect payout — the coach&apos;s
-              85% transfer is reversed and Shape&apos;s 15% fee is returned, so the platform nets zero.
+              Approving a request refunds the client and unwinds the Connect payout — the coach
+              transfer is reversed and Shape&apos;s platform fee is returned (each at the row&apos;s
+              stored rate; BYO sales carry no fee), so the platform nets zero.
               Coach subscriptions are also canceled on refund.
             </p>
           </div>
@@ -255,7 +256,7 @@ function RefundCard({ row, target, email }: { row: RefundRow; target: TargetInfo
           <div className="text-neutral-200 mt-1 tabular-nums">{transferCents != null ? `−${usd(transferCents)}` : '—'}</div>
         </div>
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">15% fee returned to coach</div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">Platform fee reversed</div>
           <div className="text-neutral-200 mt-1 tabular-nums">{usd(target.applicationFeeCents)}</div>
         </div>
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">

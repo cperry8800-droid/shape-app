@@ -47,7 +47,13 @@ export async function resolveCoachCheckoutOrigin(args: {
       p_provider_id: providerId,
       p_ref: ref && UUID_RE.test(ref) ? ref : null,
     });
-    if (error || !data) return MARKETPLACE;
+    if (error || !data) {
+      // Fail-closed is correct, but a PERSISTENT failure (RPC missing, outage)
+      // would silently put every coach-sale checkout at the marketplace rate —
+      // log it so the degrade is visible in the deploy logs.
+      if (error) console.warn('[shape-app] resolve_coach_checkout_origin failed:', error.message);
+      return MARKETPLACE;
+    }
     const row = (Array.isArray(data) ? data[0] : data) as
       | { origin?: string; referral_id?: string | null }
       | undefined;
@@ -55,7 +61,11 @@ export async function resolveCoachCheckoutOrigin(args: {
       return { origin: row.origin, feeBps: BYO_FEE_BPS, referralId: row.referral_id ?? null };
     }
     return MARKETPLACE;
-  } catch {
+  } catch (err) {
+    console.warn(
+      '[shape-app] resolve_coach_checkout_origin threw:',
+      err instanceof Error ? err.message : err
+    );
     return MARKETPLACE;
   }
 }
