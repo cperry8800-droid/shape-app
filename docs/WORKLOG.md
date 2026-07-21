@@ -885,6 +885,28 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
+
+- **New [`docs/MARKET-RESEARCH-2026-07.md`](MARKET-RESEARCH-2026-07.md)** — a 5-dimension,
+  fully-sourced market-research pass (market size/trends · coaching platforms + coach
+  economics · social/gamification evidence · differentiator validation · retention/
+  cold-start benchmarks; ~47 searches). **Verdict: demand = qualified yes** (honest TAM
+  cluster ~$12-13B fitness apps + ~$12B digital coaching; GLP-1/wearables/strength/
+  women's-health tailwinds map onto the shipped feature set; **Ladder's ~$100M ARR at
+  ~$28/mo proves the core product**), **"one of the best" = achievable on the Hevy bar**
+  (2-person team → 14M users on ~$15K ad spend) with MyFitnessPal-scale a later
+  raise-or-compound decision. **The three decisions the evidence forces:** launch with a
+  wedge that works in an empty room (solo logging · cycle engine · score · AI — never an
+  empty feed/marketplace); **15% commission only on platform-originated clients** (free/
+  cheap BYO lane — coaches refuse 15% on Instagram-sourced rosters; coach-imported
+  rosters are also the best cold-start move); **paid acquisition is mathematically
+  forbidden** ($4.30-5.50 CPI × 3-12% D30 retention = $50-150/retained user vs $5/mo).
+  Also flagged: Radio must never in-app-stream commercial music (Peloton's $300M+
+  lesson — the link-out architecture is the safe path); stakes = best-evidenced mechanic
+  (2-7x peer-reviewed); cycle-aware demand is real but Whoop/Oura are commoditizing it —
+  move while the window is open. Next candidate: turn the launch-sequencing + BYO-pricing
+  findings into a concrete go-to-market plan.
+
 ### 2026-07-20 (build 9/9) — THE CYCLE PR D: website parity (#1786) — the wave closes
 
 - **Build 9 of the buildable wave** (final), executing
