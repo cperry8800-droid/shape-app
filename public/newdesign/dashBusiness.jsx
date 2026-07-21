@@ -22,6 +22,8 @@ const DBZ_TEAL = "#2ee0c4";
 const DBZ_GREEN = "#7bbf5a";
 const DBZ_AMBER = "#d8a23a";
 const DBZ_RED = "#e0644b";
+const DBZ_INK = "#f2ede4";        // the dashboard's fixed-dark cream ink
+const DBZ_TEAL_INK = "#06231f";   // ink ON a teal-filled control
 
 function dbzDate(v) {
   if (!v) return "—";
@@ -286,10 +288,10 @@ function DbzBringClientsZone({ live, role, providerId }) {
             {url}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <button type="button" onClick={copyIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
+            <button type="button" onClick={copyIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_TEAL_INK, background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
               {copied ? "Copied ✓" : "Copy link"}
             </button>
-            <button type="button" onClick={emailIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#f2ede4", background: "transparent", border: "1px dashed rgba(242,237,228,0.25)", borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5 }}>
+            <button type="button" onClick={emailIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK, background: "transparent", border: "1px dashed rgba(242,237,228,0.25)", borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5 }}>
               ✉︎ Email it
             </button>
           </div>
@@ -306,14 +308,17 @@ function DbzOriginZone({ live, byOrigin }) {
   if (live && !rows.length) {
     return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
   }
-  const brought = rows.filter((r) => r.origin !== "marketplace").length;
+  // Commission status keys off the STORED fee, never off origin — this surface
+  // is the fee pitch, and the row's rate is the billing truth.
+  const isByo = (row) => row.feeBps === 0;
+  const brought = rows.filter(isByo).length;
   return (
     <div>
       <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 }}>
         {brought} you brought · {rows.length - brought} found you on Shape
       </div>
       {rows.map((r, i) => {
-        const byo = r.origin !== "marketplace";
+        const byo = isByo(r);
         const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
         return (
           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>

@@ -2391,30 +2391,36 @@ function BSProAddClientSheet({ role, onClose }) {
   }, [q]);
   const invite = async (p) => {
     const lock = sendLockRef.current;
-    if (lock.active || lock.sent[p.userId] || invited[p.userId]) return;
+    // 'ok' = delivered + tagged (terminal). 'noTag' rows stay actionable — the
+    // retry re-runs ONLY the attribution write (lock.sent gates the DM), so a
+    // failed create_coach_referral can never strand a client untaggable behind
+    // an "Invited ✓" it didn't earn.
+    if (lock.active || invited[p.userId] === 'ok') return;
     if (!mine) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
     lock.active = p.userId;
     setBusyId(p.userId);
     try {
-      const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
-      const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
-      if (!cid) throw new Error('Could not open the conversation.');
-      const inviteBody = role === 'nutritionist' ? tr('coach:addClient.inviteBodyNutri', { defaultValue: "Come work with me on Shape — my listing's attached." }) : tr('coach:addClient.inviteBodyTrainer', { defaultValue: "Come train with me on Shape — my listing's attached." });
-      await window.ShapeMessages.sendMessage({
-        conversationId: cid,
-        body: inviteBody,
-        metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
-      });
+      if (!lock.sent[p.userId]) {
+        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
+        const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
+        if (!cid) throw new Error('Could not open the conversation.');
+        const inviteBody = role === 'nutritionist' ? tr('coach:addClient.inviteBodyNutri', { defaultValue: "Come work with me on Shape — my listing's attached." }) : tr('coach:addClient.inviteBodyTrainer', { defaultValue: "Come train with me on Shape — my listing's attached." });
+        await window.ShapeMessages.sendMessage({
+          conversationId: cid,
+          body: inviteBody,
+          metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
+        });
+        lock.sent[p.userId] = true;
+      }
       // The BYO attribution row (rails #1794): the DM card carries no token —
-      // this client-bound referral IS what resolves 0% at their checkout, so
-      // its failure must not masquerade as a fully-sent invite.
+      // this client-bound referral IS what resolves 0% at their checkout.
       const refRes = await window.ShapeReferrals?.forClient?.(role, mine.providerId, p.userId);
-      lock.sent[p.userId] = true;
-      setInvited((prev) => ({ ...prev, [p.userId]: true }));
       if (refRes && refRes.ok) {
+        setInvited((prev) => ({ ...prev, [p.userId]: 'ok' }));
         window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
       } else {
-        window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; re-inviting refreshes it' }), 'warn');
+        setInvited((prev) => ({ ...prev, [p.userId]: 'noTag' }));
+        window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; tap Retry tag' }), 'warn');
       }
     } catch (e) {
       window.__bsToast?.(e?.message || tr('coach:addClient.inviteFailed', { defaultValue: 'Could not send the invite' }), 'err');
@@ -2424,19 +2430,23 @@ function BSProAddClientSheet({ role, onClose }) {
   };
   // ── The ref-tagged link + send channels (BYO rails #1794) ────────────────
   // The durable ?ref= token binds a member who opens the link into THIS
-  // coach's 30-day attribution window (0% commission at checkout). Signed-out
-  // / no listing / pre-migration → the PLAIN listing URL: sharing still works,
-  // attribution simply doesn't record (honest degrade, never a broken button).
-  const [refToken, setRefToken] = useStateBSP(null);
+  // coach's 30-day attribution window (0% commission at checkout). Tri-state:
+  // undefined = still resolving (send buttons WAIT — a fast first tap must
+  // never ship an untagged link that checkout can't attribute), null =
+  // CONFIRMED unavailable (signed out / no listing / pre-migration → the
+  // plain URL is the honest final state), string = the token.
+  const [refToken, setRefToken] = useStateBSP(undefined);
   useEffectBSP(() => {
     let on = true;
     (async () => {
-      if (!mine || !myUid) return;
+      if (mine === undefined) return; // provider row still resolving
+      if (!mine || !myUid) { if (on) setRefToken(null); return; }
       const tok = await window.ShapeReferrals?.link?.(role, mine.providerId);
       if (on) setRefToken(tok || null);
     })();
     return () => { on = false; };
   }, [mine, role]);
+  const linkReady = refToken !== undefined;
   const listingUrl = () => {
     const base = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
     return refToken ? `${base}&ref=${refToken}` : base;
@@ -2447,10 +2457,12 @@ function BSProAddClientSheet({ role, onClose }) {
   // truncate the prefill.
   const emailIt = () => {
     if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    if (!linkReady) return; // token still resolving — button is disabled too
     window.location.href = `mailto:?subject=${encodeURIComponent(tr('coach:addClient.pitchSubject', { defaultValue: 'Join me on Shape' }))}&body=${encodeURIComponent(pitchBody())}`;
   };
   const textIt = () => {
     if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    if (!linkReady) return;
     // iOS takes `sms:&body=`, Android `sms:?body=` — the wrong one opens an
     // empty composer.
     const ios = /iPad|iPhone|iPod/.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
@@ -2458,6 +2470,7 @@ function BSProAddClientSheet({ role, onClose }) {
   };
   const shareListing = async () => {
     if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    if (!linkReady) return;
     const url = listingUrl();
     try {
       if (navigator.share) { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
@@ -2495,9 +2508,11 @@ function BSProAddClientSheet({ role, onClose }) {
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
             </div>
-            {invited[p.userId]
+            {invited[p.userId] === 'ok'
               ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-              : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
+              : invited[p.userId] === 'noTag'
+                ? <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 12px', background: 'transparent', border: `1px dashed ${t.AMBER || heat}`, color: t.AMBER || heat, cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</button>
+                : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
           </div>
         ))}
         <div style={{ marginTop: 18 }}>
@@ -2515,7 +2530,7 @@ function BSProAddClientSheet({ role, onClose }) {
               { key: 'text', glyph: '✆︎', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt },
               { key: 'share', glyph: '↗︎', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing },
             ].map((ch) => (
-              <button key={ch.key} onClick={ch.onTap} style={{ flex: 1, minHeight: 44, cursor: 'pointer', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              <button key={ch.key} onClick={ch.onTap} disabled={!linkReady} style={{ flex: 1, minHeight: 44, cursor: linkReady ? 'pointer' : 'default', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: linkReady ? 1 : 0.45 }}>
                 {ch.glyph} {ch.label}
               </button>
             ))}

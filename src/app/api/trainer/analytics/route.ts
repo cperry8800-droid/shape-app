@@ -81,23 +81,9 @@ export async function GET() {
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
-  // BYO origin labels (rails #1794, Business page): per-client attribution +
-  // fee read from the STORED pair — never re-derived from origin + the current
-  // constant. Names resolved like churn's; pre-migration rows read the select's
-  // absent columns as marketplace/1500, which is correct for every one.
+  // BYO origin labels (rails #1794, Business page): filled by the roster
+  // block's ONE profiles lookup; byOrigin is built after it (below).
   const activeNames = new Map<string, string>();
-  if (clientIds.length) {
-    const { data } = await supabase.from('profiles').select('id, full_name').in('id', clientIds);
-    for (const r of data ?? []) activeNames.set(String(r.id), String(r.full_name ?? '').trim());
-  }
-  const byOrigin = subs.map(
-    (r: { client_id: string; price_cents: number | null; origin?: string | null; fee_bps?: number | null }) => ({
-      name: activeNames.get(String(r.client_id)) || 'Client',
-      origin: r.origin ?? 'marketplace',
-      feeBps: r.fee_bps ?? 1500,
-      priceCents: r.price_cents ?? 0,
-    })
-  );
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -213,8 +199,7 @@ export async function GET() {
       prsByClient.set(k, (prsByClient.get(k) || 0) + 1);
     }
 
-    const nameById = new Map<string, string>();
-    for (const r of namesRes.data || []) nameById.set(String(r.id), String(r.full_name || ''));
+    for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
 
     for (const cid of clientIds) {
       const w = workoutsByClient.get(cid) || { wk30: 0, wk7: 0 };
@@ -241,9 +226,21 @@ export async function GET() {
     }
     // Attach names for the roster table.
     for (const r of roster as Array<RosterRow & { name?: string }>) {
-      r.name = nameById.get(r.client_id) || 'Client';
+      r.name = activeNames.get(r.client_id) || 'Client';
     }
   }
+
+  // Per-client attribution + fee from the STORED pair — never re-derived from
+  // origin + the current constant; pre-migration rows read the select('*')'s
+  // absent columns as marketplace/1500, which is correct for every one.
+  const byOrigin = subs.map(
+    (r: { client_id: string; price_cents: number | null; origin?: string | null; fee_bps?: number | null }) => ({
+      name: activeNames.get(String(r.client_id)) || 'Client',
+      origin: r.origin ?? 'marketplace',
+      feeBps: r.fee_bps ?? 1500,
+      priceCents: r.price_cents ?? 0,
+    })
+  );
 
   const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
 

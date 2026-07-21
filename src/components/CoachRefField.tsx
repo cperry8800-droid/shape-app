@@ -19,8 +19,19 @@ export default function CoachRefField({ initial }: { initial?: string | null }) 
     initial && UUID_RE.test(initial) ? initial.toLowerCase() : ''
   );
   useEffect(() => {
-    if (token) return;
     try {
+      if (initial && UUID_RE.test(initial)) {
+        // Persist a direct-URL ref BEFORE anything else can navigate away —
+        // a signed-out submit redirects to /login?next= without the query
+        // string, and only this stored copy survives the round trip (the
+        // post-login page re-reads it below; supabase.js binds it).
+        localStorage.setItem(
+          'shape.coachRef',
+          JSON.stringify({ token: initial.toLowerCase(), at: Date.now(), bound: false })
+        );
+        return;
+      }
+      if (token) return;
       const raw = localStorage.getItem('shape.coachRef');
       if (!raw) return;
       const v = JSON.parse(raw) as { token?: string; at?: number } | null;
@@ -30,7 +41,7 @@ export default function CoachRefField({ initial }: { initial?: string | null }) 
     } catch {
       /* no stored ref */
     }
-  }, [token]);
+  }, [initial, token]);
   if (!token) return null;
   return <input type="hidden" name="ref" value={token} />;
 }
