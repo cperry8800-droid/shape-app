@@ -4,7 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
-import { feeSplit, maxCreditCents } from '@/lib/platform-fee';
+import { feeSplit, maxCreditCents, bpsToRate, bpsToPercent } from '@/lib/platform-fee';
+import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 
 export const runtime = 'nodejs';
 
@@ -26,6 +27,7 @@ type CheckoutBody = {
     provider_role?: string;
   };
   role?: string;
+  ref?: string;
   successPath?: string;
   cancelPath?: string;
 };
@@ -115,6 +117,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Provider has not completed Stripe onboarding.' }, { status: 409 });
   }
 
+  // BYO commission split: resolve WHY this checkout exists (marketplace vs a
+  // client the coach brought) → the resolved fee. feeBps is THE single fee value;
+  // nothing downstream re-derives from `origin`. Fail-closed to marketplace / 1500.
+  const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
+    admin,
+    caller,
+    clientId: user.id,
+    providerRole,
+    providerId,
+    ref: body.ref,
+  });
+  const feeRate = bpsToRate(feeBps);
+
   const isSubscription = String(body.item?.type || '').toLowerCase() === 'subscription';
   const itemName = body.item?.name || (isSubscription ? 'Monthly coaching' : 'One-time purchase');
   const fallbackOneTimePrice =
@@ -165,11 +180,11 @@ export async function POST(request: Request) {
       const { data: wallet } = await admin.rpc('get_store_credit_for', { p_user_id: user.id });
       const available = Number((wallet as Record<string, unknown> | null)?.[storeCreditKind] ?? 0);
       if (Number.isFinite(available) && available > 0) {
-        // Cap redemption at Shape's 15% cut so the charge always covers the
-        // coach's 85%-of-gross payout. Shape absorbs the credit out of its own
-        // fee (never out of pocket), and any excess credit stays in the wallet
-        // for next time — keeps the coach whole with no separate top-up transfer.
-        const maxRedeemable = Math.min(priceCents - 50, maxCreditCents(priceCents));
+        // Cap redemption at Shape's cut so the charge always covers the coach's
+        // payout. Shape absorbs the credit out of its own fee (never out of
+        // pocket). At the BYO rate (0) the cap is 0 — there is no Shape fee to
+        // absorb credit from, so store credit does not apply, by the math.
+        const maxRedeemable = Math.min(priceCents - 50, maxCreditCents(priceCents, feeRate));
         storeCreditApplied = Math.max(0, Math.min(Math.floor(available), maxRedeemable));
         chargeCents = priceCents - storeCreditApplied;
       }
@@ -185,7 +200,7 @@ export async function POST(request: Request) {
   // price, so the fee is what's left of the (credit-capped) charge after the
   // coach's cut. Because credit is capped at Shape's 15% above, the charge
   // always covers the coach's cut — no out-of-pocket top-up is ever needed.
-  const { applicationFeeCents } = feeSplit(priceCents, chargeCents);
+  const { applicationFeeCents } = feeSplit(priceCents, chargeCents, feeRate);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -217,13 +232,16 @@ export async function POST(request: Request) {
         gross_price_cents: String(priceCents),
         kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
         item_name: String(itemName),
+        origin: coachOrigin,
+        fee_bps: String(feeBps),
+        ...(referralId ? { referral_id: referralId } : {}),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription
         ? {
             subscription_data: {
-              application_fee_percent: 15,
+              application_fee_percent: bpsToPercent(feeBps),
               transfer_data: { destination: provider.stripe_account_id as string },
               metadata: {
                 client_id: user.id,

@@ -20,6 +20,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { hasActiveWaitlistInvite } from '@/lib/waitlist';
+import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
+import { bpsToPercent } from '@/lib/platform-fee';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
@@ -121,10 +123,21 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
-  // Shape takes a 15% application fee on every trainer/nutritionist charge;
-  // the remaining 85% settles into the provider's connected Stripe account.
+  // BYO commission split: resolve WHY this checkout exists → the resolved fee.
+  // A client the coach brought (an already-bound referral) pays 0%; a marketplace
+  // client pays 15%. Fail-closed to marketplace / 1500 inside the resolver.
+  const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
+    admin: createAdminClient(),
+    caller: supabase,
+    clientId: user.id,
+    providerRole,
+    providerId,
+  });
+
+  // Shape takes the RESOLVED application fee on the coach charge; the rest
+  // settles into the provider's connected Stripe account.
   let session;
   try {
     session = await stripe.checkout.sessions.create({
@@ -137,9 +150,12 @@ export async function startCheckout(formData: FormData): Promise<void> {
         provider_id: String(providerId),
         provider_role: providerRole,
         price_cents: String(priceResult.priceCents),
+        origin: coachOrigin,
+        fee_bps: String(feeBps),
+        ...(referralId ? { referral_id: referralId } : {}),
       },
       subscription_data: {
-        application_fee_percent: 15,
+        application_fee_percent: bpsToPercent(feeBps),
         transfer_data: { destination: priceResult.stripeAccountId },
         metadata: {
           client_id: user.id,
@@ -147,8 +163,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
           provider_role: providerRole,
         },
       },
-      success_url: `${origin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}${backHref}&error=subscribe_cancelled`,
+      success_url: `${siteOrigin}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteOrigin}${backHref}&error=subscribe_cancelled`,
       allow_promotion_codes: true,
     });
   } catch (e) {
