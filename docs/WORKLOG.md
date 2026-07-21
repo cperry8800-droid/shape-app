@@ -885,6 +885,51 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — Onboarding tour: kill the endless re-show + end-freeze, full feature coverage, app parity (#1792)
+
+- **Root-caused the two owner-reported tour bugs as one persistence failure.**
+  The website tour "appeared every time I logged in, even when signed in" AND
+  "couldn't get out of it at the end — almost seemed frozen" were the same
+  defect: `dashTour.js markSeen` was **async-only** (a cloud `saveUserGoals`
+  write), and the finale CTA **navigates away** (`Radio.html` / a hash route),
+  unloading the page before the write landed — so the seen-flag never persisted
+  and the tour re-armed on the next visit, read as "it keeps coming back / I'm
+  stuck in it."
+- **The fixes** (`public/newdesign/dashTour.js`): `markSeen` now writes
+  `localStorage` **synchronously first** (before the async cloud write), and
+  `start()` marks seen **immediately** after the engine mounts — so the finale's
+  navigation can't beat the persistence. First-visit semantics tightened so a
+  signed-in returning member isn't re-shown.
+- **The "frozen" end** (`public/newdesign/spotlightTour.js`): the final step now
+  renders a quiet **Done** button (alongside the CTA) wired to `finish()`, and the
+  primary handler **finishes BEFORE navigating** (`finish()` → `step.onCta()`), so
+  the overlay always tears down. Hardening: `show()` is wrapped so **any**
+  unexpected error falls back to a centered card with live Next/Done/Skip/Escape
+  — a stuck full-dim overlay is structurally impossible now. The duplicated
+  centered-card logic is one `centerCard()` helper (CodeRabbit).
+- **Full feature coverage, both surfaces** (the owner's "wasn't hitting chat,
+  habits, profile, radio, grocery"): the **website client tour** goes 10→15 stops
+  (adds Progress, Library, Team, Chat, Goal — Chat anchored on
+  `#shape-global-chat-button` with a centered-card fallback), the **coach tours**
+  gain Schedule + Chat, and the **app client tour** (`BSOnboardingTour`) goes
+  9→12 — a **Progress** step and a **Goal** step after Home, plus a dedicated
+  **Score** step navigating to Me, with the **You** step rescoped to the profile.
+- **App anchors wired to real rendered elements** (`iosAppBroadsheetClient.jsx`):
+  `BSShelfDoor`/`BSProgressDoor` carry a `tourId` prop → `data-tour`, the Me-tab
+  score block carries `hero-score` (the never-rendered `BSScoreCardDark` had it —
+  a dead anchor Codex caught), and the profile identity head carries `hero-me`.
+  The Goal step has **no `tab-home` fallback** on purpose: `BSMeGoalCard` renders
+  null with no configured goal, so an unrelated-tab spotlight under Goal copy
+  would mislead — the engine's centered card is the honest state (CodeRabbit).
+- **i18n**: 9 new `onboarding` keys (tour.progress/goal/score × eyebrow/title/body)
+  + 2 rescoped (tour.you.title/body), all 64 keys/locale ×13, catalog parity 3/3.
+- Verified: JSX parse · tour engine parse · every *configured* tour anchor
+  resolves to a rendered `data-tour` (the Goal step intentionally has none when
+  no goal is set → centered card) · PowerShell `/m/` build exit 0 · LF. Review round on
+  `6f2da1e1`: CodeRabbit CHANGES_REQUESTED (2 — goal fallback + centerCard dedup,
+  both fixed) · Codex 1 P2 (dead score anchor, fixed). Open: OWNER on-device tour
+  replay (web + app, first-run + finale exit).
+
 ### 2026-07-21 — The About letter gets its founder: portrait + bio, both surfaces
 
 - **The founder signature arc, complete.** Website **#1790** (merged 2026-07-21)
@@ -900,26 +945,30 @@ changelog whenever something ships.
   - **App parity** (`BSAboutPage`): `founder.webp` bundled in
     `mobile-app/public` (BASE_URL idiom — `/m/` + native), themed `t.RULE`
     frame, the same card + sign-off grammar.
-  - **A short founder bio** under the card on both surfaces — deliberately
-    **mission-grounded only** (no invented background facts): flagged
-    OWNER-REVIEW in-code; swap in real details (background, city, credentials,
-    the personal why) whenever the owner provides them.
+  - **A short founder bio** under the card on both surfaces. Shipped first as
+    mission-grounded placeholder copy (flagged OWNER-REVIEW), then **replaced
+    with the owner's real, approved bio** — a decade in finance (no company
+    names), the always-wanted-to-run-my-own-business drive, marathons + an
+    Ironman, and his kept belief line ("great coaching shouldn't be a luxury or
+    unaffordable, and getting in shape shouldn't mean doing it alone"). No
+    employers, contact, or education from the résumé went on the public page.
   - Rationale (docs/MARKET-RESEARCH-2026-07.md): trust is the scarcest asset
     for an unknown marketplace handling payments + sensitive health data — a
     named face signs the letter, and the founder story anchors the organic
-    channel. CodeRabbit round on #1790: boxShadow motif dropped (valid);
-    TEAL_BRIGHT hardcode declined (the page's own brand literal, used 5×).
-  - **Follow-up polish (owner-directed):** the real, approved bio landed (finance
-    decade w/o company names, marathons + an Ironman, the run-my-own-business
-    drive, the kept belief line), the eyebrow shortened to **FOUNDER · SHAPE**,
-    and the bio trimmed ("...shouldn't be a luxury or unaffordable, and shouldn't
-    mean doing it alone"). The **portrait was reprocessed to sit native to the
-    dark editorial page** (reprocessed from the 1024px original via sharp):
-    muted color grade + a darkening radial vignette that recedes the office
-    background into the page tone (#1a1612), and **feathered edges baked into the
-    WebP alpha** so the frame dissolves — background-agnostic, so it also blends
-    on any mobile paper. The hard hairline frame is gone; a soft cream/teal
-    radial glow pools light behind it (theme-toned on mobile via `bsTHexA`).
+    channel. CodeRabbit rounds: #1790 boxShadow motif dropped (valid) +
+    TEAL_BRIGHT hardcode declined (the page's own brand literal, used 5×);
+    #1791 the cream-at-opacity rgba flag declined (about.jsx's own 19× pattern,
+    no INK-opacity helper exists to reuse).
+  - **Follow-up polish (#1793, owner-directed):** the eyebrow shortened to
+    **FOUNDER · SHAPE**, and the bio trimmed ("...shouldn't be a luxury or
+    unaffordable, and shouldn't mean doing it alone"). The **portrait was
+    reprocessed to sit native to the dark editorial page** (from the 1024px
+    original via sharp): muted color grade + a darkening radial vignette that
+    recedes the office background into the page tone (#1a1612), and **feathered
+    edges baked into the WebP alpha** so the frame dissolves — background-agnostic,
+    so it also blends on any mobile paper. The hard hairline frame is gone; a soft
+    cream/teal radial glow pools light behind it (theme-toned on mobile via
+    `bsTHexA`).
 
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 
