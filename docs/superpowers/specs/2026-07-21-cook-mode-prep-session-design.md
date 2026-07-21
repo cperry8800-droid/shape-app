@@ -50,8 +50,11 @@ window is open; move while it is.
 
 ## 3 · Doctrine (non-negotiable rules)
 
-- **Honest-data everywhere.** Only recipes with real steps get the CTA (the
-  catalog guarantees ≥4 cue-rich steps). No fabricated timers: a countdown
+- **Honest-data everywhere.** The CTA is universal — every meal/recipe opens
+  Cook Mode at its honest cookable tier (§4's ladder) — but the walkthrough
+  never renders a step or ingredient that wasn't authored (or member-reviewed
+  via the labeled AI draft): a tier-3/4 meal opens as mise-only / quick mode,
+  never with invented method steps. No fabricated timers: a countdown
   renders only when the step carries a real duration (parsed or structured).
   The award chip shows only when the RPC actually granted. PREPPED renders only
   from a real prep record.
@@ -190,8 +193,8 @@ ratification pattern; ruling §13.1). Absence renders nothing (never a padlock).
 
 **Step metadata** — `steps` entries widen from `string` to
 `string | { t, min?, passive?, station? }` (station ∈ oven·stove·board·off).
-Backward compatible: strings stay valid everywhere; the catalog gets a scripted
-+ hand-checked metadata pass on all 35 recipes;
+Backward compatible: strings stay valid everywhere; the catalog gets a
+scripted-then-hand-checked metadata pass on all 35 recipes;
 `tests/shape-kitchen-data.test.mjs` extends (shape validity, sane `min`
 ranges, passive steps must carry `min`).
 
