@@ -37,7 +37,7 @@ export async function GET() {
 
   const { data: subRows } = await supabase
     .from('subscriptions')
-    .select('client_id, price_cents, status, fee_bps')
+    .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
     .eq('provider_role', 'nutritionist')
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);

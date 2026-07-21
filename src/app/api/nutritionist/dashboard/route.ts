@@ -64,7 +64,7 @@ export async function GET() {
     // fee (BYO subs pay 0% — the coach keeps 100%; marketplace subs pay 15%).
     const { data: subRows } = await supabase
       .from('subscriptions')
-      .select('price_cents, status, fee_bps')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
       .in('status', ['active', 'trialing']);

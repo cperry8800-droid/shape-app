@@ -48,10 +48,13 @@ export async function resolveCoachCheckoutOrigin(args: {
       p_ref: ref && UUID_RE.test(ref) ? ref : null,
     });
     if (error || !data) {
-      // Fail-closed is correct, but a PERSISTENT failure (RPC missing, outage)
-      // would silently put every coach-sale checkout at the marketplace rate —
-      // log it so the degrade is visible in the deploy logs.
-      if (error) console.warn('[shape-app] resolve_coach_checkout_origin failed:', error.message);
+      // Fail-closed is correct, but a PERSISTENT failure (RPC missing, outage,
+      // or an empty response) would silently put every coach-sale checkout at
+      // the marketplace rate — log BOTH branches so the degrade is visible.
+      console.warn(
+        '[shape-app] resolve_coach_checkout_origin failed:',
+        error?.message ?? 'RPC returned no data'
+      );
       return MARKETPLACE;
     }
     const row = (Array.isArray(data) ? data[0] : data) as

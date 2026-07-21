@@ -81,7 +81,7 @@ async function loadTargetInfo(
   if (row.subscription_id) {
     const { data } = await admin
       .from('subscriptions')
-      .select('price_cents, provider_role, provider_id, status, fee_bps')
+      .select('*') // '*' is migration-safe (fee_bps may be absent pre-migration)
       .eq('id', row.subscription_id)
       .maybeSingle<{
         price_cents: number | null;

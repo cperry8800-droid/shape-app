@@ -246,7 +246,11 @@ export async function POST(request: Request) {
           let applicationFeeCents: number | null = null;
           if (pi) {
             const intent = await stripe.paymentIntents.retrieve(pi);
-            applicationFeeCents = intent.application_fee_amount ?? null;
+            // A retrieved intent with no application_fee_amount means the fee
+            // was deliberately OMITTED (BYO 0%, or store credit consumed the
+            // whole fee) — that's a real $0, not unknown. Coerce so the admin
+            // refunds page shows $0 instead of treating the fee as unresolvable.
+            applicationFeeCents = intent.application_fee_amount ?? 0;
           }
           const purchaseRow = {
             client_id: clientId,
