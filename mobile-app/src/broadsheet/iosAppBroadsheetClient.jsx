@@ -3234,7 +3234,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
   if (previewMeal) {
-    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }} />;
+    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }}
+      onFiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => ({ ...prev, [id]: true })); }} />;
   }
   if (showWorkoutPreview) {
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
@@ -5352,7 +5353,7 @@ function BSDateline({ children }) {
   );
 }
 
-function BSMealPreview({ meal, onBack, onLog }) {
+function BSMealPreview({ meal, onBack, onLog, onFiled }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -5371,7 +5372,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
   // Cook Mode takeover (spec 2026-07-21) — EVERY meal opens at its honest
   // cookable tier: a catalog-mapped meal walks the recipe's method (the plan's
   // macros stay the logged truth), an unmapped one walks what it carries.
-  if (cooking) return <BSCookMode cookable={bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES)} onClose={() => setCooking(false)} />;
+  if (cooking) return <BSCookMode cookable={bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES)} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} />;
   if (justLogged) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)}
       share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
@@ -5523,6 +5524,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
           // One-tap "ate as planned" — also persist the meal's macros onto
           // today's snapshot so the Nutrition stats track real logging.
           try { window.ShapeMealLog?.log?.({ kcal: meal.kcal, protein: meal.p, carbs: meal.c, fat: meal.f }); } catch (e) {}
+          try { onFiled?.(); } catch (e) {}
           setJustLogged(true);
         }} style={{
           flex: 1, border: 0, borderRadius: 5, background: teal, color: '#04201d', cursor: 'pointer',
@@ -6055,7 +6057,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
   const hasMethod = steps.length > 0;
   const tierQuick = cookable.tier === BS_COOK_TIERS.QUICK;
   const resumeKey = 'cook:' + bsCookSlug(cookable.title);
-  const resumeAt = React.useRef(bsCookResumeRead(resumeKey)).current;
+  // Lazy init — the localStorage read runs ONCE, not on every heartbeat render.
+  const [resumeAt] = useStateBSC(() => bsCookResumeRead(resumeKey));
 
   // quick (tier 4) skips straight to the plate; everything else opens on mise.
   const [phase, setPhase] = useStateBSC(tierQuick ? 'plated' : 'mise'); // mise | method | plated

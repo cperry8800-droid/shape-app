@@ -80,17 +80,25 @@ export const bsSplitMethodProse = (text) => {
   const t = str(text);
   if (!t) return null;
   // Numbered/lettered line markers win; otherwise sentence boundaries.
+  const numbered = /(?:^|\n|\s)(?:\d+[.)]|[a-h][.)])\s+/.test(t);
   let parts;
-  if (/(?:^|\n|\s)(?:\d+[.)]|[a-h][.)])\s+/.test(t)) {
+  if (numbered) {
+    // Authored structure — every marked segment is a step, even a short
+    // "2. Stir." (no length floor: dropping an authored step would silently
+    // omit a real instruction, the opposite of carrying-what-was-authored).
     parts = t.split(/(?:^|\n|\s)(?:\d+[.)]|[a-h][.)])\s+/).map((p) => p.trim()).filter(Boolean);
   } else {
-    parts = t.split(/(?<=[.!?])\s+(?=[A-Z])/).map((p) => p.trim()).filter(Boolean);
+    parts = t.split(/(?<=[.!?])\s+(?=[A-Z])/).map((p) => p.trim()).filter(Boolean)
+      .filter((p) => p.length > 12); // noise-fragment floor, sentence mode only
   }
-  parts = parts.filter((p) => p.length > 12);
   if (parts.length < 2) return null;
   const instructional = parts.filter((p) => COOK_VERBS.test(p));
   if (instructional.length < 2) return null;
-  return parts;
+  // Numbered/lettered prose is carried WHOLESALE (the coach chose the
+  // structure); free sentences carry only the instructional segments, so a
+  // marketing lead ("Sunday reset — a favorite.") can never ride into the
+  // walkthrough as a fake method step.
+  return numbered ? parts : instructional;
 };
 
 // ---------------------------------------------------------------------------

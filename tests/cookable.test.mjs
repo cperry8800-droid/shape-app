@@ -99,6 +99,16 @@ test('prose splitter: numbered lines split on markers; blurbs return null', () =
   assert.equal(bsSplitMethodProse(null), null);
 });
 
+test('prose splitter: a SHORT authored numbered step is never dropped (CodeRabbit #1804)', () => {
+  const parts = bsSplitMethodProse('1. Heat the pan over medium. 2. Stir. 3. Serve over the warmed rice.');
+  assert.deepEqual(parts, ['Heat the pan over medium.', 'Stir.', 'Serve over the warmed rice.']);
+});
+
+test('prose splitter: a marketing lead sentence never rides into the method (Codex #1804)', () => {
+  const parts = bsSplitMethodProse('A house favorite for busy weeks and lazy Sundays. Preheat the oven to 425 and dry the salmon. Roast the fillet 12 minutes until it flakes.');
+  assert.deepEqual(parts, ['Preheat the oven to 425 and dry the salmon.', 'Roast the fillet 12 minutes until it flakes.']);
+});
+
 test('timer parser: minutes/seconds/ranges/per-side; artifacts dropped', () => {
   assert.deepEqual(bsStepTimers('Cover and cook on low for 18 minutes without lifting the lid.'), [{ seconds: 1080, label: '18 min' }]);
   assert.deepEqual(bsStepTimers('Sear 3 minutes per side until golden.'), [{ seconds: 180, label: '3 min per side' }]);
