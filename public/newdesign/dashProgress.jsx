@@ -394,6 +394,12 @@ function DprCycleCard() {
   const load = React.useCallback(async () => {
     if (!client) { setSettings({ optIn: false, share: false }); setStarts([]); return; }
     let id = null;
+    // Bootstrap the cookie→Supabase session FIRST: a member arriving via the
+    // server login path has their session only in cookies, so a DIRECT
+    // client.auth.getUser() reads empty until getSession() bridges it — which
+    // would (wrongly) show an opted-in member the opt-in prompt and could send a
+    // cycle write as anon (the coachClientDetail / chatWidget precedent).
+    try { if (window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* fall through as anon */ }
     try { const { data } = await client.auth.getUser(); id = data && data.user && data.user.id; } catch (e) {}
     setUid(id || null);
     if (!id) { setSettings({ optIn: false, share: false }); setStarts([]); return; }
