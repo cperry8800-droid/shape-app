@@ -294,12 +294,15 @@ function BSOnboardingTour({ onClose, onNavigate }) {
     const steps = [
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.welcome.eyebrow', { defaultValue: 'Welcome' }), title: tr('onboarding:tour.welcome.title', { defaultValue: 'Welcome to Shape.' }), body: tr('onboarding:tour.welcome.body', { defaultValue: 'A quick tour of where everything lives — about 30 seconds.' }) },
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.home.eyebrow', { defaultValue: 'Home' }), title: tr('onboarding:tour.home.title', { defaultValue: 'Your day, at a glance.' }), body: tr('onboarding:tour.home.body', { defaultValue: 'Your next move, meals and habits — all on the home screen.' }) },
+      { navigate: go('home'), anchor: q('hero-progress'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.progress.eyebrow', { defaultValue: 'Progress' }), title: tr('onboarding:tour.progress.title', { defaultValue: 'Trends & PRs.' }), body: tr('onboarding:tour.progress.body', { defaultValue: 'Weight, strength, sleep, volume — your whole picture, charted.' }) },
+      { navigate: go('home'), anchor: q('hero-goal'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.goal.eyebrow', { defaultValue: 'Goal' }), title: tr('onboarding:tour.goal.title', { defaultValue: 'What you’re shaping toward.' }), body: tr('onboarding:tour.goal.body', { defaultValue: 'Targets, milestones and your ETA — the contract you set with yourself.' }) },
       { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: tr('onboarding:tour.train.eyebrow', { defaultValue: 'Train' }), title: tr('onboarding:tour.train.title', { defaultValue: 'Today’s session.' }), body: tr('onboarding:tour.train.body', { defaultValue: 'Your workout, ready to start — written by your coach, or built by you. Coach optional.' }) },
       { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.eat.eyebrow', { defaultValue: 'Eat' }), title: tr('onboarding:tour.eat.title', { defaultValue: 'Meals & logging.' }), body: tr('onboarding:tour.eat.body', { defaultValue: 'Your plan for the day. Tap a meal to log it in one tap.' }) },
       { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.grocery.eyebrow', { defaultValue: 'Grocery' }), title: tr('onboarding:tour.grocery.title', { defaultValue: 'Grocery lists.' }), body: tr('onboarding:tour.grocery.body', { defaultValue: 'Your week’s meals become a shopping list, sorted by aisle — auto-built for you.' }) },
       { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.habits.eyebrow', { defaultValue: 'Habits' }), title: tr('onboarding:tour.habits.title', { defaultValue: 'Daily habits.' }), body: tr('onboarding:tour.habits.body', { defaultValue: 'Check off the small things that add up — every one feeds your Shape Score.' }) },
       { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('onboarding:tour.chat.eyebrow', { defaultValue: 'Chat' }), title: tr('onboarding:tour.chat.title', { defaultValue: 'Coaches & community.' }), body: tr('onboarding:tour.chat.body', { defaultValue: 'Message your coaches and see the community feed.' }) },
-      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.you.eyebrow', { defaultValue: 'You' }), title: tr('onboarding:tour.you.title', { defaultValue: 'Your Shape Score.' }), body: tr('onboarding:tour.you.body', { defaultValue: 'Your profile, progress and the one number that tells the truth.' }) },
+      { navigate: go('me'), anchor: q('hero-score'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.score.eyebrow', { defaultValue: 'Score' }), title: tr('onboarding:tour.score.title', { defaultValue: 'Your Shape Score.' }), body: tr('onboarding:tour.score.body', { defaultValue: 'The one number that tells the truth — earn it, spend it, climb the tiers.' }) },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.you.eyebrow', { defaultValue: 'You' }), title: tr('onboarding:tour.you.title', { defaultValue: 'Your profile.' }), body: tr('onboarding:tour.you.body', { defaultValue: 'Your living profile — climb, signals and everything you’ve earned.' }) },
       { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free workout mixes, curated by BPM. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
     ];
     const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
@@ -18409,7 +18412,7 @@ function BSProgressDoor({ onOpen }) {
       ))}
     </span>
   );
-  return <BSShelfDoor c={teal} eyebrow={tr('home:door.progress', { defaultValue: 'Progress' })} figure={ticks} status={tr('home:progress.sections', { defaultValue: '{count, plural, one {# section} other {# sections}}', count: 4 })} onOpen={onOpen} />;
+  return <BSShelfDoor tourId="hero-progress" c={teal} eyebrow={tr('home:door.progress', { defaultValue: 'Progress' })} figure={ticks} status={tr('home:progress.sections', { defaultValue: '{count, plural, one {# section} other {# sections}}', count: 4 })} onOpen={onOpen} />;
 }
 
 // ── Front-Page primitives (spec: docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md) ──
@@ -18565,7 +18568,7 @@ function BSHomeBulletin({ label, detail, onOpen }) {
 // (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
 // PROGRESS 4-tick row). `pct` (0–100), when a number, fills the row's bottom
 // hairline to that width — the old door sliver carried onto the rule itself.
-function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
+function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen, tourId }) {
   const t = useBS();
   const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
   const [pressed, setPressed] = useStateBSC(false);
@@ -18577,7 +18580,7 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
   const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
   return (
     <button
-      type="button" onClick={onOpen} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
+      type="button" onClick={onOpen} data-tour={tourId || undefined} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
       onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
       style={{
         position: 'relative', width: '100%', minHeight: 44, boxSizing: 'border-box',
@@ -19350,7 +19353,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
     : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
   const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
-    <div onClick={onOpen} style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
+    <div onClick={onOpen} data-tour="hero-score" style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(12), background: bsTHexA(c, 0.5) }} />
       <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(11), background: `linear-gradient(165deg, ${bsTHexA(c, 0.14)}, ${bsTHexA(INK, 0.03)} 60%), ${t.PAPER}` }} />
       <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
@@ -19418,7 +19421,7 @@ function BSMeGoalCard({ onOpen }) {
   const goalHit = hasRange && toGo <= 0.05;
   const goalStatus = goalHit ? tr('home:goal.hit', { defaultValue: 'goal hit ✓' }) : hasRange ? tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: +Math.max(0, toGo).toFixed(1), unit }) : '—';
   return (
-    <BSShelfDoor c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
+    <BSShelfDoor tourId="hero-goal" c={TEAL} eyebrow={tr('home:door.goal', { defaultValue: 'Goal' })} figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
   );
 }
 
