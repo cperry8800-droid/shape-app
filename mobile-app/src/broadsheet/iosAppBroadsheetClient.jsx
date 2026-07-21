@@ -26478,9 +26478,19 @@ function BSAboutPage({ onBack }) {
         <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
       </div>
 
-      {/* sign-off — the very end of the page (extra gap below the CTA) */}
+      {/* sign-off — the very end of the page (extra gap below the CTA). The
+          letter is FROM someone: founder portrait + name (website parity —
+          the same signature block about.jsx carries). */}
       <div style={{ padding: `52px ${px}px 40px`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— The Shape team</div>
+        <img
+          src={`${import.meta.env.BASE_URL}founder.webp`}
+          alt="Chris Perry, founder of Shape"
+          width="96" height="96"
+          loading="lazy"
+          style={{ width: 96, height: 96, borderRadius: 16, objectFit: 'cover', display: 'block', margin: '0 auto 14px', border: `1px solid ${t.RULE}` }}
+        />
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— Chris Perry</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 7 }}>Founder · The Shape Community</div>
       </div>
       <BSFooter right="About" />
     </BSPage>
