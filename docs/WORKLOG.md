@@ -909,6 +909,17 @@ changelog whenever something ships.
     named face signs the letter, and the founder story anchors the organic
     channel. CodeRabbit round on #1790: boxShadow motif dropped (valid);
     TEAL_BRIGHT hardcode declined (the page's own brand literal, used 5×).
+  - **Follow-up polish (owner-directed):** the real, approved bio landed (finance
+    decade w/o company names, marathons + an Ironman, the run-my-own-business
+    drive, the kept belief line), the eyebrow shortened to **FOUNDER · SHAPE**,
+    and the bio trimmed ("...shouldn't be a luxury or unaffordable, and shouldn't
+    mean doing it alone"). The **portrait was reprocessed to sit native to the
+    dark editorial page** (reprocessed from the 1024px original via sharp):
+    muted color grade + a darkening radial vignette that recedes the office
+    background into the page tone (#1a1612), and **feathered edges baked into the
+    WebP alpha** so the frame dissolves — background-agnostic, so it also blends
+    on any mobile paper. The hard hairline frame is gone; a soft cream/teal
+    radial glow pools light behind it (theme-toned on mobile via `bsTHexA`).
 
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 

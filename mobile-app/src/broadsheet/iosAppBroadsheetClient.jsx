@@ -26430,17 +26430,22 @@ function BSAboutPage({ onBack }) {
       {/* FOUNDER card — the face behind the letter, right under the hero (owner
           call 2026-07-21: moved up from the page-bottom sign-off, larger). */}
       <div style={{ padding: `4px ${px}px 18px`, textAlign: 'center' }}>
-        <img
-          src={`${import.meta.env.BASE_URL}founder.webp`}
-          alt="Chris Perry, founder of Shape"
-          width="118" height="118"
-          style={{ width: 118, height: 118, borderRadius: 18, objectFit: 'cover', display: 'block', margin: '0 auto 12px', border: `1px solid ${t.RULE}` }}
-        />
+        {/* Feathered-to-transparent portrait (baked into the WebP) so it blends
+            into any paper; a soft theme-toned glow pools light behind it. */}
+        <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto 8px' }}>
+          <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
+          <img
+            src={`${import.meta.env.BASE_URL}founder.webp`}
+            alt="Chris Perry, founder of Shape"
+            width="150" height="150"
+            style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
+          />
+        </div>
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>Chris Perry</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · The Shape Community</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · Shape</div>
         {/* Owner-approved bio (mirrors about.jsx). */}
         <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and getting in shape shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
+          Chris spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
         </p>
       </div>
 
@@ -26500,7 +26505,7 @@ function BSAboutPage({ onBack }) {
           parity); the letter still closes signed. */}
       <div style={{ padding: `52px ${px}px 40px`, textAlign: 'center' }}>
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— Chris Perry</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 7 }}>Founder · The Shape Community</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 7 }}>Founder · Shape</div>
       </div>
       <BSFooter right="About" />
     </BSPage>
