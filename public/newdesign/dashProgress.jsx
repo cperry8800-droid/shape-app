@@ -365,6 +365,10 @@ function DprCheckinForm({ kit, onSaved }) {
 // localized). Doctrine: verbatim disclaimer (ONE constant), absence-not-a-
 // padlock (signed-out/pre-migration → nothing), no points, confirm-gated deletes.
 const DPR_CYCLE_DISCLAIMER = "The Cycle is for training and recovery context only. It is not medical advice, not a diagnostic tool, and must never be used for contraception or fertility planning. Predictions are estimates from the dates you log.";
+// The share receipt records the share-consent copy she agreed to — NOT the tracking
+// disclaimer (matches the mobile cycle:share.consent default; the consent_log receipt
+// must describe the action it audits: sharing phase + start dates with a coach).
+const DPR_CYCLE_SHARE_CONSENT = "I agree to share my cycle phase and recent period start dates with my linked coach(es). I can turn this off at any time.";
 const DPR_CYCLE_HEAT = "#34d6c5"; // house teal (line-only) — deliberately NOT pink; the spec names no cycle colour and a pink would gender the surface.
 function dprCycleShortDate(isoStr) {
   try {
@@ -421,7 +425,7 @@ function DprCycleCard() {
   const setSharePref = async (optIn, share, consentKind) => {
     if (!client) return { unavailable: true };
     try {
-      const { error } = await client.rpc("cycle_set_settings", { p_opt_in: !!optIn, p_share: !!share, p_consent_kind: consentKind, p_granted: !!(consentKind === "cycle_tracking" ? optIn : share), p_consent_text: DPR_CYCLE_DISCLAIMER });
+      const { error } = await client.rpc("cycle_set_settings", { p_opt_in: !!optIn, p_share: !!share, p_consent_kind: consentKind, p_granted: !!(consentKind === "cycle_tracking" ? optIn : share), p_consent_text: consentKind === "cycle_tracking" ? DPR_CYCLE_DISCLAIMER : DPR_CYCLE_SHARE_CONSENT });
       if (error) {
         const m = String(error.message || "");
         if (m.includes("cycle_set_settings") || error.code === "PGRST202" || error.code === "42883") return { unavailable: true };
