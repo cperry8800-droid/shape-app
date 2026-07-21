@@ -16,6 +16,7 @@
   "addClient.member": "Thành viên",
   "addClient.noListing": "Chưa tìm thấy hồ sơ trên chợ dịch vụ cho tài khoản này — lời mời mang theo hồ sơ của bạn, nên chúng sẽ hoạt động khi đơn đăng ký huấn luyện viên của bạn được duyệt.",
   "addClient.noMembers": "Không có thành viên nào phù hợp — hãy chia sẻ liên kết hồ sơ của bạn thay vào đó.",
+  "addClient.noTagNote": "Nhãn 0% hiện không khả dụng — liên kết gửi từ đây sẽ được tính là tìm thấy qua Shape.",
   "addClient.pitchBody": "Tôi đang làm coach trên Shape — giáo án của tôi, nhật ký của bạn và chat của chúng ta, tất cả trong một ứng dụng. Tham gia tại đây: {link}",
   "addClient.pitchSubject": "Tham gia Shape cùng tôi",
   "addClient.publishFirst": "Hãy đăng hồ sơ trên chợ dịch vụ trước — lời mời sẽ mang theo nó.",

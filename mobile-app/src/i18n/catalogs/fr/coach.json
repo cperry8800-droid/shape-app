@@ -16,6 +16,7 @@
   "addClient.member": "Membre",
   "addClient.noListing": "Aucune annonce sur la place de marché pour ce compte pour l'instant — les invitations portent votre annonce, elles s'activeront donc une fois votre candidature de coach approuvée.",
   "addClient.noMembers": "Aucun membre correspondant — partagez plutôt le lien de votre annonce.",
+  "addClient.noTagNote": "Le tag 0 % n’est pas disponible pour le moment — les liens envoyés d’ici compteront comme trouvés sur Shape.",
   "addClient.pitchBody": "Je coache maintenant sur Shape — mes programmes, votre suivi et notre chat, tout dans une seule app. Rejoignez-moi ici : {link}",
   "addClient.pitchSubject": "Rejoignez-moi sur Shape",
   "addClient.publishFirst": "Publiez d'abord votre annonce sur la place de marché — l'invitation la porte.",

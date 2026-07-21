@@ -16,6 +16,7 @@
   "addClient.member": "Mitglied",
   "addClient.noListing": "Für dieses Konto wurde noch kein Marktplatz-Eintrag gefunden — Einladungen enthalten deinen Eintrag, sie werden also aktiv, sobald deine Coach-Bewerbung genehmigt ist.",
   "addClient.noMembers": "Keine passenden Mitglieder — teile stattdessen deinen Eintrags-Link.",
+  "addClient.noTagNote": "Das 0%-Tag ist gerade nicht verfügbar — von hier gesendete Links zählen als über Shape gefunden.",
   "addClient.pitchBody": "Ich coache jetzt auf Shape — meine Programme, dein Logging und unser Chat, alles in einer App. Komm dazu: {link}",
   "addClient.pitchSubject": "Komm zu mir auf Shape",
   "addClient.publishFirst": "Veröffentliche zuerst deinen Marktplatz-Eintrag — die Einladung enthält ihn.",

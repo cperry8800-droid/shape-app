@@ -16,6 +16,7 @@
   "addClient.member": "Member",
   "addClient.noListing": "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved.",
   "addClient.noMembers": "No members match — share your listing link instead.",
+  "addClient.noTagNote": "The 0% tag isn’t available right now — links sent from here will count as Shape-found.",
   "addClient.pitchBody": "I’m coaching on Shape now — my programs, your logging, and our chat all live in one app. Join me here: {link}",
   "addClient.pitchSubject": "Join me on Shape",
   "addClient.publishFirst": "Publish your marketplace listing first — the invite carries it.",

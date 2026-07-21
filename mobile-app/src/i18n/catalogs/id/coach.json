@@ -16,6 +16,7 @@
   "addClient.member": "Anggota",
   "addClient.noListing": "Belum ada iklan pasar untuk akun ini — undangan membawa iklanmu, jadi akan aktif setelah lamaran pelatihmu disetujui.",
   "addClient.noMembers": "Tidak ada anggota yang cocok — bagikan tautan iklanmu saja.",
+  "addClient.noTagNote": "Tanda 0% sedang tidak tersedia — tautan yang dikirim dari sini akan terhitung ditemukan lewat Shape.",
   "addClient.pitchBody": "Sekarang aku jadi coach di Shape — programku, catatanmu, dan chat kita, semua dalam satu aplikasi. Gabung di sini: {link}",
   "addClient.pitchSubject": "Gabung bersamaku di Shape",
   "addClient.publishFirst": "Terbitkan dulu iklan pasarmu — undangan membawanya.",

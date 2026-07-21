@@ -16,6 +16,7 @@
   "addClient.member": "Üye",
   "addClient.noListing": "Bu hesap için henüz pazar yeri ilanı bulunamadı — davetler ilanını taşır, bu yüzden koç başvurun onaylandığında etkinleşirler.",
   "addClient.noMembers": "Eşleşen üye yok — bunun yerine ilan bağlantını paylaş.",
+  "addClient.noTagNote": "%0 etiketi şu an kullanılamıyor — buradan gönderilen bağlantılar Shape üzerinden bulunmuş sayılır.",
   "addClient.pitchBody": "Artık Shape'te koçluk yapıyorum — programlarım, senin kayıtların ve sohbetimiz tek uygulamada. Buradan katıl: {link}",
   "addClient.pitchSubject": "Shape'te bana katıl",
   "addClient.publishFirst": "Önce pazar yeri ilanını yayınla — davet onu taşır.",

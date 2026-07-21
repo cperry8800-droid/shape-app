@@ -2469,7 +2469,12 @@ function BSProAddClientSheet({ role, onClose }) {
     })();
     return () => { on = false; };
   }, [mine, role]);
-  const linkReady = refToken !== undefined;
+  // Ready = the token resolved AND `mine` belongs to THIS role (null = a
+  // genuinely-listing-less account, which may still share the plain URL). The
+  // one pre-reset frame after a role switch has mine.role !== role, so a tap
+  // there can never ship the PREVIOUS role's token.
+  const mineForRole = mine === null || (!!mine && mine.role === role);
+  const linkReady = refToken !== undefined && mineForRole;
   const listingUrl = () => {
     const base = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
     return refToken ? `${base}&ref=${refToken}` : base;
@@ -2549,11 +2554,20 @@ function BSProAddClientSheet({ role, onClose }) {
         ))}
         <div style={{ marginTop: 18 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' })}</div>
-          {/* The honest pitch — incl. the waitlist qualifier, so the UI never
-              promises 0% where checkout will apply 15% (spec §Surfaces 1). */}
-          <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-            {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
-          </div>
+          {/* The honest pitch — incl. the waitlist qualifier — renders ONLY
+              with a REAL ref token. When the token is confirmed unavailable
+              (signed out / no listing / pre-migration) the plain URL still
+              shares, but the copy says the truth: those links can't attribute,
+              so the 0% promise never sits over an untagged link. */}
+          {refToken ? (
+            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+              {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
+            </div>
+          ) : linkReady ? (
+            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${t.AMBER || heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+              {tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' })}
+            </div>
+          ) : null}
           {/* Monochrome typographic glyphs only (︎ pins text presentation) —
               never colored emoji, per the AGENTS.md new-additions rule. */}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
