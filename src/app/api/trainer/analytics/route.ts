@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadStripe } from '@/lib/stripe';
+import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,7 +38,7 @@ export async function GET() {
 
   const { data: subRows } = await supabase
     .from('subscriptions')
-    .select('client_id, price_cents, status')
+    .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB (webhook-fallback parity)
     .eq('provider_role', 'trainer')
     .eq('provider_id', providerId)
     .in('status', ['active', 'trialing']);
@@ -69,6 +70,13 @@ export async function GET() {
   }));
   const grossCents = subs.reduce(
     (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
+    0
+  );
+  // Net MRR from each row's STORED fee_bps (BYO subs pay 0% — the coach keeps
+  // 100%), never a hardcoded 85%: the stored rate is the billing truth.
+  const netCents = subs.reduce(
+    (sum: number, r: { price_cents: number | null; fee_bps?: number | null }) =>
+      sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
     0
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
@@ -232,7 +240,7 @@ export async function GET() {
     churn,
     metrics: {
       mrrGrossCents: grossCents,
-      mrrNetCents: Math.round(grossCents * 0.85),
+      mrrNetCents: netCents,
       activeClients: subs.length,
       totalSessions: sessions.length,
       completedSessions,

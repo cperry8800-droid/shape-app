@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
+import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,20 +60,21 @@ export async function GET() {
   let pulse: Array<Record<string, unknown>> = [];
 
   if (providerId != null) {
-    // Active subscribers + monthly recurring revenue, net of Shape's 15% fee.
+    // Active subscribers + monthly recurring revenue, net of each row's STORED
+    // fee (BYO subs pay 0% — the coach keeps 100%; marketplace subs pay 15%).
     const { data: subRows } = await supabase
       .from('subscriptions')
-      .select('price_cents, status')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
       .eq('provider_role', 'nutritionist')
       .eq('provider_id', providerId)
       .in('status', ['active', 'trialing']);
     const subs = subRows ?? [];
     activeClients = subs.length;
-    const grossCents = subs.reduce(
-      (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
+    monthlyNetCents = subs.reduce(
+      (sum: number, r: { price_cents: number | null; fee_bps?: number | null }) =>
+        sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
       0
     );
-    monthlyNetCents = Math.round(grossCents * 0.85);
 
     const { data: sessions } = await supabase
       .from('sessions')

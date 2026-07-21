@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
+import { feeSplit, bpsToRate } from '@/lib/platform-fee';
 import { approveRefund, denyRefund } from './actions';
 
 export const metadata = { title: 'Refunds - Shape' };
@@ -80,20 +81,23 @@ async function loadTargetInfo(
   if (row.subscription_id) {
     const { data } = await admin
       .from('subscriptions')
-      .select('price_cents, provider_role, provider_id, status')
+      .select('*') // '*' is migration-safe (fee_bps may be absent pre-migration)
       .eq('id', row.subscription_id)
       .maybeSingle<{
         price_cents: number | null;
         provider_role: string | null;
         provider_id: number | null;
         status: string | null;
+        fee_bps: number | null;
       }>();
     const price = data?.price_cents ?? null;
     return {
       label: 'Coach subscription',
       priceCents: price,
-      // Coach subs charge a flat 15% application fee (application_fee_percent).
-      applicationFeeCents: price != null ? Math.round(price * 0.15) : null,
+      // The application fee at the row's STORED rate (BYO subs pay 0%; the
+      // stored fee_bps is the billing truth, never a hardcoded 15%).
+      applicationFeeCents:
+        price != null ? feeSplit(price, price, bpsToRate(data?.fee_bps ?? 1500)).applicationFeeCents : null,
       coachName: await coachName(admin, data?.provider_role ?? null, data?.provider_id ?? null),
       targetStatus: data?.status ?? null,
     };
@@ -157,8 +161,9 @@ export default async function RefundsPage({
           <div>
             <h2 className="text-2xl font-light tracking-tight">Refund requests</h2>
             <p className="text-sm text-neutral-400 mt-1 max-w-2xl">
-              Approving a request refunds the client and unwinds the Connect payout — the coach&apos;s
-              85% transfer is reversed and Shape&apos;s 15% fee is returned, so the platform nets zero.
+              Approving a request refunds the client and unwinds the Connect payout — the coach
+              transfer is reversed and Shape&apos;s platform fee is returned (each at the row&apos;s
+              stored rate; BYO sales carry no fee), so the platform nets zero.
               Coach subscriptions are also canceled on refund.
             </p>
           </div>
@@ -251,7 +256,7 @@ function RefundCard({ row, target, email }: { row: RefundRow; target: TargetInfo
           <div className="text-neutral-200 mt-1 tabular-nums">{transferCents != null ? `−${usd(transferCents)}` : '—'}</div>
         </div>
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">15% fee returned to coach</div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">Platform fee reversed</div>
           <div className="text-neutral-200 mt-1 tabular-nums">{usd(target.applicationFeeCents)}</div>
         </div>
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">

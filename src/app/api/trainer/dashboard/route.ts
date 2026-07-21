@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
+import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,17 +64,19 @@ export async function GET() {
     // platform fee, so the provider's net is 85% of gross.
     const { data: subRows } = await supabase
       .from('subscriptions')
-      .select('price_cents, status')
+      .select('*') // '*' is migration-safe: an explicit fee_bps errors the query on a pre-migration DB
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
       .in('status', ['active', 'trialing']);
     const subs = subRows ?? [];
     activeClients = subs.length;
-    const grossCents = subs.reduce(
-      (sum: number, r: { price_cents: number | null }) => sum + (r.price_cents ?? 0),
+    // Net from each row's STORED fee_bps (BYO subs pay 0% — the coach keeps
+    // 100%), never a hardcoded 85%: the stored rate is the billing truth.
+    monthlyNetCents = subs.reduce(
+      (sum: number, r: { price_cents: number | null; fee_bps?: number | null }) =>
+        sum + coachCutCents(r.price_cents ?? 0, bpsToRate(r.fee_bps ?? 1500)),
       0
     );
-    monthlyNetCents = Math.round(grossCents * 0.85);
 
     const { data: sessions } = await supabase
       .from('sessions')

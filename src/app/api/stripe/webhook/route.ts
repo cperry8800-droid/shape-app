@@ -9,7 +9,8 @@ import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
-import { coachCutCents } from '@/lib/platform-fee';
+import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
+import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 
 export const runtime = 'nodejs';
 
@@ -40,6 +41,65 @@ function usd(cents: number): string {
 function isoOrNull(unixSeconds: number | null | undefined): string | null {
   if (!unixSeconds) return null;
   return new Date(unixSeconds * 1000).toISOString();
+}
+
+// BYO commission split — persist the origin verdict resolved at checkout onto the
+// money row. Missing/invalid metadata falls back to marketplace / 1500 — fail
+// toward Shape's fee, never toward a free ride.
+const VALID_ORIGINS = new Set(['marketplace', 'coach_invite', 'coach_link']);
+function originFromMeta(v: string | undefined): string {
+  return v && VALID_ORIGINS.has(v) ? v : 'marketplace';
+}
+// STRICT digit-string parse (shared pure impl) — Number('') is 0 in JS, so a
+// naive numeric guard would read empty/absent metadata as a 0% commission.
+// Absent/empty/malformed → 1500: fail toward Shape's fee.
+const feeBpsFromMeta = (v: string | undefined): number => parseFeeBpsMeta(v);
+// The pair is validated as ONE unit (attributionPair): a defaulted origin next
+// to fee_bps "0" must not persist marketplace/0 (free ride), and a coach_*
+// origin next to malformed fee metadata must not persist BYO/1500. Incoherent
+// pairs downgrade WHOLE to marketplace/1500 before touching the write-once row.
+function attributionFromMeta(meta: { origin?: string; fee_bps?: string } | null | undefined): { origin: string; feeBps: number } {
+  return attributionPair(originFromMeta(meta?.origin), feeBpsFromMeta(meta?.fee_bps));
+}
+
+// The origin/fee_bps columns land with the OWNER migration; a deploy that beats
+// it must still record the purchase. Postgres 42703 / PostgREST PGRST204 both mean
+// "column does not exist" — the signal to retry the write without them.
+function isUndefinedColumn(err: { code?: string } | null): boolean {
+  return err?.code === '42703' || err?.code === 'PGRST204';
+}
+
+// Gate on that retry: dropping the columns is safe ONLY when the intended values
+// are exactly the columns' DB defaults (marketplace / 1500) — the inserted
+// defaults then equal the intent. Any other combination can only have been
+// stamped POST-migration (pre-migration the checkout resolver RPC is absent, so
+// every session carries marketplace/1500), which makes a missing-column error
+// here PostgREST schema-cache lag, not a pre-migration deploy — and retrying
+// without the columns would insert the defaults and the freeze trigger would
+// lock the WRONG attribution on a BYO money row forever. Those deliveries must
+// FAIL (non-2xx) so Stripe redelivers once the cache has refreshed.
+function canDropOriginColumns(origin: string, feeBps: number): boolean {
+  return origin === 'marketplace' && feeBps === MARKETPLACE_FEE_BPS;
+}
+
+// Mark a client-bound referral consumed — service-role, conditional on
+// consumed_at IS NULL so a webhook retry is a no-op and a failed row-write never
+// burns the referral. Best-effort: never throws (a missing table pre-migration or
+// a stale id just logs). Only ever passed a referral_id when origin is BYO.
+async function consumeReferral(
+  admin: ReturnType<typeof createAdminClient>,
+  referralId: string | undefined | null,
+  kind: 'subscription' | 'purchase'
+): Promise<void> {
+  if (!referralId) return;
+  const { error } = await admin
+    .from('coach_referrals')
+    .update({ consumed_at: new Date().toISOString(), consumed_kind: kind })
+    .eq('id', referralId)
+    .is('consumed_at', null);
+  if (error && error.code !== '42P01') {
+    console.warn('[shape-app] coach referral consume failed:', error.message);
+  }
 }
 
 // Stripe API 2026-03-25 removed `Charge.invoice` and `Invoice.subscription` from
@@ -207,28 +267,62 @@ export async function POST(request: Request) {
           let applicationFeeCents: number | null = null;
           if (pi) {
             const intent = await stripe.paymentIntents.retrieve(pi);
-            applicationFeeCents = intent.application_fee_amount ?? null;
+            // A retrieved intent with no application_fee_amount means the fee
+            // was deliberately OMITTED (BYO 0%, or store credit consumed the
+            // whole fee) — that's a real $0, not unknown. Coerce so the admin
+            // refunds page shows $0 instead of treating the fee as unresolvable.
+            applicationFeeCents = intent.application_fee_amount ?? 0;
           }
-          await admin.from('one_time_purchases').upsert(
-            {
-              client_id: clientId,
-              provider_id: Number(providerId),
-              provider_role: providerRole,
-              kind,
-              price_cents: priceCents,
-              application_fee_cents: applicationFeeCents,
-              stripe_checkout_session_id: session.id,
-              stripe_payment_intent_id: pi,
-              plan_id: session.metadata?.plan_id || null,
-              status: 'paid',
-            },
-            { onConflict: 'stripe_checkout_session_id' }
-          );
+          const purchaseRow = {
+            client_id: clientId,
+            provider_id: Number(providerId),
+            provider_role: providerRole,
+            kind,
+            price_cents: priceCents,
+            application_fee_cents: applicationFeeCents,
+            stripe_checkout_session_id: session.id,
+            stripe_payment_intent_id: pi,
+            plan_id: session.metadata?.plan_id || null,
+            status: 'paid',
+          };
+          // Write the row FIRST and check the error; origin/fee_bps are write-once
+          // (a DB trigger preserves them on any replay/late delivery). Only on a
+          // confirmed write do we consume the referral — so a failed row-write
+          // never burns the referral without recording the purchase.
+          const { origin: purchaseOrigin, feeBps: purchaseFeeBps } = attributionFromMeta(session.metadata);
+          let { error: purchaseErr } = await admin
+            .from('one_time_purchases')
+            .upsert(
+              { ...purchaseRow, origin: purchaseOrigin, fee_bps: purchaseFeeBps },
+              { onConflict: 'stripe_checkout_session_id' }
+            );
+          if (isUndefinedColumn(purchaseErr)) {
+            if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps)) {
+              // Schema-cache lag on a BYO purchase — defaulting would freeze the
+              // row as marketplace/1500. Fail so Stripe redelivers (nothing has
+              // been written yet, so the retry replays cleanly).
+              console.error('[stripe webhook] one_time_purchases origin columns unavailable (schema-cache lag) — failing for redelivery', {
+                session: session.id, origin: purchaseOrigin, feeBps: purchaseFeeBps,
+              });
+              return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
+            }
+            ({ error: purchaseErr } = await admin
+              .from('one_time_purchases')
+              .upsert(purchaseRow, { onConflict: 'stripe_checkout_session_id' }));
+          }
+          if (purchaseErr) {
+            console.error('[stripe webhook] one_time_purchases upsert failed', { session: session.id, error: purchaseErr.message });
+          } else {
+            await consumeReferral(admin, session.metadata?.referral_id, 'purchase');
+          }
           // Commit any Shape-credit applied at checkout (debits the wallet once,
-          // idempotent by session id). Reserved at session-create, spent here.
+          // idempotent by session id). Reserved at session-create, spent here —
+          // and ONLY on a confirmed purchase write: this handler acks failures
+          // with 200 (no Stripe retry), so debiting after a failed upsert would
+          // burn the member's credit with no durable purchase record.
           const creditCents = Number(session.metadata?.store_credit_cents ?? 0);
           const creditKind = session.metadata?.store_credit_kind;
-          if (creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
+          if (!purchaseErr && creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
             const { error: creditErr } = await admin.rpc('consume_store_credit', {
               p_user_id: clientId,
               p_kind: creditKind,
@@ -237,13 +331,15 @@ export async function POST(request: Request) {
             });
             if (creditErr) console.warn('[shape-app] store credit consume failed:', creditErr.message);
           }
-          // The coach is paid 85% of the GROSS price (Shape absorbs any credit,
-          // capped at its 15% cut so the charge always covers the coach's cut).
+          // The coach is paid (1 − resolved rate) of the GROSS price — 85% on a
+          // marketplace sale, 100% on a BYO sale (0% commission). Read the resolved
+          // rate from the stamped fee_bps so the notified figure is what they got.
           const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
+          const payoutRate = bpsToRate(purchaseFeeBps);
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'Payment received',
-            `${usd(coachCutCents(grossCents))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
+            `${usd(coachCutCents(grossCents, payoutRate))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
           );
           // First-dibs: a completed purchase against an invited waitlist slot
           // is the client taking their spot — flip it to booked. Supabase
@@ -289,28 +385,55 @@ export async function POST(request: Request) {
           break;
         }
 
-        await admin.from('subscriptions').upsert(
-          {
-            client_id: clientId,
-            provider_id: providerId ? Number(providerId) : null,
-            provider_role: providerRole ?? null,
-            stripe_customer_id:
-              typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
-            stripe_subscription_id:
-              typeof session.subscription === 'string'
-                ? session.subscription
-                : session.subscription?.id ?? null,
-            status: 'active',
-            price_cents: priceCents || null,
-            current_period_end: currentPeriodEnd,
-          },
-          { onConflict: 'stripe_subscription_id' }
-        );
+        const subRow = {
+          client_id: clientId,
+          provider_id: providerId ? Number(providerId) : null,
+          provider_role: providerRole ?? null,
+          stripe_customer_id:
+            typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null,
+          stripe_subscription_id:
+            typeof session.subscription === 'string'
+              ? session.subscription
+              : session.subscription?.id ?? null,
+          status: 'active',
+          price_cents: priceCents || null,
+          current_period_end: currentPeriodEnd,
+        };
+        // Write the row FIRST and check the error; origin/fee_bps are write-once
+        // (a DB trigger preserves them on any replay). Consume the referral only on
+        // a confirmed write — so a failed write never burns it without recording.
+        const { origin: subOrigin, feeBps: subFeeBps } = attributionFromMeta(session.metadata);
+        let { error: subErr } = await admin
+          .from('subscriptions')
+          .upsert(
+            { ...subRow, origin: subOrigin, fee_bps: subFeeBps },
+            { onConflict: 'stripe_subscription_id' }
+          );
+        if (isUndefinedColumn(subErr)) {
+          if (!canDropOriginColumns(subOrigin, subFeeBps)) {
+            // Schema-cache lag on a BYO subscription — defaulting would freeze
+            // the row as marketplace/1500 (15% forever on a 0% sale). Fail so
+            // Stripe redelivers; nothing side-effectful has run before this
+            // write, so the retry replays cleanly.
+            console.error('[stripe webhook] subscriptions origin columns unavailable (schema-cache lag) — failing for redelivery', {
+              session: session.id, origin: subOrigin, feeBps: subFeeBps,
+            });
+            return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
+          }
+          ({ error: subErr } = await admin
+            .from('subscriptions')
+            .upsert(subRow, { onConflict: 'stripe_subscription_id' }));
+        }
+        if (subErr) {
+          console.error('[stripe webhook] subscriptions upsert failed', { session: session.id, error: subErr.message });
+        } else {
+          await consumeReferral(admin, session.metadata?.referral_id, 'subscription');
+        }
         if (providerId && providerRole) {
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'New subscriber',
-            `A new client just subscribed${priceCents ? ` · ${usd(Math.round(priceCents * 0.85))}/mo to you` : ''}.`
+            `A new client just subscribed${priceCents ? ` · ${usd(coachCutCents(priceCents, bpsToRate(subFeeBps)))}/mo to you` : ''}.`
           );
         }
         // First-dibs: a completed subscription against an invited waitlist

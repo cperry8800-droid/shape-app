@@ -10,8 +10,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
-import { feeSplit } from '@/lib/platform-fee';
+import { feeSplit, bpsToRate } from '@/lib/platform-fee';
 import { hasActiveWaitlistInvite } from '@/lib/waitlist';
+import { resolveCoachCheckoutOrigin } from '@/lib/coach-origin';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -20,6 +21,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const providerRole = String(formData.get('provider_role') ?? '') as ProviderRole;
   const providerId = Number(formData.get('provider_id') ?? 0);
   const kind = String(formData.get('kind') ?? '') as Kind;
+  // BYO ref-link token (the web capture sets this hidden field in PR B) — the
+  // last-resort checkout-time bind fallback for a ref-link visitor.
+  const ref = String(formData.get('ref') ?? '').trim() || undefined;
   const workoutIdRaw = formData.get('workout_id');
   const planIdRaw = formData.get('plan_id');
   const workoutId = workoutIdRaw ? Number(workoutIdRaw) : null;
@@ -124,10 +128,21 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     ? `${provider.name} — ${displayItemName}`
     : `${provider.name} — ${label}`;
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+  // BYO commission split: resolve WHY this checkout exists → the resolved fee.
+  // A client the coach brought pays 0%; a marketplace client pays 15%. Fail-closed
+  // to marketplace / 1500 inside the resolver.
+  const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
+    caller: supabase,
+    providerRole,
+    providerId,
+    ref,
+  });
+
   // No store credit on this path, so the charge equals the gross price — Shape
-  // keeps 15%, the coach gets 85% (shared fee helper; see src/lib/platform-fee).
-  const { applicationFeeCents } = feeSplit(priceCents);
+  // keeps the RESOLVED fee, the coach gets the rest (shared fee helper).
+  const { applicationFeeCents } = feeSplit(priceCents, priceCents, bpsToRate(feeBps));
 
   let session;
   try {
@@ -153,9 +168,15 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
         price_cents: String(priceCents),
         workout_id: workoutId ? String(workoutId) : '',
         plan_id: planId ? String(planId) : '',
+        origin: coachOrigin,
+        fee_bps: String(feeBps),
+        ...(referralId ? { referral_id: referralId } : {}),
       },
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
+        // Stripe requires the application fee to be positive-or-absent: a 0%
+        // (BYO) fee OMITS the field — the full charge transfers to the coach and
+        // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+        ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
         transfer_data: { destination: provider.stripe_account_id },
         metadata: {
           client_id: user.id,
@@ -166,8 +187,8 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
           plan_id: planId ? String(planId) : '',
         },
       },
-      success_url: `${origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}${backHref}&error=purchase_cancelled`,
+      success_url: `${siteOrigin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteOrigin}${backHref}&error=purchase_cancelled`,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
