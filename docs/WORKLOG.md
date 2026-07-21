@@ -887,6 +887,10 @@ changelog whenever something ships.
 
 ### 2026-07-21 — BYO commission split PR B: the surfaces (#1799) — the coach-facing half
 
+- **Session handoff: [`docs/HANDOFF-2026-07-21.md`](HANDOFF-2026-07-21.md)** —
+  the whole BYO wave (PR A rails + PR B surfaces + #1797) at the session level:
+  the 0% loop, the fee/attribution architecture, and the open follow-ups
+  (owner on-device pass, origin-mix metric, the declined dual-role edge).
 - **The visible half of the BYO split** (rails: PR A #1794). Everything a
   coach touches to bring a client at 0% commission.
 - **Add-client sheet** (`BSProAddClientSheet`, both coach roles): the single
