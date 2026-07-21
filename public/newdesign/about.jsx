@@ -119,7 +119,7 @@ function AboutSignoff() {
         alt="Chris Perry, founder of Shape"
         width="112" height="112"
         loading="lazy"
-        style={{ width: 112, height: 112, borderRadius: 18, objectFit: "cover", display: "block", margin: "0 auto 18px", border: "1px solid rgba(242,237,228,0.22)", boxShadow: `0 0 0 3px rgba(46,224,196,0.12)` }}
+        style={{ width: 112, height: 112, borderRadius: 18, objectFit: "cover", display: "block", margin: "0 auto 18px", border: "1px solid rgba(242,237,228,0.22)" }}
       />
       <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 21, color: "rgba(242,237,228,0.92)", lineHeight: 1.2 }}>— Chris Perry</div>
       <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · The Shape Community</div>
