@@ -178,7 +178,41 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, later): THE SHAPE SCORE ECONOMY + TIER REWARDS + RADIO
+> **Latest (2026-07-20, builds 8-9/9): THE CYCLE C→D — the flagship
+> differentiator ships to every surface (#1785 · #1786); the buildable wave is
+> COMPLETE (A→D built).** ⓒ **PR C (#1785) — coach share.** The client's own
+> coach reads **phase + timing only** (never dates), on a Case File **CYCLE**
+> station fed by a new `cycle` leg on `shared-overview` via **`get_client_cycle`**
+> (SECURITY DEFINER, gated on `is_coach_on_client` ∧ optIn ∧ share). **Absence is
+> never a padlock** — never-opted-in / not-shared / pre-migration render
+> identically NOTHING, so a coach can't tell them apart. ⚠ **Codex P2 fixed:** the
+> coach view derived phase against the COACH clock, so a cross-tz pair read
+> "day 0"; `get_client_cycle` now returns a **member-local `today`**
+> (`shape_user_tz` + the trigger's UTC+1d null-tz fallback) — ⚠ **OWNER MIGRATION
+> `2026-07-20-cycle-coach-today.sql`** (run AFTER `2026-07-19-cycle-events.sql`;
+> **APPLIED + verified live**). ⓓ **PR D (#1786) — website parity**, off the SAME
+> canonical engine (`window.ShapeCycleLib`): a loader on ClientApp/TrainerClient/
+> NutritionistClient; a self-managing member **`DprCycleCard`** on Progress
+> (opt-in behind the **verbatim disclaimer** · the phase/day/confidence/L/window/
+> deload card · a tap-to-log month calendar with future-date rejection +
+> confirm-gated un-log · share toggle · Stop & delete — all through the owner-RLS
+> `shapeDb.client` + the GUC-gated RPCs); and a coach **`CKCycleStation`**
+> consuming PR C's `cycle` leg (same absence-not-a-padlock). **THREE review rounds
+> on the web card, each a real Codex catch:** P1 the share toggle passed
+> `cycle_coach_share` (the RPC only accepts `cycle_share`), so sharing was
+> **impossible** on web · P1 the `cycle_share` receipt recorded the tracking
+> disclaimer instead of the share-consent copy (a **wrong `consent_log` audit** for
+> sharing sensitive data) · P2 the card read `getUser()` without bridging
+> `shapeDb.getSession()` first, so a cookie-login member saw the opt-in prompt
+> **despite already tracking** (the coachClientDetail/chatWidget precedent). No new
+> migration in D. ⚠ **Deferred (owner call): the web card does NOT render
+> `bsCycleRead`'s statistical insight** that mobile's Progress card shows — the
+> plan scoped the web card to the derivation fields, and porting the read needs a
+> 120-day phase-labeled progress/habit fetch; declined on the thread + registered
+> as a follow-up. English-only web (content parity, no catalogs). Open: OWNER
+> on-device passes across all 4 cycle PRs.
+>
+> **Prior (2026-07-20, later): THE SHAPE SCORE ECONOMY + TIER REWARDS + RADIO
 > SONG SOCIAL — 5 PRs (#1778 · #1780 · #1781 · #1782 · #1783), all merged;
 > all 3 migrations APPLIED + VERIFIED LIVE.** A cluster of owner-directed
 > features after build 7, plus a process correction.
@@ -850,6 +884,109 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-20 (build 9/9) — THE CYCLE PR D: website parity (#1786) — the wave closes
+
+- **Build 9 of the buildable wave** (final), executing
+  `docs/superpowers/plans/2026-07-19-cycle-d-website-parity.md`. Web parity for
+  The Cycle off the **SAME canonical engine** (`window.ShapeCycleLib` =
+  `cyclePhase.mjs`) + PR C's `cycle` leg. **Closes the Cycle wave build plan
+  (A→D). No new migration, no new route.**
+- **Loaders** — a `<script type="module">` assigns `window.ShapeCycleLib` on
+  `ClientApp.html` (member card) + `TrainerClient.html` / `NutritionistClient.html`
+  (coach station). `ClientProgress.html` redirects to `ClientApp.html#progress`,
+  so the member surface renders on the SPA (which already carries supabase); the
+  redirect stub needs nothing (plan deviation, noted).
+- **Member — `DprCycleCard`** (`dashProgress.jsx`), a `live`-gated DashGrid
+  widget (signed-out demo → absent): opt-in prompt with the **verbatim
+  disclaimer** → the card (phase + day, ~L days, N cycles, confidence, predicted
+  window, luteal deload) → **Open-calendar** month grid (tap-to-log/unlog via
+  `cycle_events` upsert/delete, `future_event_date` → "Can't log a future date.",
+  `ShapeConfirm`-gated un-log) + share toggle + **Stop & delete** (`cycle_opt_out`,
+  confirm-gated). Self-manages settings/starts via `shapeDb.client` (owner RLS) +
+  the GUC-gated RPCs.
+- **Coach — `CKCycleStation`** (`coachClientDetail.jsx`, between SLEEP and HEALTH
+  PROFILE): renders `data.cycle` **only** when `share:true`; `null` / `{share:false}`
+  / absent are identical non-renders — **absence, never a padlock**. Derives
+  against the member-local `cycle.today` (PR C's timezone fix), never the coach clock.
+- **⚠ THREE review rounds, each a real Codex catch on the web member card:**
+  - **P1 — sharing was impossible on web.** `toggleShare` passed
+    `p_consent_kind="cycle_coach_share"`, but the deployed `cycle_set_settings`
+    only accepts `cycle_tracking` / `cycle_share` → it raised `bad_consent_kind`
+    (a `P0001` whose message doesn't contain `cycle_set_settings`, so it fell to
+    `{error:true}`, not the pre-migration branch). Fixed to `cycle_share`, matching
+    the canonical mobile share path.
+  - **P1 — wrong `consent_log` receipt.** `setSharePref` recorded
+    `DPR_CYCLE_DISCLAIMER` (the not-medical-advice **tracking** disclaimer) on
+    **both** receipts, so a `cycle_share` grant stored the wrong consent text — the
+    audit trail for sharing phase + start dates wouldn't describe the share action.
+    Now records the disclaimer for `cycle_tracking` and a `DPR_CYCLE_SHARE_CONSENT`
+    string (verbatim from the mobile `cycle:share.consent` default) for
+    `cycle_share`. The mobile canonical path uses TWO distinct texts; the web
+    matches.
+  - **P2 — cookie→session bootstrap.** `DprCycleCard.load()` called
+    `client.auth.getUser()` with no prior `shapeDb.getSession()` bridge, so a
+    member arriving via the server/cookie login path read no user → the card showed
+    the **opt-in prompt to an already-opted-in member** (a doctrine break) and could
+    send a cycle write as anon, until something else bootstrapped the session. Now
+    bridges `getSession()` first — the `coachClientDetail` / `chatWidget` precedent
+    (documented at `coachClientDetail.jsx:230`).
+- **⚠ Deferred (owner call): the web card does NOT render `bsCycleRead`'s
+  statistical insight** that mobile's Progress card shows once a member has ≥2
+  cycles + enough sleep/energy/habit data. The plan scoped this web card to the
+  **derivation** fields ("Phase + day headline, confidence/L register,
+  predicted-window line"); porting the read needs fetching + phase-labeling ~120
+  days of progress/habit series (never retro-fitted). Declined on the Codex thread
+  with the scope rationale + **registered as a follow-up** (web Progress
+  statistical-read parity) rather than expanding scope on the final build.
+- **`?v=` NOT bumped** on the referencing pages — the deploy precompile
+  content-hashes newdesign jsx (convention retired 2026-07-16); editing the jsx
+  busts cache automatically. English-only web (content parity, no catalogs).
+- Verified: babel parse ×2 · `build-newdesign --check` exit 0 · LF (CR=0 ×5) · a
+  logic proof of the canonical engine + the absence-not-padlock decisions both new
+  components make + the member-local-`today` rationale. CI green (Web · Mobile ·
+  gitleaks); CodeRabbit clean. **Open (OWNER): the on-device pass** — two
+  authenticated sessions on the branch preview (migrations already live): member
+  Progress → opt-in (disclaimer) → the card → open calendar → log/unlog a past day
+  (+ future-date rejection) → share toggle → the coach's TrainerClient /
+  NutritionistClient shows the CYCLE station; share OFF → the station is absent
+  from the DOM; a non-linked coach → nothing.
+
+### 2026-07-20 (build 8/9) — THE CYCLE PR C: coach share (#1785)
+
+- **Build 8 of the buildable wave**, executing
+  `docs/superpowers/plans/2026-07-19-cycle-c-coach-share.md`. A client's own coach
+  reads **phase + timing only** (never the logged dates), on the Case File.
+- **⚠ OWNER MIGRATION — `2026-07-20-cycle-coach-today.sql`** (run AFTER
+  `2026-07-19-cycle-events.sql`; **APPLIED + verified live**). CREATE OR REPLACE
+  `get_client_cycle` to return a **member-local `today`** =
+  `to_char(v_today, 'YYYY-MM-DD')` where
+  `v_tz := public.shape_user_tz(p_user_id); v_today := (now() at time zone
+  coalesce(v_tz, 'UTC'))::date + (case when v_tz is null then 1 else 0 end)` —
+  matching the `cycle_events` no-future trigger's own null-tz fallback exactly.
+- **⚠ Codex P2 — the reason the migration exists:** the coach view had been
+  deriving phase against the COACH's clock (`new Date()`), so a coach and member in
+  different timezones would render "day 0" / a wrong day. `get_client_cycle` now
+  hands the coach the member-local `today`, and both the mobile station and (in
+  build 9) the web station derive against `cycle.today || new Date()`.
+- **Case File CYCLE station** (`iosAppBroadsheetPros.jsx`,
+  `BSProClientFullProfilePage`): derived from `ShapeCareTeam.overview`'s `d.cycle`
+  (consolidated per CodeRabbit round 2 — one overview leg, not a separate fetch);
+  renders only when `share===true && Array.isArray(starts)`; `bsDeriveCycle(starts,
+  today||now)`; an **enumerated phase-label switch** (no dynamic tr key); a
+  current-month tick strip keyed on the member-local today.
+- **shared-overview leg** (`src/app/api/clients/[id]/shared-overview/route.ts`):
+  adds `cycle` to the `Promise.all`, `supabase.rpc('get_client_cycle', {p_user_id})`,
+  `cycle: cycle ?? null`. `shapeBackend.cycleForClient` returns
+  `{share:true, starts, today}`.
+- **Absence, never a padlock** — never-opted-in / not-shared / pre-migration all
+  render NOTHING identically; a coach cannot distinguish "she never opted in" from
+  "she opted in but didn't share."
+- **Review (3 rounds, all real, all addressed):** CodeRabbit r1 (3 — consolidated
+  the cycle read into the `d.cycle` overview leg) · CodeRabbit r2 Major (the
+  `forClient` contract) · **Codex P2** (the member-local-today timezone drift above).
+- i18n `coach.json` ×13 (10 `cycle.*` keys each; it/pt-BR/ru/uk headers grammar-fixed).
+  Verified live via Supabase MCP (project zznufekgjngecelwxndw). Migrations run + verified.
 
 ### 2026-07-20 (later) — Score economy reprice · tier rewards · radio song social · splash · a merge-process correction
 
