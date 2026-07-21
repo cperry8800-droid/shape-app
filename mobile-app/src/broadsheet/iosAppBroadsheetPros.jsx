@@ -1167,6 +1167,15 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:startTour', start);
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
+  // About-page CTA — "Join the community." closes the settings takeover and
+  // lands on the chat tab's community feed. About rides the SHARED BSSettings,
+  // which the coach apps embed too (#1795 Codex catch: without this listener the
+  // coach-side button was a dead tap); the client shell has the same listener.
+  useEffectBSP(() => {
+    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setTab('chat'); };
+    window.addEventListener('shape:goCommunity', open);
+    return () => window.removeEventListener('shape:goCommunity', open);
+  }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
@@ -5381,6 +5390,15 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
     window.addEventListener('shape:startTour', start);
     return () => window.removeEventListener('shape:startTour', start);
+  }, []);
+  // About-page CTA — "Join the community." closes the settings takeover and
+  // lands on the chat tab's community feed. About rides the SHARED BSSettings,
+  // which the coach apps embed too (#1795 Codex catch: without this listener the
+  // coach-side button was a dead tap); the client shell has the same listener.
+  useEffectBSP(() => {
+    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setTab('chat'); };
+    window.addEventListener('shape:goCommunity', open);
+    return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
