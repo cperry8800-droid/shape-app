@@ -4,6 +4,7 @@
 
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import CoachRefField from '@/components/CoachRefField';
 import { startOneTimeCheckout } from './actions';
 
 export const metadata = { title: 'Checkout — Shape' };
@@ -17,6 +18,7 @@ type Props = {
     plan_id?: string;
     item_name?: string;
     item_price?: string;
+    ref?: string;
   }>;
 };
 
@@ -127,6 +129,7 @@ export default async function PurchasePage({ searchParams }: Props) {
           <input type="hidden" name="provider_role" value={role} />
           <input type="hidden" name="provider_id" value={id} />
           <input type="hidden" name="kind" value={kind} />
+          <CoachRefField initial={sp.ref} />
           {workoutId ? <input type="hidden" name="workout_id" value={workoutId} /> : null}
           {planId ? <input type="hidden" name="plan_id" value={planId} /> : null}
           {urlItemName ? <input type="hidden" name="item_name" value={urlItemName} /> : null}

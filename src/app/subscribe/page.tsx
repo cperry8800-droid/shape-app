@@ -7,16 +7,17 @@
 
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import CoachRefField from '@/components/CoachRefField';
 import { startCheckout } from './actions';
 
 export const metadata = { title: 'Subscribe — Shape' };
 
 type Props = {
-  searchParams: Promise<{ role?: string; id?: string }>;
+  searchParams: Promise<{ role?: string; id?: string; ref?: string }>;
 };
 
 export default async function SubscribePage({ searchParams }: Props) {
-  const { role: roleRaw, id: idRaw } = await searchParams;
+  const { role: roleRaw, id: idRaw, ref: refRaw } = await searchParams;
   const role = roleRaw === 'trainer' || roleRaw === 'nutritionist' ? roleRaw : null;
   const id = idRaw ? Number(idRaw) : NaN;
 
@@ -112,6 +113,7 @@ export default async function SubscribePage({ searchParams }: Props) {
         <form action={startCheckout} style={{ marginTop: 28 }}>
           <input type="hidden" name="provider_role" value={role} />
           <input type="hidden" name="provider_id" value={id} />
+          <CoachRefField initial={refRaw} />
           <button
             type="submit"
             style={{

@@ -5387,6 +5387,32 @@ async function myCoachIdentity(role = null) {
 }
 window.ShapeCoachLookup = { ownerOf: coachOwnerOf, mine: myCoachIdentity };
 
+// ── BYO coach referrals (spec #1789 · rails #1794) ──────────────────────────
+// The origin ledger's two coach-side writes. Both are auth.uid()-validated
+// DEFINER RPCs (ownership checked in-body); both DEGRADE quietly pre-migration
+// or on failure so the add-client sheet stays usable and can say so honestly.
+async function coachReferralForClient(role, providerId, clientId) {
+  if (!supabase || !state.user?.id || !providerId || !clientId) return { ok: false, reason: 'unavailable' };
+  try {
+    const { error } = await supabase.rpc('create_coach_referral', {
+      p_provider_role: role, p_provider_id: providerId, p_client_id: clientId,
+    });
+    if (error) return { ok: false, reason: error.message || 'failed' };
+    return { ok: true };
+  } catch (e) { return { ok: false, reason: (e && e.message) || 'failed' }; }
+}
+async function coachReferralLink(role, providerId) {
+  if (!supabase || !state.user?.id || !providerId) return null;
+  try {
+    const { data, error } = await supabase.rpc('create_coach_referral_link', {
+      p_provider_role: role, p_provider_id: providerId,
+    });
+    if (error) return null;
+    return data || null; // the durable ?ref= token (uuid) — one per provider, reused
+  } catch (e) { return null; }
+}
+window.ShapeReferrals = { forClient: coachReferralForClient, link: coachReferralLink };
+
 // ─── Adjust → full program regeneration (spec #1707) ─────────────────────────
 // On the coach Adjust page's Apply, the trainer's adjustment rewrites the
 // client's REAL upcoming rows so every surface reads the same adjusted plan.

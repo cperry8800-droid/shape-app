@@ -55,6 +55,24 @@ export async function GET() {
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
+  // BYO origin labels (rails #1794, Business page): per-client attribution +
+  // fee read from the STORED pair — never re-derived from origin + the current
+  // constant. Names resolved like churn's; pre-migration rows read the select's
+  // absent columns as marketplace/1500, which is correct for every one.
+  const activeNames = new Map<string, string>();
+  if (clientIds.length) {
+    const { data } = await supabase.from('profiles').select('id, full_name').in('id', clientIds);
+    for (const r of data ?? []) activeNames.set(String(r.id), String(r.full_name ?? '').trim());
+  }
+  const byOrigin = subs.map(
+    (r: { client_id: string; price_cents: number | null; origin?: string | null; fee_bps?: number | null }) => ({
+      name: activeNames.get(String(r.client_id)) || 'Client',
+      origin: r.origin ?? 'marketplace',
+      feeBps: r.fee_bps ?? 1500,
+      priceCents: r.price_cents ?? 0,
+    })
+  );
+
   // Churn (Business page): canceled subscriptions, newest first. No
   // cancellation survey yet → exit reasons are always null and the UI says so.
   const { data: churnRows } = await supabase
@@ -197,6 +215,7 @@ export async function GET() {
     isNutritionist: true,
     providerId,
     churn,
+    byOrigin,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: netCents,

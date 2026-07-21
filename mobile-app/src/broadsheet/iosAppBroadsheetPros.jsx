@@ -2405,18 +2405,60 @@ function BSProAddClientSheet({ role, onClose }) {
         body: inviteBody,
         metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
       });
+      // The BYO attribution row (rails #1794): the DM card carries no token —
+      // this client-bound referral IS what resolves 0% at their checkout, so
+      // its failure must not masquerade as a fully-sent invite.
+      const refRes = await window.ShapeReferrals?.forClient?.(role, mine.providerId, p.userId);
       lock.sent[p.userId] = true;
       setInvited((prev) => ({ ...prev, [p.userId]: true }));
-      window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
+      if (refRes && refRes.ok) {
+        window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
+      } else {
+        window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; re-inviting refreshes it' }), 'warn');
+      }
     } catch (e) {
       window.__bsToast?.(e?.message || tr('coach:addClient.inviteFailed', { defaultValue: 'Could not send the invite' }), 'err');
     }
     lock.active = null;
     setBusyId(null);
   };
+  // ── The ref-tagged link + send channels (BYO rails #1794) ────────────────
+  // The durable ?ref= token binds a member who opens the link into THIS
+  // coach's 30-day attribution window (0% commission at checkout). Signed-out
+  // / no listing / pre-migration → the PLAIN listing URL: sharing still works,
+  // attribution simply doesn't record (honest degrade, never a broken button).
+  const [refToken, setRefToken] = useStateBSP(null);
+  useEffectBSP(() => {
+    let on = true;
+    (async () => {
+      if (!mine || !myUid) return;
+      const tok = await window.ShapeReferrals?.link?.(role, mine.providerId);
+      if (on) setRefToken(tok || null);
+    })();
+    return () => { on = false; };
+  }, [mine, role]);
+  const listingUrl = () => {
+    const base = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
+    return refToken ? `${base}&ref=${refToken}` : base;
+  };
+  const pitchBody = () => tr('coach:addClient.pitchBody', { defaultValue: 'I’m coaching on Shape now — my programs, your logging, and our chat all live in one app. Join me here: {link}', link: listingUrl() });
+  // Every interpolation is URI-encoded before entering the mailto:/sms: URI —
+  // the localized bodies are non-ASCII in most locales, and a raw &/?/# would
+  // truncate the prefill.
+  const emailIt = () => {
+    if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    window.location.href = `mailto:?subject=${encodeURIComponent(tr('coach:addClient.pitchSubject', { defaultValue: 'Join me on Shape' }))}&body=${encodeURIComponent(pitchBody())}`;
+  };
+  const textIt = () => {
+    if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    // iOS takes `sms:&body=`, Android `sms:?body=` — the wrong one opens an
+    // empty composer.
+    const ios = /iPad|iPhone|iPod/.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+    window.location.href = ios ? `sms:&body=${encodeURIComponent(pitchBody())}` : `sms:?body=${encodeURIComponent(pitchBody())}`;
+  };
   const shareListing = async () => {
     if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
-    const url = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
+    const url = listingUrl();
     try {
       if (navigator.share) { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
       await navigator.clipboard.writeText(url);
@@ -2458,7 +2500,27 @@ function BSProAddClientSheet({ role, onClose }) {
               : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
           </div>
         ))}
-        <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:addClient.shareLink', { defaultValue: '↗ Share your listing link' })}</button>
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' })}</div>
+          {/* The honest pitch — incl. the waitlist qualifier, so the UI never
+              promises 0% where checkout will apply 15% (spec §Surfaces 1). */}
+          <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+            {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
+          </div>
+          {/* Monochrome typographic glyphs only (︎ pins text presentation) —
+              never colored emoji, per the AGENTS.md new-additions rule. */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            {[
+              { key: 'email', glyph: '✉︎', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt },
+              { key: 'text', glyph: '✆︎', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt },
+              { key: 'share', glyph: '↗︎', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing },
+            ].map((ch) => (
+              <button key={ch.key} onClick={ch.onTap} style={{ flex: 1, minHeight: 44, cursor: 'pointer', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                {ch.glyph} {ch.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.close', { defaultValue: 'Close' })}</button>
       </div>
     </div>

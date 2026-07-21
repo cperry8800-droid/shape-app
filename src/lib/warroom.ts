@@ -558,6 +558,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'BYO commission split — 0% on coach-brought clients (spec #1789 · 2026-07-21)',
+      items: [
+        { label: 'PR A RAILS SHIPPED (#1794, 8 review rounds): coach_referrals ledger (durable link-token row + client-bound 30-day windows, enforced row shapes) · origin/fee_bps columns on subscriptions + one_time_purchases (write-once via BEFORE UPDATE freeze triggers) · resolve_coach_checkout_origin RPC (auth.uid()-scoped, waitlist-wins precedence, expired invites excluded) wired into ALL THREE session-creation sites · rate-aware fee module (omit-at-zero Stripe fields) · webhook persists the ATOMIC attribution pair + consumes the referral only on a confirmed write; ISSUED_FEE_BPS registry keeps rate changes from rewriting in-flight sessions', status: 'done' },
+        { label: 'MIGRATION 2026-07-21-coach-byo-commission-split.sql APPLIED + RE-RUN + verified live (resolver carries the expired-invite guard; RPC grants anon=false/authenticated=true)', status: 'done' },
+        { label: 'PR B SURFACES: add-client sheet send channels (✉ email / ✆ text / ↗ share with the ref-tagged link, i18n ×13, honest waitlist-qualified pitch) · invite DM writes the client-bound referral · web ?ref= capture + signed-in bind (supabase.js ShapeCoachRef) + checkout passthrough (livingShared) + legacy /subscribe + /purchase hidden ref fields · Business page "Bring your clients" link block + per-client origin labels from STORED fee_bps', status: 'done' },
+        { label: 'ORIGIN-MIX HEALTH METRIC (run in Supabase SQL editor): select origin, count(*), sum(price_cents) from subscriptions where status in (\'active\',\'trialing\') group by origin — the number that says whether the marketplace generates demand or coasts on imported rosters; watch the marketplace share', status: 'manual' },
+        { label: 'OWNER on-device pass: send the link by text + email from a real phone (iOS sms:&body= vs Android sms:?body= prefill), open it signed-in on web → subscribe → the Business page labels the client "You brought · 0% fee"', status: 'manual' },
+      ],
+    },
+    {
       section: 'The buildable wave — The Cycle + 5 features: specs & plans written, builds queued (2026-07-19)',
       items: [
         { label: 'SPEC STACK MERGED (#1766 → 54a3e6bf): six specs in docs/superpowers/specs/2026-07-19-* — The Cycle (menstrual-cycle awareness: member-logged period starts + calendar + deterministic phase engine + consented coach view; owner-approved doctrine incl. the verbatim not-medical-advice disclaimer, GUC-guarded RPC-only consent writes, no-future-date trigger) · live-progress WEB coach station · compliance variance band · live coach channel (loads/RPE — owner-RATIFIED coach-link gate, no new toggle) · live cooking detail (planned-meal TITLE only; freehand silent) · nora_sets schedule (LIVE state gated on a real stream). Three CodeRabbit rounds, 45 findings addressed', status: 'done' },
