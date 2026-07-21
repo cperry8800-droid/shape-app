@@ -58,10 +58,21 @@ create table coach_referrals (
   consumed_at timestamptz,
   consumed_kind text check (consumed_kind in ('subscription','purchase'))
 );
+
+-- Upsert conflict targets (review round: the RPC upserts below need real
+-- unique constraints or they fail / race into stacked ambiguous rows):
+-- ONE durable link-token row per provider…
+create unique index coach_referrals_link_token_uq
+  on coach_referrals (provider_role, provider_id) where client_id is null;
+-- …and ONE client-bound row per coach↔client pair — the LAST touch wins:
+-- both RPCs upsert this same row, atomically refreshing channel + expires_at.
+create unique index coach_referrals_bound_uq
+  on coach_referrals (coach_user_id, provider_role, provider_id, client_id)
+  where client_id is not null;
 ```
 
 - **Writes are RPC-only** (the `shape.cycle_rpc`-style GUC guard is overkill here; plain SECURITY DEFINER validation suffices):
-  - `create_coach_referral(p_provider_role, p_provider_id, p_client_id)` — validates `auth.uid()` **owns the provider row** (owner→provider lookup, the #1495/#1706 pattern), `p_client_id <> auth.uid()` (no self-referral), and upserts per (coach, client) so re-inviting refreshes the window instead of stacking rows. Called by the add-client sheet alongside the invite DM.
+  - `create_coach_referral(p_provider_role, p_provider_id, p_client_id)` — validates `auth.uid()` **owns the provider row** (owner→provider lookup, the #1495/#1706 pattern), `p_client_id <> auth.uid()` (no self-referral), and upserts the client-bound row ON CONFLICT `coach_referrals_bound_uq` (channel 'dm', fresh 30-day expiry) so re-inviting refreshes the window instead of stacking rows. Called by the add-client sheet alongside the invite DM.
   - `create_coach_referral_link(p_provider_role, p_provider_id)` — same ownership check; returns the coach's **durable** link `token` (one per provider row, reused, `expires_at` NULL — the share link in a bio/text/email never goes stale; only client windows do).
   - `bind_coach_referral(p_token)` — called by a SIGNED-IN member: validates the token, then upserts a **client-bound** row `(coach, provider, client_id = auth.uid(), channel 'link')` with a fresh 30-day `expires_at`. This is the touch that starts (or refreshes) the clock. Fired on: opening a ref link while signed in, first sign-in/signup with a stored ref, and as a last resort at checkout when `body.ref` arrives unbound.
 - RLS: coach SELECTs own rows (`coach_user_id = auth.uid()`); no client access needed; webhook consumes via service role. No UPDATE/DELETE policies — rows expire, they don't mutate (except `consumed_*`, service-role only).
@@ -74,9 +85,18 @@ alter table subscriptions add column origin text
   check (origin in ('marketplace','coach_invite','coach_link')) default 'marketplace';
 alter table one_time_purchases add column origin text
   check (origin in ('marketplace','coach_invite','coach_link')) default 'marketplace';
+-- The RESOLVED fee, in basis points (1500 = 15%), stamped at checkout. Origin
+-- says WHY; fee_bps says WHAT. (Review round: the BYO rate may change for NEW
+-- links, so origin alone can't reconstruct what an older row actually pays —
+-- roster labels, analytics, refunds, and support read the stored rate, never
+-- re-derive it from origin + the current constant.)
+alter table subscriptions add column fee_bps integer
+  check (fee_bps between 0 and 10000) default 1500;
+alter table one_time_purchases add column fee_bps integer
+  check (fee_bps between 0 and 10000) default 1500;
 ```
 
-Pre-feature rows default `marketplace` — correct, since no referral machinery existed when they were created (and at launch the table is effectively empty; no grandfathering complexity).
+Pre-feature rows default `marketplace` / `1500` — correct, since no referral machinery existed when they were created and every pre-feature row charged 15% (and at launch the tables are effectively empty; no grandfathering complexity).
 
 ### Fee constants — `src/lib/platform-fee.ts`
 
@@ -86,12 +106,13 @@ Pre-feature rows default `marketplace` — correct, since no referral machinery 
 
 **Resolution happens at CHECKOUT-SESSION CREATION** (`/api/stripe/checkout-session`), because that is where Stripe's fee is fixed. The webhook only copies the verdict onto the row.
 
-1. The route resolves origin — **only client-bound rows count**:
-   a. If `body.ref` is present: validate the token belongs to THIS provider → `bind_coach_referral` semantics (bind/refresh the client-bound row) → proceed to (b). Invalid/cross-provider tokens are ignored silently.
-   b. An **unexpired client-bound** `coach_referrals` row matching `(client_id = user.id, provider_role, provider_id)` → its channel decides `coach_invite` vs `coach_link`.
-   c. No bound row in window → `marketplace`. (The durable link-token row alone never resolves an origin — a token must bind to a client to count.)
-2. The resolved `origin` (+ `referral_id` when present) is stamped into the Stripe session `metadata`, and the fee branches: subscription mode → `application_fee_percent: origin is BYO ? BYO_RATE*100 : 15`; payment mode → `feeSplit(gross, charge, rate)`.
-3. **Webhook** (`checkout.session.completed`): copies `metadata.origin` onto the `subscriptions` / `one_time_purchases` upsert and marks the referral `consumed_at`/`consumed_kind` (service role). A missing/invalid origin in metadata falls back to `'marketplace'` — fail toward Shape's fee, never toward a free ride.
+1. The route resolves origin — **waitlist first, then only client-bound rows count**:
+   a. **Waitlist wins, before any referral lookup** (review round — the taxonomy declared it but the order must enforce it): if a `coach_waitlist` row exists for `(client, this provider)` in status `waiting` or `invited` (the same machinery checkout already queries for the at-capacity gate, #1495/#1498), origin is **`marketplace` — full stop**. The member demonstrably found this coach on Shape; a later invite/link touch cannot re-class Shape-originated demand as BYO. Residual: a genuine BYO client who independently joined the coach's waiting room resolves `marketplace` — rare, revenue-protective, consistent with fail-toward-15%.
+   b. If `body.ref` is present: validate the token belongs to THIS provider → `bind_coach_referral` semantics (bind/refresh the client-bound row) → proceed to (c). Invalid/cross-provider tokens are ignored silently.
+   c. An **unexpired client-bound** `coach_referrals` row matching `(client_id = user.id, provider_role, provider_id)` → its channel decides `coach_invite` vs `coach_link`.
+   d. No bound row in window → `marketplace`. (The durable link-token row alone never resolves an origin — a token must bind to a client to count.)
+2. The resolved `origin` + **`fee_bps`** (+ `referral_id` when present) are stamped into the Stripe session `metadata`, and the fee branches: subscription mode → `application_fee_percent: origin is BYO ? BYO_FEE_RATE*100 : 15`; payment mode → `feeSplit(gross, charge, rate)`.
+3. **Webhook** (`checkout.session.completed`): copies `metadata.origin` + `metadata.fee_bps` onto the `subscriptions` / `one_time_purchases` upsert and marks the referral `consumed_at`/`consumed_kind` (service role). Missing/invalid metadata falls back to `'marketplace'` / `1500` — fail toward Shape's fee, never toward a free ride.
 4. **Renewals need nothing:** Stripe applies the subscription's stored `application_fee_percent` to every invoice.
 5. **Store-credit interplay:** the existing credit cap (`maxCreditCents` = Shape's 15% cut) must use the RESOLVED rate — on a BYO checkout at 0% there is no Shape fee to absorb credit from, so store credit does not apply (the honest rule; document in the credit copy).
 
@@ -103,7 +124,7 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 - **Mobile app deep-path:** the #1706 invite DM already writes the referral row with `client_id` at send time, so the app checkout needs no token — resolution (1a) covers it.
 - **The share sheet gains explicit send channels** (`BSProAddClientSheet`, replacing the single "↗ Share your listing link" action):
   - **✉ Email it** — `mailto:?subject=<i18n subject>&body=<i18n pitch + link>` (prefilled, coach edits freely in their mail app).
-  - **💬 Text it** — `sms:?&body=<i18n pitch + link>` (note the iOS `sms:&body=` vs Android `sms:?body=` quirk — the build handles both; monochrome glyphs per the emoji rule).
+  - **✆ Text it** — `sms:?&body=<i18n pitch + link>` (note the iOS `sms:&body=` vs Android `sms:?body=` quirk — the build handles both). Glyph rule (review round): **monochrome typographic glyphs only** (✉ / ✆ text-presentation, or plain labels) — never colored emoji, per the AGENTS.md new-additions rule; if a glyph renders emoji-styled on device, drop to the bare text label.
   - **↗ Share / copy** — the existing `navigator.share` / clipboard path, now with the ref-tagged URL.
   - Prefill copy (i18n `coach:` keys ×13 at build): short, coach-voiced — "I'm coaching on Shape now — my programs, your logging, and our chat all live in one app. Join me here: {link}".
 - **Website parity:** the coach Business page gets the same link block (copy + email + the raw URL for pasting into an Instagram bio) — desktop is where coaches actually send email.
@@ -111,7 +132,7 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 ## Surfaces
 
 1. **Add-client sheet** (#1706): the send channels above, plus one honest pitch line: "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo."
-2. **Coach Business page / roster:** each active client labeled by origin — "You brought" vs "Found you on Shape" — with the per-client fee visible. The label IS the pitch: it shows the coach they only pay when Shape delivers.
+2. **Coach Business page / roster:** each active client labeled by origin — "You brought" vs "Found you on Shape" — with the per-client fee read from the STORED `fee_bps` (never re-derived from origin + the current constant). The label IS the pitch: it shows the coach they only pay when Shape delivers.
 3. **War Room / analytics:** the `origin` column makes the health metric queryable — clients + GMV by origin. This is the number that says whether the marketplace generates demand or coasts on imported rosters. v1 = a registered checklist metric (SQL), not a dashboard build.
 
 ## Abuse & edge cases
@@ -140,10 +161,12 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 
 ## Acceptance criteria
 
-1. A member who checks out from a coach's ref link (opened from a text or an email) creates a subscription with `origin='coach_link'` and the BYO `application_fee_percent`; renewals keep it with zero additional logic.
-2. A member invited via the #1706 DM who subscribes inside the window → `origin='coach_invite'`, 0% fee — with no token anywhere in the flow.
-3. A member who finds the coach through the marketplace with no referral → `origin='marketplace'`, 15%, byte-identical to today's flow.
-4. A waitlist first-dibs conversion → `origin='marketplace'`.
+1. A member who checks out from a coach's ref link (opened from a text or an email) creates a subscription with `origin='coach_link'` and **`fee_bps=0`**; renewals keep the 0% `application_fee_percent` with zero additional logic.
+2. A member invited via the #1706 DM who subscribes inside the window → `origin='coach_invite'`, `fee_bps=0` — with no token anywhere in the flow.
+3. A member who finds the coach through the marketplace with no referral → `origin='marketplace'`, `fee_bps=1500`, byte-identical to today's flow.
+4. A waitlist first-dibs conversion → `origin='marketplace'`, `fee_bps=1500` — **even when an unexpired referral exists for the same coach↔client pair** (waitlist precedence beats referrals).
 5. Coach A's token can never alter the fee on coach B's checkout; an expired referral resolves `marketplace`; a malformed `body.ref` resolves `marketplace`.
-6. The coach can send their link via the email and text actions with prefilled localized copy on a real device.
-7. Store credit does not apply on a 0%-fee BYO checkout, and the UI says why.
+6. Re-sending an invite (or re-opening the link) UPDATES the one client-bound row (fresh expiry, latest channel) — a second row is impossible by constraint (`coach_referrals_bound_uq`).
+7. The coach can send their link via the email and text actions with prefilled localized copy on a real device; every new label glyph is monochrome.
+8. Store credit does not apply on a 0%-fee BYO checkout, and the UI says why.
+9. The Business page's per-client fee reads the stored `fee_bps`; changing `BYO_FEE_RATE` for new links alters no existing row's display or billing.
