@@ -34,31 +34,39 @@ export function resolveOriginDecision({ onWaitlist, boundChannel }) {
   return { origin: 'marketplace', feeBps: MARKETPLACE_FEE_BPS };
 }
 
+// Every rate each origin has EVER been issued at, newest last. A checkout
+// session is stamped from the constants above at session-CREATE time and can
+// complete days later, so a rate change must ACCEPT the old rate on in-flight
+// sessions — the row records what the member was actually charged. RATE-CHANGE
+// RULE: append the new value to the origin's list and KEEP the old one (never
+// replace), then update the constant it derives from.
+export const ISSUED_FEE_BPS = Object.freeze({
+  marketplace: Object.freeze([MARKETPLACE_FEE_BPS]),
+  coach_invite: Object.freeze([BYO_FEE_BPS]),
+  coach_link: Object.freeze([BYO_FEE_BPS]),
+});
+
 /**
  * Validate an (origin, fee_bps) pair read back off the wire (Stripe metadata)
  * as ONE atomic unit before it lands on a write-once money row.
  *
  * Origin and fee are only meaningful together: `marketplace/0` is a free ride
  * wearing the wrong label, `coach_invite/1500` is a BYO sale billed 15%.
- * Checkout only ever stamps the pairs this function accepts, so any other
- * combination is corrupted/hand-crafted metadata — the WHOLE pair downgrades to
- * marketplace at the full rate (fail toward Shape's fee, and never persist an
- * origin that contradicts its rate). KEEP IN SYNC: a future rate change (new
- * MARKETPLACE_FEE_BPS / BYO_FEE_BPS value) changes what checkout stamps, and
- * in-flight sessions created at the OLD rate will downgrade to the new
- * marketplace pair here — acceptable for a fee decrease, revisit before any
- * other kind of change.
+ * Checkout only ever stamps an origin with a rate from ISSUED_FEE_BPS, so a
+ * pair matching any issued rate for its origin passes through EXACTLY (a
+ * session created at an old rate persists the rate it was charged); every
+ * other combination is corrupted/mixed metadata and the WHOLE pair downgrades
+ * to marketplace at the current rate — fail toward Shape's fee, and never
+ * persist an origin that contradicts its rate. (Defense-in-depth: sessions are
+ * created server-side and the webhook is signature-verified, so this guards
+ * corruption, not a caller-editable surface.)
  *
  * @param {string} origin  already vetted against the known origin names
  * @param {number} feeBps  already strictly parsed (digits-only, fail-closed)
  * @returns {{ origin: ('marketplace'|'coach_invite'|'coach_link'), feeBps: number }}
  */
 export function attributionPair(origin, feeBps) {
-  if ((origin === 'coach_invite' || origin === 'coach_link') && feeBps === BYO_FEE_BPS) {
-    return { origin, feeBps };
-  }
-  if (origin === 'marketplace' && feeBps === MARKETPLACE_FEE_BPS) {
-    return { origin, feeBps };
-  }
+  const issued = ISSUED_FEE_BPS[origin];
+  if (issued && issued.includes(feeBps)) return { origin, feeBps };
   return { origin: 'marketplace', feeBps: MARKETPLACE_FEE_BPS };
 }

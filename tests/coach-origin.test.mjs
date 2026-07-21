@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   resolveOriginDecision,
   attributionPair,
+  ISSUED_FEE_BPS,
   MARKETPLACE_FEE_BPS,
   BYO_FEE_BPS,
 } from '../src/lib/coach-origin.mjs';
@@ -71,4 +72,19 @@ test('attributionPair: incoherent pairs downgrade WHOLE to marketplace/1500', ()
   // Off-menu rates never survive under any origin.
   assert.deepEqual(attributionPair('marketplace', 500), { origin: 'marketplace', feeBps: 1500 });
   assert.deepEqual(attributionPair('coach_invite', 1), { origin: 'marketplace', feeBps: 1500 });
+});
+
+test('attributionPair: every ISSUED rate passes through exactly (historical rates preserved)', () => {
+  // The rate-change contract: an origin's list holds every rate ever stamped at
+  // checkout, and a pair matching ANY of them persists unchanged — so a rate
+  // change (append, never replace) can't rewrite in-flight old-rate sessions.
+  for (const [origin, rates] of Object.entries(ISSUED_FEE_BPS)) {
+    for (const feeBps of rates) {
+      assert.deepEqual(attributionPair(origin, feeBps), { origin, feeBps });
+    }
+  }
+  // The current constants are always issued rates.
+  assert.ok(ISSUED_FEE_BPS.marketplace.includes(MARKETPLACE_FEE_BPS));
+  assert.ok(ISSUED_FEE_BPS.coach_invite.includes(BYO_FEE_BPS));
+  assert.ok(ISSUED_FEE_BPS.coach_link.includes(BYO_FEE_BPS));
 });
