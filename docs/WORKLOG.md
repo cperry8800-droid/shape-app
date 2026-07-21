@@ -885,6 +885,31 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — The About letter gets its founder: portrait + bio, both surfaces
+
+- **The founder signature arc, complete.** Website **#1790** (merged 2026-07-21)
+  replaced the anonymous "— The Shape team" sign-off with the owner's portrait
+  (`public/newdesign/founder.webp` — the uploaded Headshot.jpg optimized via
+  sharp: 1024px/177KB JPEG → **560px WebP, 22KB**) + *— Chris Perry* +
+  `FOUNDER · THE SHAPE COMMUNITY`. This PR adds **app parity + the v2 layout**
+  (owner calls: "change my look · put towards top · include a bio"):
+  - **The portrait moved UP** on both surfaces — an `AboutFounder` author card
+    directly under the hero (website 148px / app 118px, hairline frame), so the
+    face leads the page instead of hiding at the bottom; the page still CLOSES
+    with the text-only signature (the letter stays signed).
+  - **App parity** (`BSAboutPage`): `founder.webp` bundled in
+    `mobile-app/public` (BASE_URL idiom — `/m/` + native), themed `t.RULE`
+    frame, the same card + sign-off grammar.
+  - **A short founder bio** under the card on both surfaces — deliberately
+    **mission-grounded only** (no invented background facts): flagged
+    OWNER-REVIEW in-code; swap in real details (background, city, credentials,
+    the personal why) whenever the owner provides them.
+  - Rationale (docs/MARKET-RESEARCH-2026-07.md): trust is the scarcest asset
+    for an unknown marketplace handling payments + sensitive health data — a
+    named face signs the letter, and the founder story anchors the organic
+    channel. CodeRabbit round on #1790: boxShadow motif dropped (valid);
+    TEAL_BRIGHT hardcode declined (the page's own brand literal, used 5×).
+
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 
 - **New [`docs/MARKET-RESEARCH-2026-07.md`](MARKET-RESEARCH-2026-07.md)** — a 5-dimension,

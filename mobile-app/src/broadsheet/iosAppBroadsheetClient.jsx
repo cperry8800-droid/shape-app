@@ -26427,6 +26427,24 @@ function BSAboutPage({ onBack }) {
         </p>
       </div>
 
+      {/* FOUNDER card — the face behind the letter, right under the hero (owner
+          call 2026-07-21: moved up from the page-bottom sign-off, larger). */}
+      <div style={{ padding: `4px ${px}px 18px`, textAlign: 'center' }}>
+        <img
+          src={`${import.meta.env.BASE_URL}founder.webp`}
+          alt="Chris Perry, founder of Shape"
+          width="118" height="118"
+          style={{ width: 118, height: 118, borderRadius: 18, objectFit: 'cover', display: 'block', margin: '0 auto 12px', border: `1px solid ${t.RULE}` }}
+        />
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>Chris Perry</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · The Shape Community</div>
+        {/* OWNER-REVIEW copy: mission-grounded bio — swap in real background
+            details whenever Chris provides them (mirrors about.jsx). */}
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
+          Chris built Shape around a simple belief: great coaching shouldn’t be a luxury, and getting in shape shouldn’t mean doing it alone. Every corner of the platform — the coaches, the score, the community — exists to make showing up easier.
+        </p>
+      </div>
+
       {/* THE IDEA — coach platform + social network (leads, right after the hero) */}
       <div style={{ padding: `8px ${px}px 8px` }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
@@ -26478,17 +26496,10 @@ function BSAboutPage({ onBack }) {
         <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
       </div>
 
-      {/* sign-off — the very end of the page (extra gap below the CTA). The
-          letter is FROM someone: founder portrait + name (website parity —
-          the same signature block about.jsx carries). */}
+      {/* sign-off — the very end of the page (extra gap below the CTA).
+          Text-only: the portrait moved up top as the founder card (website
+          parity); the letter still closes signed. */}
       <div style={{ padding: `52px ${px}px 40px`, textAlign: 'center' }}>
-        <img
-          src={`${import.meta.env.BASE_URL}founder.webp`}
-          alt="Chris Perry, founder of Shape"
-          width="96" height="96"
-          loading="lazy"
-          style={{ width: 96, height: 96, borderRadius: 16, objectFit: 'cover', display: 'block', margin: '0 auto 14px', border: `1px solid ${t.RULE}` }}
-        />
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— Chris Perry</div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 7 }}>Founder · The Shape Community</div>
       </div>

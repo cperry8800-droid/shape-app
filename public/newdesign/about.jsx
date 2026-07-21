@@ -28,6 +28,28 @@ function AboutHero() {
   );
 }
 
+// The founder card — the face behind the letter, right under the hero (owner
+// call 2026-07-21: moved up from the page-bottom sign-off, larger).
+function AboutFounder() {
+  return (
+    <section style={{ padding: "0 24px 10px", textAlign: "center" }}>
+      <img
+        src="/newdesign/founder.webp"
+        alt="Chris Perry, founder of Shape"
+        width="148" height="148"
+        style={{ width: 148, height: 148, borderRadius: 22, objectFit: "cover", display: "block", margin: "0 auto 16px", border: "1px solid rgba(242,237,228,0.22)" }}
+      />
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 23, color: "rgba(242,237,228,0.94)", lineHeight: 1.2 }}>Chris Perry</div>
+      <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · The Shape Community</div>
+      {/* OWNER-REVIEW copy: mission-grounded bio — swap in real background
+          details whenever Chris provides them. */}
+      <p style={{ fontFamily: serif, fontSize: 16.5, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, maxWidth: 560, margin: "14px auto 0" }}>
+        Chris built Shape around a simple belief: great coaching shouldn’t be a luxury, and getting in shape shouldn’t mean doing it alone. Every corner of the platform — the coaches, the score, the community — exists to make showing up easier.
+      </p>
+    </section>
+  );
+}
+
 function AboutLetter() {
   const dropStyle = {
     float: "left",
@@ -108,19 +130,11 @@ function AboutLetter() {
 }
 
 // Closing sign-off — the very last thing on the page (under the positioning).
-// The letter is FROM someone: the founder portrait + name replace the old
-// anonymous "— The Shape team" line (trust signal — a platform asking for
-// money + health data signs its letter).
+// Text-only: the portrait moved up top as the author card (AboutFounder, owner
+// call 2026-07-21); the letter still closes signed.
 function AboutSignoff() {
   return (
     <section style={{ padding: "8px 72px 120px", textAlign: "center" }}>
-      <img
-        src="/newdesign/founder.webp"
-        alt="Chris Perry, founder of Shape"
-        width="112" height="112"
-        loading="lazy"
-        style={{ width: 112, height: 112, borderRadius: 18, objectFit: "cover", display: "block", margin: "0 auto 18px", border: "1px solid rgba(242,237,228,0.22)" }}
-      />
       <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 21, color: "rgba(242,237,228,0.92)", lineHeight: 1.2 }}>— Chris Perry</div>
       <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · The Shape Community</div>
     </section>
@@ -304,6 +318,7 @@ function AboutPage() {
         <style>{`@media (max-width: 720px) { .about-vision-grid { grid-template-columns: 1fr !important; gap: 36px !important; } }`}</style>
         <Header active="About" />
         <AboutHero />
+        <AboutFounder />
         <AboutVision />
         <AboutLetter />
         <AboutSignoff />
