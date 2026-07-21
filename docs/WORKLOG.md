@@ -969,6 +969,19 @@ changelog whenever something ships.
     so it also blends on any mobile paper. The hard hairline frame is gone; a soft
     cream/teal radial glow pools light behind it (theme-toned on mobile via
     `bsTHexA`).
+  - **Ending reordered (#1795, owner-directed): letter → signature → CTA-as-closer,
+    both surfaces.** The page had been closing with the big "Join the community."
+    wedged between the letter's last line and a floating sign-off (reading like
+    Chris was signing the slogan) — and on the WEBSITE the CTA was **dead code**
+    (defined but dropped from the render in the #1791 restructure, so the page
+    shipped with no call-to-action at all). Now the quiet signature sits directly
+    under the letter, and the CTA closes the page **with a real door**: website =
+    the house Get-started button (→ GetApp); app = "Open the community →" fires a
+    new `shape:goCommunity` event (client shell closes the settings takeover →
+    the chat tab's community feed — the `shape:openMarket` pattern; About is
+    client-only, verified). Also fixed: the letter's pull-quotes used −80px
+    margins with no media query and clipped off-viewport on phone-width browsers
+    — clamped under 900px.
 
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 
