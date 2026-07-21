@@ -44,8 +44,11 @@ export async function resolveCoachCheckoutOrigin(args: {
   try {
     // 1a) Waitlist wins, before any referral lookup. A waiting/invited row means
     // the member found this coach on Shape — a later invite/link touch cannot
-    // re-class Shape-originated demand as BYO.
-    const { data: wl, error: wlErr } = await admin
+    // re-class Shape-originated demand as BYO. Read on the CALLER's RLS client
+    // (least privilege — the "clients read own waitlist" policy covers it, and
+    // clientId is always the caller at every call site); an RLS/session failure
+    // fail-closes to marketplace below.
+    const { data: wl, error: wlErr } = await caller
       .from('coach_waitlist')
       .select('id')
       .eq('client_id', clientId)

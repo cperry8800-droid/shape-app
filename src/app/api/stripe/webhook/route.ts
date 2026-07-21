@@ -9,7 +9,7 @@ import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
-import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -49,10 +49,10 @@ const VALID_ORIGINS = new Set(['marketplace', 'coach_invite', 'coach_link']);
 function originFromMeta(v: string | undefined): string {
   return v && VALID_ORIGINS.has(v) ? v : 'marketplace';
 }
-function feeBpsFromMeta(v: string | undefined): number {
-  const n = Number(v);
-  return Number.isInteger(n) && n >= 0 && n <= 10000 ? n : 1500;
-}
+// STRICT digit-string parse (shared pure impl) — Number('') is 0 in JS, so a
+// naive numeric guard would read empty/absent metadata as a 0% commission.
+// Absent/empty/malformed → 1500: fail toward Shape's fee.
+const feeBpsFromMeta = (v: string | undefined): number => parseFeeBpsMeta(v);
 
 // The origin/fee_bps columns land with the OWNER migration; a deploy that beats
 // it must still record the purchase. Postgres 42703 / PostgREST PGRST204 both mean

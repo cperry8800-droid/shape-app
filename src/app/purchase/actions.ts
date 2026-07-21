@@ -175,7 +175,10 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
         ...(referralId ? { referral_id: referralId } : {}),
       },
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
+        // Stripe requires the application fee to be positive-or-absent: a 0%
+        // (BYO) fee OMITS the field — the full charge transfers to the coach and
+        // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+        ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
         transfer_data: { destination: provider.stripe_account_id },
         metadata: {
           client_id: user.id,

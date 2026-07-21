@@ -15,6 +15,7 @@ export {
   bpsToRate,
   bpsToPercent,
   rateToBps,
+  parseFeeBpsMeta,
   coachCutCents,
   maxCreditCents,
   feeSplit,

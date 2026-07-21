@@ -159,7 +159,10 @@ export async function startCheckout(formData: FormData): Promise<void> {
         ...(referralId ? { referral_id: referralId } : {}),
       },
       subscription_data: {
-        application_fee_percent: bpsToPercent(feeBps),
+        // Stripe requires the application fee to be positive-or-absent: a 0%
+        // (BYO) fee OMITS the field — the full charge transfers to the coach and
+        // Shape absorbs Stripe's processing (the spec's deliberate subsidy).
+        ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
         transfer_data: { destination: priceResult.stripeAccountId },
         metadata: {
           client_id: user.id,

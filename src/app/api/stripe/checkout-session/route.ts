@@ -241,7 +241,11 @@ export async function POST(request: Request) {
       ...(isSubscription
         ? {
             subscription_data: {
-              application_fee_percent: bpsToPercent(feeBps),
+              // Stripe requires the application fee to be positive-or-absent: a
+              // 0% (BYO) fee OMITS the field, so the full charge transfers to the
+              // coach and Shape absorbs Stripe's processing cost (the spec's
+              // deliberate launch-phase subsidy).
+              ...(feeBps > 0 ? { application_fee_percent: bpsToPercent(feeBps) } : {}),
               transfer_data: { destination: provider.stripe_account_id as string },
               metadata: {
                 client_id: user.id,
@@ -252,7 +256,9 @@ export async function POST(request: Request) {
           }
         : {
             payment_intent_data: {
-              application_fee_amount: applicationFeeCents,
+              // Positive-or-absent (also covers the max-store-credit case, where
+              // the fee legitimately computes to 0 at the standard rate).
+              ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
               transfer_data: { destination: provider.stripe_account_id as string },
               metadata: {
                 client_id: user.id,

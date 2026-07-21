@@ -47,6 +47,12 @@ create unique index if not exists coach_referrals_link_token_uq
 create unique index if not exists coach_referrals_bound_uq
   on public.coach_referrals (coach_user_id, provider_role, provider_id, client_id)
   where client_id is not null;
+-- Checkout-hot-path lookup: resolveCoachCheckoutOrigin reads the bound row by
+-- (client_id, provider_role, provider_id) on EVERY coach-sale checkout —
+-- bound_uq leads with coach_user_id so it can't serve that query.
+create index if not exists coach_referrals_client_lookup_idx
+  on public.coach_referrals (client_id, provider_role, provider_id)
+  where client_id is not null;
 
 alter table public.coach_referrals enable row level security;
 

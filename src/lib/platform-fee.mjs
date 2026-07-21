@@ -40,6 +40,21 @@ function assertBps(bps) {
   return bps;
 }
 
+/**
+ * Parse a fee_bps value arriving off the wire (Stripe session metadata) — STRICT,
+ * failing closed to the standard 1500. `Number('')` is 0 in JS, so a naive
+ * numeric guard would read an empty-string metadata value as a 0% commission;
+ * only an explicit digit string ('0' included — a genuine stored BYO zero)
+ * passes. Anything absent, empty, or malformed → 1500: fail toward Shape's fee,
+ * never toward a free ride.
+ */
+export function parseFeeBpsMeta(v) {
+  const s = String(v ?? '').trim();
+  if (!/^\d{1,5}$/.test(s)) return 1500;
+  const n = Number(s);
+  return n <= 10000 ? n : 1500;
+}
+
 // Money math must fail loudly on a bad upstream value rather than silently
 // produce a wrong split. Validates a non-negative finite amount and normalizes
 // to an integer number of cents.

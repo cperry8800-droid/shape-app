@@ -7,6 +7,7 @@ import {
   bpsToRate,
   bpsToPercent,
   rateToBps,
+  parseFeeBpsMeta,
   coachCutCents,
   maxCreditCents,
   feeSplit,
@@ -31,6 +32,20 @@ test('bps validation rejects out-of-range / non-integer', () => {
   assert.throws(() => bpsToRate(-1));
   assert.throws(() => bpsToRate(1.5));
   assert.throws(() => rateToBps(1.2));
+});
+
+test('parseFeeBpsMeta: strict digit-string parse, fails closed to 1500', () => {
+  assert.equal(parseFeeBpsMeta('1500'), 1500);
+  assert.equal(parseFeeBpsMeta('0'), 0); // a genuine stored BYO zero passes
+  assert.equal(parseFeeBpsMeta(' 750 '), 750); // tolerant of whitespace
+  // The Number('') === 0 hole: empty/absent/malformed must NEVER read as 0%.
+  assert.equal(parseFeeBpsMeta(''), 1500);
+  assert.equal(parseFeeBpsMeta(undefined), 1500);
+  assert.equal(parseFeeBpsMeta(null), 1500);
+  assert.equal(parseFeeBpsMeta('abc'), 1500);
+  assert.equal(parseFeeBpsMeta('-1'), 1500);
+  assert.equal(parseFeeBpsMeta('1.5'), 1500);
+  assert.equal(parseFeeBpsMeta('99999'), 1500); // >10000 → fail closed
 });
 
 test('coachCutCents: standard 85%, BYO 100%', () => {
