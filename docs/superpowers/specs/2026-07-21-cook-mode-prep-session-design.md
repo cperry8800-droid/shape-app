@@ -1,7 +1,8 @@
 # Cook Mode · Prep Session · Nora the sous-chef — design spec (2026-07-21)
 
-**Status: DRAFT for owner approval.** Builds follow the approved spec, one PR per
-phase, through the full review gate (CI + CodeRabbit + Codex on the final head +
+**Status: APPROVED (owner, 2026-07-21 — "everything else is go"; §13 rulings
+all resolved, §13.4 by owner override).** Builds follow, one PR per phase,
+through the full review gate (CI + CodeRabbit + Codex on the final head +
 owner's final say).
 
 ## 1 · Why (positioning)
@@ -47,6 +48,10 @@ window is open; move while it is.
    normalize into the walkthrough via one cookable contract (§4's "The
    cookable contract"), with an honest coverage ladder for meals that carry no
    authored method.
+6. **Nora's cook-mode voice is opt-in, never on by default** — a NORA READS
+   toggle is present in the band for the whole cook and can be flipped on/off
+   at any point (ruled 2026-07-21; supersedes the earlier default-ON
+   proposal).
 
 ## 3 · Doctrine (non-negotiable rules)
 
@@ -217,12 +222,14 @@ All on the existing rails — server TTS (`/api/ai/speak`, sage voice + style
 instructions, the verbatim `X-Spoken-Text` contract), server STT
 (`/api/ai/transcribe`), the support-chat model.
 
-1. **She reads the steps.** On step advance, the step text auto-speaks. A
-   **NORA READS** chip in the band toggles it (persisted). Default **ON** for
-   members with voice available (ruling §13.4 — a deliberate departure from the
-   chat's off-by-default voice mode: reading steps aloud IS this feature).
-   Gating is the existing honest ladder (signed_out / members / unavailable) —
-   explicit taps toast, auto-speak failures stay silent.
+1. **She reads the steps — opt-in (OWNER RULING 2026-07-21).** Voice is
+   **default OFF**; a **NORA READS** toggle sits in the band for the WHOLE
+   cook and flips at any point — turning it ON mid-method speaks from the
+   current step immediately, OFF silences instantly (in-flight audio stops).
+   An explicit member choice persists across cooks (the `shape.radio.fx`
+   persistence precedent), but a first cook never speaks unprompted. Gating is
+   the existing honest ladder (signed_out / members / unavailable) — explicit
+   taps toast, auto-speak failures stay silent.
 2. **Hold-to-talk mid-cook.** A large mic target (wet-hands sized). Transcripts
    hit a local **command grammar first** — next · back · repeat · skip · done ·
    start the timer · how long left — executed instantly, no model round-trip.
@@ -300,20 +307,21 @@ static gates); browser-verify the walkthrough advance/back/skip/timer flows on
 the built bundle; orchestrator TDD with pinned timelines; the support-chat
 `cookContext` bounded-input tests (oversize/malformed rejected).
 
-## 13 · Open owner rulings (answer on the spec PR)
+## 13 · Owner rulings — ALL RESOLVED (2026-07-21)
 
-1. **Coach prep-signal gate** — coach link alone (recommended) or behind a
-   member share toggle?
-2. **No points for prepping** — ratify (recommended: none; anti-farm).
-3. **PREPPED freshness window** — 4-day default display window: ratify or set.
-4. **Nora auto-speak default ON in Cook Mode** (members w/ voice) — ratify the
-   departure from chat's off-by-default.
-5. **AI-drafted methods** (tier 3 of the cookable ladder) — ratify: allowed
-   for the member's own cook session on meals with no authored method,
-   human-reviewed before cooking, always labeled `AI-DRAFTED — not from your
-   coach`, and NEVER written back to the coach's plan. (Alternative: coach
-   pre-approval required — which would kill the spontaneous-cook case.)
-6. **Web scope** — PREPPED display only this wave (recommended), or more?
+1. **Coach prep-signal gate** — RULED: **coach link alone** (plan adherence,
+   the live-coach-channel precedent; no new member toggle).
+2. **Points for prepping** — RULED: **none** (anti-farm; the meal log stays
+   the earn).
+3. **PREPPED freshness window** — RULED: **4-day** display window.
+4. **Nora auto-speak in Cook Mode** — RULED (owner override): **default OFF,
+   never on by default** — a NORA READS toggle is present in the band for the
+   whole cook and can be flipped on/off at any point (see §2.6 + §7.1).
+5. **AI-drafted methods** (tier 3 of the cookable ladder) — RULED: as
+   written — allowed for the member's own cook session on meals with no
+   authored method, human-reviewed before cooking, always labeled
+   `AI-DRAFTED — not from your coach`, NEVER written back to the coach's plan.
+6. **Web scope** — RULED: **PREPPED display only** this wave.
 
 ## 14 · Deferred (recorded, not built)
 
