@@ -263,11 +263,17 @@ begin
   end if;
 
   -- 1a) Waitlist wins, before any referral lookup: Shape-originated demand can
-  -- never be re-classed BYO by a later invite/link touch.
+  -- never be re-classed BYO by a later invite/link touch. "Invited" counts only
+  -- while the first-dibs window is LIVE — the house active-invite definition
+  -- (src/lib/waitlist.ts hasActiveWaitlistInvite: status='invited' AND
+  -- invite_expires_at > now()); an expired invite is dead demand and must not
+  -- force the marketplace rate onto a later legitimate BYO checkout.
   if exists (
     select 1 from public.coach_waitlist w
     where w.client_id = v_uid and w.provider_role = p_provider_role
-      and w.provider_id = p_provider_id and w.status in ('waiting','invited')
+      and w.provider_id = p_provider_id
+      and (w.status = 'waiting'
+           or (w.status = 'invited' and w.invite_expires_at > now()))
   ) then
     return query select 'marketplace'::text, null::uuid; return;
   end if;

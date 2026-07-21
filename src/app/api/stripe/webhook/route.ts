@@ -10,6 +10,7 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
+import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 
 export const runtime = 'nodejs';
 
@@ -53,6 +54,13 @@ function originFromMeta(v: string | undefined): string {
 // naive numeric guard would read empty/absent metadata as a 0% commission.
 // Absent/empty/malformed → 1500: fail toward Shape's fee.
 const feeBpsFromMeta = (v: string | undefined): number => parseFeeBpsMeta(v);
+// The pair is validated as ONE unit (attributionPair): a defaulted origin next
+// to fee_bps "0" must not persist marketplace/0 (free ride), and a coach_*
+// origin next to malformed fee metadata must not persist BYO/1500. Incoherent
+// pairs downgrade WHOLE to marketplace/1500 before touching the write-once row.
+function attributionFromMeta(meta: { origin?: string; fee_bps?: string } | null | undefined): { origin: string; feeBps: number } {
+  return attributionPair(originFromMeta(meta?.origin), feeBpsFromMeta(meta?.fee_bps));
+}
 
 // The origin/fee_bps columns land with the OWNER migration; a deploy that beats
 // it must still record the purchase. Postgres 42703 / PostgREST PGRST204 both mean
@@ -71,7 +79,7 @@ function isUndefinedColumn(err: { code?: string } | null): boolean {
 // lock the WRONG attribution on a BYO money row forever. Those deliveries must
 // FAIL (non-2xx) so Stripe redelivers once the cache has refreshed.
 function canDropOriginColumns(origin: string, feeBps: number): boolean {
-  return origin === 'marketplace' && feeBps === 1500;
+  return origin === 'marketplace' && feeBps === MARKETPLACE_FEE_BPS;
 }
 
 // Mark a client-bound referral consumed — service-role, conditional on
@@ -281,8 +289,7 @@ export async function POST(request: Request) {
           // (a DB trigger preserves them on any replay/late delivery). Only on a
           // confirmed write do we consume the referral — so a failed row-write
           // never burns the referral without recording the purchase.
-          const purchaseOrigin = originFromMeta(session.metadata?.origin);
-          const purchaseFeeBps = feeBpsFromMeta(session.metadata?.fee_bps);
+          const { origin: purchaseOrigin, feeBps: purchaseFeeBps } = attributionFromMeta(session.metadata);
           let { error: purchaseErr } = await admin
             .from('one_time_purchases')
             .upsert(
@@ -328,7 +335,7 @@ export async function POST(request: Request) {
           // marketplace sale, 100% on a BYO sale (0% commission). Read the resolved
           // rate from the stamped fee_bps so the notified figure is what they got.
           const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
-          const payoutRate = bpsToRate(feeBpsFromMeta(session.metadata?.fee_bps));
+          const payoutRate = bpsToRate(purchaseFeeBps);
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'Payment received',
@@ -395,8 +402,7 @@ export async function POST(request: Request) {
         // Write the row FIRST and check the error; origin/fee_bps are write-once
         // (a DB trigger preserves them on any replay). Consume the referral only on
         // a confirmed write — so a failed write never burns it without recording.
-        const subOrigin = originFromMeta(session.metadata?.origin);
-        const subFeeBps = feeBpsFromMeta(session.metadata?.fee_bps);
+        const { origin: subOrigin, feeBps: subFeeBps } = attributionFromMeta(session.metadata);
         let { error: subErr } = await admin
           .from('subscriptions')
           .upsert(
@@ -427,7 +433,7 @@ export async function POST(request: Request) {
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'New subscriber',
-            `A new client just subscribed${priceCents ? ` · ${usd(coachCutCents(priceCents, bpsToRate(feeBpsFromMeta(session.metadata?.fee_bps))))}/mo to you` : ''}.`
+            `A new client just subscribed${priceCents ? ` · ${usd(coachCutCents(priceCents, bpsToRate(subFeeBps)))}/mo to you` : ''}.`
           );
         }
         // First-dibs: a completed subscription against an invited waitlist

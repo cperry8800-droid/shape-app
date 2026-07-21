@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   resolveOriginDecision,
+  attributionPair,
   MARKETPLACE_FEE_BPS,
   BYO_FEE_BPS,
 } from '../src/lib/coach-origin.mjs';
@@ -51,4 +52,23 @@ test('no bound row / expired / cross-provider (null) → marketplace at 15%', ()
     origin: 'marketplace',
     feeBps: 1500,
   });
+});
+
+test('attributionPair: the supported pairs pass through untouched', () => {
+  assert.deepEqual(attributionPair('marketplace', 1500), { origin: 'marketplace', feeBps: 1500 });
+  assert.deepEqual(attributionPair('coach_invite', 0), { origin: 'coach_invite', feeBps: 0 });
+  assert.deepEqual(attributionPair('coach_link', 0), { origin: 'coach_link', feeBps: 0 });
+});
+
+test('attributionPair: incoherent pairs downgrade WHOLE to marketplace/1500', () => {
+  // A defaulted/garbage origin next to a genuine "0" fee — the free-ride vector:
+  // must never persist marketplace at 0 bps.
+  assert.deepEqual(attributionPair('marketplace', 0), { origin: 'marketplace', feeBps: 1500 });
+  // A BYO origin next to fail-closed fee metadata: must never persist a BYO
+  // label billed at 1500 (attribution ≠ rate on a write-once row).
+  assert.deepEqual(attributionPair('coach_invite', 1500), { origin: 'marketplace', feeBps: 1500 });
+  assert.deepEqual(attributionPair('coach_link', 1500), { origin: 'marketplace', feeBps: 1500 });
+  // Off-menu rates never survive under any origin.
+  assert.deepEqual(attributionPair('marketplace', 500), { origin: 'marketplace', feeBps: 1500 });
+  assert.deepEqual(attributionPair('coach_invite', 1), { origin: 'marketplace', feeBps: 1500 });
 });

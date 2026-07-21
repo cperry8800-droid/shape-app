@@ -33,3 +33,32 @@ export function resolveOriginDecision({ onWaitlist, boundChannel }) {
   if (boundChannel === 'link') return { origin: 'coach_link', feeBps: BYO_FEE_BPS };
   return { origin: 'marketplace', feeBps: MARKETPLACE_FEE_BPS };
 }
+
+/**
+ * Validate an (origin, fee_bps) pair read back off the wire (Stripe metadata)
+ * as ONE atomic unit before it lands on a write-once money row.
+ *
+ * Origin and fee are only meaningful together: `marketplace/0` is a free ride
+ * wearing the wrong label, `coach_invite/1500` is a BYO sale billed 15%.
+ * Checkout only ever stamps the pairs this function accepts, so any other
+ * combination is corrupted/hand-crafted metadata — the WHOLE pair downgrades to
+ * marketplace at the full rate (fail toward Shape's fee, and never persist an
+ * origin that contradicts its rate). KEEP IN SYNC: a future rate change (new
+ * MARKETPLACE_FEE_BPS / BYO_FEE_BPS value) changes what checkout stamps, and
+ * in-flight sessions created at the OLD rate will downgrade to the new
+ * marketplace pair here — acceptable for a fee decrease, revisit before any
+ * other kind of change.
+ *
+ * @param {string} origin  already vetted against the known origin names
+ * @param {number} feeBps  already strictly parsed (digits-only, fail-closed)
+ * @returns {{ origin: ('marketplace'|'coach_invite'|'coach_link'), feeBps: number }}
+ */
+export function attributionPair(origin, feeBps) {
+  if ((origin === 'coach_invite' || origin === 'coach_link') && feeBps === BYO_FEE_BPS) {
+    return { origin, feeBps };
+  }
+  if (origin === 'marketplace' && feeBps === MARKETPLACE_FEE_BPS) {
+    return { origin, feeBps };
+  }
+  return { origin: 'marketplace', feeBps: MARKETPLACE_FEE_BPS };
+}
