@@ -2356,6 +2356,12 @@ function BSProAddClientSheet({ role, onClose }) {
   // null = CONFIRMED unavailable (plain URL is the honest final state),
   // string = the token.
   const [refToken, setRefToken] = useStateBSP(undefined);
+  // The role whose provider-lookup produced the CURRENT mine/refToken. It's the
+  // single readiness authority: mine===null carries no role marker, so after
+  // switching FROM a listing-less role the stale null would read ready for one
+  // frame — resolvedRole !== role blocks that whole class (both null and
+  // non-null), and no per-value role check is needed.
+  const [resolvedRole, setResolvedRole] = useStateBSP(null);
   const [q, setQ] = useStateBSP('');
   const [results, setResults] = useStateBSP(null); // null = idle · [] = no matches
   const [searching, setSearching] = useStateBSP(false);
@@ -2367,17 +2373,21 @@ function BSProAddClientSheet({ role, onClose }) {
   const sendLockRef = React.useRef({ active: null, sent: {} });
   useEffectBSP(() => {
     let on = true;
-    // A role change must never leave the PREVIOUS role's provider row or
-    // ref token live behind the buttons — both drop back to their resolving
-    // states (invite toasts publish-first, send buttons disable) until THIS
-    // role's lookups settle.
+    // A role change must never leave the PREVIOUS role's provider row, ref
+    // token, or role marker live behind the buttons — all drop back to their
+    // resolving states (invite toasts publish-first, send buttons disable)
+    // until THIS role's lookups settle.
     setMine(undefined);
     setRefToken(undefined);
+    setResolvedRole(null);
     (async () => {
       // Role-aware: a dual-role account must resolve THIS roster's provider
       // row — a nutritionist invite carrying a trainer id opens nothing.
-      try { const r = await window.ShapeCoachLookup?.mine?.(role); if (on) setMine(r || null); }
-      catch (e) { if (on) setMine(null); }
+      let r = null;
+      try { r = await window.ShapeCoachLookup?.mine?.(role); } catch (e) { r = null; }
+      if (!on) return;
+      setMine(r || null);
+      setResolvedRole(role); // stamp readiness to THIS role (null result included)
     })();
     return () => { on = false; };
   }, [role]);
@@ -2469,11 +2479,11 @@ function BSProAddClientSheet({ role, onClose }) {
     })();
     return () => { on = false; };
   }, [mine, role]);
-  // Ready = the token resolved AND `mine` belongs to THIS role (null = a
-  // genuinely-listing-less account, which may still share the plain URL). The
-  // one pre-reset frame after a role switch has mine.role !== role, so a tap
-  // there can never ship the PREVIOUS role's token.
-  const mineForRole = mine === null || (!!mine && mine.role === role);
+  // Ready = the token resolved AND the resolved-role marker matches (so a
+  // listing-less null carries a role, closing the post-switch stale frame for
+  // both null and non-null mine). A genuinely-listing-less account (mine null,
+  // resolvedRole===role) is ready — it may still share the plain URL.
+  const mineForRole = resolvedRole === role;
   const linkReady = refToken !== undefined && mineForRole;
   const listingUrl = () => {
     const base = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
