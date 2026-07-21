@@ -2400,18 +2400,28 @@ function BSProAddClientSheet({ role, onClose }) {
     }, 300);
     return () => clearTimeout(id);
   }, [q]);
+  // Invite state + the send lock are keyed by ROLE:USER, and every handler
+  // captures its own render's role — so on a role switch each provider role
+  // delivers and attributes independently (a trainer invite can never satisfy
+  // or suppress the nutritionist one), and an in-flight completion writes
+  // under the role that started it, never the newly selected one.
+  const inviteKey = (uid) => role + ':' + uid;
   const invite = async (p) => {
     const lock = sendLockRef.current;
+    const k = inviteKey(p.userId);
     // 'ok' = delivered + tagged (terminal). 'noTag' rows stay actionable — the
     // retry re-runs ONLY the attribution write (lock.sent gates the DM), so a
     // failed create_coach_referral can never strand a client untaggable behind
     // an "Invited ✓" it didn't earn.
-    if (lock.active || invited[p.userId] === 'ok') return;
-    if (!mine) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
+    if (lock.active || invited[k] === 'ok') return;
+    // mine must be RESOLVED and belong to THIS role — the one commit frame
+    // after a role switch (new role, stale mine) must never stamp the previous
+    // role's provider id onto the invite or the referral.
+    if (!mine || mine.role !== role) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
     lock.active = p.userId;
     setBusyId(p.userId);
     try {
-      if (!lock.sent[p.userId]) {
+      if (!lock.sent[k]) {
         const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
         const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
         if (!cid) throw new Error('Could not open the conversation.');
@@ -2421,16 +2431,16 @@ function BSProAddClientSheet({ role, onClose }) {
           body: inviteBody,
           metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
         });
-        lock.sent[p.userId] = true;
+        lock.sent[k] = true;
       }
       // The BYO attribution row (rails #1794): the DM card carries no token —
       // this client-bound referral IS what resolves 0% at their checkout.
       const refRes = await window.ShapeReferrals?.forClient?.(role, mine.providerId, p.userId);
       if (refRes && refRes.ok) {
-        setInvited((prev) => ({ ...prev, [p.userId]: 'ok' }));
+        setInvited((prev) => ({ ...prev, [k]: 'ok' }));
         window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
       } else {
-        setInvited((prev) => ({ ...prev, [p.userId]: 'noTag' }));
+        setInvited((prev) => ({ ...prev, [k]: 'noTag' }));
         window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; tap Retry tag' }), 'warn');
       }
     } catch (e) {
@@ -2449,6 +2459,7 @@ function BSProAddClientSheet({ role, onClose }) {
     (async () => {
       if (mine === undefined) return; // provider row still resolving
       if (!mine || !myUid) { if (on) setRefToken(null); return; }
+      if (mine.role !== role) return; // stale pre-switch value — the reset re-runs this
       // The helper resolves null on failure, but a rejection here must still
       // land on the documented null fallback — undefined forever would lock
       // the send buttons.
@@ -2529,9 +2540,9 @@ function BSProAddClientSheet({ role, onClose }) {
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
             </div>
-            {invited[p.userId] === 'ok'
+            {invited[inviteKey(p.userId)] === 'ok'
               ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-              : invited[p.userId] === 'noTag'
+              : invited[inviteKey(p.userId)] === 'noTag'
                 ? <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 12px', background: 'transparent', border: `1px dashed ${t.AMBER || heat}`, color: t.AMBER || heat, cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</button>
                 : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
           </div>
