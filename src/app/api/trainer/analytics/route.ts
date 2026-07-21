@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadStripe } from '@/lib/stripe';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { buildOriginFeed } from '@/lib/origin-attribution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,6 +81,10 @@ export async function GET() {
     0
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
+
+  // BYO origin labels (rails #1794, Business page): filled by the roster
+  // block's ONE profiles lookup; byOrigin is built after it (below).
+  const activeNames = new Map<string, string>();
 
   const { data: sessRows } = await supabase
     .from('sessions')
@@ -195,8 +200,7 @@ export async function GET() {
       prsByClient.set(k, (prsByClient.get(k) || 0) + 1);
     }
 
-    const nameById = new Map<string, string>();
-    for (const r of namesRes.data || []) nameById.set(String(r.id), String(r.full_name || ''));
+    for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
 
     for (const cid of clientIds) {
       const w = workoutsByClient.get(cid) || { wk30: 0, wk7: 0 };
@@ -223,9 +227,14 @@ export async function GET() {
     }
     // Attach names for the roster table.
     for (const r of roster as Array<RosterRow & { name?: string }>) {
-      r.name = nameById.get(r.client_id) || 'Client';
+      r.name = activeNames.get(r.client_id) || 'Client';
     }
   }
+
+  // Per-client attribution feed — subscriptions + recent paid one-time
+  // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
+  // with the nutritionist route so the mapping can't drift.
+  const byOrigin = await buildOriginFeed(supabase, 'trainer', providerId, subs, activeNames);
 
   const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : 0;
 
@@ -238,6 +247,7 @@ export async function GET() {
     isTrainer: true,
     providerId,
     churn,
+    byOrigin,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: netCents,

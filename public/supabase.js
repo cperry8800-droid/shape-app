@@ -949,6 +949,62 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     window.location.href = 'home.html';
   };
 
+  // ── BYO coach-referral capture (spec #1789 · rails #1794) ──────────────────
+  // A coach's share link lands with ?ref=<uuid>. Capture it on ANY page that
+  // loads this script, and BIND it (bind_coach_referral — the touch that starts
+  // or refreshes the member's 30-day attribution window) as soon as a signed-in
+  // session exists. That covers all three spec moments: opening the link while
+  // signed in (this page load), the first page load after a sign-in/signup with
+  // a stored ref (every dashboard loads this script), and — via token() — the
+  // checkout-time last resort (body.ref). The stored expiry is HYGIENE only;
+  // the server re-validates token + provider + window regardless.
+  var COACH_REF_KEY = 'shape.coachRef';
+  var COACH_REF_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  var COACH_REF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function coachRefRead() {
+    try {
+      var raw = localStorage.getItem(COACH_REF_KEY);
+      if (!raw) return null;
+      var v = JSON.parse(raw);
+      if (!v || !COACH_REF_UUID.test(v.token || '')) return null;
+      if (!(v.at > 0) || Date.now() - v.at > COACH_REF_TTL_MS) {
+        localStorage.removeItem(COACH_REF_KEY);
+        return null;
+      }
+      return v;
+    } catch (e) { return null; }
+  }
+  function coachRefCapture() {
+    try {
+      var ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref && COACH_REF_UUID.test(ref)) {
+        // A (re-)open of the link is a fresh touch: reset `bound` so the next
+        // signed-in load re-binds and refreshes the server-side window.
+        localStorage.setItem(COACH_REF_KEY, JSON.stringify({ token: ref.toLowerCase(), at: Date.now(), bound: false }));
+      }
+    } catch (e) {}
+  }
+  async function coachRefBind() {
+    var v = coachRefRead();
+    if (!v || v.bound) return;
+    try {
+      var session = await shapeDb.getSession();
+      if (!session) return; // signed out — the post-login page load binds
+      var res = await client.rpc('bind_coach_referral', { p_token: v.token });
+      if (!res.error) {
+        v.bound = true;
+        v.at = Date.now();
+        localStorage.setItem(COACH_REF_KEY, JSON.stringify(v));
+      }
+    } catch (e) { /* pre-migration / offline — the checkout-time bind is the fallback */ }
+  }
+  window.ShapeCoachRef = {
+    token: function () { var v = coachRefRead(); return v ? v.token : null; },
+    bind: coachRefBind,
+  };
+  coachRefCapture();
+  coachRefBind();
+
   // Auto-apply nav auth state on every page that loads this script.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { shapeDb.applyNavAuthState(); });

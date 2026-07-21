@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { loadStripe } from '@/lib/stripe';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { buildOriginFeed } from '@/lib/origin-attribution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,10 @@ export async function GET() {
     0
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
+
+  // BYO origin labels (rails #1794, Business page): filled by the roster
+  // block's ONE profiles lookup; byOrigin is built after it (below).
+  const activeNames = new Map<string, string>();
 
   // Churn (Business page): canceled subscriptions, newest first. No
   // cancellation survey yet → exit reasons are always null and the UI says so.
@@ -157,8 +162,7 @@ export async function GET() {
       list.push(r);
       byClient.set(r.user_id, list);
     }
-    const nameById = new Map<string, string>();
-    for (const r of namesRes.data || []) nameById.set(String(r.id), String(r.full_name || ''));
+    for (const r of namesRes.data || []) activeNames.set(String(r.id), String(r.full_name || '').trim());
 
     for (const cid of clientIds) {
       const rows = byClient.get(cid) || [];
@@ -182,8 +186,13 @@ export async function GET() {
         weightChangeLb: wDelta != null ? Math.round(wDelta * 10) / 10 : null,
       });
     }
-    for (const r of roster) r.name = nameById.get(r.client_id) || 'Client';
+    for (const r of roster) r.name = activeNames.get(r.client_id) || 'Client';
   }
+
+  // Per-client attribution feed — subscriptions + recent paid one-time
+  // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
+  // with the trainer route so the mapping can't drift.
+  const byOrigin = await buildOriginFeed(supabase, 'nutritionist', providerId, subs, activeNames);
 
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : 0;
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
@@ -197,6 +206,7 @@ export async function GET() {
     isNutritionist: true,
     providerId,
     churn,
+    byOrigin,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: netCents,

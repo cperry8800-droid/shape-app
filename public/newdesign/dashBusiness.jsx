@@ -22,6 +22,8 @@ const DBZ_TEAL = "#2ee0c4";
 const DBZ_GREEN = "#7bbf5a";
 const DBZ_AMBER = "#d8a23a";
 const DBZ_RED = "#e0644b";
+const DBZ_INK = "#f2ede4";        // the dashboard's fixed-dark cream ink
+const DBZ_TEAL_INK = "#06231f";   // ink ON a teal-filled control
 
 function dbzDate(v) {
   if (!v) return "—";
@@ -231,6 +233,107 @@ function DbzChurnZone({ live, churn }) {
   );
 }
 
+// ── Bring your clients — the BYO link block + origin labels (rails #1794) ───
+// Clients a coach brings pay 0% Shape commission; marketplace-delivered
+// clients pay 15%. The link block hands the coach their durable ref-tagged
+// URL (copy · email · raw URL for an Instagram bio); the origin zone labels
+// each active client from the STORED fee_bps — never re-derived from origin +
+// the current constant, so a future rate change alters no existing label.
+const DBZ_DEMO_ORIGIN = [
+  { name: "Casey Morgan", kind: "subscription", origin: "coach_link", feeBps: 0, priceCents: 22000 },
+  { name: "Alex Rivera", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 18000 },
+  { name: "Riley Kim", kind: "subscription", origin: "coach_invite", feeBps: 0, priceCents: 16000 },
+  { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
+  { name: "Sam Patel", kind: "subscription", origin: "marketplace", feeBps: 1500, priceCents: 20000 },
+];
+const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.";
+function DbzBringClientsZone({ live, role, providerId }) {
+  const [link, setLink] = React.useState(null); // null = generating / unavailable
+  const [copied, setCopied] = React.useState(false);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      if (!live || !providerId || !window.shapeDb) return;
+      try {
+        const session = await window.shapeDb.getSession();
+        const uid = session && session.user && session.user.id;
+        if (!uid || !on) return;
+        const res = await window.shapeDb.client.rpc("create_coach_referral_link", { p_provider_role: role, p_provider_id: providerId });
+        if (on && res && !res.error && res.data) {
+          setLink("https://theshapecommunity.com/newdesign/MemberProfile.html?u=" + uid + "&ref=" + res.data);
+        }
+      } catch (e) { /* pre-migration / offline — the honest line below covers it */ }
+    })();
+    return () => { on = false; };
+  }, [live, role, providerId]);
+  const url = live ? link : "https://theshapecommunity.com/newdesign/MemberProfile.html?u=you&ref=…";
+  const copyIt = async () => {
+    if (!url || !live) return;
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) {}
+  };
+  const emailIt = () => {
+    if (!url || !live) return;
+    const body = "I’m coaching on Shape now — my programs, your logging, and our chat all live in one app. Join me here: " + url;
+    window.location.href = "mailto:?subject=" + encodeURIComponent("Join me on Shape") + "&body=" + encodeURIComponent(body);
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.78)", lineHeight: 1.55 }}>{DBZ_BYO_PITCH}</div>
+      {live && !link ? (
+        <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50, marginTop: 12, lineHeight: 1.6 }}>
+          Your ref-tagged link generates here once you're signed in and referrals are live.
+        </div>
+      ) : (
+        <React.Fragment>
+          <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, marginTop: 12, padding: "9px 10px", background: "rgba(46,224,196,0.06)", border: "1px solid rgba(46,224,196,0.18)", wordBreak: "break-all", lineHeight: 1.55, userSelect: "all" }}>
+            {url}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button type="button" onClick={copyIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_TEAL_INK, background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
+              {copied ? "Copied ✓" : "Copy link"}
+            </button>
+            <button type="button" onClick={emailIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK, background: "transparent", border: "1px dashed rgba(242,237,228,0.25)", borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5 }}>
+              ✉︎ Email it
+            </button>
+          </div>
+          <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DBZ_INK50, marginTop: 9 }}>
+            Paste the raw URL anywhere — a text, an email signature, your Instagram bio. Anyone who opens it inside 30 days of subscribing counts as yours.
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+function DbzOriginZone({ live, byOrigin }) {
+  const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : DBZ_DEMO_ORIGIN;
+  if (live && !rows.length) {
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
+  }
+  // Commission status keys off the STORED fee, never off origin — this surface
+  // is the fee pitch, and the row's rate is the billing truth.
+  const isByo = (row) => row.feeBps === 0;
+  const brought = rows.filter(isByo).length;
+  return (
+    <div>
+      <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 }}>
+        {brought} you brought · {rows.length - brought} found you on Shape
+      </div>
+      {rows.map((r, i) => {
+        const byo = isByo(r);
+        const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
+        return (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+            <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
+              {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee{r.kind === "purchase" ? " · one-time" : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Roster outcomes — the migrated Analytics content (what the business sells)
 function DbzOutcomesZone({ role, cp }) {
   const cfg = DBZ_ROLES[role];
@@ -361,6 +464,22 @@ function CoachBusinessPage({ role }) {
           </div>
         </div>
 
+        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start", marginBottom: 16 }}>
+          {/* Bring your clients — the BYO ref link (0% commission) */}
+          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24 }}>
+            <span className="dash-eyebrow">Bring your clients · 0% commission</span>
+            <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
+            <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
+          </div>
+
+          {/* Origin labels — who found whom, from the STORED fee_bps */}
+          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": cfg.accent, paddingLeft: 24 }}>
+            <span className="dash-eyebrow" style={{ color: cfg.accent }}>Your roster · who found whom</span>
+            <div className="dash-ledger" style={{ "--dac": cfg.accent, marginTop: 9, marginBottom: 12 }} />
+            <DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />
+          </div>
+        </div>
+
         {/* Roster outcomes — migrated from the old Analytics page */}
         <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": cfg.accent, paddingLeft: 24 }}>
           <span className="dash-eyebrow" style={{ color: cfg.accent }}>The product · roster outcomes, last 30 days</span>
@@ -374,4 +493,4 @@ function CoachBusinessPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachBusinessPage, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone });
+Object.assign(window, { CoachBusinessPage, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });

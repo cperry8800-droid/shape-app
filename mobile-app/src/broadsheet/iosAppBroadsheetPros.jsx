@@ -2351,6 +2351,17 @@ function BSProAddClientSheet({ role, onClose }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const [mine, setMine] = useStateBSP(undefined); // undefined = loading · null = no provider row
+  // The durable ?ref= share token, tri-state (declared HERE, above every
+  // effect that touches it): undefined = still resolving (send buttons WAIT),
+  // null = CONFIRMED unavailable (plain URL is the honest final state),
+  // string = the token.
+  const [refToken, setRefToken] = useStateBSP(undefined);
+  // The role whose provider-lookup produced the CURRENT mine/refToken. It's the
+  // single readiness authority: mine===null carries no role marker, so after
+  // switching FROM a listing-less role the stale null would read ready for one
+  // frame — resolvedRole !== role blocks that whole class (both null and
+  // non-null), and no per-value role check is needed.
+  const [resolvedRole, setResolvedRole] = useStateBSP(null);
   const [q, setQ] = useStateBSP('');
   const [results, setResults] = useStateBSP(null); // null = idle · [] = no matches
   const [searching, setSearching] = useStateBSP(false);
@@ -2362,11 +2373,21 @@ function BSProAddClientSheet({ role, onClose }) {
   const sendLockRef = React.useRef({ active: null, sent: {} });
   useEffectBSP(() => {
     let on = true;
+    // A role change must never leave the PREVIOUS role's provider row, ref
+    // token, or role marker live behind the buttons — all drop back to their
+    // resolving states (invite toasts publish-first, send buttons disable)
+    // until THIS role's lookups settle.
+    setMine(undefined);
+    setRefToken(undefined);
+    setResolvedRole(null);
     (async () => {
       // Role-aware: a dual-role account must resolve THIS roster's provider
       // row — a nutritionist invite carrying a trainer id opens nothing.
-      try { const r = await window.ShapeCoachLookup?.mine?.(role); if (on) setMine(r || null); }
-      catch (e) { if (on) setMine(null); }
+      let r = null;
+      try { r = await window.ShapeCoachLookup?.mine?.(role); } catch (e) { r = null; }
+      if (!on) return;
+      setMine(r || null);
+      setResolvedRole(role); // stamp readiness to THIS role (null result included)
     })();
     return () => { on = false; };
   }, [role]);
@@ -2389,39 +2410,120 @@ function BSProAddClientSheet({ role, onClose }) {
     }, 300);
     return () => clearTimeout(id);
   }, [q]);
+  // Invite state + the send lock are keyed by ROLE:USER, and every handler
+  // captures its own render's role — so on a role switch each provider role
+  // delivers and attributes independently (a trainer invite can never satisfy
+  // or suppress the nutritionist one), and an in-flight completion writes
+  // under the role that started it, never the newly selected one.
+  const inviteKey = (uid) => role + ':' + uid;
   const invite = async (p) => {
     const lock = sendLockRef.current;
-    if (lock.active || lock.sent[p.userId] || invited[p.userId]) return;
-    if (!mine) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
+    const k = inviteKey(p.userId);
+    // 'ok' = delivered + tagged (terminal). 'noTag' rows stay actionable — the
+    // retry re-runs ONLY the attribution write (lock.sent gates the DM), so a
+    // failed create_coach_referral can never strand a client untaggable behind
+    // an "Invited ✓" it didn't earn.
+    if (lock.active || invited[k] === 'ok') return;
+    // mine must be RESOLVED and belong to THIS role — the one commit frame
+    // after a role switch (new role, stale mine) must never stamp the previous
+    // role's provider id onto the invite or the referral.
+    if (!mine || mine.role !== role) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
     lock.active = p.userId;
     setBusyId(p.userId);
     try {
-      const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
-      const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
-      if (!cid) throw new Error('Could not open the conversation.');
-      const inviteBody = role === 'nutritionist' ? tr('coach:addClient.inviteBodyNutri', { defaultValue: "Come work with me on Shape — my listing's attached." }) : tr('coach:addClient.inviteBodyTrainer', { defaultValue: "Come train with me on Shape — my listing's attached." });
-      await window.ShapeMessages.sendMessage({
-        conversationId: cid,
-        body: inviteBody,
-        metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
-      });
-      lock.sent[p.userId] = true;
-      setInvited((prev) => ({ ...prev, [p.userId]: true }));
-      window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
+      if (!lock.sent[k]) {
+        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: p.userId });
+        const cid = (conv && conv.data) || null; // the RPC returns the conversation UUID on .data
+        if (!cid) throw new Error('Could not open the conversation.');
+        const inviteBody = role === 'nutritionist' ? tr('coach:addClient.inviteBodyNutri', { defaultValue: "Come work with me on Shape — my listing's attached." }) : tr('coach:addClient.inviteBodyTrainer', { defaultValue: "Come train with me on Shape — my listing's attached." });
+        await window.ShapeMessages.sendMessage({
+          conversationId: cid,
+          body: inviteBody,
+          metadata: { kind: 'coach_invite', role, providerId: mine.providerId, name: mine.name || (window.bsMyName ? window.bsMyName() : tr('coach:common.yourCoach', { defaultValue: 'Your coach' })) },
+        });
+        lock.sent[k] = true;
+      }
+      // The BYO attribution row (rails #1794): the DM card carries no token —
+      // this client-bound referral IS what resolves 0% at their checkout.
+      const refRes = await window.ShapeReferrals?.forClient?.(role, mine.providerId, p.userId);
+      if (refRes && refRes.ok) {
+        setInvited((prev) => ({ ...prev, [k]: 'ok' }));
+        window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
+      } else {
+        setInvited((prev) => ({ ...prev, [k]: 'noTag' }));
+        window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; tap Retry tag' }), 'warn');
+      }
     } catch (e) {
       window.__bsToast?.(e?.message || tr('coach:addClient.inviteFailed', { defaultValue: 'Could not send the invite' }), 'err');
     }
     lock.active = null;
     setBusyId(null);
   };
+  // ── The ref-tagged link + send channels (BYO rails #1794) ────────────────
+  // The durable ?ref= token binds a member who opens the link into THIS
+  // coach's 30-day attribution window (0% commission at checkout). A fast
+  // first tap must never ship an untagged link that checkout can't attribute
+  // — the buttons wait for refToken (declared with `mine` above) to resolve.
+  useEffectBSP(() => {
+    let on = true;
+    (async () => {
+      if (mine === undefined) return; // provider row still resolving
+      if (!mine || !myUid) { if (on) setRefToken(null); return; }
+      if (mine.role !== role) return; // stale pre-switch value — the reset re-runs this
+      // The helper resolves null on failure, but a rejection here must still
+      // land on the documented null fallback — undefined forever would lock
+      // the send buttons.
+      let tok = null;
+      try { tok = await window.ShapeReferrals?.link?.(role, mine.providerId); } catch (e) { tok = null; }
+      if (on) setRefToken(tok || null);
+    })();
+    return () => { on = false; };
+  }, [mine, role]);
+  // Ready = the token resolved AND the resolved-role marker matches (so a
+  // listing-less null carries a role, closing the post-switch stale frame for
+  // both null and non-null mine). A genuinely-listing-less account (mine null,
+  // resolvedRole===role) is ready — it may still share the plain URL.
+  const mineForRole = resolvedRole === role;
+  const linkReady = refToken !== undefined && mineForRole;
+  const listingUrl = () => {
+    const base = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
+    return refToken ? `${base}&ref=${refToken}` : base;
+  };
+  const pitchBody = () => tr('coach:addClient.pitchBody', { defaultValue: 'I’m coaching on Shape now — my programs, your logging, and our chat all live in one app. Join me here: {link}', link: listingUrl() });
+  // Every interpolation is URI-encoded before entering the mailto:/sms: URI —
+  // the localized bodies are non-ASCII in most locales, and a raw &/?/# would
+  // truncate the prefill.
+  const emailIt = () => {
+    if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    if (!linkReady) return; // token still resolving — button is disabled too
+    window.location.href = `mailto:?subject=${encodeURIComponent(tr('coach:addClient.pitchSubject', { defaultValue: 'Join me on Shape' }))}&body=${encodeURIComponent(pitchBody())}`;
+  };
+  const textIt = () => {
+    if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
+    if (!linkReady) return;
+    // iOS takes `sms:&body=`, Android `sms:?body=` — the wrong one opens an
+    // empty composer.
+    const ios = /iPad|iPhone|iPod/.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+    window.location.href = ios ? `sms:&body=${encodeURIComponent(pitchBody())}` : `sms:?body=${encodeURIComponent(pitchBody())}`;
+  };
   const shareListing = async () => {
     if (!myUid) { window.__bsToast?.(tr('coach:addClient.signInToShare', { defaultValue: 'Sign in to share your listing.' }), 'warn'); return; }
-    const url = `https://theshapecommunity.com/newdesign/MemberProfile.html?u=${myUid}`;
+    if (!linkReady) return;
+    const url = listingUrl();
     try {
-      if (navigator.share) { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
+      if (navigator.share) {
+        try { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
+        catch (e) {
+          // ONLY an intentional cancel is silent — a permission/other failure
+          // falls through to the clipboard so the share can still complete.
+          if (e && e.name === 'AbortError') return;
+        }
+      }
       await navigator.clipboard.writeText(url);
       window.__bsToast?.(tr('coach:addClient.linkCopied', { defaultValue: 'Listing link copied ✓' }), 'ok');
-    } catch (e) { /* user cancelled the share sheet — silent */ }
+    } catch (e) {
+      window.__bsToast?.(tr('coach:addClient.shareFailed', { defaultValue: 'Couldn’t share or copy the link — it’s also on your Business page.' }), 'err');
+    }
   };
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   const sheet = (
@@ -2453,12 +2555,43 @@ function BSProAddClientSheet({ role, onClose }) {
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
             </div>
-            {invited[p.userId]
+            {invited[inviteKey(p.userId)] === 'ok'
               ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-              : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
+              : invited[inviteKey(p.userId)] === 'noTag'
+                ? <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 12px', background: 'transparent', border: `1px dashed ${t.AMBER || heat}`, color: t.AMBER || heat, cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</button>
+                : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
           </div>
         ))}
-        <button onClick={shareListing} style={{ marginTop: 16, width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:addClient.shareLink', { defaultValue: '↗ Share your listing link' })}</button>
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' })}</div>
+          {/* The honest pitch — incl. the waitlist qualifier — renders ONLY
+              with a REAL ref token. When the token is confirmed unavailable
+              (signed out / no listing / pre-migration) the plain URL still
+              shares, but the copy says the truth: those links can't attribute,
+              so the 0% promise never sits over an untagged link. */}
+          {refToken ? (
+            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+              {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
+            </div>
+          ) : linkReady ? (
+            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${t.AMBER || heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
+              {tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' })}
+            </div>
+          ) : null}
+          {/* Monochrome typographic glyphs only (︎ pins text presentation) —
+              never colored emoji, per the AGENTS.md new-additions rule. */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            {[
+              { key: 'email', glyph: '✉︎', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt },
+              { key: 'text', glyph: '✆︎', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt },
+              { key: 'share', glyph: '↗︎', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing },
+            ].map((ch) => (
+              <button key={ch.key} onClick={ch.onTap} disabled={!linkReady} style={{ flex: 1, minHeight: 44, cursor: linkReady ? 'pointer' : 'default', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: linkReady ? 1 : 0.45 }}>
+                {ch.glyph} {ch.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.close', { defaultValue: 'Close' })}</button>
       </div>
     </div>

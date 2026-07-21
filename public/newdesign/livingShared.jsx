@@ -433,7 +433,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
   const buyPlan = async (o) => {
     if (!o || !o.planId || !o.providerId) return;
     try {
-      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
       const j = await res.json().catch(() => ({}));
       if (j.url) window.location.href = j.url; else alert(j.error === "membership_required" ? "Become a Shape member to buy plans." : (j.error || "Could not start checkout."));
     } catch (e) { alert("Could not start checkout."); }
@@ -614,7 +614,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const subscribe = async () => {
     if (provider && provider.id) {
       try {
-        const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provider.id, provider_role: provider.role, name: d.name }, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+        const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provider.id, provider_role: provider.role, name: d.name }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
         const j = await res.json().catch(() => ({}));
         if (j.url) { window.location.href = j.url; return; }
       } catch (e) {}
