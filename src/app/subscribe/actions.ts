@@ -81,6 +81,9 @@ async function getProviderConnectInfo(
 export async function startCheckout(formData: FormData): Promise<void> {
   const providerRole = String(formData.get('provider_role') ?? '') as ProviderRole;
   const providerId = Number(formData.get('provider_id') ?? 0);
+  // BYO ref-link token (the web capture sets this hidden field in PR B) — the
+  // last-resort checkout-time bind fallback for a ref-link visitor.
+  const ref = String(formData.get('ref') ?? '').trim() || undefined;
 
   if (!['trainer', 'nutritionist'].includes(providerRole) || !providerId) {
     redirect('/?error=invalid_subscribe');
@@ -134,6 +137,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
     clientId: user.id,
     providerRole,
     providerId,
+    ref,
   });
 
   // Shape takes the RESOLVED application fee on the coach charge; the rest

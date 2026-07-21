@@ -21,6 +21,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const providerRole = String(formData.get('provider_role') ?? '') as ProviderRole;
   const providerId = Number(formData.get('provider_id') ?? 0);
   const kind = String(formData.get('kind') ?? '') as Kind;
+  // BYO ref-link token (the web capture sets this hidden field in PR B) — the
+  // last-resort checkout-time bind fallback for a ref-link visitor.
+  const ref = String(formData.get('ref') ?? '').trim() || undefined;
   const workoutIdRaw = formData.get('workout_id');
   const planIdRaw = formData.get('plan_id');
   const workoutId = workoutIdRaw ? Number(workoutIdRaw) : null;
@@ -136,6 +139,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     clientId: user.id,
     providerRole,
     providerId,
+    ref,
   });
 
   // No store credit on this path, so the charge equals the gross price — Shape

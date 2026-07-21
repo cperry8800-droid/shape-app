@@ -58,13 +58,22 @@ export async function resolveCoachCheckoutOrigin(args: {
     if (wl) return MARKETPLACE;
 
     // 1b) A presented ref token is a touch — bind/refresh the client-bound row as
-    // the signed-in member. Best-effort; the bound-row read below is authoritative,
-    // so a cross-provider or invalid token just falls through to marketplace.
+    // the signed-in member. Validate the token belongs to THIS provider FIRST: a
+    // stale or cross-provider token is ignored silently (spec §1b), never
+    // refreshing an unrelated coach's window as a side effect of this checkout.
     if (ref && UUID_RE.test(ref)) {
-      try {
-        await caller.rpc('bind_coach_referral', { p_token: ref });
-      } catch {
-        /* the touch is a courtesy; never block checkout on it */
+      const { data: tok } = await admin
+        .from('coach_referrals')
+        .select('provider_role, provider_id')
+        .eq('token', ref)
+        .is('client_id', null)
+        .maybeSingle<{ provider_role: ProviderRole; provider_id: number }>();
+      if (tok && tok.provider_role === providerRole && Number(tok.provider_id) === providerId) {
+        try {
+          await caller.rpc('bind_coach_referral', { p_token: ref });
+        } catch {
+          /* the touch is a courtesy; never block checkout on it */
+        }
       }
     }
 
