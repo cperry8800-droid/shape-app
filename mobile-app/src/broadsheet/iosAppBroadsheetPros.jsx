@@ -5414,7 +5414,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       navJumpRef.current.navPush();
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
-      setQueueView(null); setLiveWatch(null); setShowSearch(false);
+      setQueueView(null); setShowSearch(false);
       setChatRequest(null); setTab('chat');
     };
     window.addEventListener('shape:goCommunity', open);
