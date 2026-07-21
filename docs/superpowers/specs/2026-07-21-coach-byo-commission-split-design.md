@@ -61,7 +61,14 @@ create table coach_referrals (
     (client_id is not null and token is null     and expires_at is not null)
   ),
   consumed_at timestamptz,
-  consumed_kind text check (consumed_kind in ('subscription','purchase'))
+  consumed_kind text check (consumed_kind in ('subscription','purchase')),
+  -- Consumption is all-or-nothing and only ever on a CLIENT-BOUND row (review
+  -- round): both fields move together, and a durable link-token row can never
+  -- be marked consumed.
+  constraint consumption_consistent check (
+    (consumed_at is null and consumed_kind is null)
+    or (consumed_at is not null and consumed_kind is not null and client_id is not null)
+  )
 );
 
 -- Upsert conflict targets (review round: the RPC upserts below need real
@@ -130,7 +137,7 @@ Pre-feature rows default `marketplace` / `1500` — correct, since no referral m
 
 The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.html?u=<uid>&ref=<token>`.
 
-- **Web side** (`MemberProfile.html` / the profile page shell): on load with `?ref=`, persist `{token, providerRole, providerId, at}` to `localStorage('shape.coachRef')`; every subscribe/book/purchase handler passes the stored token to checkout as `body.ref` when it matches the provider being bought. Expiry honored client-side for hygiene; the SERVER re-validates token + provider + window regardless (client storage is a courtesy, never the authority).
+- **Web side** (`MemberProfile.html` / the profile page shell): on load with `?ref=`, persist `{token, providerRole, providerId, at}` to `localStorage('shape.coachRef')` — and when the visitor is SIGNED IN, **call `bind_coach_referral(token)` right there** (review round: the touch semantics define signed-in link-opening as a touch, so the page must actually fire the bind, not just store); fire it again after a sign-in/signup completes with a stored ref. Every subscribe/book/purchase handler still passes the stored token to checkout as `body.ref` — the checkout-time bind stays as the LAST-RESORT fallback, not the primary path. Expiry honored client-side for hygiene; the SERVER re-validates token + provider + window regardless (client storage is a courtesy, never the authority).
 - **Mobile app deep-path:** the #1706 invite DM already writes the referral row with `client_id` at send time, so the app checkout needs no token — resolution (1a) covers it.
 - **The share sheet gains explicit send channels** (`BSProAddClientSheet`, replacing the single "↗ Share your listing link" action):
   - **✉ Email it** — `mailto:?subject=<i18n subject>&body=<i18n pitch + link>` (prefilled, coach edits freely in their mail app).
@@ -161,7 +168,7 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 
 - The $5/mo member fee and `platform_subscriptions` — untouched.
 - `is_coach_on_client` and every RLS gate built on it — the coach↔client link is origin-blind; only the FEE differs.
-- The waitlist (#1495), Listing (#1634), and checkout security posture (server-authoritative pricing, #1337) — the origin lookup adds a read, never trusts a client-supplied price or rate.
+- The waitlist (#1495), Listing (#1634), and checkout security posture (server-authoritative pricing, #1337) — the origin lookup performs a read PLUS a controlled bind upsert (`bind_coach_referral`, only when a valid token is presented) — and never trusts a client-supplied price or rate.
 - Existing subscriptions — no retroactive rate changes, ever.
 
 ## Build plan (after owner go)
