@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { loadStripe } from '@/lib/stripe';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
+import { buildOriginFeed } from '@/lib/origin-attribution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -188,42 +189,10 @@ export async function GET() {
     for (const r of roster) r.name = activeNames.get(r.client_id) || 'Client';
   }
 
-  // Per-client attribution + fee from the STORED pair — never re-derived from
-  // origin + the current constant; pre-migration rows read the select('*')'s
-  // absent columns as marketplace/1500, which is correct for every one.
-  // One-time purchases carry the same stamped pair (a BYO client who only
-  // buys a meal plan never appears in subscriptions), so recent paid rows
-  // join the feed. Read under the caller's RLS — until the OWNER runs the
-  // provider-read policy migration this returns zero rows and the feed
-  // degrades honestly to subscriptions-only.
-  const { data: otpRows } = await supabase
-    .from('one_time_purchases')
-    .select('*') // migration-safe like the subs read
-    .eq('provider_role', 'nutritionist')
-    .eq('provider_id', providerId)
-    .eq('status', 'paid')
-    .order('created_at', { ascending: false })
-    .limit(20);
-  const otps = otpRows ?? [];
-  const otpMissing = [...new Set(
-    otps.map((r: { client_id: string | null }) => String(r.client_id ?? '')).filter((id) => id && !activeNames.has(id))
-  )];
-  if (otpMissing.length) {
-    const { data } = await supabase.from('profiles').select('id, full_name').in('id', otpMissing);
-    for (const r of data ?? []) activeNames.set(String(r.id), String(r.full_name ?? '').trim());
-  }
-  type OriginSourceRow = { client_id: string | null; price_cents: number | null; origin?: string | null; fee_bps?: number | null };
-  const originRow = (r: OriginSourceRow, kind: 'subscription' | 'purchase') => ({
-    name: activeNames.get(String(r.client_id ?? '')) || 'Client',
-    kind,
-    origin: r.origin ?? 'marketplace',
-    feeBps: r.fee_bps ?? 1500,
-    priceCents: r.price_cents ?? 0,
-  });
-  const byOrigin = [
-    ...subs.map((r: OriginSourceRow) => originRow(r, 'subscription')),
-    ...otps.map((r: OriginSourceRow) => originRow(r, 'purchase')),
-  ];
+  // Per-client attribution feed — subscriptions + recent paid one-time
+  // purchases, each labelled from its STORED (origin, fee_bps) pair. Shared
+  // with the trainer route so the mapping can't drift.
+  const byOrigin = await buildOriginFeed(supabase, 'nutritionist', providerId, subs, activeNames);
 
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : 0;
   const avgLogsPerClient = clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
