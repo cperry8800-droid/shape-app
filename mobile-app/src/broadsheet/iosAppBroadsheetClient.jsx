@@ -3234,7 +3234,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
   if (previewMeal) {
-    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }}
+    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setLoggingMealId(previewMeal.id); setShowLogMeal(true); setPreviewMeal(null); }}
       onFiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => ({ ...prev, [id]: true })); }} />;
   }
   if (showWorkoutPreview) {
@@ -5126,7 +5126,7 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
         </div>
         <div style={{ position: 'relative', textAlign: 'center', marginTop: 28 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p}P · Logged ✓</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p == null ? '—' : p}P · Logged ✓</div>
         </div>
         {!loggedIn && (
           <div style={{ position: 'relative', marginTop: 22, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
@@ -5360,6 +5360,9 @@ function BSMealPreview({ meal, onBack, onLog, onFiled }) {
   const tr = useShapeTr();
   const [justLogged, setJustLogged] = useStateBSC(false);
   const [cooking, setCooking] = useStateBSC(false);
+  // Normalized ONCE — null (malformed/title-less meal) hides the Cook door
+  // entirely, so BSCookMode can never mount on a null cookable (CodeRabbit).
+  const cookable = React.useMemo(() => bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES), [meal]);
   const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
   const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
   const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
@@ -5372,7 +5375,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled }) {
   // Cook Mode takeover (spec 2026-07-21) — EVERY meal opens at its honest
   // cookable tier: a catalog-mapped meal walks the recipe's method (the plan's
   // macros stay the logged truth), an unmapped one walks what it carries.
-  if (cooking) return <BSCookMode cookable={bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES)} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} />;
+  if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} />;
   if (justLogged) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)}
       share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
@@ -5440,7 +5443,9 @@ function BSMealPreview({ meal, onBack, onLog, onFiled }) {
       </div>
 
       {/* Cook Mode door — universal (spec 2026-07-21 §2.5); the tier ladder
-          inside decides what the walkthrough honestly offers. */}
+          inside decides what the walkthrough honestly offers. Hidden when the
+          meal can't normalize at all (null cookable — nothing to walk). */}
+      {cookable && (
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(teal, 0.5)}`, borderLeft: `3px solid ${teal}`, borderRadius: 5, background: bsTHexA(teal, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
           <span style={{ textAlign: 'left', minWidth: 0 }}>
@@ -5450,6 +5455,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled }) {
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: teal, fontWeight: 800 }}>→</span>
         </button>
       </div>
+      )}
 
       {/* Quick facts */}
       {(meal.prep || meal.portion || meal.score) && (
@@ -6159,8 +6165,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
 
   if (loggedState) {
     const m = cookable.macros || {};
-    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p ?? 0} time={''} onDone={onClose} onUndo={() => setLoggedState(false)}
-      share={{ name: cookable.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, planned: true, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: (cookable.coach && cookable.coach.name) || '' }} />;
+    // A recipe cook is NOT an assigned plan meal — `planned` + `coach` are
+    // meal-sourced facts only, or the share card would stamp a Shape Kitchen
+    // recipe "As planned · From {coach}'s plan" (Codex). recipeId always rides
+    // (Kitchen Card attribution is true for both sources).
+    const fromPlanMeal = cookable.sourceKind === 'meal';
+    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p} time={''} onDone={onClose} onUndo={() => setLoggedState(false)}
+      share={{ name: cookable.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, planned: fromPlanMeal, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: fromPlanMeal ? ((cookable.coach && cookable.coach.name) || '') : '' }} />;
   }
 
   const running = timers.filter((x) => now < x.endsAt);
@@ -6373,6 +6384,10 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const _no = (() => { const i = SHAPE_KITCHEN_RECIPES.indexOf(recipe); return i >= 0 ? i + 1 : null; })();
   const tr = useShapeTr();
   const [cooking, setCooking] = useStateBSC(false);
+  // Normalized ONCE — a null result hides the Cook door so BSCookMode can
+  // never mount on a null cookable (catalog recipes always normalize, but the
+  // guard is structural, not assumed — CodeRabbit).
+  const cookable = React.useMemo(() => bsCookableFromRecipe(recipe), [recipe]);
   const [reviews, setReviews] = useStateBSC([]);
   const [formRating, setFormRating] = useStateBSC(0);
   const [reviewText, setReviewText] = useStateBSC('');
@@ -6394,7 +6409,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   };
   // Cook Mode takeover (spec 2026-07-21) — the guided walkthrough over this
   // recipe's own cookable (tier 1: authored steps, walked verbatim).
-  if (cooking) return <BSCookMode cookable={bsCookableFromRecipe(r)} onClose={() => setCooking(false)} />;
+  if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
@@ -6408,6 +6423,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       )}
 
       {/* Cook Mode door — the doing-surface over the reading view below. */}
+      {cookable && (
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 5, background: bsTHexA(t.ACCENT, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
           <span style={{ textAlign: 'left', minWidth: 0 }}>
@@ -6417,6 +6433,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT, fontWeight: 800 }}>→</span>
         </button>
       </div>
+      )}
 
       {/* The directions — OUTSIDE the card (owner call): lettered serif steps. */}
       <BSDateline>The method</BSDateline>
