@@ -29,7 +29,10 @@ export type OriginFeedRow = {
   kind: 'subscription' | 'purchase';
   origin: string;
   feeBps: number;
-  priceCents: number;
+  // Null = genuinely unknown (render "—", never $0) — a missing price must not
+  // read as a free sale. origin/fee_bps DO default (marketplace/1500) because a
+  // pre-feature row genuinely paid 15%; a missing PRICE has no such truth.
+  priceCents: number | null;
 };
 
 /**
@@ -74,7 +77,7 @@ export async function buildOriginFeed(
       kind: 'subscription' as const,
       origin: r.origin ?? 'marketplace',
       feeBps: r.fee_bps ?? 1500,
-      priceCents: r.price_cents ?? 0,
+      priceCents: r.price_cents ?? null,
     }));
   }
   const otps = (otpRows ?? []) as OriginSourceRow[];
@@ -96,7 +99,7 @@ export async function buildOriginFeed(
     kind,
     origin: r.origin ?? 'marketplace',
     feeBps: r.fee_bps ?? 1500,
-    priceCents: r.price_cents ?? 0,
+    priceCents: r.price_cents ?? null,
   });
 
   return [
