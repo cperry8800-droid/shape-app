@@ -281,10 +281,13 @@ export async function POST(request: Request) {
             await consumeReferral(admin, session.metadata?.referral_id, 'purchase');
           }
           // Commit any Shape-credit applied at checkout (debits the wallet once,
-          // idempotent by session id). Reserved at session-create, spent here.
+          // idempotent by session id). Reserved at session-create, spent here —
+          // and ONLY on a confirmed purchase write: this handler acks failures
+          // with 200 (no Stripe retry), so debiting after a failed upsert would
+          // burn the member's credit with no durable purchase record.
           const creditCents = Number(session.metadata?.store_credit_cents ?? 0);
           const creditKind = session.metadata?.store_credit_kind;
-          if (creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
+          if (!purchaseErr && creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
             const { error: creditErr } = await admin.rpc('consume_store_credit', {
               p_user_id: clientId,
               p_kind: creditKind,

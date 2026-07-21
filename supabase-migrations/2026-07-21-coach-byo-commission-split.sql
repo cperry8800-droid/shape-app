@@ -236,9 +236,76 @@ begin
 end;
 $$;
 
+-- resolve_coach_checkout_origin: the ONE checkout-time origin resolution, fully
+-- auth.uid()-scoped (RLS-authoritative — a user-initiated route never reads the
+-- referral ledger via the service role; review round). Precedence is the spec's:
+-- waitlist wins, full stop → a presented token belonging to THIS provider is a
+-- touch (bind/refresh; stale/cross-provider tokens ignored silently) → an
+-- unexpired client-bound row's channel decides → else marketplace. Returns the
+-- origin + the bound referral id (for the webhook consume); the fee RATE stays
+-- code-owned (src/lib/platform-fee) so a future rate change never needs SQL.
+create or replace function public.resolve_coach_checkout_origin(
+  p_provider_role text,
+  p_provider_id bigint,
+  p_ref uuid default null
+)
+returns table (origin text, referral_id uuid)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_bound record;
+begin
+  if v_uid is null or p_provider_role not in ('trainer','nutritionist') then
+    return query select 'marketplace'::text, null::uuid; return;
+  end if;
+
+  -- 1a) Waitlist wins, before any referral lookup: Shape-originated demand can
+  -- never be re-classed BYO by a later invite/link touch.
+  if exists (
+    select 1 from public.coach_waitlist w
+    where w.client_id = v_uid and w.provider_role = p_provider_role
+      and w.provider_id = p_provider_id and w.status in ('waiting','invited')
+  ) then
+    return query select 'marketplace'::text, null::uuid; return;
+  end if;
+
+  -- 1b) A presented token is a touch ONLY when its durable row names THIS
+  -- provider (a stale/cross-provider token never refreshes an unrelated coach's
+  -- window). bind_coach_referral itself no-ops on a coach opening their own link.
+  if p_ref is not null and exists (
+    select 1 from public.coach_referrals r
+    where r.token = p_ref and r.client_id is null
+      and r.provider_role = p_provider_role and r.provider_id = p_provider_id
+  ) then
+    perform * from public.bind_coach_referral(p_ref);
+  end if;
+
+  -- 1c) An UNEXPIRED client-bound row decides the channel; the durable
+  -- link-token row alone never resolves an origin.
+  select r.id, r.channel into v_bound
+  from public.coach_referrals r
+  where r.client_id = v_uid and r.provider_role = p_provider_role
+    and r.provider_id = p_provider_id and r.expires_at > now()
+  order by r.expires_at desc
+  limit 1;
+  if not found then
+    return query select 'marketplace'::text, null::uuid; return;
+  end if;
+
+  return query select
+    (case v_bound.channel when 'dm' then 'coach_invite' when 'link' then 'coach_link' else 'marketplace' end)::text,
+    (case when v_bound.channel in ('dm','link') then v_bound.id else null end);
+end;
+$$;
+
 revoke all on function public.create_coach_referral(text, bigint, uuid) from public, anon;
 revoke all on function public.create_coach_referral_link(text, bigint) from public, anon;
 revoke all on function public.bind_coach_referral(uuid) from public, anon;
+revoke all on function public.resolve_coach_checkout_origin(text, bigint, uuid) from public, anon;
 grant execute on function public.create_coach_referral(text, bigint, uuid) to authenticated;
 grant execute on function public.create_coach_referral_link(text, bigint) to authenticated;
 grant execute on function public.bind_coach_referral(uuid) to authenticated;
+grant execute on function public.resolve_coach_checkout_origin(text, bigint, uuid) to authenticated;

@@ -134,9 +134,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   // A client the coach brought pays 0%; a marketplace client pays 15%. Fail-closed
   // to marketplace / 1500 inside the resolver.
   const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
-    admin,
     caller: supabase,
-    clientId: user.id,
     providerRole,
     providerId,
     ref,

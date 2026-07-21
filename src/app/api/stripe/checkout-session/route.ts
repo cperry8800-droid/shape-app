@@ -119,11 +119,10 @@ export async function POST(request: Request) {
 
   // BYO commission split: resolve WHY this checkout exists (marketplace vs a
   // client the coach brought) → the resolved fee. feeBps is THE single fee value;
-  // nothing downstream re-derives from `origin`. Fail-closed to marketplace / 1500.
+  // nothing downstream re-derives from `origin`. Runs entirely on the CALLER's
+  // RLS client (the auth.uid()-scoped RPC). Fail-closed to marketplace / 1500.
   const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
-    admin,
     caller,
-    clientId: user.id,
     providerRole,
     providerId,
     ref: body.ref,
