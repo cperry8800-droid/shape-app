@@ -18,6 +18,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug } from '../services/cookable.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -5355,7 +5356,9 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tr = useShapeTr();
   const [justLogged, setJustLogged] = useStateBSC(false);
+  const [cooking, setCooking] = useStateBSC(false);
   const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
   const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
   const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
@@ -5365,6 +5368,10 @@ function BSMealPreview({ meal, onBack, onLog }) {
   const _mt = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || BS_DEFAULT_MEAL_TIMES;
   const SLOT_TIMES = { BFAST: _mt.BFAST, BREAKFAST: _mt.BFAST, LUNCH: _mt.LUNCH, SNACK: _mt.SNACK, DINR: _mt.DINNER, DINNER: _mt.DINNER };
   const schedTime = meal.time || SLOT_TIMES[String(meal.tag || '').toUpperCase()] || '';
+  // Cook Mode takeover (spec 2026-07-21) — EVERY meal opens at its honest
+  // cookable tier: a catalog-mapped meal walks the recipe's method (the plan's
+  // macros stay the logged truth), an unmapped one walks what it carries.
+  if (cooking) return <BSCookMode cookable={bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES)} onClose={() => setCooking(false)} />;
   if (justLogged) {
     return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)}
       share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
@@ -5429,6 +5436,18 @@ function BSMealPreview({ meal, onBack, onLog }) {
           ))}
         </div>
         <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+
+      {/* Cook Mode door — universal (spec 2026-07-21 §2.5); the tier ladder
+          inside decides what the walkthrough honestly offers. */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(teal, 0.5)}`, borderLeft: `3px solid ${teal}`, borderRadius: 5, background: bsTHexA(teal, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+          <span style={{ textAlign: 'left', minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:cta.eyebrow', { defaultValue: 'Guided · step by step' })}</span>
+            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>{tr('cook:cta', { defaultValue: 'Cook this' })}</span>
+          </span>
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: teal, fontWeight: 800 }}>→</span>
+        </button>
       </div>
 
       {/* Quick facts */}
@@ -5997,6 +6016,343 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COOK MODE — the kitchen's doing-surface (spec 2026-07-21). A full-screen
+// guided walkthrough: THE MISE → THE METHOD → PLATED., in the cockpit band
+// language (#1720's deliberate literals — the same machine on every paper).
+// Input is ALWAYS a normalized cookable (bsCookable, the universal contract);
+// the honest tier ladder decides what renders — authored steps walk, split
+// prose walks labeled FROM THE PLAN, mise-only/quick modes NEVER invent a
+// step. Nora's voice (NORA READS) lands in PR B — default OFF, owner ruling.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BS_COOK_RESUME_KEY = 'shape.cookResume';
+function bsCookResumeRead(key) {
+  try {
+    const st = JSON.parse(localStorage.getItem(BS_COOK_RESUME_KEY) || 'null');
+    if (!st || st.key !== key) return null;
+    if (st.day !== new Date().toLocaleDateString('en-CA')) return null; // another day's cook = stale
+    return Number.isInteger(st.stepIdx) && st.stepIdx >= 0 ? st : null;
+  } catch (e) { return null; }
+}
+function bsCookResumeWrite(key, stepIdx) {
+  try { localStorage.setItem(BS_COOK_RESUME_KEY, JSON.stringify({ key, stepIdx, day: new Date().toLocaleDateString('en-CA') })); } catch (e) {}
+}
+function bsCookResumeClear() { try { localStorage.removeItem(BS_COOK_RESUME_KEY); } catch (e) {} }
+
+function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  _bsScrollTopOnMount();
+  // The band literals (#1720) — deliberately NOT theme tokens: the same
+  // machine on every paper, like the session cockpit + the launch wire.
+  const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
+  const heat = '#38e0cc';
+  const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
+  const reduced = bsSdReduced();
+
+  const steps = cookable.steps;
+  const hasMethod = steps.length > 0;
+  const tierQuick = cookable.tier === BS_COOK_TIERS.QUICK;
+  const resumeKey = 'cook:' + bsCookSlug(cookable.title);
+  const resumeAt = React.useRef(bsCookResumeRead(resumeKey)).current;
+
+  // quick (tier 4) skips straight to the plate; everything else opens on mise.
+  const [phase, setPhase] = useStateBSC(tierQuick ? 'plated' : 'mise'); // mise | method | plated
+  const [stepIdx, setStepIdx] = useStateBSC(0);
+  const [visited, setVisited] = useStateBSC({});   // stepIdx → true once advanced past
+  const [skippedSteps, setSkippedSteps] = useStateBSC({});
+  const [checked, setChecked] = useStateBSC({});   // mise rows
+  const [ingsOpen, setIngsOpen] = useStateBSC(false); // method-screen ingredients peek
+  const [loggedState, setLoggedState] = useStateBSC(false);
+  const [timers, setTimers] = useStateBSC([]);     // [{id, label, endsAt, total, done}]
+  const timerIdRef = React.useRef(0);
+  const startRef = React.useRef(Date.now());
+  const [, setTick] = useStateBSC(0);              // 1s heartbeat (elapsed + timers)
+  React.useEffect(() => { const iv = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
+  const now = Date.now();
+  const elapsedSec = Math.max(0, Math.floor((now - startRef.current) / 1000));
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+  // Keep the screen awake for the whole cook (wet hands, long simmers) —
+  // honest no-op where the API is absent; re-acquired on tab return.
+  React.useEffect(() => {
+    let lock = null; let on = true;
+    const acquire = () => { try { navigator.wakeLock?.request?.('screen')?.then((l) => { if (!on) { try { l.release(); } catch (e) {} return; } lock = l; })?.catch(() => {}); } catch (e) {} };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { on = false; document.removeEventListener('visibilitychange', onVis); try { lock?.release?.(); } catch (e) {} };
+  }, []);
+
+  // Presence + the live cooking broadcast — the meal logger's exact rails
+  // (spec 2026-07-19 doctrine unchanged): a plan/recipe-sourced cook may carry
+  // its TITLE under the member's own share rule; the audience re-resolves per
+  // push and a settings change re-pushes with the resolved audience.
+  React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
+  const cookPayload = React.useMemo(() => bsCookingPayload({
+    title: cookable.title,
+    kcal: cookable.macros && cookable.macros.kcal != null ? cookable.macros.kcal : null,
+    recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '',
+  }), [cookable]);
+  React.useEffect(() => {
+    if (!window.ShapeLiveProgress) return undefined;
+    if (cookPayload) window.ShapeLiveProgress.push(cookPayload, true);
+    const rePush = (e) => {
+      if (!cookPayload) return;
+      const vis = e && e.detail ? e.detail.visibility : undefined;
+      window.ShapeLiveProgress.push(cookPayload, false, { visOverride: vis });
+    };
+    window.addEventListener('shape:liveAudienceChanged', rePush);
+    return () => { window.removeEventListener('shape:liveAudienceChanged', rePush); window.ShapeLiveProgress.clear(); };
+  }, [cookPayload]);
+
+  const exitCook = async () => {
+    if (phase === 'method' && !loggedState) {
+      const ok = await (window.bsAskConfirm
+        ? window.bsAskConfirm({
+            title: tr('cook:exit.title', { defaultValue: 'Leave the cook?' }),
+            message: tr('cook:exit.message', { defaultValue: 'Your place is saved — reopening this recipe offers to resume where you left off.' }),
+            confirmLabel: tr('cook:exit.confirm', { defaultValue: 'Leave' }),
+          })
+        : Promise.resolve(true));
+      if (!ok) return;
+      bsCookResumeWrite(resumeKey, stepIdx);
+    }
+    onClose();
+  };
+
+  const startTimer = (tm) => {
+    timerIdRef.current += 1;
+    setTimers((arr) => [...arr, { id: timerIdRef.current, label: tm.label, endsAt: Date.now() + tm.seconds * 1000, total: tm.seconds }]);
+  };
+  const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
+
+  const goStep = (i) => { setStepIdx(Math.max(0, Math.min(steps.length - 1, i))); };
+  const advance = (skip) => {
+    if (skip) setSkippedSteps((m) => ({ ...m, [stepIdx]: true }));
+    else setVisited((m) => ({ ...m, [stepIdx]: true }));
+    if (stepIdx >= steps.length - 1) { bsCookResumeClear(); setPhase('plated'); }
+    else goStep(stepIdx + 1);
+  };
+
+  const logIt = () => {
+    const m = cookable.macros || {};
+    try {
+      if (m.kcal != null) window.ShapeMealLog?.log?.({ kcal: m.kcal, protein: m.p ?? 0, carbs: m.c ?? 0, fat: m.f ?? 0 });
+    } catch (e) {}
+    bsCookResumeClear();
+    setLoggedState(true);
+    onLogged();
+  };
+
+  if (loggedState) {
+    const m = cookable.macros || {};
+    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p ?? 0} time={''} onDone={onClose} onUndo={() => setLoggedState(false)}
+      share={{ name: cookable.title, kcal: m.kcal ?? 0, p: m.p ?? 0, c: m.c ?? 0, f: m.f ?? 0, planned: true, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: (cookable.coach && cookable.coach.name) || '' }} />;
+  }
+
+  const running = timers.filter((x) => now < x.endsAt);
+  const rung = timers.filter((x) => now >= x.endsAt);
+  const stepTimers = hasMethod && phase === 'method' ? bsStepTimers(steps[stepIdx]) : [];
+  const miseRows = [
+    ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
+    ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
+  ];
+  const miseDone = miseRows.filter((r) => checked[r.key]).length;
+
+  // ── The band (shared chrome across every phase) ──
+  const band = (
+    <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={exitCook} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>✕ {tr('cook:exit.cta', { defaultValue: 'End' })}</button>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: heat }}>
+          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: heat, display: 'inline-block', ...(reduced ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
+          {tr('cook:elapsed', { defaultValue: 'Cooking' })} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.45)}` }}>{fmt(elapsedSec)}</span>
+        </span>
+      </div>
+      <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cookable.title}</span>
+        {hasMethod && phase === 'method' && (
+          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>{tr('cook:stepOf', { defaultValue: 'Step {n} of {m}', n: stepIdx + 1, m: steps.length })}</span>
+        )}
+      </div>
+      {hasMethod && (
+        <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
+          {steps.map((_, i) => (
+            <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: visited[i] ? heat : skippedSteps[i] ? bsTHexA(heat, 0.18) : BAND.hair, boxShadow: visited[i] ? `0 0 8px ${bsTHexA(heat, 0.55)}` : 'none', outline: phase === 'method' && i === stepIdx ? `1px solid ${bsTHexA(heat, 0.7)}` : 'none', outlineOffset: 1 }} />
+          ))}
+        </div>
+      )}
+      {(running.length > 0 || rung.length > 0) && (
+        <div style={{ position: 'relative', marginTop: 12, borderTop: `1px solid ${BAND.hair}`, paddingTop: 10, display: 'grid', gap: 8 }}>
+          {running.map((x) => {
+            const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
+            return (
+              <div key={x.id}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }} aria-live="off">
+                  <span style={{ ...bandEyebrow, color: BAND.dim }}>{x.label}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 18, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1 }}>{fmt(left)}</span>
+                </div>
+                <div aria-hidden style={{ marginTop: 6, height: 3, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 2, background: heat, boxShadow: `0 0 8px ${bsTHexA(heat, 0.5)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - left / x.total)) * 100)}%`, transition: reduced ? 'none' : 'width 1s linear' }} />
+                </div>
+              </div>
+            );
+          })}
+          {rung.map((x) => (
+            <div key={x.id} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ ...bandEyebrow, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}` }}>{tr('cook:timer.up', { defaultValue: "Time's up" })} · {x.label}</span>
+              <button onClick={() => dismissTimer(x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const seam = <div aria-hidden style={{ height: 3, background: heat, boxShadow: `0 0 14px ${bsTHexA(heat, 0.55)}` }} />;
+  const primaryBtn = { border: 0, borderRadius: 5, background: heat, color: '#04211c', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', padding: '13px 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 };
+  const quietBtn = { background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 };
+
+  return (
+    <BSPage noSwipe mast={false}>
+      <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })}>
+        {band}
+        {seam}
+
+        {phase === 'mise' && (
+          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+              {tr('cook:mise.eyebrow', { defaultValue: 'The mise' })}{miseRows.length ? ` · ${miseDone}/${miseRows.length}` : ''}
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {tr('cook:mise.title', { defaultValue: 'Get it on the board.' })}
+            </div>
+            {resumeAt && hasMethod && (
+              <button onClick={() => { setPhase('method'); goStep(Math.min(resumeAt.stepIdx, steps.length - 1)); }} style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left', background: bsTHexA(heat, t.isLight ? 0.08 : 0.12), border: `1px solid ${bsTHexA(heat, 0.4)}`, borderLeft: `3px solid ${heat}`, borderRadius: 5, padding: '11px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
+                {tr('cook:resume', { defaultValue: 'Resume at step {n} →', n: resumeAt.stepIdx + 1 })}
+              </button>
+            )}
+            <div style={{ marginTop: 10 }}>
+              {miseRows.map((r) => (
+                <button key={r.key} onClick={() => setChecked((m) => ({ ...m, [r.key]: !m[r.key] }))} aria-pressed={!!checked[r.key]} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}`, padding: '11px 2px', cursor: 'pointer', minHeight: 44 }}>
+                  <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1.5px solid ${checked[r.key] ? heat : t.RULE}`, background: checked[r.key] ? heat : 'transparent', color: '#04211c', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>{checked[r.key] ? '✓' : ''}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, color: checked[r.key] ? t.INK50 : t.INK }}>{r.label}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{r.qty}</span>
+                </button>
+              ))}
+              {miseRows.length === 0 && (
+                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50 }}>
+                  {tr('cook:mise.none', { defaultValue: 'No ingredient list on this one — cook from the plate you know.' })}
+                </div>
+              )}
+            </div>
+            {!hasMethod && (
+              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
+                {tr('cook:mise.noMethod', { defaultValue: "No written method on this one — your coach's plate, your kitchen. Timers and the log are ready when you are." })}
+              </div>
+            )}
+            <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={exitCook} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
+              <button onClick={() => (hasMethod ? setPhase('method') : setPhase('plated'))} style={{ ...primaryBtn, flex: 1 }}>
+                {hasMethod ? tr('cook:mise.start', { defaultValue: 'Start cooking →' }) : tr('cook:mise.toPlate', { defaultValue: 'To the plate →' })}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'method' && hasMethod && (
+          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + stepIdx)}.</span>
+              {cookable.fromPlan && (
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{tr('cook:fromPlan', { defaultValue: 'From the plan' })}</span>
+              )}
+            </div>
+            <div aria-live="polite" key={stepIdx} style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 21, lineHeight: 1.42, color: t.INK, fontWeight: 500 }}>
+              {steps[stepIdx]}
+            </div>
+            {stepTimers.length > 0 && (
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {stepTimers.map((tm, i) => (
+                  <button key={i} onClick={() => startTimer(tm)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderRadius: 5, padding: '9px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat, minHeight: 44 }}>
+                    ▸ {tr('cook:timer.start', { defaultValue: 'Timer' })} · {tm.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {cookable.ingredients.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <button onClick={() => setIngsOpen((v) => !v)} aria-expanded={ingsOpen} style={quietBtn}>
+                  {ingsOpen ? '▾' : '▸'} {tr('cook:ings', { defaultValue: 'Ingredients' })}
+                </button>
+                {ingsOpen && (
+                  <div style={{ marginTop: 4 }}>
+                    {cookable.ingredients.map((ing, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '7px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.25)}` }}>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{bsIngQtyLabel(t.isMetric, ing)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={() => (stepIdx === 0 ? setPhase('mise') : goStep(stepIdx - 1))} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
+              <button onClick={() => advance(true)} style={quietBtn}>{tr('cook:skip', { defaultValue: 'Skip' })}</button>
+              <button onClick={() => advance(false)} style={{ ...primaryBtn, flex: 1 }}>
+                {stepIdx >= steps.length - 1 ? tr('cook:finish', { defaultValue: '✓ Plated →' }) : tr('cook:next', { defaultValue: '✓ Done · Next →' })}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'plated' && (
+          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
+              {tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : tr('cook:plated.eyebrow', { defaultValue: 'The plate' })}
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: t.W.displayHeavy, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.05 }}>
+              {tr('cook:plated.title', { defaultValue: 'Plated.' })}
+            </div>
+            {tierQuick && (
+              <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
+                {tr('cook:quick.note', { defaultValue: 'No method or ingredient list rides this meal — cook it your way, log it when it lands.' })}
+              </div>
+            )}
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[
+                [tr('cook:plated.kcal', { defaultValue: 'Kcal' }), cookable.macros && cookable.macros.kcal != null ? String(cookable.macros.kcal) : '—'],
+                [tr('cook:plated.protein', { defaultValue: 'Protein' }), cookable.macros && cookable.macros.p != null ? cookable.macros.p + 'g' : '—'],
+                [tr('cook:plated.carbs', { defaultValue: 'Carbs' }), cookable.macros && cookable.macros.c != null ? cookable.macros.c + 'g' : '—'],
+                [tr('cook:plated.fat', { defaultValue: 'Fat' }), cookable.macros && cookable.macros.f != null ? cookable.macros.f + 'g' : '—'],
+              ].map(([l, v]) => (
+                <div key={l}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 72%, transparent)` }} />
+            {cookable.tip && (
+              <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5, borderLeft: `3px solid ${bsTHexA(t.ACCENT, 0.5)}`, paddingLeft: 10 }}>{cookable.tip}</div>
+            )}
+            <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={() => { bsCookResumeClear(); onClose(); }} style={quietBtn}>{tr('cook:plated.done', { defaultValue: 'Done' })}</button>
+              {cookable.macros && cookable.macros.kcal != null && (
+                <button onClick={logIt} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:plated.log', { defaultValue: 'Ate it as planned ✓' })}</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </BSPage>
+  );
+}
+
 function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -6004,6 +6360,8 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   const slug = bsSkSlug(r.title);
   // Nº = the recipe's real position in the catalog — never fabricated.
   const _no = (() => { const i = SHAPE_KITCHEN_RECIPES.indexOf(recipe); return i >= 0 ? i + 1 : null; })();
+  const tr = useShapeTr();
+  const [cooking, setCooking] = useStateBSC(false);
   const [reviews, setReviews] = useStateBSC([]);
   const [formRating, setFormRating] = useStateBSC(0);
   const [reviewText, setReviewText] = useStateBSC('');
@@ -6023,6 +6381,9 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       .then(d => { if (d && d.review) { setReviews(prev => [d.review, ...prev]); setFormRating(0); setReviewText(''); window.__bsToast?.('Review posted', 'ok'); } })
       .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); });
   };
+  // Cook Mode takeover (spec 2026-07-21) — the guided walkthrough over this
+  // recipe's own cookable (tier 1: authored steps, walked verbatim).
+  if (cooking) return <BSCookMode cookable={bsCookableFromRecipe(r)} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={`${r.byRole} · ${r.by}`} kicker="Shape Kitchen" title={r.title} />
@@ -6034,6 +6395,17 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           &ldquo;{r.blurb}&rdquo;
         </div>
       )}
+
+      {/* Cook Mode door — the doing-surface over the reading view below. */}
+      <div style={{ padding: `18px ${t.padX}px 0` }}>
+        <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 5, background: bsTHexA(t.ACCENT, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+          <span style={{ textAlign: 'left', minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:cta.eyebrow', { defaultValue: 'Guided · step by step' })}</span>
+            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>{tr('cook:cta', { defaultValue: 'Cook this' })}</span>
+          </span>
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT, fontWeight: 800 }}>→</span>
+        </button>
+      </div>
 
       {/* The directions — OUTSIDE the card (owner call): lettered serif steps. */}
       <BSDateline>The method</BSDateline>
