@@ -26438,10 +26438,9 @@ function BSAboutPage({ onBack }) {
         />
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>Chris Perry</div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · The Shape Community</div>
-        {/* OWNER-REVIEW copy: mission-grounded bio — swap in real background
-            details whenever Chris provides them (mirrors about.jsx). */}
+        {/* Owner-approved bio (mirrors about.jsx). */}
         <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          Chris built Shape around a simple belief: great coaching shouldn’t be a luxury, and getting in shape shouldn’t mean doing it alone. Every corner of the platform — the coaches, the score, the community — exists to make showing up easier.
+          Chris spent a decade in finance — building relationships, growing businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and getting in shape shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.
         </p>
       </div>
 
