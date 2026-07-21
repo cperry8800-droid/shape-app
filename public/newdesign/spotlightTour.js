@@ -47,7 +47,7 @@ export function startTour(steps, opts = {}) {
   root.appendChild(layer);
 
   const prevFocus = typeof document !== 'undefined' ? document.activeElement : null;
-  let i = 0, destroyed = false;
+  let i = 0, destroyed = false, gen = 0;
   const cardSize = () => ({ w: card.offsetWidth || 280, h: card.offsetHeight || 150 });
   const focusables = () => Array.from(card.querySelectorAll('button')).filter((b) => b.offsetParent !== null);
 
@@ -73,50 +73,74 @@ export function startTour(steps, opts = {}) {
     // Hand focus back to whatever the user was on before the tour opened.
     try { if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true }); } catch (_) {}
   }
-  function finish() { teardown(); if (opts.onDone) opts.onDone(); }
+  // onDone is isolated so a throwing persistence/close handler can't abort a
+  // caller — critically the finale, where step.onCta() (navigation) runs right
+  // after finish(): an onDone error must never swallow the CTA.
+  function finish() { teardown(); if (opts.onDone) { try { opts.onDone(); } catch (_) {} } }
+
+  // No target → no cutout; full dim + centered card. Shared by the no-anchor
+  // branch and the catch fallback so the two copies can't drift.
+  function centerCard() {
+    cut.style.display = 'none'; ring.style.display = 'none';
+    const rr = root.getBoundingClientRect();
+    const s = cardSize();
+    Object.assign(card.style, { top: Math.round(rr.height / 2 - s.h / 2) + 'px', left: Math.round(rr.width / 2 - s.w / 2) + 'px' });
+  }
 
   async function show() {
     if (destroyed) return;
-    const step = steps[i];
-    try { if (step.navigate) await step.navigate(); } catch (_) {}
-    if (destroyed) return;
-    let target = await waitFor(step.anchor);
-    if (!target && step.fallback) { try { target = step.fallback(); } catch (_) {} }
-    if (destroyed) return;
+    // Serialize overlapping invocations: Next/Back/resize can call show() while a
+    // prior one is still awaiting (navigate → anchor wait → frame settle). Each run
+    // captures its own step index + a generation token; a run that's been superseded
+    // bails at the next checkpoint so it can never paint a stale step's geometry.
+    const myGen = ++gen;
+    const idx = i;
+    const step = steps[idx];
+    const stale = () => destroyed || myGen !== gen;
+    try {
+      try { if (step.navigate) await step.navigate(); } catch (_) {}
+      if (stale()) return;
+      let target = await waitFor(step.anchor);
+      if (!target && step.fallback) { try { target = step.fallback(); } catch (_) {} }
+      if (stale()) return;
 
-    // Bring the anchor into view BEFORE measuring — an anchor below the fold (e.g.
-    // hero-habits on a filled Home) would otherwise spotlight offscreen. The dim
-    // layer swallows pointer events, so the user can't scroll it back out from under
-    // us; instant behavior keeps the measure deterministic (and honors reduced motion).
-    if (target && target.scrollIntoView) {
-      try { target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); } catch (_) {}
-      await nextFrames();
-      if (destroyed) return;
-    }
+      // Bring the anchor into view BEFORE measuring — an anchor below the fold (e.g.
+      // hero-habits on a filled Home) would otherwise spotlight offscreen. The dim
+      // layer swallows pointer events, so the user can't scroll it back out from under
+      // us; instant behavior keeps the measure deterministic (and honors reduced motion).
+      if (target && target.scrollIntoView) {
+        try { target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); } catch (_) {}
+        await nextFrames();
+        if (stale()) return;
+      }
 
-    const rr = root.getBoundingClientRect();
-    renderCard(step);
-    if (target) {
-      const b = target.getBoundingClientRect();
-      const t = { x: b.left - rr.left, y: b.top - rr.top, w: b.width, h: b.height };
-      const co = cutoutRect(t, PAD);
-      Object.assign(cut.style, { left: co.x + 'px', top: co.y + 'px', width: co.w + 'px', height: co.h + 'px', display: 'block' });
-      Object.assign(ring.style, { left: (co.x - 2) + 'px', top: (co.y - 2) + 'px', width: (co.w + 4) + 'px', height: (co.h + 4) + 'px', display: 'block' });
-      const p = coachmarkPos(t, { x: 0, y: 0, w: rr.width, h: rr.height }, cardSize());
-      Object.assign(card.style, { top: p.top + 'px', left: p.left + 'px' });
-    } else {
-      // No target → no cutout; full dim + centered card.
-      cut.style.display = 'none'; ring.style.display = 'none';
-      const s = cardSize();
-      Object.assign(card.style, { top: Math.round(rr.height / 2 - s.h / 2) + 'px', left: Math.round(rr.width / 2 - s.w / 2) + 'px' });
+      renderCard(step, idx);
+      if (target) {
+        const rr = root.getBoundingClientRect();
+        const b = target.getBoundingClientRect();
+        const t = { x: b.left - rr.left, y: b.top - rr.top, w: b.width, h: b.height };
+        const co = cutoutRect(t, PAD);
+        Object.assign(cut.style, { left: co.x + 'px', top: co.y + 'px', width: co.w + 'px', height: co.h + 'px', display: 'block' });
+        Object.assign(ring.style, { left: (co.x - 2) + 'px', top: (co.y - 2) + 'px', width: (co.w + 4) + 'px', height: (co.h + 4) + 'px', display: 'block' });
+        const p = coachmarkPos(t, { x: 0, y: 0, w: rr.width, h: rr.height }, cardSize());
+        Object.assign(card.style, { top: p.top + 'px', left: p.left + 'px' });
+      } else {
+        centerCard();
+      }
+    } catch (_) {
+      // A stuck overlay is the worst failure mode — a full dim with a dead card
+      // reads as "the app froze". On ANY unexpected error, fall back to the
+      // centered card so Next / Done / Skip / Escape always stay live.
+      if (stale()) return;
+      try { renderCard(step, idx); centerCard(); } catch (_) { teardown(); }
     }
   }
 
-  function renderCard(step) {
-    const b = stepBounds(i, steps.length);
+  function renderCard(step, idx = i) {
+    const b = stepBounds(idx, steps.length);
     // Name the dialog by its step so a screen reader announces what changed on advance.
     card.setAttribute('aria-label', step.title || 'Product tour');
-    const dots = steps.map((_, k) => `<span style="width:${k === i ? 18 : 6}px;height:6px;border-radius:3px;background:${k === i ? accent : ink + '40'};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
+    const dots = steps.map((_, k) => `<span style="width:${k === idx ? 18 : 6}px;height:6px;border-radius:3px;background:${k === idx ? accent : ink + '40'};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
     const nextLabel = step.final ? (step.ctaLabel || 'Open →') : (b.isLast ? 'Done' : 'Next →');
     card.innerHTML =
       `${step.eyebrow ? `<div style="font:600 10px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:${accent};margin-bottom:8px">${esc(step.eyebrow)}</div>` : ''}` +
@@ -126,13 +150,21 @@ export function startTour(steps, opts = {}) {
         `<div>${dots}</div>` +
         `<div style="display:flex;gap:8px">` +
           `${b.canBack ? `<button data-st="back" style="background:none;border:1px solid ${ink}33;color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Back</button>` : ''}` +
+          `${step.final && step.ctaLabel ? `<button data-st="done" style="background:none;border:1px solid ${ink}33;color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Done</button>` : ''}` +
           `<button data-st="next" style="background:${accent};border:none;color:#06231f;border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">${esc(nextLabel)}</button>` +
         `</div>` +
       `</div>` +
       `<button data-st="skip" aria-label="Skip" style="position:absolute;top:10px;right:12px;background:none;border:none;color:${ink};opacity:.5;font-size:18px;line-height:1;cursor:pointer">×</button>`;
     const next = card.querySelector('[data-st="next"]');
-    next.onclick = () => { if (step.final) { try { step.onCta && step.onCta(); } catch (_) {} finish(); } else if (b.isLast) finish(); else { i++; show(); } };
-    const back = card.querySelector('[data-st="back"]'); if (back) back.onclick = () => { if (i > 0) { i--; show(); } };
+    // Final-step order matters: finish() FIRST (teardown + onDone persistence),
+    // THEN the CTA — onCta typically navigates (window.location.href), and
+    // navigating before onDone runs is how the "tour re-appears forever" bug
+    // happened (the unload killed the seen-flag write mid-flight).
+    next.onclick = () => { if (step.final) { finish(); try { step.onCta && step.onCta(); } catch (_) {} } else if (b.isLast) finish(); else { i = idx + 1; show(); } };
+    const back = card.querySelector('[data-st="back"]'); if (back) back.onclick = () => { if (idx > 0) { i = idx - 1; show(); } };
+    // A final step with a navigating CTA also gets a plain Done — ending the
+    // tour must never REQUIRE leaving the page.
+    const done = card.querySelector('[data-st="done"]'); if (done) done.onclick = finish;
     card.querySelector('[data-st="skip"]').onclick = finish;
     // Pull focus into the dialog. innerHTML above destroyed the old buttons, so
     // activeElement has fallen back to <body> — this runs on first show and on every
