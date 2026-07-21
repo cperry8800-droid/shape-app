@@ -567,10 +567,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
 
   // About-page CTA — "Join the community." closes the settings takeover and
   // lands on the chat tab's community feed (the shape:openMarket pattern).
+  // chatRequest is cleared so a stale deep-link (a previously opened DM/channel)
+  // can't hijack the landing away from the feed (Codex catch on #1797).
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
-      setTab('chat');
+      setChatRequest(null); setTab('chat');
     };
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);

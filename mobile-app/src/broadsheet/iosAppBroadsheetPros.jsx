@@ -1172,7 +1172,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // which the coach apps embed too (#1795 Codex catch: without this listener the
   // coach-side button was a dead tap); the client shell has the same listener.
   useEffectBSP(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setTab('chat'); };
+    // Clear any stale deep-link request (a previously opened DM/channel) so the
+    // chat tab lands on the community FEED, not the old thread (Codex catch).
+    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setChatRequest(null); setTab('chat'); };
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
@@ -5396,7 +5398,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // which the coach apps embed too (#1795 Codex catch: without this listener the
   // coach-side button was a dead tap); the client shell has the same listener.
   useEffectBSP(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setTab('chat'); };
+    // Clear any stale deep-link request (a previously opened DM/channel) so the
+    // chat tab lands on the community FEED, not the old thread (Codex catch).
+    const open = () => { navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setChatRequest(null); setTab('chat'); };
     window.addEventListener('shape:goCommunity', open);
     return () => window.removeEventListener('shape:goCommunity', open);
   }, []);
