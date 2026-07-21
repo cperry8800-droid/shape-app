@@ -108,10 +108,21 @@ function AboutLetter() {
 }
 
 // Closing sign-off — the very last thing on the page (under the positioning).
+// The letter is FROM someone: the founder portrait + name replace the old
+// anonymous "— The Shape team" line (trust signal — a platform asking for
+// money + health data signs its letter).
 function AboutSignoff() {
   return (
     <section style={{ padding: "8px 72px 120px", textAlign: "center" }}>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 18, color: "rgba(242,237,228,0.82)" }}>— The Shape team</div>
+      <img
+        src="/newdesign/founder.webp"
+        alt="Chris Perry, founder of Shape"
+        width="112" height="112"
+        loading="lazy"
+        style={{ width: 112, height: 112, borderRadius: 18, objectFit: "cover", display: "block", margin: "0 auto 18px", border: "1px solid rgba(242,237,228,0.22)", boxShadow: `0 0 0 3px rgba(46,224,196,0.12)` }}
+      />
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 21, color: "rgba(242,237,228,0.92)", lineHeight: 1.2 }}>— Chris Perry</div>
+      <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · The Shape Community</div>
     </section>
   );
 }
