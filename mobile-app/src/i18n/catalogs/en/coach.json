@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Search members by name…",
   "addClient.sendLabel": "Send your link",
   "addClient.shareCopy": "Share / copy",
+  "addClient.shareFailed": "Couldn’t share or copy the link — it’s also on your Business page.",
   "addClient.shareTitle": "My Shape listing",
   "addClient.signInToShare": "Sign in to share your listing.",
   "addClient.textIt": "Text it",

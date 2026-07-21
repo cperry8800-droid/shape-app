@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Busca miembros por nombre…",
   "addClient.sendLabel": "Envía tu enlace",
   "addClient.shareCopy": "Compartir / copiar",
+  "addClient.shareFailed": "No se pudo compartir ni copiar el enlace — también está en tu página de Negocio.",
   "addClient.shareTitle": "Mi anuncio de Shape",
   "addClient.signInToShare": "Inicia sesión para compartir tu anuncio.",
   "addClient.textIt": "Por SMS",

@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Пошук учасників за іменем…",
   "addClient.sendLabel": "Надішли своє посилання",
   "addClient.shareCopy": "Поділитися / копіювати",
+  "addClient.shareFailed": "Не вдалося поділитися посиланням чи скопіювати його — воно є й на твоїй сторінці «Бізнес».",
   "addClient.shareTitle": "Моя картка в Shape",
   "addClient.signInToShare": "Увійдіть, щоб поділитися карткою.",
   "addClient.textIt": "Через SMS",

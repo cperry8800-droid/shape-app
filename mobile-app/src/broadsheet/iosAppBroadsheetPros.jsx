@@ -2351,6 +2351,11 @@ function BSProAddClientSheet({ role, onClose }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const [mine, setMine] = useStateBSP(undefined); // undefined = loading · null = no provider row
+  // The durable ?ref= share token, tri-state (declared HERE, above every
+  // effect that touches it): undefined = still resolving (send buttons WAIT),
+  // null = CONFIRMED unavailable (plain URL is the honest final state),
+  // string = the token.
+  const [refToken, setRefToken] = useStateBSP(undefined);
   const [q, setQ] = useStateBSP('');
   const [results, setResults] = useStateBSP(null); // null = idle · [] = no matches
   const [searching, setSearching] = useStateBSP(false);
@@ -2362,6 +2367,12 @@ function BSProAddClientSheet({ role, onClose }) {
   const sendLockRef = React.useRef({ active: null, sent: {} });
   useEffectBSP(() => {
     let on = true;
+    // A role change must never leave the PREVIOUS role's provider row or
+    // ref token live behind the buttons — both drop back to their resolving
+    // states (invite toasts publish-first, send buttons disable) until THIS
+    // role's lookups settle.
+    setMine(undefined);
+    setRefToken(undefined);
     (async () => {
       // Role-aware: a dual-role account must resolve THIS roster's provider
       // row — a nutritionist invite carrying a trainer id opens nothing.
@@ -2430,12 +2441,9 @@ function BSProAddClientSheet({ role, onClose }) {
   };
   // ── The ref-tagged link + send channels (BYO rails #1794) ────────────────
   // The durable ?ref= token binds a member who opens the link into THIS
-  // coach's 30-day attribution window (0% commission at checkout). Tri-state:
-  // undefined = still resolving (send buttons WAIT — a fast first tap must
-  // never ship an untagged link that checkout can't attribute), null =
-  // CONFIRMED unavailable (signed out / no listing / pre-migration → the
-  // plain URL is the honest final state), string = the token.
-  const [refToken, setRefToken] = useStateBSP(undefined);
+  // coach's 30-day attribution window (0% commission at checkout). A fast
+  // first tap must never ship an untagged link that checkout can't attribute
+  // — the buttons wait for refToken (declared with `mine` above) to resolve.
   useEffectBSP(() => {
     let on = true;
     (async () => {
@@ -2477,10 +2485,19 @@ function BSProAddClientSheet({ role, onClose }) {
     if (!linkReady) return;
     const url = listingUrl();
     try {
-      if (navigator.share) { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
+      if (navigator.share) {
+        try { await navigator.share({ title: tr('coach:addClient.shareTitle', { defaultValue: 'My Shape listing' }), url }); return; }
+        catch (e) {
+          // ONLY an intentional cancel is silent — a permission/other failure
+          // falls through to the clipboard so the share can still complete.
+          if (e && e.name === 'AbortError') return;
+        }
+      }
       await navigator.clipboard.writeText(url);
       window.__bsToast?.(tr('coach:addClient.linkCopied', { defaultValue: 'Listing link copied ✓' }), 'ok');
-    } catch (e) { /* user cancelled the share sheet — silent */ }
+    } catch (e) {
+      window.__bsToast?.(tr('coach:addClient.shareFailed', { defaultValue: 'Couldn’t share or copy the link — it’s also on your Business page.' }), 'err');
+    }
   };
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   const sheet = (

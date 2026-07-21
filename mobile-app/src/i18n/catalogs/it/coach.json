@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Cerca membri per nome…",
   "addClient.sendLabel": "Invia il tuo link",
   "addClient.shareCopy": "Condividi / copia",
+  "addClient.shareFailed": "Impossibile condividere o copiare il link — è anche sulla tua pagina Business.",
   "addClient.shareTitle": "Il mio annuncio Shape",
   "addClient.signInToShare": "Accedi per condividere il tuo annuncio.",
   "addClient.textIt": "Via SMS",

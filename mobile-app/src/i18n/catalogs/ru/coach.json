@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Поиск участников по имени…",
   "addClient.sendLabel": "Отправьте свою ссылку",
   "addClient.shareCopy": "Поделиться / копировать",
+  "addClient.shareFailed": "Не удалось поделиться ссылкой или скопировать её — она есть и на вашей странице «Бизнес».",
   "addClient.shareTitle": "Моя карточка в Shape",
   "addClient.signInToShare": "Войдите, чтобы поделиться карточкой.",
   "addClient.textIt": "По SMS",

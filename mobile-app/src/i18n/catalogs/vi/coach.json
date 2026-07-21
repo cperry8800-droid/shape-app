@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Tìm thành viên theo tên…",
   "addClient.sendLabel": "Gửi liên kết của bạn",
   "addClient.shareCopy": "Chia sẻ / sao chép",
+  "addClient.shareFailed": "Không thể chia sẻ hay sao chép liên kết — nó cũng có trên trang Kinh doanh của bạn.",
   "addClient.shareTitle": "Hồ sơ Shape của tôi",
   "addClient.signInToShare": "Đăng nhập để chia sẻ hồ sơ của bạn.",
   "addClient.textIt": "Qua SMS",

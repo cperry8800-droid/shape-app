@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Üyeleri ada göre ara…",
   "addClient.sendLabel": "Bağlantını gönder",
   "addClient.shareCopy": "Paylaş / kopyala",
+  "addClient.shareFailed": "Bağlantı paylaşılamadı ya da kopyalanamadı — Business sayfanda da var.",
   "addClient.shareTitle": "Shape ilanım",
   "addClient.signInToShare": "İlanını paylaşmak için oturum aç.",
   "addClient.textIt": "SMS'le",

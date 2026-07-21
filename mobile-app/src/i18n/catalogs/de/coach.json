@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Mitglieder nach Namen suchen…",
   "addClient.sendLabel": "Schick deinen Link",
   "addClient.shareCopy": "Teilen / kopieren",
+  "addClient.shareFailed": "Der Link ließ sich weder teilen noch kopieren — er steht auch auf deiner Business-Seite.",
   "addClient.shareTitle": "Mein Shape-Eintrag",
   "addClient.signInToShare": "Melde dich an, um deinen Eintrag zu teilen.",
   "addClient.textIt": "Per SMS",

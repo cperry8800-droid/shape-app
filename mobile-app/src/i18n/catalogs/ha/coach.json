@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Nemi mambobi da suna…",
   "addClient.sendLabel": "Aika hanyar haɗinka",
   "addClient.shareCopy": "Raba / kwafi",
+  "addClient.shareFailed": "Ba a iya rabawa ko kwafi hanyar haɗin ba — tana kuma a shafin Kasuwancinka.",
   "addClient.shareTitle": "Talla na na Shape",
   "addClient.signInToShare": "Shiga don raba talla naka.",
   "addClient.textIt": "Ta SMS",

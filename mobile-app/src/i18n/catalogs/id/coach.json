@@ -23,6 +23,7 @@
   "addClient.searchPlaceholder": "Cari anggota berdasarkan nama…",
   "addClient.sendLabel": "Kirim tautanmu",
   "addClient.shareCopy": "Bagikan / salin",
+  "addClient.shareFailed": "Tautan tidak bisa dibagikan atau disalin — ada juga di halaman Bisnismu.",
   "addClient.shareTitle": "Iklan Shape-ku",
   "addClient.signInToShare": "Masuk untuk membagikan iklanmu.",
   "addClient.textIt": "Lewat SMS",
