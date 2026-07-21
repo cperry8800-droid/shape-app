@@ -12,11 +12,11 @@ The market research surfaced one pricing flaw and one growth lever, and they are
 - **The flaw:** Shape charges a flat 15% commission on every coach subscription. Successful coaches already acquire clients free through organic Instagram; incumbent SaaS (Trainerize/TrueCoach/Everfit) effectively costs them 3–7% of revenue for clients they bring themselves. A coach with 30 existing clients at $200/mo would pay Shape $900/mo for clients Shape did nothing to find — so the coaches most worth having (the ones who arrive with full rosters) have a hard reason to say no.
 - **The lever:** coach-imported rosters are the single best marketplace cold-start move available — one coach joining with 30 clients seeds both sides at once (30 new $5/mo members in the feed, logging, earning Score). ClassPass cracked its cold start with exactly this shape of supply pitch: no upfront cost, the platform earns only when it delivers new business.
 
-**The rule this spec implements:** *Shape's 15% applies only to clients Shape delivered. Clients a coach brings pay the coach's price with no Shape commission* (rate = an owner decision, §Owner decisions). Every client is still a $5/mo Shape member either way — BYO clients are new membership revenue even at 0% commission.
+**The rule this spec implements (owner-ruled 2026-07-21):** *Shape's 15% applies only to clients Shape delivered. Clients a coach brings pay the coach's price with **0% Shape commission**.* **Every client is still a $5/mo Shape member either way** — the membership stays universal (owner-confirmed), so BYO clients are new membership revenue even at 0% commission.
 
 ## Owner decisions needed before build
 
-1. **The BYO rate.** Options: **0%** (recommended — the unbeatable outreach pitch; Shape still earns the $5/mo membership per imported client), **5%** (covers Stripe's ~2.9%+30¢ with margin), or a **flat monthly platform fee per BYO client**. The research's recommendation is 0% at launch, tightenable later — a launch-phase growth subsidy, not a permanent vow. Marketing copy must reserve the right to change the rate for NEW links (never retroactively on an active subscription).
+1. ~~The BYO rate~~ **RULED (owner, 2026-07-21): 0% commission on coach-brought clients — and the $5/mo Shape membership STAYS for every member, BYO included** (owner-confirmed explicitly). So a BYO client = $0 commission to Shape + a full $5/mo membership; a marketplace client = 15% commission + the $5/mo membership. Note: at 0%, Shape absorbs Stripe's processing cost (~2.9%+30¢) on BYO coach charges — a deliberate launch-phase growth subsidy funded by the membership revenue. Marketing copy reserves the right to change the rate for NEW links (never retroactively on an active subscription).
 2. ~~Attribution window~~ **RULED (owner, 2026-07-21): 30 days** (invite/link → first checkout). A member who converts more than 30 days after the last invite/link touch resolves `marketplace`. Re-inviting or re-opening the coach's link refreshes the window (the upsert semantics below), so an active coach relationship never silently lapses — only cold trails do.
 3. **The generous-attribution stance** (§Abuse): v1 deliberately does NOT police "coach invites a prospect who actually found them on Shape." Confirm this is acceptable launch posture.
 
@@ -27,8 +27,8 @@ Every coach↔client monetary link gets exactly one immutable `origin`, stamped 
 | `origin` | How the link was created | Commission |
 | --- | --- | --- |
 | `marketplace` | Member found the coach through Shape (directory, search, Listing, featured, **waitlist/first-dibs**) with no referral in play | **15%** (unchanged) |
-| `coach_invite` | The coach sent this member an in-app invite (#1706's `coach_invite` DM) before checkout, inside the window | **BYO rate** |
-| `coach_link` | Checkout arrived through the coach's ref-tagged share link (text / email / share sheet / bio) inside the window | **BYO rate** |
+| `coach_invite` | The coach sent this member an in-app invite (#1706's `coach_invite` DM) before checkout, inside the window | **0% (owner-ruled)** |
+| `coach_link` | Checkout arrived through the coach's ref-tagged share link (text / email / share sheet / bio) inside the window | **0% (owner-ruled)** |
 
 Notes:
 - **Waitlist invites are `marketplace`.** A member who joined a coach's waiting room found that coach on Shape; the coach's invite-from-waitlist (#1495) is fulfillment of Shape-originated demand, not BYO.
@@ -80,7 +80,7 @@ Pre-feature rows default `marketplace` — correct, since no referral machinery 
 
 ### Fee constants — `src/lib/platform-fee.ts`
 
-`PLATFORM_FEE_RATE` (0.15) stays. Add `BYO_FEE_RATE` (owner decision, proposed 0). `feeSplit()` gains a rate parameter (default `PLATFORM_FEE_RATE`) so the one-time path computes correctly; the subscription path sets `application_fee_percent` from the resolved rate. **One module remains the single fee authority** — no rate literals in routes.
+`PLATFORM_FEE_RATE` (0.15) stays. Add `BYO_FEE_RATE = 0` (owner-ruled 2026-07-21). `feeSplit()` gains a rate parameter (default `PLATFORM_FEE_RATE`) so the one-time path computes correctly; the subscription path sets `application_fee_percent` from the resolved rate. **One module remains the single fee authority** — no rate literals in routes.
 
 ## The attribution flow
 
@@ -110,7 +110,7 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 
 ## Surfaces
 
-1. **Add-client sheet** (#1706): the send channels above, plus one honest pitch line: "Clients you bring pay no Shape commission — you keep your full rate." (copy tracks the owner's rate decision).
+1. **Add-client sheet** (#1706): the send channels above, plus one honest pitch line: "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo."
 2. **Coach Business page / roster:** each active client labeled by origin — "You brought" vs "Found you on Shape" — with the per-client fee visible. The label IS the pitch: it shows the coach they only pay when Shape delivers.
 3. **War Room / analytics:** the `origin` column makes the health metric queryable — clients + GMV by origin. This is the number that says whether the marketplace generates demand or coasts on imported rosters. v1 = a registered checklist metric (SQL), not a dashboard build.
 
@@ -141,7 +141,7 @@ The share link becomes `https://theshapecommunity.com/newdesign/MemberProfile.ht
 ## Acceptance criteria
 
 1. A member who checks out from a coach's ref link (opened from a text or an email) creates a subscription with `origin='coach_link'` and the BYO `application_fee_percent`; renewals keep it with zero additional logic.
-2. A member invited via the #1706 DM who subscribes inside the window → `origin='coach_invite'`, BYO rate — with no token anywhere in the flow.
+2. A member invited via the #1706 DM who subscribes inside the window → `origin='coach_invite'`, 0% fee — with no token anywhere in the flow.
 3. A member who finds the coach through the marketplace with no referral → `origin='marketplace'`, 15%, byte-identical to today's flow.
 4. A waitlist first-dibs conversion → `origin='marketplace'`.
 5. Coach A's token can never alter the fee on coach B's checkout; an expired referral resolves `marketplace`; a malformed `body.ref` resolves `marketplace`.
