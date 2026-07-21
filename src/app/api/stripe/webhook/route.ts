@@ -61,6 +61,19 @@ function isUndefinedColumn(err: { code?: string } | null): boolean {
   return err?.code === '42703' || err?.code === 'PGRST204';
 }
 
+// Gate on that retry: dropping the columns is safe ONLY when the intended values
+// are exactly the columns' DB defaults (marketplace / 1500) — the inserted
+// defaults then equal the intent. Any other combination can only have been
+// stamped POST-migration (pre-migration the checkout resolver RPC is absent, so
+// every session carries marketplace/1500), which makes a missing-column error
+// here PostgREST schema-cache lag, not a pre-migration deploy — and retrying
+// without the columns would insert the defaults and the freeze trigger would
+// lock the WRONG attribution on a BYO money row forever. Those deliveries must
+// FAIL (non-2xx) so Stripe redelivers once the cache has refreshed.
+function canDropOriginColumns(origin: string, feeBps: number): boolean {
+  return origin === 'marketplace' && feeBps === 1500;
+}
+
 // Mark a client-bound referral consumed — service-role, conditional on
 // consumed_at IS NULL so a webhook retry is a no-op and a failed row-write never
 // burns the referral. Best-effort: never throws (a missing table pre-migration or
@@ -268,13 +281,24 @@ export async function POST(request: Request) {
           // (a DB trigger preserves them on any replay/late delivery). Only on a
           // confirmed write do we consume the referral — so a failed row-write
           // never burns the referral without recording the purchase.
+          const purchaseOrigin = originFromMeta(session.metadata?.origin);
+          const purchaseFeeBps = feeBpsFromMeta(session.metadata?.fee_bps);
           let { error: purchaseErr } = await admin
             .from('one_time_purchases')
             .upsert(
-              { ...purchaseRow, origin: originFromMeta(session.metadata?.origin), fee_bps: feeBpsFromMeta(session.metadata?.fee_bps) },
+              { ...purchaseRow, origin: purchaseOrigin, fee_bps: purchaseFeeBps },
               { onConflict: 'stripe_checkout_session_id' }
             );
           if (isUndefinedColumn(purchaseErr)) {
+            if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps)) {
+              // Schema-cache lag on a BYO purchase — defaulting would freeze the
+              // row as marketplace/1500. Fail so Stripe redelivers (nothing has
+              // been written yet, so the retry replays cleanly).
+              console.error('[stripe webhook] one_time_purchases origin columns unavailable (schema-cache lag) — failing for redelivery', {
+                session: session.id, origin: purchaseOrigin, feeBps: purchaseFeeBps,
+              });
+              return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
+            }
             ({ error: purchaseErr } = await admin
               .from('one_time_purchases')
               .upsert(purchaseRow, { onConflict: 'stripe_checkout_session_id' }));
@@ -371,13 +395,25 @@ export async function POST(request: Request) {
         // Write the row FIRST and check the error; origin/fee_bps are write-once
         // (a DB trigger preserves them on any replay). Consume the referral only on
         // a confirmed write — so a failed write never burns it without recording.
+        const subOrigin = originFromMeta(session.metadata?.origin);
+        const subFeeBps = feeBpsFromMeta(session.metadata?.fee_bps);
         let { error: subErr } = await admin
           .from('subscriptions')
           .upsert(
-            { ...subRow, origin: originFromMeta(session.metadata?.origin), fee_bps: feeBpsFromMeta(session.metadata?.fee_bps) },
+            { ...subRow, origin: subOrigin, fee_bps: subFeeBps },
             { onConflict: 'stripe_subscription_id' }
           );
         if (isUndefinedColumn(subErr)) {
+          if (!canDropOriginColumns(subOrigin, subFeeBps)) {
+            // Schema-cache lag on a BYO subscription — defaulting would freeze
+            // the row as marketplace/1500 (15% forever on a 0% sale). Fail so
+            // Stripe redelivers; nothing side-effectful has run before this
+            // write, so the retry replays cleanly.
+            console.error('[stripe webhook] subscriptions origin columns unavailable (schema-cache lag) — failing for redelivery', {
+              session: session.id, origin: subOrigin, feeBps: subFeeBps,
+            });
+            return NextResponse.json({ error: 'origin_columns_unavailable' }, { status: 503 });
+          }
           ({ error: subErr } = await admin
             .from('subscriptions')
             .upsert(subRow, { onConflict: 'stripe_subscription_id' }));
