@@ -34,5 +34,19 @@
   "plated.carbs": "Karbo",
   "plated.fat": "Lemak",
   "quick.eyebrow": "Masak cepat",
-  "quick.note": "Makanan ini tidak membawa metode atau bahan — masak dengan caramu dan catat begitu tersaji."
+  "quick.note": "Makanan ini tidak membawa metode atau bahan — masak dengan caramu dan catat begitu tersaji.",
+  "voice.reads": "Nora membaca",
+  "voice.on": "nyala",
+  "voice.off": "mati",
+  "voice.hold": "Tahan untuk bicara",
+  "voice.holdAria": "Tahan untuk bicara dengan Nora",
+  "voice.listening": "Mendengarkan…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Kamu",
+  "voice.timeLeft": "Sisa {t} di timer.",
+  "voice.noTimer": "Langkah ini tidak punya timer.",
+  "voice.noTimerRunning": "Tidak ada timer berjalan.",
+  "voice.unavailable": "Aku belum bisa menjawab itu sekarang.",
+  "voice.transcribeErr": "Tidak terdengar jelas — tahan dan coba lagi.",
+  "voice.micBlocked": "Mikrofon diblokir — izinkan akses untuk bicara."
 }

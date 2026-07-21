@@ -21,6 +21,7 @@ import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
+import { formatCookContext } from '@/lib/ai/cookContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
@@ -565,7 +566,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null },
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -582,14 +583,20 @@ async function askOpenAI(
     // The server-built member-context block (or the honest unavailable note on
     // a fetch FAILURE) — never client-supplied, members only.
     ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
+    // Cook-mode sous-chef context (spec §7.3) — sanitized+bounded from the
+    // client's payload; sits AFTER member facts so "does this fit my day?" can
+    // use both. Read-only: when cooking, NO write/coach/member tools are exposed.
+    ...(member.cookMsg ? [{ role: 'system', content: member.cookMsg }] : []),
     ...recent,
   ];
   const actions: SupportAction[] = [];
-  const tools = member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS;
+  const tools = member.cookMsg ? [] : (member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS);
 
-  // Allow up to 2 tool rounds, then take the text.
+  // Allow up to 2 tool rounds, then take the text. When cooking, tools is
+  // empty (read-only kitchen) — omit it so the model runs pure-conversational.
+  // Built per round because `input` is reassigned as tool outputs accumulate.
   for (let round = 0; round < 3; round++) {
-    const result = await callAI({ input, tools }, { promptId: 'support.chat' });
+    const result = await callAI(tools.length ? { input, tools } : { input }, { promptId: 'support.chat' });
     if (!result.ok) return null;
     const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
@@ -651,12 +658,18 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
+
+  // Cook-mode sous-chef context (spec §7.3): sanitized + bounded from the
+  // client's untrusted payload. Present ⇒ read-only kitchen (no write tools).
+  // Available to signed-out cooks too (recipe grounding needs no membership);
+  // member facts, when present, still ride alongside for "does this fit my day?".
+  const cookMsg = formatCookContext(body.cookContext);
 
   // Resolve the actor ONCE; membership (fail-closed) decides whether the
   // member-only layer exists AT ALL for this request: the context block, the
@@ -686,7 +699,7 @@ export async function POST(request: Request) {
   }
   const propose = makePropose(actor, request, isMember);
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx }).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));

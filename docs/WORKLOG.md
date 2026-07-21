@@ -885,6 +885,43 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — Cook Mode PR B: Nora the sous-chef — reads steps aloud + voice commands + grounded Q&A
+
+- **Build 2 of the guided-cooking wave** (spec §7). Voice is **OPT-IN, default
+  OFF** (owner ruling): a **NORA READS** toggle sits in the cook band the whole
+  cook and flips at any point — ON speaks the current step immediately and
+  auto-speaks each new step (keyed on step/phase, NEVER the 1s heartbeat, so a
+  step is spoken once not every second); OFF stops in-flight audio instantly.
+  The explicit choice persists (`shape.cookReads`, the radio-fx precedent).
+  Speaks with `force:true` — the toggle IS the consent, so it works even if the
+  member's global auto-speak pref is off; auto-speak failures stay silent.
+- **Hold-to-talk mic** in the band (the composer's exact re-entrancy +
+  early-release hot-mic guards): a transcript hits a **local command grammar
+  FIRST** (`cookCommands.mjs`, TDD) — next/back/repeat/skip/timer/how-long, run
+  instantly with no model round-trip — and anything else falls through to a
+  **grounded Q&A**. The grammar is false-positive-averse: a real question that
+  contains a command word ("should I go back to searing?") is NOT swallowed
+  (it's long + not a bare command) and goes to Nora.
+- **Grounded cooking Q&A**: `/api/support/chat` gains a bounded, sanitized
+  **`cookContext`** (`src/lib/ai/cookContext.mjs`, TDD) — recipe title / current
+  step / ingredients / servings. Client-sent ⇒ fully untrusted: every field is
+  length-bounded, control-chars stripped, and strings JSON-quoted so
+  instruction-like text stays inert (the memberContext prompt-injection
+  discipline). Member facts still ride alongside, so "does this fit my macros
+  today?" works. **Read-only kitchen**: when cookContext is present the route
+  exposes **NO write/coach/member tools** — Nora only talks. Her reply
+  auto-plays.
+- New `cook:voice.*` keys ×13 (14 keys). No migration, no new route (rides the
+  existing `/api/ai/speak` TTS + `/api/ai/transcribe` STT + `/api/support/chat`
+  rails). Mobile-first: voice works on the `/m/` web build; native mic rides the
+  known native-plugin stub. **Verified**: suite **714 → 726** (cook-commands 6,
+  cook-context 6) · tsc clean · babel parse · tr-shadow both forms clean · /m/
+  build exit 0 · LF · **render-mount proof** on the dev server (Cook Mode mounts
+  with the voice row, NORA READS toggles + persists, stepping with reads-on
+  fires the auto-speak effect with 0 new console errors — the hook-order/TDZ
+  gate). Open: PR C (Prep Session), PR D (orchestration), PR E (coach
+  step-authoring + polish); on-device voice pass (real TTS/STT round-trip).
+
 ### 2026-07-21 — Cook Mode PR A: the cookable contract + the guided walkthrough (#1804)
 
 - **Build 1 of the guided-cooking wave** (spec

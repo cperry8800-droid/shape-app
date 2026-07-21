@@ -34,5 +34,19 @@
   "plated.carbs": "Carbos",
   "plated.fat": "Grasa",
   "quick.eyebrow": "Cocina rápida",
-  "quick.note": "Esta comida no trae método ni ingredientes — cocínala a tu manera y regístrala cuando esté en el plato."
+  "quick.note": "Esta comida no trae método ni ingredientes — cocínala a tu manera y regístrala cuando esté en el plato.",
+  "voice.reads": "Nora lee",
+  "voice.on": "sí",
+  "voice.off": "no",
+  "voice.hold": "Mantén para hablar",
+  "voice.holdAria": "Mantén pulsado para hablar con Nora",
+  "voice.listening": "Escuchando…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Tú",
+  "voice.timeLeft": "Quedan {t} en el temporizador.",
+  "voice.noTimer": "Este paso no tiene temporizador.",
+  "voice.noTimerRunning": "No hay temporizador en marcha.",
+  "voice.unavailable": "No pude responder eso ahora mismo.",
+  "voice.transcribeErr": "No te entendí — mantén y prueba otra vez.",
+  "voice.micBlocked": "Micro bloqueado — permite el acceso para hablar."
 }

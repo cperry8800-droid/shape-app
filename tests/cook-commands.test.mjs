@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { bsCookCommand, BS_COOK_COMMANDS } from '../mobile-app/src/services/cookCommands.mjs';
+
+test('bare single-word commands', () => {
+  assert.equal(bsCookCommand('next'), 'next');
+  assert.equal(bsCookCommand('Next.'), 'next');
+  assert.equal(bsCookCommand('back'), 'back');
+  assert.equal(bsCookCommand('repeat'), 'repeat');
+  assert.equal(bsCookCommand('skip'), 'skip');
+  assert.equal(bsCookCommand('done'), 'next');       // "Done · Next" is advance
+  assert.equal(bsCookCommand('continue'), 'next');
+  assert.equal(bsCookCommand('again'), 'repeat');
+  assert.equal(bsCookCommand('previous'), 'back');
+});
+
+test('filler words are tolerated around a single command', () => {
+  assert.equal(bsCookCommand('next step'), 'next');
+  assert.equal(bsCookCommand('ok next please'), 'next');
+  assert.equal(bsCookCommand('go back'), 'back');
+  assert.equal(bsCookCommand('skip this step'), 'skip');
+  assert.equal(bsCookCommand('hey Nora repeat that'), 'repeat');
+});
+
+test('multi-word phrase commands', () => {
+  assert.equal(bsCookCommand('next step'), 'next');
+  assert.equal(bsCookCommand('go on'), 'next');
+  assert.equal(bsCookCommand('move on'), 'next');
+  assert.equal(bsCookCommand('go back'), 'back');
+  assert.equal(bsCookCommand('last step'), 'back');
+  assert.equal(bsCookCommand('say that again'), 'repeat');
+  assert.equal(bsCookCommand('one more time'), 'repeat');
+  assert.equal(bsCookCommand('start the timer'), 'timer');
+  assert.equal(bsCookCommand('set timer'), 'timer');
+  assert.equal(bsCookCommand('how long left'), 'howlong');
+  assert.equal(bsCookCommand('how much time'), 'howlong');
+  assert.equal(bsCookCommand('time left'), 'howlong');
+  assert.equal(bsCookCommand('how much longer'), 'howlong');
+});
+
+test('QUESTIONS containing a command word are NOT swallowed (→ null → Nora Q&A)', () => {
+  assert.equal(bsCookCommand('should I go back to searing the chicken now'), null);
+  assert.equal(bsCookCommand('what should I do next with the sauce'), null);
+  assert.equal(bsCookCommand('can I skip the resting if I am in a hurry'), null);
+  assert.equal(bsCookCommand('what can I use instead of buttermilk'), null);
+  assert.equal(bsCookCommand('is the chicken done yet how do I tell'), null);
+  assert.equal(bsCookCommand('how do I know when the rice is ready'), null);
+});
+
+test('empty / non-string / junk → null', () => {
+  assert.equal(bsCookCommand(''), null);
+  assert.equal(bsCookCommand('   '), null);
+  assert.equal(bsCookCommand(null), null);
+  assert.equal(bsCookCommand(undefined), null);
+  assert.equal(bsCookCommand(Symbol('x')), null);
+  assert.equal(bsCookCommand(42), null);
+  assert.equal(bsCookCommand('umm well I think'), null);
+});
+
+test('every classified value is in the command set', () => {
+  for (const s of ['next', 'back', 'repeat', 'skip', 'start the timer', 'how long left']) {
+    const c = bsCookCommand(s);
+    assert.ok(BS_COOK_COMMANDS.includes(c), `${s} → ${c}`);
+  }
+});

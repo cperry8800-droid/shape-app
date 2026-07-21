@@ -34,5 +34,19 @@
   "plated.carbs": "Carbs",
   "plated.fat": "Fat",
   "quick.eyebrow": "Quick cook",
-  "quick.note": "No method or ingredient list rides this meal — cook it your way, log it when it lands."
+  "quick.note": "No method or ingredient list rides this meal — cook it your way, log it when it lands.",
+  "voice.reads": "Nora reads",
+  "voice.on": "on",
+  "voice.off": "off",
+  "voice.hold": "Hold to talk",
+  "voice.holdAria": "Hold to talk to Nora",
+  "voice.listening": "Listening…",
+  "voice.thinking": "Nora…",
+  "voice.you": "You",
+  "voice.timeLeft": "{t} left on the timer.",
+  "voice.noTimer": "No timer on this step.",
+  "voice.noTimerRunning": "No timer running.",
+  "voice.unavailable": "I couldn't answer that just now.",
+  "voice.transcribeErr": "Didn't catch that — hold and try again.",
+  "voice.micBlocked": "Mic blocked — allow access to talk."
 }

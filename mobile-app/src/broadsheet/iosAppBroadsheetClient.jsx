@@ -19,6 +19,7 @@ import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/m
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -6167,6 +6168,126 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     onLogged();
   };
 
+  // ── Nora the sous-chef (spec 2026-07-21 §7) — voice is OPT-IN, default OFF.
+  // NORA READS speaks each step aloud; a hold-to-talk mic runs LOCAL commands
+  // first (next/back/repeat/skip/timer/how-long — no model round-trip) and
+  // otherwise asks Nora a grounded cooking question (cookContext), auto-playing
+  // her reply. All hooks below sit BEFORE the loggedState early return so hook
+  // order never changes (the render-check rule).
+  const [readsOn, setReadsOn] = useStateBSC(() => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch (e) { return false; } });
+  const [micState, setMicState] = useStateBSC('idle');   // idle | listening | thinking
+  const [micNote, setMicNote] = useStateBSC(null);       // { who:'you'|'nora', text } — honest status/answer line
+  const voiceCanSpeak = typeof window !== 'undefined' && !!(window.ShapeVoice && window.ShapeVoice.speak);
+  const voiceCanHear = typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== 'undefined' && !!window.MediaRecorder;
+  // Speak with force:true — the NORA READS opt-in IS the consent, so it plays
+  // even if the member's GLOBAL auto-speak pref is off. Auto-speak failures are
+  // SILENT (doctrine); only an explicit action would surface a reason.
+  const speak = React.useCallback((text) => { if (!voiceCanSpeak) return; try { window.ShapeVoice.speak(String(text || ''), undefined, { force: true }); } catch (e) {} }, [voiceCanSpeak]);
+  const stopSpeak = React.useCallback(() => { try { window.ShapeVoice?.stop?.(); } catch (e) {} }, []);
+  // Auto-speak the current step — keyed ONLY on step/phase/toggle, NEVER the 1s
+  // heartbeat, so a step is spoken once (not every second).
+  React.useEffect(() => {
+    if (!readsOn || phase !== 'method' || !hasMethod) return;
+    speak(steps[stepIdx]);
+  }, [readsOn, phase, stepIdx, hasMethod]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => () => stopSpeak(), [stopSpeak]);   // silence on unmount
+  const toggleReads = () => {
+    setReadsOn((on) => {
+      const next = !on;
+      try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch (e) {}
+      if (!next) stopSpeak(); else if (phase === 'method' && hasMethod) speak(steps[stepIdx]);
+      return next;
+    });
+  };
+  // Execute a recognized local command. Returns true when handled.
+  const runCommand = (cmd) => {
+    if (cmd === 'howlong') {
+      const r = timers.map((x) => Math.max(0, Math.ceil((x.endsAt - Date.now()) / 1000))).filter((s) => s > 0);
+      const txt = r.length ? tr('cook:voice.timeLeft', { defaultValue: '{t} left on the timer.', t: fmt(r[0]) }) : tr('cook:voice.noTimerRunning', { defaultValue: 'No timer running.' });
+      setMicNote({ who: 'nora', text: txt }); speak(txt); return true;
+    }
+    if (cmd === 'next') {
+      if (phase === 'mise') setPhase(hasMethod ? 'method' : 'plated');
+      else if (phase === 'method') advance(false);
+      return true;
+    }
+    if (phase !== 'method') return true; // back/skip/repeat/timer only apply mid-method — consume quietly
+    if (cmd === 'skip') { advance(true); return true; }
+    if (cmd === 'back') { stepIdx === 0 ? setPhase('mise') : goStep(stepIdx - 1); return true; }
+    if (cmd === 'repeat') { if (hasMethod) speak(steps[stepIdx]); return true; }
+    if (cmd === 'timer') {
+      const tms = hasMethod ? bsStepTimers(steps[stepIdx]) : [];
+      if (tms[0]) startTimer(tms[0]);
+      else setMicNote({ who: 'nora', text: tr('cook:voice.noTimer', { defaultValue: 'No timer on this step.' }) });
+      return true;
+    }
+    return false;
+  };
+  // A transcript → command grammar FIRST, else a grounded Q&A to Nora.
+  const askNora = async (transcript) => {
+    setMicState('thinking');
+    setMicNote({ who: 'you', text: transcript });
+    try {
+      const res = await fetch('/api/support/chat', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: transcript }], cookContext: {
+          recipeTitle: cookable.recipeTitle || cookable.title,
+          stepIndex: phase === 'method' ? stepIdx : undefined,
+          stepText: phase === 'method' && hasMethod ? steps[stepIdx] : undefined,
+          ingredients: cookable.ingredients.map((i) => `${i.n} ${i.m}`.trim()).filter(Boolean),
+          servings: cookable.servings || undefined,
+        } }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
+      else setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) });
+    } catch (e) { setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
+    setMicState('idle');
+  };
+  const onTranscript = (transcript) => {
+    const clean = String(transcript || '').trim();
+    if (!clean) { setMicState('idle'); return; }
+    const cmd = bsCookCommand(clean);
+    if (cmd && runCommand(cmd)) { setMicState('idle'); return; }
+    askNora(clean);
+  };
+  // Hold-to-talk — the composer's exact guards (holdingRef re-entrancy +
+  // early-release hot-mic guard at each async boundary).
+  const holdingRef = React.useRef(false);
+  const recRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const micStart = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (holdingRef.current || micState !== 'idle' || !voiceCanHear) return;
+    holdingRef.current = true; setMicNote(null); stopSpeak();
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      if (!holdingRef.current) { try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {} return; }
+      streamRef.current = stream;
+      const mr = new window.MediaRecorder(stream); const chunks = [];
+      mr.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {}
+        if (mr._cancel) { setMicState('idle'); return; }
+        setMicState('thinking');
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+          const fd = new FormData(); fd.append('audio', blob, 'cook.webm');
+          const r = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d && d.transcript) onTranscript(d.transcript);
+          else { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
+        } catch (er) { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
+      };
+      recRef.current = mr; setMicState('listening'); mr.start();
+      if (!holdingRef.current) { mr._cancel = true; try { mr.stop(); } catch (er) {} }
+    }).catch(() => { holdingRef.current = false; setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) }); });
+  };
+  const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };
+  React.useEffect(() => () => {
+    try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {}
+    try { streamRef.current && streamRef.current.getTracks().forEach((tk) => tk.stop()); } catch (e) {}
+  }, []);
+
   if (loggedState) {
     const m = cookable.macros || {};
     // A recipe cook is NOT an assigned plan meal — `planned` + `coach` are
@@ -6235,6 +6356,34 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
               <button onClick={() => dismissTimer(x.id)} style={{ background: 'transparent', border: 0, minHeight: 44, padding: '0 4px', cursor: 'pointer', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
             </div>
           ))}
+        </div>
+      )}
+      {/* Nora voice row — reads toggle + hold-to-talk. Shown only where some
+          voice capability exists; each control gates on its own capability. */}
+      {(voiceCanSpeak || voiceCanHear) && (
+        <div style={{ position: 'relative', marginTop: 13, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          {voiceCanSpeak ? (
+            <button onClick={toggleReads} aria-pressed={readsOn} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${readsOn ? bsTHexA(heat, 0.55) : BAND.hair}`, borderRadius: 999, padding: '7px 11px', minHeight: 40, cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: readsOn ? heat : BAND.dim }}>
+              <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>{readsOn ? '🔊' : '🔇'}</span>
+              {tr('cook:voice.reads', { defaultValue: 'Nora reads' })} · {readsOn ? tr('cook:voice.on', { defaultValue: 'on' }) : tr('cook:voice.off', { defaultValue: 'off' })}
+            </button>
+          ) : <span />}
+          {voiceCanHear && (
+            <button
+              onPointerDown={micStart} onPointerUp={micEnd} onPointerLeave={micEnd} onPointerCancel={micEnd}
+              aria-label={tr('cook:voice.holdAria', { defaultValue: 'Hold to talk to Nora' })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: micState === 'listening' ? heat : 'transparent', border: `1.5px solid ${micState === 'idle' ? bsTHexA(heat, 0.5) : heat}`, borderRadius: 999, padding: '9px 15px', minHeight: 44, cursor: 'pointer', touchAction: 'none', ...bandEyebrow, fontSize: 8.5, color: micState === 'listening' ? '#04211c' : heat }}
+            >
+              <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>🎤</span>
+              {micState === 'listening' ? tr('cook:voice.listening', { defaultValue: 'Listening…' }) : micState === 'thinking' ? tr('cook:voice.thinking', { defaultValue: 'Nora…' }) : tr('cook:voice.hold', { defaultValue: 'Hold to talk' })}
+            </button>
+          )}
+        </div>
+      )}
+      {micNote && (
+        <div aria-live="polite" style={{ position: 'relative', marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.4, color: micNote.who === 'you' ? BAND.dim : BAND.cream }}>
+          <span style={{ ...bandEyebrow, fontSize: 7.5, color: micNote.who === 'you' ? BAND.dim35 : heat, marginRight: 6 }}>{micNote.who === 'you' ? tr('cook:voice.you', { defaultValue: 'You' }) : 'Nora'}</span>
+          {micNote.text}
         </div>
       )}
     </div>

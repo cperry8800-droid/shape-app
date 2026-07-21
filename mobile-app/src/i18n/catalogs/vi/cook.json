@@ -34,5 +34,19 @@
   "plated.carbs": "Tinh bột",
   "plated.fat": "Chất béo",
   "quick.eyebrow": "Nấu nhanh",
-  "quick.note": "Bữa này không kèm cách làm hay nguyên liệu — nấu theo cách của bạn và ghi lại khi dọn món."
+  "quick.note": "Bữa này không kèm cách làm hay nguyên liệu — nấu theo cách của bạn và ghi lại khi dọn món.",
+  "voice.reads": "Nora đọc",
+  "voice.on": "bật",
+  "voice.off": "tắt",
+  "voice.hold": "Giữ để nói",
+  "voice.holdAria": "Giữ để nói với Nora",
+  "voice.listening": "Đang nghe…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Bạn",
+  "voice.timeLeft": "Còn {t} trên hẹn giờ.",
+  "voice.noTimer": "Bước này không có hẹn giờ.",
+  "voice.noTimerRunning": "Không có hẹn giờ nào chạy.",
+  "voice.unavailable": "Mình chưa trả lời được câu đó lúc này.",
+  "voice.transcribeErr": "Chưa nghe rõ — giữ và thử lại.",
+  "voice.micBlocked": "Micro bị chặn — cho phép truy cập để nói."
 }

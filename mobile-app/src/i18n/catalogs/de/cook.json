@@ -34,5 +34,19 @@
   "plated.carbs": "Kohlenhydrate",
   "plated.fat": "Fett",
   "quick.eyebrow": "Schnell gekocht",
-  "quick.note": "Diese Mahlzeit hat weder Methode noch Zutaten — koch sie auf deine Art und logg sie, sobald sie auf dem Teller ist."
+  "quick.note": "Diese Mahlzeit hat weder Methode noch Zutaten — koch sie auf deine Art und logg sie, sobald sie auf dem Teller ist.",
+  "voice.reads": "Nora liest",
+  "voice.on": "an",
+  "voice.off": "aus",
+  "voice.hold": "Halten zum Sprechen",
+  "voice.holdAria": "Zum Sprechen mit Nora halten",
+  "voice.listening": "Höre zu…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Du",
+  "voice.timeLeft": "Noch {t} auf dem Timer.",
+  "voice.noTimer": "Kein Timer bei diesem Schritt.",
+  "voice.noTimerRunning": "Kein Timer läuft.",
+  "voice.unavailable": "Das konnte ich gerade nicht beantworten.",
+  "voice.transcribeErr": "Nicht verstanden — halten und nochmal versuchen.",
+  "voice.micBlocked": "Mikro blockiert — Zugriff erlauben, um zu sprechen."
 }
