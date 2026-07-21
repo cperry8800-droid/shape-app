@@ -565,13 +565,15 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
 
-  // About-page CTA — "Join the community." closes the settings takeover and
-  // lands on the chat tab's community feed (the shape:openMarket pattern).
-  // chatRequest is cleared so a stale deep-link (a previously opened DM/channel)
-  // can't hijack the landing away from the feed (Codex catch on #1797).
+  // About-page CTA — "Join the community." lands on the chat tab's community
+  // feed. Clears EVERY takeover that early-returns above the tab body (Settings
+  // can be opened from the Calendar takeover via onProfile, so closing settings
+  // alone would land back on the calendar) plus any stale chat deep-link
+  // (Codex catches on #1797 — the class, applied to this shell too).
   React.useEffect(() => {
     const open = () => {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
       setChatRequest(null); setTab('chat');
     };
     window.addEventListener('shape:goCommunity', open);
