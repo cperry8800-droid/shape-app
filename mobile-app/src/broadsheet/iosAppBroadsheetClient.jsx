@@ -295,7 +295,10 @@ function BSOnboardingTour({ onClose, onNavigate }) {
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.welcome.eyebrow', { defaultValue: 'Welcome' }), title: tr('onboarding:tour.welcome.title', { defaultValue: 'Welcome to Shape.' }), body: tr('onboarding:tour.welcome.body', { defaultValue: 'A quick tour of where everything lives — about 30 seconds.' }) },
       { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.home.eyebrow', { defaultValue: 'Home' }), title: tr('onboarding:tour.home.title', { defaultValue: 'Your day, at a glance.' }), body: tr('onboarding:tour.home.body', { defaultValue: 'Your next move, meals and habits — all on the home screen.' }) },
       { navigate: go('home'), anchor: q('hero-progress'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.progress.eyebrow', { defaultValue: 'Progress' }), title: tr('onboarding:tour.progress.title', { defaultValue: 'Trends & PRs.' }), body: tr('onboarding:tour.progress.body', { defaultValue: 'Weight, strength, sleep, volume — your whole picture, charted.' }) },
-      { navigate: go('home'), anchor: q('hero-goal'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.goal.eyebrow', { defaultValue: 'Goal' }), title: tr('onboarding:tour.goal.title', { defaultValue: 'What you’re shaping toward.' }), body: tr('onboarding:tour.goal.body', { defaultValue: 'Targets, milestones and your ETA — the contract you set with yourself.' }) },
+      // No fallback on purpose: BSMeGoalCard renders null for a member with no
+      // configured goal, and spotlighting an unrelated tab under Goal copy would
+      // mislead — the engine's no-target centered card is the honest state.
+      { navigate: go('home'), anchor: q('hero-goal'), eyebrow: tr('onboarding:tour.goal.eyebrow', { defaultValue: 'Goal' }), title: tr('onboarding:tour.goal.title', { defaultValue: 'What you’re shaping toward.' }), body: tr('onboarding:tour.goal.body', { defaultValue: 'Targets, milestones and your ETA — the contract you set with yourself.' }) },
       { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: tr('onboarding:tour.train.eyebrow', { defaultValue: 'Train' }), title: tr('onboarding:tour.train.title', { defaultValue: 'Today’s session.' }), body: tr('onboarding:tour.train.body', { defaultValue: 'Your workout, ready to start — written by your coach, or built by you. Coach optional.' }) },
       { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.eat.eyebrow', { defaultValue: 'Eat' }), title: tr('onboarding:tour.eat.title', { defaultValue: 'Meals & logging.' }), body: tr('onboarding:tour.eat.body', { defaultValue: 'Your plan for the day. Tap a meal to log it in one tap.' }) },
       { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.grocery.eyebrow', { defaultValue: 'Grocery' }), title: tr('onboarding:tour.grocery.title', { defaultValue: 'Grocery lists.' }), body: tr('onboarding:tour.grocery.body', { defaultValue: 'Your week’s meals become a shopping list, sorted by aisle — auto-built for you.' }) },
@@ -10782,7 +10785,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           The tier-heat rail was removed; a small 8px side gutter keeps the block
           just off the screen edge (owner request — near-edge-to-edge). ── */}
       <div style={{ position: 'relative' }}>
-        <div style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
+        <div data-tour={meMode ? 'hero-me' : undefined} style={{ position: 'relative', padding: meMode ? '10px 8px 0' : '14px 8px 0' }}>
           <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
             photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
@@ -10865,7 +10868,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             const compPerf = cats.map(([, v]) => (v == null ? 0 : Number(v)));
             const bestIdx = compPerf.some((v) => v > 0) ? compPerf.indexOf(Math.max(...compPerf)) : -1;
             return (
-              <div data-tour="hero-me" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 16px', cursor: 'pointer' }}>
+              <div data-tour="hero-score" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 16px', cursor: 'pointer' }}>
                 <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Shape Score</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 3 }}>
                   <span style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
@@ -19353,7 +19356,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
     : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
   const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
-    <div onClick={onOpen} data-tour="hero-score" style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
+    <div onClick={onOpen} style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(12), background: bsTHexA(c, 0.5) }} />
       <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(11), background: `linear-gradient(165deg, ${bsTHexA(c, 0.14)}, ${bsTHexA(INK, 0.03)} 60%), ${t.PAPER}` }} />
       <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />

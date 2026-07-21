@@ -885,6 +885,50 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — Onboarding tour: kill the endless re-show + end-freeze, full feature coverage, app parity (#1792)
+
+- **Root-caused the two owner-reported tour bugs as one persistence failure.**
+  The website tour "appeared every time I logged in, even when signed in" AND
+  "couldn't get out of it at the end — almost seemed frozen" were the same
+  defect: `dashTour.js markSeen` was **async-only** (a cloud `saveUserGoals`
+  write), and the finale CTA **navigates away** (`Radio.html` / a hash route),
+  unloading the page before the write landed — so the seen-flag never persisted
+  and the tour re-armed on the next visit, read as "it keeps coming back / I'm
+  stuck in it."
+- **The fixes** (`public/newdesign/dashTour.js`): `markSeen` now writes
+  `localStorage` **synchronously first** (before the async cloud write), and
+  `start()` marks seen **immediately** after the engine mounts — so the finale's
+  navigation can't beat the persistence. First-visit semantics tightened so a
+  signed-in returning member isn't re-shown.
+- **The "frozen" end** (`public/newdesign/spotlightTour.js`): the final step now
+  renders a quiet **Done** button (alongside the CTA) wired to `finish()`, and the
+  primary handler **finishes BEFORE navigating** (`finish()` → `step.onCta()`), so
+  the overlay always tears down. Hardening: `show()` is wrapped so **any**
+  unexpected error falls back to a centered card with live Next/Done/Skip/Escape
+  — a stuck full-dim overlay is structurally impossible now. The duplicated
+  centered-card logic is one `centerCard()` helper (CodeRabbit).
+- **Full feature coverage, both surfaces** (the owner's "wasn't hitting chat,
+  habits, profile, radio, grocery"): the **website client tour** goes 10→15 stops
+  (adds Progress, Library, Team, Chat, Goal — Chat anchored on
+  `#shape-global-chat-button` with a centered-card fallback), the **coach tours**
+  gain Schedule + Chat, and the **app client tour** (`BSOnboardingTour`) goes
+  9→12 — a **Progress** step and a **Goal** step after Home, plus a dedicated
+  **Score** step navigating to Me, with the **You** step rescoped to the profile.
+- **App anchors wired to real rendered elements** (`iosAppBroadsheetClient.jsx`):
+  `BSShelfDoor`/`BSProgressDoor` carry a `tourId` prop → `data-tour`, the Me-tab
+  score block carries `hero-score` (the never-rendered `BSScoreCardDark` had it —
+  a dead anchor Codex caught), and the profile identity head carries `hero-me`.
+  The Goal step has **no `tab-home` fallback** on purpose: `BSMeGoalCard` renders
+  null with no configured goal, so an unrelated-tab spotlight under Goal copy
+  would mislead — the engine's centered card is the honest state (CodeRabbit).
+- **i18n**: 9 new `onboarding` keys (tour.progress/goal/score × eyebrow/title/body)
+  + 2 rescoped (tour.you.title/body), all 64 keys/locale ×13, catalog parity 3/3.
+- Verified: JSX parse · tour engine parse · every tour anchor resolves to a
+  rendered `data-tour` · PowerShell `/m/` build exit 0 · LF. Review round on
+  `6f2da1e1`: CodeRabbit CHANGES_REQUESTED (2 — goal fallback + centerCard dedup,
+  both fixed) · Codex 1 P2 (dead score anchor, fixed). Open: OWNER on-device tour
+  replay (web + app, first-run + finale exit).
+
 ### 2026-07-20 (evening) — Market research: demand verdict + the realistic path
 
 - **New [`docs/MARKET-RESEARCH-2026-07.md`](MARKET-RESEARCH-2026-07.md)** — a 5-dimension,

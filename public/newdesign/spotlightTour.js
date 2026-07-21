@@ -75,6 +75,15 @@ export function startTour(steps, opts = {}) {
   }
   function finish() { teardown(); if (opts.onDone) opts.onDone(); }
 
+  // No target → no cutout; full dim + centered card. Shared by the no-anchor
+  // branch and the catch fallback so the two copies can't drift.
+  function centerCard() {
+    cut.style.display = 'none'; ring.style.display = 'none';
+    const rr = root.getBoundingClientRect();
+    const s = cardSize();
+    Object.assign(card.style, { top: Math.round(rr.height / 2 - s.h / 2) + 'px', left: Math.round(rr.width / 2 - s.w / 2) + 'px' });
+  }
+
   async function show() {
     if (destroyed) return;
     const step = steps[i];
@@ -95,9 +104,9 @@ export function startTour(steps, opts = {}) {
         if (destroyed) return;
       }
 
-      const rr = root.getBoundingClientRect();
       renderCard(step);
       if (target) {
+        const rr = root.getBoundingClientRect();
         const b = target.getBoundingClientRect();
         const t = { x: b.left - rr.left, y: b.top - rr.top, w: b.width, h: b.height };
         const co = cutoutRect(t, PAD);
@@ -106,23 +115,14 @@ export function startTour(steps, opts = {}) {
         const p = coachmarkPos(t, { x: 0, y: 0, w: rr.width, h: rr.height }, cardSize());
         Object.assign(card.style, { top: p.top + 'px', left: p.left + 'px' });
       } else {
-        // No target → no cutout; full dim + centered card.
-        cut.style.display = 'none'; ring.style.display = 'none';
-        const s = cardSize();
-        Object.assign(card.style, { top: Math.round(rr.height / 2 - s.h / 2) + 'px', left: Math.round(rr.width / 2 - s.w / 2) + 'px' });
+        centerCard();
       }
     } catch (_) {
       // A stuck overlay is the worst failure mode — a full dim with a dead card
       // reads as "the app froze". On ANY unexpected error, fall back to the
       // centered card so Next / Done / Skip / Escape always stay live.
       if (destroyed) return;
-      try {
-        renderCard(step);
-        cut.style.display = 'none'; ring.style.display = 'none';
-        const rr = root.getBoundingClientRect();
-        const s = cardSize();
-        Object.assign(card.style, { top: Math.round(rr.height / 2 - s.h / 2) + 'px', left: Math.round(rr.width / 2 - s.w / 2) + 'px' });
-      } catch (_) { teardown(); }
+      try { renderCard(step); centerCard(); } catch (_) { teardown(); }
     }
   }
 
