@@ -3235,7 +3235,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
 
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setLoggingMealId(previewMeal.id); setShowLogMeal(true); setPreviewMeal(null); }}
-      onFiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => ({ ...prev, [id]: true })); }} />;
+      onFiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => ({ ...prev, [id]: true })); }}
+      onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
   }
   if (showWorkoutPreview) {
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
@@ -5062,7 +5063,10 @@ function _bsScrollTopOnMount() {
 
 // Shared "Logged." confirmation screen — used after one-tap logging a meal
 // from the preview (and mirrors the log-meal flow's confirmation).
-function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, onUndo = () => {}, share = null }) {
+// `p` has NO default: an omitted prop must stay undefined so the stamp renders
+// an honest "—" (a `= 0` default would fabricate "0P" for unknown protein —
+// the Number(null)/?? 0 zero-fabrication class). `p || 0` guards the arithmetic.
+function BSMealLogged({ kcal = 0, p, time = '12:40 PM', onDone = () => {}, onUndo = () => {}, share = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // Share-by-choice (spec 2026-07-12): a deliberate per-meal action, default
@@ -5353,7 +5357,7 @@ function BSDateline({ children }) {
   );
 }
 
-function BSMealPreview({ meal, onBack, onLog, onFiled }) {
+function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -5375,9 +5379,9 @@ function BSMealPreview({ meal, onBack, onLog, onFiled }) {
   // Cook Mode takeover (spec 2026-07-21) — EVERY meal opens at its honest
   // cookable tier: a catalog-mapped meal walks the recipe's method (the plan's
   // macros stay the logged truth), an unmapped one walks what it carries.
-  if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} />;
+  if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} onUnlogged={() => { try { onUnfiled?.(); } catch (e) {} }} />;
   if (justLogged) {
-    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => setJustLogged(false)}
+    return <BSMealLogged kcal={meal.kcal} p={meal.p} time={fmt12(schedTime)} onDone={onBack} onUndo={() => { setJustLogged(false); try { onUnfiled?.(); } catch (e) {} }}
       share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
   }
 
@@ -6048,7 +6052,7 @@ function bsCookResumeWrite(key, stepIdx) {
 }
 function bsCookResumeClear() { try { localStorage.removeItem(BS_COOK_RESUME_KEY); } catch (e) {} }
 
-function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
+function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -6170,7 +6174,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {} }) {
     // recipe "As planned · From {coach}'s plan" (Codex). recipeId always rides
     // (Kitchen Card attribution is true for both sources).
     const fromPlanMeal = cookable.sourceKind === 'meal';
-    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p} time={''} onDone={onClose} onUndo={() => setLoggedState(false)}
+    // Undo reverses the parent's logged mark too (onUnlogged), or Home would
+    // keep showing the meal filed after the member undid it (CodeRabbit).
+    return <BSMealLogged kcal={m.kcal ?? 0} p={m.p} time={''} onDone={onClose} onUndo={() => { setLoggedState(false); try { onUnlogged(); } catch (e) {} }}
       share={{ name: cookable.title, kcal: m.kcal, p: m.p, c: m.c, f: m.f, planned: fromPlanMeal, recipeId: cookable.recipeTitle ? bsCookSlug(cookable.recipeTitle) : '', coach: fromPlanMeal ? ((cookable.coach && cookable.coach.name) || '') : '' }} />;
   }
 

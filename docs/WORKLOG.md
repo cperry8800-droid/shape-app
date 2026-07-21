@@ -885,6 +885,41 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — Cook Mode PR A: the cookable contract + the guided walkthrough (#1804)
+
+- **Build 1 of the guided-cooking wave** (spec
+  `docs/superpowers/specs/2026-07-21-cook-mode-prep-session-design.md`, approved +
+  merged #1803). The kitchen's doing-surface: an optional full-screen, step-at-a-time
+  **Cook Mode** over any recipe/meal, in the Cockpit band grammar. No migration, no route.
+- **The cookable contract** (`mobile-app/src/services/cookable.mjs`, TDD): ONE pure
+  normalizer ingesting every meal/recipe shape into the walkthrough contract — recipe +
+  meal + generic-text adapters; meal→catalog-recipe mapping (the recipe's method walks,
+  the **plan's macros stay the logged truth**); the **4-tier honest coverage ladder**
+  (authored steps → cooking-verb-gated prose splitting labeled FROM THE PLAN → mise-only →
+  quick) — tiers 3–4 emit `steps:[]` so nothing is ever invented; the step-timer parser
+  (min/sec/hr, ranges, per-side, artifact bounds); `bsCookKey` collision-proof resume
+  identity (meal id → slug → hash). Symbol-safe + `Number(null)`-fabrication guarded.
+- **`BSCookMode`** takeover (`iosAppBroadsheetClient.jsx`): THE MISE (checkable
+  ingredient/prep rows, household units) → THE METHOD (one step per screen, segment strip,
+  parsed inline timers counting down in the band) → **PLATED.** (honest macro register —
+  absent macros render `—`, never `0`; one-tap log → `BSMealLogged` with Undo that reverses
+  the parent's logged mark). Wake lock held for the cook; confirm-gated exit with a
+  localStorage resume stamp (reopening offers **Resume at step n**); presence + the live
+  cooking-title broadcast reuse the meal logger's exact rails (2026-07-19 doctrine
+  unchanged). Recipe cooks are NOT stamped "as planned" on the wire (share provenance is
+  meal-sourced only).
+- **Entries are UNIVERSAL** (owner decision §2.5): the Shape Kitchen recipe detail + EVERY
+  meal preview get the Cook-this door; a null cookable hides it (no crash on a title-less
+  meal). New `cook:` namespace (36 keys ×13, ICU single-brace), registered in BOTH the
+  runtime NS array AND the parity test.
+- Verified: suite **714** · babel parse · PowerShell `/m/` build exit 0 · tr-shadow clean ·
+  LF · browser-proved on the dev server (0 new console errors: meal tier-3 mise→plate→log
+  w/ Undo; recipe tier-1 mise→method→the "3 min per side" timer live→exit confirm→resume).
+  Review: **12 findings across 4 rounds** (Codex + CodeRabbit), all real, all fixed +
+  regression-tested. **Open:** PR B (Nora reads the steps — default OFF w/ an in-band
+  toggle, hold-to-talk, grounded Q&A), PR C (Prep Session + PREPPED + the coach migration),
+  PR D (orchestration), PR E (coach step-authoring + polish).
+
 ### 2026-07-21 — BYO commission split PR B: the surfaces (#1799) — the coach-facing half
 
 - **Session handoff: [`docs/HANDOFF-2026-07-21.md`](HANDOFF-2026-07-21.md)** —
