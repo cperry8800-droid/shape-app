@@ -885,6 +885,77 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — BYO commission split PR A: the rails (#1794) — 0% on coach-brought clients
+
+- **The marketplace fee becomes origin-aware** (spec #1789 → `a6cdf7fc`): Shape's
+  15% applies only to marketplace-delivered clients; a **coach-brought (BYO)
+  client pays 0% commission** — attributed by invite-DM or ref-link inside a
+  30-day touch window; every client stays a $5/mo member. This PR is the RAILS
+  (attribution + billing); **PR B (surfaces)** follows.
+- **⚠ OWNER MIGRATION — `2026-07-21-coach-byo-commission-split.sql`** (idempotent;
+  applied twice during review, **needs ONE MORE re-run** — the resolver RPC
+  changed in round 7): the `coach_referrals` ledger (two ENFORCED row shapes — a
+  durable link-token row per provider that never expires vs client-bound rows
+  carrying the 30-day last-touch window; partial uniques both ways + the
+  checkout hot-path index) · `origin`/`fee_bps` columns on `subscriptions` +
+  `one_time_purchases` (default marketplace/1500 — correct for every pre-feature
+  row) with **BEFORE UPDATE freeze triggers** (write-once: no replay or late
+  delivery can rewrite attribution) · 4 SECURITY DEFINER RPCs (create referral ·
+  create link · bind · **`resolve_coach_checkout_origin`**, the auth.uid()-scoped
+  resolver that owns the whole precedence).
+- **Precedence, resolved in the DB, RLS-authoritative:** waitlist wins
+  (Shape-originated demand can never be re-classed BYO — and an EXPIRED
+  first-dibs invite no longer counts, matching `hasActiveWaitlistInvite`) → a
+  presented ref token touches the window only when its durable row names THIS
+  provider → an unexpired client-bound row decides the channel (dm→coach_invite,
+  link→coach_link) → marketplace. User routes never read the referral ledger via
+  the service role: resolution runs entirely through the RPC on the CALLER's
+  client; fail-closed marketplace/1500 on ANY failure incl. pre-migration (both
+  fallback paths logged so a silent degrade is visible).
+- **Stripe:** fee fields are positive-or-ABSENT (omitted at 0 — the full charge
+  transfers to the coach and Shape absorbs processing, the spec's stated BYO
+  subsidy); metadata stamps origin/fee_bps/referral_id; the webhook persists the
+  pair, consumes the referral ONLY on a confirmed row write, and normalizes a
+  deliberately-omitted `application_fee_amount` to a real $0.
+- **The stored fee_bps is the billing truth:** analytics + both dashboards
+  compute net revenue per-row from the stored rate (the flat ×0.85 died), the
+  refunds page reads the row's rate (rate-neutral copy), and payout
+  notifications use the same resolved pair the row stores.
+- **The review gauntlet: EIGHT rounds, ~18 findings, all real.** Standouts:
+  `Number('')`→0%-commission hole → strict digit-parse `parseFeeBpsMeta` (a
+  repo-documented class re-made — the pre-push checklist exists because of
+  rounds like this) · service-role reads from user routes → the resolver RPC ·
+  store credit consumed after a failed purchase upsert → gated on the write ·
+  explicit fee_bps selects erroring whole queries pre-migration → the
+  `select('*')` house pattern ×5 · **schema-cache lag** (PGRST204 right after
+  the migration) could freeze a BYO row as marketplace/1500 FOREVER → the
+  retry-without-columns is now gated to default-pair writes; BYO deliveries
+  fail 503 so Stripe redelivers once the cache refreshes · origin/fee validated
+  as an ATOMIC PAIR (`attributionPair` — the marketplace/0 free-ride and
+  coach_*/1500 mislabel both die) · an **`ISSUED_FEE_BPS` registry** so a future
+  rate change never rewrites in-flight sessions stamped at the old rate.
+- Pure modules: `platform-fee.mjs` (+ `.ts` wrapper) + `coach-origin.mjs`; suite
+  **697**. Merged on the reviews-complete gate (both reviewers clean on the
+  final head + CI green). **Open:** PR B — add-client send channels (✉/✆ ×13
+  locales), web `?ref=` capture, invite-DM referral creation, Business-page
+  origin labels off STORED fee_bps, the War Room metric.
+
+### 2026-07-21 — About CTA reaches the coach shells (#1797) — closing the #1795 gap
+
+- **#1795's "Open the community →" CTA was DEAD in both coach apps** (Codex P2,
+  caught post-merge): the About page rides the shared `BSSettings` embedded by
+  ALL THREE shells, but only the client shell listened for `shape:goCommunity`.
+  The "About is client-only" claim was wrong — a grep of direct refs missed the
+  shared-component embed.
+- Both pro shells now listen; each clears **exactly ITS OWN takeover set** (the
+  early-returns that eclipse the tab body — trainer incl. `liveWatch`, which the
+  nutritionist shell doesn't declare: a `replace_all` had copied it there and
+  would have thrown at tap, caught in review) plus a stale `chatRequest` (all
+  three shells — it would hijack the landing), then lands on the chat tab's
+  community feed.
+- Three review rounds, each a real catch (stale chatRequest · stacked takeovers ·
+  the undefined setter). CodeRabbit + Codex both clean on the final head.
+
 ### 2026-07-21 — Onboarding tour: kill the endless re-show + end-freeze, full feature coverage, app parity (#1792)
 
 - **Root-caused the two owner-reported tour bugs as one persistence failure.**
