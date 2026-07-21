@@ -565,6 +565,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
 
+  // About-page CTA — "Join the community." closes the settings takeover and
+  // lands on the chat tab's community feed (the shape:openMarket pattern).
+  React.useEffect(() => {
+    const open = () => {
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setTab('chat');
+    };
+    window.addEventListener('shape:goCommunity', open);
+    return () => window.removeEventListener('shape:goCommunity', open);
+  }, []);
+
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
@@ -26501,17 +26512,24 @@ function BSAboutPage({ onBack }) {
         <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
       </div>
 
-      {/* CTA */}
-      <div style={{ padding: `26px ${px}px 24px`, textAlign: 'center' }}>
-        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
+      {/* sign-off — DIRECTLY under the letter's last line (owner call
+          2026-07-21: letter → signature → CTA-as-closer). Quiet: the founder
+          card up top carries the face + bio; this is just the signed hand. */}
+      <div style={{ padding: `4px ${px}px 0`, textAlign: 'center' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 15, color: t.INK }}>— Chris Perry</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>Founder · Shape</div>
       </div>
 
-      {/* sign-off — the very end of the page (extra gap below the CTA).
-          Text-only: the portrait moved up top as the founder card (website
-          parity); the letter still closes signed. */}
-      <div style={{ padding: `52px ${px}px 40px`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— Chris Perry</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 7 }}>Founder · Shape</div>
+      {/* CTA — the page's true closer, and a real door: tapping it opens the
+          community feed (the shell listens for shape:goCommunity — the
+          shape:openMarket pattern; About is client-only, so the client shell
+          is the one host). */}
+      <div style={{ padding: `58px ${px}px 40px`, textAlign: 'center' }}>
+        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
+        <button
+          onClick={() => { try { window.dispatchEvent(new Event('shape:goCommunity')); } catch (e) {} }}
+          style={{ marginTop: 16, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}
+        >Open the community →</button>
       </div>
       <BSFooter right="About" />
     </BSPage>
