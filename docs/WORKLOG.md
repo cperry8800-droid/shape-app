@@ -923,8 +923,9 @@ changelog whenever something ships.
   would mislead — the engine's centered card is the honest state (CodeRabbit).
 - **i18n**: 9 new `onboarding` keys (tour.progress/goal/score × eyebrow/title/body)
   + 2 rescoped (tour.you.title/body), all 64 keys/locale ×13, catalog parity 3/3.
-- Verified: JSX parse · tour engine parse · every tour anchor resolves to a
-  rendered `data-tour` · PowerShell `/m/` build exit 0 · LF. Review round on
+- Verified: JSX parse · tour engine parse · every *configured* tour anchor
+  resolves to a rendered `data-tour` (the Goal step intentionally has none when
+  no goal is set → centered card) · PowerShell `/m/` build exit 0 · LF. Review round on
   `6f2da1e1`: CodeRabbit CHANGES_REQUESTED (2 — goal fallback + centerCard dedup,
   both fixed) · Codex 1 P2 (dead score anchor, fixed). Open: OWNER on-device tour
   replay (web + app, first-run + finale exit).
