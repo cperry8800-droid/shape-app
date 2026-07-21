@@ -113,6 +113,7 @@ test('prose splitter: a marketing lead sentence never rides into the method (Cod
 test('timer parser: minutes/seconds/ranges/per-side; artifacts dropped', () => {
   assert.deepEqual(bsStepTimers('Cover and cook on low for 18 minutes without lifting the lid.'), [{ seconds: 1080, label: '18 min' }]);
   assert.deepEqual(bsStepTimers('Sear 3 minutes per side until golden.'), [{ seconds: 180, label: '3 min per side' }]);
+  assert.deepEqual(bsStepTimers('Sear 3 min/side until deeply golden.'), [{ seconds: 180, label: '3 min per side' }]); // shipped shorthand (Codex #1804 r5)
   assert.deepEqual(bsStepTimers('Whisk hard for about 30 seconds until smooth.'), [{ seconds: 30, label: '30 sec' }]);
   const range = bsStepTimers('Roast 18–20 minutes until it flakes.');
   assert.equal(range[0].seconds, 1080);

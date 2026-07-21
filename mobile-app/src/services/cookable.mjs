@@ -122,7 +122,9 @@ export const bsSplitMethodProse = (text) => {
 // "18 minutes" · "30 seconds" · "1 hour" · "18–20 minutes" (range → the lower
 // bound runs, the label keeps the range) · "3 minutes per side" (label keeps
 // the qualifier). Cap 4 per step.
-const TIMER_RE = /(\d+(?:\s*[–-]\s*\d+)?)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)(\s+per\s+side)?/gi;
+// The per-side qualifier appears both as words ("3 minutes per side") and the
+// shipped shorthand ("3 min/side") — match both so the CTA keeps the flip cue.
+const TIMER_RE = /(\d+(?:\s*[–-]\s*\d+)?)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)(\s*\/\s*side|\s+per\s+side)?/gi;
 const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
 
 export const bsStepTimers = (text) => {
