@@ -109,7 +109,7 @@ function AboutLetter() {
           As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned.
         </p>
 
-        <aside style={{ ...pullBase, marginRight: "-80px", paddingRight: 24, borderRight: `3px solid ${TEAL}`, textAlign: "right" }}>
+        <aside className="about-pull-r" style={{ ...pullBase, marginRight: "-80px", paddingRight: 24, borderRight: `3px solid ${TEAL}`, textAlign: "right" }}>
           Not a vanity metric. <em style={{ color: TEAL_BRIGHT }}>A mirror.</em>
         </aside>
 
@@ -121,7 +121,7 @@ function AboutLetter() {
           And then there's the part no app gets right: <em style={{ fontStyle: "italic", color: TEAL_BRIGHT, fontWeight: 500 }}>the community</em>. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.
         </p>
 
-        <aside style={{ ...pullBase, marginLeft: "-80px", paddingLeft: 24, borderLeft: `3px solid ${TEAL}` }}>
+        <aside className="about-pull-l" style={{ ...pullBase, marginLeft: "-80px", paddingLeft: 24, borderLeft: `3px solid ${TEAL}` }}>
           The community isn't a forum. It's the people in your loop.
         </aside>
 
@@ -133,14 +133,14 @@ function AboutLetter() {
   );
 }
 
-// Closing sign-off — the very last thing on the page (under the positioning).
-// Text-only: the portrait moved up top as the author card (AboutFounder, owner
-// call 2026-07-21); the letter still closes signed.
+// The letter's signature — sits DIRECTLY under the letter's last line (owner
+// call 2026-07-21: letter → signature → CTA-as-closer). Quiet and small: the
+// founder card up top carries the face + bio; this is just the signed hand.
 function AboutSignoff() {
   return (
-    <section style={{ padding: "8px 72px 120px", textAlign: "center" }}>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 21, color: "rgba(242,237,228,0.92)", lineHeight: 1.2 }}>— Chris Perry</div>
-      <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 8 }}>Founder · Shape</div>
+    <section style={{ padding: "0 24px 8px", textAlign: "center" }}>
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 17, color: "rgba(242,237,228,0.88)", lineHeight: 1.2 }}>— Chris Perry</div>
+      <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL_BRIGHT, marginTop: 7 }}>Founder · Shape</div>
     </section>
   );
 }
@@ -184,13 +184,17 @@ function AboutVision() {
   );
 }
 
+// The page's true closer — the invitation, with a real door (house Get-started
+// button, the pricing.jsx grammar). Mounted after the signature so the letter
+// closes signed and the CTA closes the page.
 function AboutCTA() {
   return (
-    <section style={{ padding: "40px 72px 140px" }}>
+    <section style={{ padding: "96px 72px 140px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
         <h3 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 64px)", letterSpacing: "-0.035em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.0 }}>
           Join the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community.</em>
         </h3>
+        <a href="/newdesign/GetApp.html" style={{ marginTop: 36, padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none", display: "inline-block" }}>Get started →</a>
       </div>
     </section>
   );
@@ -319,13 +323,15 @@ function AboutPage() {
         </g>
       </svg>
       <div style={{ position: "relative", zIndex: 1 }}>
-        <style>{`@media (max-width: 720px) { .about-vision-grid { grid-template-columns: 1fr !important; gap: 36px !important; } }`}</style>
+        <style>{`@media (max-width: 720px) { .about-vision-grid { grid-template-columns: 1fr !important; gap: 36px !important; } }
+@media (max-width: 900px) { .about-pull-r { margin-right: 0 !important; } .about-pull-l { margin-left: 0 !important; } }`}</style>
         <Header active="About" />
         <AboutHero />
         <AboutFounder />
         <AboutVision />
         <AboutLetter />
         <AboutSignoff />
+        <AboutCTA />
         <Footer />
       </div>
     </div>
