@@ -296,3 +296,12 @@ test('a TERMINAL authored window must be walk-away — live-fire finals drop to 
   ] });
   assert.equal(mid.stepMeta[1].passive, true);
 });
+
+test('bsAuthorStep: fractional durations never author a window (the parser mis-reads them)', () => {
+  // "1.5 minutes" parses as "5 minutes" — a fabricated window; refuse instead.
+  assert.deepEqual(bsAuthorStep('Rest 1.5 minutes.', 'off'), { t: 'Rest 1.5 minutes.' });
+  assert.deepEqual(bsAuthorStep('Chill 1.5 hours in the fridge.', 'off'), { t: 'Chill 1.5 hours in the fridge.' });
+  assert.deepEqual(bsAuthorStep('Köcheln 1,5 Minuten.', 'stove'), { t: 'Köcheln 1,5 Minuten.' }); // comma decimals too
+  // Integer durations still author normally.
+  assert.equal(bsAuthorStep('Simmer 15 minutes.', 'stove').passive, true);
+});

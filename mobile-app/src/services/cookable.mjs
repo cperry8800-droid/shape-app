@@ -195,10 +195,19 @@ export const bsStepTimers = (text) => {
 // stated duration ≥ 4 min honestly downgrades to a plain step — the editor
 // shows the hint, nothing is fabricated.
 const BS_AUTHOR_MIN_PASSIVE = 4; // keep in sync with BS_ORCH.minPassive (cookOrchestrator.mjs)
+// A fractional duration breaks the integer timer parser — "Rest 1.5 minutes"
+// reads as "5 minutes" (the digit after the decimal), "1,5" likewise (comma
+// decimals) — so authoring would PERSIST a fabricated window (Codex). The parse
+// can't be trusted → no window; the editor hint asks for a restated time
+// ("90 seconds" / "1 min 30").
+// No trailing \b — the guard must match every shape the parser's unit match
+// does (TIMER_RE has no boundary either, so "1,5 Minuten" reads "5 minute[n]").
+const BS_AUTHOR_FRACTIONAL_RE = /\d+[.,]\d+\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)/i;
 export const bsAuthorStep = (text, station) => {
   const t = str(text);
   if (!t) return null;
   if (!BS_STATIONS.includes(station)) return { t };
+  if (BS_AUTHOR_FRACTIONAL_RE.test(t)) return { t };
   const first = bsStepTimers(t)[0];
   // Floor on RAW SECONDS — Math.round(210/60) is 4, which would sneak a
   // 3.5-minute step over the 4-minute window floor (CodeRabbit).
