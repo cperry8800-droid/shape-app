@@ -6371,9 +6371,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     }).catch(() => {
       // A STALE hold's getUserMedia rejecting after a newer hold already started
       // recording must not touch shared state (would flash "blocked" + reset
-      // micState mid-record) — gen-guard it like the resolve path (adversarial
-      // review #1805).
-      if (myHold !== holdGenRef.current) return;
+      // micState mid-record) — MIRROR the resolve path's full guard: also bail on
+      // !holdingRef.current, which stopVoiceWork clears on log/unmount. holdGenRef
+      // is NOT bumped by log, so without the holdingRef check a pre-log
+      // getUserMedia REJECTION resolving after Undo would fire over the restored
+      // band (CodeRabbit Major #1805 — same undo-revival class as the voice gen).
+      if (!holdingRef.current || myHold !== holdGenRef.current) return;
       // Denied permission / no device. micState can't have left 'idle' on this
       // path (it's only set after the recorder starts), but reset it explicitly
       // so the re-entry guard can never wedge if that ordering ever changes.
