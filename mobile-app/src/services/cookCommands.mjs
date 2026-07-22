@@ -102,13 +102,25 @@ const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|d
 // a real command. "do not"/"is not"/"can not" are covered by the bare `not`.
 const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|never|not)\b/;
 
-// A wh-QUESTION opener ("what is the next step", "when do I move on", "where do
-// I go") is asking Nora, even when it embeds a nav phrase — so it must not fire
-// back/next (Codex P2 #1805). "how" is deliberately excluded (it's the timer
-// word — "how long left" must still classify), and this runs AFTER the elliptical
-// timer check so "whats left" isn't swallowed. `whats?` catches the
-// apostrophe-stripped "what's the next step" → "whats the next step".
-const WH_OPENER = /^(whats?|when|where|why|which|who)\b/;
+// A wh-QUESTION opener ("what is the next step", "when do I move on", "how's the
+// last step") is asking Nora, even when it embeds a nav phrase — so it must not
+// fire back/next (Codex P2 #1805). Includes "how"/"how's": this runs AFTER the
+// TIMER_PHRASE + ELLIPTICAL_TIMER passes, so genuine timer queries ("how long
+// left", "how much longer", "whats left") already classified and returned before
+// we get here — only NON-timer how-questions ("how's the next step") reach this
+// guard. `whats?`/`hows?` catch the apostrophe-stripped "what's"/"how's" forms.
+const WH_OPENER = /^(whats?|hows?|when|where|why|which|who|whom|whose)\b/;
+
+// A COPULA or perfect/do auxiliary leading the utterance ("is the next step
+// ready", "was that the last step", "have we moved on", "does the next step need
+// salt") is a QUESTION or a statement, never an imperative — no kitchen command
+// starts with one of these tokens — so an embedded nav phrase must fall through
+// to Nora, not fire (audit #1805: copula/aux openers slipped past QUESTION_OPENER,
+// which only guards a modal/aux + a first-person/impersonal PRONOUN). Runs after
+// the timer passes for the same reason as WH_OPENER. "do" is deliberately absent:
+// "do the next step" is a legitimate imperative (advance); only the strictly
+// interrogative "does"/"did" are guarded here.
+const AUX_OPENER = /^(is|are|was|were|am|be|been|being|has|have|had|does|did)\b/;
 
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
@@ -128,10 +140,12 @@ export const bsCookCommand = (transcript) => {
     for (const re of ELLIPTICAL_TIMER) if (re.test(t)) return 'howlong';
   }
 
-  // A wh-QUESTION embedding a nav phrase ("what is the next step", "when do I
-  // move on") is asking Nora, not commanding — guard before the nav pass (Codex
-  // P2 #1805).
+  // A wh-QUESTION or copula/aux-led question embedding a nav phrase ("what is the
+  // next step", "is the next step ready", "was that the last step", "how's the
+  // last step") is asking Nora, not commanding — guard before the nav pass (Codex
+  // P2 + audit #1805). Both run after the timer passes so timer queries survive.
   if (WH_OPENER.test(t)) return null;
+  if (AUX_OPENER.test(t)) return null;
 
   // Nav / timer-start phrases: capped, because a long utterance that merely
   // contains "go back"/"next step" is a question ("should I go back to the pan

@@ -116,11 +116,42 @@ test('a wh-QUESTION embedding a nav phrase reaches Nora, not the command (Codex 
   // …the genuine elliptical timer forms still classify (they run before the guard).
   assert.equal(bsCookCommand('whats left'), 'howlong');
   assert.equal(bsCookCommand('time left'), 'howlong');
-  assert.equal(bsCookCommand('how long left'), 'howlong');   // "how" isn't a wh-guard word
+  assert.equal(bsCookCommand('how long left'), 'howlong');   // timer classifies before the wh-guard
   // …and the plain imperatives still fire.
   assert.equal(bsCookCommand('next step'), 'next');
   assert.equal(bsCookCommand('move on'), 'next');
   assert.equal(bsCookCommand('go back'), 'back');
+});
+
+test('copula / aux / how-question openers embedding a nav phrase reach Nora (audit #1805)', () => {
+  // A copula/aux-led question containing next-step/last-step must NOT fire the
+  // command — no kitchen imperative starts with is/are/was/were/has/have/does/did.
+  assert.equal(bsCookCommand('is the next step ready'), null);
+  assert.equal(bsCookCommand('is the next step simple'), null);
+  assert.equal(bsCookCommand('are we on the last step'), null);
+  assert.equal(bsCookCommand('was the last step ok'), null);
+  assert.equal(bsCookCommand('was that the last step'), null);
+  assert.equal(bsCookCommand('have we moved on'), null);
+  assert.equal(bsCookCommand('has the timer gone off'), null);
+  assert.equal(bsCookCommand('does the next step need salt'), null);
+  assert.equal(bsCookCommand('did I finish the last step'), null);
+  // …how / how's questions too ("how" is guarded only after the timer passes).
+  assert.equal(bsCookCommand("how's the next step"), null);
+  assert.equal(bsCookCommand("how's the last step"), null);
+  assert.equal(bsCookCommand("how's the next step going"), null);
+  // …genuine timer-status queries still classify (they run BEFORE these guards).
+  assert.equal(bsCookCommand('how long left'), 'howlong');
+  assert.equal(bsCookCommand('how much longer'), 'howlong');
+  assert.equal(bsCookCommand('how long is left on the timer'), 'howlong');
+  assert.equal(bsCookCommand('whats left'), 'howlong');
+  assert.equal(bsCookCommand('time left'), 'howlong');
+  // …and "do the next step" stays a legitimate imperative (advance) — "do" is
+  // NOT guarded, only the strictly-interrogative does/did are.
+  assert.equal(bsCookCommand('do the next step'), 'next');
+  // …plain imperatives untouched.
+  assert.equal(bsCookCommand('next step'), 'next');
+  assert.equal(bsCookCommand('last step'), 'back');
+  assert.equal(bsCookCommand('start a timer'), 'timer');
 });
 
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {
