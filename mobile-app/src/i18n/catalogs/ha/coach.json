@@ -856,5 +856,7 @@
   "wire.openFileArrow": "BUƊE FAYILIN →",
   "wire.scheduleArrow": "JADAWALI →",
   "wire.seeFullRoster": "DUBA CIKAKKEN JERIN",
-  "wire.theWire": "WAYAR"
+  "wire.theWire": "WAYAR",
+  "case.prep": "SHIRI",
+  "case.prepLine": "{count, plural, one {An shirya abinci #} other {An shirya abinci #}}"
 }

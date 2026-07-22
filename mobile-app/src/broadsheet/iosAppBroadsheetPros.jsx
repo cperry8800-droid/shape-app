@@ -3782,14 +3782,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // NOTHING — absence, never a padlock (a coach can't tell never-opted-in from
   // not-shared).
   const [cycleShared, setCycleShared] = useStateBSP(null);
+  // PREP (PR C) — the compact { count, lastAt, days } projection off d.prep
+  // (get_client_meal_prep, coach-link-gated). null → the register renders
+  // NOTHING (absence, never a padlock; a coach can't tell never-preps from
+  // pre-migration).
+  const [prepSignal, setPrepSignal] = useStateBSP(null);
   useEffectBSP(() => {
     // Reset per client + ignore a stale response, so navigating A→B never shows
-    // client A's care team / sleep / cycle on client B's profile.
-    setCareTeam(null); setSleepRec(null); setCycleShared(null); setCareLoaded(false);
+    // client A's care team / sleep / cycle / prep on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCycleShared(null); setPrepSignal(null); setCareLoaded(false);
     if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
     let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setCareLoaded(true); })
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCycleShared(d && d.cycle && d.cycle.share === true && Array.isArray(d.cycle.starts) ? { starts: d.cycle.starts, today: typeof d.cycle.today === 'string' ? d.cycle.today : null } : null); setPrepSignal(d && d.prep && Number(d.prep.count) > 0 ? { count: Number(d.prep.count), lastAt: Number(d.prep.lastAt) || null, days: Array.isArray(d.prep.days) ? d.prep.days : [] } : null); setCareLoaded(true); })
       .catch(() => { if (!ignore) setCareLoaded(true); });
     return () => { ignore = true; };
   }, [clientUid]);
@@ -4250,6 +4255,26 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             muted={t.INK50}
             still
           /> : macros.map((m, i) => <div key={i}>{trackRow(m.n, m.cur != null ? `${m.cur} g` : '—', m.c, `${m.tgt} g`, m.cur != null ? m.cur / m.tgt : 0, m.c)}</div>)}
+        </div>
+      )}
+
+      {/* PREP (PR C) — the meal-prep signal: "{n} meals · {day}". Honest slot:
+          renders ONLY from a real fresh prep record (get_client_meal_prep,
+          coach-link-gated); states what happened, never what didn't
+          (never-shaming — a client who never preps shows NOTHING here). */}
+      {prepSignal && (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.prep', { defaultValue: 'PREP' })} />}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>
+              {tr('coach:case.prepLine', { defaultValue: '{count, plural, one {# meal prepped} other {# meals prepped}}', count: prepSignal.count })}
+            </span>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>
+              {prepSignal.lastAt ? (() => { try { return new Date(prepSignal.lastAt).toLocaleDateString((window.ShapeI18n && window.ShapeI18n.intlLocale && window.ShapeI18n.intlLocale()) || 'en', { weekday: 'short' }); } catch (e) { return ''; } })() : ''}
+              {prepSignal.days.length ? <span style={{ color: t.INK50 }}> · {prepSignal.days.join(' ')}</span> : null}
+            </span>
+          </div>
         </div>
       )}
 

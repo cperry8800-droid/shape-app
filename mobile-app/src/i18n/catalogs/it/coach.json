@@ -856,5 +856,7 @@
   "wire.openFileArrow": "APRI IL FASCICOLO →",
   "wire.scheduleArrow": "PIANIFICA →",
   "wire.seeFullRoster": "VEDI LA LISTA COMPLETA",
-  "wire.theWire": "IL FILO"
+  "wire.theWire": "IL FILO",
+  "case.prep": "PREP",
+  "case.prepLine": "{count, plural, one {# pasto preparato} other {# pasti preparati}}"
 }

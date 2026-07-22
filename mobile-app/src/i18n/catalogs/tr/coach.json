@@ -856,5 +856,7 @@
   "wire.openFileArrow": "DOSYAYI AÇ →",
   "wire.scheduleArrow": "PLANLA →",
   "wire.seeFullRoster": "TÜM KADROYU GÖR",
-  "wire.theWire": "BÜLTEN"
+  "wire.theWire": "BÜLTEN",
+  "case.prep": "HAZIRLIK",
+  "case.prepLine": "{count, plural, one {# öğün hazırlandı} other {# öğün hazırlandı}}"
 }
