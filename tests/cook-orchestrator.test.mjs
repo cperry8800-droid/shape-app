@@ -106,8 +106,10 @@ test('duplicate recipe keys stay independent instances — no cross-clear (CodeR
   assert.notEqual(roasts[0].iid, roasts[1].iid);  // tracked as distinct instances
   assert.equal(roasts[0].recipe, roasts[1].recipe); // …while sharing the display key
   assert.equal(timeline.filter((e) => e.stepIndex === 2).length, 2); // both rest — nothing merged away
-  // One oven → the two roasts never overlap (station conflict respected across instances).
-  assert.notEqual(roasts[0].at, roasts[1].at);
+  // One oven → the two 20-min windows NEVER overlap: the later roast starts only
+  // after the earlier one ends (station conflict actually enforced, not just ≠ start).
+  const [r0, r1] = roasts[0].at <= roasts[1].at ? [roasts[0], roasts[1]] : [roasts[1], roasts[0]];
+  assert.ok(r1.at >= r0.at + r0.min, `oven windows overlap: ${r0.at}+${r0.min} vs ${r1.at}`);
 });
 
 test('empty / junk input never throws → empty serial', () => {

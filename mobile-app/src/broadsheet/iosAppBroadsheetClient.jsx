@@ -6869,7 +6869,15 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
         ? arr
         : [...arr, { id, stepIndex: cursor, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: Date.now() + tms[0].seconds * 1000, total: tms[0].seconds }]));
     }
-    advance();
+    // Advance unless the NEXT step's recipe still has a running hold (Codex — the
+    // wait gate outranks starting a window; you can't step into a recipe that's
+    // still cooking). No next step (a terminal window) → finish normally: the
+    // recipe's active work is done, and PREPPED is an active-work signal (a
+    // make-ahead sets/chills unattended), so it records here by design.
+    const nxt = timeline[cursor + 1];
+    const at = Date.now();
+    const blocked = !!(nxt && timers.some((x) => x.recipeKey === nxt.recipe && x.endsAt > at));
+    if (!blocked) advance();
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
