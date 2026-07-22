@@ -302,6 +302,12 @@ test('bsAuthorStep: fractional durations never author a window (the parser mis-r
   assert.deepEqual(bsAuthorStep('Rest 1.5 minutes.', 'off'), { t: 'Rest 1.5 minutes.' });
   assert.deepEqual(bsAuthorStep('Chill 1.5 hours in the fridge.', 'off'), { t: 'Chill 1.5 hours in the fridge.' });
   assert.deepEqual(bsAuthorStep('Köcheln 1,5 Minuten.', 'stove'), { t: 'Köcheln 1,5 Minuten.' }); // comma decimals too
+  // Range forms evade unit-adjacent guards both ways — the blanket rule catches them.
+  assert.deepEqual(bsAuthorStep('Rest 1.5–2 minutes.', 'off'), { t: 'Rest 1.5–2 minutes.' });
+  assert.deepEqual(bsAuthorStep('Rest 1–1.5 minutes.', 'off'), { t: 'Rest 1–1.5 minutes.' });
+  // Deliberately conservative: a legit non-duration decimal also refuses (the
+  // editor hint guides a restate) — a false refusal beats a fabricated hold.
+  assert.deepEqual(bsAuthorStep('Add 1.5 cups water, simmer 15 minutes.', 'stove'), { t: 'Add 1.5 cups water, simmer 15 minutes.' });
   // Integer durations still author normally.
   assert.equal(bsAuthorStep('Simmer 15 minutes.', 'stove').passive, true);
 });

@@ -6964,7 +6964,9 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
           <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {recStats.order.map((rk) => {
               const isNow = ev && ev.recipe === rk;
-              const hold = running.find((x) => x.recipeKey === rk);
+              // Hold-only view: a soft convenience timer is NOT a holding lane —
+              // the strip keeps showing the recipe's PROGRESS while one runs.
+              const hold = running.find((x) => !x.soft && x.recipeKey === rk);
               const done = doneByRecipe[rk] || 0;
               const tot = recStats.total[rk] || 0;
               return (
@@ -7020,7 +7022,9 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                 })}
                 {rung.map((x) => (
                   <div key={x.id} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                    <span style={{ ...bandEyebrow, fontSize: 8, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}`, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('cook:prep.ready', { defaultValue: '{title} ready', title: x.title })}</span>
+                    {/* A rung SOFT timer never claims "{title} ready" — only its own
+                        countdown finished ("Steak · 3 min per side"), not the dish. */}
+                    <span style={{ ...bandEyebrow, fontSize: 8, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}`, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.soft ? `◷ ${x.title}${x.label ? ` · ${x.label}` : ''}` : tr('cook:prep.ready', { defaultValue: '{title} ready', title: x.title })}</span>
                     <button onClick={() => dismissTimer(x.id)} style={{ ...quietBtn, color: BAND.cream, fontSize: 9, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
                   </div>
                 ))}

@@ -195,14 +195,16 @@ export const bsStepTimers = (text) => {
 // stated duration ≥ 4 min honestly downgrades to a plain step — the editor
 // shows the hint, nothing is fabricated.
 const BS_AUTHOR_MIN_PASSIVE = 4; // keep in sync with BS_ORCH.minPassive (cookOrchestrator.mjs)
-// A fractional duration breaks the integer timer parser — "Rest 1.5 minutes"
-// reads as "5 minutes" (the digit after the decimal), "1,5" likewise (comma
-// decimals) — so authoring would PERSIST a fabricated window (Codex). The parse
-// can't be trusted → no window; the editor hint asks for a restated time
-// ("90 seconds" / "1 min 30").
-// No trailing \b — the guard must match every shape the parser's unit match
-// does (TIMER_RE has no boundary either, so "1,5 Minuten" reads "5 minute[n]").
-const BS_AUTHOR_FRACTIONAL_RE = /\d+[.,]\d+\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)/i;
+// A fractional number ANYWHERE in the step refuses window authoring. The
+// integer timer parser mis-reads decimals in too many arrangements to
+// enumerate — "1.5 minutes" → "5 minutes", "1,5 Minuten" the same, and range
+// forms evade unit-adjacent guards both ways ("1.5–2 minutes" parses "5–2",
+// "1–1.5 minutes" parses "5 minutes"; Codex + CodeRabbit, three rounds of the
+// same family). Deliberately conservative: a legit non-duration decimal
+// ("add 1.5 cups…, simmer 15 minutes") also refuses — a false refusal shows
+// the editor hint and the coach restates; a false window fabricates a hold on
+// a client's board. Never fabricate wins.
+const BS_AUTHOR_FRACTIONAL_RE = /\d[.,]\d/;
 export const bsAuthorStep = (text, station) => {
   const t = str(text);
   if (!t) return null;
