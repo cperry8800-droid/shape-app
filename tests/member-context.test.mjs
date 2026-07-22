@@ -18,9 +18,15 @@ test('null/empty facts → null (no block at all)', () => {
   assert.equal(formatMemberContext({ today: {} }), null);
 });
 
-test('never fabricates: a lone target without a logged value renders no kcal line', () => {
-  const s = formatMemberContext({ today: { kcalTarget: 1900 }, score: { total: 1284, tier: 'Tempo' } });
-  assert.ok(!/kcal/i.test(s));
+test('a lone target renders AS a target (for fit-checks) — never a fabricated consumed value', () => {
+  // A daily target with nothing logged now renders so "does this meal fit my
+  // day?" is computable (Codex P2 #1805) — but it must NEVER fabricate a
+  // consumed number from the target.
+  const s = formatMemberContext({ today: { kcalTarget: 1900, proteinTarget: 150 }, score: { total: 1284, tier: 'Tempo' } });
+  assert.match(s, /Today's calorie target: 1900 kcal \(none logged yet\)/);
+  assert.match(s, /Today's protein target: 150 g \(none logged yet\)/);
+  assert.ok(!/Today's calories: \d/.test(s));   // no fabricated consumed value
+  assert.ok(!/Today's protein: \d/.test(s));
   assert.match(s, /1284/);
   assert.match(s, /Tempo/);
 });

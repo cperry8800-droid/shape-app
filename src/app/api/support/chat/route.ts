@@ -379,6 +379,11 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
     sb.from('client_weigh_ins').select('weight, unit, logged_on').eq('user_id', uid).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_goals').maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle(),
+    // Daily calorie/protein TARGETS (coach Adjust override, the plan route's
+    // source) so "does this meal fit my day?" can actually be computed — the
+    // fact renderer already shows "X of Y target" but nothing populated Y
+    // (Codex P2 #1805).
+    sb.from('client_programs').select('detail').eq('user_id', uid).maybeSingle(),
   ]);
   const val = <T,>(i: number): T | null => {
     const l = legs[i];
@@ -391,13 +396,29 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
 
   const facts: Record<string, unknown> = {};
   const snap = val<{ calories?: number; protein_g?: number; workout_minutes?: number }>(0);
+  // Daily targets from the coach nutrition override — validated finite, ≥0, or
+  // absent (honest-absent; mirrors the plan route's asTarget).
+  const progRow = val<{ detail?: unknown }>(6);
+  const nutriDetail =
+    progRow && typeof progRow.detail === 'object' && progRow.detail
+      ? ((progRow.detail as { nutrition?: unknown }).nutrition as Record<string, unknown> | undefined)
+      : undefined;
+  const asTarget = (v: unknown): number | null => {
+    if (v == null || (typeof v === 'string' && v.trim() === '')) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const kcalTarget = asTarget(nutriDetail?.calories);
+  const proteinTarget = asTarget(nutriDetail?.protein);
+  const todayFacts: Record<string, unknown> = {};
   if (snap) {
-    facts.today = {
-      kcal: snap.calories != null ? Number(snap.calories) : null,
-      proteinG: snap.protein_g != null ? Number(snap.protein_g) : null,
-      trainedToday: snap.workout_minutes != null && Number(snap.workout_minutes) > 0 ? true : undefined,
-    };
+    if (snap.calories != null) todayFacts.kcal = Number(snap.calories);
+    if (snap.protein_g != null) todayFacts.proteinG = Number(snap.protein_g);
+    if (snap.workout_minutes != null && Number(snap.workout_minutes) > 0) todayFacts.trainedToday = true;
   }
+  if (kcalTarget != null) todayFacts.kcalTarget = kcalTarget;
+  if (proteinTarget != null) todayFacts.proteinTarget = proteinTarget;
+  if (Object.keys(todayFacts).length) facts.today = todayFacts;
   const mv = val<number>(1);
   if (mv != null) facts.momentum = { value: Number(mv) };
   const ledger = val<Array<{ delta?: number; source_kind?: string }>>(2);

@@ -21,7 +21,9 @@ export function formatMemberContext(facts) {
   const lines = [];
   const t = f.today || {};
   if (num(t.kcal) != null) lines.push(`- Today's calories: ${Math.round(t.kcal)} kcal${num(t.kcalTarget) != null ? ` of a ${Math.round(t.kcalTarget)} kcal target` : ''}.`);
+  else if (num(t.kcalTarget) != null) lines.push(`- Today's calorie target: ${Math.round(t.kcalTarget)} kcal (none logged yet).`);
   if (num(t.proteinG) != null) lines.push(`- Today's protein: ${Math.round(t.proteinG)} g${num(t.proteinTarget) != null ? ` of a ${Math.round(t.proteinTarget)} g target` : ''}.`);
+  else if (num(t.proteinTarget) != null) lines.push(`- Today's protein target: ${Math.round(t.proteinTarget)} g (none logged yet).`);
   if (typeof t.trainedToday === 'boolean') lines.push(`- Trained today: ${t.trainedToday ? 'yes' : 'not yet'}.`);
   if (num(t.habitsDone) != null && num(t.habitsTotal) != null && t.habitsTotal > 0) lines.push(`- Habits today: ${t.habitsDone} of ${t.habitsTotal} done.`);
   const m = f.momentum || {};
