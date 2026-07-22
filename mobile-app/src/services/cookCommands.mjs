@@ -55,11 +55,15 @@ const TIMER_PHRASE = [
 // left") and nav/timer-start — a long utterance that merely contains one is a
 // question, not a command ("should I go back to the pan now"; "…time left before
 // guests arrive, should I rush?").
-const CAPPED_PHRASE = [
-  // Elliptical timer-status — but NOT when trailed by "to …" ("what's left to
-  // do", "time left to cook"), which is a TASK/cooking question for Nora, not a
-  // request for the countdown (Codex P2 #1805).
-  [/\b(time left|whats left)\b(?!\s+to\b)/, 'howlong'],
+// Elliptical timer-status — but NOT when trailed by "to …" ("what's left to
+// do", "time left to cook"), which is a TASK/cooking question for Nora, not a
+// request for the countdown (Codex P2 #1805). Checked (capped) BEFORE the
+// wh-guard below, so "whats left" still classifies as the timer while a
+// wh-question like "whats the next step" is caught by the guard (Codex P2 #1805).
+const ELLIPTICAL_TIMER = [/\b(time left|whats left)\b(?!\s+to\b)/];
+// Nav / timer-start phrases (capped). A long utterance that merely contains one
+// ("should I go back to the pan now") is a question, not a command.
+const NAV_PHRASE = [
   // "start/set [the|a|my] timer" — natural wordings incl. the indefinite article
   // (Codex P3 #1805: "start a timer" previously fell through to Nora).
   [/\b(start|set) (the |a |my )?timer\b/, 'timer'],
@@ -98,6 +102,14 @@ const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|d
 // a real command. "do not"/"is not"/"can not" are covered by the bare `not`.
 const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|never|not)\b/;
 
+// A wh-QUESTION opener ("what is the next step", "when do I move on", "where do
+// I go") is asking Nora, even when it embeds a nav phrase — so it must not fire
+// back/next (Codex P2 #1805). "how" is deliberately excluded (it's the timer
+// word — "how long left" must still classify), and this runs AFTER the elliptical
+// timer check so "whats left" isn't swallowed. `whats?` catches the
+// apostrophe-stripped "what's the next step" → "whats the next step".
+const WH_OPENER = /^(whats?|when|where|why|which|who)\b/;
+
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
   if (!t) return null;
@@ -109,11 +121,23 @@ export const bsCookCommand = (transcript) => {
   // — NOT word-capped.
   for (const [re, cmd] of TIMER_PHRASE) if (re.test(t)) return cmd;
 
-  // Elliptical-timer + nav/timer-start phrases: capped, because a long utterance
-  // that merely contains "time left"/"go back"/"next step" is a question, not a
-  // command ("should I go back to the pan now" = 7 words).
+  // Elliptical timer-status ("time left"/"whats left"): capped, and BEFORE the
+  // wh-guard so it still classifies while a wh-question ("whats the next step")
+  // falls through to Nora.
   if (words.length <= 5) {
-    for (const [re, cmd] of CAPPED_PHRASE) if (re.test(t)) return cmd;
+    for (const re of ELLIPTICAL_TIMER) if (re.test(t)) return 'howlong';
+  }
+
+  // A wh-QUESTION embedding a nav phrase ("what is the next step", "when do I
+  // move on") is asking Nora, not commanding — guard before the nav pass (Codex
+  // P2 #1805).
+  if (WH_OPENER.test(t)) return null;
+
+  // Nav / timer-start phrases: capped, because a long utterance that merely
+  // contains "go back"/"next step" is a question ("should I go back to the pan
+  // now" = 7 words).
+  if (words.length <= 5) {
+    for (const [re, cmd] of NAV_PHRASE) if (re.test(t)) return cmd;
   }
 
   // Strip filler → what's left is the command core. If more than one

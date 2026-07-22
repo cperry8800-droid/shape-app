@@ -105,6 +105,24 @@ test('timer-status queries are NOT word-capped; nav phrases are (Codex P2 #1805)
   assert.equal(bsCookCommand('time left to cook'), null);
 });
 
+test('a wh-QUESTION embedding a nav phrase reaches Nora, not the command (Codex P2 #1805)', () => {
+  // "what is the next step" / "when do I move on" contain next-step/move-on but
+  // are questions — they must NOT advance the recipe.
+  assert.equal(bsCookCommand('what is the next step'), null);
+  assert.equal(bsCookCommand("what's the next step"), null);   // apostrophe → "whats the next step"
+  assert.equal(bsCookCommand('when do I move on'), null);
+  assert.equal(bsCookCommand('where do I go back to'), null);
+  assert.equal(bsCookCommand('which step is next'), null);
+  // …the genuine elliptical timer forms still classify (they run before the guard).
+  assert.equal(bsCookCommand('whats left'), 'howlong');
+  assert.equal(bsCookCommand('time left'), 'howlong');
+  assert.equal(bsCookCommand('how long left'), 'howlong');   // "how" isn't a wh-guard word
+  // …and the plain imperatives still fire.
+  assert.equal(bsCookCommand('next step'), 'next');
+  assert.equal(bsCookCommand('move on'), 'next');
+  assert.equal(bsCookCommand('go back'), 'back');
+});
+
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {
   // The reported false positive (Codex P2 #1805): a recipe timing question is
   // not a timer-status query — it must fall through to the grounded Q&A.
