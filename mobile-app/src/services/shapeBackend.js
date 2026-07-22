@@ -5937,6 +5937,11 @@ function writeVoicePrefs(p) {
   try { window.dispatchEvent(new CustomEvent('shape:voice', { detail: p })); } catch (e) {}
 }
 let _voiceAudio = null;
+// The blob: URL backing _voiceAudio, tracked so stopVoice() can revoke it on an
+// INTERRUPTION — onended/onerror only fire on natural end/failure, so pausing a
+// playing clip would otherwise retain its audio buffer for the page's lifetime
+// (a leak of one blob per interrupted step, CodeRabbit Major PR #1805).
+let _voiceUrl = null;
 // Generation guard (Codex P2, PR #1805): a slow /api/ai/speak fetch can resolve
 // AFTER the step/toggle that triggered it changed — stopVoice() only pauses an
 // _voiceAudio that already exists, so an in-flight speak would still create a
@@ -5946,7 +5951,9 @@ let _voiceAudio = null;
 let _voiceGen = 0;
 function stopVoice() {
   _voiceGen++;
-  try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
+  try { if (_voiceAudio) { _voiceAudio.pause(); } } catch (e) {}
+  try { if (_voiceUrl) { URL.revokeObjectURL(_voiceUrl); } } catch (e) {}
+  _voiceAudio = null; _voiceUrl = null;
 }
 // Server voice ONLY. The old on-device speechSynthesis fallback (the robot) is
 // deliberately GONE — a failed/unavailable server voice returns an honest
@@ -5981,6 +5988,7 @@ async function speakVoice(text, toneOverride, opts = {}) {
     // Last-moment check: a stop() between the blob and playback still wins.
     if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
     _voiceAudio = audio;
+    _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
     await audio.play();
     return { ok: true, source: 'server' };
   } catch (e) {

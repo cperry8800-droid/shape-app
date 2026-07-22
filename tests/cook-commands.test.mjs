@@ -60,6 +60,12 @@ test('a SHORT modal question is not swallowed as a nav/timer command (→ Nora)'
   assert.equal(bsCookCommand('move on'), 'next');
   assert.equal(bsCookCommand('skip'), 'skip');
   assert.equal(bsCookCommand('start the timer'), 'timer');
+  // …and a modal addressed to NORA ("can you …") is a COMMAND, not advice-
+  // seeking — the opener guard is first-person only (adversarial pre-push
+  // review caught 'you' in the pronoun group defeating FILLER's design).
+  assert.equal(bsCookCommand('can you skip this'), 'skip');
+  assert.equal(bsCookCommand('can you repeat that'), 'repeat');
+  assert.equal(bsCookCommand('could you go back'), 'back');
 });
 
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {
@@ -74,6 +80,17 @@ test('a "how long" COOKING question reaches Nora, not the timer command', () => 
   assert.equal(bsCookCommand('how long to go'), 'howlong');   // the timer idiom
   assert.equal(bsCookCommand('how much longer'), 'howlong');
   assert.equal(bsCookCommand('time left'), 'howlong');
+});
+
+test('the "how long" lookaheads exclude copula/prep cooking questions (≤5 words, exercises the lookahead not the length cap)', () => {
+  // CodeRabbit #1805: "is" is a copula, not a timer-status word.
+  assert.equal(bsCookCommand('how long is this simmer'), null);
+  assert.equal(bsCookCommand('how long are the noodles'), null);
+  assert.equal(bsCookCommand('how much time to bake'), null);   // exercises the "to X" lookahead
+  assert.equal(bsCookCommand('how long until done'), null);     // exercises the modal/prep lookahead
+  // …but "is/are + left/remaining" is a genuine timer-status query.
+  assert.equal(bsCookCommand('how long is left'), 'howlong');
+  assert.equal(bsCookCommand('how long remaining'), 'howlong');
 });
 
 test('empty / non-string / junk → null', () => {

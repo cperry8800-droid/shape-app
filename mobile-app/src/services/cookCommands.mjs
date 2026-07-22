@@ -34,10 +34,13 @@ const PHRASE = [
   [/\b(time left|whats left)\b/, 'howlong'],
   // "how long" / "how much time|longer" is a TIMER-STATUS query only when it
   // isn't the FRONT of a recipe question ("how long SHOULD this simmer", "how
-  // much time TO bake") — a trailing modal/aux/prep means the member wants a
-  // COOKING answer, which the local timer command can't give, so it must reach
-  // Nora (who has the recipe). "to go" is the timer idiom, kept (Codex P2 #1805).
-  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|to (?!go\b)|til|until|before|for|of)\b)/, 'howlong'],
+  // much time TO bake", "how long IS this simmer") — a trailing modal/aux/prep
+  // OR a copula not leading to left/remaining means the member wants a COOKING
+  // answer, which the local timer command can't give, so it must reach Nora.
+  // Three lookaheads: (1) modal/prep continuations, (2) "to X" except the timer
+  // idiom "to go", (3) copula ("is/are/has …") except "is left"/"is remaining".
+  // Codex P2 + CodeRabbit #1805.
+  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|til|until|before|for|of)\b)(?!\s+to (?!go\b))(?!\s+(is|are|was|were|has|have)\s+(?!left\b|remaining\b))/, 'howlong'],
   [/\b(start (the )?timer|set (the )?timer)\b/, 'timer'],
   [/\b(go back|previous step|last step|one back)\b/, 'back'],
   [/\b(next step|move on|go on|keep going)\b/, 'next'],
@@ -53,12 +56,16 @@ const SINGLE = {
   timer: 'timer',
 };
 
-// A modal/aux question opener + a subject pronoun ("should I go back?", "can I
-// move on?", "do I skip this?") is asking Nora's ADVICE, not issuing a command —
-// even a short one that contains a nav/timer phrase — so it must reach the
-// grounded Q&A (Codex P2 #1805). "how"/"what"/"when" are deliberately NOT here,
-// so genuine "how long left" timer-status queries still classify.
-const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|you|it)\b/;
+// A modal/aux question opener + a FIRST-PERSON pronoun ("should I go back?",
+// "can I move on?", "do we skip this?") is asking Nora's ADVICE about the
+// member's own next move, not issuing a command — even a short one containing a
+// nav/timer phrase — so it must reach the grounded Q&A (Codex P2 #1805).
+// Deliberately FIRST PERSON ONLY: a modal + "you" addressed to the assistant
+// ("can you skip this", "could you go back") IS a command — FILLER contains
+// can/you precisely so those reduce to the bare command (adversarial pre-push
+// review). "how"/"what"/"when" are also NOT here, so "how long left" still
+// classifies as timer-status.
+const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we)\b/;
 
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
