@@ -57,7 +57,9 @@ const TIMER_PHRASE = [
 // guests arrive, should I rush?").
 const CAPPED_PHRASE = [
   [/\b(time left|whats left)\b/, 'howlong'],
-  [/\b(start (the )?timer|set (the )?timer)\b/, 'timer'],
+  // "start/set [the|a|my] timer" — natural wordings incl. the indefinite article
+  // (Codex P3 #1805: "start a timer" previously fell through to Nora).
+  [/\b(start|set) (the |a |my )?timer\b/, 'timer'],
   [/\b(go back|previous step|last step|one back)\b/, 'back'],
   [/\b(next step|move on|go on|keep going)\b/, 'next'],
   [/\b(say (that )?again|read (it|that) again|one more time)\b/, 'repeat'],

@@ -32,6 +32,9 @@ test('multi-word phrase commands', () => {
   assert.equal(bsCookCommand('one more time'), 'repeat');
   assert.equal(bsCookCommand('start the timer'), 'timer');
   assert.equal(bsCookCommand('set timer'), 'timer');
+  assert.equal(bsCookCommand('start a timer'), 'timer');   // indefinite article (Codex P3 #1805)
+  assert.equal(bsCookCommand('set a timer'), 'timer');
+  assert.equal(bsCookCommand('start my timer'), 'timer');
   assert.equal(bsCookCommand('how long left'), 'howlong');
   assert.equal(bsCookCommand('how much time'), 'howlong');
   assert.equal(bsCookCommand('time left'), 'howlong');
