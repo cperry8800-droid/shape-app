@@ -34,5 +34,19 @@
   "plated.carbs": "Carbo",
   "plated.fat": "Gordura",
   "quick.eyebrow": "Cozinha rápida",
-  "quick.note": "Esta refeição não traz método nem ingredientes — cozinhe do seu jeito e registre quando servir."
+  "quick.note": "Esta refeição não traz método nem ingredientes — cozinhe do seu jeito e registre quando servir.",
+  "voice.reads": "Nora lê",
+  "voice.on": "ativado",
+  "voice.off": "desativado",
+  "voice.hold": "Segure para falar",
+  "voice.holdAria": "Segure para falar com a Nora",
+  "voice.listening": "Ouvindo…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Você",
+  "voice.timeLeft": "Faltam {t} no timer.",
+  "voice.noTimer": "Este passo não tem timer.",
+  "voice.noTimerRunning": "Nenhum timer rodando.",
+  "voice.unavailable": "Não consegui responder isso agora.",
+  "voice.transcribeErr": "Não entendi — segure e tente de novo.",
+  "voice.micBlocked": "Microfone bloqueado — libere o acesso para falar."
 }

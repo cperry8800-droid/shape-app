@@ -885,6 +885,72 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-21 — Cook Mode PR B: Nora the sous-chef — reads steps aloud + voice commands + grounded Q&A
+
+- **Build 2 of the guided-cooking wave** (spec §7). Voice is **OPT-IN, default
+  OFF** (owner ruling): a **NORA READS** toggle sits in the cook band the whole
+  cook and flips at any point — ON speaks the current step immediately and
+  auto-speaks each new step (keyed on step/phase, NEVER the 1s heartbeat, so a
+  step is spoken once not every second); OFF stops in-flight audio instantly.
+  The explicit choice persists (`shape.cookReads`, the radio-fx precedent).
+  Speaks with `force:true` — the toggle IS the consent, so it works even if the
+  member's global auto-speak pref is off; auto-speak failures stay silent.
+- **Hold-to-talk mic** in the band (the composer's exact re-entrancy +
+  early-release hot-mic guards): a transcript hits a **local command grammar
+  FIRST** (`cookCommands.mjs`, TDD) — next/back/repeat/skip/timer/how-long, run
+  instantly with no model round-trip — and anything else falls through to a
+  **grounded Q&A**. The grammar is false-positive-averse: a real question that
+  contains a command word ("should I go back to searing?") is NOT swallowed
+  (it's long + not a bare command) and goes to Nora.
+- **Grounded cooking Q&A**: `/api/support/chat` gains a bounded, sanitized
+  **`cookContext`** (`src/lib/ai/cookContext.mjs`, TDD) — recipe title / current
+  step / ingredients / servings. Client-sent ⇒ fully untrusted: every field is
+  length-bounded, control-chars stripped, and strings JSON-quoted so
+  instruction-like text stays inert (the memberContext prompt-injection
+  discipline). Member facts still ride alongside, so "does this fit my macros
+  today?" works. **Read-only kitchen**: when cookContext is present the route
+  exposes **NO write/coach/member tools** — Nora only talks. Her reply
+  auto-plays.
+- New `cook:voice.*` keys ×13 (14 keys). No migration, no new route (rides the
+  existing `/api/ai/speak` TTS + `/api/ai/transcribe` STT + `/api/support/chat`
+  rails). Mobile-first: voice works on the `/m/` web build; native mic rides the
+  known native-plugin stub. **Verified**: suite **714 → 726** (cook-commands 6,
+  cook-context 6) · tsc clean · babel parse · tr-shadow both forms clean · /m/
+  build exit 0 · LF · **render-mount proof** on the dev server (Cook Mode mounts
+  with the voice row, NORA READS toggles + persists, stepping with reads-on
+  fires the auto-speak effect with 0 new console errors — the hook-order/TDZ
+  gate). **Review — TWO rounds, 12 findings, all real, all fixed.**
+  **Round 2 (3 Codex on the fix head):** a **generation guard** on the shared
+  `speakVoice`/`stopVoice` (every stop + every new speak bumps `_voiceGen`; a
+  speak whose gen is superseded when its audio is ready bails — a slow
+  `/api/ai/speak` can no longer read a stale step or speak AFTER a reads-off) ·
+  the `howlong` grammar narrowed with a recipe-continuation negative-lookahead
+  so **"how long should this simmer" reaches Nora** (was classified as the timer
+  command → "no timer running"), the genuine timer-status forms kept (regression
+  vectors added) · the new **🔊/🔇/🎤 emoji → theme-tinted inline SVG icons**
+  (currentColor, AGENTS.md no-new-colored-emoji — a documented-class miss I
+  should have caught). **Round 1 (9 findings — 1 Codex P2 + 7 CodeRabbit + 1
+  outside-diff Major):** cook voice calls routed through
+  **`window.ShapeSupport.ask/.transcribe`** (apiBaseUrl + Bearer — root-relative
+  fetches never reach the backend on NATIVE; new shared `transcribeVoice`) ·
+  **AbortController + 30s/20s bounds** on ask/transcribe so a stalled request
+  can't strand `micState` off idle (the mic's re-entry gate) · unmount cleanup
+  sets **`mr._cancel` BEFORE `mr.stop()`** + aborts in-flight requests (CWE-201
+  — onstop was posting the clip after exit) · **keyboard hold-to-talk**
+  (Enter/Space keydown/keyup mirror the pointer pair, `e.repeat`-guarded) ·
+  toggleReads side effects moved out of the setState updater — which also
+  killed a latent **double-speak** (explicit speak + the effect both fired on
+  toggle-ON; live-proven exactly 1 speak now) · **cook context demoted out of
+  the system role** (CWE-1427: fixed header rides system, the client payload is
+  a USER-role data message — `COOK_DATA_PREFIX`) · **COOK MODE prompt
+  override** (tools=[] made the base prompt's advertised actions impossible —
+  member note suppressed + "never say you logged/saved" override, no false
+  "done" claims mid-cook) · dup `next` key + ha `Saurun`→`Sauran`. Re-proven in
+  the browser post-fix: both cook tiers mount, toggle/persist/speak-once,
+  keyboard mic → getUserMedia → honest blocked note, 0 new console errors.
+  Open: PR C (Prep Session), PR D (orchestration), PR E (coach
+  step-authoring + polish); on-device voice pass (real TTS/STT round-trip).
+
 ### 2026-07-21 — Cook Mode PR A: the cookable contract + the guided walkthrough (#1804)
 
 - **Build 1 of the guided-cooking wave** (spec

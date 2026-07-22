@@ -34,5 +34,19 @@
   "plated.carbs": "Carboidrati",
   "plated.fat": "Grassi",
   "quick.eyebrow": "Cucina rapida",
-  "quick.note": "Questo pasto non ha metodo né ingredienti — cucinalo a modo tuo e registralo quando è in tavola."
+  "quick.note": "Questo pasto non ha metodo né ingredienti — cucinalo a modo tuo e registralo quando è in tavola.",
+  "voice.reads": "Nora legge",
+  "voice.on": "attivato",
+  "voice.off": "disattivato",
+  "voice.hold": "Tieni premuto per parlare",
+  "voice.holdAria": "Tieni premuto per parlare con Nora",
+  "voice.listening": "In ascolto…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Tu",
+  "voice.timeLeft": "Mancano {t} al timer.",
+  "voice.noTimer": "Nessun timer in questo passaggio.",
+  "voice.noTimerRunning": "Nessun timer attivo.",
+  "voice.unavailable": "Non sono riuscita a rispondere adesso.",
+  "voice.transcribeErr": "Non ho capito — tieni premuto e riprova.",
+  "voice.micBlocked": "Microfono bloccato — consenti l’accesso per parlare."
 }

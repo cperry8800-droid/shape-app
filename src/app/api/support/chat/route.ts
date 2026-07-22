@@ -21,6 +21,7 @@ import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
+import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
@@ -378,6 +379,11 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
     sb.from('client_weigh_ins').select('weight, unit, logged_on').eq('user_id', uid).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_goals').maybeSingle(),
     sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_memory').maybeSingle(),
+    // Daily calorie/protein TARGETS (coach Adjust override, the plan route's
+    // source) so "does this meal fit my day?" can actually be computed — the
+    // fact renderer already shows "X of Y target" but nothing populated Y
+    // (Codex P2 #1805).
+    sb.from('client_programs').select('detail').eq('user_id', uid).maybeSingle(),
   ]);
   const val = <T,>(i: number): T | null => {
     const l = legs[i];
@@ -390,13 +396,29 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
 
   const facts: Record<string, unknown> = {};
   const snap = val<{ calories?: number; protein_g?: number; workout_minutes?: number }>(0);
+  // Daily targets from the coach nutrition override — validated finite, ≥0, or
+  // absent (honest-absent; mirrors the plan route's asTarget).
+  const progRow = val<{ detail?: unknown }>(6);
+  const nutriDetail =
+    progRow && typeof progRow.detail === 'object' && progRow.detail
+      ? ((progRow.detail as { nutrition?: unknown }).nutrition as Record<string, unknown> | undefined)
+      : undefined;
+  const asTarget = (v: unknown): number | null => {
+    if (v == null || (typeof v === 'string' && v.trim() === '')) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const kcalTarget = asTarget(nutriDetail?.calories);
+  const proteinTarget = asTarget(nutriDetail?.protein);
+  const todayFacts: Record<string, unknown> = {};
   if (snap) {
-    facts.today = {
-      kcal: snap.calories != null ? Number(snap.calories) : null,
-      proteinG: snap.protein_g != null ? Number(snap.protein_g) : null,
-      trainedToday: snap.workout_minutes != null && Number(snap.workout_minutes) > 0 ? true : undefined,
-    };
+    if (snap.calories != null) todayFacts.kcal = Number(snap.calories);
+    if (snap.protein_g != null) todayFacts.proteinG = Number(snap.protein_g);
+    if (snap.workout_minutes != null && Number(snap.workout_minutes) > 0) todayFacts.trainedToday = true;
   }
+  if (kcalTarget != null) todayFacts.kcalTarget = kcalTarget;
+  if (proteinTarget != null) todayFacts.proteinTarget = proteinTarget;
+  if (Object.keys(todayFacts).length) facts.today = todayFacts;
   const mv = val<number>(1);
   if (mv != null) facts.momentum = { value: Number(mv) };
   const ledger = val<Array<{ delta?: number; source_kind?: string }>>(2);
@@ -565,7 +587,8 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null },
+  signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -576,20 +599,45 @@ async function askOpenAI(
   // The tone shapes the framing (supportive vs direct) but never the facts.
   // The memory note rides ONLY for verified members (their tool list carries
   // remember/forget) — the base prompt stays byte-identical for everyone else.
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}\n\n${toneInstruction(tone)}`;
+  // COOK MODE (CodeRabbit PR #1805, outside-diff): tools=[] makes every
+  // advertised action impossible, so the member note is SUPPRESSED and an
+  // explicit no-tools override rides instead — without it the base prompt's
+  // "you can DO things" framing invites a false "done" claim mid-cook.
+  const cookOverride = member.cookMsg
+    ? "\n\nCOOK MODE: No tools are available on this turn — you are answering a cooking question only. Never say you logged, saved, drafted, assigned, remembered, or changed anything; if asked to, say you can't do that mid-cook and that it's one tap in the app once they're done cooking."
+    : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${cookOverride}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // The server-built member-context block (or the honest unavailable note on
     // a fetch FAILURE) — never client-supplied, members only.
     ...(member.contextMsg ? [{ role: 'system', content: member.contextMsg }] : []),
+    // Cook-mode sous-chef context (spec §7.3) — TWO messages: the fixed header
+    // (our text) rides system, while the recipe payload — CLIENT-supplied,
+    // sanitized + bounded — rides as a plain USER-role data message, so
+    // client-controlled text never sits in the system trust tier (CWE-1427,
+    // CodeRabbit PR #1805). Sits AFTER member facts so "does this fit my
+    // day?" can use both. Read-only: when cooking, NO write/coach/member tools.
+    ...(member.cookMsg
+      ? [
+          { role: 'system', content: COOK_CONTEXT_HEADER },
+          { role: 'user', content: member.cookMsg },
+        ]
+      : []),
     ...recent,
   ];
   const actions: SupportAction[] = [];
-  const tools = member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS;
+  const tools = member.cookMsg ? [] : (member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS);
 
-  // Allow up to 2 tool rounds, then take the text.
+  // Allow up to 2 tool rounds, then take the text. When cooking, tools is
+  // empty (read-only kitchen) — omit it so the model runs pure-conversational.
+  // Built per round because `input` is reassigned as tool outputs accumulate.
   for (let round = 0; round < 3; round++) {
-    const result = await callAI({ input, tools }, { promptId: 'support.chat' });
+    // Thread the request's abort signal so a client disconnect (e.g. the member
+    // closes Cook Mode mid-reply) cancels the in-flight OpenAI request instead
+    // of letting the recipe/member context keep traveling + accruing cost
+    // (Codex P2 #1805; callAI already wires opts.signal into its fetch).
+    const result = await callAI(tools.length ? { input, tools } : { input }, { promptId: 'support.chat', signal });
     if (!result.ok) return null;
     const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
@@ -651,12 +699,18 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
+
+  // Cook-mode sous-chef context (spec §7.3): sanitized + bounded from the
+  // client's untrusted payload. Present ⇒ read-only kitchen (no write tools).
+  // Available to signed-out cooks too (recipe grounding needs no membership);
+  // member facts, when present, still ride alongside for "does this fit my day?".
+  const cookMsg = formatCookContext(body.cookContext);
 
   // Resolve the actor ONCE; membership (fail-closed) decides whether the
   // member-only layer exists AT ALL for this request: the context block, the
@@ -686,8 +740,19 @@ export async function POST(request: Request) {
   }
   const propose = makePropose(actor, request, isMember);
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx }).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
+
+  // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
+  // "I've passed this to the Shape team" or return coach/screen actions, which
+  // violates that contract when the model is unavailable. Return NO reply + NO
+  // actions — the cook client renders its own localized "I couldn't answer that
+  // just now" (cook:voice.unavailable, ×13) on an empty reply, so this stays
+  // honest AND localized rather than a hardcoded English string (CodeRabbit
+  // Major + adversarial review PR #1805).
+  if (cookMsg) {
+    return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
+  }
 
   const fb = fallbackReply(String(lastUser.content || ''));
   return NextResponse.json({ reply: fb.reply, source: 'fallback', actions: fb.actions });

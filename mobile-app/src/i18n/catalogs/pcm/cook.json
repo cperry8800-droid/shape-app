@@ -34,5 +34,19 @@
   "plated.carbs": "Carbs",
   "plated.fat": "Fat",
   "quick.eyebrow": "Sharp-sharp cook",
-  "quick.note": "Dis food no carry method or ingredient — cook am your own way, log am when e land."
+  "quick.note": "Dis food no carry method or ingredient — cook am your own way, log am when e land.",
+  "voice.reads": "Nora dey read",
+  "voice.on": "on",
+  "voice.off": "off",
+  "voice.hold": "Hold to talk",
+  "voice.holdAria": "Hold am to talk to Nora",
+  "voice.listening": "I dey listen…",
+  "voice.thinking": "Nora…",
+  "voice.you": "You",
+  "voice.timeLeft": "{t} remain for di timer.",
+  "voice.noTimer": "No timer for dis step.",
+  "voice.noTimerRunning": "No timer dey run.",
+  "voice.unavailable": "I no fit answer dat one now.",
+  "voice.transcribeErr": "I no hear am well — hold and try again.",
+  "voice.micBlocked": "Dem block di mic — allow access make you fit talk."
 }

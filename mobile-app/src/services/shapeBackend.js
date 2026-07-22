@@ -3270,19 +3270,40 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 }
 
 // Ask the in-app support assistant. Works signed-out (server returns a
-// rule-based reply); signed-in users get the AI assistant.
-async function askSupportBot(messages, tone) {
+// rule-based reply); signed-in users get the AI assistant. `extra` (optional):
+// { cookContext } rides Cook Mode's sous-chef grounding on the same rail, and
+// { signal } lets the caller bound a stalled request with an AbortController —
+// Cook Mode must never leave its mic stuck on a hung fetch (CodeRabbit #1805).
+async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' };
+  if (extra.cookContext) body.cookContext = extra.cookContext;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' }),
+    body: JSON.stringify(body),
+    signal: extra.signal,
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
   return payload;
+}
+
+// Server STT (Whisper) for hold-to-talk callers (Cook Mode's mic). Routes
+// through apiBaseUrl + the Bearer session — a root-relative fetch never reaches
+// the backend on the NATIVE build, whose WebView has no same origin and no
+// cookie (Codex, PR #1805). On the /m/ web build apiBaseUrl is the page origin,
+// so the cookie session still rides via same-origin credentials.
+async function transcribeVoice(blob, { filename = 'nora.webm', signal } = {}) {
+  const fd = new FormData();
+  fd.append('audio', blob, filename);
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/transcribe`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
+  const payload = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, transcript: payload && payload.transcript ? String(payload.transcript).trim() : '' };
 }
 
 // List the signed-in user's own Spotify playlists (coach Soundtracks importer).
@@ -5885,6 +5906,7 @@ async function undoNoraProposal(auditId) {
 }
 window.ShapeSupport = {
   ask: askSupportBot,
+  transcribe: transcribeVoice,
   confirm: confirmNoraProposal,
   undo: undoNoraProposal,
 };
@@ -5915,8 +5937,30 @@ function writeVoicePrefs(p) {
   try { window.dispatchEvent(new CustomEvent('shape:voice', { detail: p })); } catch (e) {}
 }
 let _voiceAudio = null;
+// The blob: URL backing _voiceAudio, tracked so stopVoice() can revoke it on an
+// INTERRUPTION — onended/onerror only fire on natural end/failure, so pausing a
+// playing clip would otherwise retain its audio buffer for the page's lifetime
+// (a leak of one blob per interrupted step, CodeRabbit Major PR #1805).
+let _voiceUrl = null;
+// AbortController for the in-flight /api/ai/speak fetch — the _voiceGen guard
+// suppresses stale PLAYBACK, but the fetch itself would keep running (abandoned
+// provider work + bandwidth on rapid toggles), so stopVoice() aborts it too
+// (CodeRabbit Major PR #1805).
+let _voiceAbort = null;
+// Generation guard (Codex P2, PR #1805): a slow /api/ai/speak fetch can resolve
+// AFTER the step/toggle that triggered it changed — stopVoice() only pauses an
+// _voiceAudio that already exists, so an in-flight speak would still create a
+// new Audio and play a stale step (or read AFTER the member turned NORA READS
+// off). Every stop AND every new speak bumps _voiceGen; a speak that finds its
+// captured gen superseded when its audio is ready bails without playing.
+let _voiceGen = 0;
 function stopVoice() {
-  try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
+  _voiceGen++;
+  try { if (_voiceAbort) _voiceAbort.abort(); } catch (e) {}
+  _voiceAbort = null;
+  try { if (_voiceAudio) { _voiceAudio.pause(); } } catch (e) {}
+  try { if (_voiceUrl) { URL.revokeObjectURL(_voiceUrl); } } catch (e) {}
+  _voiceAudio = null; _voiceUrl = null;
 }
 // Server voice ONLY. The old on-device speechSynthesis fallback (the robot) is
 // deliberately GONE — a failed/unavailable server voice returns an honest
@@ -5931,24 +5975,51 @@ async function speakVoice(text, toneOverride, opts = {}) {
   // that's a deliberate one-off the toggle shouldn't block.
   if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
   const tone = toneOverride || prefs.tone;
-  stopVoice();
+  stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
+  const myGen = _voiceGen;     // this call's generation, captured after the bump
   if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
+  const ctrl = new AbortController();
+  _voiceAbort = ctrl;
   try {
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
+      signal: ctrl.signal,
     });
+    // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
+    if (myGen !== _voiceGen) return { ok: false, superseded: true };
     if (!res.ok) return { ok: false, reason: (res.status === 401 || res.status === 402) ? 'members' : 'unavailable' };
     const blob = await res.blob();
+    if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    _voiceAudio = audio;
     audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
-    await audio.play();
+    // Last-moment check: a stop() between the blob and playback still wins.
+    if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
+    _voiceAudio = audio;
+    _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
+    try {
+      await audio.play();
+    } catch (playErr) {
+      // Autoplay block / playback failure — release THIS clip's blob so it can't
+      // leak, but only if a newer speak hasn't already taken over (CodeRabbit).
+      try { URL.revokeObjectURL(url); } catch (e2) {}
+      if (_voiceUrl === url) { _voiceAudio = null; _voiceUrl = null; }
+      // A newer speak()/stop() pausing an unstarted play() rejects it — that's a
+      // supersession, not a failure, so an explicit-Listen caller doesn't show a
+      // spurious "unavailable" toast (adversarial review #1805).
+      if (myGen !== _voiceGen) return { ok: false, superseded: true };
+      return { ok: false, reason: 'unavailable' };
+    }
     return { ok: true, source: 'server' };
   } catch (e) {
+    // A stopVoice()/newer speak() aborted this fetch — that's a supersession, not
+    // a real failure (so an explicit-Listen caller doesn't show an error).
+    if (e && e.name === 'AbortError') return { ok: false, superseded: true };
     return { ok: false, reason: 'unavailable' };
+  } finally {
+    if (_voiceAbort === ctrl) _voiceAbort = null;  // this call's fetch is done
   }
 }
 // The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's

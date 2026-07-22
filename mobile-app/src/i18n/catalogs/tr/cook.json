@@ -34,5 +34,19 @@
   "plated.carbs": "Karbonhidrat",
   "plated.fat": "Yağ",
   "quick.eyebrow": "Hızlı pişirme",
-  "quick.note": "Bu öğünde yöntem de malzeme listesi de yok — kendi tarzında pişir, tabağa gelince kaydet."
+  "quick.note": "Bu öğünde yöntem de malzeme listesi de yok — kendi tarzında pişir, tabağa gelince kaydet.",
+  "voice.reads": "Nora okur",
+  "voice.on": "açık",
+  "voice.off": "kapalı",
+  "voice.hold": "Konuşmak için basılı tut",
+  "voice.holdAria": "Nora ile konuşmak için basılı tut",
+  "voice.listening": "Dinliyor…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Sen",
+  "voice.timeLeft": "Zamanlayıcıda {t} kaldı.",
+  "voice.noTimer": "Bu adımda zamanlayıcı yok.",
+  "voice.noTimerRunning": "Çalışan zamanlayıcı yok.",
+  "voice.unavailable": "Buna şu an yanıt veremedim.",
+  "voice.transcribeErr": "Anlayamadım — basılı tutup tekrar dene.",
+  "voice.micBlocked": "Mikrofon engelli — konuşmak için erişime izin ver."
 }

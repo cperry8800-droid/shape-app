@@ -1,0 +1,179 @@
+// Cook Mode voice command grammar (spec 2026-07-21 §7.2). A hold-to-talk
+// transcript hits THIS local classifier FIRST — a recognized command runs
+// instantly with no model round-trip; anything else returns null and falls
+// through to Nora's grounded Q&A (§7.3).
+//
+// Command-first, but false-positive-averse: a genuine QUESTION that happens to
+// contain a command word ("should I go back to searing the chicken?") must NOT
+// be swallowed as a command. So we only classify a transcript that, after
+// stripping filler, IS essentially just the command — substantive extra words
+// mean it's a question for Nora.
+//
+// Pure + deterministic; Symbol/whitespace-safe (transcripts are user speech).
+
+export const BS_COOK_COMMANDS = ['next', 'back', 'repeat', 'skip', 'timer', 'howlong'];
+
+// Filler tokens that don't change a command's meaning ("next step please" ==
+// "next"). Kept tight so it can't dissolve a real question into a command.
+// The polite-request modals (can/could/would/will) are filler so "could you
+// skip this" reduces to the bare `skip` command — a modal + "you" addressed to
+// Nora IS a command. First-person advice ("could I skip?") is caught by
+// QUESTION_OPENER BEFORE filler runs, so stripping these here can't turn a
+// genuine question into a command (Codex P2 #1805, completing the "can you" fix).
+const FILLER = new Set([
+  'the', 'a', 'an', 'this', 'that', 'it', 'please', 'ok', 'okay', 'now',
+  'step', 'one', 'just', 'go', 'lets', 'let', 'us', 'can', 'could', 'would',
+  'will', 'you', 'hey', 'nora', 'and', 'to', 'my',
+]);
+
+const norm = (s) => (typeof s === 'string' ? s : '')
+  .toLowerCase()
+  // Drop apostrophes FIRST (straight + curly) so STT contractions collapse to
+  // the grammar's forms — "what's left" → "whats left", "let's skip" → "lets
+  // skip" — instead of splitting into "what s"/"let s" and missing (Codex P3
+  // #1805). A negation like "don't skip" → "dont skip" still stays a non-command
+  // (its extra token means it's not a bare "skip").
+  .replace(/['’ʼ]/g, '')
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+// Timer-status INTERROGATIVES — checked on the FULL string and NOT word-capped,
+// because a natural query is long ("how long is left on the timer" = 6 words).
+// Anchored to the "how long"/"how much time|longer" interrogative (a strong
+// signal even when long) so a passing mention like "…10 min of time left…"
+// buried mid-sentence does NOT match (that elliptical form is capped below).
+// The lookaheads already exclude cooking continuations, and runCommand falls
+// through to Nora when no timer is running, so a stray cooking "how long" can't
+// get a wrong timer answer. Three lookaheads: (1) modal/prep continuations,
+// (2) "to X" except the timer idiom "to go", (3) copula except "is/are + left/
+// remaining". Codex P2 + adversarial review #1805.
+const TIMER_PHRASE = [
+  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|til|till|until|before|for|of)\b)(?!\s+to (?!go\b))(?!\s+(is|are|was|were|has|have)\s+(?!left\b|remaining\b))/, 'howlong'],
+];
+// Word-capped phrases (see bsCookCommand): the elliptical timer forms ("time
+// left") and nav/timer-start — a long utterance that merely contains one is a
+// question, not a command ("should I go back to the pan now"; "…time left before
+// guests arrive, should I rush?").
+// Elliptical timer-status — but NOT when trailed by "to …" ("what's left to
+// do", "time left to cook"), which is a TASK/cooking question for Nora, not a
+// request for the countdown (Codex P2 #1805). Checked (capped) BEFORE the
+// wh-guard below, so "whats left" still classifies as the timer while a
+// wh-question like "whats the next step" is caught by the guard (Codex P2 #1805).
+const ELLIPTICAL_TIMER = [/\b(time left|whats left)\b(?!\s+to\b)/];
+// Nav / timer-start phrases (capped). A long utterance that merely contains one
+// ("should I go back to the pan now") is a question, not a command.
+const NAV_PHRASE = [
+  // "start/set [the|a|my] timer" — natural wordings incl. the indefinite article
+  // (Codex P3 #1805: "start a timer" previously fell through to Nora).
+  [/\b(start|set) (the |a |my )?timer\b/, 'timer'],
+  [/\b(go back|previous step|last step|one back)\b/, 'back'],
+  [/\b(next step|move on|go on|keep going)\b/, 'next'],
+  [/\b(say (that )?again|read (it|that) again|one more time)\b/, 'repeat'],
+];
+
+// Single-token commands (after filler is stripped, exactly one meaningful word).
+const SINGLE = {
+  next: 'next', continue: 'next', forward: 'next', done: 'next',
+  back: 'back', previous: 'back',
+  repeat: 'repeat', again: 'repeat',
+  skip: 'skip',
+  timer: 'timer',
+};
+
+// A modal/aux question opener + a FIRST-PERSON pronoun ("should I go back?",
+// "can I move on?", "do we skip this?") is asking Nora's ADVICE about the
+// member's own next move, not issuing a command — even a short one containing a
+// nav/timer phrase — so it must reach the grounded Q&A (Codex P2 #1805).
+// Advice-seeking, not a command: a modal + a FIRST-PERSON or IMPERSONAL
+// third-person subject ("should I go back?", "could it skip this?", "will this
+// burn?") is asking Nora, so it reaches the grounded Q&A — even a short one
+// containing a nav/timer phrase (Codex P2 + CodeRabbit #1805). Deliberately does
+// NOT include "you": a modal + "you" addressed to the assistant ("can you skip
+// this") IS a command (FILLER strips can/could/would/will + you so it reduces to
+// the bare command). "how"/"what"/"when" are also excluded, so "how long left"
+// still classifies as timer-status.
+const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|it|this|that)\b/;
+
+// A NEGATION anywhere ("don't go back", "do not move on", "never start the
+// timer", "shouldn't go back") is telling Nora NOT to act — it must not trigger
+// the embedded phrase command, so it falls through to the grounded Q&A (Codex P2
+// + CodeRabbit Major #1805). Imperative commands never contain these tokens, so
+// this can't suppress a real command. "do not"/"is not"/"can not" are covered by
+// the bare `not`. Covers EVERY contraction spelling (norm strips the apostrophe,
+// so "shouldn't" → "shouldnt"): do-support, modals, copulas, and perfect auxes —
+// CodeRabbit found that modal/copula negations ("shouldnt", "isnt", "wasnt") were
+// missing and slipped past both NEGATION and QUESTION_OPENER into the nav pass.
+const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|wouldnt|couldnt|shouldnt|mustnt|mightnt|shant|neednt|isnt|arent|wasnt|werent|aint|hasnt|havent|hadnt|never|not)\b/;
+
+// A COMPLETION / progress statement ("finished the last step", "done with the
+// previous step", "completed the last step", "already moved on") is the member
+// reporting where they are, not a command — the embedded nav phrase must not fire
+// and REWIND the cook (Codex P2 audit #1805: "finished the last step" matched the
+// "last step" nav phrase → back). The leading completion verb must be followed by
+// an article/preposition, so the bare "done" command (SINGLE: done→next) still
+// classifies; "already" anywhere is safe — no kitchen imperative contains it.
+const COMPLETION = /^(finished|completed|done|did) (with|the|a|my|that|this|all|both)\b|\balready\b/;
+
+// A wh-QUESTION opener ("what is the next step", "when do I move on", "how's the
+// last step") is asking Nora, even when it embeds a nav phrase — so it must not
+// fire back/next (Codex P2 #1805). Includes "how"/"how's": this runs AFTER the
+// TIMER_PHRASE + ELLIPTICAL_TIMER passes, so genuine timer queries ("how long
+// left", "how much longer", "whats left") already classified and returned before
+// we get here — only NON-timer how-questions ("how's the next step") reach this
+// guard. `whats?`/`hows?` catch the apostrophe-stripped "what's"/"how's" forms.
+const WH_OPENER = /^(whats?|hows?|when|where|why|which|who|whom|whose)\b/;
+
+// A COPULA or perfect/do auxiliary leading the utterance ("is the next step
+// ready", "was that the last step", "have we moved on", "does the next step need
+// salt") is a QUESTION or a statement, never an imperative — no kitchen command
+// starts with one of these tokens — so an embedded nav phrase must fall through
+// to Nora, not fire (audit #1805: copula/aux openers slipped past QUESTION_OPENER,
+// which only guards a modal/aux + a first-person/impersonal PRONOUN). Runs after
+// the timer passes for the same reason as WH_OPENER. "do" is deliberately absent:
+// "do the next step" is a legitimate imperative (advance); only the strictly
+// interrogative "does"/"did" are guarded here.
+const AUX_OPENER = /^(is|are|was|were|am|be|been|being|has|have|had|does|did)\b/;
+
+export const bsCookCommand = (transcript) => {
+  const t = norm(transcript);
+  if (!t) return null;
+  if (QUESTION_OPENER.test(t)) return null;
+  if (NEGATION.test(t)) return null;
+  if (COMPLETION.test(t)) return null;
+  const words = t.split(' ');
+
+  // Timer-status interrogatives ("how long …") are unambiguous and often long
+  // — NOT word-capped.
+  for (const [re, cmd] of TIMER_PHRASE) if (re.test(t)) return cmd;
+
+  // Elliptical timer-status ("time left"/"whats left"): capped, and BEFORE the
+  // wh-guard so it still classifies while a wh-question ("whats the next step")
+  // falls through to Nora.
+  if (words.length <= 5) {
+    for (const re of ELLIPTICAL_TIMER) if (re.test(t)) return 'howlong';
+  }
+
+  // A wh-QUESTION or copula/aux-led question embedding a nav phrase ("what is the
+  // next step", "is the next step ready", "was that the last step", "how's the
+  // last step") is asking Nora, not commanding — guard before the nav pass (Codex
+  // P2 + audit #1805). Both run after the timer passes so timer queries survive.
+  if (WH_OPENER.test(t)) return null;
+  if (AUX_OPENER.test(t)) return null;
+
+  // Nav / timer-start phrases: capped, because a long utterance that merely
+  // contains "go back"/"next step" is a question ("should I go back to the pan
+  // now" = 7 words).
+  if (words.length <= 5) {
+    for (const [re, cmd] of NAV_PHRASE) if (re.test(t)) return cmd;
+  }
+
+  // Strip filler → what's left is the command core. If more than one
+  // meaningful token remains, it's not a bare command (→ question).
+  const core = words.filter((w) => !FILLER.has(w));
+  if (core.length === 1) {
+    const cmd = SINGLE[core[0]];
+    if (cmd) return cmd;
+  }
+  return null;
+};

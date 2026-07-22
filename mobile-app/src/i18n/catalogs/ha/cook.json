@@ -34,5 +34,19 @@
   "plated.carbs": "Kabohaidiret",
   "plated.fat": "Mai",
   "quick.eyebrow": "Dafawa cikin sauri",
-  "quick.note": "Wannan abincin ba ya ɗauke da hanya ko kayan girki — dafa shi yadda ka ga dama, ka yi rajista idan ya shirya."
+  "quick.note": "Wannan abincin ba ya ɗauke da hanya ko kayan girki — dafa shi yadda ka ga dama, ka yi rajista idan ya shirya.",
+  "voice.reads": "Nora tana karatu",
+  "voice.on": "a kunne",
+  "voice.off": "a kashe",
+  "voice.hold": "Rike don magana",
+  "voice.holdAria": "Rike don yin magana da Nora",
+  "voice.listening": "Tana saurare…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Kai",
+  "voice.timeLeft": "Sauran {t} a agogon lokaci.",
+  "voice.noTimer": "Babu agogon lokaci a wannan matakin.",
+  "voice.noTimerRunning": "Babu agogon lokaci da ke gudana.",
+  "voice.unavailable": "Ban iya amsa wannan a yanzu ba.",
+  "voice.transcribeErr": "Ban ji sarai ba — rike ka sake gwadawa.",
+  "voice.micBlocked": "An toshe makurufo — ba da izini don magana."
 }

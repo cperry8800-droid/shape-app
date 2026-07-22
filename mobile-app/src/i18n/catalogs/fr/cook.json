@@ -34,5 +34,19 @@
   "plated.carbs": "Glucides",
   "plated.fat": "Lipides",
   "quick.eyebrow": "Cuisine express",
-  "quick.note": "Ce repas n'a ni méthode ni ingrédients — cuisinez à votre façon et enregistrez-le une fois servi."
+  "quick.note": "Ce repas n'a ni méthode ni ingrédients — cuisinez à votre façon et enregistrez-le une fois servi.",
+  "voice.reads": "Nora lit",
+  "voice.on": "activé",
+  "voice.off": "désactivé",
+  "voice.hold": "Maintenez pour parler",
+  "voice.holdAria": "Maintenez pour parler à Nora",
+  "voice.listening": "À l’écoute…",
+  "voice.thinking": "Nora…",
+  "voice.you": "Vous",
+  "voice.timeLeft": "Il reste {t} au minuteur.",
+  "voice.noTimer": "Pas de minuteur à cette étape.",
+  "voice.noTimerRunning": "Aucun minuteur en cours.",
+  "voice.unavailable": "Je n’ai pas pu répondre à ça pour l’instant.",
+  "voice.transcribeErr": "Je n’ai pas compris — maintenez et réessayez.",
+  "voice.micBlocked": "Micro bloqué — autorisez l’accès pour parler."
 }
