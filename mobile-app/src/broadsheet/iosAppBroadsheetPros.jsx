@@ -4886,12 +4886,14 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                     says why. `min` is never typed, only derived (bsAuthorStep). */}
                 {stepAuthoring && (
                   <div style={{ margin: '6px 0 4px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {(b.steps || []).map((s, si) => {
+                    {(() => { const _lastAuthorable = (b.steps || []).reduce((acc, s, k) => (bsAuthorStep(s.t, s.station) ? k : acc), -1); return (b.steps || []).map((s, si) => {
                       const derived = bsAuthorStep(s.t, s.station);
                       // A TERMINAL window must be walk-away ('off') — a live-fire
                       // final hold is dropped at ingestion (finishCookable), so
-                      // the editor never confirms one it won't ship.
-                      const liveFireTerminal = !!(derived && derived.passive && si === (b.steps || []).length - 1 && derived.station !== 'off');
+                      // the editor never confirms one it won't ship. Terminal =
+                      // the last NON-EMPTY step (publish drops blank rows first),
+                      // not the raw last row (Codex — a trailing blank hid it).
+                      const liveFireTerminal = !!(derived && derived.passive && si === _lastAuthorable && derived.station !== 'off');
                       const isWin = !!(derived && derived.passive && !liveFireTerminal);
                       const wantsWin = !!(s.station && !isWin && String(s.t || '').trim());
                       return (
@@ -4909,7 +4911,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                           {wantsWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.windowHint', { defaultValue: 'State a time of 4+ minutes in the step (“roast 15 minutes”) to make it hands-off.' })}</div>}
                         </div>
                       );
-                    })}
+                    }); })()}
                     <button type="button" onClick={() => addStep(i)} style={{ alignSelf: 'flex-start', minHeight: 40, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: accent, padding: '0 2px' }}>
                       {(b.steps || []).length === 0 ? tr('coach:editor.addMethod', { defaultValue: '＋ METHOD · COOKING STEPS' }) : tr('coach:editor.addStepRow', { defaultValue: '+ STEP' })}
                     </button>
