@@ -6864,9 +6864,11 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     // only holds that can be live here) so the wrap can note them; soft
     // convenience timers die with the board. `liveTimers` lets startAndGo pass
     // existing-plus-just-queued — a hold queued in the SAME handler isn't in the
-    // rendered `timers` yet (Codex: a terminal chill started at the final event
-    // vanished from the wrap).
-    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone((liveTimers || timers).filter((x) => !x.soft && x.endsAt > at)); return; }
+    // rendered `timers` yet. Array-guarded because a direct event-handler
+    // reference would pass the SyntheticEvent here (Codex P1 — the Finish tap
+    // crashed on event.filter); the CTA also wraps its call.
+    const src = Array.isArray(liveTimers) ? liveTimers : timers;
+    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone(src.filter((x) => !x.soft && x.endsAt > at)); return; }
     setCursor(cursor + 1);
   };
   // Passive-window step → start its real timer (a HOLDING lane) and move straight
@@ -7031,7 +7033,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
                 : waitingOn
                   ? <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</button>
-                  : <button onClick={advance} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
+                  : <button onClick={() => advance()} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>
           </>)}
         </div>
