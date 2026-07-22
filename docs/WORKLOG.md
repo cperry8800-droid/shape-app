@@ -885,6 +885,64 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-22 — Cook Mode PR D: orchestration — the passive-window interleaver + the multi-track board
+
+- **Build 4 of the guided-cooking wave** (spec §6). The Prep Session learns to
+  cook several recipes AT ONCE: during one recipe's authored **passive window**
+  (hands-off, a real duration, a station you can walk away from — "roast 30
+  minutes", oven), the board surfaces another recipe's active steps — **"while
+  the chicken roasts, start tomorrow's rice."** No migration, no route.
+- **Owner's binding constraint honored: no fabricated parallelism.** Interleaving
+  requires EXPLICIT structured metadata (`passive:true` + station + `min≥4`),
+  never a merely-parsed duration (a "simmer 20 min, stirring" is not hands-off).
+  A windowless / single-recipe set **falls back to the existing serial per-recipe
+  `BSCookMode` flow, unchanged** (the honest fallback). HOLDING countdowns are
+  **live timers** — a countdown exists only because the cook started a real-
+  duration step; the board never invents one. Timers were already recipe-driven
+  (PR A parses them from step text); this adds the honest multi-recipe layer.
+- **Step metadata** — the cookable `steps` gains an index-aligned `stepMeta`
+  (`{min, passive, station}`), back-compat (strings stay valid everywhere); a
+  `sanitizeMeta` validator covers inline `{t,…}` objects (PR E coach authoring)
+  AND a catalog overlay. The overlay applies only when `splitSteps` dropped
+  nothing, so a future empty step can never shift a window onto the wrong step.
+- **`cookOrchestrator.mjs`** (pure, injected-clock, TDD) — a deterministic greedy
+  interleaver: emits an ordered `{recipe, step, at}` timeline; one oven/stove/
+  board respected, `'off'` (rest/chill) never conflicts; `serial:false` only when
+  a step is performed while another recipe holds a window. `bsHoldingAt` for the
+  planned holds. 9 pinned-timeline tests (the demo, station conflict, `'off'`
+  concurrency, sub-window gate, holding, empty/junk, termination).
+- **Catalog metadata pass** — **27 of 35 recipes** annotated with genuine
+  hands-off windows (oven/stove/off) via ONE hand-auditable co-located overlay
+  (`_KITCHEN_STEP_META`); steps stay plain strings (no consumer touched). The
+  data test **ties every overlay `min` to that step's own stated duration**
+  (`bsStepTimers`) so authored metadata can't drift or fabricate; the no-window
+  recipes (yogurt bowl, lettuce cups, toasts…) stay honestly serial.
+- **`BSPrepCook`** — the multi-track NOW/HOLDING board: a recipes strip (per-
+  recipe progress + a live ⏲ when holding), a NOW lane ("while the {title}
+  {holds}" framing), HOLDING lanes (live countdown + drain bar + recipe · station),
+  and a START-TIMER-then-advance action on window steps. `cook:prep.*` chrome
+  ×13 (parity 3/3). Records each recipe PREPPED as its last timeline step
+  completes (a `writtenRef` Set guards back→forward re-advance).
+- **Review — adversarial pre-push audit (code-reviewer agent) found 1 real
+  defect, fixed + verified:** ← Back to a started window step re-offered
+  "Start timer" and stacked a **second identical HOLDING timer** (the double-
+  *record* path was guarded, the double-*timer* path wasn't). Fixed:
+  `startAndGo` dedups by `(recipe, stepIndex)` and the CTA reads **"Next →"** on
+  an already-started window step. Everything else in the hunt list (render/hook
+  order, orchestrator termination, honest-data, i18n placeholders, lifecycle)
+  came back clean. Codex is back → the PR goes through the full CodeRabbit +
+  Codex gate.
+- **Render-mount PROVEN in-browser** (the render-check rule — hook/TDZ crashes
+  pass every static gate): drove the real dev bundle through Eat → Prep → select
+  two window-recipes → the board mounts, the chicken's 18-min covered-cook shows
+  START TIMER, tapping it opens a live HOLDING lane + switches NOW to the buddha,
+  and ← Back yields exactly one timer / one lane / a "Next →" CTA. 0 code-origin
+  console errors.
+- Verified: suite **761** · `tsc --noEmit` clean · JSX babel-parse · PowerShell
+  `/m/` build exit 0 · LF · tr-shadow · catalog parity 3/3. Open: PR E (coach
+  structured step-authoring — the tier-1 forward path for `stepMeta` · the
+  Frontispiece · deferred items) + the on-device prep pass.
+
 ### 2026-07-21 — Cook Mode PR B: Nora the sous-chef — reads steps aloud + voice commands + grounded Q&A
 
 - **Build 2 of the guided-cooking wave** (spec §7). Voice is **OPT-IN, default
