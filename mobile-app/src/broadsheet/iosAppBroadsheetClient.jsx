@@ -6988,7 +6988,7 @@ function BSPrepSession({ program, onClose }) {
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
             {ordered[cookIdx].servings != null && (
               <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, color: t.INK50 }}>
-                {tr('cook:prep.servings', { defaultValue: '{n} servings', n: ordered[cookIdx].servings })}
+                {tr('cook:prep.servings', { defaultValue: '{n, plural, one {# serving} other {# servings}}', n: ordered[cookIdx].servings })}
               </div>
             )}
             <button onClick={() => setStage('cook')} style={{ ...primaryBtn, width: '100%', marginTop: 16 }}>
@@ -7002,7 +7002,7 @@ function BSPrepSession({ program, onClose }) {
           {seam}
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, lineHeight: 1.4 }}>
-              {tr('cook:prep.wrapCount', { defaultValue: '{n} meals prepped', n: doneEntries.length })}
+              {tr('cook:prep.wrapCount', { defaultValue: '{n, plural, one {# meal prepped} other {# meals prepped}}', n: doneEntries.length })}
               {(() => {
                 const days = [...new Set(doneEntries.map((e) => BS_PREP_DAY_LABELS[e.dayIdx]).filter(Boolean))];
                 return days.length ? ` · ${tr('cook:prep.wrapDays', { defaultValue: '{days} covered', days: days.join(' · ') })}` : '';

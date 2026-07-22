@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   BS_PREP_WINDOW_MS, bsQtyParse, bsScaleQty, bsMergeMise, bsPrepEstimate,
   bsPrepOrder, bsPrepWeekKey, bsPrunePrep, bsPrepMatch, bsPrepSummary,
@@ -98,6 +100,18 @@ test('bsPrepMatch: mealId wins, exact title only, freshest entry, no fuzzy', () 
   assert.equal(bsPrepMatch(entries, { title: 'Chicken bowl' }, NOW).preppedAt, NOW - HOUR); // freshest
   assert.equal(bsPrepMatch(entries, { title: 'Chicken' }, NOW), null);   // NO substring match
   assert.equal(bsPrepMatch(entries, {}, NOW), null);
+});
+
+test('the coach RPC freshness window matches BS_PREP_WINDOW_MS (enforced sync, no drift)', () => {
+  // The migration hardcodes the 4-day window (SQL can't import the JS const);
+  // this asserts it and BS_PREP_WINDOW_MS agree, so a change to one that isn't
+  // mirrored fails CI rather than silently diverging (CodeRabbit).
+  const sqlPath = fileURLToPath(new URL('../supabase-migrations/2026-07-22-client-meal-prep-coach-read.sql', import.meta.url));
+  const sql = fs.readFileSync(sqlPath, 'utf8');
+  const m = /v_window_ms\s+constant\s+bigint\s*:=\s*([0-9*\s]+);/.exec(sql);
+  assert.ok(m, 'v_window_ms declaration found in the migration');
+  const sqlMs = m[1].split('*').reduce((a, x) => a * Number(x.trim()), 1);
+  assert.equal(sqlMs, BS_PREP_WINDOW_MS);
 });
 
 test('bsPrepSummary: count + lastAt + ordered day labels over fresh entries', () => {

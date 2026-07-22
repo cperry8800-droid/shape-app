@@ -4724,7 +4724,10 @@ let _prepCache = null; // { uid, entries }
 async function mealPrepEntries() {
   const uid = state.user?.id;
   if (!supabase || !uid) return null;
-  if (_prepCache && _prepCache.uid === uid) return _prepCache.entries;
+  // Re-prune on EVERY return — a long-lived session (app kept in memory across
+  // days) must not keep serving records that have since aged out of the 4-day
+  // window (CodeRabbit Major). Cheap (a filter over a tiny array).
+  if (_prepCache && _prepCache.uid === uid) return bsPrunePrep(_prepCache.entries, Date.now());
   try {
     const { data, error } = await supabase.from('user_goals').select('data')
       .eq('user_id', uid).eq('kind', 'meal_prep').maybeSingle();
@@ -4738,7 +4741,15 @@ async function mealPrepRecord(newEntries) {
   const uid = state.user?.id;
   if (!supabase || !uid || !Array.isArray(newEntries) || !newEntries.length) return { ok: false };
   try {
-    const cur = (await mealPrepEntries()) || [];
+    // Read the CURRENT doc DIRECTLY (not via the cache) and ABORT on a read
+    // error — a failed read must never be collapsed to "no entries" and then
+    // upserted over the stored doc, which would wipe prior fresh PREPPED records
+    // that simply didn't load (CodeRabbit Critical — non-idempotent write on an
+    // unverified read).
+    const { data, error } = await supabase.from('user_goals').select('data')
+      .eq('user_id', uid).eq('kind', 'meal_prep').maybeSingle();
+    if (error) return { ok: false };
+    const cur = bsPrunePrep(data?.data?.entries, Date.now());
     const entries = bsPrunePrep([...cur, ...newEntries], Date.now());
     const res = await supabase.from('user_goals').upsert(
       { user_id: uid, kind: 'meal_prep', data: { entries } },
