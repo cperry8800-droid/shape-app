@@ -214,6 +214,19 @@ test('STT contractions with apostrophes still match (Codex P3 #1805)', () => {
   assert.equal(bsCookCommand("don't start the timer"), null);
   assert.equal(bsCookCommand('never mind go back'), null);
   assert.equal(bsCookCommand("can't go back"), null);
+  // …EVERY negation-contraction spelling is covered (CodeRabbit Major #1805:
+  // modal/copula/perfect negations slipped past NEGATION into the nav pass).
+  assert.equal(bsCookCommand("shouldn't go back"), null);
+  assert.equal(bsCookCommand("wouldn't start the timer"), null);
+  assert.equal(bsCookCommand("couldn't move on"), null);
+  assert.equal(bsCookCommand("mustn't skip this"), null);
+  assert.equal(bsCookCommand("isn't it the last step"), null);
+  assert.equal(bsCookCommand("aren't we on the next step"), null);
+  assert.equal(bsCookCommand("wasn't that the next step"), null);
+  assert.equal(bsCookCommand("weren't we on the last step"), null);
+  assert.equal(bsCookCommand("hasn't the timer started"), null);
+  assert.equal(bsCookCommand("haven't we moved on"), null);
+  assert.equal(bsCookCommand("hadn't we gone back"), null);
   // …the plain imperatives still fire.
   assert.equal(bsCookCommand('go back'), 'back');
   assert.equal(bsCookCommand('move on'), 'next');

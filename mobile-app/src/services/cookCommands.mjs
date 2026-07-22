@@ -96,11 +96,15 @@ const SINGLE = {
 const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|it|this|that)\b/;
 
 // A NEGATION anywhere ("don't go back", "do not move on", "never start the
-// timer", "can't skip") is telling Nora NOT to act — it must not trigger the
-// embedded phrase command, so it falls through to the grounded Q&A (Codex P2
-// #1805). Imperative commands never contain these tokens, so this can't suppress
-// a real command. "do not"/"is not"/"can not" are covered by the bare `not`.
-const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|never|not)\b/;
+// timer", "shouldn't go back") is telling Nora NOT to act — it must not trigger
+// the embedded phrase command, so it falls through to the grounded Q&A (Codex P2
+// + CodeRabbit Major #1805). Imperative commands never contain these tokens, so
+// this can't suppress a real command. "do not"/"is not"/"can not" are covered by
+// the bare `not`. Covers EVERY contraction spelling (norm strips the apostrophe,
+// so "shouldn't" → "shouldnt"): do-support, modals, copulas, and perfect auxes —
+// CodeRabbit found that modal/copula negations ("shouldnt", "isnt", "wasnt") were
+// missing and slipped past both NEGATION and QUESTION_OPENER into the nav pass.
+const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|wouldnt|couldnt|shouldnt|mustnt|mightnt|shant|neednt|isnt|arent|wasnt|werent|aint|hasnt|havent|hadnt|never|not)\b/;
 
 // A COMPLETION / progress statement ("finished the last step", "done with the
 // previous step", "completed the last step", "already moved on") is the member
