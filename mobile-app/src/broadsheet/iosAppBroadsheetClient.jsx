@@ -18,7 +18,7 @@ import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsOrchestrate } from '../services/cookOrchestrator.mjs';
@@ -6314,7 +6314,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (cmd === 'back') { stepIdx === 0 ? setPhase('mise') : goStep(stepIdx - 1); return true; }
     if (cmd === 'repeat') { if (hasMethod) speak(steps[stepIdx]); return true; }
     if (cmd === 'timer') {
-      const tms = hasMethod ? bsStepTimers(steps[stepIdx]) : [];
+      const tms = hasMethod && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
       if (tms[0]) startTimer(tms[0]);
       else setMicNote({ who: 'nora', text: tr('cook:voice.noTimer', { defaultValue: 'No timer on this step.' }) });
       return true;
@@ -6507,7 +6507,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   const running = timers.filter((x) => now < x.endsAt);
   const rung = timers.filter((x) => now >= x.endsAt);
-  const stepTimers = hasMethod && phase === 'method' ? bsStepTimers(steps[stepIdx]) : [];
+  // No parser-derived chips on a decimal step — the integer parser mis-reads
+  // them ("1.5 minutes" → a 5-min chip); the cook reads the time from the text.
+  const stepTimers = hasMethod && phase === 'method' && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
   const miseRows = [
     ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
     ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
@@ -6949,7 +6951,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const waitingOn = nextEv ? running.find((x) => !x.soft && x.iid === nextEv.iid) : null;
   // Active-step convenience timers (never on a window step — that has the real
   // hold); a chip hides while its own countdown runs.
-  const evTms = ev && !isWindow ? bsStepTimers(ev.text) : [];
+  const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
   const softChips = evTms.slice(0, 2).filter((tm) => !running.some((x) => x.soft && x.iid === ev.iid && x.stepIndex === cursor && x.label === tm.label));
 
   return (

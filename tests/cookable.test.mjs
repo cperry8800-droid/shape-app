@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BS_COOK_TIERS,
+  bsFractionalDuration,
   bsCookable,
   bsCookableFromRecipe,
   bsCookableFromMeal,
@@ -310,4 +311,13 @@ test('bsAuthorStep: fractional durations never author a window (the parser mis-r
   assert.deepEqual(bsAuthorStep('Add 1.5 cups water, simmer 15 minutes.', 'stove'), { t: 'Add 1.5 cups water, simmer 15 minutes.' });
   // Integer durations still author normally.
   assert.equal(bsAuthorStep('Simmer 15 minutes.', 'stove').passive, true);
+});
+
+test('bsFractionalDuration: one rule for authoring AND display chips', () => {
+  assert.equal(bsFractionalDuration('Rest 1.5 minutes.'), true);
+  assert.equal(bsFractionalDuration('Köcheln 1,5 Minuten.'), true);
+  assert.equal(bsFractionalDuration('Add 1.5 cups water.'), true);   // blanket by design
+  assert.equal(bsFractionalDuration('Simmer 15 minutes.'), false);
+  assert.equal(bsFractionalDuration(''), false);
+  assert.equal(bsFractionalDuration(null), false);
 });

@@ -205,6 +205,12 @@ const BS_AUTHOR_MIN_PASSIVE = 4; // keep in sync with BS_ORCH.minPassive (cookOr
 // the editor hint and the coach restates; a false window fabricates a hold on
 // a client's board. Never fabricate wins.
 const BS_AUTHOR_FRACTIONAL_RE = /\d[.,]\d/;
+// Shared with the DISPLAY side (Codex): a step whose text carries a decimal
+// must not offer parser-derived timer chips either — the same mis-parse that
+// would fabricate an authored window fabricates a wrong countdown ("sear 1.5
+// minutes" → a 5-min chip). One rule, both sides: any decimal → no derived
+// timers; the cook reads the time from the step text itself.
+export const bsFractionalDuration = (text) => BS_AUTHOR_FRACTIONAL_RE.test(str(text) || '');
 export const bsAuthorStep = (text, station) => {
   const t = str(text);
   if (!t) return null;
