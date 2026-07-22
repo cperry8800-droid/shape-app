@@ -91,10 +91,18 @@ const SINGLE = {
 // still classifies as timer-status.
 const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|it|this|that)\b/;
 
+// A NEGATION anywhere ("don't go back", "do not move on", "never start the
+// timer", "can't skip") is telling Nora NOT to act — it must not trigger the
+// embedded phrase command, so it falls through to the grounded Q&A (Codex P2
+// #1805). Imperative commands never contain these tokens, so this can't suppress
+// a real command. "do not"/"is not"/"can not" are covered by the bare `not`.
+const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|never|not)\b/;
+
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
   if (!t) return null;
   if (QUESTION_OPENER.test(t)) return null;
+  if (NEGATION.test(t)) return null;
   const words = t.split(' ');
 
   // Timer-status interrogatives ("how long …") are unambiguous and often long

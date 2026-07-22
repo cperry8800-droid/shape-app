@@ -138,6 +138,17 @@ test('STT contractions with apostrophes still match (Codex P3 #1805)', () => {
   // fire skip (the extra token keeps it out of the bare-command path).
   assert.equal(bsCookCommand("don't skip"), null);
   assert.equal(bsCookCommand("can't skip this"), null);
+  // …and a negated PHRASE command must fall through too (Codex P2 #1805):
+  // "don't go back" / "do not move on" / "don't start the timer" reach Nora.
+  assert.equal(bsCookCommand("don't go back"), null);
+  assert.equal(bsCookCommand('do not move on'), null);
+  assert.equal(bsCookCommand("don't start the timer"), null);
+  assert.equal(bsCookCommand('never mind go back'), null);
+  assert.equal(bsCookCommand("can't go back"), null);
+  // …the plain imperatives still fire.
+  assert.equal(bsCookCommand('go back'), 'back');
+  assert.equal(bsCookCommand('move on'), 'next');
+  assert.equal(bsCookCommand('start the timer'), 'timer');
 });
 
 test('empty / non-string / junk → null', () => {
