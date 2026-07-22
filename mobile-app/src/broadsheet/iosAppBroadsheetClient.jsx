@@ -6859,16 +6859,24 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const startAndGo = () => {
     const cur = timeline[cursor];
     const tms = bsStepTimers(cur.text);
-    if (tms[0]) {
+    // Idempotent: returning to a window step (← Back) must never stack a second
+    // identical HOLDING timer for the same recipe step (audit). The outer read
+    // covers the common case; the in-updater re-check guards a rapid double-tap.
+    if (tms[0] && !timers.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)) {
       timerIdRef.current += 1;
       const id = timerIdRef.current;
-      setTimers((arr) => [...arr, { id, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: Date.now() + tms[0].seconds * 1000, total: tms[0].seconds }]);
+      setTimers((arr) => (arr.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)
+        ? arr
+        : [...arr, { id, stepIndex: cursor, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: Date.now() + tms[0].seconds * 1000, total: tms[0].seconds }]));
     }
     advance();
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
   const isWindow = !!(ev && ev.passive && ev.min != null && bsStepTimers(ev.text).length);
+  // Already started this step's timer (returned via ← Back)? Then the CTA just
+  // advances — never re-starts — so the HOLDING lane can't double up.
+  const evStarted = !!(ev && timers.some((x) => x.recipeKey === ev.recipe && x.stepIndex === cursor));
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
   const otherHold = ev ? running.find((x) => x.recipeKey !== ev.recipe) : null;
@@ -6937,7 +6945,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
 
             <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              {isWindow
+              {isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
                 : <button onClick={advance} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>

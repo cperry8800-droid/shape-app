@@ -214,7 +214,11 @@ export const bsCookableFromRecipe = (recipe) => {
   // A recipe may carry an explicit parallel `stepMeta` array (the catalog's
   // hand-curated passive-window overlay — steps stay plain strings). It wins
   // per-index over the inline meta; a null/invalid overlay entry falls back.
-  const overlay = Array.isArray(recipe.stepMeta) ? recipe.stepMeta : null;
+  // The overlay is authored parallel to the RAW steps, but splitSteps compacts
+  // (drops empty/attacker-shaped entries) — so apply it only when nothing
+  // dropped, or a future empty catalog step could shift it off its step (audit).
+  const rawLen = Array.isArray(recipe.steps) ? recipe.steps.length : 0;
+  const overlay = Array.isArray(recipe.stepMeta) && steps.length === rawLen ? recipe.stepMeta : null;
   const stepMeta = overlay ? steps.map((_, i) => sanitizeMeta(overlay[i]) || inlineMeta[i]) : inlineMeta;
   return finishCookable({
     title,

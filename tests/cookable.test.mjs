@@ -159,6 +159,19 @@ test('stepMeta: prose splits and mise/quick tiers stay plain (never fabricated)'
   assert.deepEqual(mise.stepMeta, []);                                             // no steps → no meta
 });
 
+test('stepMeta: a parallel overlay never shifts off its step when a raw step drops (audit)', () => {
+  // The catalog overlay is authored parallel to RAW steps; if a raw step ever
+  // dropped (empty), a naive index-merge would slide the oven window onto the
+  // wrong step. The guard skips the overlay unless nothing dropped.
+  const c = bsCookableFromRecipe({
+    ...RECIPE,
+    steps: ['', 'Roast the chicken until golden.'],                  // step 0 drops (empty)
+    stepMeta: [{ min: 30, passive: true, station: 'oven' }, null],   // overlay authored for the RAW indices
+  });
+  assert.deepEqual(c.steps, ['Roast the chicken until golden.']);
+  assert.deepEqual(c.stepMeta, [{ min: null, passive: false, station: null }]); // window did NOT mis-attach
+});
+
 test('stepMeta drops in lockstep when a step text drops (attacker-shaped)', () => {
   const sym = Symbol('x');
   const c = bsCookableFromMeal({ title: 'Real meal', kcal: 500, p: 30, c: 30, f: 10, steps: [{ t: sym, min: 30, passive: true, station: 'oven' }, 'Stir it well.'] });
