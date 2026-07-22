@@ -887,6 +887,10 @@ changelog whenever something ships.
 
 ### 2026-07-22 — Cook Mode PR E: coach step-authoring — the wave closes
 
+- **Session handoff: [`docs/HANDOFF-2026-07-22.md`](HANDOFF-2026-07-22.md)** —
+  the whole Cook Mode wave at session level (builds D + E, the binding rules the
+  wave established, and every open owner/follow-up item).
+
 - **Build 5 of 5 (the guided-cooking wave closer).** Coaches author REAL cooking
   methods on meal items, so coach-created meals become **tier-1 cookable at the
   source** (the spec's named forward path). No migration, no route.
