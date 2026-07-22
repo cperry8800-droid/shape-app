@@ -6812,8 +6812,13 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const stationLabel = (st) => tr(`cook:prep.station.${st}`, { defaultValue: BS_PREP_STATION_LABELS[st] || '' });
 
   const [cursor, setCursor] = useStateBSC(0);
-  const [timers, setTimers] = useStateBSC([]); // HOLDING lanes: [{id, recipeKey, title, station, label, endsAt, total}]
+  const [timers, setTimers] = useStateBSC([]); // HOLDING lanes: [{id, iid, recipeKey, title, station, label, endsAt, total}]
   const timerIdRef = React.useRef(0);
+  // "This step's timer was STARTED" must survive the timer's removal (✓ Done /
+  // rung dismissal) — if it lived only in `timers`, dismissing your own step's
+  // hold early would flip the CTA back to "Start timer", which re-queues a fresh
+  // full-length hold and soft-locks the board (Codex, round 6). Keys `iid:step`.
+  const startedRef = React.useRef(new Set());
   const [, setTick] = useStateBSC(0);
   React.useEffect(() => { const iv = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
   // Presence + wake lock — the meal logger's exact rails, same as BSCookMode.
@@ -6860,14 +6865,17 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     const cur = timeline[cursor];
     const tms = bsStepTimers(cur.text);
     const at = Date.now();
-    // Idempotent: returning to a window step (← Back) must never stack a second
-    // identical HOLDING timer for the same INSTANCE step (audit). Hold gates key
-    // on `iid` (the per-input instance id, 1:1 with a timeline track — the
-    // orchestrator + bsHoldingAt already key on it), so two selected instances of
-    // one recipe never cross-clear; `recipeKey` rides only for display. The outer
-    // read covers the common case; the in-updater re-check guards a rapid double-tap.
+    // Idempotent: a step's timer starts ONCE — gated on the durable startedRef
+    // (never the live `timers`, which dismissal empties), so neither ← Back nor
+    // an early ✓ Done can re-offer "Start timer" and stack/reset a hold (audit +
+    // Codex round 6). Hold gates key on `iid` (the per-input instance id, 1:1
+    // with a timeline track — the orchestrator + bsHoldingAt already key on it),
+    // so two selected instances of one recipe never cross-clear; `recipeKey`
+    // rides only for display. The synchronous ref add also kills the double-tap.
     let queued = null;
-    if (tms[0] && !timers.some((x) => x.iid === cur.iid && x.stepIndex === cursor)) {
+    const startKey = `${cur.iid}:${cursor}`;
+    if (tms[0] && !startedRef.current.has(startKey)) {
+      startedRef.current.add(startKey);
       timerIdRef.current += 1;
       const id = timerIdRef.current;
       queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
@@ -6892,10 +6900,13 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
   const isWindow = !!(ev && ev.passive && ev.min != null && bsStepTimers(ev.text).length);
-  // Already started this step's timer (returned via ← Back)? Then the CTA just
-  // advances — never re-starts — so the HOLDING lane can't double up. Identity
-  // gates compare `iid` (per-instance), never the display `recipeKey`.
-  const evStarted = !!(ev && timers.some((x) => x.iid === ev.iid && x.stepIndex === cursor));
+  // Already started this step's timer (returned via ← Back, or its hold was
+  // dismissed early)? Then the CTA just advances — never re-starts — so the
+  // HOLDING lane can't double up and a dismissed hold can't soft-lock the step
+  // behind a fresh full-length timer. Read from the durable startedRef, NOT the
+  // live `timers` (✓ Done removes the lane; the started fact must survive it).
+  // Identity gates compare `iid` (per-instance), never the display `recipeKey`.
+  const evStarted = !!(ev && startedRef.current.has(`${ev.iid}:${cursor}`));
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
   const otherHold = ev ? running.find((x) => x.iid !== ev.iid) : null;
@@ -6926,7 +6937,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                 <span key={rk} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 4, border: `1px solid ${isNow ? bsTHexA(heat, 0.6) : BAND.hair}`, background: isNow ? bsTHexA(heat, 0.12) : 'transparent' }}>
                   <span style={{ ...bandEyebrow, fontSize: 7.5, color: isNow ? heat : BAND.dim, maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(rk)}</span>
                   {hold
-                    ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums' }}>⏲ {fmt(Math.max(0, Math.ceil((hold.endsAt - now) / 1000)))}</span>
+                    ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums' }}>◷ {fmt(Math.max(0, Math.ceil((hold.endsAt - now) / 1000)))}</span>
                     : <span style={{ fontFamily: t.MONO, fontSize: 8, color: BAND.dim35, fontVariantNumeric: 'tabular-nums' }}>{done}/{tot}</span>}
                 </span>
               );
