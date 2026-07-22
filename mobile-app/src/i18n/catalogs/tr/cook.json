@@ -77,5 +77,18 @@
   "prep.notSaved": "Hazırlığını korumak için giriş yap — bu işaretler bu oturumdan sonra kalmaz.",
   "prep.done": "Tamam",
   "prep.stamp": "Hazırlandı ✓ · sadece tabağa al",
-  "prep.stampShort": "Hazırlandı ✓"
+  "prep.stampShort": "Hazırlandı ✓",
+  "prep.board": "Pano",
+  "prep.now": "Şimdi",
+  "prep.holding": "Bekliyor",
+  "prep.ready": "{title} hazır",
+  "prep.while": "{title} {holds} iken",
+  "prep.startTimerGo": "Zamanlayıcıyı başlat · pişirmeye devam →",
+  "prep.finish": "Bitir →",
+  "prep.next": "İleri →",
+  "prep.cookAria": "Hazırlık · pano",
+  "prep.station.oven": "fırında",
+  "prep.station.stove": "ocakta",
+  "prep.station.board": "tahtada",
+  "prep.station.off": "dinleniyor"
 }

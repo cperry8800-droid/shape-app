@@ -77,5 +77,18 @@
   "prep.notSaved": "Увійди, щоб зберегти підготовку — ці позначки не переживуть цю сесію.",
   "prep.done": "Готово",
   "prep.stamp": "Підготовлено ✓ · лишилось викласти",
-  "prep.stampShort": "Підготовлено ✓"
+  "prep.stampShort": "Підготовлено ✓",
+  "prep.board": "Дошка",
+  "prep.now": "Зараз",
+  "prep.holding": "Очікує",
+  "prep.ready": "{title} готово",
+  "prep.while": "поки {title} ще {holds}",
+  "prep.startTimerGo": "Запустити таймер · готуйте далі →",
+  "prep.finish": "Завершити →",
+  "prep.next": "Далі →",
+  "prep.cookAria": "Підготовка · дошка",
+  "prep.station.oven": "у духовці",
+  "prep.station.stove": "на плиті",
+  "prep.station.board": "на дошці",
+  "prep.station.off": "відпочиває"
 }

@@ -77,5 +77,18 @@
   "prep.notSaved": "Entre para guardar seu preparo — estas marcas não vão durar além desta sessão.",
   "prep.done": "Pronto",
   "prep.stamp": "Preparado ✓ · é só empratar",
-  "prep.stampShort": "Preparado ✓"
+  "prep.stampShort": "Preparado ✓",
+  "prep.board": "O painel",
+  "prep.now": "Agora",
+  "prep.holding": "Em espera",
+  "prep.ready": "{title} pronto",
+  "prep.while": "enquanto {title} continua {holds}",
+  "prep.startTimerGo": "Ligar o timer · siga cozinhando →",
+  "prep.finish": "Concluir →",
+  "prep.next": "Próximo →",
+  "prep.cookAria": "Preparo · o painel",
+  "prep.station.oven": "no forno",
+  "prep.station.stove": "no fogão",
+  "prep.station.board": "na tábua",
+  "prep.station.off": "descansando"
 }

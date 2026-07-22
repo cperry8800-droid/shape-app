@@ -77,5 +77,18 @@
   "prep.notSaved": "Shiga don adana shirinka — waɗannan alamun ba za su wanzu bayan wannan zaman ba.",
   "prep.done": "An gama",
   "prep.stamp": "An shirya ✓ · sai dai a zuba",
-  "prep.stampShort": "An shirya ✓"
+  "prep.stampShort": "An shirya ✓",
+  "prep.board": "Allo",
+  "prep.now": "Yanzu",
+  "prep.holding": "Ana jira",
+  "prep.ready": "{title} ya shirya",
+  "prep.while": "yayin da {title} ke {holds}",
+  "prep.startTimerGo": "Kunna agogo · ci gaba da dafawa →",
+  "prep.finish": "Gama →",
+  "prep.next": "Gaba →",
+  "prep.cookAria": "Shiri · allo",
+  "prep.station.oven": "cikin tanda",
+  "prep.station.stove": "kan murhu",
+  "prep.station.board": "kan allo",
+  "prep.station.off": "yana huta"
 }

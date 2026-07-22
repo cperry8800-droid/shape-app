@@ -127,6 +127,45 @@ test('structured step objects pass through their text (PR D forward-compat)', ()
   assert.deepEqual(c.steps, ['Sear the chicken.', 'Rest 5 minutes.']);
 });
 
+test('stepMeta: index-aligned, structured metadata honored, plain steps carry none (PR D §6)', () => {
+  const c = bsCookableFromRecipe({
+    ...RECIPE,
+    steps: [
+      'Season the chicken well.',                                                  // plain → no meta
+      { t: 'Roast for 30 minutes until deeply golden.', min: 30, passive: true, station: 'oven' },
+      { t: 'Rest 10 minutes off the heat.', min: 10, passive: true, station: 'off' },
+      { t: 'Slice against the grain.', station: 'board' },                         // active + station, no min
+      { t: 'Simmer for a bit.', min: 0, passive: 'yes', station: 'microwave' },    // junk: min<=0, non-true passive, bad station
+    ],
+  });
+  assert.equal(c.steps.length, 5);
+  assert.equal(c.stepMeta.length, 5);                                              // aligned with steps
+  assert.deepEqual(c.stepMeta[0], { min: null, passive: false, station: null });   // plain string
+  assert.deepEqual(c.stepMeta[1], { min: 30, passive: true, station: 'oven' });
+  assert.deepEqual(c.stepMeta[2], { min: 10, passive: true, station: 'off' });
+  assert.deepEqual(c.stepMeta[3], { min: null, passive: false, station: 'board' });
+  assert.deepEqual(c.stepMeta[4], { min: null, passive: false, station: null });   // every junk field rejected
+});
+
+test('stepMeta: prose splits and mise/quick tiers stay plain (never fabricated)', () => {
+  const prose = bsCookableFromMeal({
+    title: 'Salmon plate', kcal: 610, p: 44, c: 42, f: 22,
+    brief: 'Preheat the oven to 425 and pat the salmon dry. Roast the fillet 12 minutes until it flakes.',
+  });
+  assert.equal(prose.tier, BS_COOK_TIERS.PROSE);
+  assert.equal(prose.stepMeta.length, prose.steps.length);
+  assert.ok(prose.stepMeta.every((m) => m.passive === false && m.station === null)); // prose never claims a passive window
+  const mise = bsCookableFromMeal({ title: 'Parfait', kcal: 480, p: 38, c: 52, f: 12, ingredients: [{ n: '1 cup', m: 'yogurt' }] });
+  assert.deepEqual(mise.stepMeta, []);                                             // no steps → no meta
+});
+
+test('stepMeta drops in lockstep when a step text drops (attacker-shaped)', () => {
+  const sym = Symbol('x');
+  const c = bsCookableFromMeal({ title: 'Real meal', kcal: 500, p: 30, c: 30, f: 10, steps: [{ t: sym, min: 30, passive: true, station: 'oven' }, 'Stir it well.'] });
+  assert.deepEqual(c.steps, ['Stir it well.']);                                    // the Symbol-text step dropped
+  assert.deepEqual(c.stepMeta, [{ min: null, passive: false, station: null }]);    // its meta dropped too — still aligned
+});
+
 test('attacker-shaped input never throws: Symbols/objects drop honestly', () => {
   const sym = Symbol('x');
   assert.equal(bsCookable(null), null);

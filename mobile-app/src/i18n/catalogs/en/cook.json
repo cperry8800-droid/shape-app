@@ -77,5 +77,18 @@
   "prep.notSaved": "Sign in to keep your prep — these stamps won't survive this session.",
   "prep.done": "Done",
   "prep.stamp": "Prepped ✓ · just plate it",
-  "prep.stampShort": "Prepped ✓"
+  "prep.stampShort": "Prepped ✓",
+  "prep.board": "The board",
+  "prep.now": "Now",
+  "prep.holding": "Holding",
+  "prep.ready": "{title} ready",
+  "prep.while": "while the {title} {holds}",
+  "prep.startTimerGo": "Start timer · keep cooking →",
+  "prep.finish": "Finish →",
+  "prep.next": "Next →",
+  "prep.cookAria": "Prep · the board",
+  "prep.station.oven": "in the oven",
+  "prep.station.stove": "on the stove",
+  "prep.station.board": "on the board",
+  "prep.station.off": "resting"
 }

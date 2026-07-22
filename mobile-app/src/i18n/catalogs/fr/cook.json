@@ -77,5 +77,18 @@
   "prep.notSaved": "Connectez-vous pour garder votre prépa — ces marques ne survivront pas à cette session.",
   "prep.done": "Terminé",
   "prep.stamp": "Préparé ✓ · juste à dresser",
-  "prep.stampShort": "Préparé ✓"
+  "prep.stampShort": "Préparé ✓",
+  "prep.board": "Le plan",
+  "prep.now": "Maintenant",
+  "prep.holding": "En attente",
+  "prep.ready": "{title} prêt",
+  "prep.while": "pendant que {title} reste {holds}",
+  "prep.startTimerGo": "Lancer le minuteur · continuez →",
+  "prep.finish": "Terminer →",
+  "prep.next": "Suivant →",
+  "prep.cookAria": "Prépa · le plan",
+  "prep.station.oven": "au four",
+  "prep.station.stove": "sur le feu",
+  "prep.station.board": "sur la planche",
+  "prep.station.off": "au repos"
 }

@@ -9,7 +9,9 @@ import {
   SHAPE_KITCHEN_RECIPES,
   recipeNeeds, recipeMatchesDiet,
   _RECIPE_NOT_GF, _RECIPE_HAS_DAIRY, _RECIPE_MED,
+  _KITCHEN_STEP_META,
 } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
+import { bsStepTimers, BS_STATIONS } from '../mobile-app/src/services/cookable.mjs';
 
 const QTY_RE = /\d|pinch|drizzle|handful|to taste|dash|splash|zest|juice of/i;
 // A "cue-rich" step joins at least two of these families — a time cue plus at
@@ -79,6 +81,36 @@ test('catalog: diet-classification allowlists reference only real recipe titles'
   for (const [name, set] of [['not-GF', _RECIPE_NOT_GF], ['has-dairy', _RECIPE_HAS_DAIRY], ['mediterranean', _RECIPE_MED]]) {
     for (const t of set) assert.ok(titles.has(t), `${name} set references a title not in the catalog: "${t}"`);
   }
+});
+
+// ── PR D orchestration (§6): passive-window overlay ────────────────────────
+test('catalog: passive-window overlay keys reference only real recipe titles', () => {
+  const titles = new Set(SHAPE_KITCHEN_RECIPES.map((r) => r.title));
+  for (const t of Object.keys(_KITCHEN_STEP_META)) assert.ok(titles.has(t), `overlay references a title not in the catalog: "${t}"`);
+});
+
+test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min stated in the step)', () => {
+  const MIN_PASSIVE = 4;
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    if (!r.stepMeta) continue;
+    assert.equal(r.stepMeta.length, r.steps.length, `${r.title}: stepMeta not index-aligned with steps`);
+    r.stepMeta.forEach((m, i) => {
+      if (m == null) return;
+      assert.ok(BS_STATIONS.includes(m.station), `${r.title} step ${i}: bad station "${m.station}"`);
+      assert.equal(m.passive, true, `${r.title} step ${i}: overlay entries must be passive windows`);
+      assert.ok(Number.isFinite(m.min) && m.min >= MIN_PASSIVE, `${r.title} step ${i}: min ${m.min} below the ${MIN_PASSIVE}-min floor`);
+      assert.ok(m.min <= 6 * 60, `${r.title} step ${i}: min ${m.min} exceeds 6h`);
+      // No fabrication: the authored `min` must equal a real duration the step text itself states.
+      const stated = bsStepTimers(r.steps[i]).map((x) => Math.round(x.seconds / 60));
+      assert.ok(stated.includes(m.min), `${r.title} step ${i}: min ${m.min} not stated in the step — "${r.steps[i].slice(0, 48)}…" states ${JSON.stringify(stated)}`);
+    });
+  }
+});
+
+test('catalog: the interleave demo is real — oven, stove AND off windows all exist', () => {
+  const stations = new Set();
+  for (const r of SHAPE_KITCHEN_RECIPES) for (const m of r.stepMeta || []) if (m) stations.add(m.station);
+  for (const s of ['oven', 'stove', 'off']) assert.ok(stations.has(s), `no ${s} interleave window in the catalog`);
 });
 
 // Spot-check the diet helpers so a logic regression (not just a desync) is caught.

@@ -77,5 +77,18 @@
   "prep.notSaved": "Melde dich an, um deine Vorbereitung zu behalten — diese Markierungen überstehen diese Session nicht.",
   "prep.done": "Fertig",
   "prep.stamp": "Vorbereitet ✓ · nur noch anrichten",
-  "prep.stampShort": "Vorbereitet ✓"
+  "prep.stampShort": "Vorbereitet ✓",
+  "prep.board": "Das Board",
+  "prep.now": "Jetzt",
+  "prep.holding": "Wartet",
+  "prep.ready": "{title} fertig",
+  "prep.while": "während {title} noch {holds}",
+  "prep.startTimerGo": "Timer starten · weiterkochen →",
+  "prep.finish": "Fertig →",
+  "prep.next": "Weiter →",
+  "prep.cookAria": "Prep · das Board",
+  "prep.station.oven": "im Ofen",
+  "prep.station.stove": "auf dem Herd",
+  "prep.station.board": "auf dem Brett",
+  "prep.station.off": "ruht"
 }

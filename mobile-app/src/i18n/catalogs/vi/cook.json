@@ -77,5 +77,18 @@
   "prep.notSaved": "Đăng nhập để giữ phần sơ chế — những dấu này sẽ không còn sau phiên này.",
   "prep.done": "Xong",
   "prep.stamp": "Đã sơ chế ✓ · chỉ việc bày ra",
-  "prep.stampShort": "Đã sơ chế ✓"
+  "prep.stampShort": "Đã sơ chế ✓",
+  "prep.board": "Bảng",
+  "prep.now": "Bây giờ",
+  "prep.holding": "Đang chờ",
+  "prep.ready": "{title} xong",
+  "prep.while": "trong khi {title} vẫn {holds}",
+  "prep.startTimerGo": "Bật hẹn giờ · nấu tiếp →",
+  "prep.finish": "Hoàn tất →",
+  "prep.next": "Tiếp →",
+  "prep.cookAria": "Chuẩn bị · bảng",
+  "prep.station.oven": "trong lò",
+  "prep.station.stove": "trên bếp",
+  "prep.station.board": "trên thớt",
+  "prep.station.off": "đang nghỉ"
 }

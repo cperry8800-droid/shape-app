@@ -948,6 +948,50 @@ export const SHAPE_KITCHEN_RECIPES = [
   },
 ];
 
+// ── PR D orchestration (§6): passive-window overlay ────────────────────────
+// Marks ONLY the genuinely hands-off windows in the catalog — a real duration
+// plus a station you can walk away from — so a Prep Session can interleave
+// ("while the chicken roasts, start tomorrow's rice"). Every other step stays
+// active and the board never fabricates parallelism. Steps themselves stay plain
+// strings (no consumer changes); this attaches a parallel `stepMeta` array.
+// Hand-checked against each step's text; the data test ties every `min` to that
+// step's own stated duration (bsStepTimers) so authored metadata can't drift.
+//   station: 'oven' | 'stove' | 'board' | 'off'   ('off' = rest/chill/marinate —
+//   ties up no equipment, so it never conflicts). Keyed title → { stepIndex: meta }.
+export const _KITCHEN_STEP_META = {
+  "One-pan chicken and rice": { 4: { min: 18, passive: true, station: "stove" } },
+  "Sheet-pan salmon, sweet potato and broccoli": { 1: { min: 15, passive: true, station: "oven" }, 4: { min: 12, passive: true, station: "oven" } },
+  "Steak and sweet potato hash": { 1: { min: 8, passive: true, station: "stove" }, 4: { min: 4, passive: true, station: "off" } },
+  "Black bean and sweet potato tacos": { 0: { min: 18, passive: true, station: "oven" } },
+  "Red lentil and spinach dahl": { 4: { min: 18, passive: true, station: "stove" } },
+  "Chickpea shakshuka": { 2: { min: 8, passive: true, station: "stove" }, 4: { min: 5, passive: true, station: "stove" } },
+  "Miso-glazed cod with greens": { 3: { min: 8, passive: true, station: "oven" } },
+  "Tofu and edamame poke bowl": { 0: { min: 10, passive: true, station: "off" } },
+  "Grilled chicken Caesar, lightened": { 2: { min: 5, passive: true, station: "off" } },
+  "Beef and broccoli stir-fry": { 0: { min: 10, passive: true, station: "off" } },
+  "Tempeh and broccoli teriyaki": { 0: { min: 5, passive: true, station: "stove" } },
+  "Tuna niçoise bowl": { 0: { min: 7, passive: true, station: "stove" } },
+  "Roasted veg and halloumi traybake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 10, passive: true, station: "oven" } },
+  "Quinoa rainbow Buddha bowl": { 0: { min: 20, passive: true, station: "oven" } },
+  "Turkey meatballs in marinara": { 3: { min: 12, passive: true, station: "stove" } },
+  "Black-eyed pea and coconut curry": { 3: { min: 15, passive: true, station: "stove" } },
+  "Cauliflower steak, chimichurri": { 2: { min: 25, passive: true, station: "oven" }, 4: { min: 10, passive: true, station: "off" } },
+  "Lentil bolognese": { 2: { min: 15, passive: true, station: "stove" } },
+  "Creamy tomato and white bean pasta": { 1: { min: 8, passive: true, station: "stove" } },
+  "Beef ragu rigatoni": { 3: { min: 20, passive: true, station: "stove" } },
+  "Chickpea and spinach curry": { 3: { min: 15, passive: true, station: "stove" } },
+  "Crispy tofu grain bowl": { 0: { min: 10, passive: true, station: "off" } },
+  "Overnight oats, three ways": { 1: { min: 240, passive: true, station: "off" } },
+  "Harissa salmon with couscous": { 1: { min: 10, passive: true, station: "oven" }, 2: { min: 5, passive: true, station: "off" } },
+  "Date and almond energy bites": { 3: { min: 30, passive: true, station: "off" } },
+  "Turkey chili verde": { 3: { min: 20, passive: true, station: "stove" } },
+  "Lemon-herb chicken meal-prep box": { 0: { min: 10, passive: true, station: "off" }, 1: { min: 15, passive: true, station: "stove" }, 2: { min: 16, passive: true, station: "oven" } },
+};
+for (const r of SHAPE_KITCHEN_RECIPES) {
+  const m = _KITCHEN_STEP_META[r.title];
+  if (m) r.stepMeta = r.steps.map((_, i) => m[i] || null);
+}
+
 // Dietary-needs axis (multi-match) layered on top of the single `diet`. Keep in
 // sync with public/newdesign/recipes.jsx.
 export const RECIPE_DIETS = ["Vegan", "Vegetarian", "Pescatarian", "Mediterranean"];
