@@ -96,6 +96,20 @@ test('bsHoldingAt: the roast holds during the rice detour, clears once we return
   assert.deepEqual(bsHoldingAt(timeline, 6), []);
 });
 
+test('duplicate recipe keys stay independent instances — no cross-clear (CodeRabbit)', () => {
+  // Two selected instances of the same recipe share a display `key`.
+  const dup = () => ({ key: 'same', title: 'Roast ×2', steps: ['Prep it.', 'Roast it 20 min.', 'Rest it.'], stepMeta: [A('board'), P(20, 'oven'), A('off')] });
+  const { timeline, serial } = bsOrchestrate([dup(), dup()], OPTS);
+  assert.equal(serial, false); // instance 1's board prep interleaves instance 0's roast
+  const roasts = timeline.filter((e) => e.stepIndex === 1);
+  assert.equal(roasts.length, 2);                 // BOTH instances roast (neither's hold cleared the other's)
+  assert.notEqual(roasts[0].iid, roasts[1].iid);  // tracked as distinct instances
+  assert.equal(roasts[0].recipe, roasts[1].recipe); // …while sharing the display key
+  assert.equal(timeline.filter((e) => e.stepIndex === 2).length, 2); // both rest — nothing merged away
+  // One oven → the two roasts never overlap (station conflict respected across instances).
+  assert.notEqual(roasts[0].at, roasts[1].at);
+});
+
 test('empty / junk input never throws → empty serial', () => {
   assert.deepEqual(bsOrchestrate(null), { timeline: [], serial: true });
   assert.deepEqual(bsOrchestrate([]), { timeline: [], serial: true });

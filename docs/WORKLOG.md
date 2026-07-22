@@ -905,12 +905,15 @@ changelog whenever something ships.
   `sanitizeMeta` validator covers inline `{t,…}` objects (PR E coach authoring)
   AND a catalog overlay. The overlay applies only when `splitSteps` dropped
   nothing, so a future empty step can never shift a window onto the wrong step.
-- **`cookOrchestrator.mjs`** (pure, injected-clock, TDD) — a deterministic greedy
-  interleaver: emits an ordered `{recipe, step, at}` timeline; one oven/stove/
+- **`cookOrchestrator.mjs`** (pure, configurable-duration, TDD) — a deterministic
+  greedy interleaver: emits ordered timeline entries
+  `{recipe, iid, title, stepIndex, text, at, min, passive, station}` (relative
+  minute `at` from an injected `activeStepMin`, no runtime clock); one oven/stove/
   board respected, `'off'` (rest/chill) never conflicts; `serial:false` only when
-  a step is performed while another recipe holds a window. `bsHoldingAt` for the
-  planned holds. 9 pinned-timeline tests (the demo, station conflict, `'off'`
-  concurrency, sub-window gate, holding, empty/junk, termination).
+  a step is performed while another INSTANCE holds a window (`iid` keeps two
+  selections of one recipe independent). `bsHoldingAt` for the planned holds. 10
+  pinned-timeline tests (the demo, station conflict, `'off'` concurrency,
+  sub-window gate, holding, duplicate-key instances, empty/junk, termination).
 - **Catalog metadata pass** — **27 of 35 recipes** annotated with genuine
   hands-off windows (oven/stove/off) via ONE hand-auditable co-located overlay
   (`_KITCHEN_STEP_META`); steps stay plain strings (no consumer touched). The

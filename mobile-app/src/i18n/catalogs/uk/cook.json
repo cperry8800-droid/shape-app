@@ -90,5 +90,6 @@
   "prep.station.oven": "у духовці",
   "prep.station.stove": "на плиті",
   "prep.station.board": "на дошці",
-  "prep.station.off": "відпочиває"
+  "prep.station.off": "відпочиває",
+  "prep.waiting": "{title} · залишилось {t}"
 }

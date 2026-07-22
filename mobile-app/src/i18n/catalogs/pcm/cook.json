@@ -90,5 +90,6 @@
   "prep.station.oven": "for oven",
   "prep.station.stove": "for stove",
   "prep.station.board": "for board",
-  "prep.station.off": "dey rest"
+  "prep.station.off": "dey rest",
+  "prep.waiting": "{title} · {t} remain"
 }

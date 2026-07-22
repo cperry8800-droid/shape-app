@@ -31,13 +31,17 @@ const isWindow = (m, minPassive) => !!m && m.passive === true && m.station != nu
 const cleanRecipes = (recipes) =>
   (Array.isArray(recipes) ? recipes : [])
     .filter((r) => r && Array.isArray(r.steps) && r.steps.length)
-    .map((r) => ({ key: r.key, title: r.title, steps: r.steps, meta: Array.isArray(r.stepMeta) ? r.stepMeta : [] }));
+    .map((r, iid) => ({ iid, key: r.key, title: r.title, steps: r.steps, meta: Array.isArray(r.stepMeta) ? r.stepMeta : [] }));
 
 const evt = (r, i, at) => {
   const m = r.meta[i] || {};
   const passive = m.passive === true;
   const min = realMin(m);
-  return { recipe: r.key, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null };
+  // `iid` = the internal per-input instance id. Two selected instances of the
+  // SAME recipe share a display `recipe` key but must never cross-clear each
+  // other's hold / merge their steps (CodeRabbit) — scheduling keys on `iid`,
+  // `recipe` stays the catalog/display key the UI reads.
+  return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null };
 };
 
 // Serial: every recipe's steps in order, back-to-back. A passive step still
@@ -99,15 +103,15 @@ export function bsOrchestrate(recipes, opts = {}) {
     const i = ready.ptr;
     const m = ready.meta[i] || {};
     const window = isWindow(m, minPassive);
-    if (holds.some((h) => h.key !== ready.key)) interleaved = true; // acting while another recipe holds a window
+    if (holds.some((h) => h.iid !== ready.iid)) interleaved = true; // acting while another instance holds a window
     timeline.push(evt(ready, i, now));
     ready.ptr++;
 
     if (window) {
-      // Start the window: occupy the station + block this recipe until it ends,
+      // Start the window: occupy the station + block this instance until it ends,
       // but DON'T spend the clock — starting a timer is instant, so the very next
       // ready recipe fills the gap at the same moment.
-      holds.push({ key: ready.key, station: m.station, endAt: now + realMin(m) });
+      holds.push({ iid: ready.iid, station: m.station, endAt: now + realMin(m) });
       ready.freeAt = now + realMin(m);
     } else {
       // Active step (or a sub-window passive wait) consumes hands-on time.
@@ -130,8 +134,9 @@ export function bsHoldingAt(timeline, cursorIndex) {
   for (let j = 0; j < cursorIndex; j++) {
     const e = timeline[j];
     if (!e || !e.passive || e.station == null || !(e.min > 0)) continue;
-    // Have we come back to this recipe (its continuation performed at/before the cursor)?
-    const nextSame = timeline.findIndex((x, k) => k > j && x && x.recipe === e.recipe);
+    // Have we come back to this instance (its continuation performed at/before the
+    // cursor)? Compare on `iid` so two instances of one recipe stay independent.
+    const nextSame = timeline.findIndex((x, k) => k > j && x && (x.iid != null && e.iid != null ? x.iid === e.iid : x.recipe === e.recipe));
     if (nextSame !== -1 && nextSame <= cursorIndex) continue; // returned → window done
     if (cur && typeof cur.at === 'number' && e.at + e.min <= cur.at) continue; // elapsed by the clock
     holds.push({ recipe: e.recipe, title: e.title, text: e.text, station: e.station, min: e.min, startedAt: e.at, endsAt: e.at + e.min });

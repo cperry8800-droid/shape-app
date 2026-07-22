@@ -90,5 +90,6 @@
   "prep.station.oven": "im Ofen",
   "prep.station.stove": "auf dem Herd",
   "prep.station.board": "auf dem Brett",
-  "prep.station.off": "ruht"
+  "prep.station.off": "ruht",
+  "prep.waiting": "{title} · noch {t}"
 }

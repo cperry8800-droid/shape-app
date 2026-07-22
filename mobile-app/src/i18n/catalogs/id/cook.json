@@ -90,5 +90,6 @@
   "prep.station.oven": "di oven",
   "prep.station.stove": "di kompor",
   "prep.station.board": "di talenan",
-  "prep.station.off": "didiamkan"
+  "prep.station.off": "didiamkan",
+  "prep.waiting": "{title} · {t} lagi"
 }

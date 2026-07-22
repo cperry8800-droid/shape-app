@@ -6880,6 +6880,13 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
   const otherHold = ev ? running.find((x) => x.recipeKey !== ev.recipe) : null;
+  // You can't rest a chicken that's still roasting (Codex P1): if the NEXT step
+  // belongs to a recipe whose window timer is still RUNNING, gate advancing —
+  // the cook waits for it to ring, or taps ✓ Done on the lane when they judge it
+  // ready early. A rung (finished) hold never blocks. Guards the "out-run the
+  // window" case where the interleaved active steps finish before the timer.
+  const nextEv = timeline[cursor + 1];
+  const waitingOn = nextEv ? running.find((x) => x.recipeKey === nextEv.recipe) : null;
 
   return (
     <BSPage noSwipe mast={false}>
@@ -6924,9 +6931,11 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                   const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
                   return (
                     <div key={x.id}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                        <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title} · {stationLabel(x.station)}</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title} · {stationLabel(x.station)}</span>
                         <span style={{ fontFamily: t.MONO, fontSize: 17, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1, flexShrink: 0 }}>{fmt(left)}</span>
+                        {/* Ready early? The cook judges doneness — clear the hold and unblock. */}
+                        <button onClick={() => dismissTimer(x.id)} style={{ ...quietBtn, color: BAND.dim, fontSize: 8, flexShrink: 0, padding: '10px 2px' }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
                       </div>
                       <div aria-hidden style={{ marginTop: 6, height: 3, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
                         <div style={{ height: '100%', borderRadius: 2, background: heat, boxShadow: `0 0 8px ${bsTHexA(heat, 0.5)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - left / x.total)) * 100)}%`, transition: reduced ? 'none' : 'width 1s linear' }} />
@@ -6947,7 +6956,9 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
               {isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
-                : <button onClick={advance} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
+                : waitingOn
+                  ? <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</button>
+                  : <button onClick={advance} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>
           </>)}
         </div>

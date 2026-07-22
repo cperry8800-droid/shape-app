@@ -90,5 +90,6 @@
   "prep.station.oven": "in forno",
   "prep.station.stove": "sul fornello",
   "prep.station.board": "sul tagliere",
-  "prep.station.off": "a riposo"
+  "prep.station.off": "a riposo",
+  "prep.waiting": "{title} · {t} rimasti"
 }

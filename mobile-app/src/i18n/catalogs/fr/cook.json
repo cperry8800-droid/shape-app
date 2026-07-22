@@ -90,5 +90,6 @@
   "prep.station.oven": "au four",
   "prep.station.stove": "sur le feu",
   "prep.station.board": "sur la planche",
-  "prep.station.off": "au repos"
+  "prep.station.off": "au repos",
+  "prep.waiting": "{title} · {t} restant"
 }

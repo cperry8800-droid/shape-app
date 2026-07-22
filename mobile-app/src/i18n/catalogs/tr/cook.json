@@ -90,5 +90,6 @@
   "prep.station.oven": "fırında",
   "prep.station.stove": "ocakta",
   "prep.station.board": "tahtada",
-  "prep.station.off": "dinleniyor"
+  "prep.station.off": "dinleniyor",
+  "prep.waiting": "{title} · {t} kaldı"
 }

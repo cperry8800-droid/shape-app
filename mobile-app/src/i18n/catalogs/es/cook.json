@@ -90,5 +90,6 @@
   "prep.station.oven": "en el horno",
   "prep.station.stove": "en la estufa",
   "prep.station.board": "en la tabla",
-  "prep.station.off": "reposando"
+  "prep.station.off": "reposando",
+  "prep.waiting": "{title} · quedan {t}"
 }

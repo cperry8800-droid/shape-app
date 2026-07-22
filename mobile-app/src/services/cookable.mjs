@@ -90,7 +90,7 @@ const splitSteps = (steps) => {
       const t = str(s.t);
       if (!t) continue;
       text.push(t);
-      meta.push(sanitizeMeta(s) || plainStepMeta());
+      meta.push(sanitizeMeta(s)); // s is a non-null object here → never null (the overlay merge below is where the fallback is real)
     } else {
       const t = str(s);
       if (!t) continue;

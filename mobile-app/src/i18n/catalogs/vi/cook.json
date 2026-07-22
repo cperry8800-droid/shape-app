@@ -90,5 +90,6 @@
   "prep.station.oven": "trong lò",
   "prep.station.stove": "trên bếp",
   "prep.station.board": "trên thớt",
-  "prep.station.off": "đang nghỉ"
+  "prep.station.off": "đang nghỉ",
+  "prep.waiting": "{title} · còn {t}"
 }

@@ -90,5 +90,6 @@
   "prep.station.oven": "cikin tanda",
   "prep.station.stove": "kan murhu",
   "prep.station.board": "kan allo",
-  "prep.station.off": "yana huta"
+  "prep.station.off": "yana huta",
+  "prep.waiting": "{title} · saura {t}"
 }
