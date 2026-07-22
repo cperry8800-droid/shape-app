@@ -558,6 +558,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Cook Mode — guided cooking wave (spec 2026-07-21, builds A–D shipped)',
+      items: [
+        { label: 'PR A #1804 cookable contract + BSCookMode walkthrough (4-tier honest ladder, universal entries) · PR B Nora sous-chef (opt-in reads, hold-to-talk commands, grounded read-only Q&A) · PR C #1806 Prep Session (Sunday ritual, merged mise, PREPPED state) · PR D #1807 orchestration (pure iid-tracked passive-window interleaver + _KITCHEN_STEP_META overlay + the BSPrepCook multi-track NOW/HOLDING board with live timers + wait gate + durable started-state; serial fallback for windowless sets). No new routes, no migrations anywhere in the wave. PR D took SEVEN review rounds — standouts: the stale-closure wait-gate hole, the 8-recipe concurrent-step annotation class (now a catalog guard test), the dismiss-your-own-hold soft-lock', status: 'done' },
+        { label: 'PR E (the wave closer): coach structured step-authoring (tier-1 forward path for stepMeta) · the Frontispiece (image field + menu-engraving fallback) · deferred review items — terminal-window ⇒ station-off catalog test · wrap-screen "still chilling · MM:SS" note · active-step timer chips on the board · intra-recipe overlap modeling · duplicate-recipe selection', status: 'pending' },
+        { label: 'OWNER on-device prep pass: two window recipes → PREP THE WEEK → the board (start a window → interleaved NOW switches · HOLDING countdown + early ✓ Done → Next, never a re-offered Start timer · the WAITING gate on a still-cooking recipe) + a windowless pair falls back serial + Nora reads/commands in a solo cook', status: 'manual' },
+      ],
+    },
+    {
       section: 'BYO commission split — 0% on coach-brought clients (spec #1789 · 2026-07-21)',
       items: [
         { label: 'PR A RAILS SHIPPED (#1794, 8 review rounds): coach_referrals ledger (durable link-token row + client-bound 30-day windows, enforced row shapes) · origin/fee_bps columns on subscriptions + one_time_purchases (write-once via BEFORE UPDATE freeze triggers) · resolve_coach_checkout_origin RPC (auth.uid()-scoped, waitlist-wins precedence, expired invites excluded) wired into ALL THREE session-creation sites · rate-aware fee module (omit-at-zero Stripe fields) · webhook persists the ATOMIC attribution pair + consumes the referral only on a confirmed write; ISSUED_FEE_BPS registry keeps rate changes from rewriting in-flight sessions', status: 'done' },
