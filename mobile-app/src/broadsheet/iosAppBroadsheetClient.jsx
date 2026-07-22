@@ -6859,24 +6859,31 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const startAndGo = () => {
     const cur = timeline[cursor];
     const tms = bsStepTimers(cur.text);
+    const at = Date.now();
     // Idempotent: returning to a window step (← Back) must never stack a second
     // identical HOLDING timer for the same recipe step (audit). The outer read
     // covers the common case; the in-updater re-check guards a rapid double-tap.
+    let queued = null;
     if (tms[0] && !timers.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)) {
       timerIdRef.current += 1;
       const id = timerIdRef.current;
+      queued = { id, stepIndex: cursor, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
       setTimers((arr) => (arr.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)
         ? arr
-        : [...arr, { id, stepIndex: cursor, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: Date.now() + tms[0].seconds * 1000, total: tms[0].seconds }]));
+        : [...arr, queued]));
     }
-    // Advance unless the NEXT step's recipe still has a running hold (Codex — the
-    // wait gate outranks starting a window; you can't step into a recipe that's
-    // still cooking). No next step (a terminal window) → finish normally: the
-    // recipe's active work is done, and PREPPED is an active-work signal (a
-    // make-ahead sets/chills unattended), so it records here by design.
+    // Advance unless the NEXT step's recipe still has a running hold (the wait
+    // gate outranks starting a window; you can't step into a recipe that's still
+    // cooking). The timer we JUST queued isn't in the rendered `timers` yet
+    // (setTimers is async within this handler), so a SAME-recipe next step must
+    // be checked against existing-plus-just-queued (Codex P2 / CodeRabbit) — else
+    // starting a window and stepping straight into its own continuation slips past
+    // the gate. No next step (a terminal window) → finish normally: the recipe's
+    // active work is done, and PREPPED is an active-work signal (a make-ahead
+    // sets/chills unattended), so it records here by design.
     const nxt = timeline[cursor + 1];
-    const at = Date.now();
-    const blocked = !!(nxt && timers.some((x) => x.recipeKey === nxt.recipe && x.endsAt > at));
+    const effective = queued ? [...timers, queued] : timers;
+    const blocked = !!(nxt && effective.some((x) => x.recipeKey === nxt.recipe && x.endsAt > at));
     if (!blocked) advance();
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
