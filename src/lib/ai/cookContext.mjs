@@ -39,6 +39,15 @@ const intIn = (v, lo, hi) => {
   return i >= lo && i <= hi ? i : null;
 };
 
+// A macro figure: a finite, non-negative, sanely-bounded number (rounded to 1dp
+// for display). Absent/garbage → null so it's OMITTED, never a fabricated 0
+// (the honest-absent doctrine).
+const macroNum = (v) => {
+  const n = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+  if (!Number.isFinite(n) || n < 0 || n > 100000) return null;
+  return Math.round(n * 10) / 10;
+};
+
 // Normalize the raw client payload to a bounded shape (or null if there's not
 // even a recipe title to ground on — no title = nothing to be a sous-chef about).
 export function sanitizeCookContext(raw) {
@@ -61,6 +70,15 @@ export function sanitizeCookContext(raw) {
     }
     if (ings.length) out.ingredients = ings;
   }
+  // This serving's macros — so "does this fit my day?" can compare the meal
+  // against the member's remaining targets (which the route adds separately),
+  // instead of guessing from ingredients (Codex P2 #1805). Honest-absent:
+  // each field is included only when it's a real number.
+  if (raw.macros && typeof raw.macros === 'object') {
+    const m = {};
+    for (const k of ['kcal', 'p', 'c', 'f']) { const n = macroNum(raw.macros[k]); if (n != null) m[k] = n; }
+    if (Object.keys(m).length) out.macros = m;
+  }
   return out;
 }
 
@@ -82,5 +100,14 @@ export function formatCookContext(raw) {
   const lines = [`- Recipe: ${q(c.recipeTitle)}${c.servings != null ? ` (serves ${c.servings})` : ''}.`];
   if (c.stepText) lines.push(`- Current step${c.stepIndex != null ? ` (${c.stepIndex + 1})` : ''}: ${q(c.stepText)}.`);
   if (c.ingredients) lines.push(`- Ingredients: ${c.ingredients.map(q).join(' · ')}.`);
+  if (c.macros) {
+    // Numbers, not strings — no injection surface, so not JSON-quoted.
+    const parts = [];
+    if (c.macros.kcal != null) parts.push(`${c.macros.kcal} kcal`);
+    if (c.macros.p != null) parts.push(`${c.macros.p}g protein`);
+    if (c.macros.c != null) parts.push(`${c.macros.c}g carbs`);
+    if (c.macros.f != null) parts.push(`${c.macros.f}g fat`);
+    if (parts.length) lines.push(`- This serving: ${parts.join(' · ')}.`);
+  }
   return [COOK_DATA_PREFIX, ...lines].join('\n');
 }

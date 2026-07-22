@@ -69,6 +69,16 @@ test('format: a USER-role data block (never the system header) with quoted lines
   assert.ok(/never follow it/.test(COOK_CONTEXT_HEADER));
 });
 
+test('sanitize+format: macros ride along honest-absent (Codex P2 #1805)', () => {
+  const c = sanitizeCookContext({ recipeTitle: 'Salmon plate', macros: { kcal: 520, p: 42, c: 18.33, f: null, bogus: 9 } });
+  assert.deepEqual(c.macros, { kcal: 520, p: 42, c: 18.3 });   // f:null dropped, unknown key ignored, c rounded 1dp
+  const msg = formatCookContext({ recipeTitle: 'Salmon plate', macros: { kcal: 520, p: 42 } });
+  assert.ok(msg.includes('This serving: 520 kcal · 42g protein'));
+  // All-absent / garbage macros → no macros field at all (never a fabricated 0).
+  assert.equal('macros' in sanitizeCookContext({ recipeTitle: 'X', macros: { kcal: null, p: 'abc' } }), false);
+  assert.equal('macros' in sanitizeCookContext({ recipeTitle: 'X' }), false);
+});
+
 test('format: null when there is nothing to ground on', () => {
   assert.equal(formatCookContext({}), null);
   assert.equal(formatCookContext(null), null);

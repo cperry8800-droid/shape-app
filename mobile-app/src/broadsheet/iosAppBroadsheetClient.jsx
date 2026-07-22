@@ -6265,6 +6265,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           stepText: phase === 'method' && hasMethod ? steps[stepIdx] : undefined,
           ingredients: cookable.ingredients.map((i) => `${i.n} ${i.m}`.trim()).filter(Boolean),
           servings: cookable.servings || undefined,
+          // The plate's macros so "does this fit my day?" can compare against the
+          // member's targets; the sanitizer omits absent fields (Codex P2 #1805).
+          macros: cookable.macros || undefined,
         },
       });
       if (data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }

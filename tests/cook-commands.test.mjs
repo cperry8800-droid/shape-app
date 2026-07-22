@@ -123,6 +123,16 @@ test('the "how long" lookaheads exclude copula/prep cooking questions (≤5 word
   assert.equal(bsCookCommand('how long remaining'), 'howlong');
 });
 
+test('STT contractions with apostrophes still match (Codex P3 #1805)', () => {
+  assert.equal(bsCookCommand("what's left"), 'howlong');   // → "whats left"
+  assert.equal(bsCookCommand("let's skip"), 'skip');       // → "lets skip" → skip
+  assert.equal(bsCookCommand("let’s skip this"), 'skip'); // curly apostrophe
+  // …a NEGATION is not a command — "don't skip" / "can't skip this" must NOT
+  // fire skip (the extra token keeps it out of the bare-command path).
+  assert.equal(bsCookCommand("don't skip"), null);
+  assert.equal(bsCookCommand("can't skip this"), null);
+});
+
 test('empty / non-string / junk → null', () => {
   assert.equal(bsCookCommand(''), null);
   assert.equal(bsCookCommand('   '), null);

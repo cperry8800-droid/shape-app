@@ -28,6 +28,12 @@ const FILLER = new Set([
 
 const norm = (s) => (typeof s === 'string' ? s : '')
   .toLowerCase()
+  // Drop apostrophes FIRST (straight + curly) so STT contractions collapse to
+  // the grammar's forms — "what's left" → "whats left", "let's skip" → "lets
+  // skip" — instead of splitting into "what s"/"let s" and missing (Codex P3
+  // #1805). A negation like "don't skip" → "dont skip" still stays a non-command
+  // (its extra token means it's not a bare "skip").
+  .replace(/['’ʼ]/g, '')
   .replace(/[^a-z0-9\s]/g, ' ')
   .replace(/\s+/g, ' ')
   .trim();
