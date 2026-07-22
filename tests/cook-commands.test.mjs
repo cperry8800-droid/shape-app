@@ -73,6 +73,29 @@ test('a SHORT modal question is not swallowed as a nav/timer command (→ Nora)'
   // …but first-person "could I / would we …" stays advice-seeking → Nora.
   assert.equal(bsCookCommand('could I skip this'), null);
   assert.equal(bsCookCommand('would we go back'), null);
+  // …and so does an IMPERSONAL third-person modal question — "could it skip
+  // this" must not strip down to the bare command (CodeRabbit #1805).
+  assert.equal(bsCookCommand('could it skip this'), null);
+  assert.equal(bsCookCommand('should this go back'), null);
+  assert.equal(bsCookCommand('is that done'), null);
+});
+
+test('timer-status queries are NOT word-capped; nav phrases are (Codex P2 #1805)', () => {
+  // A natural timer-status ask runs long — it must still classify locally,
+  // because Nora has no timer state (the cookContext carries none).
+  assert.equal(bsCookCommand('how long is left on the timer'), 'howlong');    // 6 words, uncapped how-long
+  assert.equal(bsCookCommand('how much time is left on the timer'), 'howlong'); // 7 words, uncapped how-much
+  // …while the lookaheads still route long COOKING "how long" asks to Nora…
+  assert.equal(bsCookCommand('how long should the chicken rest before slicing'), null);
+  assert.equal(bsCookCommand('how long until the chicken is done'), null);
+  assert.equal(bsCookCommand('how long till the chicken is done'), null);   // 'till' spelling
+  // …NAV + elliptical-timer phrases stay capped: a long utterance that merely
+  // CONTAINS one is a question, not a command.
+  assert.equal(bsCookCommand('should I go back to the pan now please'), null);
+  assert.equal(bsCookCommand('i have ten minutes of time left before guests arrive'), null);
+  // …but the short elliptical timer forms still classify.
+  assert.equal(bsCookCommand('time left'), 'howlong');
+  assert.equal(bsCookCommand('whats left'), 'howlong');
 });
 
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {

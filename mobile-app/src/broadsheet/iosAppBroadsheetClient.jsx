@@ -6209,11 +6209,17 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (!next) stopSpeak();
     setReadsOn(next);
   };
-  // Execute a recognized local command. Returns true when handled.
+  // Execute a recognized local command. Returns true when handled; FALSE means
+  // "not a command after all — hand the original transcript to Nora".
   const runCommand = (cmd) => {
     if (cmd === 'howlong') {
+      // The local command can only answer about a RUNNING timer. With none, the
+      // "how long …" utterance is a cooking question ("how long roughly does
+      // this take") — return false so onTranscript sends it to Nora, who has the
+      // recipe, instead of a dead "no timer running" (Codex P2 #1805).
       const r = timers.map((x) => Math.max(0, Math.ceil((x.endsAt - Date.now()) / 1000))).filter((s) => s > 0);
-      const txt = r.length ? tr('cook:voice.timeLeft', { defaultValue: '{t} left on the timer.', t: fmt(r[0]) }) : tr('cook:voice.noTimerRunning', { defaultValue: 'No timer running.' });
+      if (!r.length) return false;
+      const txt = tr('cook:voice.timeLeft', { defaultValue: '{t} left on the timer.', t: fmt(r[0]) });
       setMicNote({ who: 'nora', text: txt }); speak(txt); return true;
     }
     if (cmd === 'next') {
@@ -6278,14 +6284,20 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // Hold-to-talk — the composer's exact guards (holdingRef re-entrancy +
   // early-release hot-mic guard at each async boundary).
   const holdingRef = React.useRef(false);
+  // Hold GENERATION: release-during-pending-getUserMedia then re-hold means TWO
+  // getUserMedia resolutions can both see holdingRef===true — the stale one
+  // would start a second recorder nothing ever stops (mic stays hot). Each hold
+  // stamps a generation; a resolution whose gen is stale releases its stream.
+  const holdGenRef = React.useRef(0);
   const recRef = React.useRef(null);
   const streamRef = React.useRef(null);
   const micStart = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (holdingRef.current || micState !== 'idle' || !voiceCanHear) return;
     holdingRef.current = true; setMicNote(null); stopSpeak();
+    const myHold = ++holdGenRef.current;
     navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      if (!holdingRef.current) { try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {} return; }
+      if (!holdingRef.current || myHold !== holdGenRef.current) { try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {} return; }
       streamRef.current = stream;
       // Recorder setup is wrapped: if MediaRecorder construction or .start()
       // throws (a WebView with a present-but-unusable impl), a bare throw would
@@ -6325,7 +6337,19 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) });
         setMicState('idle');
       }
-    }).catch(() => { holdingRef.current = false; setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) }); });
+    }).catch(() => {
+      // A STALE hold's getUserMedia rejecting after a newer hold already started
+      // recording must not touch shared state (would flash "blocked" + reset
+      // micState mid-record) — gen-guard it like the resolve path (adversarial
+      // review #1805).
+      if (myHold !== holdGenRef.current) return;
+      // Denied permission / no device. micState can't have left 'idle' on this
+      // path (it's only set after the recorder starts), but reset it explicitly
+      // so the re-entry guard can never wedge if that ordering ever changes.
+      holdingRef.current = false;
+      setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) });
+      setMicState('idle');
+    });
   };
   const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };
   React.useEffect(() => () => {

@@ -32,20 +32,25 @@ const norm = (s) => (typeof s === 'string' ? s : '')
   .replace(/\s+/g, ' ')
   .trim();
 
-// Multi-word command phrases checked on the FULL normalized string, before
-// filler-stripping, so "how long" / "time left" survive intact.
-const PHRASE = [
-  // Unambiguous timer-status forms.
+// Timer-status INTERROGATIVES — checked on the FULL string and NOT word-capped,
+// because a natural query is long ("how long is left on the timer" = 6 words).
+// Anchored to the "how long"/"how much time|longer" interrogative (a strong
+// signal even when long) so a passing mention like "…10 min of time left…"
+// buried mid-sentence does NOT match (that elliptical form is capped below).
+// The lookaheads already exclude cooking continuations, and runCommand falls
+// through to Nora when no timer is running, so a stray cooking "how long" can't
+// get a wrong timer answer. Three lookaheads: (1) modal/prep continuations,
+// (2) "to X" except the timer idiom "to go", (3) copula except "is/are + left/
+// remaining". Codex P2 + adversarial review #1805.
+const TIMER_PHRASE = [
+  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|til|till|until|before|for|of)\b)(?!\s+to (?!go\b))(?!\s+(is|are|was|were|has|have)\s+(?!left\b|remaining\b))/, 'howlong'],
+];
+// Word-capped phrases (see bsCookCommand): the elliptical timer forms ("time
+// left") and nav/timer-start — a long utterance that merely contains one is a
+// question, not a command ("should I go back to the pan now"; "…time left before
+// guests arrive, should I rush?").
+const CAPPED_PHRASE = [
   [/\b(time left|whats left)\b/, 'howlong'],
-  // "how long" / "how much time|longer" is a TIMER-STATUS query only when it
-  // isn't the FRONT of a recipe question ("how long SHOULD this simmer", "how
-  // much time TO bake", "how long IS this simmer") — a trailing modal/aux/prep
-  // OR a copula not leading to left/remaining means the member wants a COOKING
-  // answer, which the local timer command can't give, so it must reach Nora.
-  // Three lookaheads: (1) modal/prep continuations, (2) "to X" except the timer
-  // idiom "to go", (3) copula ("is/are/has …") except "is left"/"is remaining".
-  // Codex P2 + CodeRabbit #1805.
-  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|til|until|before|for|of)\b)(?!\s+to (?!go\b))(?!\s+(is|are|was|were|has|have)\s+(?!left\b|remaining\b))/, 'howlong'],
   [/\b(start (the )?timer|set (the )?timer)\b/, 'timer'],
   [/\b(go back|previous step|last step|one back)\b/, 'back'],
   [/\b(next step|move on|go on|keep going)\b/, 'next'],
@@ -65,12 +70,15 @@ const SINGLE = {
 // "can I move on?", "do we skip this?") is asking Nora's ADVICE about the
 // member's own next move, not issuing a command — even a short one containing a
 // nav/timer phrase — so it must reach the grounded Q&A (Codex P2 #1805).
-// Deliberately FIRST PERSON ONLY: a modal + "you" addressed to the assistant
-// ("can you skip this", "could you go back") IS a command — FILLER contains
-// can/you precisely so those reduce to the bare command (adversarial pre-push
-// review). "how"/"what"/"when" are also NOT here, so "how long left" still
-// classifies as timer-status.
-const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we)\b/;
+// Advice-seeking, not a command: a modal + a FIRST-PERSON or IMPERSONAL
+// third-person subject ("should I go back?", "could it skip this?", "will this
+// burn?") is asking Nora, so it reaches the grounded Q&A — even a short one
+// containing a nav/timer phrase (Codex P2 + CodeRabbit #1805). Deliberately does
+// NOT include "you": a modal + "you" addressed to the assistant ("can you skip
+// this") IS a command (FILLER strips can/could/would/will + you so it reduces to
+// the bare command). "how"/"what"/"when" are also excluded, so "how long left"
+// still classifies as timer-status.
+const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|it|this|that)\b/;
 
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
@@ -78,11 +86,15 @@ export const bsCookCommand = (transcript) => {
   if (QUESTION_OPENER.test(t)) return null;
   const words = t.split(' ');
 
-  // A short utterance can be a phrase command; a long one is a question even if
-  // it contains "go back" etc. Cap keeps "should I go back to the pan now?"
-  // (7 words) out of the command path.
+  // Timer-status interrogatives ("how long …") are unambiguous and often long
+  // — NOT word-capped.
+  for (const [re, cmd] of TIMER_PHRASE) if (re.test(t)) return cmd;
+
+  // Elliptical-timer + nav/timer-start phrases: capped, because a long utterance
+  // that merely contains "time left"/"go back"/"next step" is a question, not a
+  // command ("should I go back to the pan now" = 7 words).
   if (words.length <= 5) {
-    for (const [re, cmd] of PHRASE) if (re.test(t)) return cmd;
+    for (const [re, cmd] of CAPPED_PHRASE) if (re.test(t)) return cmd;
   }
 
   // Strip filler → what's left is the command core. If more than one

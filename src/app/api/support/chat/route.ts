@@ -722,6 +722,17 @@ export async function POST(request: Request) {
   const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
+  // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
+  // "I've passed this to the Shape team" or return coach/screen actions, which
+  // violates that contract when the model is unavailable. Return NO reply + NO
+  // actions — the cook client renders its own localized "I couldn't answer that
+  // just now" (cook:voice.unavailable, ×13) on an empty reply, so this stays
+  // honest AND localized rather than a hardcoded English string (CodeRabbit
+  // Major + adversarial review PR #1805).
+  if (cookMsg) {
+    return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
+  }
+
   const fb = fallbackReply(String(lastUser.content || ''));
   return NextResponse.json({ reply: fb.reply, source: 'fallback', actions: fb.actions });
 }

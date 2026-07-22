@@ -5942,6 +5942,11 @@ let _voiceAudio = null;
 // playing clip would otherwise retain its audio buffer for the page's lifetime
 // (a leak of one blob per interrupted step, CodeRabbit Major PR #1805).
 let _voiceUrl = null;
+// AbortController for the in-flight /api/ai/speak fetch — the _voiceGen guard
+// suppresses stale PLAYBACK, but the fetch itself would keep running (abandoned
+// provider work + bandwidth on rapid toggles), so stopVoice() aborts it too
+// (CodeRabbit Major PR #1805).
+let _voiceAbort = null;
 // Generation guard (Codex P2, PR #1805): a slow /api/ai/speak fetch can resolve
 // AFTER the step/toggle that triggered it changed — stopVoice() only pauses an
 // _voiceAudio that already exists, so an in-flight speak would still create a
@@ -5951,6 +5956,8 @@ let _voiceUrl = null;
 let _voiceGen = 0;
 function stopVoice() {
   _voiceGen++;
+  try { if (_voiceAbort) _voiceAbort.abort(); } catch (e) {}
+  _voiceAbort = null;
   try { if (_voiceAudio) { _voiceAudio.pause(); } } catch (e) {}
   try { if (_voiceUrl) { URL.revokeObjectURL(_voiceUrl); } } catch (e) {}
   _voiceAudio = null; _voiceUrl = null;
@@ -5971,11 +5978,14 @@ async function speakVoice(text, toneOverride, opts = {}) {
   stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
   const myGen = _voiceGen;     // this call's generation, captured after the bump
   if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
+  const ctrl = new AbortController();
+  _voiceAbort = ctrl;
   try {
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
+      signal: ctrl.signal,
     });
     // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
@@ -5989,10 +5999,27 @@ async function speakVoice(text, toneOverride, opts = {}) {
     if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
     _voiceAudio = audio;
     _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
-    await audio.play();
+    try {
+      await audio.play();
+    } catch (playErr) {
+      // Autoplay block / playback failure — release THIS clip's blob so it can't
+      // leak, but only if a newer speak hasn't already taken over (CodeRabbit).
+      try { URL.revokeObjectURL(url); } catch (e2) {}
+      if (_voiceUrl === url) { _voiceAudio = null; _voiceUrl = null; }
+      // A newer speak()/stop() pausing an unstarted play() rejects it — that's a
+      // supersession, not a failure, so an explicit-Listen caller doesn't show a
+      // spurious "unavailable" toast (adversarial review #1805).
+      if (myGen !== _voiceGen) return { ok: false, superseded: true };
+      return { ok: false, reason: 'unavailable' };
+    }
     return { ok: true, source: 'server' };
   } catch (e) {
+    // A stopVoice()/newer speak() aborted this fetch — that's a supersession, not
+    // a real failure (so an explicit-Listen caller doesn't show an error).
+    if (e && e.name === 'AbortError') return { ok: false, superseded: true };
     return { ok: false, reason: 'unavailable' };
+  } finally {
+    if (_voiceAbort === ctrl) _voiceAbort = null;  // this call's fetch is done
   }
 }
 // The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's
