@@ -47,6 +47,20 @@ test('QUESTIONS containing a command word are NOT swallowed (→ null → Nora Q
   assert.equal(bsCookCommand('how do I know when the rice is ready'), null);
 });
 
+test('a "how long" COOKING question reaches Nora, not the timer command', () => {
+  // The reported false positive (Codex P2 #1805): a recipe timing question is
+  // not a timer-status query — it must fall through to the grounded Q&A.
+  assert.equal(bsCookCommand('how long should this simmer'), null);
+  assert.equal(bsCookCommand('how long to cook the rice'), null);
+  assert.equal(bsCookCommand('how much time to bake the fish'), null);
+  assert.equal(bsCookCommand('how long until the chicken is done'), null);
+  // …while genuine timer-status queries STILL classify (regression guard).
+  assert.equal(bsCookCommand('how long left'), 'howlong');
+  assert.equal(bsCookCommand('how long to go'), 'howlong');   // the timer idiom
+  assert.equal(bsCookCommand('how much longer'), 'howlong');
+  assert.equal(bsCookCommand('time left'), 'howlong');
+});
+
 test('empty / non-string / junk → null', () => {
   assert.equal(bsCookCommand(''), null);
   assert.equal(bsCookCommand('   '), null);

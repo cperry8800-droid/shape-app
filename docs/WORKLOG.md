@@ -919,8 +919,18 @@ changelog whenever something ships.
   build exit 0 · LF · **render-mount proof** on the dev server (Cook Mode mounts
   with the voice row, NORA READS toggles + persists, stepping with reads-on
   fires the auto-speak effect with 0 new console errors — the hook-order/TDZ
-  gate). **Review round (9 findings — 1 Codex P2 + 7 CodeRabbit + 1
-  outside-diff Major — all real, all fixed):** cook voice calls routed through
+  gate). **Review — TWO rounds, 12 findings, all real, all fixed.**
+  **Round 2 (3 Codex on the fix head):** a **generation guard** on the shared
+  `speakVoice`/`stopVoice` (every stop + every new speak bumps `_voiceGen`; a
+  speak whose gen is superseded when its audio is ready bails — a slow
+  `/api/ai/speak` can no longer read a stale step or speak AFTER a reads-off) ·
+  the `howlong` grammar narrowed with a recipe-continuation negative-lookahead
+  so **"how long should this simmer" reaches Nora** (was classified as the timer
+  command → "no timer running"), the genuine timer-status forms kept (regression
+  vectors added) · the new **🔊/🔇/🎤 emoji → theme-tinted inline SVG icons**
+  (currentColor, AGENTS.md no-new-colored-emoji — a documented-class miss I
+  should have caught). **Round 1 (9 findings — 1 Codex P2 + 7 CodeRabbit + 1
+  outside-diff Major):** cook voice calls routed through
   **`window.ShapeSupport.ask/.transcribe`** (apiBaseUrl + Bearer — root-relative
   fetches never reach the backend on NATIVE; new shared `transcribeVoice`) ·
   **AbortController + 30s/20s bounds** on ask/transcribe so a stalled request

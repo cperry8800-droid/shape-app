@@ -6393,7 +6393,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         <div style={{ position: 'relative', marginTop: 13, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           {voiceCanSpeak ? (
             <button onClick={toggleReads} aria-pressed={readsOn} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${readsOn ? bsTHexA(heat, 0.55) : BAND.hair}`, borderRadius: 999, padding: '7px 11px', minHeight: 40, cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: readsOn ? heat : BAND.dim }}>
-              <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>{readsOn ? '🔊' : '🔇'}</span>
+              {/* Monochrome, theme-tinted (currentColor) per AGENTS.md — no new
+                  colored emoji. Speaker with a sound arc (on) / mute slash (off). */}
+              <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ display: 'block' }}>
+                <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                {readsOn
+                  ? <path d="M16.5 8.5a4 4 0 0 1 0 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />}
+              </svg>
               {tr('cook:voice.reads', { defaultValue: 'Nora reads' })} · {readsOn ? tr('cook:voice.on', { defaultValue: 'on' }) : tr('cook:voice.off', { defaultValue: 'off' })}
             </button>
           ) : <span />}
@@ -6411,7 +6418,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
               aria-label={tr('cook:voice.holdAria', { defaultValue: 'Hold to talk to Nora' })}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: micState === 'listening' ? heat : 'transparent', border: `1.5px solid ${micState === 'idle' ? bsTHexA(heat, 0.5) : heat}`, borderRadius: 999, padding: '9px 15px', minHeight: 44, cursor: 'pointer', touchAction: 'none', ...bandEyebrow, fontSize: 8.5, color: micState === 'listening' ? '#04211c' : heat }}
             >
-              <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>🎤</span>
+              {/* Monochrome mic (currentColor) per AGENTS.md — no colored emoji. */}
+              <svg aria-hidden width="13" height="14" viewBox="0 0 24 24" fill="none" style={{ display: 'block' }}>
+                <rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" />
+                <path d="M6 11a6 6 0 0 0 12 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M12 17v3.5M9 20.5h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
               {micState === 'listening' ? tr('cook:voice.listening', { defaultValue: 'Listening…' }) : micState === 'thinking' ? tr('cook:voice.thinking', { defaultValue: 'Nora…' }) : tr('cook:voice.hold', { defaultValue: 'Hold to talk' })}
             </button>
           )}

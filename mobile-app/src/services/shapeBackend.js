@@ -5937,7 +5937,15 @@ function writeVoicePrefs(p) {
   try { window.dispatchEvent(new CustomEvent('shape:voice', { detail: p })); } catch (e) {}
 }
 let _voiceAudio = null;
+// Generation guard (Codex P2, PR #1805): a slow /api/ai/speak fetch can resolve
+// AFTER the step/toggle that triggered it changed — stopVoice() only pauses an
+// _voiceAudio that already exists, so an in-flight speak would still create a
+// new Audio and play a stale step (or read AFTER the member turned NORA READS
+// off). Every stop AND every new speak bumps _voiceGen; a speak that finds its
+// captured gen superseded when its audio is ready bails without playing.
+let _voiceGen = 0;
 function stopVoice() {
+  _voiceGen++;
   try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
 }
 // Server voice ONLY. The old on-device speechSynthesis fallback (the robot) is
@@ -5953,7 +5961,8 @@ async function speakVoice(text, toneOverride, opts = {}) {
   // that's a deliberate one-off the toggle shouldn't block.
   if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
   const tone = toneOverride || prefs.tone;
-  stopVoice();
+  stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
+  const myGen = _voiceGen;     // this call's generation, captured after the bump
   if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
   try {
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
@@ -5961,12 +5970,17 @@ async function speakVoice(text, toneOverride, opts = {}) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
     });
+    // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
+    if (myGen !== _voiceGen) return { ok: false, superseded: true };
     if (!res.ok) return { ok: false, reason: (res.status === 401 || res.status === 402) ? 'members' : 'unavailable' };
     const blob = await res.blob();
+    if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    _voiceAudio = audio;
     audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+    // Last-moment check: a stop() between the blob and playback still wins.
+    if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
+    _voiceAudio = audio;
     await audio.play();
     return { ok: true, source: 'server' };
   } catch (e) {

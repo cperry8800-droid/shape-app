@@ -30,7 +30,14 @@ const norm = (s) => (typeof s === 'string' ? s : '')
 // Multi-word command phrases checked on the FULL normalized string, before
 // filler-stripping, so "how long" / "time left" survive intact.
 const PHRASE = [
-  [/\b(how long|how much (time|longer)|time left|whats left)\b/, 'howlong'],
+  // Unambiguous timer-status forms.
+  [/\b(time left|whats left)\b/, 'howlong'],
+  // "how long" / "how much time|longer" is a TIMER-STATUS query only when it
+  // isn't the FRONT of a recipe question ("how long SHOULD this simmer", "how
+  // much time TO bake") — a trailing modal/aux/prep means the member wants a
+  // COOKING answer, which the local timer command can't give, so it must reach
+  // Nora (who has the recipe). "to go" is the timer idiom, kept (Codex P2 #1805).
+  [/\bhow (long|much (time|longer))\b(?!\s+(should|shall|do|does|did|will|would|could|can|to (?!go\b)|til|until|before|for|of)\b)/, 'howlong'],
   [/\b(start (the )?timer|set (the )?timer)\b/, 'timer'],
   [/\b(go back|previous step|last step|one back)\b/, 'back'],
   [/\b(next step|move on|go on|keep going)\b/, 'next'],
