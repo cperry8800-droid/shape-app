@@ -6163,10 +6163,10 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         window.ShapeMealLog?.log?.(payload);
       }
     } catch (e) {}
-    // Flip the ref SYNCHRONOUSLY (before the loggedState effect flushes) so a
-    // voice request resolving in that window can't slip past the guard and speak
-    // over the confirmation (adversarial review #1805).
-    loggedRef.current = true;
+    // Supersede any in-flight voice work SYNCHRONOUSLY (before the loggedState
+    // effect flushes) so a request resolving in that window can't slip past the
+    // gen guard and speak over the confirmation (adversarial review #1805).
+    voiceGenRef.current++;
     bsCookResumeClear();
     setLoggedState(true);
     onLogged();
@@ -6245,11 +6245,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // The active ask/transcribe request — aborted on unmount so a captured clip
   // or question can't keep traveling after Cook Mode closes (CodeRabbit #1805).
   const abortRef = React.useRef(null);
-  // Tracks loggedState for the async voice closures: logging keeps BSCookMode
-  // MOUNTED (the loggedState branch renders over the band), so a request in
-  // flight when the meal is logged must NOT speak/update over the confirmation
-  // (Codex P2 #1805). Set synchronously in the loggedState effect below.
-  const loggedRef = React.useRef(false);
+  // MONOTONIC voice generation. Logging (or unmount) keeps BSCookMode mounted
+  // (the loggedState branch renders over the band), so a request in flight when
+  // the meal is logged must NOT speak/update over the confirmation (Codex P2).
+  // A monotonic counter — NOT a boolean — because Undo restores the cook UI, and
+  // a boolean that reset on Undo would re-open the window for that same stale
+  // request to fire over the restored band (CodeRabbit Critical #1805). Each
+  // async voice op captures the gen at start; log/unmount bump it; a captured
+  // gen that no longer matches is dead forever, undo or not.
+  const voiceGenRef = React.useRef(0);
   // A transcript → command grammar FIRST, else a grounded Q&A to Nora.
   // Routed through window.ShapeSupport.ask (apiBaseUrl + Bearer) — a
   // root-relative fetch never reaches the backend on the NATIVE build (Codex,
@@ -6257,6 +6261,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // micState === 'idle', so a hung request would otherwise brick the mic for
   // the rest of the session (CodeRabbit).
   const askNora = async (transcript) => {
+    const myGen = voiceGenRef.current;   // dead if a log/unmount bumps this
     setMicState('thinking');
     setMicNote({ who: 'you', text: transcript });
     const ctrl = new AbortController();
@@ -6278,18 +6283,19 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           macros: cookable.macros || undefined,
         },
       });
-      // Meal logged mid-request → don't speak/write over the confirmation.
-      if (!loggedRef.current) {
+      // Superseded by a log/unmount → don't speak/write over the confirmation
+      // (or, after Undo, the restored band). Monotonic, so Undo can't revive it.
+      if (myGen === voiceGenRef.current) {
         if (data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
         else setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) });
       }
-    } catch (e) { if (!loggedRef.current) setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
+    } catch (e) { if (myGen === voiceGenRef.current) setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
     clearTimeout(timer);
     if (abortRef.current === ctrl) abortRef.current = null;
-    if (!loggedRef.current) setMicState('idle');
+    if (myGen === voiceGenRef.current) setMicState('idle');
   };
-  const onTranscript = (transcript) => {
-    if (loggedRef.current) return;   // meal logged mid-capture — drop the late transcript
+  const onTranscript = (transcript, gen) => {
+    if (gen !== voiceGenRef.current) return;   // superseded by a log/unmount during capture
     const clean = String(transcript || '').trim();
     if (!clean) { setMicState('idle'); return; }
     const cmd = bsCookCommand(clean);
@@ -6324,6 +6330,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       mr.onstop = async () => {
         try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {}
         if (mr._cancel) { setMicState('idle'); return; }
+        const myGen = voiceGenRef.current;   // dead if a log/unmount bumps this
         setMicState('thinking');
         // window.ShapeSupport.transcribe = apiBaseUrl + Bearer (never
         // root-relative — dead on native, Codex #1805), bounded at 20s so a
@@ -6336,9 +6343,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           const stt = window.ShapeSupport && window.ShapeSupport.transcribe;
           if (!stt) throw new Error('unavailable');
           const d = await stt(blob, { filename: 'cook.webm', signal: ctrl.signal });
-          if (d.ok && d.transcript) onTranscript(d.transcript);
+          // Superseded (logged/unmounted mid-transcribe) → drop it silently; the
+          // aborted-STT error must NOT flash a stale "Didn't catch that" that
+          // Undo would bring back (Codex P3 #1805).
+          if (myGen !== voiceGenRef.current) { /* dead */ }
+          else if (d.ok && d.transcript) onTranscript(d.transcript, myGen);
           else { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
-        } catch (er) { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
+        } catch (er) { if (myGen === voiceGenRef.current) { setMicNote({ who: 'nora', text: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); } }
         clearTimeout(timer);
         if (abortRef.current === ctrl) abortRef.current = null;
       };
@@ -6372,24 +6383,30 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // unmount cleanup won't fire and a late transcribe/ask could speak over the
   // confirmation (Codex P2 #1805). No React state here (safe on unmount).
   const stopVoiceWork = React.useCallback(() => {
+    voiceGenRef.current++;   // supersede any in-flight ask/transcribe (monotonic)
     // Clear holdingRef FIRST — a getUserMedia() still pending would otherwise
     // resolve with holdingRef.current === true and start MediaRecorder after
     // teardown (mic live post-teardown, CWE-359); dropping the flag routes it to
     // the early-release guard. CANCEL before stop — mr.stop() fires onstop, which
     // would post the captured clip AFTER teardown (CWE-201).
     holdingRef.current = false;
-    try { const mr = recRef.current; if (mr && mr.state === 'recording') { mr._cancel = true; mr.stop(); } } catch (e) {}
+    // Set _cancel UNCONDITIONALLY (not only while 'recording'): mr.stop() flips
+    // state to 'inactive' synchronously but onstop fires as a later task, so a
+    // recorder already stopped by micEnd but whose onstop hasn't run yet must
+    // still be marked canceled or that queued onstop would transcribe after a
+    // log (adversarial review #1805).
+    try { const mr = recRef.current; if (mr) { mr._cancel = true; if (mr.state === 'recording') mr.stop(); } } catch (e) {}
     try { streamRef.current && streamRef.current.getTracks().forEach((tk) => tk.stop()); } catch (e) {}
     try { abortRef.current && abortRef.current.abort(); } catch (e) {}
     stopSpeak();
   }, [stopSpeak]);
   React.useEffect(() => () => stopVoiceWork(), [stopVoiceWork]);   // unmount
-  // On log: track the ref, stop voice work, AND reset the mic display state —
-  // the async guards SKIP setMicState('idle') when logged, so without this
-  // micState could strand at 'thinking' and the re-entry guard would block every
-  // future hold after an Undo (adversarial review #1805).
+  // On log: stop voice work (bumps the gen → supersedes in-flight ops) AND reset
+  // the mic display state — the gen guards SKIP setMicState('idle') once
+  // superseded, so without this micState could strand at 'thinking' and the
+  // re-entry guard would block every future hold after an Undo (adversarial
+  // review #1805).
   React.useEffect(() => {
-    loggedRef.current = loggedState;
     if (loggedState) { stopVoiceWork(); setMicState('idle'); setMicNote(null); }
   }, [loggedState, stopVoiceWork]);
 
