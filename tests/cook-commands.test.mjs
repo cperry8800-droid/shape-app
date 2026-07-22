@@ -60,12 +60,19 @@ test('a SHORT modal question is not swallowed as a nav/timer command (→ Nora)'
   assert.equal(bsCookCommand('move on'), 'next');
   assert.equal(bsCookCommand('skip'), 'skip');
   assert.equal(bsCookCommand('start the timer'), 'timer');
-  // …and a modal addressed to NORA ("can you …") is a COMMAND, not advice-
-  // seeking — the opener guard is first-person only (adversarial pre-push
-  // review caught 'you' in the pronoun group defeating FILLER's design).
+  // …and a modal addressed to NORA ("can/could/would/will you …") is a
+  // COMMAND, not advice-seeking — the opener guard is first-person only, and
+  // ALL the polite modals are filler so they reduce to the bare command
+  // (Codex P2 #1805: 'can' alone was filler, leaving could/would in the core).
   assert.equal(bsCookCommand('can you skip this'), 'skip');
   assert.equal(bsCookCommand('can you repeat that'), 'repeat');
   assert.equal(bsCookCommand('could you go back'), 'back');
+  assert.equal(bsCookCommand('could you skip this'), 'skip');
+  assert.equal(bsCookCommand('would you repeat that'), 'repeat');
+  assert.equal(bsCookCommand('will you skip this'), 'skip');
+  // …but first-person "could I / would we …" stays advice-seeking → Nora.
+  assert.equal(bsCookCommand('could I skip this'), null);
+  assert.equal(bsCookCommand('would we go back'), null);
 });
 
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {

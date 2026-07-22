@@ -15,10 +15,15 @@ export const BS_COOK_COMMANDS = ['next', 'back', 'repeat', 'skip', 'timer', 'how
 
 // Filler tokens that don't change a command's meaning ("next step please" ==
 // "next"). Kept tight so it can't dissolve a real question into a command.
+// The polite-request modals (can/could/would/will) are filler so "could you
+// skip this" reduces to the bare `skip` command — a modal + "you" addressed to
+// Nora IS a command. First-person advice ("could I skip?") is caught by
+// QUESTION_OPENER BEFORE filler runs, so stripping these here can't turn a
+// genuine question into a command (Codex P2 #1805, completing the "can you" fix).
 const FILLER = new Set([
   'the', 'a', 'an', 'this', 'that', 'it', 'please', 'ok', 'okay', 'now',
-  'step', 'one', 'just', 'go', 'lets', 'let', 'us', 'can', 'you', 'hey',
-  'nora', 'and', 'to', 'my',
+  'step', 'one', 'just', 'go', 'lets', 'let', 'us', 'can', 'could', 'would',
+  'will', 'you', 'hey', 'nora', 'and', 'to', 'my',
 ]);
 
 const norm = (s) => (typeof s === 'string' ? s : '')
