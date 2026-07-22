@@ -6861,47 +6861,51 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     const tms = bsStepTimers(cur.text);
     const at = Date.now();
     // Idempotent: returning to a window step (← Back) must never stack a second
-    // identical HOLDING timer for the same recipe step (audit). The outer read
-    // covers the common case; the in-updater re-check guards a rapid double-tap.
+    // identical HOLDING timer for the same INSTANCE step (audit). Hold gates key
+    // on `iid` (the per-input instance id, 1:1 with a timeline track — the
+    // orchestrator + bsHoldingAt already key on it), so two selected instances of
+    // one recipe never cross-clear; `recipeKey` rides only for display. The outer
+    // read covers the common case; the in-updater re-check guards a rapid double-tap.
     let queued = null;
-    if (tms[0] && !timers.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)) {
+    if (tms[0] && !timers.some((x) => x.iid === cur.iid && x.stepIndex === cursor)) {
       timerIdRef.current += 1;
       const id = timerIdRef.current;
-      queued = { id, stepIndex: cursor, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
-      setTimers((arr) => (arr.some((x) => x.recipeKey === cur.recipe && x.stepIndex === cursor)
+      queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
+      setTimers((arr) => (arr.some((x) => x.iid === cur.iid && x.stepIndex === cursor)
         ? arr
         : [...arr, queued]));
     }
-    // Advance unless the NEXT step's recipe still has a running hold (the wait
-    // gate outranks starting a window; you can't step into a recipe that's still
-    // cooking). The timer we JUST queued isn't in the rendered `timers` yet
-    // (setTimers is async within this handler), so a SAME-recipe next step must
+    // Advance unless the NEXT step's INSTANCE still has a running hold (the wait
+    // gate outranks starting a window; you can't step into an instance that's
+    // still cooking). The timer we JUST queued isn't in the rendered `timers` yet
+    // (setTimers is async within this handler), so a SAME-instance next step must
     // be checked against existing-plus-just-queued (Codex P2 / CodeRabbit) — else
     // starting a window and stepping straight into its own continuation slips past
-    // the gate. No next step (a terminal window) → finish normally: the recipe's
+    // the gate. No next step (a terminal window) → finish normally: the instance's
     // active work is done, and PREPPED is an active-work signal (a make-ahead
     // sets/chills unattended), so it records here by design.
     const nxt = timeline[cursor + 1];
     const effective = queued ? [...timers, queued] : timers;
-    const blocked = !!(nxt && effective.some((x) => x.recipeKey === nxt.recipe && x.endsAt > at));
+    const blocked = !!(nxt && effective.some((x) => x.iid === nxt.iid && x.endsAt > at));
     if (!blocked) advance();
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
   const isWindow = !!(ev && ev.passive && ev.min != null && bsStepTimers(ev.text).length);
   // Already started this step's timer (returned via ← Back)? Then the CTA just
-  // advances — never re-starts — so the HOLDING lane can't double up.
-  const evStarted = !!(ev && timers.some((x) => x.recipeKey === ev.recipe && x.stepIndex === cursor));
+  // advances — never re-starts — so the HOLDING lane can't double up. Identity
+  // gates compare `iid` (per-instance), never the display `recipeKey`.
+  const evStarted = !!(ev && timers.some((x) => x.iid === ev.iid && x.stepIndex === cursor));
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
-  const otherHold = ev ? running.find((x) => x.recipeKey !== ev.recipe) : null;
+  const otherHold = ev ? running.find((x) => x.iid !== ev.iid) : null;
   // You can't rest a chicken that's still roasting (Codex P1): if the NEXT step
-  // belongs to a recipe whose window timer is still RUNNING, gate advancing —
+  // belongs to an INSTANCE whose window timer is still RUNNING, gate advancing —
   // the cook waits for it to ring, or taps ✓ Done on the lane when they judge it
   // ready early. A rung (finished) hold never blocks. Guards the "out-run the
   // window" case where the interleaved active steps finish before the timer.
   const nextEv = timeline[cursor + 1];
-  const waitingOn = nextEv ? running.find((x) => x.recipeKey === nextEv.recipe) : null;
+  const waitingOn = nextEv ? running.find((x) => x.iid === nextEv.iid) : null;
 
   return (
     <BSPage noSwipe mast={false}>
