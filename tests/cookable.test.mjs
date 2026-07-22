@@ -245,10 +245,11 @@ test('bsAuthorStep: no/invalid station → plain step; empty text → null', () 
 });
 
 test('bsAuthorStep output flows tier-1 through bsCookableFromMeal (the PR E forward path)', () => {
-  const steps = [bsAuthorStep('Chop everything small.', null), bsAuthorStep('Simmer 15 minutes, lid on.', 'stove')];
+  // Non-terminal window (a terminal live-fire hold would be structurally dropped).
+  const steps = [bsAuthorStep('Chop everything small.', null), bsAuthorStep('Simmer 15 minutes, lid on.', 'stove'), bsAuthorStep('Serve over rice.', null)];
   const c = bsCookableFromMeal({ title: 'Coach dahl', kcal: 500, steps });
   assert.equal(c.tier, BS_COOK_TIERS.STEPS);
-  assert.deepEqual(c.steps, ['Chop everything small.', 'Simmer 15 minutes, lid on.']);
+  assert.deepEqual(c.steps, ['Chop everything small.', 'Simmer 15 minutes, lid on.', 'Serve over rice.']);
   assert.equal(c.stepMeta[0].passive, false);
   assert.deepEqual({ min: c.stepMeta[1].min, passive: c.stepMeta[1].passive, station: c.stepMeta[1].station },
     { min: 15, passive: true, station: 'stove' });
@@ -258,14 +259,40 @@ test('authored meal steps OUTRANK a title-coincidence catalog map (never mixed)'
   // Same title as the catalog recipe, but the coach authored their own method.
   const c = bsCookableFromMeal({
     title: 'One-pan chicken and rice', kcal: 620,
-    steps: [{ t: 'My way: sear hard.' }, { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' }],
+    steps: [{ t: 'My way: sear hard.' }, { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' }, { t: 'Serve it.' }],
   }, [RECIPE]);
   assert.equal(c.tier, BS_COOK_TIERS.STEPS);
-  assert.deepEqual(c.steps, ['My way: sear hard.', 'Simmer 15 minutes, lid on.']); // the coach's, not the catalog's
+  assert.deepEqual(c.steps, ['My way: sear hard.', 'Simmer 15 minutes, lid on.', 'Serve it.']); // the coach's, not the catalog's
   assert.equal(c.stepMeta[1].station, 'stove');
   assert.equal(c.ingredients.length, 0); // never the catalog's ingredients under coach steps
   // Step-less meals keep the PR A catalog mapping.
   const mapped = bsCookableFromMeal({ title: 'One-pan chicken and rice', kcal: 620 }, [RECIPE]);
   assert.ok(mapped.steps.length > 0);
   assert.equal(mapped.recipeTitle, RECIPE.title);
+});
+
+test('bsAuthorStep: the window floor gates on RAW seconds — 210s never rounds over it', () => {
+  assert.deepEqual(bsAuthorStep('Rest 210 seconds.', 'off'), { t: 'Rest 210 seconds.' }); // round(3.5)=4 must NOT pass
+  assert.equal(bsAuthorStep('Rest 240 seconds.', 'off').passive, true);                    // exactly 4 min passes
+});
+
+test('a TERMINAL authored window must be walk-away — live-fire finals drop to plain steps', () => {
+  // Coach authors a final oven window on a meal: the round-7 invariant holds
+  // structurally — the window dies, the text stays.
+  const fire = bsCookableFromMeal({ title: 'Coach roast', kcal: 600, steps: [
+    { t: 'Prep it.' }, { t: 'Roast 20 minutes.', min: 20, passive: true, station: 'oven' },
+  ] });
+  assert.equal(fire.stepMeta[1].passive, false);
+  assert.equal(fire.steps[1], 'Roast 20 minutes.'); // honest text intact
+  // A terminal 'off' chill (the make-ahead case) survives untouched.
+  const chill = bsCookableFromMeal({ title: 'Coach bites', kcal: 300, steps: [
+    { t: 'Roll them.' }, { t: 'Chill 30 minutes.', min: 30, passive: true, station: 'off' },
+  ] });
+  assert.deepEqual({ min: chill.stepMeta[1].min, passive: chill.stepMeta[1].passive, station: chill.stepMeta[1].station },
+    { min: 30, passive: true, station: 'off' });
+  // Non-terminal oven windows are untouched (the interleave host case).
+  const mid = bsCookableFromMeal({ title: 'Coach bake', kcal: 500, steps: [
+    { t: 'Prep it.' }, { t: 'Bake 15 minutes.', min: 15, passive: true, station: 'oven' }, { t: 'Plate it.' },
+  ] });
+  assert.equal(mid.stepMeta[1].passive, true);
 });

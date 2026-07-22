@@ -418,7 +418,7 @@
   "editor.exercise": "exercice",
   "editor.footer": "Modifier le brouillon",
   "editor.handsOffAria": "Poste sans surveillance pour l'étape {n}",
-  "editor.handsOn": "Actif",
+  "editor.handsOn": "Surveillé",
   "editor.media": "MÉDIAS · PHOTOS ET VIDÉOS",
   "editor.name": "NOM",
   "editor.noneYet": "Aucun pour l'instant — ajoutez-en un.",

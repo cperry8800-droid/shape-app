@@ -4888,7 +4888,11 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                   <div style={{ margin: '6px 0 4px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {(b.steps || []).map((s, si) => {
                       const derived = bsAuthorStep(s.t, s.station);
-                      const isWin = !!(derived && derived.passive);
+                      // A TERMINAL window must be walk-away ('off') — a live-fire
+                      // final hold is dropped at ingestion (finishCookable), so
+                      // the editor never confirms one it won't ship.
+                      const liveFireTerminal = !!(derived && derived.passive && si === (b.steps || []).length - 1 && derived.station !== 'off');
+                      const isWin = !!(derived && derived.passive && !liveFireTerminal);
                       const wantsWin = !!(s.station && !isWin && String(s.t || '').trim());
                       return (
                         <div key={si}>
@@ -4951,6 +4955,11 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
           const pubBlocks = stepAuthoring
             ? blocks.map((b) => {
                 const ds = (b.steps || []).map((s) => bsAuthorStep(s.t, s.station)).filter(Boolean).slice(0, 30);
+                // Terminal live-fire windows drop to plain steps at publish too
+                // (matching the ingestion guard), so stored data never carries a
+                // window the cook surfaces would refuse.
+                const li = ds.length - 1;
+                if (li >= 0 && ds[li].passive === true && ds[li].station !== 'off') ds[li] = { t: ds[li].t };
                 const { steps: _raw, ...rest } = b;
                 return ds.length ? { ...rest, steps: ds } : rest;
               })

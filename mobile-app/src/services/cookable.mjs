@@ -200,9 +200,10 @@ export const bsAuthorStep = (text, station) => {
   if (!t) return null;
   if (!BS_STATIONS.includes(station)) return { t };
   const first = bsStepTimers(t)[0];
-  const min = first ? Math.round(first.seconds / 60) : 0;
-  if (min < BS_AUTHOR_MIN_PASSIVE) return { t };
-  return { t, min, passive: true, station };
+  // Floor on RAW SECONDS — Math.round(210/60) is 4, which would sneak a
+  // 3.5-minute step over the 4-minute window floor (CodeRabbit).
+  if (!first || first.seconds < BS_AUTHOR_MIN_PASSIVE * 60) return { t };
+  return { t, min: Math.round(first.seconds / 60), passive: true, station };
 };
 
 // ---------------------------------------------------------------------------
@@ -215,6 +216,16 @@ const finishCookable = (c) => {
   // than steps, so board/orchestrator reads can index either array safely.
   const supplied = Array.isArray(c.stepMeta) ? c.stepMeta : [];
   c.stepMeta = c.steps.map((_, i) => supplied[i] || plainStepMeta());
+  // A TERMINAL window must be walk-away ('off'): the board's wrap treats
+  // leftover holds as unattended make-aheads (the round-7 ruling), so a
+  // live-fire final hold would lose its countdown at Finish. Catalog-tested
+  // for the Kitchen; enforced STRUCTURALLY here for authored sources (coach
+  // meal methods, PR E — CodeRabbit): the window drops to a plain step, the
+  // honest text stays, nothing fabricates a walk-away.
+  const lastMeta = c.stepMeta[c.steps.length - 1];
+  if (lastMeta && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
+    c.stepMeta[c.steps.length - 1] = plainStepMeta();
+  }
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;
   else if (c.ingredients.length > 0) c.tier = BS_COOK_TIERS.MISE;
   else c.tier = BS_COOK_TIERS.QUICK;

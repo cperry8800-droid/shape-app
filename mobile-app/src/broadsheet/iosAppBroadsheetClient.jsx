@@ -6856,14 +6856,17 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const ev = timeline[cursor];
   // A recipe is PREPPED the moment its last timeline event is performed. Guarded
   // upstream (a written set), so a back→forward re-advance never double-records.
-  const advance = () => {
+  const advance = (liveTimers) => {
     const cur = timeline[cursor];
     const lastForRecipe = !timeline.some((x, k) => k > cursor && x.recipe === cur.recipe);
     if (lastForRecipe && itemByKey[cur.recipe]) onRecipePrepped(itemByKey[cur.recipe]);
     // Finish hands the still-running REAL holds up (terminal 'off' chills — the
     // only holds that can be live here) so the wrap can note them; soft
-    // convenience timers die with the board.
-    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone(timers.filter((x) => !x.soft && x.endsAt > at)); return; }
+    // convenience timers die with the board. `liveTimers` lets startAndGo pass
+    // existing-plus-just-queued — a hold queued in the SAME handler isn't in the
+    // rendered `timers` yet (Codex: a terminal chill started at the final event
+    // vanished from the wrap).
+    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone((liveTimers || timers).filter((x) => !x.soft && x.endsAt > at)); return; }
     setCursor(cursor + 1);
   };
   // Passive-window step → start its real timer (a HOLDING lane) and move straight
@@ -6902,7 +6905,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     const nxt = timeline[cursor + 1];
     const effective = queued ? [...timers, queued] : timers;
     const blocked = !!(nxt && effective.some((x) => !x.soft && x.iid === nxt.iid && x.endsAt > at));
-    if (!blocked) advance();
+    if (!blocked) advance(effective);
   };
   // Soft convenience timer on an ACTIVE step ("sear 3 min per side") — a plain
   // countdown the cook can start; it NEVER gates (no wait, no block, no
@@ -6912,7 +6915,13 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     const cur = timeline[cursor];
     if (!cur || !tm) return;
     timerIdRef.current += 1;
-    setTimers((arr) => [...arr, { id: timerIdRef.current, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: null, soft: true, label: tm.label, endsAt: Date.now() + tm.seconds * 1000, total: tm.seconds }]);
+    const id = timerIdRef.current;
+    const at = Date.now();
+    // In-updater dedup (the house double-tap guard): two taps before the
+    // re-render must not stack two identical countdowns (CodeRabbit).
+    setTimers((arr) => (arr.some((x) => x.soft && x.iid === cur.iid && x.stepIndex === cursor && x.label === tm.label && x.endsAt > at)
+      ? arr
+      : [...arr, { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: null, soft: true, label: tm.label, endsAt: at + tm.seconds * 1000, total: tm.seconds }]));
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
