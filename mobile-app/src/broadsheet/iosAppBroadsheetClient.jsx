@@ -6163,6 +6163,10 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         window.ShapeMealLog?.log?.(payload);
       }
     } catch (e) {}
+    // Flip the ref SYNCHRONOUSLY (before the loggedState effect flushes) so a
+    // voice request resolving in that window can't slip past the guard and speak
+    // over the confirmation (adversarial review #1805).
+    loggedRef.current = true;
     bsCookResumeClear();
     setLoggedState(true);
     onLogged();
@@ -6197,7 +6201,6 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (!readsOn || phase !== 'method' || !hasMethod) return;
     speak(steps[stepIdx]);
   }, [readsOn, phase, stepIdx, hasMethod]); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => () => stopSpeak(), [stopSpeak]);   // silence on unmount
   const toggleReads = () => {
     // Side effects live OUTSIDE the setState updater — Strict Mode dev runs
     // functional updaters twice, so storage/audio in there can double-fire
@@ -6242,6 +6245,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // The active ask/transcribe request — aborted on unmount so a captured clip
   // or question can't keep traveling after Cook Mode closes (CodeRabbit #1805).
   const abortRef = React.useRef(null);
+  // Tracks loggedState for the async voice closures: logging keeps BSCookMode
+  // MOUNTED (the loggedState branch renders over the band), so a request in
+  // flight when the meal is logged must NOT speak/update over the confirmation
+  // (Codex P2 #1805). Set synchronously in the loggedState effect below.
+  const loggedRef = React.useRef(false);
   // A transcript → command grammar FIRST, else a grounded Q&A to Nora.
   // Routed through window.ShapeSupport.ask (apiBaseUrl + Bearer) — a
   // root-relative fetch never reaches the backend on the NATIVE build (Codex,
@@ -6270,14 +6278,18 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           macros: cookable.macros || undefined,
         },
       });
-      if (data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
-      else setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) });
-    } catch (e) { setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
+      // Meal logged mid-request → don't speak/write over the confirmation.
+      if (!loggedRef.current) {
+        if (data && data.reply) { setMicNote({ who: 'nora', text: String(data.reply) }); speak(data.reply); }
+        else setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) });
+      }
+    } catch (e) { if (!loggedRef.current) setMicNote({ who: 'nora', text: tr('cook:voice.unavailable', { defaultValue: "I couldn't answer that just now." }) }); }
     clearTimeout(timer);
     if (abortRef.current === ctrl) abortRef.current = null;
-    setMicState('idle');
+    if (!loggedRef.current) setMicState('idle');
   };
   const onTranscript = (transcript) => {
+    if (loggedRef.current) return;   // meal logged mid-capture — drop the late transcript
     const clean = String(transcript || '').trim();
     if (!clean) { setMicState('idle'); return; }
     const cmd = bsCookCommand(clean);
@@ -6355,20 +6367,31 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     });
   };
   const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };
-  React.useEffect(() => () => {
-    // Clear holdingRef FIRST — a getUserMedia() still pending at unmount would
-    // otherwise resolve with holdingRef.current === true and start MediaRecorder
-    // AFTER Cook Mode is gone (mic live post-teardown, CWE-359). Dropping the
-    // flag makes that late resolution hit the existing early-release guard and
-    // release the stream instead (CodeRabbit #1805).
+  // Abort/stop ALL pending voice work + audio. Used on unmount AND when the meal
+  // is logged — logging keeps BSCookMode MOUNTED (loggedState branch), so the
+  // unmount cleanup won't fire and a late transcribe/ask could speak over the
+  // confirmation (Codex P2 #1805). No React state here (safe on unmount).
+  const stopVoiceWork = React.useCallback(() => {
+    // Clear holdingRef FIRST — a getUserMedia() still pending would otherwise
+    // resolve with holdingRef.current === true and start MediaRecorder after
+    // teardown (mic live post-teardown, CWE-359); dropping the flag routes it to
+    // the early-release guard. CANCEL before stop — mr.stop() fires onstop, which
+    // would post the captured clip AFTER teardown (CWE-201).
     holdingRef.current = false;
-    // CANCEL before stop — mr.stop() still fires onstop, which would post the
-    // captured clip to transcription AFTER Cook Mode closed (CWE-201,
-    // CodeRabbit #1805); abort any in-flight ask/transcribe the same way.
     try { const mr = recRef.current; if (mr && mr.state === 'recording') { mr._cancel = true; mr.stop(); } } catch (e) {}
     try { streamRef.current && streamRef.current.getTracks().forEach((tk) => tk.stop()); } catch (e) {}
     try { abortRef.current && abortRef.current.abort(); } catch (e) {}
-  }, []);
+    stopSpeak();
+  }, [stopSpeak]);
+  React.useEffect(() => () => stopVoiceWork(), [stopVoiceWork]);   // unmount
+  // On log: track the ref, stop voice work, AND reset the mic display state —
+  // the async guards SKIP setMicState('idle') when logged, so without this
+  // micState could strand at 'thinking' and the re-entry guard would block every
+  // future hold after an Undo (adversarial review #1805).
+  React.useEffect(() => {
+    loggedRef.current = loggedState;
+    if (loggedState) { stopVoiceWork(); setMicState('idle'); setMicNote(null); }
+  }, [loggedState, stopVoiceWork]);
 
   if (loggedState) {
     const m = cookable.macros || {};
