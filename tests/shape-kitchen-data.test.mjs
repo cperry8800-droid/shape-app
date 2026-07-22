@@ -113,6 +113,23 @@ test('catalog: the interleave demo is real — oven, stove AND off windows all e
   for (const s of ['oven', 'stove', 'off']) assert.ok(stations.has(s), `no ${s} interleave window in the catalog`);
 });
 
+// An annotation means "the recipe's NEXT step waits for this hold" — the board's
+// wait gate blocks same-recipe continuation while the window runs. A window whose
+// next step is authored CONCURRENT with it ("While it roasts…"/"Meanwhile…") would
+// lock the cook out of work the author scheduled inside the window (Codex, PR D
+// round 5 — 8 recipes shipped this before the guard).
+test('catalog: no annotated window is followed by a concurrent-authored same-recipe step', () => {
+  const CONCURRENT = /^(while (it|they|the|that)|meanwhile|as (it|they|the))\b/i;
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true) return;
+      const nxt = r.steps[i + 1];
+      assert.ok(!(nxt && CONCURRENT.test(nxt.trim())),
+        `${r.title} step ${i}: annotated window, but step ${i + 1} is authored concurrent with it — "${String(nxt).slice(0, 60)}…" (drop the annotation or restructure the steps)`);
+    });
+  }
+});
+
 // Spot-check the diet helpers so a logic regression (not just a desync) is caught.
 test('catalog: recipeNeeds / recipeMatchesDiet behave for known recipes', () => {
   const byTitle = (t) => SHAPE_KITCHEN_RECIPES.find((r) => r.title === t);
