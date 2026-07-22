@@ -885,6 +885,43 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-22 — Cook Mode PR E: coach step-authoring — the wave closes
+
+- **Build 5 of 5 (the guided-cooking wave closer).** Coaches author REAL cooking
+  methods on meal items, so coach-created meals become **tier-1 cookable at the
+  source** (the spec's named forward path). No migration, no route.
+- **The authoring contract** — pure `bsAuthorStep(text, station)` (cookable.mjs,
+  TDD): a window's `min` is NEVER typed — it derives from the step's own stated
+  duration (the catalog overlay's no-fabrication rule applied at the source), so
+  stored metadata can't drift from the text. A station with no stated ≥4-min
+  time downgrades honestly to a plain step (the editor hint says why).
+- **Draft editor** (`BSCoachDraftEditor`, nutritionist paths): each meal block
+  gains an optional **＋ METHOD** — ordered step rows (text · hands-off station
+  select · ×) with a live ◷ window confirmation / a state-a-time hint; publish
+  re-derives every window from its text and drops empty rows. 7 new `coach:`
+  editor keys ×13 (de du · ru/fr formal · tr suffix-safe · ha genuine · pcm real
+  Naija), parity green.
+- **Delivery rides existing rails end-to-end**: publish → `coach_plans.detail
+  .blocks[].steps` → ASSIGN (menu meals now carry re-derived steps) →
+  `client_meal_plans.payload.days` (wholesale) → `/api/client/plan` (wholesale)
+  → `buildMealProgram`/`bsHomeLiveWeek` (`steps` passthrough already existed) →
+  `bsCookableFromMeal`. **Priority fix**: authored steps on the meal ITSELF now
+  OUTRANK a title-coincidence catalog map (the coach wrote this method for THIS
+  meal; sources never mix — tested), step-less meals keep the PR A mapping.
+  The meal preview normalizes object steps to display text (no [object Object]).
+- **PR D review deferrals built**: **soft timer chips** on the board's active
+  steps ("◷ 3 min per side" — plain countdowns that NEVER gate: excluded from
+  `waitingOn`/`blocked`/`otherHold`/started-state, re-startable by design) · the
+  **wrap screen notes still-running terminal chills** ("◷ {title} · MM:SS",
+  static remaining-at-Finish — glyph + numerals, no new keys) · the **round-7
+  invariant is now structural**: a terminal annotated window must be station
+  'off' (catalog test — a live-fire hold can never outlive the board).
+- **Skipped, registered**: intra-recipe overlap modeling (orchestrator redesign)
+  · duplicate-recipe selection · the Frontispiece (needs the product-photography
+  owner item). Open: the OWNER on-device prep pass (whole wave).
+- Verified: suite **769** · tsc clean · JSX parse ×2 · PowerShell `/m/` build ✓ ·
+  LF · tr-shadow both forms · catalog parity ×13.
+
 ### 2026-07-22 — Cook Mode PR D: orchestration — the passive-window interleaver + the multi-track board
 
 - **Build 4 of the guided-cooking wave** (spec §6). The Prep Session learns to

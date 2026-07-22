@@ -8,6 +8,7 @@ import {
   bsCookableFromText,
   bsSplitMethodProse,
   bsStepTimers,
+  bsAuthorStep,
   bsCookSlug,
   bsCookKey,
 } from '../mobile-app/src/services/cookable.mjs';
@@ -220,4 +221,51 @@ test('resume key: meal id wins, non-Latin titles never collide on an empty slug 
   assert.equal(bsCookKey(cyrA), bsCookKey(bsCookableFromMeal({ title: 'Куриная миска', kcal: 1 }))); // stable per title
   assert.equal(bsCookKey(bsCookableFromRecipe(RECIPE)), 'cook:one-pan-chicken-and-rice');
   assert.equal(bsCookKey(null), 'cook:');
+});
+
+// ── bsAuthorStep (PR E — coach structured step authoring) ──────────────────
+test('bsAuthorStep: min derives from the step text, never typed (no-fabrication at the source)', () => {
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes, lid on.', 'stove'),
+    { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' });
+  // Range → the lower bound (bsStepTimers contract).
+  assert.deepEqual(bsAuthorStep('Roast 18–20 minutes.', 'oven'),
+    { t: 'Roast 18–20 minutes.', min: 18, passive: true, station: 'oven' });
+});
+
+test('bsAuthorStep: a station with no stated duration ≥4 min downgrades to a plain step', () => {
+  assert.deepEqual(bsAuthorStep('Roast until golden.', 'oven'), { t: 'Roast until golden.' }); // no duration
+  assert.deepEqual(bsAuthorStep('Rest 2 minutes.', 'off'), { t: 'Rest 2 minutes.' });          // under the 4-min floor
+});
+
+test('bsAuthorStep: no/invalid station → plain step; empty text → null', () => {
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', null), { t: 'Simmer 15 minutes.' });
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', 'microwave'), { t: 'Simmer 15 minutes.' });
+  assert.equal(bsAuthorStep('   ', 'oven'), null);
+  assert.equal(bsAuthorStep(null, 'oven'), null);
+});
+
+test('bsAuthorStep output flows tier-1 through bsCookableFromMeal (the PR E forward path)', () => {
+  const steps = [bsAuthorStep('Chop everything small.', null), bsAuthorStep('Simmer 15 minutes, lid on.', 'stove')];
+  const c = bsCookableFromMeal({ title: 'Coach dahl', kcal: 500, steps });
+  assert.equal(c.tier, BS_COOK_TIERS.STEPS);
+  assert.deepEqual(c.steps, ['Chop everything small.', 'Simmer 15 minutes, lid on.']);
+  assert.equal(c.stepMeta[0].passive, false);
+  assert.deepEqual({ min: c.stepMeta[1].min, passive: c.stepMeta[1].passive, station: c.stepMeta[1].station },
+    { min: 15, passive: true, station: 'stove' });
+});
+
+test('authored meal steps OUTRANK a title-coincidence catalog map (never mixed)', () => {
+  // Same title as the catalog recipe, but the coach authored their own method.
+  const c = bsCookableFromMeal({
+    title: 'One-pan chicken and rice', kcal: 620,
+    steps: [{ t: 'My way: sear hard.' }, { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' }],
+  }, [RECIPE]);
+  assert.equal(c.tier, BS_COOK_TIERS.STEPS);
+  assert.deepEqual(c.steps, ['My way: sear hard.', 'Simmer 15 minutes, lid on.']); // the coach's, not the catalog's
+  assert.equal(c.stepMeta[1].station, 'stove');
+  assert.equal(c.ingredients.length, 0); // never the catalog's ingredients under coach steps
+  // Step-less meals keep the PR A catalog mapping.
+  const mapped = bsCookableFromMeal({ title: 'One-pan chicken and rice', kcal: 620 }, [RECIPE]);
+  assert.ok(mapped.steps.length > 0);
+  assert.equal(mapped.recipeTitle, RECIPE.title);
 });

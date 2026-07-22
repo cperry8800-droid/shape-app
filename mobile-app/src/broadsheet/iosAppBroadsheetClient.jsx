@@ -5394,8 +5394,12 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
   }
 
   // Meals opened from the day log carry only macros — guard the rich fields.
+  // Steps may be coach-authored OBJECTS ({t, min, passive, station} — PR E
+  // structured authoring): the preview renders display text only; Cook Mode
+  // reads the structure through bsCookableFromMeal.
   const ingredients = Array.isArray(meal.ingredients) ? meal.ingredients : [];
-  const steps = Array.isArray(meal.steps) ? meal.steps : [];
+  const steps = (Array.isArray(meal.steps) ? meal.steps : [])
+    .map((s) => (typeof s === 'string' ? s : (s && typeof s === 'object' && typeof s.t === 'string' ? s.t : ''))).filter(Boolean);
   const ingHalf = Math.ceil(ingredients.length / 2);
   const ingCols = [ingredients.slice(0, ingHalf), ingredients.slice(ingHalf)];
 
@@ -6856,7 +6860,10 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     const cur = timeline[cursor];
     const lastForRecipe = !timeline.some((x, k) => k > cursor && x.recipe === cur.recipe);
     if (lastForRecipe && itemByKey[cur.recipe]) onRecipePrepped(itemByKey[cur.recipe]);
-    if (cursor + 1 >= timeline.length) { onDone(); return; }
+    // Finish hands the still-running REAL holds up (terminal 'off' chills — the
+    // only holds that can be live here) so the wrap can note them; soft
+    // convenience timers die with the board.
+    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone(timers.filter((x) => !x.soft && x.endsAt > at)); return; }
     setCursor(cursor + 1);
   };
   // Passive-window step → start its real timer (a HOLDING lane) and move straight
@@ -6894,8 +6901,18 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
     // sets/chills unattended), so it records here by design.
     const nxt = timeline[cursor + 1];
     const effective = queued ? [...timers, queued] : timers;
-    const blocked = !!(nxt && effective.some((x) => x.iid === nxt.iid && x.endsAt > at));
+    const blocked = !!(nxt && effective.some((x) => !x.soft && x.iid === nxt.iid && x.endsAt > at));
     if (!blocked) advance();
+  };
+  // Soft convenience timer on an ACTIVE step ("sear 3 min per side") — a plain
+  // countdown the cook can start; it NEVER gates (no wait, no block, no
+  // started-state) and never claims a station. Re-startable after dismissal by
+  // design (Codex round-6 deferral, built here).
+  const startSoftTimer = (tm) => {
+    const cur = timeline[cursor];
+    if (!cur || !tm) return;
+    timerIdRef.current += 1;
+    setTimers((arr) => [...arr, { id: timerIdRef.current, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: null, soft: true, label: tm.label, endsAt: Date.now() + tm.seconds * 1000, total: tm.seconds }]);
   };
   const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
 
@@ -6909,14 +6926,20 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
   const evStarted = !!(ev && startedRef.current.has(`${ev.iid}:${cursor}`));
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
-  const otherHold = ev ? running.find((x) => x.iid !== ev.iid) : null;
+  // The "while the {title} {holds}" eyebrow reads REAL holds only — a soft
+  // convenience timer has no station and isn't a window another dish fills.
+  const otherHold = ev ? running.find((x) => !x.soft && x.iid !== ev.iid) : null;
   // You can't rest a chicken that's still roasting (Codex P1): if the NEXT step
   // belongs to an INSTANCE whose window timer is still RUNNING, gate advancing —
   // the cook waits for it to ring, or taps ✓ Done on the lane when they judge it
   // ready early. A rung (finished) hold never blocks. Guards the "out-run the
   // window" case where the interleaved active steps finish before the timer.
   const nextEv = timeline[cursor + 1];
-  const waitingOn = nextEv ? running.find((x) => x.iid === nextEv.iid) : null;
+  const waitingOn = nextEv ? running.find((x) => !x.soft && x.iid === nextEv.iid) : null;
+  // Active-step convenience timers (never on a window step — that has the real
+  // hold); a chip hides while its own countdown runs.
+  const evTms = ev && !isWindow ? bsStepTimers(ev.text) : [];
+  const softChips = evTms.slice(0, 2).filter((tm) => !running.some((x) => x.soft && x.iid === ev.iid && x.stepIndex === cursor && x.label === tm.label));
 
   return (
     <BSPage noSwipe mast={false}>
@@ -6953,6 +6976,17 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
               {otherHold ? <span style={{ color: heat }}> · {tr('cook:prep.while', { defaultValue: 'while the {title} {holds}', title: otherHold.title, holds: stationLabel(otherHold.station) })}</span> : ''}
             </div>
             <div aria-live="polite" style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 19, lineHeight: 1.34, color: BAND.cream }}>{ev.text}</div>
+            {/* Soft timer chips — a parsed duration on an ACTIVE step ("sear 3 min
+                per side") starts a plain countdown; never a gate, never a station. */}
+            {softChips.length > 0 && (
+              <div style={{ marginTop: 9, display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {softChips.map((tm, i) => (
+                  <button key={i} onClick={() => startSoftTimer(tm)} style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${BAND.hair}`, borderRadius: 5, background: 'transparent', color: BAND.cream, cursor: 'pointer', padding: '7px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    ◷ {tm.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {(running.length > 0 || rung.length > 0) && (
               <div style={{ marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'grid', gap: 9 }}>
@@ -6962,7 +6996,7 @@ function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
                   return (
                     <div key={x.id}>
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title} · {stationLabel(x.station)}</span>
+                        <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}{x.station ? ` · ${stationLabel(x.station)}` : (x.soft && x.label ? ` · ${x.label}` : '')}</span>
                         <span style={{ fontFamily: t.MONO, fontSize: 17, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1, flexShrink: 0 }}>{fmt(left)}</span>
                         {/* Ready early? The cook judges doneness — clear the hold and unblock. */}
                         <button onClick={() => dismissTimer(x.id)} style={{ ...quietBtn, color: BAND.dim, fontSize: 8, flexShrink: 0, padding: '10px 2px' }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
@@ -7013,6 +7047,7 @@ function BSPrepSession({ program, onClose }) {
   const [cookIdx, setCookIdx] = useStateBSC(0);
   const [doneEntries, setDoneEntries] = useStateBSC([]);
   const [saveFailed, setSaveFailed] = useStateBSC(false);
+  const [wrapHolds, setWrapHolds] = useStateBSC([]);   // still-running terminal holds at Finish (board → wrap)
 
   // Candidates: only meals/recipes with a REAL method walk in a prep session
   // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested
@@ -7110,7 +7145,13 @@ function BSPrepSession({ program, onClose }) {
         timeline={orch.timeline}
         onClose={onClose}
         onRecipePrepped={recordItem}
-        onDone={() => setStage('wrap')}
+        onDone={(holds) => {
+          // Terminal 'off' holds (a chill/set finishing unattended — the ONLY
+          // holds that can outlive the board, round-7 invariant) surface on the
+          // wrap screen as a static remaining-at-finish note.
+          setWrapHolds(Array.isArray(holds) ? holds.map((h) => ({ title: h.title, leftS: Math.max(0, Math.ceil((h.endsAt - Date.now()) / 1000)) })) : []);
+          setStage('wrap');
+        }}
       />;
     }
     if (ordered[cookIdx]) return <BSCookMode
@@ -7245,6 +7286,18 @@ function BSPrepSession({ program, onClose }) {
                 return days.length ? ` · ${tr('cook:prep.wrapDays', { defaultValue: '{days} covered', days: days.join(' · ') })}` : '';
               })()}
             </div>
+            {/* Chills/sets still running at Finish (terminal 'off' holds — they
+                finish unattended by design). Static remaining-at-finish figure:
+                glyph + title + numerals, no prose — no catalog key needed. */}
+            {wrapHolds.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {wrapHolds.map((h, i) => (
+                  <div key={i} style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                    ◷ {h.title} · {Math.floor(h.leftS / 60)}:{String(h.leftS % 60).padStart(2, '0')}
+                  </div>
+                ))}
+              </div>
+            )}
             {(() => {
               const tips = [...new Set(ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable.tip).filter(Boolean))];
               return tips.length ? (

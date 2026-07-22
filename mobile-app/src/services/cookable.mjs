@@ -188,6 +188,24 @@ export const bsStepTimers = (text) => {
 };
 
 // ---------------------------------------------------------------------------
+// Coach step authoring (PR E) — ONE derivation for a structured method step.
+// The window's `min` is NEVER typed by the coach: it derives from the step's
+// own stated duration (the catalog overlay's no-fabrication rule, applied at
+// the source), so authored metadata and text can't drift. A station with no
+// stated duration ≥ 4 min honestly downgrades to a plain step — the editor
+// shows the hint, nothing is fabricated.
+const BS_AUTHOR_MIN_PASSIVE = 4; // keep in sync with BS_ORCH.minPassive (cookOrchestrator.mjs)
+export const bsAuthorStep = (text, station) => {
+  const t = str(text);
+  if (!t) return null;
+  if (!BS_STATIONS.includes(station)) return { t };
+  const first = bsStepTimers(t)[0];
+  const min = first ? Math.round(first.seconds / 60) : 0;
+  if (min < BS_AUTHOR_MIN_PASSIVE) return { t };
+  return { t, min, passive: true, station };
+};
+
+// ---------------------------------------------------------------------------
 // Adapters
 
 const finishCookable = (c) => {
@@ -261,7 +279,13 @@ export const bsCookableFromMeal = (meal, recipes) => {
   const mealMacros = { kcal: num(meal.kcal), p: num(meal.p), c: num(meal.c), f: num(meal.f) };
   const coach = str(meal.coach) ? { name: str(meal.coach), role: 'Nutritionist' } : null;
 
-  if (base) {
+  // Authored steps on the meal ITSELF outrank a title-coincidence catalog map
+  // (PR E): the coach wrote this method for THIS meal. The catalog base still
+  // serves step-less meals (the PR A mapping design) — and we never mix the
+  // two sources (catalog ingredients under coach steps could contradict).
+  const authored = splitSteps(meal.steps);
+
+  if (base && authored.text.length === 0) {
     return finishCookable({
       ...base,
       title,
@@ -275,7 +299,7 @@ export const bsCookableFromMeal = (meal, recipes) => {
     });
   }
 
-  let { text: steps, meta: stepMeta } = splitSteps(meal.steps);
+  let { text: steps, meta: stepMeta } = authored;
   let fromPlan = false;
   if (steps.length === 0) {
     const prose = bsSplitMethodProse([str(meal.brief), str(meal.desc), str(meal.method)].filter(Boolean).join(' '));
