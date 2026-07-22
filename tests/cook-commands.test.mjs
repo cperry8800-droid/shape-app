@@ -99,6 +99,10 @@ test('timer-status queries are NOT word-capped; nav phrases are (Codex P2 #1805)
   // …but the short elliptical timer forms still classify.
   assert.equal(bsCookCommand('time left'), 'howlong');
   assert.equal(bsCookCommand('whats left'), 'howlong');
+  // …and "whats/time left TO …" is a task/cooking question → Nora (Codex P2 #1805).
+  assert.equal(bsCookCommand("what's left to do"), null);
+  assert.equal(bsCookCommand('whats left to prep'), null);
+  assert.equal(bsCookCommand('time left to cook'), null);
 });
 
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {

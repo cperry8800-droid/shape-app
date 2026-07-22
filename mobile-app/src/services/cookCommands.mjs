@@ -56,7 +56,10 @@ const TIMER_PHRASE = [
 // question, not a command ("should I go back to the pan now"; "…time left before
 // guests arrive, should I rush?").
 const CAPPED_PHRASE = [
-  [/\b(time left|whats left)\b/, 'howlong'],
+  // Elliptical timer-status — but NOT when trailed by "to …" ("what's left to
+  // do", "time left to cook"), which is a TASK/cooking question for Nora, not a
+  // request for the countdown (Codex P2 #1805).
+  [/\b(time left|whats left)\b(?!\s+to\b)/, 'howlong'],
   // "start/set [the|a|my] timer" — natural wordings incl. the indefinite article
   // (Codex P3 #1805: "start a timer" previously fell through to Nora).
   [/\b(start|set) (the |a |my )?timer\b/, 'timer'],

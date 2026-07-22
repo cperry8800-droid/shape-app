@@ -6200,6 +6200,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   React.useEffect(() => {
     if (!readsOn || phase !== 'method' || !hasMethod) return;
     speak(steps[stepIdx]);
+    // Stop THIS step's audio when step/phase/reads changes away — advancing
+    // steps supersedes via speak()'s own stop, but LEAVING method (→ Plated, or
+    // Back to mise) fires no new speak, so the old step would keep reading over
+    // the new screen without this cleanup (Codex P2 #1805).
+    return () => stopSpeak();
   }, [readsOn, phase, stepIdx, hasMethod]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleReads = () => {
     // Side effects live OUTSIDE the setState updater — Strict Mode dev runs
