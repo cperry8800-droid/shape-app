@@ -77,5 +77,19 @@
   "prep.notSaved": "Sign in make your prep stay — dis marks no go last pass dis session.",
   "prep.done": "Done",
   "prep.stamp": "You don prep am ✓ · just plate am",
-  "prep.stampShort": "Don prep ✓"
+  "prep.stampShort": "Don prep ✓",
+  "prep.board": "The board",
+  "prep.now": "Now",
+  "prep.holding": "Dey wait",
+  "prep.ready": "{title} don ready",
+  "prep.while": "while {title} still dey {holds}",
+  "prep.startTimerGo": "Start timer · continue to cook →",
+  "prep.finish": "Finish →",
+  "prep.next": "Next →",
+  "prep.cookAria": "Prep · the board",
+  "prep.station.oven": "for oven",
+  "prep.station.stove": "for stove",
+  "prep.station.board": "for board",
+  "prep.station.off": "dey rest",
+  "prep.waiting": "{title} · {t} remain"
 }

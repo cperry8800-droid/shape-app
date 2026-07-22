@@ -15,6 +15,12 @@
 
 export const BS_COOK_TIERS = { STEPS: 1, PROSE: 2, MISE: 3, QUICK: 4 };
 
+// The station a passive step occupies (PR D orchestration §6). A structured
+// step may claim exactly one; anything else is no station. 'off' = a hands-off
+// wait that ties up no equipment (rest / chill / marinate), which still hosts an
+// interleave window but never conflicts.
+export const BS_STATIONS = ['oven', 'stove', 'board', 'off'];
+
 // A string-or-nothing guard: only real, non-empty strings pass (a Symbol or
 // object in a text field must drop honestly, never throw via String()).
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -50,17 +56,53 @@ export const bsCookKey = (c) => {
 // ---------------------------------------------------------------------------
 // Steps + ingredients normalization
 
-// Accepts string steps AND the forward-compatible structured shape
-// { t, min?, passive?, station? } the orchestration pass (PR D) introduces.
-const normalizeSteps = (steps) => {
-  if (!Array.isArray(steps)) return [];
-  const out = [];
-  for (const s of steps) {
-    const text = typeof s === 'object' && s !== null ? str(s.t) : str(s);
-    if (text) out.push(text);
-  }
-  return out;
+// The honest step-metadata for a step (PR D orchestration §6). A plain-string
+// step carries none — it can never host an interleave window (only authored,
+// hand-checked `passive` steps do), so the board never fabricates parallelism.
+const plainStepMeta = () => ({ min: null, passive: false, station: null });
+
+// Validate one authored meta blob (an inline `{t, min?, passive?, station?}` step
+// OR a catalog `stepMeta[i]` overlay entry) into the canonical shape. `min` counts
+// only as a real positive number; `station` only when in BS_STATIONS; `passive`
+// only on an explicit `=== true`. Null/attacker-shaped input → null (drops out).
+const sanitizeMeta = (m) => {
+  if (!m || typeof m !== 'object') return null;
+  const min = num(m.min);
+  return {
+    min: min !== null && min > 0 ? min : null,
+    passive: m.passive === true,
+    station: BS_STATIONS.includes(m.station) ? m.station : null,
+  };
 };
+
+// Splits raw step entries (string | { t, min?, passive?, station? }) into two
+// index-aligned arrays: the rendered `text` (backward compatible — strings stay
+// valid everywhere) and `meta`. Empty/attacker-shaped entries drop from BOTH in
+// lockstep, so text[i] and meta[i] always describe the same step. Structured
+// `min` is honored only when a real positive number; `station` only when it is
+// one of BS_STATIONS; `passive` only on an explicit `=== true`.
+const splitSteps = (steps) => {
+  const text = [];
+  const meta = [];
+  if (!Array.isArray(steps)) return { text, meta };
+  for (const s of steps) {
+    if (typeof s === 'object' && s !== null) {
+      const t = str(s.t);
+      if (!t) continue;
+      text.push(t);
+      meta.push(sanitizeMeta(s)); // s is a non-null object here → never null (the overlay merge below is where the fallback is real)
+    } else {
+      const t = str(s);
+      if (!t) continue;
+      text.push(t);
+      meta.push(plainStepMeta());
+    }
+  }
+  return { text, meta };
+};
+
+// Back-compat: the many `steps`-only call sites keep working unchanged.
+const normalizeSteps = (steps) => splitSteps(steps).text;
 
 // Ingredients: { n, m, k? } objects (the catalog/meal grammar) or plain
 // strings (legacy website shape) → { n, m, k? }. Empty names drop.
@@ -149,6 +191,12 @@ export const bsStepTimers = (text) => {
 // Adapters
 
 const finishCookable = (c) => {
+  // stepMeta is always index-aligned with steps — a caller that set it from
+  // splitSteps carries it through; anything else (prose splits, a mapped base
+  // that reshaped steps) gets a fresh plain-meta per step. Never longer/shorter
+  // than steps, so board/orchestrator reads can index either array safely.
+  const supplied = Array.isArray(c.stepMeta) ? c.stepMeta : [];
+  c.stepMeta = c.steps.map((_, i) => supplied[i] || plainStepMeta());
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;
   else if (c.ingredients.length > 0) c.tier = BS_COOK_TIERS.MISE;
   else c.tier = BS_COOK_TIERS.QUICK;
@@ -162,13 +210,24 @@ export const bsCookableFromRecipe = (recipe) => {
   const title = str(recipe.title);
   if (!title) return null;
   const macros = recipe.macros && typeof recipe.macros === 'object' ? recipe.macros : {};
+  const { text: steps, meta: inlineMeta } = splitSteps(recipe.steps);
+  // A recipe may carry an explicit parallel `stepMeta` array (the catalog's
+  // hand-curated passive-window overlay — steps stay plain strings). It wins
+  // per-index over the inline meta; a null/invalid overlay entry falls back.
+  // The overlay is authored parallel to the RAW steps, but splitSteps compacts
+  // (drops empty/attacker-shaped entries) — so apply it only when nothing
+  // dropped, or a future empty catalog step could shift it off its step (audit).
+  const rawLen = Array.isArray(recipe.steps) ? recipe.steps.length : 0;
+  const overlay = Array.isArray(recipe.stepMeta) && steps.length === rawLen ? recipe.stepMeta : null;
+  const stepMeta = overlay ? steps.map((_, i) => sanitizeMeta(overlay[i]) || inlineMeta[i]) : inlineMeta;
   return finishCookable({
     title,
     sourceKind: 'recipe',
     servings: num(recipe.servings),
     macros: { kcal: num(recipe.kcal), p: num(macros.p), c: num(macros.c), f: num(macros.f) },
     ingredients: normalizeIngredients(recipe.ingredients),
-    steps: normalizeSteps(recipe.steps),
+    steps,
+    stepMeta,
     fromPlan: false,
     coach: str(recipe.by) ? { name: str(recipe.by), role: str(recipe.byRole) || '' } : null,
     tip: str(recipe.tip),
@@ -216,11 +275,11 @@ export const bsCookableFromMeal = (meal, recipes) => {
     });
   }
 
-  let steps = normalizeSteps(meal.steps);
+  let { text: steps, meta: stepMeta } = splitSteps(meal.steps);
   let fromPlan = false;
   if (steps.length === 0) {
     const prose = bsSplitMethodProse([str(meal.brief), str(meal.desc), str(meal.method)].filter(Boolean).join(' '));
-    if (prose) { steps = prose; fromPlan = true; }
+    if (prose) { steps = prose; stepMeta = null; fromPlan = true; } // prose is plain text → finishCookable derives plain meta
   }
   return finishCookable({
     title,
@@ -229,6 +288,7 @@ export const bsCookableFromMeal = (meal, recipes) => {
     macros: mealMacros,
     ingredients: normalizeIngredients(meal.ingredients),
     steps,
+    stepMeta,
     fromPlan,
     coach,
     tip: null,

@@ -77,5 +77,19 @@
   "prep.notSaved": "Masuk untuk menyimpan persiapanmu — tanda ini tidak akan bertahan setelah sesi ini.",
   "prep.done": "Selesai",
   "prep.stamp": "Sudah disiapkan ✓ · tinggal sajikan",
-  "prep.stampShort": "Sudah disiapkan ✓"
+  "prep.stampShort": "Sudah disiapkan ✓",
+  "prep.board": "Papan",
+  "prep.now": "Sekarang",
+  "prep.holding": "Menunggu",
+  "prep.ready": "{title} siap",
+  "prep.while": "sementara {title} masih {holds}",
+  "prep.startTimerGo": "Nyalakan timer · lanjut masak →",
+  "prep.finish": "Selesai →",
+  "prep.next": "Lanjut →",
+  "prep.cookAria": "Persiapan · papan",
+  "prep.station.oven": "di oven",
+  "prep.station.stove": "di kompor",
+  "prep.station.board": "di talenan",
+  "prep.station.off": "didiamkan",
+  "prep.waiting": "{title} · {t} lagi"
 }

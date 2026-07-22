@@ -77,5 +77,19 @@
   "prep.notSaved": "Accedi per conservare la preparazione — questi segni non sopravviveranno a questa sessione.",
   "prep.done": "Fatto",
   "prep.stamp": "Preparato ✓ · basta impiattare",
-  "prep.stampShort": "Preparato ✓"
+  "prep.stampShort": "Preparato ✓",
+  "prep.board": "Il piano",
+  "prep.now": "Adesso",
+  "prep.holding": "In attesa",
+  "prep.ready": "{title} pronto",
+  "prep.while": "mentre {title} resta {holds}",
+  "prep.startTimerGo": "Avvia il timer · continua →",
+  "prep.finish": "Concludi →",
+  "prep.next": "Avanti →",
+  "prep.cookAria": "Prep · il piano",
+  "prep.station.oven": "in forno",
+  "prep.station.stove": "sul fornello",
+  "prep.station.board": "sul tagliere",
+  "prep.station.off": "a riposo",
+  "prep.waiting": "{title} · {t} rimasti"
 }

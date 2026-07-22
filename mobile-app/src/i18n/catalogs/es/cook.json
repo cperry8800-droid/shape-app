@@ -77,5 +77,19 @@
   "prep.notSaved": "Inicia sesión para guardar tu preparación — estas marcas no sobrevivirán a esta sesión.",
   "prep.done": "Hecho",
   "prep.stamp": "Preparado ✓ · solo emplatar",
-  "prep.stampShort": "Preparado ✓"
+  "prep.stampShort": "Preparado ✓",
+  "prep.board": "El tablero",
+  "prep.now": "Ahora",
+  "prep.holding": "En espera",
+  "prep.ready": "{title} listo",
+  "prep.while": "mientras {title} sigue {holds}",
+  "prep.startTimerGo": "Pon el temporizador · sigue cocinando →",
+  "prep.finish": "Terminar →",
+  "prep.next": "Siguiente →",
+  "prep.cookAria": "Preparación · el tablero",
+  "prep.station.oven": "en el horno",
+  "prep.station.stove": "en la estufa",
+  "prep.station.board": "en la tabla",
+  "prep.station.off": "reposando",
+  "prep.waiting": "{title} · quedan {t}"
 }

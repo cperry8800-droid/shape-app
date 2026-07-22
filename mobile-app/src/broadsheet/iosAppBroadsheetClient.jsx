@@ -21,6 +21,7 @@ import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
+import { bsOrchestrate } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -6789,6 +6790,213 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 // keeps what's done and writes nothing more). Entirely optional — a door, never
 // a gate: the menu, recipes and grocery list all work without it.
 const BS_PREP_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// THE BOARD — the multi-track interleaved prep player (PR D orchestration §6).
+// Walks the orchestrator's timeline across recipes: while one recipe's authored
+// passive window holds (a real running timer, HOLDING lane), the NOW lane surfaces
+// the next recipe's active step — "while the chicken roasts, start tomorrow's
+// rice." Only mounts when the orchestrator actually interleaved (serial:false);
+// a windowless set keeps the serial per-recipe BSCookMode flow. HOLDING lanes are
+// LIVE timers — a countdown exists only because the cook started a real-duration
+// step, never fabricated.
+const BS_PREP_STATION_LABELS = { oven: 'in the oven', stove: 'on the stove', board: 'on the board', off: 'resting' };
+function BSPrepCook({ items, timeline, onClose, onRecipePrepped, onDone }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  _bsScrollTopOnMount();
+  const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
+  const heat = '#38e0cc';
+  const reduced = bsSdReduced();
+  const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
+  const primaryBtn = { border: 0, borderRadius: 5, background: heat, color: '#04211c', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', padding: '13px 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 };
+  const quietBtn = { background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: BAND.dim };
+  const stationLabel = (st) => tr(`cook:prep.station.${st}`, { defaultValue: BS_PREP_STATION_LABELS[st] || '' });
+
+  const [cursor, setCursor] = useStateBSC(0);
+  const [timers, setTimers] = useStateBSC([]); // HOLDING lanes: [{id, iid, recipeKey, title, station, label, endsAt, total}]
+  const timerIdRef = React.useRef(0);
+  // "This step's timer was STARTED" must survive the timer's removal (✓ Done /
+  // rung dismissal) — if it lived only in `timers`, dismissing your own step's
+  // hold early would flip the CTA back to "Start timer", which re-queues a fresh
+  // full-length hold and soft-locks the board (Codex, round 6). Keys `iid:step`.
+  const startedRef = React.useRef(new Set());
+  const [, setTick] = useStateBSC(0);
+  React.useEffect(() => { const iv = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
+  // Presence + wake lock — the meal logger's exact rails, same as BSCookMode.
+  React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
+  React.useEffect(() => {
+    let lock = null; let on = true;
+    const acquire = () => { try { navigator.wakeLock?.request?.('screen')?.then((l) => { if (!on) { try { l.release(); } catch (e) {} return; } lock = l; })?.catch(() => {}); } catch (e) {} };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { on = false; document.removeEventListener('visibilitychange', onVis); try { lock?.release?.(); } catch (e) {} };
+  }, []);
+
+  const now = Date.now();
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const itemByKey = React.useMemo(() => { const m = {}; (items || []).forEach((it) => { m[it.key] = it; }); return m; }, [items]);
+  const titleOf = (rk, fallback) => (itemByKey[rk] ? itemByKey[rk].cookable.title : fallback || rk);
+
+  // Per-recipe step totals + play order (the multi-track strip).
+  const recStats = React.useMemo(() => {
+    const total = {}, order = [];
+    timeline.forEach((e) => { if (!(e.recipe in total)) { total[e.recipe] = 0; order.push(e.recipe); } total[e.recipe] += 1; });
+    return { total, order };
+  }, [timeline]);
+  const doneByRecipe = React.useMemo(() => {
+    const d = {};
+    for (let k = 0; k < cursor; k++) { const r = timeline[k].recipe; d[r] = (d[r] || 0) + 1; }
+    return d;
+  }, [timeline, cursor]);
+
+  const ev = timeline[cursor];
+  // A recipe is PREPPED the moment its last timeline event is performed. Guarded
+  // upstream (a written set), so a back→forward re-advance never double-records.
+  const advance = () => {
+    const cur = timeline[cursor];
+    const lastForRecipe = !timeline.some((x, k) => k > cursor && x.recipe === cur.recipe);
+    if (lastForRecipe && itemByKey[cur.recipe]) onRecipePrepped(itemByKey[cur.recipe]);
+    if (cursor + 1 >= timeline.length) { onDone(); return; }
+    setCursor(cursor + 1);
+  };
+  // Passive-window step → start its real timer (a HOLDING lane) and move straight
+  // to the interleaved next step. The countdown comes from the step's OWN text.
+  const startAndGo = () => {
+    const cur = timeline[cursor];
+    const tms = bsStepTimers(cur.text);
+    const at = Date.now();
+    // Idempotent: a step's timer starts ONCE — gated on the durable startedRef
+    // (never the live `timers`, which dismissal empties), so neither ← Back nor
+    // an early ✓ Done can re-offer "Start timer" and stack/reset a hold (audit +
+    // Codex round 6). Hold gates key on `iid` (the per-input instance id, 1:1
+    // with a timeline track — the orchestrator + bsHoldingAt already key on it),
+    // so two selected instances of one recipe never cross-clear; `recipeKey`
+    // rides only for display. The synchronous ref add also kills the double-tap.
+    let queued = null;
+    const startKey = `${cur.iid}:${cursor}`;
+    if (tms[0] && !startedRef.current.has(startKey)) {
+      startedRef.current.add(startKey);
+      timerIdRef.current += 1;
+      const id = timerIdRef.current;
+      queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: tms[0].label, endsAt: at + tms[0].seconds * 1000, total: tms[0].seconds };
+      setTimers((arr) => (arr.some((x) => x.iid === cur.iid && x.stepIndex === cursor)
+        ? arr
+        : [...arr, queued]));
+    }
+    // Advance unless the NEXT step's INSTANCE still has a running hold (the wait
+    // gate outranks starting a window; you can't step into an instance that's
+    // still cooking). The timer we JUST queued isn't in the rendered `timers` yet
+    // (setTimers is async within this handler), so a SAME-instance next step must
+    // be checked against existing-plus-just-queued (Codex P2 / CodeRabbit) — else
+    // starting a window and stepping straight into its own continuation slips past
+    // the gate. No next step (a terminal window) → finish normally: the instance's
+    // active work is done, and PREPPED is an active-work signal (a make-ahead
+    // sets/chills unattended), so it records here by design.
+    const nxt = timeline[cursor + 1];
+    const effective = queued ? [...timers, queued] : timers;
+    const blocked = !!(nxt && effective.some((x) => x.iid === nxt.iid && x.endsAt > at));
+    if (!blocked) advance();
+  };
+  const dismissTimer = (id) => setTimers((arr) => arr.filter((x) => x.id !== id));
+
+  const isWindow = !!(ev && ev.passive && ev.min != null && bsStepTimers(ev.text).length);
+  // Already started this step's timer (returned via ← Back, or its hold was
+  // dismissed early)? Then the CTA just advances — never re-starts — so the
+  // HOLDING lane can't double up and a dismissed hold can't soft-lock the step
+  // behind a fresh full-length timer. Read from the durable startedRef, NOT the
+  // live `timers` (✓ Done removes the lane; the started fact must survive it).
+  // Identity gates compare `iid` (per-instance), never the display `recipeKey`.
+  const evStarted = !!(ev && startedRef.current.has(`${ev.iid}:${cursor}`));
+  const running = timers.filter((x) => x.endsAt > now);
+  const rung = timers.filter((x) => x.endsAt <= now);
+  const otherHold = ev ? running.find((x) => x.iid !== ev.iid) : null;
+  // You can't rest a chicken that's still roasting (Codex P1): if the NEXT step
+  // belongs to an INSTANCE whose window timer is still RUNNING, gate advancing —
+  // the cook waits for it to ring, or taps ✓ Done on the lane when they judge it
+  // ready early. A rung (finished) hold never blocks. Guards the "out-run the
+  // window" case where the interleaved active steps finish before the timer.
+  const nextEv = timeline[cursor + 1];
+  const waitingOn = nextEv ? running.find((x) => x.iid === nextEv.iid) : null;
+
+  return (
+    <BSPage noSwipe mast={false}>
+      <div role="dialog" aria-modal="true" aria-label={tr('cook:prep.cookAria', { defaultValue: 'Prep · the board' })}>
+        <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <button onClick={onClose} style={{ ...quietBtn, color: BAND.cream, padding: 0, fontSize: 10 }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
+            <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{tr('cook:prep.board', { defaultValue: 'The board' })}</span>
+          </div>
+          {/* multi-track recipes strip: each recipe's progress, its live timer when holding */}
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {recStats.order.map((rk) => {
+              const isNow = ev && ev.recipe === rk;
+              const hold = running.find((x) => x.recipeKey === rk);
+              const done = doneByRecipe[rk] || 0;
+              const tot = recStats.total[rk] || 0;
+              return (
+                <span key={rk} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 4, border: `1px solid ${isNow ? bsTHexA(heat, 0.6) : BAND.hair}`, background: isNow ? bsTHexA(heat, 0.12) : 'transparent' }}>
+                  <span style={{ ...bandEyebrow, fontSize: 7.5, color: isNow ? heat : BAND.dim, maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(rk)}</span>
+                  {hold
+                    ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums' }}>◷ {fmt(Math.max(0, Math.ceil((hold.endsAt - now) / 1000)))}</span>
+                    : <span style={{ fontFamily: t.MONO, fontSize: 8, color: BAND.dim35, fontVariantNumeric: 'tabular-nums' }}>{done}/{tot}</span>}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+        <div aria-hidden style={{ height: 3, background: heat, boxShadow: `0 0 14px ${bsTHexA(heat, 0.55)}` }} />
+
+        <div style={{ background: BAND.bg, padding: `16px ${t.padX}px 20px`, minHeight: 200 }}>
+          {ev && (<>
+            <div style={{ ...bandEyebrow, fontSize: 8.5, color: BAND.dim }}>
+              {tr('cook:prep.now', { defaultValue: 'Now' })} · <span style={{ color: BAND.cream }}>{titleOf(ev.recipe, ev.title)}</span>
+              {otherHold ? <span style={{ color: heat }}> · {tr('cook:prep.while', { defaultValue: 'while the {title} {holds}', title: otherHold.title, holds: stationLabel(otherHold.station) })}</span> : ''}
+            </div>
+            <div aria-live="polite" style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 19, lineHeight: 1.34, color: BAND.cream }}>{ev.text}</div>
+
+            {(running.length > 0 || rung.length > 0) && (
+              <div style={{ marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'grid', gap: 9 }}>
+                <div style={{ ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('cook:prep.holding', { defaultValue: 'Holding' })}</div>
+                {running.map((x) => {
+                  const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
+                  return (
+                    <div key={x.id}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title} · {stationLabel(x.station)}</span>
+                        <span style={{ fontFamily: t.MONO, fontSize: 17, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1, flexShrink: 0 }}>{fmt(left)}</span>
+                        {/* Ready early? The cook judges doneness — clear the hold and unblock. */}
+                        <button onClick={() => dismissTimer(x.id)} style={{ ...quietBtn, color: BAND.dim, fontSize: 8, flexShrink: 0, padding: '10px 2px' }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                      </div>
+                      <div aria-hidden style={{ marginTop: 6, height: 3, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', borderRadius: 2, background: heat, boxShadow: `0 0 8px ${bsTHexA(heat, 0.5)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - left / x.total)) * 100)}%`, transition: reduced ? 'none' : 'width 1s linear' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+                {rung.map((x) => (
+                  <div key={x.id} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ ...bandEyebrow, fontSize: 8, color: heat, textShadow: `0 0 12px ${bsTHexA(heat, 0.5)}`, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('cook:prep.ready', { defaultValue: '{title} ready', title: x.title })}</span>
+                    <button onClick={() => dismissTimer(x.id)} style={{ ...quietBtn, color: BAND.cream, fontSize: 9, flexShrink: 0 }}>✓ {tr('cook:timer.dismiss', { defaultValue: 'Done' })}</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
+              {isWindow && !evStarted
+                ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
+                : waitingOn
+                  ? <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</button>
+                  : <button onClick={advance} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
+            </div>
+          </>)}
+        </div>
+      </div>
+    </BSPage>
+  );
+}
+
 function BSPrepSession({ program, onClose }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -6845,6 +7053,17 @@ function BSPrepSession({ program, onClose }) {
   const ordered = React.useMemo(() => bsPrepOrder(selected), [selected]);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
 
+  // PR D: orchestrate the selected recipes. serial:false → the interleaved
+  // multi-track BOARD (BSPrepCook — "while the chicken roasts, start the rice");
+  // serial:true (single recipe / no authored passive window) → the existing
+  // serial per-recipe BSCookMode flow, unchanged. bsPrepOrder's longest-first
+  // ordering is the tie-break the orchestrator interleaves against.
+  const orch = React.useMemo(
+    () => bsOrchestrate(ordered.map((it) => ({ key: it.key, title: it.cookable.title, steps: it.cookable.steps, stepMeta: it.cookable.stepMeta }))),
+    [ordered],
+  );
+  const interleaved = !orch.serial && orch.timeline.length > 0;
+
   const writeEntry = (it) => {
     const entry = {
       weekKey: bsPrepWeekKey(new Date()),
@@ -6873,10 +7092,28 @@ function BSPrepSession({ program, onClose }) {
     if (cookIdx + 1 >= ordered.length) setStage('wrap');
     else { setCookIdx(cookIdx + 1); setStage('transition'); }
   };
+  // The interleaved board records each recipe as its last step completes; a
+  // written-key Set guards against a back→forward re-advance double-recording.
+  const writtenRef = React.useRef(new Set());
+  const recordItem = (it) => {
+    if (!it || writtenRef.current.has(it.key)) return;
+    writtenRef.current.add(it.key);
+    writeEntry(it);
+  };
 
-  // The cook stage IS BSCookMode (its own full takeover — band, voice, timers).
-  if (stage === 'cook' && ordered[cookIdx]) {
-    return <BSCookMode
+  // The cook stage: the interleaved BOARD when the orchestrator found windows,
+  // else the serial per-recipe BSCookMode (band, voice, timers, resume).
+  if (stage === 'cook') {
+    if (interleaved) {
+      return <BSPrepCook
+        items={ordered}
+        timeline={orch.timeline}
+        onClose={onClose}
+        onRecipePrepped={recordItem}
+        onDone={() => setStage('wrap')}
+      />;
+    }
+    if (ordered[cookIdx]) return <BSCookMode
       cookable={ordered[cookIdx].cookable}
       prep={{ index: cookIdx, count: ordered.length, onPrepped }}
       onClose={onClose}
@@ -6972,7 +7209,7 @@ function BSPrepSession({ program, onClose }) {
             })}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              <button onClick={() => { setCookIdx(0); setStage('transition'); }} style={{ ...primaryBtn, flex: 1 }}>
+              <button onClick={() => { if (interleaved) { setStage('cook'); } else { setCookIdx(0); setStage('transition'); } }} style={{ ...primaryBtn, flex: 1 }}>
                 {tr('cook:prep.start', { defaultValue: 'Start the session →' })}
               </button>
             </div>
