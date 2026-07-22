@@ -856,5 +856,7 @@
   "wire.openFileArrow": "MỞ HỒ SƠ →",
   "wire.scheduleArrow": "LỊCH →",
   "wire.seeFullRoster": "XEM TOÀN BỘ DANH SÁCH",
-  "wire.theWire": "BẢN TIN"
+  "wire.theWire": "BẢN TIN",
+  "case.prep": "PREP",
+  "case.prepLine": "{count, plural, other {# bữa đã sơ chế}}"
 }

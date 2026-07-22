@@ -13,6 +13,7 @@ import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from
 import { bsLiveAudience } from './liveProgress.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
+import { bsPrunePrep } from './mealPrep.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -476,6 +477,7 @@ async function signOut() {
   for (const k in _followCache) delete _followCache[k];
   for (const k in _avatarCache) delete _avatarCache[k];
   _followingIdsCache = { uid: null, ids: null, at: 0 };
+  _prepCache = null;   // PREPPED records are member data — never cross accounts
   return setCached({ user: null, session: null, profile: null });
 }
 
@@ -4709,6 +4711,49 @@ window.ShapeCycle = {
   list: cycleList, log: cycleLog, unlog: cycleUnlog,
   settings: cycleSettings, setSettings: cycleSetSettings,
   optOut: cycleOptOut, forClient: cycleForClient,
+};
+
+// ---------------------------------------------------------------------------
+// Meal prep — the PREPPED state (Cook Mode wave PR C). user_goals('meal_prep')
+// holds { entries: [...] }; every read AND write prunes to the 4-day freshness
+// window (bsPrunePrep), so a stale record can never render a stamp. Cache is
+// uid-keyed and cleared on sign-out (the cycle cross-account lesson — never an
+// unscoped module cache over member data). Signed-out reads null: PREPPED
+// renders only from a real record, no demo stamps (doctrine).
+let _prepCache = null; // { uid, entries }
+async function mealPrepEntries() {
+  const uid = state.user?.id;
+  if (!supabase || !uid) return null;
+  if (_prepCache && _prepCache.uid === uid) return _prepCache.entries;
+  try {
+    const { data, error } = await supabase.from('user_goals').select('data')
+      .eq('user_id', uid).eq('kind', 'meal_prep').maybeSingle();
+    if (error) return null;                       // read fault ≠ "no preps" — no cache
+    const entries = bsPrunePrep(data?.data?.entries, Date.now());
+    _prepCache = { uid, entries };
+    return entries;
+  } catch (e) { return null; }
+}
+async function mealPrepRecord(newEntries) {
+  const uid = state.user?.id;
+  if (!supabase || !uid || !Array.isArray(newEntries) || !newEntries.length) return { ok: false };
+  try {
+    const cur = (await mealPrepEntries()) || [];
+    const entries = bsPrunePrep([...cur, ...newEntries], Date.now());
+    const res = await supabase.from('user_goals').upsert(
+      { user_id: uid, kind: 'meal_prep', data: { entries } },
+      { onConflict: 'user_id,kind' },
+    );
+    if (res.error) return { ok: false };
+    _prepCache = { uid, entries };
+    try { window.dispatchEvent(new CustomEvent('shape:mealPrep')); } catch (e) {}
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeMealPrep = {
+  entries: mealPrepEntries,
+  record: mealPrepRecord,
+  invalidate: () => { _prepCache = null; },
 };
 
 // Momentum weekly bonus: the RPC grants +25 once per ISO week when the caller's

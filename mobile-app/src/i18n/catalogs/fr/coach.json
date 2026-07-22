@@ -856,5 +856,7 @@
   "wire.openFileArrow": "OUVRIR LE DOSSIER →",
   "wire.scheduleArrow": "PLANIFIER →",
   "wire.seeFullRoster": "VOIR LA LISTE COMPLÈTE",
-  "wire.theWire": "LE FIL"
+  "wire.theWire": "LE FIL",
+  "case.prep": "PRÉPA",
+  "case.prepLine": "{count, plural, one {# repas préparé} other {# repas préparés}}"
 }

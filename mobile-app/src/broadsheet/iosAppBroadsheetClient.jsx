@@ -20,6 +20,7 @@ import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../pu
 import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
+import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -2871,6 +2872,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const t = useBS();
   const tr = useShapeTr();
   const bsHomeProgram = useBSProgram();
+  const prepEntries = useBSPrepEntries();   // PREPPED stamps on slate meal rows (PR C)
   // Real current week, computed live so the home reflects today (not demo dates).
   // Monday-first index 0..6; weekDates = the seven dates of this calendar week.
   // Weekday/month tokens follow the selected UI language (i18n date-locale rule);
@@ -3620,7 +3622,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             _min: mealMinutes(m),
             tag: tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: teal,
             title: m.title,
-            status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null].filter(Boolean).join(' · '),
+            // PREPPED (PR C): the short form on the dense slate — the full
+            // "just plate it" phrase lives on the Eat course row.
+            status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null,
+              !logged && prepEntries && bsPrepMatch(prepEntries, { mealId: m.id, title: m.title }, Date.now()) ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
+            ].filter(Boolean).join(' · '),
             right: mealTick(m, logged),
             onOpen: () => setPreviewMeal(m),
             ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
@@ -6053,9 +6059,36 @@ function bsCookResumeWrite(key, stepIdx) {
 }
 function bsCookResumeClear() { try { localStorage.removeItem(BS_COOK_RESUME_KEY); } catch (e) {} }
 
-function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () => {} }) {
+// Shared PREPPED read (PR C): the fresh meal-prep entries, or null when signed
+// out / none — consumers render NOTHING on null (a stamp only ever comes from a
+// real record). Live via the shape:mealPrep event ShapeMealPrep fires on write.
+function useBSPrepEntries() {
+  const [entries, setEntries] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    const load = () => {
+      try {
+        const p = window.ShapeMealPrep?.entries?.();
+        if (p && p.then) p.then((e) => { if (on) setEntries(e); }).catch(() => {});
+      } catch (e) {}
+    };
+    load();
+    window.addEventListener('shape:mealPrep', load);
+    return () => { on = false; window.removeEventListener('shape:mealPrep', load); };
+  }, []);
+  return entries;
+}
+
+// `prep` (PR C): non-null inside a Prep Session — { index, count, onPrepped }.
+// In prep mode the per-recipe mise is SKIPPED (the session's merged mise already
+// covered it), PLATED stamps PREPPED ✓ + advances instead of offering the log
+// (you didn't eat it — no award, doctrine §5), and the resume stamp is never
+// read or written (the single global resume key belongs to solo cooks; a prep
+// write would clobber an unrelated saved place).
+function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () => {}, prep = null }) {
   const t = useBS();
   const tr = useShapeTr();
+  const inPrep = !!prep;
   _bsScrollTopOnMount();
   // The band literals (#1720) — deliberately NOT theme tokens: the same
   // machine on every paper, like the session cockpit + the launch wire.
@@ -6069,10 +6102,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const tierQuick = cookable.tier === BS_COOK_TIERS.QUICK;
   const resumeKey = bsCookKey(cookable);
   // Lazy init — the localStorage read runs ONCE, not on every heartbeat render.
-  const [resumeAt] = useStateBSC(() => bsCookResumeRead(resumeKey));
+  // Prep mode never resumes (the session's own transition screens own its flow).
+  const [resumeAt] = useStateBSC(() => (inPrep ? null : bsCookResumeRead(resumeKey)));
 
-  // quick (tier 4) skips straight to the plate; everything else opens on mise.
-  const [phase, setPhase] = useStateBSC(tierQuick ? 'plated' : 'mise'); // mise | method | plated
+  // quick (tier 4) skips straight to the plate; a prep-session recipe skips its
+  // own mise (the merged board covered it); everything else opens on mise.
+  const [phase, setPhase] = useStateBSC(tierQuick ? 'plated' : inPrep && hasMethod ? 'method' : 'mise'); // mise | method | plated
   const [stepIdx, setStepIdx] = useStateBSC(0);
   const [visited, setVisited] = useStateBSC({});   // stepIdx → true once advanced past
   const [skippedSteps, setSkippedSteps] = useStateBSC({});
@@ -6104,6 +6139,33 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // its TITLE under the member's own share rule; the audience re-resolves per
   // push and a settings change re-pushes with the resolved audience.
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
+
+  // PREPPED pre-check (PR C, solo cooks only): a fresh meal-prep record for
+  // THIS meal/recipe opens the mise pre-checked with a "Prepped {day} ✓" stamp
+  // — the Sunday work shows up where it pays off. Exact match only (mealId /
+  // title, never fuzzy); a stale response after unmount is dropped.
+  const [preppedStamp, setPreppedStamp] = useStateBSC(null);
+  React.useEffect(() => {
+    if (inPrep) return undefined;
+    let on = true;
+    (async () => {
+      try {
+        const entries = await window.ShapeMealPrep?.entries?.();
+        if (!on || !entries) return;
+        const hit = bsPrepMatch(entries, { mealId: cookable.mealId, title: cookable.title }, Date.now());
+        if (!hit) return;
+        setPreppedStamp(hit);
+        setChecked((m) => {
+          const next = { ...m };
+          cookable.ingredients.forEach((_, i) => { next['ing-' + i] = true; });
+          if (cookable.prepNote) next.prep = true;
+          return next;
+        });
+      } catch (e) {}
+    })();
+    return () => { on = false; };
+  }, []);
+
   const cookPayload = React.useMemo(() => bsCookingPayload({
     title: cookable.title,
     kcal: cookable.macros && cookable.macros.kcal != null ? cookable.macros.kcal : null,
@@ -6126,12 +6188,17 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       const ok = await (window.bsAskConfirm
         ? window.bsAskConfirm({
             title: tr('cook:exit.title', { defaultValue: 'Leave the cook?' }),
-            message: tr('cook:exit.message', { defaultValue: 'Your place is saved — reopening this recipe offers to resume where you left off.' }),
+            // Prep exits don't promise a resume (none is written) — recipes
+            // already prepped this session keep their PREPPED records
+            // (never-shaming: abandoning writes nothing MORE).
+            message: inPrep
+              ? tr('cook:exit.prepMessage', { defaultValue: "This recipe isn't finished — meals already prepped stay prepped." })
+              : tr('cook:exit.message', { defaultValue: 'Your place is saved — reopening this recipe offers to resume where you left off.' }),
             confirmLabel: tr('cook:exit.confirm', { defaultValue: 'Leave' }),
           })
         : Promise.resolve(true));
       if (!ok) return;
-      bsCookResumeWrite(resumeKey, stepIdx);
+      if (!inPrep) bsCookResumeWrite(resumeKey, stepIdx);
     }
     onClose();
   };
@@ -6146,7 +6213,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const advance = (skip) => {
     if (skip) setSkippedSteps((m) => ({ ...m, [stepIdx]: true }));
     else setVisited((m) => ({ ...m, [stepIdx]: true }));
-    if (stepIdx >= steps.length - 1) { bsCookResumeClear(); setPhase('plated'); }
+    // The resume key is one GLOBAL slot — a prep-session recipe must never
+    // clear a solo cook's saved place (guarded, PR C).
+    if (stepIdx >= steps.length - 1) { if (!inPrep) bsCookResumeClear(); setPhase('plated'); }
     else goStep(stepIdx + 1);
   };
 
@@ -6558,6 +6627,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
               {tr('cook:mise.title', { defaultValue: 'Get it on the board.' })}
             </div>
+            {preppedStamp && (
+              <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
+                {tr('cook:mise.prepped', {
+                  defaultValue: 'Prepped {day} ✓',
+                  day: (() => { try { return new Date(Number(preppedStamp.preppedAt)).toLocaleDateString((window.ShapeI18n && window.ShapeI18n.intlLocale && window.ShapeI18n.intlLocale()) || 'en', { weekday: 'short' }); } catch (e) { return ''; } })(),
+                })}
+              </div>
+            )}
             {resumeAt && hasMethod && (
               <button onClick={() => { setPhase('method'); goStep(Math.min(resumeAt.stepIdx, steps.length - 1)); }} style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left', background: bsTHexA(heat, t.isLight ? 0.08 : 0.12), border: `1px solid ${bsTHexA(heat, 0.4)}`, borderLeft: `3px solid ${heat}`, borderRadius: 5, padding: '11px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
                 {tr('cook:resume', { defaultValue: 'Resume at step {n} →', n: resumeAt.stepIdx + 1 })}
@@ -6588,6 +6665,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                 {hasMethod ? tr('cook:mise.start', { defaultValue: 'Start cooking →' }) : tr('cook:mise.toPlate', { defaultValue: 'To the plate →' })}
               </button>
             </div>
+            {hasMethod && miseRows.length > 0 && (
+              // The spec's fast path (§4.1) — for the member whose board is
+              // already set (or who preps midweek): straight to the method
+              // without ticking rows. A text-action, never the primary.
+              <button onClick={() => setPhase('method')} style={{ ...quietBtn, marginTop: 10, width: '100%', textAlign: 'center' }}>
+                {tr('cook:mise.skipToMethod', { defaultValue: 'Already prepped — skip to the method →' })}
+              </button>
+            )}
           </div>
         )}
 
@@ -6641,10 +6726,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         {phase === 'plated' && (
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>
-              {tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : tr('cook:plated.eyebrow', { defaultValue: 'The plate' })}
+              {inPrep
+                ? tr('cook:prep.recipeOf', { defaultValue: 'Prep · Recipe {n} of {m}', n: prep.index + 1, m: prep.count })
+                : tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : tr('cook:plated.eyebrow', { defaultValue: 'The plate' })}
             </div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: t.W.displayHeavy, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.05 }}>
-              {tr('cook:plated.title', { defaultValue: 'Plated.' })}
+              {inPrep ? tr('cook:prep.platedTitle', { defaultValue: 'Prepped ✓' }) : tr('cook:plated.title', { defaultValue: 'Plated.' })}
             </div>
             {tierQuick && (
               <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
@@ -6668,14 +6755,278 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {cookable.tip && (
               <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5, borderLeft: `3px solid ${bsTHexA(t.ACCENT, 0.5)}`, paddingLeft: 10 }}>{cookable.tip}</div>
             )}
-            <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button onClick={() => { bsCookResumeClear(); onClose(); }} style={quietBtn}>{tr('cook:plated.done', { defaultValue: 'Done' })}</button>
-              {cookable.macros && cookable.macros.kcal != null && (
-                <button onClick={logIt} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:plated.log', { defaultValue: 'Ate it as planned ✓' })}</button>
-              )}
-            </div>
+            {inPrep ? (
+              // Prep never offers the log — you cooked it for LATER (no award,
+              // §5). The stamp writes via onPrepped, then the session advances.
+              <div style={{ marginTop: 18 }}>
+                <button onClick={() => prep.onPrepped()} style={{ ...primaryBtn, width: '100%' }}>
+                  {prep.index + 1 >= prep.count
+                    ? tr('cook:prep.wrapCta', { defaultValue: 'Wrap the session →' })
+                    : tr('cook:prep.nextRecipe', { defaultValue: 'Next recipe →' })}
+                </button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={() => { bsCookResumeClear(); onClose(); }} style={quietBtn}>{tr('cook:plated.done', { defaultValue: 'Done' })}</button>
+                {cookable.macros && cookable.macros.kcal != null && (
+                  <button onClick={logIt} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:plated.log', { defaultValue: 'Ate it as planned ✓' })}</button>
+                )}
+              </div>
+            )}
           </div>
         )}
+      </div>
+    </BSPage>
+  );
+}
+
+// ── The Prep Session (PR C) — the Sunday ritual ─────────────────────────────
+// Picker (the assigned week's recipe-mapped meals + saved Library recipes) →
+// THE MISE, MERGED (one checkable board — same-unit quantities summed, clashing
+// units both listed, honest) → the serial session (recipe after recipe through
+// BSCookMode in prep mode, longest-first) → the wrap. Each recipe's PLATED
+// writes its PREPPED record IMMEDIATELY (never-shaming: abandoning mid-session
+// keeps what's done and writes nothing more). Entirely optional — a door, never
+// a gate: the menu, recipes and grocery list all work without it.
+const BS_PREP_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function BSPrepSession({ program, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  _bsScrollTopOnMount();
+  const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', hair: 'rgba(244,237,224,0.14)' };
+  const heat = '#38e0cc';
+  const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
+  const primaryBtn = { border: 0, borderRadius: 5, background: heat, color: '#04211c', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', padding: '13px 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 };
+  const quietBtn = { background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 };
+
+  const [stage, setStage] = useStateBSC('picker'); // picker | mise | transition | cook | wrap
+  const [sel, setSel] = useStateBSC({});           // key -> servings (number)
+  const [miseChecked, setMiseChecked] = useStateBSC({});
+  const [cookIdx, setCookIdx] = useStateBSC(0);
+  const [doneEntries, setDoneEntries] = useStateBSC([]);
+  const [saveFailed, setSaveFailed] = useStateBSC(false);
+
+  // Candidates: only meals/recipes with a REAL method walk in a prep session
+  // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested
+  // exact-match inside bsCookableFromMeal (recipeId else exact title, no fuzzy —
+  // bsHomeLiveWeek drops recipeId, so mapping at the meal is the honest path).
+  const candidates = React.useMemo(() => {
+    const out = [];
+    (program || []).forEach((dy, dayIdx) => ((dy && dy.meals) || []).forEach((meal, mi) => {
+      const c = bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES);
+      if (!c || !c.steps.length) return;
+      out.push({ key: `d${dayIdx}m${mi}`, cookable: c, group: BS_PREP_DAY_LABELS[dayIdx] || '', dayIdx, slot: meal.slot, mealId: meal.id, mealTitle: meal.title });
+    }));
+    const seen = new Set(out.map((x) => String(x.cookable.title || '').trim().toLowerCase()));
+    try {
+      (bsLibRead() || []).filter((it) => it.kind === 'recipe').forEach((it) => {
+        const title = String(it.title || '').trim();
+        if (!title || seen.has(title.toLowerCase())) return;
+        const r = SHAPE_KITCHEN_RECIPES.find((x) => String(x.title || '').trim().toLowerCase() === title.toLowerCase());
+        if (!r) return;                            // exact catalog match only
+        const c = bsCookableFromRecipe(r);
+        if (!c || !c.steps.length) return;
+        seen.add(title.toLowerCase());
+        out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: tr('cook:prep.libGroup', { defaultValue: 'Your library' }) });
+      });
+    } catch (e) {}
+    return out;
+  }, [program]);
+
+  const selected = React.useMemo(() => candidates
+    .filter((x) => sel[x.key] != null)
+    .map((x) => {
+      const servings = sel[x.key];
+      const base = x.cookable.servings;
+      // Scale only against a REAL base servings figure — no base, no arithmetic.
+      const mult = Number.isFinite(base) && base > 0 ? servings / base : 1;
+      return { ...x, servings, mult };
+    }), [candidates, sel]);
+  const ordered = React.useMemo(() => bsPrepOrder(selected), [selected]);
+  const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
+
+  const writeEntry = (it) => {
+    const entry = {
+      weekKey: bsPrepWeekKey(new Date()),
+      dayIdx: it.dayIdx, slot: it.slot,
+      recipeTitle: it.cookable.recipeTitle || it.cookable.title,
+      mealTitle: it.cookable.title,
+      recipeId: it.cookable.recipeTitle ? bsCookSlug(it.cookable.recipeTitle) : undefined,
+      mealId: it.mealId, servings: it.servings,
+      preppedAt: Date.now(),
+    };
+    setDoneEntries((a) => [...a, entry]);
+    try {
+      const p = window.ShapeMealPrep?.record?.([entry]);
+      if (p && p.then) p.then((r) => { if (!r || !r.ok) setSaveFailed(true); }).catch(() => setSaveFailed(true));
+      else setSaveFailed(true);
+    } catch (e) { setSaveFailed(true); }
+  };
+  // Re-entry guard: a rapid double-tap of "Next recipe →" / "Wrap →" (before the
+  // stage re-render unmounts the button) would otherwise write the SAME recipe's
+  // PREPPED record twice, inflating the count. Each index writes exactly once.
+  const prepWroteRef = React.useRef(-1);
+  const onPrepped = () => {
+    if (prepWroteRef.current === cookIdx) return;
+    prepWroteRef.current = cookIdx;
+    writeEntry(ordered[cookIdx]);
+    if (cookIdx + 1 >= ordered.length) setStage('wrap');
+    else { setCookIdx(cookIdx + 1); setStage('transition'); }
+  };
+
+  // The cook stage IS BSCookMode (its own full takeover — band, voice, timers).
+  if (stage === 'cook' && ordered[cookIdx]) {
+    return <BSCookMode
+      cookable={ordered[cookIdx].cookable}
+      prep={{ index: cookIdx, count: ordered.length, onPrepped }}
+      onClose={onClose}
+    />;
+  }
+
+  const head = (eyebrow, title) => (
+    <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
+        <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{eyebrow}</span>
+      </div>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, color: BAND.cream, letterSpacing: '-0.02em', lineHeight: 1.08 }}>{title}</div>
+    </div>
+  );
+  const seam = <div aria-hidden style={{ height: 3, background: heat, boxShadow: `0 0 14px ${bsTHexA(heat, 0.55)}` }} />;
+
+  return (
+    <BSPage noSwipe mast={false}>
+      <div role="dialog" aria-modal="true" aria-label={tr('cook:prep.aria', { defaultValue: 'Prep session' })}>
+        {stage === 'picker' && (<>
+          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.pickTitle', { defaultValue: 'What are we prepping?' }))}
+          {seam}
+          <div style={{ padding: `16px ${t.padX}px 24px` }}>
+            {candidates.length === 0 && (
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
+                {tr('cook:prep.none', { defaultValue: 'Nothing prep-able yet — meals with a written method (or saved recipes) show up here.' })}
+              </div>
+            )}
+            {candidates.map((x, i) => {
+              const on = sel[x.key] != null;
+              const grpHead = i === 0 || candidates[i - 1].group !== x.group;
+              return (
+                <React.Fragment key={x.key}>
+                  {grpHead && x.group && (
+                    <div style={{ marginTop: i === 0 ? 0 : 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{x.group}</div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.25)}` }}>
+                    <button onClick={() => setSel((m) => { const n = { ...m }; if (on) delete n[x.key]; else n[x.key] = x.cookable.servings || 1; return n; })} aria-pressed={on} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 11, background: 'transparent', border: 0, padding: '11px 2px', cursor: 'pointer', minHeight: 44, textAlign: 'left' }}>
+                      <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1.5px solid ${on ? heat : t.RULE}`, background: on ? heat : 'transparent', color: '#04211c', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.cookable.title}</span>
+                        {x.cookable.macros && x.cookable.macros.kcal != null && (
+                          <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{x.cookable.macros.kcal} kcal{x.cookable.macros.p != null ? ` · ${x.cookable.macros.p}P` : ''}</span>
+                        )}
+                      </span>
+                    </button>
+                    {on && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => setSel((m) => ({ ...m, [x.key]: Math.max(1, (m[x.key] || 1) - 1) }))} aria-label={tr('cook:prep.less', { defaultValue: 'Fewer servings' })} style={{ ...quietBtn, padding: '10px 10px', color: t.INK }}>−</button>
+                        <span style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', minWidth: 16, textAlign: 'center' }}>{sel[x.key]}</span>
+                        <button onClick={() => setSel((m) => ({ ...m, [x.key]: Math.min(12, (m[x.key] || 1) + 1) }))} aria-label={tr('cook:prep.more', { defaultValue: 'More servings' })} style={{ ...quietBtn, padding: '10px 10px', color: t.INK }}>＋</button>
+                      </span>
+                    )}
+                  </div>
+                </React.Fragment>
+              );
+            })}
+            {selected.length > 0 && (
+              <button onClick={() => setStage('mise')} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>
+                {tr('cook:prep.toMise', { defaultValue: 'Merge the mise · {n} →', n: selected.length })}
+              </button>
+            )}
+          </div>
+        </>)}
+
+        {stage === 'mise' && (<>
+          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.miseTitle', { defaultValue: 'One board, everything.' }))}
+          {seam}
+          <div style={{ padding: `16px ${t.padX}px 24px` }}>
+            {mise.ingredients.map((r, i) => {
+              const k = 'mi-' + i;
+              return (
+                <button key={k} onClick={() => setMiseChecked((m) => ({ ...m, [k]: !m[k] }))} aria-pressed={!!miseChecked[k]} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}`, padding: '11px 2px', cursor: 'pointer', minHeight: 44 }}>
+                  <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1.5px solid ${miseChecked[k] ? heat : t.RULE}`, background: miseChecked[k] ? heat : 'transparent', color: '#04211c', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>{miseChecked[k] ? '✓' : ''}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, color: miseChecked[k] ? t.INK50 : t.INK }}>{r.m}</span>
+                    <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 8, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.from}</span>
+                  </span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{r.n}</span>
+                </button>
+              );
+            })}
+            {mise.prep.map((p, i) => {
+              const k = 'mp-' + i;
+              return (
+                <button key={k} onClick={() => setMiseChecked((m) => ({ ...m, [k]: !m[k] }))} aria-pressed={!!miseChecked[k]} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}`, padding: '11px 2px', cursor: 'pointer', minHeight: 44 }}>
+                  <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1.5px solid ${miseChecked[k] ? heat : t.RULE}`, background: miseChecked[k] ? heat : 'transparent', color: '#04211c', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>{miseChecked[k] ? '✓' : ''}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, color: miseChecked[k] ? t.INK50 : t.INK }}>{p.label}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50 }}>{tr('cook:mise.prepTag', { defaultValue: 'PREP' })}</span>
+                </button>
+              );
+            })}
+            <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={() => setStage('picker')} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
+              <button onClick={() => { setCookIdx(0); setStage('transition'); }} style={{ ...primaryBtn, flex: 1 }}>
+                {tr('cook:prep.start', { defaultValue: 'Start the session →' })}
+              </button>
+            </div>
+          </div>
+        </>)}
+
+        {stage === 'transition' && ordered[cookIdx] && (<>
+          {head(
+            tr('cook:prep.recipeOf', { defaultValue: 'Prep · Recipe {n} of {m}', n: cookIdx + 1, m: ordered.length }),
+            ordered[cookIdx].cookable.title,
+          )}
+          {seam}
+          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+            {ordered[cookIdx].servings != null && (
+              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800, color: t.INK50 }}>
+                {tr('cook:prep.servings', { defaultValue: '{n} servings', n: ordered[cookIdx].servings })}
+              </div>
+            )}
+            <button onClick={() => setStage('cook')} style={{ ...primaryBtn, width: '100%', marginTop: 16 }}>
+              {tr('cook:prep.startRecipe', { defaultValue: 'Start this recipe →' })}
+            </button>
+          </div>
+        </>)}
+
+        {stage === 'wrap' && (<>
+          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.wrapTitle', { defaultValue: 'The week is set.' }))}
+          {seam}
+          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, lineHeight: 1.4 }}>
+              {tr('cook:prep.wrapCount', { defaultValue: '{n} meals prepped', n: doneEntries.length })}
+              {(() => {
+                const days = [...new Set(doneEntries.map((e) => BS_PREP_DAY_LABELS[e.dayIdx]).filter(Boolean))];
+                return days.length ? ` · ${tr('cook:prep.wrapDays', { defaultValue: '{days} covered', days: days.join(' · ') })}` : '';
+              })()}
+            </div>
+            {(() => {
+              const tips = [...new Set(ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable.tip).filter(Boolean))];
+              return tips.length ? (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:prep.storage', { defaultValue: 'Storage' })}</div>
+                  {tips.map((tip, i) => (
+                    <div key={i} style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5, borderLeft: `3px solid ${bsTHexA(t.ACCENT, 0.5)}`, paddingLeft: 10 }}>{tip}</div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            {saveFailed && (
+              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK50 }}>
+                {tr('cook:prep.notSaved', { defaultValue: "Sign in to keep your prep — these stamps won't survive this session." })}
+              </div>
+            )}
+            <button onClick={onClose} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>{tr('cook:prep.done', { defaultValue: 'Done' })}</button>
+          </div>
+        </>)}
       </div>
     </BSPage>
   );
@@ -6871,8 +7222,11 @@ function bsBuildPlanGrocery(program, author, name) {
 
 function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
+  const prepEntries = useBSPrepEntries();   // PREPPED stamps on the day's courses
   const bsEatProgram = useBSProgram();
   const [view, setView] = useStateBSC(initialView || 'eat'); // 'eat' | 'grocery' | 'library'
+  const [prepOpen, setPrepOpen] = useStateBSC(false);   // the Prep Session takeover (PR C)
   React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
   React.useEffect(() => {
     window.ShapeNav?.announce?.({ sub: view });
@@ -8008,7 +8362,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} /></>;
+  // The Prep Session overlays EVERY eat view (its door lives on the menu AND
+  // the grocery page) — entirely optional, a door never a gate.
+  if (prepOpen) return <BSPrepSession program={PROGRAM} onClose={() => setPrepOpen(false)} />;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => setPrepOpen(true)} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -8129,6 +8486,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
           const swapped = !!mealOverrides[m._baseTitle];
           const timeLabel = bsMealSchedLabel(m) || m.tag || '';
+          // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
+          // match only, and only until it's logged (the log supersedes it).
+          const prepped = !logged && prepEntries ? bsPrepMatch(prepEntries, { mealId: m.id, title: m.title }, Date.now()) : null;
           return (
             <div key={m.id} style={{ marginTop: i === 0 ? 0 : 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -8146,6 +8506,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
               <button type="button" onClick={() => setPreviewMealId(m.id)} aria-label={`${timeLabel} · ${m.title}${logged ? ' · logged' : isNext ? ' · next' : ''}`} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 2px' }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: logged ? t.INK50 : t.INK, letterSpacing: '-0.01em' }}>{m.title}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>SWAPPED</span>}</div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: isNext ? t.ACCENT : t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F{isNext ? ` · ${bsEatCalLeft.toLocaleString()} KCAL LEFT` : ''}</div>
+                {prepped && (
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT, marginTop: 3 }}>
+                    {tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' })}
+                  </div>
+                )}
               </button>
               {isNext && (
                 <button type="button" onClick={() => setPreviewMealId(m.id)} style={{ marginTop: 2, minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, borderBottom: `2px solid ${t.ACCENT}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>Log it →</button>
@@ -8195,6 +8560,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         </div>
         <button type="button" onClick={() => setView('grocery')} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>The shop list</span>
+          <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+          <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
+        </button>
+        {/* PREP THE WEEK (PR C) — the Sunday-ritual door. Optional always: the
+            menu + shop list are complete without it. */}
+        <button type="button" onClick={() => setPrepOpen(true)} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT }}>{tr('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
           <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
           <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
         </button>
@@ -23755,8 +24127,9 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
 // One palette for the grocery surfaces (the list + Saved carts) so the client
 // teal lead + the nutritionist gold tag can't drift between the two components.
 const bsGroceryHues = (t) => ({ teal: t.isLight ? '#0a8f87' : '#34d6c5', gold: t.isLight ? '#a07a2e' : '#d8b25a' });
-function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {} }) {
+function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {}, onPrep = null }) {
   const t = useBS();
+  const trG = useShapeTr();   // cook:prep.door only — the page's own copy predates i18n
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
   const [pickerOpen, setPickerOpen] = useStateBSC(false);
@@ -23975,6 +24348,16 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
             </div>
             <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: accent, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
           </div>
+        )}
+
+        {/* PREP THE WEEK door (PR C) — shopping done, cooking next. Optional
+            always; renders only where the host wired the session. */}
+        {onPrep && (
+          <button type="button" onClick={onPrep} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+            <span style={{ color: accent, fontWeight: 700, fontSize: 13 }}>→</span>
+          </button>
         )}
 
         {/* Expand / collapse every aisle at once */}

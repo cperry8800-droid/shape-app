@@ -201,6 +201,32 @@ function ClientNutritionPage() {
   }, []);
   const live = source === "live";
 
+  // PREPPED display (Cook Mode PR C — the web's ONLY prep surface, ruling
+  // §13.6): fresh meal-prep records read under the member's own RLS, pruned +
+  // matched by the CANONICAL module (window.ShapeMealPrepLib). Real records
+  // only — signed-out / demo / pre-record renders nothing. getSession() bridges
+  // the cookie login BEFORE getUser (the coachClientDetail/DprCycleCard
+  // precedent — without it a cookie-session member reads as anon).
+  const [prepEntries, setPrepEntries] = React.useState(null);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const lib = window.ShapeMealPrepLib; const db = window.shapeDb;
+        if (!lib || !db || !db.client) return;
+        await db.getSession?.();
+        const u = await db.client.auth.getUser();
+        const uid = u && u.data && u.data.user && u.data.user.id;
+        if (!uid) return;
+        const res = await db.client.from("user_goals").select("data").eq("user_id", uid).eq("kind", "meal_prep").maybeSingle();
+        if (res.error) return;
+        const entries = lib.bsPrunePrep(res.data && res.data.data && res.data.data.entries, Date.now());
+        if (on && entries.length) setPrepEntries(entries);
+      } catch (e) {}
+    })();
+    return () => { on = false; };
+  }, []);
+
   const coach = live ? ((plan && plan.meals && plan.meals.coach) || "your nutritionist") : DNU_DEMO.coach;
   const planTitle = live ? (plan && plan.meals && plan.meals.title) : DNU_DEMO.title;
   const days = live ? ((plan && plan.meals && plan.meals.days) || []) : DNU_DEMO.days;
@@ -266,6 +292,18 @@ function ClientNutritionPage() {
               swapStorageKey={"shape.dashNutriSwap." + dnuIso(new Date()) + "." + pickedDow}
               interactive={isToday}
             />
+            {(() => {
+              // PREPPED stamps for the picked day's meals — exact title/id
+              // match against fresh records only; nothing matched → nothing.
+              if (!prepEntries || !live || !window.ShapeMealPrepLib) return null;
+              const hit = meals.filter((m) => window.ShapeMealPrepLib.bsPrepMatch(prepEntries, { mealId: m.id, title: m.title }, Date.now()));
+              if (!hit.length) return null;
+              return (
+                <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: DNU_TEAL, marginTop: 8 }}>
+                  Prepped ✓ · just plate it — {hit.map((m) => m.title).join(" · ")}
+                </div>
+              );
+            })()}
             {!isToday && <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DNU_INK50, marginTop: 8 }}>Viewing {DNU_DOW[pickedDow]} · logging happens on the day.</div>}
           </div>
         ) },

@@ -856,5 +856,7 @@
   "wire.openFileArrow": "ВІДКРИТИ СПРАВУ →",
   "wire.scheduleArrow": "РОЗКЛАД →",
   "wire.seeFullRoster": "ПЕРЕГЛЯНУТИ ВЕСЬ СПИСОК",
-  "wire.theWire": "ЗВЕДЕННЯ"
+  "wire.theWire": "ЗВЕДЕННЯ",
+  "case.prep": "ПРЕП",
+  "case.prepLine": "{count, plural, one {# страву підготовлено} few {# страви підготовлено} many {# страв підготовлено} other {# страв підготовлено}}"
 }

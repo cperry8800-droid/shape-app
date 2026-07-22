@@ -183,6 +183,7 @@ export async function GET(
     { data: goals }, { data: stats }, { data: lifts },
     { data: checkins }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
     { data: cycle },
+    { data: prep },
     { data: programRow },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
@@ -197,6 +198,10 @@ export async function GET(
     // precedent above). Returns null / { share:false } / { share:true, starts }
     // raw; the mobile Case File + PR D's web page derive the phase client-side.
     supabase.rpc('get_client_cycle', { p_user_id: clientId }),
+    // Meal prep (PR C) — coach-link-gated definer returning ONLY the compact
+    // { count, lastAt, days } over the 4-day-fresh entries, or null (absence —
+    // never a padlock). Pre-migration the RPC 404s and the leg reads null.
+    supabase.rpc('get_client_meal_prep', { p_user_id: clientId }),
     // client_programs: coach-readable by RLS — carries the pro-set goals
     // (detail.goals, the Goals-page store) and the program phases.
     supabase.from('client_programs').select('training_phase, nutrition_phase, detail').eq('user_id', clientId).maybeSingle(),
@@ -272,6 +277,7 @@ export async function GET(
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,
     cycle: cycle ?? null,
+    prep: prep ?? null,
     coachGoals: Array.isArray(programDetail.goals) ? programDetail.goals : null,
     programPhases: programRow
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
