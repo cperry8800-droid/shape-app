@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
@@ -3311,8 +3312,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const today = new Date();
   const dayCells = Array.from({ length: 7 }, (_, k) => { const d = new Date(today); d.setDate(today.getDate() + k); return d; });
-  const blocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
-    .map(b => (b && b.text != null) ? b.text : b).map(s => String(s || '').trim()).filter(Boolean);
+  // Raw block OBJECTS survive alongside the flattened texts — a meal block's
+  // authored method steps (PR E) ride the assign conversion onto the menu meal.
+  const rawBlocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
+    .filter(b => String(((b && b.text != null) ? b.text : b) || '').trim());
+  const blocks = rawBlocks.map(b => String(((b && b.text != null) ? b.text : b) || '').trim());
   const dayLines = blocks.map(bsAssignDayLine);
   const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
   const planNote = (plan && plan.detail && plan.detail.note) || '';
@@ -3333,7 +3337,19 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       const start = dayCells[dayIdx];
       const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
       if (isNutri) {
-        const meals = blocks.map(bsAssignMeal).filter(Boolean);
+        // Menu meals from the outline lines; a block's authored method steps
+        // (PR E) re-derive through bsAuthorStep on the way out — stored windows
+        // can't drift from their own text — and ride the menu meal so the
+        // client's Cook door opens tier-1 (bsCookableFromMeal reads meal.steps).
+        const meals = rawBlocks.map((rb, bi) => {
+          const m = bsAssignMeal(blocks[bi]);
+          if (!m) return null;
+          const ds = (rb && Array.isArray(rb.steps) ? rb.steps : [])
+            .map((s) => (s && typeof s === 'object' ? bsAuthorStep(s.t, s.station) : bsAuthorStep(s, null)))
+            .filter(Boolean).slice(0, 30);
+          if (ds.length) m.steps = ds;
+          return m;
+        }).filter(Boolean);
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
         const targets = calM ? { cal: Number(calM[1]) } : {};
         const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
@@ -4764,11 +4780,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
 // Editable draft — after an AI (or blank) generation the coach lands here to
 // customize the name, the sections (add / rename / remove / reorder-by-edit),
 // and a note, then publishes. Shared by the trainer + nutritionist pages.
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, onPublish, onCancel }) {
+// PR E — method-authoring state: stored steps ({t, min?, passive?, station?} or
+// plain strings) normalize to raw {t, station} for editing; windows RE-DERIVE
+// from the step's own text at publish (bsAuthorStep — the no-fabrication rule
+// at the source), so a stale stored `min` can never outlive a text edit.
+const bsEditorSteps = (steps) => (Array.isArray(steps)
+  ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
+  : undefined);
+
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, stepAuthoring = false, onPublish, onCancel }) {
   const tr = useShapeTr();
   const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
   const [name, setName] = useStateBSP(initialName || '');
-  const [blocks, setBlocks] = useStateBSP(initialBlocks || []);
+  const [blocks, setBlocks] = useStateBSP((initialBlocks || []).map((b) => {
+    const steps = b && bsEditorSteps(b.steps);
+    return steps ? { ...b, steps } : b;
+  }));
   const [note, setNote] = useStateBSP(initialNote || '');
   const [media, setMedia] = useStateBSP(initialMedia || []);
   const [uploading, setUploading] = useStateBSP(false);
@@ -4809,6 +4836,13 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
   const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
   const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
+  // PR E — per-block method steps (meal items → tier-1 cookable at the source).
+  const patchSteps = (bi, fn) => setBlocks(bs => bs.map((b, j) => (j === bi ? { ...b, steps: fn(b.steps || []) } : b)));
+  const addStep = (bi) => patchSteps(bi, (ss) => [...ss, { t: '', station: null }]);
+  const rmStep = (bi, si) => patchSteps(bi, (ss) => ss.filter((_, k) => k !== si));
+  const setStepText = (bi, si, v) => patchSteps(bi, (ss) => ss.map((s, k) => (k === si ? { ...s, t: v } : s)));
+  const setStepStation = (bi, si, v) => patchSteps(bi, (ss) => ss.map((s, k) => (k === si ? { ...s, station: v || null } : s)));
+  const stationOpt = (st) => tr(`cook:prep.station.${st}`, { defaultValue: { oven: 'in the oven', stove: 'on the stove', board: 'on the board', off: 'resting' }[st] || st });
   const lbl = (s) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent, marginBottom: 8 }}>{s}</div>;
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
@@ -4831,18 +4865,58 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
           <input ref={clipInputRef} type="file" accept="video/*" onChange={pickClip} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {blocks.map((b, i) => (
-              <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-                <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
-                <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {b.video ? (<>
-                    <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={tr('coach:editor.playClipAria', { defaultValue: 'Play clip for {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={clipBtnStyle}>{tr('coach:editor.playClip', { defaultValue: '▶ CLIP' })}</button>
-                    <button type="button" onClick={() => clearClip(i)} aria-label={tr('coach:editor.removeClipAria', { defaultValue: 'Remove clip from {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
-                  </>) : (
-                    <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={tr('coach:editor.attachClipAria', { defaultValue: 'Attach a video clip to {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>{tr('coach:editor.addClip', { defaultValue: '＋ CLIP' })}</button>
-                  )}
-                  <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
-                </span>
+              <div key={b.id}>
+                <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+                  <input value={b.text} onChange={(e) => setBlock(i, e.target.value)} style={inputStyle} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {b.video ? (<>
+                      <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={tr('coach:editor.playClipAria', { defaultValue: 'Play clip for {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={clipBtnStyle}>{tr('coach:editor.playClip', { defaultValue: '▶ CLIP' })}</button>
+                      <button type="button" onClick={() => clearClip(i)} aria-label={tr('coach:editor.removeClipAria', { defaultValue: 'Remove clip from {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
+                    </>) : (
+                      <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={tr('coach:editor.attachClipAria', { defaultValue: 'Attach a video clip to {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>{tr('coach:editor.addClip', { defaultValue: '＋ CLIP' })}</button>
+                    )}
+                    <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                  </span>
+                </div>
+                {/* PR E — the method: ordered cooking steps on a meal block. A step
+                    with a station AND a duration STATED IN ITS OWN TEXT becomes a
+                    hands-off window (Cook Mode's board can interleave around it);
+                    a station with no stated time downgrades honestly — the hint
+                    says why. `min` is never typed, only derived (bsAuthorStep). */}
+                {stepAuthoring && (
+                  <div style={{ margin: '6px 0 4px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(() => { const _lastAuthorable = (b.steps || []).reduce((acc, s, k) => (bsAuthorStep(s.t, s.station) ? k : acc), -1); return (b.steps || []).map((s, si) => {
+                      const derived = bsAuthorStep(s.t, s.station);
+                      // A TERMINAL window must be walk-away ('off') — a live-fire
+                      // final hold is dropped at ingestion (finishCookable), so
+                      // the editor never confirms one it won't ship. Terminal =
+                      // the last NON-EMPTY step (publish drops blank rows first),
+                      // not the raw last row (Codex — a trailing blank hid it).
+                      const liveFireTerminal = !!(derived && derived.passive && si === _lastAuthorable && derived.station !== 'off');
+                      const isWin = !!(derived && derived.passive && !liveFireTerminal);
+                      const wantsWin = !!(s.station && !isWin && String(s.t || '').trim());
+                      return (
+                        <div key={si}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto auto', gap: 6, alignItems: 'center' }}>
+                            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>{String.fromCharCode(97 + si)}.</span>
+                            <input value={s.t} onChange={(e) => setStepText(i, si, e.target.value)} placeholder={tr('coach:editor.stepPh', { defaultValue: 'Step — “Simmer 15 minutes, lid on.”' })} style={{ ...inputStyle, padding: '9px 11px', fontSize: 12.5 }} />
+                            <select value={s.station || ''} onChange={(e) => setStepStation(i, si, e.target.value)} aria-label={tr('coach:editor.handsOffAria', { defaultValue: 'Hands-off station for step {n}', n: si + 1 })} style={{ minHeight: 40, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: s.station ? accent : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', padding: '0 6px', maxWidth: 104 }}>
+                              <option value="">{tr('coach:editor.handsOn', { defaultValue: 'Hands-on' })}</option>
+                              {BS_STATIONS.map((st) => <option key={st} value={st}>{stationOpt(st)}</option>)}
+                            </select>
+                            <button type="button" onClick={() => rmStep(i, si)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                          </div>
+                          {isWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: accent }}>◷ {tr('coach:editor.windowOk', { defaultValue: '{min} min hands-off {station} — the cook can work on another dish', min: derived.min, station: stationOpt(derived.station) })}</div>}
+                          {wantsWin && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.windowHint', { defaultValue: 'State a time of 4+ minutes in the step (“roast 15 minutes”) to make it hands-off.' })}</div>}
+                        </div>
+                      );
+                    }); })()}
+                    <button type="button" onClick={() => addStep(i)} style={{ alignSelf: 'flex-start', minHeight: 40, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: accent, padding: '0 2px' }}>
+                      {(b.steps || []).length === 0 ? tr('coach:editor.addMethod', { defaultValue: '＋ METHOD · COOKING STEPS' }) : tr('coach:editor.addStepRow', { defaultValue: '+ STEP' })}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
             {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>{tr('coach:editor.noneYet', { defaultValue: 'None yet — add one.' })}</div>}
@@ -4875,7 +4949,25 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
               </div>}
         </div>
 
-        <button onClick={async () => { setStatus(tr('coach:editor.publishing', { defaultValue: 'Publishing…' })); await onPublish({ name, blocks, note, media }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || tr('coach:editor.publish', { defaultValue: 'Publish {type} →', type: typeName })}</button>
+        <button onClick={async () => {
+          setStatus(tr('coach:editor.publishing', { defaultValue: 'Publishing…' }));
+          // Steps persist in the DERIVED shape ({t, min?, passive?, station?}) —
+          // windows re-derived from each step's own text at publish time, empty
+          // rows dropped, so stored metadata can never drift from the text.
+          const pubBlocks = stepAuthoring
+            ? blocks.map((b) => {
+                const ds = (b.steps || []).map((s) => bsAuthorStep(s.t, s.station)).filter(Boolean).slice(0, 30);
+                // Terminal live-fire windows drop to plain steps at publish too
+                // (matching the ingestion guard), so stored data never carries a
+                // window the cook surfaces would refuse.
+                const li = ds.length - 1;
+                if (li >= 0 && ds[li].passive === true && ds[li].station !== 'off') ds[li] = { t: ds[li].t };
+                const { steps: _raw, ...rest } = b;
+                return ds.length ? { ...rest, steps: ds } : rest;
+              })
+            : blocks;
+          await onPublish({ name, blocks: pubBlocks, note, media });
+        }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || tr('coach:editor.publish', { defaultValue: 'Publish {type} →', type: typeName })}</button>
         <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.savesLibrary', { defaultValue: 'Saves to your library · you can edit again anytime' })}</div>
       </div>
       <BSFooter left={tr('coach:editor.footer', { defaultValue: 'Edit draft' })} right={typeName} />
@@ -5914,7 +6006,7 @@ function BSNutriPlans() {
   if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} stepAuthoring onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (meal-plan builder) ──
   if (drafting) {

@@ -188,6 +188,42 @@ export const bsStepTimers = (text) => {
 };
 
 // ---------------------------------------------------------------------------
+// Coach step authoring (PR E) — ONE derivation for a structured method step.
+// The window's `min` is NEVER typed by the coach: it derives from the step's
+// own stated duration (the catalog overlay's no-fabrication rule, applied at
+// the source), so authored metadata and text can't drift. A station with no
+// stated duration ≥ 4 min honestly downgrades to a plain step — the editor
+// shows the hint, nothing is fabricated.
+const BS_AUTHOR_MIN_PASSIVE = 4; // keep in sync with BS_ORCH.minPassive (cookOrchestrator.mjs)
+// A fractional number ANYWHERE in the step refuses window authoring. The
+// integer timer parser mis-reads decimals in too many arrangements to
+// enumerate — "1.5 minutes" → "5 minutes", "1,5 Minuten" the same, and range
+// forms evade unit-adjacent guards both ways ("1.5–2 minutes" parses "5–2",
+// "1–1.5 minutes" parses "5 minutes"; Codex + CodeRabbit, three rounds of the
+// same family). Deliberately conservative: a legit non-duration decimal
+// ("add 1.5 cups…, simmer 15 minutes") also refuses — a false refusal shows
+// the editor hint and the coach restates; a false window fabricates a hold on
+// a client's board. Never fabricate wins.
+const BS_AUTHOR_FRACTIONAL_RE = /\d[.,]\d/;
+// Shared with the DISPLAY side (Codex): a step whose text carries a decimal
+// must not offer parser-derived timer chips either — the same mis-parse that
+// would fabricate an authored window fabricates a wrong countdown ("sear 1.5
+// minutes" → a 5-min chip). One rule, both sides: any decimal → no derived
+// timers; the cook reads the time from the step text itself.
+export const bsFractionalDuration = (text) => BS_AUTHOR_FRACTIONAL_RE.test(str(text) || '');
+export const bsAuthorStep = (text, station) => {
+  const t = str(text);
+  if (!t) return null;
+  if (!BS_STATIONS.includes(station)) return { t };
+  if (BS_AUTHOR_FRACTIONAL_RE.test(t)) return { t };
+  const first = bsStepTimers(t)[0];
+  // Floor on RAW SECONDS — Math.round(210/60) is 4, which would sneak a
+  // 3.5-minute step over the 4-minute window floor (CodeRabbit).
+  if (!first || first.seconds < BS_AUTHOR_MIN_PASSIVE * 60) return { t };
+  return { t, min: Math.round(first.seconds / 60), passive: true, station };
+};
+
+// ---------------------------------------------------------------------------
 // Adapters
 
 const finishCookable = (c) => {
@@ -197,6 +233,16 @@ const finishCookable = (c) => {
   // than steps, so board/orchestrator reads can index either array safely.
   const supplied = Array.isArray(c.stepMeta) ? c.stepMeta : [];
   c.stepMeta = c.steps.map((_, i) => supplied[i] || plainStepMeta());
+  // A TERMINAL window must be walk-away ('off'): the board's wrap treats
+  // leftover holds as unattended make-aheads (the round-7 ruling), so a
+  // live-fire final hold would lose its countdown at Finish. Catalog-tested
+  // for the Kitchen; enforced STRUCTURALLY here for authored sources (coach
+  // meal methods, PR E — CodeRabbit): the window drops to a plain step, the
+  // honest text stays, nothing fabricates a walk-away.
+  const lastMeta = c.stepMeta[c.steps.length - 1];
+  if (lastMeta && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
+    c.stepMeta[c.steps.length - 1] = plainStepMeta();
+  }
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;
   else if (c.ingredients.length > 0) c.tier = BS_COOK_TIERS.MISE;
   else c.tier = BS_COOK_TIERS.QUICK;
@@ -261,7 +307,13 @@ export const bsCookableFromMeal = (meal, recipes) => {
   const mealMacros = { kcal: num(meal.kcal), p: num(meal.p), c: num(meal.c), f: num(meal.f) };
   const coach = str(meal.coach) ? { name: str(meal.coach), role: 'Nutritionist' } : null;
 
-  if (base) {
+  // Authored steps on the meal ITSELF outrank a title-coincidence catalog map
+  // (PR E): the coach wrote this method for THIS meal. The catalog base still
+  // serves step-less meals (the PR A mapping design) — and we never mix the
+  // two sources (catalog ingredients under coach steps could contradict).
+  const authored = splitSteps(meal.steps);
+
+  if (base && authored.text.length === 0) {
     return finishCookable({
       ...base,
       title,
@@ -275,7 +327,7 @@ export const bsCookableFromMeal = (meal, recipes) => {
     });
   }
 
-  let { text: steps, meta: stepMeta } = splitSteps(meal.steps);
+  let { text: steps, meta: stepMeta } = authored;
   let fromPlan = false;
   if (steps.length === 0) {
     const prose = bsSplitMethodProse([str(meal.brief), str(meal.desc), str(meal.method)].filter(Boolean).join(' '));

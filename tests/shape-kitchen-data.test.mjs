@@ -145,3 +145,19 @@ test('catalog: recipeNeeds / recipeMatchesDiet behave for known recipes', () => 
   const med = SHAPE_KITCHEN_RECIPES.find((r) => _RECIPE_MED.has(r.title));
   if (med) assert.ok(recipeMatchesDiet(med, 'Mediterranean'), `${med.title} should match Mediterranean`);
 });
+
+// Only a TERMINAL window (the recipe's last step) can still be running at the
+// board's final event — every non-terminal window's continuation is wait-gated.
+// The wrap screen therefore treats leftover holds as unattended make-aheads,
+// which is only true when a terminal window is station 'off' (fridge/counter).
+// A terminal OVEN/STOVE window would lose a live-fire countdown at Finish
+// (round-7 ruling made structural).
+test("catalog: a terminal annotated window must be station 'off'", () => {
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    (r.stepMeta || []).forEach((m, i) => {
+      if (!m || m.passive !== true || i !== r.steps.length - 1) return;
+      assert.equal(m.station, 'off',
+        `${r.title}: terminal window (step ${i}) is '${m.station}' — a live-fire hold would outlive the board`);
+    });
+  }
+});

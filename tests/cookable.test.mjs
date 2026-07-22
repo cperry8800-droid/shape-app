@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BS_COOK_TIERS,
+  bsFractionalDuration,
   bsCookable,
   bsCookableFromRecipe,
   bsCookableFromMeal,
   bsCookableFromText,
   bsSplitMethodProse,
   bsStepTimers,
+  bsAuthorStep,
   bsCookSlug,
   bsCookKey,
 } from '../mobile-app/src/services/cookable.mjs';
@@ -220,4 +222,102 @@ test('resume key: meal id wins, non-Latin titles never collide on an empty slug 
   assert.equal(bsCookKey(cyrA), bsCookKey(bsCookableFromMeal({ title: 'Куриная миска', kcal: 1 }))); // stable per title
   assert.equal(bsCookKey(bsCookableFromRecipe(RECIPE)), 'cook:one-pan-chicken-and-rice');
   assert.equal(bsCookKey(null), 'cook:');
+});
+
+// ── bsAuthorStep (PR E — coach structured step authoring) ──────────────────
+test('bsAuthorStep: min derives from the step text, never typed (no-fabrication at the source)', () => {
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes, lid on.', 'stove'),
+    { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' });
+  // Range → the lower bound (bsStepTimers contract).
+  assert.deepEqual(bsAuthorStep('Roast 18–20 minutes.', 'oven'),
+    { t: 'Roast 18–20 minutes.', min: 18, passive: true, station: 'oven' });
+});
+
+test('bsAuthorStep: a station with no stated duration ≥4 min downgrades to a plain step', () => {
+  assert.deepEqual(bsAuthorStep('Roast until golden.', 'oven'), { t: 'Roast until golden.' }); // no duration
+  assert.deepEqual(bsAuthorStep('Rest 2 minutes.', 'off'), { t: 'Rest 2 minutes.' });          // under the 4-min floor
+});
+
+test('bsAuthorStep: no/invalid station → plain step; empty text → null', () => {
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', null), { t: 'Simmer 15 minutes.' });
+  assert.deepEqual(bsAuthorStep('Simmer 15 minutes.', 'microwave'), { t: 'Simmer 15 minutes.' });
+  assert.equal(bsAuthorStep('   ', 'oven'), null);
+  assert.equal(bsAuthorStep(null, 'oven'), null);
+});
+
+test('bsAuthorStep output flows tier-1 through bsCookableFromMeal (the PR E forward path)', () => {
+  // Non-terminal window (a terminal live-fire hold would be structurally dropped).
+  const steps = [bsAuthorStep('Chop everything small.', null), bsAuthorStep('Simmer 15 minutes, lid on.', 'stove'), bsAuthorStep('Serve over rice.', null)];
+  const c = bsCookableFromMeal({ title: 'Coach dahl', kcal: 500, steps });
+  assert.equal(c.tier, BS_COOK_TIERS.STEPS);
+  assert.deepEqual(c.steps, ['Chop everything small.', 'Simmer 15 minutes, lid on.', 'Serve over rice.']);
+  assert.equal(c.stepMeta[0].passive, false);
+  assert.deepEqual({ min: c.stepMeta[1].min, passive: c.stepMeta[1].passive, station: c.stepMeta[1].station },
+    { min: 15, passive: true, station: 'stove' });
+});
+
+test('authored meal steps OUTRANK a title-coincidence catalog map (never mixed)', () => {
+  // Same title as the catalog recipe, but the coach authored their own method.
+  const c = bsCookableFromMeal({
+    title: 'One-pan chicken and rice', kcal: 620,
+    steps: [{ t: 'My way: sear hard.' }, { t: 'Simmer 15 minutes, lid on.', min: 15, passive: true, station: 'stove' }, { t: 'Serve it.' }],
+  }, [RECIPE]);
+  assert.equal(c.tier, BS_COOK_TIERS.STEPS);
+  assert.deepEqual(c.steps, ['My way: sear hard.', 'Simmer 15 minutes, lid on.', 'Serve it.']); // the coach's, not the catalog's
+  assert.equal(c.stepMeta[1].station, 'stove');
+  assert.equal(c.ingredients.length, 0); // never the catalog's ingredients under coach steps
+  // Step-less meals keep the PR A catalog mapping.
+  const mapped = bsCookableFromMeal({ title: 'One-pan chicken and rice', kcal: 620 }, [RECIPE]);
+  assert.ok(mapped.steps.length > 0);
+  assert.equal(mapped.recipeTitle, RECIPE.title);
+});
+
+test('bsAuthorStep: the window floor gates on RAW seconds — 210s never rounds over it', () => {
+  assert.deepEqual(bsAuthorStep('Rest 210 seconds.', 'off'), { t: 'Rest 210 seconds.' }); // round(3.5)=4 must NOT pass
+  assert.equal(bsAuthorStep('Rest 240 seconds.', 'off').passive, true);                    // exactly 4 min passes
+});
+
+test('a TERMINAL authored window must be walk-away — live-fire finals drop to plain steps', () => {
+  // Coach authors a final oven window on a meal: the round-7 invariant holds
+  // structurally — the window dies, the text stays.
+  const fire = bsCookableFromMeal({ title: 'Coach roast', kcal: 600, steps: [
+    { t: 'Prep it.' }, { t: 'Roast 20 minutes.', min: 20, passive: true, station: 'oven' },
+  ] });
+  assert.equal(fire.stepMeta[1].passive, false);
+  assert.equal(fire.steps[1], 'Roast 20 minutes.'); // honest text intact
+  // A terminal 'off' chill (the make-ahead case) survives untouched.
+  const chill = bsCookableFromMeal({ title: 'Coach bites', kcal: 300, steps: [
+    { t: 'Roll them.' }, { t: 'Chill 30 minutes.', min: 30, passive: true, station: 'off' },
+  ] });
+  assert.deepEqual({ min: chill.stepMeta[1].min, passive: chill.stepMeta[1].passive, station: chill.stepMeta[1].station },
+    { min: 30, passive: true, station: 'off' });
+  // Non-terminal oven windows are untouched (the interleave host case).
+  const mid = bsCookableFromMeal({ title: 'Coach bake', kcal: 500, steps: [
+    { t: 'Prep it.' }, { t: 'Bake 15 minutes.', min: 15, passive: true, station: 'oven' }, { t: 'Plate it.' },
+  ] });
+  assert.equal(mid.stepMeta[1].passive, true);
+});
+
+test('bsAuthorStep: fractional durations never author a window (the parser mis-reads them)', () => {
+  // "1.5 minutes" parses as "5 minutes" — a fabricated window; refuse instead.
+  assert.deepEqual(bsAuthorStep('Rest 1.5 minutes.', 'off'), { t: 'Rest 1.5 minutes.' });
+  assert.deepEqual(bsAuthorStep('Chill 1.5 hours in the fridge.', 'off'), { t: 'Chill 1.5 hours in the fridge.' });
+  assert.deepEqual(bsAuthorStep('Köcheln 1,5 Minuten.', 'stove'), { t: 'Köcheln 1,5 Minuten.' }); // comma decimals too
+  // Range forms evade unit-adjacent guards both ways — the blanket rule catches them.
+  assert.deepEqual(bsAuthorStep('Rest 1.5–2 minutes.', 'off'), { t: 'Rest 1.5–2 minutes.' });
+  assert.deepEqual(bsAuthorStep('Rest 1–1.5 minutes.', 'off'), { t: 'Rest 1–1.5 minutes.' });
+  // Deliberately conservative: a legit non-duration decimal also refuses (the
+  // editor hint guides a restate) — a false refusal beats a fabricated hold.
+  assert.deepEqual(bsAuthorStep('Add 1.5 cups water, simmer 15 minutes.', 'stove'), { t: 'Add 1.5 cups water, simmer 15 minutes.' });
+  // Integer durations still author normally.
+  assert.equal(bsAuthorStep('Simmer 15 minutes.', 'stove').passive, true);
+});
+
+test('bsFractionalDuration: one rule for authoring AND display chips', () => {
+  assert.equal(bsFractionalDuration('Rest 1.5 minutes.'), true);
+  assert.equal(bsFractionalDuration('Köcheln 1,5 Minuten.'), true);
+  assert.equal(bsFractionalDuration('Add 1.5 cups water.'), true);   // blanket by design
+  assert.equal(bsFractionalDuration('Simmer 15 minutes.'), false);
+  assert.equal(bsFractionalDuration(''), false);
+  assert.equal(bsFractionalDuration(null), false);
 });
