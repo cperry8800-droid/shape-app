@@ -102,6 +102,15 @@ const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|d
 // a real command. "do not"/"is not"/"can not" are covered by the bare `not`.
 const NEGATION = /\b(dont|doesnt|didnt|cant|cannot|wont|never|not)\b/;
 
+// A COMPLETION / progress statement ("finished the last step", "done with the
+// previous step", "completed the last step", "already moved on") is the member
+// reporting where they are, not a command — the embedded nav phrase must not fire
+// and REWIND the cook (Codex P2 audit #1805: "finished the last step" matched the
+// "last step" nav phrase → back). The leading completion verb must be followed by
+// an article/preposition, so the bare "done" command (SINGLE: done→next) still
+// classifies; "already" anywhere is safe — no kitchen imperative contains it.
+const COMPLETION = /^(finished|completed|done|did) (with|the|a|my|that|this|all|both)\b|\balready\b/;
+
 // A wh-QUESTION opener ("what is the next step", "when do I move on", "how's the
 // last step") is asking Nora, even when it embeds a nav phrase — so it must not
 // fire back/next (Codex P2 #1805). Includes "how"/"how's": this runs AFTER the
@@ -127,6 +136,7 @@ export const bsCookCommand = (transcript) => {
   if (!t) return null;
   if (QUESTION_OPENER.test(t)) return null;
   if (NEGATION.test(t)) return null;
+  if (COMPLETION.test(t)) return null;
   const words = t.split(' ');
 
   // Timer-status interrogatives ("how long …") are unambiguous and often long

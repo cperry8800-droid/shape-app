@@ -123,6 +123,26 @@ test('a wh-QUESTION embedding a nav phrase reaches Nora, not the command (Codex 
   assert.equal(bsCookCommand('go back'), 'back');
 });
 
+test('completion / progress statements do NOT fire (and never rewind the cook) (Codex P2 #1805)', () => {
+  // "finished the last step" matched the "last step" nav phrase → back, actively
+  // rewinding on a COMPLETION statement. These must fall through to Nora.
+  assert.equal(bsCookCommand('finished the last step'), null);
+  assert.equal(bsCookCommand('done with the previous step'), null);
+  assert.equal(bsCookCommand('completed the last step'), null);
+  assert.equal(bsCookCommand('finished the previous step'), null);
+  assert.equal(bsCookCommand('done the last step'), null);
+  assert.equal(bsCookCommand('did the last step'), null);
+  assert.equal(bsCookCommand('already did the next step'), null);
+  assert.equal(bsCookCommand('already went back'), null);
+  // …but the bare command tokens still classify (the completion verb must be
+  // followed by an article/preposition, so "done" alone stays advance).
+  assert.equal(bsCookCommand('done'), 'next');
+  assert.equal(bsCookCommand('next step'), 'next');
+  assert.equal(bsCookCommand('last step'), 'back');
+  assert.equal(bsCookCommand('go back'), 'back');
+  assert.equal(bsCookCommand('do the next step'), 'next');   // "do" is a legit imperative, not guarded
+});
+
 test('copula / aux / how-question openers embedding a nav phrase reach Nora (audit #1805)', () => {
   // A copula/aux-led question containing next-step/last-step must NOT fire the
   // command — no kitchen imperative starts with is/are/was/were/has/have/does/did.
