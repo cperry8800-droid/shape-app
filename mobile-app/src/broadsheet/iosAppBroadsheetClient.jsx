@@ -6174,6 +6174,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // otherwise asks Nora a grounded cooking question (cookContext), auto-playing
   // her reply. All hooks below sit BEFORE the loggedState early return so hook
   // order never changes (the render-check rule).
+  // Voice is a MEMBER feature: both /api/ai/speak and /api/ai/transcribe are
+  // membership-gated, so in the signed-out / non-member PREVIEW the mic would
+  // record audio it can only dead-end on and the reads toggle would silently
+  // no-op (Codex P2 #1805). Gate the whole voice row on the same member signal
+  // the chat composer uses (fail-open: shows for members/coaches, hidden only
+  // when memberAllowed is explicitly false — i.e. preview).
+  const voiceMember = useBSCanChat();
   const [readsOn, setReadsOn] = useStateBSC(() => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch (e) { return false; } });
   const [micState, setMicState] = useStateBSC('idle');   // idle | listening | thinking
   const [micNote, setMicNote] = useStateBSC(null);       // { who:'you'|'nora', text } — honest status/answer line
@@ -6309,6 +6316,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   };
   const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };
   React.useEffect(() => () => {
+    // Clear holdingRef FIRST — a getUserMedia() still pending at unmount would
+    // otherwise resolve with holdingRef.current === true and start MediaRecorder
+    // AFTER Cook Mode is gone (mic live post-teardown, CWE-359). Dropping the
+    // flag makes that late resolution hit the existing early-release guard and
+    // release the stream instead (CodeRabbit #1805).
+    holdingRef.current = false;
     // CANCEL before stop — mr.stop() still fires onstop, which would post the
     // captured clip to transcription AFTER Cook Mode closed (CWE-201,
     // CodeRabbit #1805); abort any in-flight ask/transcribe the same way.
@@ -6387,9 +6400,10 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           ))}
         </div>
       )}
-      {/* Nora voice row — reads toggle + hold-to-talk. Shown only where some
-          voice capability exists; each control gates on its own capability. */}
-      {(voiceCanSpeak || voiceCanHear) && (
+      {/* Nora voice row — reads toggle + hold-to-talk. Members only (the voice
+          endpoints are membership-gated), and only where some voice capability
+          exists; each control then gates on its own capability. */}
+      {voiceMember && (voiceCanSpeak || voiceCanHear) && (
         <div style={{ position: 'relative', marginTop: 13, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           {voiceCanSpeak ? (
             <button onClick={toggleReads} aria-pressed={readsOn} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${readsOn ? bsTHexA(heat, 0.55) : BAND.hair}`, borderRadius: 999, padding: '7px 11px', minHeight: 40, cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: readsOn ? heat : BAND.dim }}>

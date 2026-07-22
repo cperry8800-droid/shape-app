@@ -47,6 +47,21 @@ test('QUESTIONS containing a command word are NOT swallowed (→ null → Nora Q
   assert.equal(bsCookCommand('how do I know when the rice is ready'), null);
 });
 
+test('a SHORT modal question is not swallowed as a nav/timer command (→ Nora)', () => {
+  // Codex P2 #1805: "should I go back?" contains the "go back" phrase and is
+  // ≤5 words, but it's asking for advice — it must reach the grounded Q&A.
+  assert.equal(bsCookCommand('should I go back'), null);
+  assert.equal(bsCookCommand('should I move on'), null);
+  assert.equal(bsCookCommand('can I skip this'), null);
+  assert.equal(bsCookCommand('do I go on now'), null);
+  assert.equal(bsCookCommand('is it time to flip'), null);
+  // …bare imperatives are untouched.
+  assert.equal(bsCookCommand('go back'), 'back');
+  assert.equal(bsCookCommand('move on'), 'next');
+  assert.equal(bsCookCommand('skip'), 'skip');
+  assert.equal(bsCookCommand('start the timer'), 'timer');
+});
+
 test('a "how long" COOKING question reaches Nora, not the timer command', () => {
   // The reported false positive (Codex P2 #1805): a recipe timing question is
   // not a timer-status query — it must fall through to the grounded Q&A.

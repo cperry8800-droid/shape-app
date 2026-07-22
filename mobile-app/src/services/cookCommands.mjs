@@ -53,9 +53,17 @@ const SINGLE = {
   timer: 'timer',
 };
 
+// A modal/aux question opener + a subject pronoun ("should I go back?", "can I
+// move on?", "do I skip this?") is asking Nora's ADVICE, not issuing a command —
+// even a short one that contains a nav/timer phrase — so it must reach the
+// grounded Q&A (Codex P2 #1805). "how"/"what"/"when" are deliberately NOT here,
+// so genuine "how long left" timer-status queries still classify.
+const QUESTION_OPENER = /^(should|shall|can|could|would|will|may|might|do|does|did|am|is|are) (i|we|you|it)\b/;
+
 export const bsCookCommand = (transcript) => {
   const t = norm(transcript);
   if (!t) return null;
+  if (QUESTION_OPENER.test(t)) return null;
   const words = t.split(' ');
 
   // A short utterance can be a phrase command; a long one is a question even if
