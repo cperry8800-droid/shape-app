@@ -6287,6 +6287,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
       if (!holdingRef.current) { try { stream.getTracks().forEach((tk) => tk.stop()); } catch (er) {} return; }
       streamRef.current = stream;
+      // Recorder setup is wrapped: if MediaRecorder construction or .start()
+      // throws (a WebView with a present-but-unusable impl), a bare throw would
+      // hit the outer .catch WITHOUT stopping the granted stream — the mic would
+      // stay live for the rest of the session (Codex P2 #1805). Release it here.
+      try {
       const mr = new window.MediaRecorder(stream); const chunks = [];
       mr.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
       mr.onstop = async () => {
@@ -6312,6 +6317,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       };
       recRef.current = mr; setMicState('listening'); mr.start();
       if (!holdingRef.current) { mr._cancel = true; try { mr.stop(); } catch (er) {} }
+      } catch (er) {
+        // MediaRecorder unusable — stop the granted mic stream so it doesn't
+        // stay live, and surface the honest blocked state.
+        try { stream.getTracks().forEach((tk) => tk.stop()); } catch (e2) {}
+        streamRef.current = null; recRef.current = null; holdingRef.current = false;
+        setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) });
+        setMicState('idle');
+      }
     }).catch(() => { holdingRef.current = false; setMicNote({ who: 'nora', text: tr('cook:voice.micBlocked', { defaultValue: 'Mic blocked — allow access to talk.' }) }); });
   };
   const micEnd = () => { holdingRef.current = false; try { const mr = recRef.current; if (mr && mr.state === 'recording') mr.stop(); } catch (e) {} };

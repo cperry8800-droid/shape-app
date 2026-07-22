@@ -567,6 +567,7 @@ async function askOpenAI(
   propose: ProposeFn,
   tone: string | undefined,
   member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null },
+  signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -611,7 +612,11 @@ async function askOpenAI(
   // empty (read-only kitchen) — omit it so the model runs pure-conversational.
   // Built per round because `input` is reassigned as tool outputs accumulate.
   for (let round = 0; round < 3; round++) {
-    const result = await callAI(tools.length ? { input, tools } : { input }, { promptId: 'support.chat' });
+    // Thread the request's abort signal so a client disconnect (e.g. the member
+    // closes Cook Mode mid-reply) cancels the in-flight OpenAI request instead
+    // of letting the recipe/member context keep traveling + accruing cost
+    // (Codex P2 #1805; callAI already wires opts.signal into its fetch).
+    const result = await callAI(tools.length ? { input, tools } : { input }, { promptId: 'support.chat', signal });
     if (!result.ok) return null;
     const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
@@ -714,7 +719,7 @@ export async function POST(request: Request) {
   }
   const propose = makePropose(actor, request, isMember);
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));
