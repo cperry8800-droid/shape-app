@@ -178,7 +178,50 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-20, builds 8-9/9): THE CYCLE C→D — the flagship
+> **Latest (2026-07-22): COOK MODE — the guided-cooking wave is COMPLETE, A→E.**
+> The kitchen gets its doing-surface. **A #1804** the cookable contract (ONE pure
+> normalizer + the **4-tier honest coverage ladder** — tiers 3–4 emit `steps:[]`
+> so a method is never invented) + the full-screen step-at-a-time walkthrough.
+> **B #1805** Nora the sous-chef — voice **OPT-IN, default OFF**, a local command
+> grammar that answers next/back/repeat/timer with no model round-trip, and a
+> **read-only** grounded Q&A (when `cookContext` is present the route exposes NO
+> write tools — she only talks). **C #1806** the **Prep Session** (merged mise
+> that never fabricates a unit conversion → serial cook-through → **PREPPED ✓**,
+> no log/no points) — ⚠ **and the wave's ONE migration**,
+> `2026-07-22-client-meal-prep-coach-read.sql` (**applied + verified live**),
+> which the original registration wrongly said didn't exist. **D #1807**
+> orchestration — the pure iid-tracked **passive-window interleaver** + the
+> multi-track NOW/HOLDING board ("while the chicken roasts, start tomorrow's
+> rice"). **E #1809** coaches author real methods (＋ METHOD rows whose window
+> `min` is **derived from the step text, never typed**). **The binding doctrine
+> the wave cost 13 review rounds to learn:** no fabricated parallelism (a window
+> needs authored `passive:true` + station + `min≥4`) · an annotation MEANS "the
+> recipe's next step waits for this hold" · **never fabricate a timer** (any
+> decimal anywhere in a step refuses both window authoring and derived chips —
+> the integer parser misreads "1.5 min" as 5) · a terminal window must be station
+> `'off'` · board identity is `iid`, not the recipe key. Suite **769**. Handoff:
+> **[`docs/HANDOFF-2026-07-22.md`](HANDOFF-2026-07-22.md)**. Open: the OWNER
+> on-device prep pass.
+>
+> **Prior (2026-07-21): BYO COMMISSION SPLIT — 0% on coach-brought clients**
+> (spec #1789 · rails **#1794** · surfaces **#1799**; both migrations live). The
+> marketplace fee becomes **origin-aware**: Shape's 15% applies only to
+> marketplace-delivered clients, while a coach who brings their own client pays
+> **0%** — attributed by invite-DM or ref-link inside a 30-day touch window, with
+> precedence resolved **in the DB** (waitlist always wins, so Shape-originated
+> demand can never be re-classed BYO). **The stored `fee_bps` is the billing
+> truth** — every dashboard, analytics and refund path computes from the row's own
+> rate, so a future reprice can't rewrite history. Coaches send the tagged link by
+> ✉ email / ✆ text / ↗ share; the Business page labels each client "You brought ·
+> 0% fee" vs "Found you on Shape · 15% fee". **8 + 8 review rounds** — the
+> load-bearing catches were a `Number('')`→0% hole and a schema-cache-lag window
+> that could freeze a BYO row as marketplace forever. Also that week: the founder
+> About arc (#1790–#1795), onboarding-tour trigger + freeze fixes (#1792), the
+> About CTA reaching the coach shells (#1797), and a dev-deps security sweep
+> (#1800 — `npm audit` 0). Handoff:
+> **[`docs/HANDOFF-2026-07-21.md`](HANDOFF-2026-07-21.md)**.
+>
+> **Prior (2026-07-20, builds 8-9/9): THE CYCLE C→D — the flagship
 > differentiator ships to every surface (#1785 · #1786); the buildable wave is
 > COMPLETE (A→D built).** ⓒ **PR C (#1785) — coach share.** The client's own
 > coach reads **phase + timing only** (never dates), on a Case File **CYCLE**
@@ -885,7 +928,7 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-07-22 — Cook Mode PR E: coach step-authoring — the wave closes
+### 2026-07-22 — Cook Mode PR E: coach step-authoring — the wave closes (#1809)
 
 - **Session handoff: [`docs/HANDOFF-2026-07-22.md`](HANDOFF-2026-07-22.md)** —
   the whole Cook Mode wave at session level (builds D + E, the binding rules the
@@ -923,10 +966,12 @@ changelog whenever something ships.
 - **Skipped, registered**: intra-recipe overlap modeling (orchestrator redesign)
   · duplicate-recipe selection · the Frontispiece (needs the product-photography
   owner item). Open: the OWNER on-device prep pass (whole wave).
-- Verified: suite **769** · tsc clean · JSX parse ×2 · PowerShell `/m/` build ✓ ·
+- Verified: suite **773** *(recorded as 769 at merge — corrected 2026-07-22 by
+  re-running at HEAD; `tests/` has not changed since this PR, so 773 is the count
+  this commit actually shipped)* · tsc clean · JSX parse ×2 · PowerShell `/m/` build ✓ ·
   LF · tr-shadow both forms · catalog parity ×13.
 
-### 2026-07-22 — Cook Mode PR D: orchestration — the passive-window interleaver + the multi-track board
+### 2026-07-22 — Cook Mode PR D: orchestration — the passive-window interleaver + the multi-track board (#1807)
 
 - **Build 4 of the guided-cooking wave** (spec §6). The Prep Session learns to
   cook several recipes AT ONCE: during one recipe's authored **passive window**
@@ -987,7 +1032,52 @@ changelog whenever something ships.
   structured step-authoring — the tier-1 forward path for `stepMeta` · the
   Frontispiece · deferred items) + the on-device prep pass.
 
-### 2026-07-21 — Cook Mode PR B: Nora the sous-chef — reads steps aloud + voice commands + grounded Q&A
+### 2026-07-22 — Cook Mode PR C: the Prep Session — the Sunday ritual + PREPPED (#1806)
+
+- ⚠ **This entry was MISSING and is written retroactively (2026-07-22).** The
+  wave's changelog ran A → B → *(gap)* → D → E, and the skipped build is the one
+  that carried **the wave's only migration** — so three places (the War Room, the
+  #1808 registration, this file's D/E entries) all said "no migrations anywhere in
+  the wave," which was **false**. Corrected here and on the board.
+- **Build 3 of the guided-cooking wave** (spec §5). An entirely **optional** Prep
+  Session — a door, never a gate: **picker → merged mise → serial cook-through →
+  wrap.** Sources the assigned week's recipe-mapped meals (**exact match, no
+  fuzzy**) plus saved Library recipes.
+- **The merged mise never fabricates a conversion**: same-unit quantities sum,
+  **clashing units stay on separate lines**. Each recipe stamps **PREPPED ✓** —
+  *no log, no points*, because prepping is cooking for later, not eating now.
+- **PREPPED state** lives in `user_goals('meal_prep')` on a **4-day window** with
+  exact-match only (real records only, never inferred): the Eat course + home
+  slate rows read "Prepped ✓ · just plate it," and Cook Mode opens a matching
+  meal's mise **pre-checked**. Web: PREPPED renders on the Nutrition dashboard.
+- **One implementation** — record semantics are canonical in
+  `public/newdesign/mealPrep.mjs`; mobile re-exports it (the split-with-shim
+  pattern, so the two surfaces can't drift).
+- ⚠ **OWNER MIGRATION `2026-07-22-client-meal-prep-coach-read.sql` — APPLIED +
+  VERIFIED LIVE** (re-verified 2026-07-22: SECURITY DEFINER · `search_path =
+  public, pg_temp` pinned · grants **anon=false / authenticated=true**).
+  **`get_client_meal_prep`** is gated on the **coach link ALONE** (owner ruling
+  §13.1, the `get_client_stats` precedent — deliberately NOT the cycle RPC's
+  optIn/share gate, which guards a different consent class) and returns a
+  **compact projection only**: fresh count + latest `preppedAt` + covered day
+  labels — never the document, no recipe titles, servings or history. **Absence →
+  NULL**, so the Case File **PREP** register renders nothing rather than a padlock.
+  It extends the existing `shared-overview` route; it adds **no new route**.
+- **The 4-day window is a cross-language coupling and it's guarded**: the SQL
+  constant is KEEP-IN-SYNC with `BS_PREP_WINDOW_MS`, and `tests/meal-prep.test.mjs`
+  **reads the migration file** and asserts the two agree — a one-sided change
+  fails CI rather than silently showing coaches a different freshness window than
+  the member sees.
+- Verified at merge: suite **744** · tsc clean · catalog parity 3/3 (`cook:` /
+  `coach:` prep keys ×13) · `/m/` build · LF · adversarial pre-push review clean
+  (render-crash/TDZ · async lifecycle · module correctness · honest-data ·
+  optionality · SQL; a double-tap re-entry guard added pre-emptively). Review:
+  CodeRabbit APPROVED the final head (a Critical read-fault write-guard + a Major
+  cache re-prune + ICU plurals ×13 + the enforced window-sync test); **Codex
+  sign-off was WAIVED on the owner's word — quota exhausted from the #1805
+  rounds** (see the review-quota note in the PR E entry).
+
+### 2026-07-21 — Cook Mode PR B: Nora the sous-chef — reads steps aloud + voice commands + grounded Q&A (#1805)
 
 - **Build 2 of the guided-cooking wave** (spec §7). Voice is **OPT-IN, default
   OFF** (owner ruling): a **NORA READS** toggle sits in the cook band the whole
