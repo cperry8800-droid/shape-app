@@ -12892,16 +12892,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Real bio/goal shows on your own profile; the demo fallback is suppressed when
   // signed-in (own) — the section hides if you haven't written one.
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
-  // Coach profile-wave (P1 film · P2 line · P4 business card · P5 wins wall). Each
-  // re-validates through the canonical normalizer at render, so a stale/junk doc key
-  // renders nothing (never throws). P5 resolves pinned ids against the OWNER's own
-  // reviews by id AND ownerId — a hand-written id / another coach's review never resolves.
-  const coachLine = bsProfileLine(custom && custom.line);
-  const coachFilm = bsProfileFilm(custom && custom.film, person.userId, 'coach-media');
-  const bizCard = bsProfileBizCard(custom && custom.bizCard);
-  const winsWall = bsProfilePinnedReviews(custom && custom.pinnedReviews)
-    .map((id) => (liveReviews || []).find((r) => r && r.id === id && r.ownerId === person.userId))
-    .filter(Boolean);
   // ── Storefront: the profile IS the marketplace listing. Subscribe / Book run
   // the same global Stripe + booking services the old detail page used. ──
   const commerce = person.commerce || null;
@@ -12972,6 +12962,18 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
   const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
+  // Coach profile-wave (P1 film · P2 line · P4 business card · P5 wins wall). Each
+  // re-validates through the canonical normalizer at render, so a stale/junk doc key
+  // renders nothing (never throws). P5 resolves pinned ids against the OWNER's own
+  // reviews by id AND ownerId — a hand-written id / another coach's review never
+  // resolves. Declared AFTER liveReviews: winsWall reads it, and its .map fires the
+  // moment a coach has a pinned review — a TDZ here would crash the whole profile.
+  const coachLine = bsProfileLine(custom && custom.line);
+  const coachFilm = bsProfileFilm(custom && custom.film, person.userId, 'coach-media');
+  const bizCard = bsProfileBizCard(custom && custom.bizCard);
+  const winsWall = bsProfilePinnedReviews(custom && custom.pinnedReviews)
+    .map((id) => (liveReviews || []).find((r) => r && r.id === id && r.ownerId === person.userId))
+    .filter(Boolean);
   // Local reaction state for the shared BSActivityCard on this coach profile feed
   // (optimistic toggle + best-effort persist via the same backend path as the feed).
   const [actLikes, setActLikes] = useStateBSC({});
