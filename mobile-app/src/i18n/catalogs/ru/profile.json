@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Готовится к",
   "startLine.today": "Сегодня",
   "startLine.daysOut": "{count, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
-  "line.attribution": "девиз"
+  "line.attribution": "девиз",
+  "film.headCoach": "Видео-знакомство",
+  "biz.head": "Практика",
+  "biz.where": "Где",
+  "biz.hours": "Часы",
+  "biz.find": "Найти меня",
+  "wins.head": "Стена побед",
+  "wins.pinned": "Настоящий отзыв · Закреплено"
 }

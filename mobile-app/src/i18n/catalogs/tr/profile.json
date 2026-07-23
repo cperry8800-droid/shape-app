@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Hazırlanıyor",
   "startLine.today": "Bugün",
   "startLine.daysOut": "{count, plural, one {# gün} other {# gün}}",
-  "line.attribution": "sözü"
+  "line.attribution": "sözü",
+  "film.headCoach": "Tanıtım videosu",
+  "biz.head": "İşletme",
+  "biz.where": "Nerede",
+  "biz.hours": "Saatler",
+  "biz.find": "Beni bul",
+  "wins.head": "Başarı duvarı",
+  "wins.pinned": "Gerçek yorum · Sabitlendi"
 }

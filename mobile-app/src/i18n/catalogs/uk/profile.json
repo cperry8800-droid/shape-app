@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Готується до",
   "startLine.today": "Сьогодні",
   "startLine.daysOut": "{count, plural, one {# день} few {# дні} many {# днів} other {# дня}}",
-  "line.attribution": "девіз"
+  "line.attribution": "девіз",
+  "film.headCoach": "Відео-знайомство",
+  "biz.head": "Практика",
+  "biz.where": "Де",
+  "biz.hours": "Години",
+  "biz.find": "Знайти мене",
+  "wins.head": "Стіна перемог",
+  "wins.pinned": "Справжній відгук · Закріплено"
 }

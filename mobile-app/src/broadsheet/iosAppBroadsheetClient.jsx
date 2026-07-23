@@ -10188,6 +10188,9 @@ function bsSpotifyEmbed(url) {
   return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
 }
 const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
+// P3 · coach-flavored prompt suggestions (the prompts render already shows on the
+// Signal profile — this only swaps the picker's suggested questions for coaches).
+const BS_COACH_PROMPTS = ['My coaching philosophy', 'First session with me', 'Who I coach best', "What I won't program", 'My approach', 'A client win'];
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
 const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
@@ -11160,11 +11163,12 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, pickReviews = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
+  const PROMPT_OPTS = coach ? BS_COACH_PROMPTS : BS_PROFILE_PROMPTS;
   const [bio, setBio] = useStateBSC(init.bio || '');
   const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
   const [songLabel, setSongLabel] = useStateBSC((init.song && init.song.label) || '');
   const [links, setLinks] = useStateBSC({ ...(init.links || {}) });
-  const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
+  const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0], a: '' }]);
   const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
   const [accent, setAccent] = useStateBSC(init.accent || '');
   // climbBg is no longer a customizable surface (the wash was retired with the
@@ -11190,7 +11194,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 9, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
   const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, fontWeight: 700, marginBottom: 9, display: 'block' };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
-  const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: BS_PROFILE_PROMPTS[prev.length % BS_PROFILE_PROMPTS.length], a: '' }]);
+  const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length], a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
   // ── Member profile-wave sections (M1–M4). State round-trips init even when the
   //    section isn't shown (coach path is PR D), so the doc never loses a key. ──
@@ -11475,7 +11479,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 9 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
-                      {BS_PROFILE_PROMPTS.map((q) => <option key={q} value={q} style={{ color: '#111', fontFamily: SANS }}>{q}</option>)}
+                      {PROMPT_OPTS.map((q) => <option key={q} value={q} style={{ color: '#111', fontFamily: SANS }}>{q}</option>)}
                     </select>
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: c, fontSize: 10 }}>▾</span>
                   </div>

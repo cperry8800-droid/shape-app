@@ -232,5 +232,12 @@
   "startLine.trainingFor": "In preparazione a",
   "startLine.today": "Oggi",
   "startLine.daysOut": "{count, plural, one {# giorno} other {# giorni}}",
-  "line.attribution": "motto"
+  "line.attribution": "motto",
+  "film.headCoach": "Video di presentazione",
+  "biz.head": "Lo studio",
+  "biz.where": "Dove",
+  "biz.hours": "Orari",
+  "biz.find": "Trovami",
+  "wins.head": "Bacheca dei successi",
+  "wins.pinned": "Recensione vera · In evidenza"
 }

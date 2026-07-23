@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Entrenando para",
   "startLine.today": "Hoy",
   "startLine.daysOut": "{count, plural, one {# día} other {# días}}",
-  "line.attribution": "lema"
+  "line.attribution": "lema",
+  "film.headCoach": "Vídeo de presentación",
+  "biz.head": "El estudio",
+  "biz.where": "Dónde",
+  "biz.hours": "Horario",
+  "biz.find": "Encuéntrame",
+  "wins.head": "Muro de logros",
+  "wins.pinned": "Reseña real · Fijada"
 }
