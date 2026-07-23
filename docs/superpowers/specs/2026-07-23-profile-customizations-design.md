@@ -23,7 +23,7 @@ Via ✎ Customize (`BSProfileCustomizer`, `iosAppBroadsheetClient.jsx:11108`, wi
 
 ## The doc — new keys
 
-```
+```text
 profile_custom: {
   …existing keys untouched…,
   line:      text ≤80,                                  // P2 + M4 — one shared key, role decides placement
@@ -36,17 +36,21 @@ profile_custom: {
 }
 ```
 
-**Sanitization (binding):** all URLs pass the box wave's canonical guard (`listingMedia.mjs` — PR A exports its scheme check as **`bsSafeMediaUrl`**; this wave reuses it at write AND render on both surfaces — one implementation of the http(s)-only rule). Text fields: plain strings, control chars stripped, clamped at write with the editor showing the limit; rendered as React text (escaped), never HTML. Junk shapes at any key → that feature renders nothing (never throws, never a placeholder).
+**Sanitization (binding):**
+
+- **The guard dependency is explicit (review round):** `bsSafeMediaUrl` ships in the BOX wave's PR A (`public/newdesign/listingMedia.mjs`, spec `2026-07-23-coach-listing-media-design.md`), which merges **before any profile-wave PR** per the build order. If the box wave were ever cancelled, PR C creates the module itself — this wave never builds against a guard that doesn't exist in the tree.
+- **Per-key own-bucket allowlist (review round — CWE-200 + type separation):** the new media keys accept **only the app's own storage URLs, per key** — a new `bsOwnMediaUrl(v, bucket)` (in the same canonical module: `bsSafeMediaUrl` PLUS an origin + `/storage/…/<bucket>/` path check): `wall` → **community-photos** only · member `film` → **member-films** only · coach `film` → **coach-media** only. This kills two classes at once: a hand-crafted third-party URL can't turn a profile into a tracking beacon (viewer IP/UA leakage), and a video URL can't be planted in an image key (or vice versa) because the buckets themselves are type-scoped. Zero functional cost — the editors only ever produce these bucket URLs.
+- Text fields: plain strings, control chars stripped, clamped at write with the editor showing the limit; rendered as React text (escaped), never HTML. Junk shapes at any key → that feature renders nothing (never throws, never a placeholder).
 
 ## The features
 
 ### Member — Terrain (app + web)
 
 - **M1 · The Wall** — a curated pinned gallery station (`THE WALL` head, tier-heat tick + ink→heat rule; horizontal captioned strip, member-ordered). Distinct from the chronological activity feed: chosen keeper shots. Uploads: the existing **community-photos** bucket (owner-folder RLS, image mimes — the photo-post upload path reused verbatim).
-- **M2 · The Start line** — hero line: `TRAINING FOR · {title} · {MMM D} · {N} DAYS OUT`. Days-out computed in the **viewer's** local tz from the stored date; **a past date renders nothing** (stale goals never linger; the owner's customizer shows it struck with a "passed — clear or update" note). No fabricated countdown on a missing/invalid date.
+- **M2 · The Start line** — hero line: `TRAINING FOR · {title} · {MMM D} · {N} DAYS OUT`. **Date arithmetic (review round):** the stored date must match strict `^\d{4}-\d{2}-\d{2}$` or the line is absent; days-out is a **local-calendar-date difference** — build the viewer-local Y/M/D for today and the target (noon-anchored, the index-dateline precedent) and diff whole calendar days — never `new Date("YYYY-MM-DD")` (UTC parse) and never elapsed-ms ÷ 86400000, so the count can't shift a day across UTC/DST boundaries. **A past date renders nothing** (stale goals never linger; the owner's customizer shows it struck with a "passed — clear or update" note). No fabricated countdown on a missing/invalid date.
 - **M3 · The Shelf** — a `THE SHELF · PROUDEST` station of ≤4 dot-leader rows (`01 · DEADLIFT 140KG ···· MAY '26`), member-written and member-ordered. Coexists with the single pinned highlight (untouched).
 - **M4 · The Line** — one motto, serif italic on the Terrain hero under the identity head, `— {THEIR} LINE` mono attribution. Shares the `line` key with P2.
-- **M5 · The Film** — a short pinned video card (inline `<video>`, tap-to-play, caption). **The wave's ONLY migration:** widen the community-photos bucket's allowed mimes to add `video/mp4 · video/quicktime · video/webm` and raise the size cap for those (60 MB) — `2026-07-XX-community-photos-video.sql`, additive + idempotent. Editor copy guides "30–60 seconds"; length is guidance, size is the enforced bound.
+- **M5 · The Film** — a short pinned video card (inline `<video>`, tap-to-play, caption). **The wave's ONLY migration — a dedicated bucket, NOT a widening (Codex round):** widening community-photos would let every EXISTING image path (`ShapeCommunity.uploadPhoto`, the web cover uploader — none of which check `file.type`) silently store video. Instead `2026-07-23-member-films-bucket.sql` creates a **`member-films`** bucket — **video mimes ONLY** (`video/mp4 · video/quicktime · video/webm`), 60 MB cap, owner-folder storage RLS (the community-photos policy shape) — so the photo bucket stays image-only and no existing upload path changes behavior. Additive + idempotent. Editor copy guides "30–60 seconds"; length is guidance, size is the enforced bound.
 
 ### Coach — Signal (app + web)
 
@@ -78,7 +82,7 @@ New `profile:` (station heads, editor labels, the days-out line with ICU plural 
 
 **PR D — coach wave (P1–P5), both surfaces.** Signal renders (app + web) · the shared inline video card (built here, used by P1; coach-media already allows video) · customizer coach sections · the wins-wall pick-list + resolve-only render · i18n ×13. No migration.
 
-**PR E — M5 the Film.** The community-photos mime-widening migration (owner-applied; raw link per convention) + the member film card reusing PR D's player. Everything degrades silently pre-migration (upload rejected by the bucket → honest editor error; no render change).
+**PR E — M5 the Film.** The `2026-07-23-member-films-bucket.sql` migration (owner-applied; raw link per convention) + the member film card reusing PR D's player. Everything degrades silently pre-migration (no bucket → upload fails with an honest editor error; no render change).
 
 **Gates, each PR:** JSX parse · `tsc --noEmit` · full `npm test` · PowerShell `/m/` build · `build-newdesign --check` · LF · tr-shadow both forms · catalog parity ×13 · adversarial pre-push self-review (bug classes 1–12) · **render-mount proof** on every touched profile component (hook/TDZ class — both profiles, self AND visitor, demo AND live) · the 4-step merge gate · review-quota economy (whole-class audits before the first push, batch fixes, re-trigger Codex rarely).
 
@@ -87,10 +91,10 @@ New `profile:` (station heads, editor labels, the days-out line with ICU plural 
 1. A profile with none of the new keys renders **byte-identical** to today — both profile types, both surfaces, self + visitor + demo.
 2. Each feature set alone renders its piece and nothing else's (per-key independence).
 3. Visitor read: a SECOND account sees a member's wall/shelf/line/start-line and a coach's line/film/card/wins via `get_public_profile` — and sees them withheld under friends/private exactly as bio/prompts are today.
-4. `javascript:`/`data:` URLs hand-written into the doc render nothing (both surfaces); a 7th wall photo / 5th shelf row / 4th pinned review / over-length captions can't be saved and render clamped if hand-written.
-5. M2: date = tomorrow → `1 DAY OUT` (ICU singular); date = today → `TODAY`; past → the line is absent; garbage date → absent.
+4. `javascript:`/`data:` URLs hand-written into the doc render nothing (both surfaces); so does any URL outside the key's own bucket — a third-party image URL in the wall, a community-photos URL in the film slot, a member-films URL in the wall (the per-key allowlist, tested per key). A 7th wall photo / 5th shelf row / 4th pinned review / over-length captions can't be saved and render clamped if hand-written.
+5. M2: date = tomorrow → `1 DAY OUT` (ICU singular); date = today → `TODAY`; past → the line is absent; garbage/non-`YYYY-MM-DD` date → absent; and a viewer at UTC−10 vs UTC+12 sees counts that differ only by their own local calendar day (the local-date diff vector — never a UTC/DST off-by-one).
 6. P5: deleting the underlying review removes it from the wall on next load; the wall never renders an id that doesn't resolve.
-7. Films: a video URL from the wrong bucket/host still passes only the scheme guard (http(s)) — playback failure shows the browser's native state, never a fabricated poster; pre-migration member upload fails with an honest editor message.
+7. Films: only member-films (member) / coach-media (coach) URLs render at all (the per-key allowlist); playback failure shows the browser's native state, never a fabricated poster; pre-migration member upload fails with an honest editor message; existing photo paths still reject video (`community-photos` mimes untouched — the no-widening proof).
 8. The customizer save round-trips: set → save → reload → visitor sees it; clearing a field removes the key (not an empty-string tombstone).
 9. Existing custom fields (cover, stats, highlight, song, prompts, socials) are byte-identical throughout — the doc spread preserves them on every save.
 
