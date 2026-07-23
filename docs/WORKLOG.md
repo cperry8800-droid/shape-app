@@ -178,7 +178,43 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-22): COOK MODE — the guided-cooking wave is COMPLETE, A→E.**
+> **Latest (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase is
+> COMPLETE; ⚠ THE BUILD IS OWNER-PAUSED.** Coaches will dress their marketplace
+> box and everyone gets profile customizations — specs written on Fable, builds
+> queued for Opus behind an explicit owner go ("pause before you start build").
+> **Spec #1815** (merged `864b5a3b`) — the box: owner-picked **E "The Combo"**
+> (portrait + cover-as-background + ≤6-photo studio gallery on the marketplace
+> box, both surfaces) **+ D want-ad row thumbs** (owner: "yes add D"). One
+> `listing_media` jsonb column on the provider rows (the `monthly_offer`
+> pattern; migration rides build PR A) + ONE canonical guard module
+> (`public/newdesign/listingMedia.mjs`): `bsOwnMediaUrl(v, bucket, ownerUid)` —
+> own-storage origin + owner-folder path binding (kills SSRF/beacons/cross-type
+> planting/cross-account hotlinking in one contract) — and an
+> ownerUid-REQUIRED, fail-closed normalizer. **Spec #1816** (merged `905d3728`)
+> — the profile wave, ALL TEN owner-ruled items ("add them all"): coach P1
+> intro film · P2 the Line · P3 prompts · P4 business card · P5 wins wall
+> (real `coach_reviews` ids only, resolve-or-vanish); member M1 the Wall · M2
+> Start line (strict real-calendar local-date countdown) · M3 the Shelf · M4
+> the Line · M5 the Film (a dedicated `member-films` bucket, video-mimes-only
+> — deliberately NOT a community-photos widening; the profile wave carries
+> TWO migrations — the bucket in PR E + `coach_reviews.owner_id` in PR D).
+> New keys on the existing `profile_custom` doc — zero new RPCs/routes;
+> allowlisted save normalization (legacy keys byte-identical). **9 review
+> rounds across the two PRs** (4 + 5; one CodeRabbit security finding
+> declined-with-rationale and formally WITHDRAWN — the public-bucket-URL
+> residual is documented in-spec with a platform-wide signed-media follow-on).
+> Post-merge Codex P2s amended in the records PR: listing role rides the
+> profile URL · image-extension allowlist at the normalizer · the wins wall
+> re-keyed onto an immutable `coach_reviews.owner_id` (records-round ruling —
+> a new PR-D migration with **NO backfill**: no immutable slug-history exists,
+> so no legacy row is provable — write-path stamping only; resolve by id +
+> owner, NULL never renders or pins).
+> **Build order once un-paused:** box PR A
+> (migration + module + mobile) → B (web) → profile PR C (M1–M4) → D (P1–P5)
+> → E (M5 + bucket migration). Handoff:
+> **[`docs/HANDOFF-2026-07-23.md`](HANDOFF-2026-07-23.md)**.
+>
+> **Prior (2026-07-22): COOK MODE — the guided-cooking wave is COMPLETE, A→E.**
 > The kitchen gets its doing-surface. **A #1804** the cookable contract (ONE pure
 > normalizer + the **4-tier honest coverage ladder** — tiers 3–4 emit `steps:[]`
 > so a method is never invented) + the full-screen step-at-a-time walkthrough.
@@ -927,6 +963,81 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-23 — Coach box + profile customization: the spec phase (#1815 · #1816) — ⚠ BUILD OWNER-PAUSED
+
+- **Session handoff: [`docs/HANDOFF-2026-07-23.md`](HANDOFF-2026-07-23.md)** —
+  the wave at session level: the concept-board round, both spec contracts, the
+  review gauntlet, and the paused build plan.
+- **The wave** (owner: "I want coaches to be able to customize their
+  marketplace box … and then can we add more customizations to actual profile
+  as well … create customizations for clients profile as well"): a concept
+  board → owner picks **E "The Combo"** for the box + **D want-ad thumbs**
+  ("yes add D") + **ALL TEN** profile items ("add them all"). Specs written on
+  Fable per the standing split; **builds run on Opus only after an explicit
+  owner go** — "pause before you start build" is a HARD GATE recorded in the
+  session memory, and this records pass itself was owner-ordered ("update
+  worklog.md, memory, handoff documents, war room once spec is done, before
+  build").
+- **#1815 — the box spec** (4 review rounds → CodeRabbit APPROVED; merged
+  `864b5a3b` on the owner's word with Codex's final pass in flight). Load-
+  bearing contracts: `listing_media` jsonb on BOTH provider tables (verified
+  against the `guard_provider_admin_columns` blocklist — clears it, like
+  `monthly_offer`); the canonical `listingMedia.mjs` guard —
+  `bsSafeMediaUrl` (type-check-first, try/catch, ≤500) → `bsOwnMediaUrl(v,
+  bucket, ownerUid)` (own storage origin, no userinfo/port, owner-folder path
+  prefix) → `bsNormalizeListingMedia(raw, ownerUid)` (ownerUid REQUIRED,
+  fail-closed; field-by-field gallery rebuild; 6/80 clamps); image-only mime
+  pre-check incl. `image/heif`; the CWE-862 live probe matrix in PR A; exactly
+  13 i18n keys; TWO deliberate geometry exceptions (E featured combo boxes +
+  D row thumbs) named in the byte-identical base contract.
+- **#1816 — the profile-wave spec** (5 review rounds; merged `905d3728`).
+  Doc keys on the EXISTING `profile_custom` (whole-doc visitor read via
+  `get_public_profile` verified) — zero new RPCs/routes; per-key owner-folder
+  allowlist (`wall`→community-photos · member `film`→member-films · coach
+  `film`→coach-media); **allowlisted save normalization** (only this wave's
+  keys — legacy cover/stats/prompts byte-identical, AC-pinned); M2 strict
+  `YYYY-MM-DD` + round-trip real-calendar check (`2026-02-31` can never
+  normalize into a fabricated countdown), noon-anchored local-day diff; P5
+  wins wall = real `coach_reviews` ids, **resolved by id + the immutable
+  `owner_id`** (records-round ruling — NULL never renders); TWO migrations,
+  each riding its build PR — the dedicated `member-films` bucket in PR E
+  (video mimes only, 60 MB; a community-photos widening was explicitly
+  rejected — existing photo paths don't check `file.type`) and
+  `coach_reviews.owner_id` in PR D with **NO backfill** (final ruling:
+  every heuristic mis-attaches after a slug rename/reuse — a bare slug
+  join hands the previous holder's reviews to the current one, and a
+  provider-created_at tenure check fails because row age is not
+  slug-tenure age; no immutable slug-history exists, so ALL legacy rows
+  stay NULL — never render, can't be pinned; the write path stamps every
+  new review).
+- **Review-quota discipline held**: every round batched into one commit + one
+  summary comment; Codex re-triggers HELD until CodeRabbit settled, then ONE
+  pass per PR. **A CodeRabbit security finding was declined with rationale
+  and formally WITHDRAWN** (public-bucket URLs vs profile visibility — the
+  platform's existing media architecture; documented as an in-spec residual
+  + a platform-wide signed-media follow-on).
+- **Post-merge Codex P2s → spec amendments in the records PR** (this one):
+  the clicked listing's role rides the profile URL (`&role=`) so a dual-role
+  coach's OTHER studio gallery can never render; an image-extension allowlist
+  at the normalizer (the bucket allows video for plan clips — editors alone
+  aren't the boundary); and — CodeRabbit escalated on the records PR itself,
+  correctly — the wins wall's owner binding moved OFF the mutable slug onto a
+  new **immutable `coach_reviews.owner_id`** (PR-D migration; **no backfill**
+  — three review rounds established that every candidate heuristic
+  mis-attaches after a slug rename/reuse and no immutable slug-history
+  source exists, so ownership of a legacy row is unprovable; all
+  pre-migration rows stay NULL — never render, can't be pinned — and the
+  write path stamps every new review; a slug collision rendering another
+  coach's words as this coach's PINNED testimonial would be a fabricated
+  credential).
+- **⚠ OWNER MIGRATIONS (ride the build PRs, NOT yet written) — THREE across
+  the wave:** `2026-07-23-provider-listing-media.sql` (box PR A) ·
+  `2026-07-23-coach-reviews-owner-id.sql` (profile PR D) ·
+  `2026-07-23-member-films-bucket.sql` (profile PR E).
+- **Open:** the owner's explicit BUILD GO (nothing builds without it) → then
+  box PR A → B → profile PR C (M1–M4) → D (P1–P5) → E (M5 film). Concept
+  board: claude.ai/code/artifact/18fe47d3-7cd7-46b2-b25e-aa83bbda8f9e.
 
 ### 2026-07-22 — Cook Mode PR E: coach step-authoring — the wave closes (#1809)
 
