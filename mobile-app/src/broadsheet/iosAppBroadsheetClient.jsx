@@ -21,7 +21,7 @@ import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
-import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX } from '../services/profileCustom.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { bsOrchestrate } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
@@ -10213,6 +10213,24 @@ function bsLinkHref(key, val) {
   if (host && (low === host || low.startsWith(host + '/'))) return 'https://' + v;
   return 'https://' + (pre ? pre + v : v);
 }
+// Shared inline-video card — P1 coach intro film + M5 member film (PR E reuses it).
+// `film` is the ALREADY-normalized { url, caption } (bsProfileFilm), so its url is a
+// validated own-folder video; this only renders. Native controls, tap-to-play; NO
+// fabricated poster — a playback failure shows the browser's own state. Renders
+// nothing without a film.
+function BSProfileFilmCard({ film, INK, c, label }) {
+  if (!film || !film.url) return null;
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {label ? <div style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8, display: 'flex', alignItems: 'center', gap: 7 }}><span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: c }} />{label}</div> : null}
+      <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: '#000' }}>
+        <video src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 360, background: '#000' }} />
+      </div>
+      {film.caption ? <div style={{ marginTop: 8, fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', letterSpacing: '-0.01em', color: bsTHexA(INK, 0.75), lineHeight: 1.3 }}>{film.caption}</div> : null}
+    </div>
+  );
+}
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false }) {
   const tr = useShapeTr();
@@ -11139,7 +11157,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   );
 }
 
-function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false }) {
+function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, pickReviews = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const [bio, setBio] = useStateBSC(init.bio || '');
@@ -11200,6 +11218,25 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const addShelfRow = () => setShelf((prev) => prev.length >= BS_SHELF_MAX ? prev : [...prev, { title: '', when: '' }]);
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
+  // ── Coach profile-wave state (P1 film · P4 business card · P5 wins wall). Round-
+  //    trips init even when hidden (member path), so the doc never loses a key. ──
+  const [film, setFilm] = useStateBSC((init.film && init.film.url) ? { url: init.film.url, caption: (init.film.caption || '') } : null);
+  const [filmBusy, setFilmBusy] = useStateBSC(false);
+  const filmRef = React.useRef(null);
+  const onFilmFile = async (e) => {
+    const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
+    if (!file) return;
+    // Reject non-video BEFORE upload — the film gate (bsOwnVideoUrl) accepts only
+    // mp4/mov/webm/m4v, so anything else would upload then be dropped at save.
+    if (!/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '')) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
+    setFilmBusy(true);
+    try { const up = await window.ShapeCoachMedia?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }
+    catch (err) { window.__bsToast?.(err?.message || 'Could not upload film.', 'err'); }
+    finally { setFilmBusy(false); }
+  };
+  const [biz, setBiz] = useStateBSC({ name: (init.bizCard && init.bizCard.name) || '', where: (init.bizCard && init.bizCard.where) || '', hours: (init.bizCard && init.bizCard.hours) || '', handle: (init.bizCard && init.bizCard.handle) || '' });
+  const [pins, setPins] = useStateBSC(Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : []);
+  const togglePin = (id) => setPins((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : (prev.length >= BS_PINNED_REVIEWS_MAX ? prev : [...prev, id]));
   const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
   const save = async () => {
@@ -11209,9 +11246,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // swallowing them, and only close (onSave) once the write actually lands.
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
     if (!uid) { window.__bsToast?.('Sign in to save your profile.', 'err'); return; }
-    // A wall/cover upload still in flight would be omitted from the saved doc AND
-    // left orphaned in storage (onSave closes the editor before it lands) — wait.
-    if (wallBusy || coverBusy) { window.__bsToast?.('Hang on — a photo is still uploading.', 'err'); return; }
+    // A wall/cover/film upload still in flight would be omitted from the saved doc
+    // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
+    if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.('Hang on — an upload is still in progress.', 'err'); return; }
     setBusy(true);
     const doc = {
       ...init,
@@ -11224,14 +11261,23 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
-      // Profile-wave keys (M1–M4 / shared line). The normalizer below cleans +
+      // Member profile-wave keys (M1–M4 / shared line). The normalizer below cleans +
       // caps these and DROPS them when empty; every legacy key passes byte-identical.
       line,
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
+      // Coach profile-wave keys (P1 film · P4 card · P5 pins) — only the coach path
+      // manages them; the member path leaves init's copies untouched (spread above).
+      ...(coach ? {
+        film: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
+        bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
+        pinnedReviews: pins,
+      } : {}),
     };
-    const clean = bsNormalizeProfileCustom(doc, uid);
+    // filmBucket=coach-media only on the coach path — the render re-validates
+    // either way, so a member save leaves any film byte-identical.
+    const clean = bsNormalizeProfileCustom(doc, uid, coach ? { filmBucket: 'coach-media' } : undefined);
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
     catch (e) { res = { error: e }; }
@@ -11279,6 +11325,54 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={label}>Bio</span>
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: 'vertical', minHeight: 64 }} />
         </div>
+        {coach && (<>
+          {/* P2 · The Line (shared key) */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Your line · one motto</span>
+            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
+          </div>
+          {/* P1 · The intro film */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Intro film · a short video</span>
+            <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: 'none' }} />
+            {film && film.url ? (
+              <div>
+                <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: '#000' }}>
+                  <video src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 220, background: '#000' }} />
+                </div>
+                <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, BS_FILM_CAPTION_MAX) }))} maxLength={BS_FILM_CAPTION_MAX} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
+                <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Remove film</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: '10px 15px', cursor: filmBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{filmBusy ? 'Uploading…' : '+ Add intro film'}</button>
+            )}
+            <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
+          </div>
+          {/* P4 · The Business card */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The practice · business card</span>
+            <input value={biz.name} onChange={(e) => setBiz((p) => ({ ...p, name: e.target.value.slice(0, BS_BIZ_NAME_MAX) }))} maxLength={BS_BIZ_NAME_MAX} placeholder="Business name — e.g. Iron Path Strength" style={field} />
+            <input value={biz.where} onChange={(e) => setBiz((p) => ({ ...p, where: e.target.value.slice(0, BS_BIZ_WHERE_MAX) }))} maxLength={BS_BIZ_WHERE_MAX} placeholder="Where (optional) — e.g. Austin, TX · online" style={{ ...field, marginTop: 8 }} />
+            <input value={biz.hours} onChange={(e) => setBiz((p) => ({ ...p, hours: e.target.value.slice(0, BS_BIZ_HOURS_MAX) }))} maxLength={BS_BIZ_HOURS_MAX} placeholder="Hours (optional) — e.g. Mon–Fri, mornings" style={{ ...field, marginTop: 8 }} />
+            <input value={biz.handle} onChange={(e) => setBiz((p) => ({ ...p, handle: e.target.value.slice(0, BS_BIZ_HANDLE_MAX) }))} maxLength={BS_BIZ_HANDLE_MAX} placeholder="Find me (optional) — e.g. @ironpath" style={{ ...field, marginTop: 8 }} />
+          </div>
+          {/* P5 · The Wins wall picker — only the coach's OWN pinnable reviews */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Wins wall · pin up to {BS_PINNED_REVIEWS_MAX} reviews</span>
+            {pickReviews && pickReviews.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pickReviews.map((r) => { const on = pins.includes(r.id); return (
+                  <button key={r.id} type="button" onClick={() => togglePin(r.id)} style={{ textAlign: 'left', cursor: 'pointer', background: on ? bsTHexA(c, 0.1) : 'transparent', border: `1px solid ${on ? c : bsTHexA(INK, 0.14)}`, borderRadius: 9, padding: '11px 13px' }}>
+                    <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? c : bsTHexA(INK, 0.45) }}>{on ? '✓ Pinned' : 'Tap to pin'} · ★ {Math.round(r.rating || 0)}/10 · {r.author || 'Member'}</div>
+                    <div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.82), marginTop: 5, lineHeight: 1.35 }}>“{(r.text || '').slice(0, 120)}{(r.text || '').length > 120 ? '…' : ''}”</div>
+                  </button>
+                ); })}
+              </div>
+            ) : (
+              <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.55), lineHeight: 1.5 }}>No reviews to pin yet — reviews members leave from now on can be pinned here.</div>
+            )}
+          </div>
+        </>)}
         {!coach && (<>
           {/* M4 · The Line */}
           <div style={{ marginBottom: 18 }}>
@@ -12794,6 +12888,16 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Real bio/goal shows on your own profile; the demo fallback is suppressed when
   // signed-in (own) — the section hides if you haven't written one.
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
+  // Coach profile-wave (P1 film · P2 line · P4 business card · P5 wins wall). Each
+  // re-validates through the canonical normalizer at render, so a stale/junk doc key
+  // renders nothing (never throws). P5 resolves pinned ids against the OWNER's own
+  // reviews by id AND ownerId — a hand-written id / another coach's review never resolves.
+  const coachLine = bsProfileLine(custom && custom.line);
+  const coachFilm = bsProfileFilm(custom && custom.film, person.userId, 'coach-media');
+  const bizCard = bsProfileBizCard(custom && custom.bizCard);
+  const winsWall = bsProfilePinnedReviews(custom && custom.pinnedReviews)
+    .map((id) => (liveReviews || []).find((r) => r && r.id === id && r.ownerId === person.userId))
+    .filter(Boolean);
   // ── Storefront: the profile IS the marketplace listing. Subscribe / Book run
   // the same global Stripe + booking services the old detail page used. ──
   const commerce = person.commerce || null;
@@ -13090,6 +13194,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
           </div>
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
+          {/* P2 · The Line — the coach's motto, role-heat attribution. */}
+          {coachLine ? (
+            <div style={{ marginTop: 14, padding: '0 8px' }}>
+              <span style={{ fontFamily: SERIF, fontSize: 20, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.3, color: bsTHexA(INK, 0.92) }}>{coachLine}</span>
+              <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>— {first.toUpperCase()} {tr('profile:line.attribution', { defaultValue: 'line' })}</div>
+            </div>
+          ) : null}
         </div>
 
         {/* Followers / following / follow — centered row riding with the name block
@@ -13112,6 +13223,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' }) : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</div></div>
         ) : (
         <>
+          {/* P1 · The intro film — a short pinned video on the hero. */}
+          {coachFilm ? (
+            <div style={{ marginTop: 22 }}>
+              <BSProfileFilmCard film={coachFilm} INK={INK} c={c} label={tr('profile:film.headCoach', { defaultValue: 'Intro film' })} />
+            </div>
+          ) : null}
           <div ref={activityRef} style={{ marginTop: 22 }}>
             <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: tr('profile:tab.activity', { defaultValue: 'Activity' }) },
@@ -13132,6 +13249,39 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
             <Kick>{isNutri ? tr('profile:coach.practicePhilosophy', { defaultValue: 'Practice philosophy' }) : tr('profile:coach.coachingPhilosophy', { defaultValue: 'Coaching philosophy' })}</Kick>
             <div style={{ fontFamily: SERIF, fontSize: 23, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.18, color: bsTHexA(INK, 0.92), marginTop: 8 }}>“{philosophy}”</div>
+          </div>
+          ) : null}
+
+          {/* P4 · The Business card — a grounded contact station (name over dot-leader rows). */}
+          {bizCard ? (
+          <div style={{ marginTop: 28 }}>
+            <Kick>{tr('profile:biz.head', { defaultValue: 'The practice' })}</Kick>
+            <div style={{ ...card, padding: '16px 18px', margin: '12px -22px 0', borderRadius: 0, borderLeft: `3px solid ${c}`, borderRight: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{bizCard.name}</div>
+              {[[tr('profile:biz.where', { defaultValue: 'Where' }), bizCard.where], [tr('profile:biz.hours', { defaultValue: 'Hours' }), bizCard.hours], [tr('profile:biz.find', { defaultValue: 'Find' }), bizCard.handle]].filter(([, v]) => v).map(([lbl, v]) => (
+                <div key={lbl} style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
+                  <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{lbl}</span>
+                  <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.28)}`, transform: 'translateY(-3px)' }} />
+                  <span style={{ flex: 'none', fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          ) : null}
+
+          {/* P5 · The Wins wall — up to 3 pinned REAL reviews (resolved by id + owner). */}
+          {winsWall.length ? (
+          <div style={{ marginTop: 28 }}>
+            <Kick>{tr('profile:wins.head', { defaultValue: 'Wins wall' })}</Kick>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {winsWall.map((r) => (
+                <div key={r.id} style={{ ...card, padding: '14px 16px', borderLeft: `3px solid ${c}` }}>
+                  <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.4, color: bsTHexA(INK, 0.9) }}>“{r.text}”</div>
+                  <div style={{ marginTop: 9, fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c }}>★ {Math.round(r.rating || 0)}/10 · {tr('profile:wins.pinned', { defaultValue: 'Real review · Pinned' })}</div>
+                  <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.5) }}>— {r.author || 'Member'}</div>
+                </div>
+              ))}
+            </div>
           </div>
           ) : null}
 
@@ -13299,7 +13449,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach pickReviews={(liveReviews || []).filter((r) => r && r.ownerId === person.userId)} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
