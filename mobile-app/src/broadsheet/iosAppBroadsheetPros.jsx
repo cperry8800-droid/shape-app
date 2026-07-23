@@ -6789,14 +6789,24 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
     return () => { on = false; };
   }, [role, reloadKey]);
   const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'];
+  const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'];
   const MAX_BYTES = 10 * 1024 * 1024;
+  // Accept an image by MIME, OR — when the picker omits the type (camera-roll
+  // HEIC, content-provider selections) — by an allowlisted filename extension,
+  // so those devices aren't hard-failed before upload's own ext fallback runs.
+  const isImageFile = (file) => {
+    const type = (file.type || '').toLowerCase();
+    if (type) return IMAGE_MIMES.includes(type);
+    const ext = (file.name || '').toLowerCase().split('.').pop();
+    return IMAGE_EXTS.includes(ext);
+  };
   const flashErr = (msg) => { setErr(msg); setTimeout(() => setErr(''), 2600); };
   // Returns the uploaded { url } or null (having surfaced an honest message).
   const uploadImage = async (file) => {
     if (!file) return null;
     if (!window.ShapeCoachMedia?.upload) { flashErr(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); return null; }
     // Images only, ≤10 MB — rejected before any bytes move (the bucket allows video).
-    if (!IMAGE_MIMES.includes((file.type || '').toLowerCase()) || file.size > MAX_BYTES) {
+    if (!isImageFile(file) || file.size > MAX_BYTES) {
       flashErr(tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }));
       return null;
     }
@@ -6831,7 +6841,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
       onClose();
     } catch (e) {
       if (e && e.code === 'LISTING_MEDIA_UNAVAILABLE') setErr(tr('coach:listing.unavailable', { defaultValue: "Listing photos aren't available yet — try again after the next update." }));
-      else setErr(String((e && e.message) || 'Could not save — are you signed in as an approved coach?'));
+      else setErr(String((e && e.message) || tr('coach:listing.saveError', { defaultValue: 'Could not save — are you signed in as an approved coach?' })));
     }
     setBusy(false);
   };
@@ -6847,22 +6857,22 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <div style={{ width: aspect === 'wide' ? 108 : 60, height: 60, flexShrink: 0, borderRadius: 12, border: `1px solid ${t.RULE}`, background: url ? `center/cover no-repeat url("${url}")` : t.PAPER2, backgroundColor: t.PAPER2 }} aria-hidden="true" />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {chip(url ? '↻ Replace' : tr('coach:listing.addPhoto', { defaultValue: '＋ Add photo' }), () => inputRef.current && inputRef.current.click())}
-          {url && chip('× Remove', onRemove)}
+          {chip(url ? `↻ ${tr('coach:listing.replace', { defaultValue: 'Replace' })}` : tr('coach:listing.addPhoto', { defaultValue: '＋ Add photo' }), () => inputRef.current && inputRef.current.click())}
+          {url && chip(`× ${tr('coach:common.remove', { defaultValue: 'Remove' })}`, onRemove)}
         </div>
       </div>
     </div>
   );
   const sheet = (
     <div onClick={() => !busy && !uploading && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your listing photos" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:listing.editAria', { defaultValue: 'Edit your listing photos' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
         <input ref={portraitRef} type="file" accept="image/*" onChange={pickSlot(setPortrait)} style={{ display: 'none' }} />
         <input ref={coverRef} type="file" accept="image/*" onChange={pickSlot(setCover)} style={{ display: 'none' }} />
         <input ref={galleryRef} type="file" accept="image/*" onChange={pickGallery} style={{ display: 'none' }} />
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>{tr('coach:listing.title', { defaultValue: 'Listing photos' })}</div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' })}</div>
         {!meta.loaded ? (
-          <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+          <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.loading', { defaultValue: 'Loading…' })}</div>
         ) : meta.loadError ? (
           <div style={{ padding: '18px 0' }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:listing.loadError', { defaultValue: "Couldn't load your listing photos — your saved photos are untouched. Try again." })}</div>
@@ -6871,7 +6881,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
         ) : !meta.signedIn ? (
           <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })}</div>
         ) : !meta.hasRow ? (
-          <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>Your listing box appears once your coach application is approved.</div>
+          <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:listing.pending', { defaultValue: 'Your listing box appears once your coach application is approved.' })}</div>
         ) : (<>
           {slot(tr('coach:listing.portrait', { defaultValue: 'Portrait · you' }), portrait, portraitRef, () => setPortrait(null), 'square')}
           {slot(tr('coach:listing.cover', { defaultValue: 'Cover · your background' }), cover, coverRef, () => setCover(null), 'wide')}
@@ -6894,7 +6904,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
           {err && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST }}>{err}</div>}
           <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
             <button onClick={() => !busy && !uploading && onClose()} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
-            <button onClick={save} disabled={busy || uploading} style={{ flex: 1, padding: 14, border: 0, background: accent, color: t.isLight ? '#fff' : '#0c0a08', cursor: busy || uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', opacity: busy || uploading ? 0.6 : 1 }}>{busy ? 'Saving…' : tr('coach:listing.save', { defaultValue: 'Save listing' })}</button>
+            <button onClick={save} disabled={busy || uploading} style={{ flex: 1, padding: 14, border: 0, background: accent, color: t.isLight ? '#fff' : '#0c0a08', cursor: busy || uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', opacity: busy || uploading ? 0.6 : 1 }}>{busy ? tr('coach:common.saving', { defaultValue: 'Saving…' }) : tr('coach:listing.save', { defaultValue: 'Save listing' })}</button>
           </div>
         </>)}
       </div>

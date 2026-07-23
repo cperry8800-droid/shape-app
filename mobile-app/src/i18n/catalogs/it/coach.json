@@ -878,5 +878,9 @@
   "listing.saved": "Annuncio salvato",
   "listing.unavailable": "Le foto dell’annuncio non sono ancora disponibili — riprova dopo il prossimo aggiornamento.",
   "listing.loadError": "Impossibile caricare le foto dell’annuncio — le tue foto salvate sono intatte. Riprova.",
-  "listing.retry": "Riprova"
+  "listing.retry": "Riprova",
+  "listing.replace": "Sostituisci",
+  "listing.pending": "Il tuo riquadro appare una volta approvata la tua candidatura come coach.",
+  "listing.saveError": "Impossibile salvare — hai effettuato l’accesso come coach approvato?",
+  "listing.editAria": "Modifica le foto del tuo annuncio"
 }

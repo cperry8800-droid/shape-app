@@ -878,5 +878,9 @@
   "listing.saved": "Anuncio guardado",
   "listing.unavailable": "Las fotos del anuncio aún no están disponibles: inténtalo de nuevo después de la próxima actualización.",
   "listing.loadError": "No se pudieron cargar las fotos del anuncio: tus fotos guardadas están intactas. Inténtalo de nuevo.",
-  "listing.retry": "Reintentar"
+  "listing.retry": "Reintentar",
+  "listing.replace": "Reemplazar",
+  "listing.pending": "Tu ficha aparece cuando se apruebe tu solicitud como coach.",
+  "listing.saveError": "No se pudo guardar: ¿has iniciado sesión como coach aprobado?",
+  "listing.editAria": "Editar las fotos de tu anuncio"
 }

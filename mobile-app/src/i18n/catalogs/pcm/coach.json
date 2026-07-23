@@ -878,5 +878,9 @@
   "listing.saved": "Listing don save",
   "listing.unavailable": "Listing foto never ready yet — try again after di next update.",
   "listing.loadError": "We no fit load your listing foto — di foto wey you save dey safe. Try again.",
-  "listing.retry": "Try again"
+  "listing.retry": "Try again",
+  "listing.replace": "Change am",
+  "listing.pending": "Your listing box go show once dem approve your coach application.",
+  "listing.saveError": "We no fit save — you sign in as coach wey dem approve?",
+  "listing.editAria": "Edit your listing foto"
 }

@@ -878,5 +878,9 @@
   "listing.saved": "Anzeige gespeichert",
   "listing.unavailable": "Anzeigenfotos sind noch nicht verfügbar — bitte nach dem nächsten Update erneut versuchen.",
   "listing.loadError": "Deine Anzeigenfotos konnten nicht geladen werden — deine gespeicherten Fotos bleiben unberührt. Erneut versuchen.",
-  "listing.retry": "Erneut versuchen"
+  "listing.retry": "Erneut versuchen",
+  "listing.replace": "Ersetzen",
+  "listing.pending": "Deine Anzeigenbox erscheint, sobald deine Coach-Bewerbung genehmigt ist.",
+  "listing.saveError": "Speichern fehlgeschlagen — bist du als freigegebener Coach angemeldet?",
+  "listing.editAria": "Deine Anzeigenfotos bearbeiten"
 }

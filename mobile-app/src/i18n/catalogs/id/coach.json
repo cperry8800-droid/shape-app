@@ -878,5 +878,9 @@
   "listing.saved": "Listing disimpan",
   "listing.unavailable": "Foto listing belum tersedia — coba lagi setelah pembaruan berikutnya.",
   "listing.loadError": "Tidak dapat memuat foto listing — foto tersimpan Anda tetap aman. Coba lagi.",
-  "listing.retry": "Coba lagi"
+  "listing.retry": "Coba lagi",
+  "listing.replace": "Ganti",
+  "listing.pending": "Kotak listing Anda muncul setelah aplikasi pelatih Anda disetujui.",
+  "listing.saveError": "Tidak dapat menyimpan — apakah Anda masuk sebagai pelatih yang disetujui?",
+  "listing.editAria": "Edit foto listing Anda"
 }

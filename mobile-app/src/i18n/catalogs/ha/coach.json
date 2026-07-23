@@ -878,5 +878,9 @@
   "listing.saved": "An ajiye talla",
   "listing.unavailable": "Hotunan talla ba su samu ba tukuna — sake gwadawa bayan sabuntawa ta gaba.",
   "listing.loadError": "An kāsa loda hotunan talla — hotunanka da aka ajiye ba su canza ba. Sake gwadawa.",
-  "listing.retry": "Sake gwadawa"
+  "listing.retry": "Sake gwadawa",
+  "listing.replace": "Maye gurbi",
+  "listing.pending": "Akwatin talla naka zai bayyana da zarar an amince da neman ka na horarwa.",
+  "listing.saveError": "An kāsa ajiyewa — ka shiga a matsayin horarwa da aka amince da shi?",
+  "listing.editAria": "Gyara hotunan talla naka"
 }

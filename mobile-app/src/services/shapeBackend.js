@@ -4520,7 +4520,10 @@ async function uploadCoachMedia(file, opts = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
   if (!file) throw new Error('No file selected.');
   const isVideo = (file.type || '').startsWith('video/');
-  const ext = ((file.type && file.type.split('/')[1]) || (isVideo ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideo ? 'mp4' : 'jpg');
+  // Prefer the MIME subtype; fall back to the filename extension when the picker
+  // omits the type (camera-roll HEIC etc.) so the stored key keeps a real ext.
+  const nameExt = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : '';
+  const ext = ((file.type && file.type.split('/')[1]) || nameExt || (isVideo ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideo ? 'mp4' : 'jpg');
   // Optional opaque sub-folder (e.g. 'listing') so a surface's uploads group
   // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
   const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';

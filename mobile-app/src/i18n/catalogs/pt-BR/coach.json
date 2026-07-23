@@ -878,5 +878,9 @@
   "listing.saved": "Anúncio salvo",
   "listing.unavailable": "As fotos do anúncio ainda não estão disponíveis — tente novamente após a próxima atualização.",
   "listing.loadError": "Não foi possível carregar as fotos do anúncio — suas fotos salvas estão intactas. Tente novamente.",
-  "listing.retry": "Tentar novamente"
+  "listing.retry": "Tentar novamente",
+  "listing.replace": "Substituir",
+  "listing.pending": "Seu quadro aparece assim que sua candidatura de coach for aprovada.",
+  "listing.saveError": "Não foi possível salvar — você entrou como coach aprovado?",
+  "listing.editAria": "Editar as fotos do seu anúncio"
 }
