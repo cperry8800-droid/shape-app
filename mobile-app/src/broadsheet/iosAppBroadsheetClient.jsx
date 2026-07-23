@@ -11202,6 +11202,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // swallowing them, and only close (onSave) once the write actually lands.
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
     if (!uid) { window.__bsToast?.('Sign in to save your profile.', 'err'); return; }
+    // A wall/cover upload still in flight would be omitted from the saved doc AND
+    // left orphaned in storage (onSave closes the editor before it lands) — wait.
+    if (wallBusy || coverBusy) { window.__bsToast?.('Hang on — a photo is still uploading.', 'err'); return; }
     setBusy(true);
     const doc = {
       ...init,
@@ -11405,7 +11408,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
         </button>
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
+          <button onClick={save} disabled={busy || wallBusy || coverBusy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: (busy || wallBusy || coverBusy) ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
         </div>
       </div>
     </div>,

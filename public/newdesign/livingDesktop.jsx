@@ -816,6 +816,13 @@ function dkLinkHref(key, val) {
   if (host && (low === host || low.startsWith(host + "/"))) return "https://" + v;
   return "https://" + (pre ? pre + v : v);
 }
+// Storage-key extension from the file's MIME type (sanitized), NOT its filename —
+// a JPEG saved as ".jfif" / with no extension would otherwise yield a public URL
+// whose suffix bsOwnMediaUrl's image allowlist rejects, so the wall photo the user
+// just added is SILENTLY dropped at save. Mirrors the canonical community uploader.
+function dkImgExt(file) {
+  return (((file && file.type && file.type.split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg");
+}
 function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave }) {
   // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
   // (M2/M4) and this block (M1/M3) at once — the hero reads d.custom, which the
@@ -953,7 +960,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${(file.name.split(".").pop() || "jpg")}`;
+      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${dkImgExt(file)}`;
       const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
@@ -976,7 +983,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/cover-${Date.now()}.${(file.name.split(".").pop() || "jpg")}`;
+      const path = `${u.user.id}/cover-${Date.now()}.${dkImgExt(file)}`;
       const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
@@ -989,6 +996,9 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const embedPreview = dkSpotifyEmbed(songUrl);
   const save = async () => {
+    // A wall/cover upload still in flight would be omitted from the saved doc AND
+    // left orphaned in storage (onSave closes the editor before it resolves) — wait.
+    if (wallBusy || coverBusy) { setErr("Hang on — a photo is still uploading."); return; }
     setBusy(true); setErr("");
     const doc = {
       ...init,
@@ -1163,7 +1173,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
           </div>
         </div>
         {err && <div role="alert" style={{ marginBottom: 10, fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{err}</div>}
-        <button onClick={save} disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: busy ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
+        <button onClick={save} disabled={busy || wallBusy || coverBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
       </div>
     </div>
   );
