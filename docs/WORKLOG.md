@@ -206,7 +206,8 @@ changelog whenever something ships.
 > Post-merge Codex P2s amended in the records PR: listing role rides the
 > profile URL · image-extension allowlist at the normalizer · the wins wall
 > re-keyed onto an immutable `coach_reviews.owner_id` (records-round ruling —
-> a new PR-D migration + backfill; resolve by id + owner, NULL never renders).
+> a new PR-D migration with a CONSERVATIVE backfill: single-match + tenure
+> check, never a bare slug join; resolve by id + owner, NULL never renders).
 > **Build order once un-paused:** box PR A
 > (migration + module + mobile) → B (web) → profile PR C (M1–M4) → D (P1–P5)
 > → E (M5 + bucket migration). Handoff:
@@ -1002,7 +1003,10 @@ changelog whenever something ships.
   each riding its build PR — the dedicated `member-films` bucket in PR E
   (video mimes only, 60 MB; a community-photos widening was explicitly
   rejected — existing photo paths don't check `file.type`) and
-  `coach_reviews.owner_id` + backfill in PR D (the wall's owner binding).
+  `coach_reviews.owner_id` in PR D with a **conservative backfill**
+  (single-match + tenure check — never a bare slug join, which would
+  reattach a previous slug-holder's reviews after a rename/reuse;
+  multi-match/unmatched/pre-tenure rows stay NULL and can't be pinned).
 - **Review-quota discipline held**: every round batched into one commit + one
   summary comment; Codex re-triggers HELD until CodeRabbit settled, then ONE
   pass per PR. **A CodeRabbit security finding was declined with rationale
@@ -1015,8 +1019,11 @@ changelog whenever something ships.
   at the normalizer (the bucket allows video for plan clips — editors alone
   aren't the boundary); and — CodeRabbit escalated on the records PR itself,
   correctly — the wins wall's owner binding moved OFF the mutable slug onto a
-  new **immutable `coach_reviews.owner_id`** (PR-D migration + slug→provider
-  backfill; resolve by id + owner; NULL never renders — a slug collision
+  new **immutable `coach_reviews.owner_id`** (PR-D migration; the backfill is
+  CONSERVATIVE — a row stamps only on a single provider match whose row
+  predates the review, since no slug-history exists and a bare current-state
+  join would hand a previous slug-holder's reviews to the current holder;
+  everything unprovable stays NULL and never renders — a slug collision
   rendering another coach's words as this coach's PINNED testimonial would be
   a fabricated credential).
 - **⚠ OWNER MIGRATIONS (ride the build PRs, NOT yet written) — THREE across
