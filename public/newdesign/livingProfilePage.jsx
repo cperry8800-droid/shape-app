@@ -129,7 +129,20 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   }, [st.isSelf, st.uid]);
 
   const onMessage = () => {
-    if (st.isSelf) { window.location.href = "/newdesign/ClientMe.html"; return; }
+    if (st.isSelf) {
+      // "Edit profile" on your own profile → wherever your account controls live.
+      // A CLIENT's moved to the Settings tab (ClientMeSettings — details, billing,
+      // privacy, export/delete). A COACH's ride their dashboard profile (the
+      // customizer + settings extras) and the coach apps have no #settings route,
+      // so a coach goes to #profile — ClientApp's role guard forwards them to
+      // their OWN app's profile with the hash preserved. Both branches hit
+      // ClientApp.html directly (not the ClientMe.html alias), so no route can
+      // land a coach on a #settings hash their app doesn't define.
+      const role = st.row && st.row.role;
+      const isCoach = role === "trainer" || role === "nutritionist";
+      window.location.href = "/newdesign/ClientApp.html" + (isCoach ? "#profile" : "#settings");
+      return;
+    }
     const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
     try { if (window.__openChat) { window.__openChat({ who: nm }); return; } } catch (e) {}
     const b = document.getElementById("shape-global-chat-button"); if (b) { b.click(); return; }

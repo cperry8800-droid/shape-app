@@ -17,6 +17,7 @@ function clientNavItems(active) {
     { label: "Habits",    slug: "habits" },
     { label: "Goal",      slug: "goal" },
     { label: "Profile",   slug: "profile" },
+    { label: "Settings",  slug: "settings" },
   ];
   return items.map(n => ({ ...n, href: "ClientApp.html#" + n.slug, active: n.label.toLowerCase() === active.toLowerCase() }));
 }

@@ -289,15 +289,16 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
         {/* followers / following / posts — always public, live links */}
         {follow && (
           <div style={{ display: "flex", gap: 26, marginTop: 22, alignItems: "baseline" }}>
-            <button onClick={() => follow.openList && follow.openList("followers")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+            {/* color pinned: buttons take the UA default (black), not the page ink */}
+            <button onClick={() => follow.openList && follow.openList("followers")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: LV_INK }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.followers}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Followers</span>
             </button>
-            <button onClick={() => follow.openList && follow.openList("following")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+            <button onClick={() => follow.openList && follow.openList("following")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: LV_INK }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.following}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Following</span>
             </button>
-            <button onClick={() => follow.openPosts && follow.openPosts()} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+            <button onClick={() => follow.openPosts && follow.openPosts()} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: LV_INK }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.posts != null ? follow.posts : 0}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Posts</span>
             </button>
