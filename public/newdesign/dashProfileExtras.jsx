@@ -145,8 +145,8 @@ function CoachCredentialsCard() {
 function CoachListingMediaCard() {
   const mono = "'JetBrains Mono', monospace";
   const sans = "'Space Grotesk', sans-serif";
-  const teal = "#2ee0c4";
   const rust = "#e07856";
+  const teal = (typeof window !== "undefined" && window.TEAL_BRIGHT) || "#2ee0c4"; // pageShell's shared TEAL_BRIGHT; literal fallback if it hasn't loaded
   const lib = (typeof window !== "undefined" && window.ShapeListingLib) || null;
   const GMAX = (lib && lib.BS_LISTING_GALLERY_MAX) || 6;
   const CMAX = (lib && lib.BS_LISTING_CAPTION_MAX) || 80;
