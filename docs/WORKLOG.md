@@ -206,8 +206,9 @@ changelog whenever something ships.
 > Post-merge Codex P2s amended in the records PR: listing role rides the
 > profile URL · image-extension allowlist at the normalizer · the wins wall
 > re-keyed onto an immutable `coach_reviews.owner_id` (records-round ruling —
-> a new PR-D migration with a CONSERVATIVE backfill: single-match + tenure
-> check, never a bare slug join; resolve by id + owner, NULL never renders).
+> a new PR-D migration with **NO backfill**: no immutable slug-history exists,
+> so no legacy row is provable — write-path stamping only; resolve by id +
+> owner, NULL never renders or pins).
 > **Build order once un-paused:** box PR A
 > (migration + module + mobile) → B (web) → profile PR C (M1–M4) → D (P1–P5)
 > → E (M5 + bucket migration). Handoff:
@@ -1003,10 +1004,13 @@ changelog whenever something ships.
   each riding its build PR — the dedicated `member-films` bucket in PR E
   (video mimes only, 60 MB; a community-photos widening was explicitly
   rejected — existing photo paths don't check `file.type`) and
-  `coach_reviews.owner_id` in PR D with a **conservative backfill**
-  (single-match + tenure check — never a bare slug join, which would
-  reattach a previous slug-holder's reviews after a rename/reuse;
-  multi-match/unmatched/pre-tenure rows stay NULL and can't be pinned).
+  `coach_reviews.owner_id` in PR D with **NO backfill** (final ruling:
+  every heuristic mis-attaches after a slug rename/reuse — a bare slug
+  join hands the previous holder's reviews to the current one, and a
+  provider-created_at tenure check fails because row age is not
+  slug-tenure age; no immutable slug-history exists, so ALL legacy rows
+  stay NULL — never render, can't be pinned; the write path stamps every
+  new review).
 - **Review-quota discipline held**: every round batched into one commit + one
   summary comment; Codex re-triggers HELD until CodeRabbit settled, then ONE
   pass per PR. **A CodeRabbit security finding was declined with rationale
@@ -1019,13 +1023,14 @@ changelog whenever something ships.
   at the normalizer (the bucket allows video for plan clips — editors alone
   aren't the boundary); and — CodeRabbit escalated on the records PR itself,
   correctly — the wins wall's owner binding moved OFF the mutable slug onto a
-  new **immutable `coach_reviews.owner_id`** (PR-D migration; the backfill is
-  CONSERVATIVE — a row stamps only on a single provider match whose row
-  predates the review, since no slug-history exists and a bare current-state
-  join would hand a previous slug-holder's reviews to the current holder;
-  everything unprovable stays NULL and never renders — a slug collision
-  rendering another coach's words as this coach's PINNED testimonial would be
-  a fabricated credential).
+  new **immutable `coach_reviews.owner_id`** (PR-D migration; **no backfill**
+  — three review rounds established that every candidate heuristic
+  mis-attaches after a slug rename/reuse and no immutable slug-history
+  source exists, so ownership of a legacy row is unprovable; all
+  pre-migration rows stay NULL — never render, can't be pinned — and the
+  write path stamps every new review; a slug collision rendering another
+  coach's words as this coach's PINNED testimonial would be a fabricated
+  credential).
 - **⚠ OWNER MIGRATIONS (ride the build PRs, NOT yet written) — THREE across
   the wave:** `2026-07-23-provider-listing-media.sql` (box PR A) ·
   `2026-07-23-coach-reviews-owner-id.sql` (profile PR D) ·
