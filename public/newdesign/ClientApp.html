@@ -22,7 +22,16 @@
     .then(function (d) {
       var role = d && d.user && d.user.role;
       var dash = role === 'trainer' ? 'TrainerApp.html' : role === 'nutritionist' ? 'NutritionistApp.html' : null;
-      if (dash) window.location.replace('/newdesign/' + dash + (window.location.hash || ''));
+      if (dash) {
+        // Reconcile client-only routes when forwarding a coach. #settings is a
+        // client tab; the coach SPAs have no such route and fall back to Today
+        // for unknown hashes. A coach's account controls ride their profile, so
+        // translate #settings -> #profile. This is the ONE place that knows the
+        // role, so it's where the role-blind ClientMe.html alias (which now
+        // targets #settings) is made safe for coaches following an old link.
+        var hash = window.location.hash === '#settings' ? '#profile' : (window.location.hash || '');
+        window.location.replace('/newdesign/' + dash + hash);
+      }
     })
     .catch(function () {});
 })();
@@ -104,7 +113,7 @@ function ClientSettingsPage() {
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
       <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
+      <div className="dash-shell-grid" style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
         <DashSidebar navItems={clientNavItems("settings")} payoutCard={clientPayoutCard} />
         <main style={{ padding: "24px 8px 80px", minWidth: 0, overflowX: "hidden" }}>
           <ClientMeSettings />
