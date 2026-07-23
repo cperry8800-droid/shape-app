@@ -548,46 +548,51 @@ function RelationBlock({ d }) {
   );
 }
 
-// ── Feed — desktop 2-column card grid ──────────────────────────
+// ── Feed — the Wire Dispatch grammar (app parity, 2026-07-23) ──────────────
+// Zero-box dispatches separated by ink→heat rules — the mobile app's
+// BSActivityCard (hideAuthor / profile feed) look: a slim header (time · type
+// tag with a heat underline), a serif title (the website's editorial face
+// stays), an eyebrow-above-figure hero register with a heat rule drawn under
+// the figure, then the human line. Heat is LINE-ONLY (tierOf(d).color) — figures
+// read ink. This drops the old expedition-log grammar (a dashed trail +
+// rotated-diamond waypoint nodes nested INSIDE the Activity tab's own heat rail,
+// a redundant second timeline); entries now sit flat on that rail like the app's
+// dispatches. Section head (feedLabel + ＋ Post) + honest redaction carry over.
 function FeedBlock({ d, direction, owner }) {
   const c = tierOf(d).color;
-  const reduced = useReducedMotion();
   const shown = d.feed.filter(it => lvFeedVisible(it.vis, owner));
   const hidden = d.feed.length - shown.length;
-  const mark = direction === "terrain" ? "▲ " : "";
   return (
     <div style={dStation()}>
       <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? "＋ Post" : null} />
       {shown.length === 0 && hidden === 0 && <DRedact label="No activity yet" />}
-      {/* expedition log — a dashed trail descending with waypoint chevrons (matches the mobile app timeline); zero-box entries on the trail */}
-      <div style={{ position: "relative", paddingLeft: 30 }}>
-        {shown.length > 0 && <div style={{ position: "absolute", left: 7, top: 7, bottom: 12, width: 0, borderLeft: `1.5px dashed ${dHexA(c, 0.4)}` }} />}
-        {shown.map((it, i) => {
-          const hot = it.k === "win" || it.k === "pr";
-          return (
-            <div key={i} style={{ position: "relative", paddingBottom: 22, borderBottom: i < shown.length - 1 ? `1px solid ${dHexA(LV_INK, 0.07)}` : 0, marginBottom: i < shown.length - 1 ? 22 : 0 }}>
-              <div style={{ position: "absolute", left: -30, top: 4, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: LV_BG, border: `2px solid ${c}` }} />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <span style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hot ? c : dHexA(LV_INK, 0.55) }}>{mark}{LV_FEED[it.k] || it.k}</span>
-                <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>{it.time}</span>
-              </div>
-              <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 10 }}>{it.t}</div>
-              <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "7px 0 0", textWrap: "pretty" }}>{it.b}</p>
-              {it.metric && (
-                <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 13 }}>
-                  <div style={{ flex: 1, height: 1, background: dHexA(LV_INK, 0.12) }} />
-                  <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{it.metric[0]}</span>
-                  <span style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: hot ? c : LV_INK }}>{it.metric[1]}</span>
-                </div>
-              )}
+      {shown.map((it, i) => (
+        <div key={i}>
+          {/* slim header — relative time left, type tag right with a heat underline */}
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.42) }}>{it.time}</span>
+            <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.7), borderBottom: `1px solid ${c}`, paddingBottom: 3, lineHeight: 1 }}>{LV_FEED[it.k] || it.k}</span>
+          </div>
+          {/* serif title — the editorial face is kept on the website by design */}
+          <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 12 }}>{it.t}</div>
+          {/* hero register — eyebrow ABOVE the figure, a heat rule under it; only
+              when the entry carries a metric (never a fabricated placeholder) */}
+          {it.metric && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{it.metric[0]}</div>
+              <div style={{ fontFamily: dSerif, fontSize: 34, fontWeight: 400, letterSpacing: "-0.03em", lineHeight: 0.95, color: LV_INK, marginTop: 3 }}>{it.metric[1]}</div>
+              <div aria-hidden="true" style={{ height: 2, marginTop: 10, background: `linear-gradient(90deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)} 55%, transparent)` }} />
             </div>
-          );
-        })}
-      </div>
+          )}
+          <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "8px 0 0", textWrap: "pretty" }}>{it.b}</p>
+          {/* ink→heat separator between dispatches (suppressed on the last) */}
+          {i < shown.length - 1 && (
+            <div aria-hidden="true" style={{ height: 2, margin: "22px 0", background: `linear-gradient(90deg, ${dHexA(LV_INK, 0.5)}, ${dHexA(c, 0.7)} 55%, transparent)` }} />
+          )}
+        </div>
+      ))}
       {!owner && hidden > 0 && (
-        <div style={{ marginTop: shown.length ? 16 : 0 }}><DRedact label={`${hidden} private ${hidden === 1 ? "entry" : "entries"} hidden`} /></div>
+        <div style={{ marginTop: shown.length ? 20 : 0 }}><DRedact label={`${hidden} private ${hidden === 1 ? "entry" : "entries"} hidden`} /></div>
       )}
     </div>
   );
