@@ -10214,7 +10214,7 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
@@ -10229,11 +10229,13 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
   const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
   const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => stats && stats[k] ? { k, ...stats[k] } : null).filter(Boolean).slice(0, 3);
-  // M1 (wall) / M3 (shelf) — normalized at render; wall URLs bound to the
-  // profile owner's own community-photos folder (userId), so a doc can't point
-  // at a foreign object. Absent/junk → empty → the station doesn't render.
-  const wall = bsProfileWall(cu.wall, userId);
-  const shelf = bsProfileShelf(cu.shelf);
+  // M1 (wall) / M3 (shelf) — member (Terrain) features, normalized at render; wall
+  // URLs are bound to the profile owner's own community-photos folder (userId), so
+  // a doc can't point at a foreign object. Absent/junk → empty → no station. Gated
+  // to members: the profile_custom doc is shared across roles, so a client→coach
+  // switch must not surface these on the coach Signal profile (the web !coach gate).
+  const wall = coach ? [] : bsProfileWall(cu.wall, userId);
+  const shelf = coach ? [] : bsProfileShelf(cu.shelf);
   const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length && !wall.length && !shelf.length;
   if (empty && !isSelf) return null;
   const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
@@ -11183,7 +11185,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const wallRef = React.useRef(null);
   const onWallFile = async (e) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
-    if (!file || wall.length >= BS_WALL_MAX) return; setWallBusy(true);
+    if (!file || wall.length >= BS_WALL_MAX) return;
+    // Reject types the wall's image allowlist can't accept BEFORE upload — an SVG
+    // (or avif/bmp) uploads then gets dropped by bsOwnMediaUrl at save, orphaning
+    // the blob in storage. Mirrors the web dkWallExt allowlist.
+    if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.('Pick a JPG, PNG, WebP, GIF or HEIC image.', 'err'); return; }
+    setWallBusy(true);
     try { const url = await window.ShapeCommunity?.uploadPhoto?.(file); if (url) setWall((prev) => prev.length >= BS_WALL_MAX ? prev : [...prev, { url, caption: '' }]); else throw new Error('Upload failed'); }
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload photo.', 'err'); }
     finally { setWallBusy(false); }
@@ -13271,7 +13278,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (

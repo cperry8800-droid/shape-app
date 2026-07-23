@@ -823,6 +823,13 @@ function dkLinkHref(key, val) {
 function dkImgExt(file) {
   return (((file && file.type && file.type.split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg");
 }
+// The WALL must land on an extension bsOwnMediaUrl's image allowlist accepts, or
+// the normalizer drops it at save (orphaning the upload). Map the supported image
+// MIME types to their canonical suffix; anything else (svg → "svgxml", avif, bmp…)
+// returns null and is rejected BEFORE upload, so we never orphan a blob the wall
+// would then refuse.
+const DK_WALL_MIME = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/pjpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic", "image/heif": "heif" };
+function dkWallExt(file) { return (file && DK_WALL_MIME[String(file.type || "").toLowerCase()]) || null; }
 function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave }) {
   // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
   // (M2/M4) and this block (M1/M3) at once — the hero reads d.custom, which the
@@ -956,11 +963,14 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const startValid = (plib && plib.bsValidStartDate) ? plib.bsValidStartDate(startDate) : null;
   const onWallFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
-    if (!file || wall.length >= WMAX) return; setWallBusy(true);
+    if (!file || wall.length >= WMAX) return;
+    const ext = dkWallExt(file);
+    if (!ext) { alert("Pick a JPG, PNG, WebP, GIF or HEIC image."); return; }
+    setWallBusy(true);
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${dkImgExt(file)}`;
+      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
       const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
