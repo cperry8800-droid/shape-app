@@ -138,7 +138,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       // → the role guard forwards a coach to their own app's profile.
       const role = st.row && st.row.role;
       const isCoach = role === "trainer" || role === "nutritionist";
-      window.location.href = isCoach ? "/newdesign/ClientMe.html" : "/newdesign/ClientApp.html#settings";
+      window.location.href = isCoach ? "/newdesign/ClientMe.html#profile" : "/newdesign/ClientApp.html#settings";
       return;
     }
     const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
