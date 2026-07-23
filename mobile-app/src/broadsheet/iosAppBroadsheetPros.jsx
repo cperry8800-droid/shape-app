@@ -8,6 +8,7 @@ import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
+import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
@@ -6756,15 +6757,17 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
   const [cover, setCover] = React.useState(null);
   const [gallery, setGallery] = React.useState([]); // [{ id, url, caption }] — stable keys survive mid-list deletes
   const nextId = React.useRef(0);
-  const [meta, setMeta] = React.useState({ loaded: false, signedIn: true, hasRow: true });
+  const [meta, setMeta] = React.useState({ loaded: false, signedIn: true, hasRow: true, loadError: false });
   const [busy, setBusy] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [err, setErr] = React.useState('');
+  const [reloadKey, setReloadKey] = React.useState(0);
   const portraitRef = React.useRef(null);
   const coverRef = React.useRef(null);
   const galleryRef = React.useRef(null);
   React.useEffect(() => {
     let on = true;
+    setMeta((m) => ({ ...m, loaded: false, loadError: false }));
     (async () => {
       try {
         const r = await window.ShapeListingMedia?.mine?.(role);
@@ -6774,12 +6777,17 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
           setPortrait(m.portrait || null);
           setCover(m.cover || null);
           setGallery((Array.isArray(m.gallery) ? m.gallery : []).map((g) => ({ id: nextId.current++, url: g.url, caption: g.caption || '' })));
-          setMeta({ loaded: true, signedIn: r.signedIn !== false, hasRow: !!r.hasRow });
-        } else setMeta({ loaded: true, signedIn: false, hasRow: false });
-      } catch (e) { if (on) setMeta({ loaded: true, signedIn: true, hasRow: true }); }
+          setMeta({ loaded: true, signedIn: r.signedIn !== false, hasRow: !!r.hasRow, loadError: false });
+        } else setMeta({ loaded: true, signedIn: false, hasRow: false, loadError: false });
+      } catch (e) {
+        // A transient fetch failure must NOT read as "no media" — that would let
+        // Save persist an empty doc over the coach's real photos. Flag the error
+        // so the render blocks the editor and offers a retry.
+        if (on) setMeta({ loaded: true, signedIn: true, hasRow: true, loadError: true });
+      }
     })();
     return () => { on = false; };
-  }, [role]);
+  }, [role, reloadKey]);
   const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'];
   const MAX_BYTES = 10 * 1024 * 1024;
   const flashErr = (msg) => { setErr(msg); setTimeout(() => setErr(''), 2600); };
@@ -6808,11 +6816,11 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
   const pickGallery = async (e) => {
     const file = (e.target.files || [])[0];
     if (e.target) e.target.value = '';
-    if (gallery.length >= 6) return;
+    if (gallery.length >= BS_LISTING_GALLERY_MAX) return;
     const m = await uploadImage(file);
-    if (m) setGallery((prev) => (prev.length >= 6 ? prev : [...prev, { id: nextId.current++, url: m.url, caption: '' }]));
+    if (m) setGallery((prev) => (prev.length >= BS_LISTING_GALLERY_MAX ? prev : [...prev, { id: nextId.current++, url: m.url, caption: '' }]));
   };
-  const setCaption = (id, v) => setGallery((prev) => prev.map((g) => (g.id === id ? { ...g, caption: v.slice(0, 80) } : g)));
+  const setCaption = (id, v) => setGallery((prev) => prev.map((g) => (g.id === id ? { ...g, caption: v.slice(0, BS_LISTING_CAPTION_MAX) } : g)));
   const rmGallery = (id) => setGallery((prev) => prev.filter((g) => g.id !== id));
   const save = async () => {
     if (busy) return;
@@ -6845,7 +6853,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
       </div>
     </div>
   );
-  return (
+  const sheet = (
     <div onClick={() => !busy && !uploading && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your listing photos" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
         <input ref={portraitRef} type="file" accept="image/*" onChange={pickSlot(setPortrait)} style={{ display: 'none' }} />
@@ -6855,6 +6863,11 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' })}</div>
         {!meta.loaded ? (
           <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+        ) : meta.loadError ? (
+          <div style={{ padding: '18px 0' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>Couldn't load your listing photos. Your saved photos are untouched — try again.</div>
+            <button onClick={() => setReloadKey((k) => k + 1)} style={{ marginTop: 12, border: `1px solid ${accent}`, background: `${accent}14`, color: accent, borderRadius: 999, padding: '8px 16px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Retry</button>
+          </div>
         ) : !meta.signedIn ? (
           <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })}</div>
         ) : !meta.hasRow ? (
@@ -6863,18 +6876,18 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
           {slot(tr('coach:listing.portrait', { defaultValue: 'Portrait · you' }), portrait, portraitRef, () => setPortrait(null), 'square')}
           {slot(tr('coach:listing.cover', { defaultValue: 'Cover · your background' }), cover, coverRef, () => setCover(null), 'wide')}
           <div style={{ marginTop: 18 }}>
-            <span style={labelStyle}>{tr('coach:listing.gallery', { defaultValue: 'Studio gallery · up to {max}', max: 6 })}</span>
+            <span style={labelStyle}>{tr('coach:listing.gallery', { defaultValue: 'Studio gallery · up to {max}', max: BS_LISTING_GALLERY_MAX })}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {gallery.map((g) => (
                 <div key={g.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: `center/cover no-repeat url("${g.url}")` }} aria-hidden="true" />
-                  <input value={g.caption} onChange={(e) => setCaption(g.id, e.target.value)} maxLength={80} placeholder={tr('coach:listing.caption', { defaultValue: 'Caption' })}
+                  <input value={g.caption} onChange={(e) => setCaption(g.id, e.target.value)} maxLength={BS_LISTING_CAPTION_MAX} placeholder={tr('coach:listing.caption', { defaultValue: 'Caption' })}
                     style={{ flex: 1, boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '9px 11px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
                   <button onClick={() => rmGallery(g.id)} aria-label="Remove photo" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
                 </div>
               ))}
             </div>
-            {gallery.length < 6 && (
+            {gallery.length < BS_LISTING_GALLERY_MAX && (
               <button onClick={() => galleryRef.current && galleryRef.current.click()} disabled={uploading || busy} style={{ marginTop: 10, width: '100%', textAlign: 'left', cursor: uploading || busy ? 'default' : 'pointer', padding: '12px 12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: uploading || busy ? 0.6 : 1 }}>{tr('coach:listing.addPhoto', { defaultValue: '＋ Add photo' })}</button>
             )}
           </div>
@@ -6887,6 +6900,10 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
       </div>
     </div>
   );
+  // Portal to the phone surface so the fixed overlay anchors to the frame, not
+  // BSPage's scroll content (a sheet opened after scrolling would render offset).
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
 }
 
 function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {}, onBack = null, onAppearance = () => {} }) {
@@ -7672,4 +7689,5 @@ window.BSNutritionistApp = BSNutritionistApp;
 
 
 Object.assign(window, { BSTrainerApp, BSNutritionistApp });
+
 

@@ -3958,7 +3958,9 @@ async function listingMediaSet(role, media) {
   // own folder; the render-side guard is defense in depth).
   const stamped = { ...(media && typeof media === 'object' && !Array.isArray(media) ? media : {}), updatedAt: new Date().toISOString() };
   const clean = bsNormalizeListingMedia(stamped, uid);
-  const { error } = await supabase.from(listingTable(role)).update({ listing_media: clean }).eq('owner_id', uid);
+  // .select('id') so a zero-row update (row vanished between load and save, or no
+  // provider row) surfaces as an error instead of a silent "saved" no-op.
+  const { data: rows, error } = await supabase.from(listingTable(role)).update({ listing_media: clean }).eq('owner_id', uid).select('id');
   if (error) {
     // Pre-migration the column doesn't exist — surface an honest retry line via a
     // stable code instead of the raw PostgREST error (the unknown-column codes).
@@ -3969,6 +3971,7 @@ async function listingMediaSet(role, media) {
     }
     throw error;
   }
+  if (!rows || rows.length === 0) throw new Error('Could not save — your coach listing was not found.');
   return clean;
 }
 window.ShapeListingMedia = { mine: listingMediaMine, set: listingMediaSet };

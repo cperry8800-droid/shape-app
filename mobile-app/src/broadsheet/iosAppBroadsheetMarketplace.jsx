@@ -409,6 +409,14 @@ function MktCoachCard({ c, onOpen, photo }) {
   );
 }
 
+// One guard for a coach/provider's listing media, shared by the combo card and
+// THE LISTING so the two sites can't drift: guard the object, validate the
+// cover, default the gallery to an array. (Portrait rides the coachPhoto ladder.)
+function mktListingMedia(entity) {
+  const lm = (entity && entity.listing_media && typeof entity.listing_media === 'object') ? entity.listing_media : {};
+  return { cover: mktValidPhoto(lm.cover), gallery: Array.isArray(lm.gallery) ? lm.gallery : [] };
+}
+
 // THE STUDIO — the coach's studio gallery as a captioned, swipeable strip.
 // Shared by the featured combo card and THE LISTING. Photos are already
 // normalized (own-bucket, image-only) by the time they reach here. Absent → null.
@@ -448,9 +456,7 @@ function MktComboCard({ c, onOpen, photo }) {
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
   const role = mktRoleColor(c);
   const { name: tierName } = mktCoachTier(c);
-  const lm = (c && c.listing_media && typeof c.listing_media === 'object') ? c.listing_media : {};
-  const cover = mktValidPhoto(lm.cover);
-  const gallery = Array.isArray(lm.gallery) ? lm.gallery : [];
+  const { cover, gallery } = mktListingMedia(c);
   const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } };
   const metaLine = [bsmRoleWord(tr, isNutri), tierName, mktShortLoc(c.loc)].filter(Boolean).join(' · ')
     + (c.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : '');
@@ -1387,9 +1393,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const roleColor = mktRoleColor(coach);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   // Listing media (normalized upstream for real coaches; authored for demo).
-  const listingMedia = (coach.listing_media && typeof coach.listing_media === 'object') ? coach.listing_media : {};
-  const listingCover = mktValidPhoto(listingMedia.cover);
-  const listingGallery = Array.isArray(listingMedia.gallery) ? listingMedia.gallery : [];
+  const { cover: listingCover, gallery: listingGallery } = mktListingMedia(coach);
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const [showProfile, setShowProfile] = useStateBSM2(false);
