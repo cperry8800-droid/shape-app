@@ -130,15 +130,17 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
 
   const onMessage = () => {
     if (st.isSelf) {
-      // "Edit profile" on your own profile. A CLIENT lands on the Settings tab —
-      // ClientMeSettings (details / log out) moved there off the profile route.
-      // A COACH keeps the profile page: their settings ride its extras, and the
-      // coach apps (TrainerApp/NutritionistApp) have no #settings route, so
-      // routing them there would fall back to Today. ClientMe.html → #profile
-      // → the role guard forwards a coach to their own app's profile.
+      // "Edit profile" on your own profile → wherever your account controls live.
+      // A CLIENT's moved to the Settings tab (ClientMeSettings — details, billing,
+      // privacy, export/delete). A COACH's ride their dashboard profile (the
+      // customizer + settings extras) and the coach apps have no #settings route,
+      // so a coach goes to #profile — ClientApp's role guard forwards them to
+      // their OWN app's profile with the hash preserved. Both branches hit
+      // ClientApp.html directly (not the ClientMe.html alias), so no route can
+      // land a coach on a #settings hash their app doesn't define.
       const role = st.row && st.row.role;
       const isCoach = role === "trainer" || role === "nutritionist";
-      window.location.href = isCoach ? "/newdesign/ClientMe.html#profile" : "/newdesign/ClientApp.html#settings";
+      window.location.href = "/newdesign/ClientApp.html" + (isCoach ? "#profile" : "#settings");
       return;
     }
     const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
