@@ -1,7 +1,7 @@
 # Coach listing media — the customized marketplace box ("E · The Combo")
 
 **Date:** 2026-07-23 · **Status:** OWNER-PICKED — concept board round complete, build queued for Opus
-**Owner rulings (2026-07-23):** coaches customize their marketplace box on web AND app with pictures of themselves + their personal business ("yes do E, this is for marketplace"). Concept **E — The Combo** (box + studio in one) is the picked look. **D (want-ad row thumbs) was offered and NOT picked** — the dense classifieds rows stay pure type unless the owner later says otherwise. Written on Fable, built on Opus (the standing split).
+**Owner rulings (2026-07-23):** coaches customize their marketplace box on web AND app with pictures of themselves + their personal business ("yes do E, this is for marketplace"). Concept **E — The Combo** (box + studio in one) is the picked look, and **D (want-ad row thumbs) is IN** (owner, later same day: "yes add D") — every dense classifieds row gains a small portrait thumb. Written on Fable, built on Opus (the standing split). **Build phase is owner-PAUSED** ("pause before you start build") — no build PR starts without an explicit go.
 
 ---
 
@@ -88,7 +88,7 @@ The existing public **`coach-media`** bucket (2026-06-09: owner-scoped `<uid>/�
    - **The re-layout is deliberate and universal** (the E pick — Codex round): every featured cell renders full-width in the new section, media or not. The **degrade ladder governs a cell's content**: no gallery → no station (storefront form) · no cover either → today's portrait-cell anatomy at full width · no portrait either → initials (today's fallback). Never an empty shelf. AC 1 exempts this section's geometry accordingly.
    - Tap anywhere (incl. a studio photo) → `setOpen(c)` (THE LISTING). Keyboard: the box is one `role="button"` like the COTW block (inner strip scrolls without activating).
 4. **THE LISTING** (`BSCoachDetailPublic`, header ~1600–1620): the coach's cover renders as the scrimmed **background** behind the whole header block — eyebrow, portrait, name, register all sit over it (absent → today's ground, byte-identical) — and a **THE STUDIO** station (same head + strip grammar, captions under each photo) lands **between the register block and the coupon**. Absent gallery → the station does not exist.
-5. **Want-ad rows (`MktRow`) untouched** — D was not picked.
+5. **Want-ad rows (`MktRow`) — D, owner-ruled in:** every row gains a small portrait **thumb** (~30×36, 2px role-color spine on its left edge) between the row number and the name — the D mock's geometry. The thumb resolves through the SAME `coachPhoto` ladder (#2); **no valid photo at any rung → a bordered initials block of identical size**, so the column stays perfectly uniform and a photo-less coach never leaves a gap. The row's dense want-ad anatomy (number · serif name · mono meta · dot leader · rate) is otherwise untouched; like the featured section, the thumb column is a deliberate universal geometry change — content per row still degrades honestly.
 6. **Demo cast:** exactly 2 demo coaches (one per role) carry a sample cover + 3-photo gallery (Unsplash interiors — the web demo-cover `mkBg` precedent) so the signed-out preview demonstrates the combo; all other demo coaches render the degrade forms, proving the mixed grid. Signed-in real coaches never inherit demo media.
 
 ### Web (PR B)
@@ -126,14 +126,14 @@ The existing public **`coach-media`** bucket (2026-06-09: owner-scoped `<uid>/�
 
 ## Honesty rules (binding)
 
-- Absence at every level renders today's content — never an empty shelf, never a placeholder image. (The featured section's geometry is the one deliberate, owner-picked exception — content still degrades honestly per cell.)
+- Absence at every level renders today's content — never an empty shelf, never a placeholder image. (The two deliberate, owner-picked geometry exceptions — the featured section's combo layout (E) and the want-ad thumb column (D) — still degrade content honestly per cell/row.)
 - Captions are coach-authored text on member screens: plain text (React-escaped), control chars stripped, never truncated into ambiguity — clamped at write with the editor showing the limit.
 - Demo media is signed-out/demo-cast only; a real coach's box shows only what that coach set.
 - No fabricated counts — `N PHOTOS` is `gallery.length`, the strip shows every photo.
 
 ## Build plan (Opus, two PRs, in order)
 
-**PR A — migration + canonical module + mobile.** Tasks: (1) `listingMedia.mjs` (`bsSafeMediaUrl` + `bsNormalizeListingMedia`) + `tests/listing-media.test.mjs` (parsed-URL rejection incl. host-less `https://` · clamp ladders · junk shapes · control-char strip · field-by-field rebuild · updatedAt passthrough) — TDD; (2) migration file + the **live authorization probe** (§Data model); (3) role-explicit `ShapeListingMedia` data layer; (4) `BSProListingMediaSheet` + shortcut row; (5) provider mapping + the `coachPhoto` ladder; (6) `MktComboCard` + featured-section swap + demo samples; (7) LISTING cover background + THE STUDIO station; (8) the 13 i18n keys ×13. Migration posted as the raw GitHub link per convention; everything degrades silently until applied.
+**PR A — migration + canonical module + mobile.** Tasks: (1) `listingMedia.mjs` (`bsSafeMediaUrl` + `bsNormalizeListingMedia`) + `tests/listing-media.test.mjs` (parsed-URL rejection incl. host-less `https://` · clamp ladders · junk shapes · control-char strip · field-by-field rebuild · updatedAt passthrough) — TDD; (2) migration file + the **live authorization probe** (§Data model); (3) role-explicit `ShapeListingMedia` data layer; (4) `BSProListingMediaSheet` + shortcut row; (5) provider mapping + the `coachPhoto` ladder; (6) `MktComboCard` + featured-section swap + demo samples; (7) the D want-ad row thumbs (ladder-resolved, uniform initials fallback); (8) LISTING cover background + THE STUDIO station; (9) the 13 i18n keys ×13. Migration posted as the raw GitHub link per convention; everything degrades silently until applied.
 
 **PR B — web.** Tasks: (1) module loader on `Marketplace.html` + the coach profile + dashboard profile pages (before page scripts; consumers null-guard); (2) `mapLiveCoach` cover/portrait mapping; (3) living-profile THE STUDIO station; (4) `dashProfileExtras` editor card. No `?v=` sweeps (precompile content-hashes).
 
@@ -141,8 +141,8 @@ The existing public **`coach-media`** bucket (2026-06-09: owner-scoped `<uid>/�
 
 ## Acceptance criteria
 
-1. A coach with nothing set renders **byte-identical** to today on: COTW, want-ad rows, THE LISTING, the web directory card, and the web profile. The featured section renders the new full-width geometry for everyone (the deliberate E re-layout), with a media-less coach's cell carrying today's cell content at the new width.
-2. Portrait only → their face in the featured box (full-width cell form), COTW, LISTING header, and the web facet gem.
+1. A coach with nothing set renders **byte-identical** to today on: COTW, THE LISTING, the web directory card, and the web profile. Two deliberate, owner-picked geometry changes apply to everyone: the featured section's full-width combo layout (E) and the want-ad rows' thumb column (D) — within both, a media-less coach's cell/row carries today's content (initials thumb, today's cell anatomy) in the new geometry.
+2. Portrait only → their face in the featured box (full-width cell form), COTW, LISTING header, the web facet gem, AND their want-ad row thumb; a photo-less coach's row shows the same-size initials block (the thumb column never gaps).
 3. \+ cover → the storefront form (mobile), the card's background band (web), AND the scrimmed background behind THE LISTING header — one upload, every background placement.
 4. \+ gallery → the full combo box, THE STUDIO on the LISTING, and the web-profile strip — captions rendering as written.
 5. **The portrait ladder, per rung:** a hand-crafted `"portrait": "javascript:alert(1)"` is dropped by the normalizer and **never rendered on either surface**; resolution then falls to `c.photo/avatar` if present, else `avatarByUser`, and **initials only when no valid avatar exists at any rung** — tests cover each level. Same scheme rule for cover + gallery URLs.
@@ -153,7 +153,6 @@ The existing public **`coach-media`** bucket (2026-06-09: owner-scoped `<uid>/�
 
 ## Out of scope / follow-ons (registered, not silently dropped)
 
-- **D · want-ad row thumbs** — offered, not picked; one-line revisit if the owner wants faces on the dense rows.
 - **The profile-customization wave** — owner-ruled "all" (2026-07-23): P1–P5 + M1–M5, spec'd separately (`2026-07-23-profile-customizations-design.md`, PR #1816); builds follow this wave. THE STUDIO already reaches the web profile via this spec's PR B.
 - **Video in the gallery** — the bucket allows video today; v1 is pictures (the owner's ask). The intro-film candidate (P1) is the video door.
 - Web spotlight/lead cards (demo-structured) — inherit nothing in v1.
