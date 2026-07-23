@@ -91,8 +91,29 @@ const CA_ROUTES = {
   score:     () => <React.Fragment><ClientScorePage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   habits:    () => <React.Fragment><ClientHabitsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   goal:      () => <ClientGoalsPage />,
-  profile:   () => <React.Fragment><LiveProfilePage demoRole="client" shell={{ navItems: clientNavItems("profile"), payoutCard: clientPayoutCard }} extras={<ClientMeSettings />} /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  profile:   () => <React.Fragment><LiveProfilePage demoRole="client" shell={{ navItems: clientNavItems("profile"), payoutCard: clientPayoutCard }} /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  settings:  () => <React.Fragment><ClientSettingsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
 };
+
+// Settings is its own dashboard tab (owner call 2026-07-23) — it used to ride the
+// profile page's extras slot, which made it render under EVERY profile tab (Music
+// included). ClientMeSettings brings its own "Settings." masthead + actions, so
+// this shell is the bare dashboard chrome (Header + sidebar + main), not DashPage
+// (whose h1 would double the title).
+function ClientSettingsPage() {
+  return (
+    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
+      <Header />
+      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
+        <DashSidebar navItems={clientNavItems("settings")} payoutCard={clientPayoutCard} />
+        <main style={{ padding: "24px 8px 80px", minWidth: 0, overflowX: "hidden" }}>
+          <ClientMeSettings />
+        </main>
+      </div>
+      <Footer />
+    </div>
+  );
+}
 function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return CA_ROUTES[h] ? h : "today"; }
 function ClientApp() {
   const [route, setRoute] = React.useState(caSlug());
