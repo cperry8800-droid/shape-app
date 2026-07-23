@@ -32,12 +32,14 @@ alter table public.coach_reviews
 -- only checks `user_id = auth.uid()`, and clients write with the public user-scoped
 -- key — so without this a signed-in coach could INSERT a coach_reviews row directly
 -- with owner_id = their own uid + a fabricated body, then pin it on their wins wall
--- (which trusts owner_id) as a "real review". This BEFORE trigger overwrites whatever
--- owner_id the client supplies with the value derived from coach_slug (the same
--- slugify the app uses), on EVERY insert/update, so owner_id can't be forged. It
--- stamps only when EXACTLY ONE provider owner matches the slug — a collision or no
--- match leaves NULL (an unprovable row is never pinnable). SECURITY DEFINER so it can
--- read the provider tables regardless of the writer.
+-- (which trusts owner_id) as a "real review". This BEFORE trigger stamps owner_id from
+-- coach_slug (the same slugify the app uses) at INSERT, so it can't be forged, and
+-- treats it as IMMUTABLE thereafter: on UPDATE it preserves OLD.owner_id, ignoring
+-- both the client's NEW value AND any later provider rename — a pinned review's
+-- ownership can never drift or be re-forged via the upsert path. It stamps only when
+-- EXACTLY ONE provider owner matches the slug — a collision or no match leaves NULL
+-- (an unprovable row is never pinnable). SECURITY DEFINER so it can read the provider
+-- tables regardless of the writer.
 create or replace function public.coach_review_owner_id()
 returns trigger
 language plpgsql
@@ -47,6 +49,12 @@ as $$
 declare
   v_owners uuid[];
 begin
+  -- Immutable after insert: keep the original stamp on every UPDATE (this also skips
+  -- the provider scan on ordinary body/rating edits — the scan runs at INSERT only).
+  if (tg_op = 'UPDATE') then
+    new.owner_id := old.owner_id;
+    return new;
+  end if;
   if new.coach_kind = 'nutritionist' then
     select array_agg(distinct owner_id) into v_owners
     from public.nutritionists

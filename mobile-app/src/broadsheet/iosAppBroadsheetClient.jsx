@@ -11236,7 +11236,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // pickers return a valid video File with an EMPTY type, and uploadCoachMedia
     // already handles the blank-MIME .mp4/.mov/.webm/.m4v case via the filename ext.
     const nameExt = (file.name || '').split('.').pop().toLowerCase();
-    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '') || ['mp4', 'mov', 'webm', 'm4v'].includes(nameExt))) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
+    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '') || (!file.type && ['mp4', 'mov', 'webm', 'm4v'].includes(nameExt)))) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
     if (file.size > 200 * 1024 * 1024) { window.__bsToast?.('That video is too large — keep it under 200 MB.', 'err'); return; }
     setFilmBusy(true);
     try { const up = await window.ShapeCoachMedia?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }

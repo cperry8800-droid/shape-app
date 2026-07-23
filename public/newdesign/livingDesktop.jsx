@@ -1006,7 +1006,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     // Accept a video MIME OR a video filename extension (some pickers return a blank
     // type for a valid video), and derive the storage ext from whichever is present.
     const nameExt = (file.name || "").split(".").pop().toLowerCase();
-    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "") || ["mp4", "mov", "webm", "m4v"].includes(nameExt))) { alert("Pick an MP4, MOV or WebM video."); return; }
+    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "") || (!file.type && ["mp4", "mov", "webm", "m4v"].includes(nameExt)))) { alert("Pick an MP4, MOV or WebM video."); return; }
     if (file.size > 200 * 1024 * 1024) { alert("That video is too large — keep it under 200 MB."); return; }
     const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || (["mp4", "mov", "webm", "m4v"].includes(nameExt) ? nameExt : "mp4");
     setFilmBusy(true);
