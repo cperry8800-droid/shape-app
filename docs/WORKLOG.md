@@ -195,16 +195,19 @@ changelog whenever something ships.
 > intro film · P2 the Line · P3 prompts · P4 business card · P5 wins wall
 > (real `coach_reviews` ids only, resolve-or-vanish); member M1 the Wall · M2
 > Start line (strict real-calendar local-date countdown) · M3 the Shelf · M4
-> the Line · M5 the Film (the wave's ONE migration: a dedicated `member-films`
-> bucket, video-mimes-only — deliberately NOT a community-photos widening).
+> the Line · M5 the Film (a dedicated `member-films` bucket, video-mimes-only
+> — deliberately NOT a community-photos widening; the profile wave carries
+> TWO migrations — the bucket in PR E + `coach_reviews.owner_id` in PR D).
 > New keys on the existing `profile_custom` doc — zero new RPCs/routes;
 > allowlisted save normalization (legacy keys byte-identical). **9 review
 > rounds across the two PRs** (4 + 5; one CodeRabbit security finding
 > declined-with-rationale and formally WITHDRAWN — the public-bucket-URL
 > residual is documented in-spec with a platform-wide signed-media follow-on).
 > Post-merge Codex P2s amended in the records PR: listing role rides the
-> profile URL · image-extension allowlist at the normalizer · the wins wall's
-> slug-keyed scope stated precisely. **Build order once un-paused:** box PR A
+> profile URL · image-extension allowlist at the normalizer · the wins wall
+> re-keyed onto an immutable `coach_reviews.owner_id` (records-round ruling —
+> a new PR-D migration + backfill; resolve by id + owner, NULL never renders).
+> **Build order once un-paused:** box PR A
 > (migration + module + mobile) → B (web) → profile PR C (M1–M4) → D (P1–P5)
 > → E (M5 + bucket migration). Handoff:
 > **[`docs/HANDOFF-2026-07-23.md`](HANDOFF-2026-07-23.md)**.
@@ -994,10 +997,12 @@ changelog whenever something ships.
   keys — legacy cover/stats/prompts byte-identical, AC-pinned); M2 strict
   `YYYY-MM-DD` + round-trip real-calendar check (`2026-02-31` can never
   normalize into a fabricated countdown), noon-anchored local-day diff; P5
-  wins wall = real `coach_reviews` ids, resolve-or-vanish within the
-  profile's own review set; the ONE migration = the dedicated `member-films`
-  bucket (video mimes only, 60 MB) — a community-photos widening was
-  explicitly rejected (existing photo paths don't check `file.type`).
+  wins wall = real `coach_reviews` ids, **resolved by id + the immutable
+  `owner_id`** (records-round ruling — NULL never renders); TWO migrations,
+  each riding its build PR — the dedicated `member-films` bucket in PR E
+  (video mimes only, 60 MB; a community-photos widening was explicitly
+  rejected — existing photo paths don't check `file.type`) and
+  `coach_reviews.owner_id` + backfill in PR D (the wall's owner binding).
 - **Review-quota discipline held**: every round batched into one commit + one
   summary comment; Codex re-triggers HELD until CodeRabbit settled, then ONE
   pass per PR. **A CodeRabbit security finding was declined with rationale
@@ -1008,11 +1013,15 @@ changelog whenever something ships.
   the clicked listing's role rides the profile URL (`&role=`) so a dual-role
   coach's OTHER studio gallery can never render; an image-extension allowlist
   at the normalizer (the bucket allows video for plan clips — editors alone
-  aren't the boundary); the wins wall's owner-scope stated precisely as the
-  profile's slug-keyed Reviews set (re-keying `coach_reviews` to the
-  immutable `owner_id` registered as a platform follow-on).
-- **⚠ OWNER MIGRATIONS (ride the build PRs, NOT yet written):**
-  `2026-07-23-provider-listing-media.sql` (box PR A) ·
+  aren't the boundary); and — CodeRabbit escalated on the records PR itself,
+  correctly — the wins wall's owner binding moved OFF the mutable slug onto a
+  new **immutable `coach_reviews.owner_id`** (PR-D migration + slug→provider
+  backfill; resolve by id + owner; NULL never renders — a slug collision
+  rendering another coach's words as this coach's PINNED testimonial would be
+  a fabricated credential).
+- **⚠ OWNER MIGRATIONS (ride the build PRs, NOT yet written) — THREE across
+  the wave:** `2026-07-23-provider-listing-media.sql` (box PR A) ·
+  `2026-07-23-coach-reviews-owner-id.sql` (profile PR D) ·
   `2026-07-23-member-films-bucket.sql` (profile PR E).
 - **Open:** the owner's explicit BUILD GO (nothing builds without it) → then
   box PR A → B → profile PR C (M1–M4) → D (P1–P5) → E (M5 film). Concept
