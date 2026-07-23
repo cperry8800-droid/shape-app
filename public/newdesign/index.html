@@ -405,8 +405,10 @@
   #shape-intro .ihead{font-family:var(--serif);font-weight:400;font-style:italic;font-size:clamp(34px,5.2vw,66px);line-height:1.08;margin-top:30px;opacity:0;transform:translateY(12px);animation:siUp .75s .85s cubic-bezier(.16,1,.3,1) forwards;text-wrap:balance}
   #shape-intro .ihead b{font-weight:400;color:#0a8f87}
   body.intro-lock{overflow:hidden}
-  /* the chat launcher claims a max z-index by design — keep it off the curtain moment */
-  body.intro-lock #shape-global-chat-button{display:none!important}
+  /* the chat launcher claims a max z-index by design — keep it off the WHOLE intro,
+     incl. the .go curtain lift (intro-active outlives intro-lock, which drops the
+     instant end() runs while the sheet keeps animating for ~1s) */
+  body.intro-active #shape-global-chat-button{display:none!important}
   #shape-intro.go{transform:translateY(-103%);pointer-events:none}
   @keyframes siUp{to{opacity:1;transform:none}}
   @keyframes siRule{to{transform:scaleX(1)}}
@@ -559,16 +561,18 @@
   }catch(e){}
   if(rm||skip||internal||seen){if(el.parentNode)el.parentNode.removeChild(el);return;}
   try{sessionStorage.setItem('shape.introSeen','1');}catch(e){}
-  // Today's real edition line — No. = day of the year.
+  // Today's real edition line — the reader's OWN calendar day (a masthead shows
+  // today for the visitor, not UTC). No. = day of the year; the noon anchors keep
+  // the day-of-year DST-immune while staying entirely on local getters.
   try{
     var now=new Date();
-    var no=Math.round((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(now.getFullYear(),0,0))/864e5);
+    var no=Math.round((new Date(now.getFullYear(),now.getMonth(),now.getDate(),12)-new Date(now.getFullYear(),0,0,12))/864e5);
     var days=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
     var mons=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
     var dt=document.getElementById('shape-intro-date');
     if(dt)dt.textContent='VOL. 1 · No. '+no+' · '+days[now.getDay()]+', '+mons[now.getMonth()]+' '+now.getDate();
   }catch(e){}
-  document.body.classList.add('intro-lock');
+  document.body.classList.add('intro-lock','intro-active');
   var done=false;
   function end(){
     if(done)return;done=true;
@@ -577,7 +581,8 @@
     try{window.scrollTo(0,0);}catch(e){}
     window.removeEventListener('wheel',end);window.removeEventListener('touchmove',end);
     window.removeEventListener('keydown',end);el.removeEventListener('click',end);
-    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},1050);
+    // intro-active (and the chat-launcher hide) drops only once the sheet is gone
+    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);document.body.classList.remove('intro-active');},1050);
   }
   try{fetch('/api/me',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(d&&d.user)end();}).catch(function(){});}catch(e){}
   var auto=setTimeout(end,3300);
