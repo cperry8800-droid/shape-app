@@ -4532,6 +4532,9 @@ async function uploadCoachMedia(file, opts = {}) {
   // and the returned `type` coherent (a .mp4 must not come back as an image).
   const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
   const isVideo = isVideoType || VIDEO_EXT.includes(ext.toLowerCase());
+  // Guard the shared helper (not just the film picker) so no video flow can push an
+  // oversized file to storage — the coach-media bucket caps at 200 MB.
+  if (isVideo && file.size > 200 * 1024 * 1024) throw new Error('That video is too large — keep it under 200 MB.');
   // Optional opaque sub-folder (e.g. 'listing') so a surface's uploads group
   // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
   const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';

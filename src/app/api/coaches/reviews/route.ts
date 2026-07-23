@@ -27,6 +27,21 @@ export async function GET(request: Request) {
   const slug = cleanText(url.searchParams.get('coach'), 160);
   const supabase = await clientForRequest(request);
 
+  // ?ids=<uuid,uuid,uuid> — resolve specific reviews by id, INDEPENDENT of the
+  // slug list's 200-row page. The wins wall uses this so a pinned testimonial never
+  // vanishes once a popular coach passes 200 reviews. Reviews are public-read; the
+  // wall still filters the results to ownerId === the profile owner, so requesting
+  // arbitrary ids can never surface another coach's review on this wall.
+  const idsParam = cleanText(url.searchParams.get('ids'), 200);
+  if (idsParam) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ids = idsParam.split(',').map((x) => x.trim().toLowerCase()).filter((x) => uuid.test(x)).slice(0, 3);
+    if (!ids.length) return NextResponse.json({ reviews: [] });
+    const { data, error } = await supabase.from('coach_reviews').select('*').in('id', ids).limit(3);
+    if (error) return NextResponse.json({ reviews: [] });
+    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
+  }
+
   if (slug) {
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.

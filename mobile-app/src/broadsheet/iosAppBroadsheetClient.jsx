@@ -12972,9 +12972,21 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const coachLine = bsProfileLine(custom && custom.line);
   const coachFilm = bsProfileFilm(custom && custom.film, person.userId, 'coach-media');
   const bizCard = bsProfileBizCard(custom && custom.bizCard);
-  const winsWall = bsProfilePinnedReviews(custom && custom.pinnedReviews)
-    .map((id) => (liveReviews || []).find((r) => r && r.id === id && r.ownerId === person.userId))
-    .filter(Boolean);
+  // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
+  // list), so a pinned review never vanishes once a coach passes 200 reviews; the
+  // results are still filtered to ownerId === the profile owner.
+  const pinnedKey = bsProfilePinnedReviews(custom && custom.pinnedReviews).join(',');
+  const [pinnedResolved, setPinnedResolved] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!pinnedKey || !person.userId) { setPinnedResolved([]); return; }
+    let on = true;
+    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (on && d && Array.isArray(d.reviews)) setPinnedResolved(d.reviews.filter((r) => r && r.ownerId === person.userId)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [pinnedKey, person.userId]);
+  const winsWall = pinnedKey ? pinnedKey.split(',').map((id) => pinnedResolved.find((r) => r && r.id === id)).filter(Boolean) : [];
   // Local reaction state for the shared BSActivityCard on this coach profile feed
   // (optimistic toggle + best-effort persist via the same backend path as the feed).
   const [actLikes, setActLikes] = useStateBSC({});

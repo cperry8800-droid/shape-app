@@ -651,9 +651,21 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // reviews by id AND ownerId, so a cross-coach / hand-written id never resolves.
   const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const bizCard = plib && plib.bsProfileBizCard ? plib.bsProfileBizCard(d.custom && d.custom.bizCard) : null;
-  const winsWall = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : [])
-    .map((id) => (liveReviews || []).find((r) => r && r.id === id && r.ownerId === d.uid))
-    .filter(Boolean);
+  // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
+  // list), so a pinned review never vanishes once a coach passes 200 reviews; the
+  // results are still filtered to ownerId === the profile owner.
+  const pinnedKey = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : []).join(",");
+  const [pinnedResolved, setPinnedResolved] = React.useState([]);
+  React.useEffect(() => {
+    if (!pinnedKey || !d.uid) { setPinnedResolved([]); return; }
+    let on = true;
+    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [pinnedKey, d.uid]);
+  const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id)).filter(Boolean) : [];
   return (
     <div>
       {showCoaching && <React.Fragment>
