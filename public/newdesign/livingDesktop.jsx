@@ -816,10 +816,12 @@ function dkLinkHref(key, val) {
   if (host && (low === host || low.startsWith(host + "/"))) return "https://" + v;
   return "https://" + (pre ? pre + v : v);
 }
-function ProfileExtras({ d, owner, coach = false }) {
-  const [cust, setCust] = React.useState(d.custom || null);
+function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave }) {
+  // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
+  // (M2/M4) and this block (M1/M3) at once — the hero reads d.custom, which the
+  // loaded person prop freezes until reload (Codex P2).
   const [edit, setEdit] = React.useState(false);
-  const cu = cust || {};
+  const cu = custom || {};
   const profLib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   // M1 (wall) / M3 (shelf) — normalized at render; wall URLs bound to the profile
   // owner's own community-photos folder (d.uid). Absent/junk → the station is gone.
@@ -858,7 +860,7 @@ function ProfileExtras({ d, owner, coach = false }) {
           <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
             {wall.map((w, i) => (
               <figure key={i} style={{ flex: "none", width: 168, margin: 0 }}>
-                <div style={{ width: 168, height: 118, borderRadius: 10, border: `1px solid ${dHexA(LV_INK, 0.12)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} aria-hidden="true" />
+                <img src={w.url} alt={w.caption || "Community photo"} loading="lazy" style={{ width: 168, height: 118, borderRadius: 10, border: `1px solid ${dHexA(LV_INK, 0.12)}`, objectFit: "cover", backgroundColor: dHexA(LV_INK, 0.05), display: "block" }} />
                 {w.caption ? <figcaption style={{ marginTop: 7, fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.02em", color: dHexA(LV_INK, 0.55), lineHeight: 1.3 }}>{w.caption}</figcaption> : null}
               </figure>
             ))}
@@ -906,7 +908,7 @@ function ProfileExtras({ d, owner, coach = false }) {
           )}
         </div>
       )}
-      {edit && <ProfileCustomizer initial={cust} c={c} coach={coach} onClose={() => setEdit(false)} onSave={(doc) => { setCust(doc); setEdit(false); }} />}
+      {edit && <ProfileCustomizer initial={custom} c={c} coach={coach} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
     </div>
   );
 }
@@ -934,8 +936,13 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const [line, setLine] = React.useState(init.line || "");
   const [startTitle, setStartTitle] = React.useState((init.startLine && init.startLine.title) || "");
   const [startDate, setStartDate] = React.useState((init.startLine && init.startLine.date) || "");
-  const [wall, setWall] = React.useState(Array.isArray(init.wall) ? init.wall.slice(0, WMAX).map((w) => ({ url: w && w.url, caption: (w && w.caption) || "" })) : []);
-  const [shelf, setShelf] = React.useState(Array.isArray(init.shelf) ? init.shelf.slice(0, SMAX).map((s) => ({ title: (s && s.title) || "", when: (s && s.when) || "" })) : []);
+  // Stable per-row keys for the editor lists (rows delete mid-list via ×): assign
+  // a fresh id at creation, never the array index — React must not reuse the wrong
+  // row's DOM node/focus after a removal shifts the rest. `_k` is editor-only; the
+  // normalizer field-rebuilds wall/shelf on save, so it never reaches the doc.
+  const nk = () => Math.random().toString(36).slice(2);
+  const [wall, setWall] = React.useState(() => Array.isArray(init.wall) ? init.wall.slice(0, WMAX).map((w) => ({ _k: nk(), url: w && w.url, caption: (w && w.caption) || "" })) : []);
+  const [shelf, setShelf] = React.useState(() => Array.isArray(init.shelf) ? init.shelf.slice(0, SMAX).map((s) => ({ _k: nk(), title: (s && s.title) || "", when: (s && s.when) || "" })) : []);
   const [wallBusy, setWallBusy] = React.useState(false);
   const wallRef = React.useRef(null);
   const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;
@@ -950,18 +957,19 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
       const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
-      setWall((prev) => prev.length >= WMAX ? prev : [...prev, { url: pub.publicUrl, caption: "" }]);
+      setWall((prev) => prev.length >= WMAX ? prev : [...prev, { _k: nk(), url: pub.publicUrl, caption: "" }]);
     } catch (err) { alert((err && err.message) || "Could not upload photo."); }
     finally { setWallBusy(false); }
   };
   const setWallCap = (i, v) => setWall((prev) => prev.map((w, j) => j === i ? { ...w, caption: v.slice(0, CAPM) } : w));
   const removeWall = (i) => setWall((prev) => prev.filter((_, j) => j !== i));
-  const addShelfRow = () => setShelf((prev) => prev.length >= SMAX ? prev : [...prev, { title: "", when: "" }]);
+  const addShelfRow = () => setShelf((prev) => prev.length >= SMAX ? prev : [...prev, { _k: nk(), title: "", when: "" }]);
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === "title" ? STM : SWM) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
   const [coverBusy, setCoverBusy] = React.useState(false);
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
   const onCoverFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file) return; setCoverBusy(true);
@@ -981,7 +989,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const embedPreview = dkSpotifyEmbed(songUrl);
   const save = async () => {
-    setBusy(true);
+    setBusy(true); setErr("");
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -1000,19 +1008,23 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
     };
-    let out = doc;
-    try {
-      const cl = window.shapeDb && window.shapeDb.client;
-      if (cl) {
-        const { data: u } = await cl.auth.getUser();
-        const uid = u && u.user && u.user.id;
-        if (uid) {
-          out = (plib && plib.bsNormalizeProfileCustom) ? plib.bsNormalizeProfileCustom(doc, uid) : doc;
-          await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" });
-        }
-      }
-    } catch (e) {}
-    setBusy(false); onSave(out);
+    // Trusted save: a real signed-in owner AND the normalizer are REQUIRED. We
+    // never persist OR hand back a raw (un-normalized) doc — the wall's
+    // owner-folder binding + the caps are the security contract, not just editor
+    // convenience. Surface any failure and keep the sheet open (no optimistic
+    // false-success): a swallowed RLS/network error used to still call onSave.
+    const cl = window.shapeDb && window.shapeDb.client;
+    let uid = null;
+    if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
+    if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
+    if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
+    const out = plib.bsNormalizeProfileCustom(doc, uid);
+    let error = null;
+    try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
+    catch (e) { error = e; }
+    setBusy(false);
+    if (error) { setErr((error && error.message) || "Couldn't save — try again."); return; }
+    onSave(out);
   };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -1043,7 +1055,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
             <input ref={wallRef} type="file" accept="image/*" onChange={onWallFile} style={{ display: "none" }} />
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {wall.map((w, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div key={w._k} style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <div aria-hidden="true" style={{ width: 54, height: 54, flexShrink: 0, borderRadius: 8, border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} />
                   <input value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={CAPM} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
                   <button type="button" onClick={() => removeWall(i)} aria-label="Remove photo" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
@@ -1057,7 +1069,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
             <span style={label}>The shelf · proudest · up to {SMAX}</span>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {shelf.map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div key={s._k} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input value={s.title} onChange={(e) => setShelfField(i, "title", e.target.value)} maxLength={STM} placeholder="e.g. Deadlift 140kg" style={{ ...field, flex: 1 }} />
                   <input value={s.when} onChange={(e) => setShelfField(i, "when", e.target.value)} maxLength={SWM} placeholder="When" style={{ ...field, flex: "0 0 110px" }} />
                   <button type="button" onClick={() => removeShelf(i)} aria-label="Remove row" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
@@ -1150,6 +1162,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
             ))}
           </div>
         </div>
+        {err && <div role="alert" style={{ marginBottom: 10, fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{err}</div>}
         <button onClick={save} disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: busy ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
       </div>
     </div>
@@ -1265,6 +1278,11 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
       setTimeout(() => { try { const el = document.getElementById("dk-activity"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }, 60);
     },
   }) : follow;
+  // Own the editable custom doc here so a save reflects in BOTH the hero (M2/M4,
+  // which read d.custom) and ProfileExtras (M1/M3) at once — the loaded person
+  // prop otherwise freezes d.custom until a full reload (Codex P2).
+  const [custom, setCustom] = React.useState(d.custom || null);
+  const heroPerson = custom ? Object.assign({}, d, { custom }) : d;
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: LV_BG, color: LV_INK, fontFamily: dSans, overflow: "hidden" }}>
@@ -1280,7 +1298,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
           <React.Fragment>
-            <DesktopHero d={d} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
+            <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
             {/* Availability at-a-glance — coach profiles only, the same slots
                 the Schedule tab edits + the booking flow reads. */}
             {coach && <LvCoachAvailability d={d} />}
@@ -1291,7 +1309,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               <section id="dk-activity" style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
                 <div style={{ position: "relative", paddingLeft: 22 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
-                  <ProfileExtras d={d} owner={owner} coach={coach} />
+                  <ProfileExtras d={d} owner={owner} coach={coach} custom={custom} onCustomSave={setCustom} />
                   <FeedBlock d={d} direction={direction} owner={owner} />
                 </div>
               </section>

@@ -11196,6 +11196,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
   const save = async () => {
+    // A real signed-in owner is REQUIRED before we normalize: bsProfileWall drops
+    // every wall entry when ownerUid is empty, so persisting with no uid would
+    // SILENTLY erase the member's wall. Surface save failures instead of
+    // swallowing them, and only close (onSave) once the write actually lands.
+    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!uid) { window.__bsToast?.('Sign in to save your profile.', 'err'); return; }
     setBusy(true);
     const doc = {
       ...init,
@@ -11215,10 +11221,15 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
     };
-    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
     const clean = bsNormalizeProfileCustom(doc, uid);
-    try { await window.shapeDb?.saveUserGoals?.('profile_custom', clean); } catch (e) {}
+    let res;
+    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
+    catch (e) { res = { error: e }; }
     setBusy(false);
+    // saveUserGoals RESOLVES { ok } | { error } (never throws on an RLS/no-backend
+    // failure), so the old empty catch could never see a failed write. Keep the
+    // sheet open + toast on any non-ok result rather than faking success.
+    if (!res || res.error) { window.__bsToast?.((res && res.error && res.error.message) || 'Could not save — try again.', 'err'); return; }
     onSave(clean);
   };
   return createPortal(
