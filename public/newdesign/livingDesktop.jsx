@@ -1003,9 +1003,12 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const onFilmFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file) return;
-    if (!/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "")) { alert("Pick an MP4, MOV or WebM video."); return; }
+    // Accept a video MIME OR a video filename extension (some pickers return a blank
+    // type for a valid video), and derive the storage ext from whichever is present.
+    const nameExt = (file.name || "").split(".").pop().toLowerCase();
+    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "") || ["mp4", "mov", "webm", "m4v"].includes(nameExt))) { alert("Pick an MP4, MOV or WebM video."); return; }
     if (file.size > 200 * 1024 * 1024) { alert("That video is too large — keep it under 200 MB."); return; }
-    const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || "mp4";
+    const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || (["mp4", "mov", "webm", "m4v"].includes(nameExt) ? nameExt : "mp4");
     setFilmBusy(true);
     try {
       const cl = window.shapeDb && window.shapeDb.client;
@@ -1029,7 +1032,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     let on = true;
     fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid)); })
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId)); })
       .catch(() => {});
     return () => { on = false; };
   }, [coach, ownerUid, ownerName]);

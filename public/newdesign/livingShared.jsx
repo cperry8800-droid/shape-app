@@ -657,15 +657,18 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const pinnedKey = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : []).join(",");
   const [pinnedResolved, setPinnedResolved] = React.useState([]);
   React.useEffect(() => {
-    if (!pinnedKey || !d.uid) { setPinnedResolved([]); return; }
+    setPinnedResolved([]); // clear the previous profile's / pins' data on any change
+    if (!pinnedKey || !d.uid) return;
     let on = true;
     fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid)); })
+      // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
+      // self-authored row (insert RLS forces user_id = their uid) and pin it.
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid && r.authorId !== r.ownerId)); })
       .catch(() => {});
     return () => { on = false; };
   }, [pinnedKey, d.uid]);
-  const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id)).filter(Boolean) : [];
+  const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
   return (
     <div>
       {showCoaching && <React.Fragment>

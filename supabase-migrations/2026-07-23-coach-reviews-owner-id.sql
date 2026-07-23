@@ -28,8 +28,51 @@
 alter table public.coach_reviews
   add column if not exists owner_id uuid references auth.users on delete set null;
 
--- The wall fetches the owner's reviews (by slug, the existing public read path)
--- then filters by owner_id; this index serves the owner-scoped lookup a coach's
--- own wall/pin-picker makes.
+-- ⚠ owner_id MUST be server-derived, never client-settable. The insert RLS policy
+-- only checks `user_id = auth.uid()`, and clients write with the public user-scoped
+-- key — so without this a signed-in coach could INSERT a coach_reviews row directly
+-- with owner_id = their own uid + a fabricated body, then pin it on their wins wall
+-- (which trusts owner_id) as a "real review". This BEFORE trigger overwrites whatever
+-- owner_id the client supplies with the value derived from coach_slug (the same
+-- slugify the app uses), on EVERY insert/update, so owner_id can't be forged. It
+-- stamps only when EXACTLY ONE provider owner matches the slug — a collision or no
+-- match leaves NULL (an unprovable row is never pinnable). SECURITY DEFINER so it can
+-- read the provider tables regardless of the writer.
+create or replace function public.coach_review_owner_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_owners uuid[];
+begin
+  if new.coach_kind = 'nutritionist' then
+    select array_agg(distinct owner_id) into v_owners
+    from public.nutritionists
+    where owner_id is not null
+      and regexp_replace(regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g'), '(^-|-$)', '', 'g') = new.coach_slug;
+  else
+    select array_agg(distinct owner_id) into v_owners
+    from public.trainers
+    where owner_id is not null
+      and regexp_replace(regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g'), '(^-|-$)', '', 'g') = new.coach_slug;
+  end if;
+  if v_owners is not null and array_length(v_owners, 1) = 1 then
+    new.owner_id := v_owners[1];
+  else
+    new.owner_id := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists coach_reviews_set_owner on public.coach_reviews;
+create trigger coach_reviews_set_owner
+  before insert or update on public.coach_reviews
+  for each row execute function public.coach_review_owner_id();
+
+-- The wall fetches the owner's reviews then filters by owner_id; this index serves
+-- the owner-scoped lookup a coach's own wall/pin-picker makes.
 create index if not exists coach_reviews_owner_idx
   on public.coach_reviews (owner_id, created_at desc);

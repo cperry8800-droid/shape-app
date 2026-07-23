@@ -11232,7 +11232,11 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     if (!file) return;
     // Reject non-video BEFORE upload — the film gate (bsOwnVideoUrl) accepts only
     // mp4/mov/webm/m4v, so anything else would upload then be dropped at save.
-    if (!/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '')) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
+    // Accept a video MIME OR a video filename extension — some Capacitor/browser
+    // pickers return a valid video File with an EMPTY type, and uploadCoachMedia
+    // already handles the blank-MIME .mp4/.mov/.webm/.m4v case via the filename ext.
+    const nameExt = (file.name || '').split('.').pop().toLowerCase();
+    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '') || ['mp4', 'mov', 'webm', 'm4v'].includes(nameExt))) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
     if (file.size > 200 * 1024 * 1024) { window.__bsToast?.('That video is too large — keep it under 200 MB.', 'err'); return; }
     setFilmBusy(true);
     try { const up = await window.ShapeCoachMedia?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }
@@ -12978,15 +12982,18 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const pinnedKey = bsProfilePinnedReviews(custom && custom.pinnedReviews).join(',');
   const [pinnedResolved, setPinnedResolved] = useStateBSC([]);
   React.useEffect(() => {
-    if (!pinnedKey || !person.userId) { setPinnedResolved([]); return; }
+    setPinnedResolved([]); // clear the previous profile's / pins' data on any change
+    if (!pinnedKey || !person.userId) return;
     let on = true;
     fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on && d && Array.isArray(d.reviews)) setPinnedResolved(d.reviews.filter((r) => r && r.ownerId === person.userId)); })
+      // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
+      // self-authored row (insert RLS forces user_id = their uid) and pin it as a testimonial.
+      .then((d) => { if (on && d && Array.isArray(d.reviews)) setPinnedResolved(d.reviews.filter((r) => r && r.ownerId === person.userId && r.authorId !== r.ownerId)); })
       .catch(() => {});
     return () => { on = false; };
   }, [pinnedKey, person.userId]);
-  const winsWall = pinnedKey ? pinnedKey.split(',').map((id) => pinnedResolved.find((r) => r && r.id === id)).filter(Boolean) : [];
+  const winsWall = pinnedKey ? pinnedKey.split(',').map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === person.userId && r.authorId !== r.ownerId)).filter(Boolean) : [];
   // Local reaction state for the shared BSActivityCard on this coach profile feed
   // (optimistic toggle + best-effort persist via the same backend path as the feed).
   const [actLikes, setActLikes] = useStateBSC({});
@@ -13468,7 +13475,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach pickReviews={(liveReviews || []).filter((r) => r && r.ownerId === person.userId)} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach pickReviews={(liveReviews || []).filter((r) => r && r.ownerId === person.userId && r.authorId !== r.ownerId)} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
