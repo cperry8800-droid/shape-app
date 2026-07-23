@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Foto hinzufügen",
   "listing.save": "Anzeige speichern",
   "listing.saved": "Anzeige gespeichert",
-  "listing.unavailable": "Anzeigenfotos sind noch nicht verfügbar — bitte nach dem nächsten Update erneut versuchen."
+  "listing.unavailable": "Anzeigenfotos sind noch nicht verfügbar — bitte nach dem nächsten Update erneut versuchen.",
+  "listing.loadError": "Deine Anzeigenfotos konnten nicht geladen werden — deine gespeicherten Fotos bleiben unberührt. Erneut versuchen.",
+  "listing.retry": "Erneut versuchen"
 }

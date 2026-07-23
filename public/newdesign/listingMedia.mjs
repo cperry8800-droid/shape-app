@@ -31,6 +31,12 @@ export const BS_LISTING_CAPTION_MAX = 80;
 // Deliberately excludes svg (script vector) and every video/other type.
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'];
 
+// How many raw gallery entries we ever inspect. Provider rows are public-read +
+// owner-writable, so a crafted row could carry a huge invalid array; we only
+// ever keep BS_LISTING_GALLERY_MAX, and the setter normalizes before write, so
+// a real row is ≤6 valid. This bounds the per-viewer parse work (DoS guard).
+const BS_LISTING_GALLERY_SCAN = BS_LISTING_GALLERY_MAX * 4;
+
 // Control chars (NUL..US + DEL) — stripped from captions, which are one-line
 // labels. Kept as an escaped class so the source stays plain ASCII.
 const CONTROL_CHARS = new RegExp("[\u0000-\u001F\u007F]", "g");
@@ -105,7 +111,9 @@ export function bsNormalizeListingMedia(raw, ownerUid) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return empty;
   const bucket = 'coach-media';
   const gallery = [];
-  const items = Array.isArray(raw.gallery) ? raw.gallery : [];
+  const all = Array.isArray(raw.gallery) ? raw.gallery : [];
+  // Only ever inspect a bounded prefix of the source array (see BS_LISTING_GALLERY_SCAN).
+  const items = all.length > BS_LISTING_GALLERY_SCAN ? all.slice(0, BS_LISTING_GALLERY_SCAN) : all;
   for (const item of items) {
     if (gallery.length >= BS_LISTING_GALLERY_MAX) break;
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;

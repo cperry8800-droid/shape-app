@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Add photo",
   "listing.save": "Save listing",
   "listing.saved": "Listing saved",
-  "listing.unavailable": "Listing photos aren't available yet — try again after the next update."
+  "listing.unavailable": "Listing photos aren't available yet — try again after the next update.",
+  "listing.loadError": "Couldn’t load your listing photos — your saved photos are untouched. Try again.",
+  "listing.retry": "Retry"
 }

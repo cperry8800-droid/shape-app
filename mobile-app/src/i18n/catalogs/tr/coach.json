@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Fotoğraf ekle",
   "listing.save": "İlanı kaydet",
   "listing.saved": "İlan kaydedildi",
-  "listing.unavailable": "İlan fotoğrafları henüz kullanılamıyor — bir sonraki güncellemeden sonra tekrar deneyin."
+  "listing.unavailable": "İlan fotoğrafları henüz kullanılamıyor — bir sonraki güncellemeden sonra tekrar deneyin.",
+  "listing.loadError": "İlan fotoğrafları yüklenemedi — kayıtlı fotoğraflarınız olduğu gibi duruyor. Tekrar deneyin.",
+  "listing.retry": "Tekrar dene"
 }

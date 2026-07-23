@@ -168,6 +168,19 @@ test('bsNormalizeListingMedia: junk shapes → empty, never throws, no Number() 
     [{ url: own(UID, 'k.jpg'), caption: '' }]);
 });
 
+test('bsNormalizeListingMedia: caps the source scan (DoS guard over a crafted huge array)', () => {
+  // A valid item BEYOND the bounded scan window is never inspected → dropped.
+  const junk = Array.from({ length: 40 }, () => ({ url: 'https://evil.example/x.png' }));
+  const withLateValid = [...junk.slice(0, 30), { url: own(UID, 'late.jpg'), caption: 'too late' }];
+  assert.deepEqual(bsNormalizeListingMedia({ gallery: withLateValid }, UID).gallery, []);
+  // A valid item within the window is still kept (a few junk entries up front).
+  const early = [{ url: 'not a url' }, { url: own(UID, 'ok.jpg'), caption: 'kept' }];
+  assert.deepEqual(bsNormalizeListingMedia({ gallery: early }, UID).gallery, [{ url: own(UID, 'ok.jpg'), caption: 'kept' }]);
+  // A massive array does not throw and still clamps to the keep-max.
+  const huge = Array.from({ length: 100000 }, () => ({ url: own(UID, 'g.jpg') }));
+  assert.equal(bsNormalizeListingMedia({ gallery: huge }, UID).gallery.length, BS_LISTING_GALLERY_MAX);
+});
+
 test('bsNormalizeListingMedia: fails closed without ownerUid', () => {
   const EMPTY = { portrait: null, cover: null, gallery: [], updatedAt: null };
   const raw = { portrait: OK, cover: OK, gallery: [{ url: OK }], updatedAt: '2026-07-23T10:31:00.000Z' };

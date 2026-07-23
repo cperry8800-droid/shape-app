@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Thêm ảnh",
   "listing.save": "Lưu tin đăng",
   "listing.saved": "Đã lưu tin đăng",
-  "listing.unavailable": "Ảnh tin đăng chưa khả dụng — hãy thử lại sau bản cập nhật tiếp theo."
+  "listing.unavailable": "Ảnh tin đăng chưa khả dụng — hãy thử lại sau bản cập nhật tiếp theo.",
+  "listing.loadError": "Không thể tải ảnh tin đăng — ảnh đã lưu của bạn vẫn nguyên vẹn. Hãy thử lại.",
+  "listing.retry": "Thử lại"
 }

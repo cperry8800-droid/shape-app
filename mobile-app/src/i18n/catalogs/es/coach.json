@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Añadir foto",
   "listing.save": "Guardar anuncio",
   "listing.saved": "Anuncio guardado",
-  "listing.unavailable": "Las fotos del anuncio aún no están disponibles: inténtalo de nuevo después de la próxima actualización."
+  "listing.unavailable": "Las fotos del anuncio aún no están disponibles: inténtalo de nuevo después de la próxima actualización.",
+  "listing.loadError": "No se pudieron cargar las fotos del anuncio: tus fotos guardadas están intactas. Inténtalo de nuevo.",
+  "listing.retry": "Reintentar"
 }

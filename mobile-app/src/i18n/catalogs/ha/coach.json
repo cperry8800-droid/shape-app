@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Ƙara hoto",
   "listing.save": "Ajiye talla",
   "listing.saved": "An ajiye talla",
-  "listing.unavailable": "Hotunan talla ba su samu ba tukuna — sake gwadawa bayan sabuntawa ta gaba."
+  "listing.unavailable": "Hotunan talla ba su samu ba tukuna — sake gwadawa bayan sabuntawa ta gaba.",
+  "listing.loadError": "An kāsa loda hotunan talla — hotunanka da aka ajiye ba su canza ba. Sake gwadawa.",
+  "listing.retry": "Sake gwadawa"
 }

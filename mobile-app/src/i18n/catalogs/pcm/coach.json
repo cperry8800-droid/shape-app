@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Add foto",
   "listing.save": "Save listing",
   "listing.saved": "Listing don save",
-  "listing.unavailable": "Listing foto never ready yet — try again after di next update."
+  "listing.unavailable": "Listing foto never ready yet — try again after di next update.",
+  "listing.loadError": "We no fit load your listing foto — di foto wey you save dey safe. Try again.",
+  "listing.retry": "Try again"
 }

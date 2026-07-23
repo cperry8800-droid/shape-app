@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Aggiungi foto",
   "listing.save": "Salva annuncio",
   "listing.saved": "Annuncio salvato",
-  "listing.unavailable": "Le foto dell’annuncio non sono ancora disponibili — riprova dopo il prossimo aggiornamento."
+  "listing.unavailable": "Le foto dell’annuncio non sono ancora disponibili — riprova dopo il prossimo aggiornamento.",
+  "listing.loadError": "Impossibile caricare le foto dell’annuncio — le tue foto salvate sono intatte. Riprova.",
+  "listing.retry": "Riprova"
 }

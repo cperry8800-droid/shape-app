@@ -3947,7 +3947,11 @@ async function listingMediaMine(role) {
   // select('*') on purpose — an explicit `listing_media` select 400s before the
   // migration is applied; a missing column just yields an absent key.
   const { data, error } = await supabase.from(listingTable(role)).select('*').eq('owner_id', uid).maybeSingle();
-  if (error || !data) return { providerId: data?.id || null, media: bsNormalizeListingMedia(null, uid), hasRow: !!data, signedIn: true };
+  // A real read failure must PROPAGATE so the editor shows its retry state — not
+  // be flattened into hasRow:false, which would tell an approved coach their
+  // listing doesn't exist. Only a genuinely absent row (no error) is "no row yet".
+  if (error) throw error;
+  if (!data) return { providerId: null, media: bsNormalizeListingMedia(null, uid), hasRow: false, signedIn: true };
   return { providerId: data.id, media: bsNormalizeListingMedia(data.listing_media || null, uid), hasRow: true, signedIn: true };
 }
 async function listingMediaSet(role, media) {

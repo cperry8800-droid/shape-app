@@ -876,5 +876,7 @@
   "listing.addPhoto": "＋ Ajouter une photo",
   "listing.save": "Enregistrer l'annonce",
   "listing.saved": "Annonce enregistrée",
-  "listing.unavailable": "Les photos de l'annonce ne sont pas encore disponibles — réessayez après la prochaine mise à jour."
+  "listing.unavailable": "Les photos de l'annonce ne sont pas encore disponibles — réessayez après la prochaine mise à jour.",
+  "listing.loadError": "Impossible de charger les photos de l’annonce — vos photos enregistrées sont intactes. Réessayez.",
+  "listing.retry": "Réessayer"
 }
