@@ -13,7 +13,7 @@
 // byte-identical), and render — so no stale/direct-API doc can bypass the caps.
 // Junk at any key → that feature renders nothing (never throws, never a
 // placeholder). Media keys are bound to the profile owner's OWN bucket folder.
-import { bsOwnMediaUrl } from './listingMedia.mjs';
+import { bsOwnMediaUrl, bsOwnVideoUrl } from './listingMedia.mjs';
 
 export const BS_WALL_MAX = 6;         // M1
 export const BS_SHELF_MAX = 4;        // M3
@@ -22,6 +22,17 @@ export const BS_CAPTION_MAX = 80;
 export const BS_SHELF_TITLE_MAX = 60;
 export const BS_SHELF_WHEN_MAX = 20;
 export const BS_START_TITLE_MAX = 60; // M2
+export const BS_FILM_CAPTION_MAX = 80; // P1 / M5
+export const BS_BIZ_NAME_MAX = 60;     // P4
+export const BS_BIZ_WHERE_MAX = 80;
+export const BS_BIZ_HOURS_MAX = 40;
+export const BS_BIZ_HANDLE_MAX = 40;
+export const BS_PINNED_REVIEWS_MAX = 3; // P5
+
+// coach_reviews.id is a v4 uuid (gen_random_uuid). A pinned-review id must match
+// this shape or it's dropped before it can ever be looked up (render resolves it
+// against the owner's own reviews by id AND owner_id).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // How many raw wall/shelf entries we ever inspect. The doc is public-read (whole
 // via get_public_profile) + owner-writable, so a crafted doc could carry a huge
@@ -111,11 +122,60 @@ export function bsProfileStartLine(v) {
   return { title: bsCleanText(v.title, BS_START_TITLE_MAX), date: v.date };
 }
 
+// P1 / M5 — the film: one pinned video { url, caption } bound to the owner's OWN
+// folder in `bucket` (coach-media for a coach's intro film, member-films for a
+// member's film). A junk / wrong-bucket / non-video url → null, so the card
+// renders nothing. The video allowlist is disjoint from the image one, so a photo
+// url can never sneak in as a film.
+export function bsProfileFilm(v, ownerUid, bucket) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const url = bsOwnVideoUrl(v.url, bucket, ownerUid);
+  if (!url) return null;
+  return { url, caption: bsCleanText(v.caption, BS_FILM_CAPTION_MAX) };
+}
+
+// P4 — the business card: a grounded contact station. `name` is the anchor — no
+// name, no card. where/hours/handle are optional cleaned text (the render skips
+// an empty row). Plain text throughout; the handle is text in v1, never a link.
+export function bsProfileBizCard(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const name = bsCleanText(v.name, BS_BIZ_NAME_MAX);
+  if (!name) return null;
+  return {
+    name,
+    where: bsCleanText(v.where, BS_BIZ_WHERE_MAX),
+    hours: bsCleanText(v.hours, BS_BIZ_HOURS_MAX),
+    handle: bsCleanText(v.handle, BS_BIZ_HANDLE_MAX),
+  };
+}
+
+// P5 — the wins wall's stored form: up to 3 coach_reviews IDs (uuid strings),
+// de-duped, order preserved. This ONLY cleans the id list; the RENDER resolves
+// each id against the profile owner's OWN reviews (by id AND owner_id), so a
+// hand-written id belonging to another coach's review never resolves.
+export function bsProfilePinnedReviews(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const id of v) {
+    if (out.length >= BS_PINNED_REVIEWS_MAX) break;
+    if (typeof id !== 'string') continue;
+    const s = id.trim().toLowerCase();
+    if (!UUID_RE.test(s) || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
-// shapes → the key is dropped. Never throws.
-export function bsNormalizeProfileCustom(doc, ownerUid) {
+// shapes → the key is dropped. Never throws. `opts.filmBucket` (coach-media /
+// member-films) is REQUIRED to normalize the film — the bucket varies by role, so
+// a save path that doesn't manage film for this role leaves the key byte-identical
+// (the render re-validates against the right bucket regardless).
+export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   const base = (doc && typeof doc === 'object' && !Array.isArray(doc)) ? { ...doc } : {};
   const line = bsProfileLine(base.line);
   if (line) base.line = line; else delete base.line;
@@ -125,5 +185,14 @@ export function bsNormalizeProfileCustom(doc, ownerUid) {
   if (shelf.length) base.shelf = shelf; else delete base.shelf;
   const startLine = bsProfileStartLine(base.startLine);
   if (startLine) base.startLine = startLine; else delete base.startLine;
+  const bizCard = bsProfileBizCard(base.bizCard);
+  if (bizCard) base.bizCard = bizCard; else delete base.bizCard;
+  const pinnedReviews = bsProfilePinnedReviews(base.pinnedReviews);
+  if (pinnedReviews.length) base.pinnedReviews = pinnedReviews; else delete base.pinnedReviews;
+  const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
+  if (filmBucket) {
+    const film = bsProfileFilm(base.film, ownerUid, filmBucket);
+    if (film) base.film = film; else delete base.film;
+  }
   return base;
 }

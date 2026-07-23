@@ -31,6 +31,11 @@ export const BS_LISTING_CAPTION_MAX = 80;
 // Deliberately excludes svg (script vector) and every video/other type.
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'];
 
+// Video extensions the profile-wave films accept (P1 coach intro film → coach-media,
+// M5 member film → member-films). Deliberately DISJOINT from IMAGE_EXT so a film URL
+// can never be an image and an image URL can never be a film.
+const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
+
 // How many raw gallery entries we ever inspect. Provider rows are public-read +
 // owner-writable, so a crafted row could carry a huge invalid array; we only
 // ever keep BS_LISTING_GALLERY_MAX, and the setter normalizes before write, so
@@ -55,11 +60,13 @@ export function bsSafeMediaUrl(v) {
   return u.href;
 }
 
-// The strict gate: a public object URL on OUR host, in the given bucket, under
-// the owner's own folder, with an image extension. `bucket` and `ownerUid` are
-// trusted (supplied by the render/write code for the row being shown); `v` is
-// the untrusted coach-authored value. Returns the URL or null — fail closed.
-export function bsOwnMediaUrl(v, bucket, ownerUid) {
+// The strict gate's shared core: a public object URL on OUR host, in the given
+// bucket, under the owner's own folder, with an extension in `extList`. `bucket`
+// and `ownerUid` are trusted (supplied by the render/write code for the row being
+// shown); `v` is the untrusted coach-authored value. Returns the URL or null —
+// fail closed. ONE implementation of the security checks; the two public gates
+// differ only by the extension allowlist, so image/video can never disagree.
+function bsOwnUrl(v, bucket, ownerUid, extList) {
   if (!bucket || !ownerUid || typeof bucket !== 'string' || typeof ownerUid !== 'string') return null;
   const safe = bsSafeMediaUrl(v);
   if (!safe) return null;
@@ -76,13 +83,27 @@ export function bsOwnMediaUrl(v, bucket, ownerUid) {
   const rest = u.pathname.slice(prefix.length);
   if (!rest) return null;                             // the folder itself is not a file
   const ext = (rest.split('.').pop() || '').toLowerCase();
-  if (!IMAGE_EXT.includes(ext)) return null;          // images only
+  if (!extList.includes(ext)) return null;            // allowlisted types only
   // Defense in depth: these URLs render inside CSS url("…") sinks. new URL()
   // percent-encodes " but leaves ' ( ) raw, so reject any that survive — our own
   // upload keys never contain them, and this keeps the value safe even if a sink
   // ever switches to single quotes.
   if (/['"()]/.test(safe)) return null;
   return safe;
+}
+
+// The strict IMAGE gate (marketplace box + profile wall/cover). Own-host, own
+// folder, image extension. Returns the URL or null — fail closed.
+export function bsOwnMediaUrl(v, bucket, ownerUid) {
+  return bsOwnUrl(v, bucket, ownerUid, IMAGE_EXT);
+}
+
+// The strict VIDEO gate (profile-wave films — P1 coach intro film, M5 member film).
+// Same owner-folder binding as bsOwnMediaUrl, but a VIDEO extension allowlist. The
+// caller passes the film's bucket (coach-media for a coach, member-films for a
+// member), so a film can only ever be the OWNER's own video in the right bucket.
+export function bsOwnVideoUrl(v, bucket, ownerUid) {
+  return bsOwnUrl(v, bucket, ownerUid, VIDEO_EXT);
 }
 
 // Plain-text caption: coerce to string, strip control chars (newlines/tabs/NUL

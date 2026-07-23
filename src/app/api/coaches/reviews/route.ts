@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
+import { coachSlug } from '@/lib/coach-catalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,9 +13,12 @@ function clampRating(value: unknown): number {
   const n = Math.round(Number(value) || 0);
   return Math.max(0, Math.min(10, n));
 }
-type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; created_at: string };
+type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; owner_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
-  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, date: row.created_at };
+  // ownerId (the coach BEING reviewed) is what the wins wall resolves a pinned id
+  // against — a pin only renders when ownerId === the profile owner's uid. NULL for
+  // any pre-migration review (there is no backfill), so it never pins.
+  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, ownerId: row.owner_id ?? null, date: row.created_at };
 }
 
 // GET /api/coaches/reviews?coach=<slug>  -> { reviews, avg, count }
@@ -24,9 +28,11 @@ export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
 
   if (slug) {
+    // select('*') keeps this migration-safe — an explicit owner_id column would
+    // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
     const { data, error } = await supabase
       .from('coach_reviews')
-      .select('id, rating, body, author_name, user_id, created_at')
+      .select('*')
       .eq('coach_slug', slug)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -78,15 +84,43 @@ export async function POST(request: Request) {
     /* best effort */
   }
 
+  // owner_id (the coach BEING reviewed) is resolved SERVER-SIDE from the slug —
+  // never trusted from the client, or a member could stamp another coach's uid and
+  // pin this review onto that coach's wall (CWE-639). coach_slug is slugify(name),
+  // so match the provider table by name. Ambiguous (name collision) or unresolvable
+  // (demo coach with no DB row) → NULL, and the review is simply never pinnable
+  // (honest absence over a false credential). No client input needed.
+  let ownerId: string | null = null;
+  try {
+    const table = kind === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const { data: provs } = await supabase.from(table).select('owner_id, name').not('owner_id', 'is', null).limit(5000);
+    const owners = new Set<string>();
+    for (const p of (provs ?? []) as { owner_id: string; name: string }[]) {
+      if (coachSlug(p.name) === slug) owners.add(p.owner_id);
+    }
+    if (owners.size === 1) ownerId = [...owners][0]; // unique → provable owner
+  } catch {
+    /* best effort — NULL stays; the review is written, just not pinnable */
+  }
+
   // Upsert so a re-submit (double-tap / retry / two tabs) UPDATES the user's single
   // review instead of inserting a duplicate row that skews the coach's public average.
   // Falls back to a plain insert until the unique-index migration is applied (42P10 =
   // no constraint matching ON CONFLICT).
-  const payload = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
+  const payload: Record<string, unknown> = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
+  if (ownerId) payload.owner_id = ownerId;
   const cols = 'id, rating, body, author_name, user_id, created_at';
-  let { data, error } = await supabase.from('coach_reviews').upsert(payload, { onConflict: 'user_id,coach_slug' }).select(cols).single();
-  if (error && error.code === '42P10') {
-    ({ data, error } = await supabase.from('coach_reviews').insert(payload).select(cols).single());
+  const writeReview = async (p: Record<string, unknown>) => {
+    let r = await supabase.from('coach_reviews').upsert(p, { onConflict: 'user_id,coach_slug' }).select(cols).single();
+    if (r.error && r.error.code === '42P10') r = await supabase.from('coach_reviews').insert(p).select(cols).single();
+    return r;
+  };
+  let { data, error } = await writeReview(payload);
+  // Pre-migration: the owner_id column isn't there yet → drop it and retry, so
+  // reviews still save before the owner runs the migration (they're stamped once it lands).
+  if (error && (error.code === '42703' || error.code === 'PGRST204') && payload.owner_id !== undefined) {
+    delete payload.owner_id;
+    ({ data, error } = await writeReview(payload));
   }
   if (error) {
     console.error('coach review write failed:', error);
