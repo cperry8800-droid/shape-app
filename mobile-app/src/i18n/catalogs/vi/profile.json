@@ -225,5 +225,12 @@
   "coach.buy": "Mua",
   "coach.publishFirst": "Đăng kế hoạch đầu tiên để liệt kê ở đây",
   "coach.nothingLogged": "Chưa ghi nhận gì — chạm ＋ Ghi lại hoạt động để đăng cập nhật đầu tiên.",
-  "coach.noActivity": "Chưa có hoạt động."
+  "coach.noActivity": "Chưa có hoạt động.",
+  "wall.head": "Bức tường",
+  "wall.count": "{count, plural, other {# ảnh}}",
+  "shelf.head": "Kệ · Tự hào",
+  "startLine.trainingFor": "Tập luyện cho",
+  "startLine.today": "Hôm nay",
+  "startLine.daysOut": "{count, plural, other {còn # ngày}}",
+  "line.attribution": "châm ngôn"
 }

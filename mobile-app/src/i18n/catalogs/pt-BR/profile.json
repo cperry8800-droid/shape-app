@@ -225,5 +225,12 @@
   "coach.buy": "Comprar",
   "coach.publishFirst": "Publique seu primeiro plano para listá-lo aqui",
   "coach.nothingLogged": "Nada registrado ainda — toque em ＋ Registrar atividade para publicar sua primeira novidade.",
-  "coach.noActivity": "Ainda sem atividade."
+  "coach.noActivity": "Ainda sem atividade.",
+  "wall.head": "O mural",
+  "wall.count": "{count, plural, one {# foto} other {# fotos}}",
+  "shelf.head": "A prateleira · Orgulho",
+  "startLine.trainingFor": "Treinando para",
+  "startLine.today": "Hoje",
+  "startLine.daysOut": "{count, plural, one {# dia} other {# dias}}",
+  "line.attribution": "lema"
 }

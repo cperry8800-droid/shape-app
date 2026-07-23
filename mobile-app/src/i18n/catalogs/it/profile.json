@@ -225,5 +225,12 @@
   "coach.buy": "Acquista",
   "coach.publishFirst": "Pubblica il tuo primo piano per elencarlo qui",
   "coach.nothingLogged": "Ancora niente registrato — tocca ＋ Registra attività per pubblicare il tuo primo aggiornamento.",
-  "coach.noActivity": "Ancora nessuna attività."
+  "coach.noActivity": "Ancora nessuna attività.",
+  "wall.head": "Il muro",
+  "wall.count": "{count, plural, one {# foto} other {# foto}}",
+  "shelf.head": "La mensola · Orgoglio",
+  "startLine.trainingFor": "In preparazione a",
+  "startLine.today": "Oggi",
+  "startLine.daysOut": "{count, plural, one {# giorno} other {# giorni}}",
+  "line.attribution": "motto"
 }

@@ -225,5 +225,12 @@
   "coach.buy": "Купити",
   "coach.publishFirst": "Опублікуйте перший план, щоб він з'явився тут",
   "coach.nothingLogged": "Поки нічого не записано — торкніться ＋ Записати активність, щоб опублікувати перше оновлення.",
-  "coach.noActivity": "Активності ще немає."
+  "coach.noActivity": "Активності ще немає.",
+  "wall.head": "Стіна",
+  "wall.count": "{count, plural, one {# кадр} few {# кадри} many {# кадрів} other {# кадри}}",
+  "shelf.head": "Полиця · Гордість",
+  "startLine.trainingFor": "Готується до",
+  "startLine.today": "Сьогодні",
+  "startLine.daysOut": "{count, plural, one {# день} few {# дні} many {# днів} other {# дня}}",
+  "line.attribution": "девіз"
 }

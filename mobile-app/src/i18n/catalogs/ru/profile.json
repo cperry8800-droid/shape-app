@@ -225,5 +225,12 @@
   "coach.buy": "Купить",
   "coach.publishFirst": "Опубликуйте первый план, чтобы он появился здесь",
   "coach.nothingLogged": "Пока ничего не записано — нажмите ＋ Записать активность, чтобы опубликовать первое обновление.",
-  "coach.noActivity": "Пока нет активности."
+  "coach.noActivity": "Пока нет активности.",
+  "wall.head": "Стена",
+  "wall.count": "{count, plural, one {# кадр} few {# кадра} many {# кадров} other {# кадра}}",
+  "shelf.head": "Полка · Гордость",
+  "startLine.trainingFor": "Готовится к",
+  "startLine.today": "Сегодня",
+  "startLine.daysOut": "{count, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
+  "line.attribution": "девиз"
 }

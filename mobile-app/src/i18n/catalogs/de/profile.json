@@ -225,5 +225,12 @@
   "coach.buy": "Kaufen",
   "coach.publishFirst": "Veröffentliche deinen ersten Plan, um ihn hier zu listen",
   "coach.nothingLogged": "Noch nichts erfasst — tippe auf ＋ Aktivität erfassen, um dein erstes Update zu posten.",
-  "coach.noActivity": "Noch keine Aktivität."
+  "coach.noActivity": "Noch keine Aktivität.",
+  "wall.head": "Die Wand",
+  "wall.count": "{count, plural, one {# Aufnahme} other {# Aufnahmen}}",
+  "shelf.head": "Das Regal · Stolz",
+  "startLine.trainingFor": "Training für",
+  "startLine.today": "Heute",
+  "startLine.daysOut": "{count, plural, one {noch # Tag} other {noch # Tage}}",
+  "line.attribution": "Motto"
 }

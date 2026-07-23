@@ -60,6 +60,7 @@
 <!-- Share-card renderer (canonical ES module, web-parity spec 2026-07-13): assigns window.ShapeShareCard before DOMContentLoaded — i.e. before babel runs the page code. -->
 <script type="module">import * as SC from "/newdesign/shareCard.mjs?v=20260713"; window.ShapeShareCard = SC;</script>
 <script type="module">import * as LM from "/newdesign/listingMedia.mjs?v=20260723"; window.ShapeListingLib = LM;</script>
+<script type="module">import * as PL from "/newdesign/profileCustom.mjs?v=20260723"; window.ShapeProfileLib = PL;</script>
 <script type="text/babel" src="dashboardCommunity.jsx?v=20260713c"></script>
 <script type="text/babel" src="trainerGoalPage.jsx?v=20260630a"></script>
 <script type="text/babel" src="trainerScorePage.jsx?v=20260620w"></script>

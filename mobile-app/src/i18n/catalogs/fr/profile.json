@@ -225,5 +225,12 @@
   "coach.buy": "Acheter",
   "coach.publishFirst": "Publiez votre premier plan pour le lister ici",
   "coach.nothingLogged": "Rien d’enregistré pour l’instant — touchez ＋ Consigner une activité pour publier votre première actu.",
-  "coach.noActivity": "Pas encore d’activité."
+  "coach.noActivity": "Pas encore d’activité.",
+  "wall.head": "Le mur",
+  "wall.count": "{count, plural, one {# photo} other {# photos}}",
+  "shelf.head": "L’étagère · Fierté",
+  "startLine.trainingFor": "En préparation de",
+  "startLine.today": "Aujourd’hui",
+  "startLine.daysOut": "{count, plural, one {# jour} other {# jours}}",
+  "line.attribution": "devise"
 }

@@ -225,5 +225,12 @@
   "coach.buy": "Satın al",
   "coach.publishFirst": "Burada listelemek için ilk planını yayınla",
   "coach.nothingLogged": "Henüz kayıt yok — ilk güncellemeni paylaşmak için ＋ Etkinlik kaydet'e dokun.",
-  "coach.noActivity": "Henüz etkinlik yok."
+  "coach.noActivity": "Henüz etkinlik yok.",
+  "wall.head": "Duvar",
+  "wall.count": "{count, plural, one {# kare} other {# kare}}",
+  "shelf.head": "Raf · Gurur",
+  "startLine.trainingFor": "Hazırlanıyor",
+  "startLine.today": "Bugün",
+  "startLine.daysOut": "{count, plural, one {# gün} other {# gün}}",
+  "line.attribution": "sözü"
 }

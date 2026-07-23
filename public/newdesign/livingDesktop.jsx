@@ -265,6 +265,33 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
           <DKick c={dHexA(LV_INK, 0.55)} style={{ marginBottom: 9, fontSize: 10.5, letterSpacing: "0.2em" }}>{direction === "terrain" ? "⛰ Summit · " : ""}{d.goalKicker}</DKick>
           <div style={{ fontFamily: dSerif, fontSize: 27, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.15 }}>{d.goal}</div>
         </div>
+        {/* M2 · Start line + M4 · Line — member hero character (terrain only). */}
+        {direction === "terrain" && (() => {
+          const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+          if (!plib) return null;
+          const heroLine = plib.bsProfileLine ? plib.bsProfileLine(d.custom && d.custom.line) : "";
+          const heroStart = plib.bsProfileStartLine ? plib.bsProfileStartLine(d.custom && d.custom.startLine) : null;
+          const heroStartState = (heroStart && plib.bsStartLineState) ? plib.bsStartLineState(heroStart.date, new Date()) : null;
+          if (!heroLine && !heroStartState) return null;
+          const firstName = (String(d.name || "").trim().split(/\s+/)[0] || "").toUpperCase();
+          let dateLabel = "";
+          if (heroStartState && plib.bsValidStartDate) { const v = plib.bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(undefined, { month: "short", day: "numeric" }).toUpperCase(); } catch (e) {} }
+          return (
+            <div style={{ marginTop: 22, maxWidth: 460 }}>
+              {heroStartState && (
+                <div style={{ fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6), lineHeight: 1.5 }}>
+                  <span style={{ color: c }}>Training for</span>{heroStart.title ? ` · ${heroStart.title}` : ""}{dateLabel ? ` · ${dateLabel}` : ""} · <span style={{ color: c }}>{heroStartState.days === 0 ? "Today" : `${heroStartState.days} ${heroStartState.days === 1 ? "day" : "days"} out`}</span>
+                </div>
+              )}
+              {heroLine && (
+                <div style={{ marginTop: heroStartState ? 12 : 0 }}>
+                  <span style={{ fontFamily: dSerif, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.3, color: LV_INK }}>{heroLine}</span>
+                  <div style={{ marginTop: 5, fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.45) }}>— {firstName} line</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {/* score strip — eyebrow-above-figure ledger registers */}
         <div style={{ display: "flex", gap: 36, marginTop: 28, alignItems: "flex-end" }}>
           <DLedgerStat c={c} label="Shape Score" value={d.score.toLocaleString()} sub={`▲ ${d.scoreWk} this week`} />
@@ -789,10 +816,16 @@ function dkLinkHref(key, val) {
   if (host && (low === host || low.startsWith(host + "/"))) return "https://" + v;
   return "https://" + (pre ? pre + v : v);
 }
-function ProfileExtras({ d, owner }) {
+function ProfileExtras({ d, owner, coach = false }) {
   const [cust, setCust] = React.useState(d.custom || null);
   const [edit, setEdit] = React.useState(false);
   const cu = cust || {};
+  const profLib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  // M1 (wall) / M3 (shelf) — normalized at render; wall URLs bound to the profile
+  // owner's own community-photos folder (d.uid). Absent/junk → the station is gone.
+  // M1/M3 are member (Terrain) features — never render them on a coach profile.
+  const wall = (!coach && profLib && profLib.bsProfileWall) ? profLib.bsProfileWall(cu.wall, d.uid) : [];
+  const shelf = (!coach && profLib && profLib.bsProfileShelf) ? profLib.bsProfileShelf(cu.shelf) : [];
   const c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : tierOf(d).color;
   const embed = dkSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
@@ -800,7 +833,7 @@ function ProfileExtras({ d, owner }) {
   const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
   const statSrc = dkStatsFor(d);
   const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => statSrc[k] ? { k, ...statSrc[k] } : null).filter(Boolean).slice(0, 3);
-  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length;
+  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length && !wall.length && !shelf.length;
   if (empty && !owner) return null;
   return (
     <div style={{ marginBottom: 22 }}>
@@ -817,6 +850,32 @@ function ProfileExtras({ d, owner }) {
           <div style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 9 }}>{pinned.title}</div>
           {pinned.note && <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.5, color: dHexA(LV_INK, 0.72), margin: "8px 0 0" }}>{pinned.note}</p>}
           {pinned.metric && <div style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: c, marginTop: 11 }}>{pinned.metric}</div>}
+        </div>
+      )}
+      {wall.length > 0 && (
+        <div style={{ marginBottom: 26 }}>
+          <DStationHead c={c} label="The wall" />
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+            {wall.map((w, i) => (
+              <figure key={i} style={{ flex: "none", width: 168, margin: 0 }}>
+                <div style={{ width: 168, height: 118, borderRadius: 10, border: `1px solid ${dHexA(LV_INK, 0.12)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} aria-hidden="true" />
+                {w.caption ? <figcaption style={{ marginTop: 7, fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.02em", color: dHexA(LV_INK, 0.55), lineHeight: 1.3 }}>{w.caption}</figcaption> : null}
+              </figure>
+            ))}
+          </div>
+        </div>
+      )}
+      {shelf.length > 0 && (
+        <div style={{ marginBottom: 26, maxWidth: 520 }}>
+          <DStationHead c={c} label="The shelf · Proudest" />
+          {shelf.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "10px 0", borderTop: i ? `1px solid ${dHexA(LV_INK, 0.08)}` : "none" }}>
+              <span style={{ flex: "none", fontFamily: dMono, fontSize: 9.5, fontWeight: 700, color: dHexA(LV_INK, 0.4) }}>{String(i + 1).padStart(2, "0")}</span>
+              <span style={{ fontFamily: dSerif, fontSize: 17, letterSpacing: "-0.01em", color: LV_INK }}>{s.title}</span>
+              <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${dHexA(LV_INK, 0.28)}`, transform: "translateY(-4px)", minWidth: 14 }} />
+              {s.when ? <span style={{ flex: "none", fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{s.when}</span> : null}
+            </div>
+          ))}
         </div>
       )}
       {(embed || prompts.length || links.length) > 0 && (
@@ -847,12 +906,15 @@ function ProfileExtras({ d, owner }) {
           )}
         </div>
       )}
-      {edit && <ProfileCustomizer initial={cust} c={c} onClose={() => setEdit(false)} onSave={(doc) => { setCust(doc); setEdit(false); }} />}
+      {edit && <ProfileCustomizer initial={cust} c={c} coach={coach} onClose={() => setEdit(false)} onSave={(doc) => { setCust(doc); setEdit(false); }} />}
     </div>
   );
 }
-function ProfileCustomizer({ initial, c, onClose, onSave }) {
+function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const init = initial || {};
+  const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  const WMAX = (plib && plib.BS_WALL_MAX) || 6, SMAX = (plib && plib.BS_SHELF_MAX) || 4;
+  const CAPM = (plib && plib.BS_CAPTION_MAX) || 80, STM = (plib && plib.BS_SHELF_TITLE_MAX) || 60, SWM = (plib && plib.BS_SHELF_WHEN_MAX) || 20, LM = (plib && plib.BS_LINE_MAX) || 80, STTM = (plib && plib.BS_START_TITLE_MAX) || 60;
   const [bio, setBio] = React.useState(init.bio || "");
   const [songUrl, setSongUrl] = React.useState((init.song && init.song.url) || "");
   const [songLabel, setSongLabel] = React.useState((init.song && init.song.label) || "");
@@ -867,6 +929,36 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   const [heroStats, setHeroStats] = React.useState(Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ["score", "tier", "streak"]);
   const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
   const [climbBg, setClimbBg] = React.useState(init.climbBg || "");
+  // Member profile-wave sections (M1–M4). State round-trips init even when the
+  // section is hidden (coach path is PR D), so the doc never loses a key.
+  const [line, setLine] = React.useState(init.line || "");
+  const [startTitle, setStartTitle] = React.useState((init.startLine && init.startLine.title) || "");
+  const [startDate, setStartDate] = React.useState((init.startLine && init.startLine.date) || "");
+  const [wall, setWall] = React.useState(Array.isArray(init.wall) ? init.wall.slice(0, WMAX).map((w) => ({ url: w && w.url, caption: (w && w.caption) || "" })) : []);
+  const [shelf, setShelf] = React.useState(Array.isArray(init.shelf) ? init.shelf.slice(0, SMAX).map((s) => ({ title: (s && s.title) || "", when: (s && s.when) || "" })) : []);
+  const [wallBusy, setWallBusy] = React.useState(false);
+  const wallRef = React.useRef(null);
+  const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;
+  const startValid = (plib && plib.bsValidStartDate) ? plib.bsValidStartDate(startDate) : null;
+  const onWallFile = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
+    if (!file || wall.length >= WMAX) return; setWallBusy(true);
+    try {
+      const cl = window.shapeDb && window.shapeDb.client;
+      const { data: u } = await cl.auth.getUser();
+      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${(file.name.split(".").pop() || "jpg")}`;
+      const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
+      if (up.error) throw up.error;
+      const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
+      setWall((prev) => prev.length >= WMAX ? prev : [...prev, { url: pub.publicUrl, caption: "" }]);
+    } catch (err) { alert((err && err.message) || "Could not upload photo."); }
+    finally { setWallBusy(false); }
+  };
+  const setWallCap = (i, v) => setWall((prev) => prev.map((w, j) => j === i ? { ...w, caption: v.slice(0, CAPM) } : w));
+  const removeWall = (i) => setWall((prev) => prev.filter((_, j) => j !== i));
+  const addShelfRow = () => setShelf((prev) => prev.length >= SMAX ? prev : [...prev, { title: "", when: "" }]);
+  const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === "title" ? STM : SWM) } : s));
+  const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
   const [coverBusy, setCoverBusy] = React.useState(false);
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
@@ -901,12 +993,26 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
+      // Profile-wave keys (M1–M4). The normalizer below cleans + caps and DROPS
+      // them when empty; every legacy key passes byte-identical.
+      line,
+      wall,
+      shelf,
+      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
     };
+    let out = doc;
     try {
       const cl = window.shapeDb && window.shapeDb.client;
-      if (cl) { const { data: u } = await cl.auth.getUser(); if (u && u.user) await cl.from("user_goals").upsert({ user_id: u.user.id, kind: "profile_custom", data: doc }, { onConflict: "user_id,kind" }); }
+      if (cl) {
+        const { data: u } = await cl.auth.getUser();
+        const uid = u && u.user && u.user.id;
+        if (uid) {
+          out = (plib && plib.bsNormalizeProfileCustom) ? plib.bsNormalizeProfileCustom(doc, uid) : doc;
+          await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" });
+        }
+      }
     } catch (e) {}
-    setBusy(false); onSave(doc);
+    setBusy(false); onSave(out);
   };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -916,6 +1022,51 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
           <button onClick={onClose} style={{ background: "transparent", border: 0, color: dHexA(LV_INK, 0.6), fontSize: 22, cursor: "pointer" }}>×</button>
         </div>
         <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /></div>
+        {!coach && (<>
+          {/* M4 · The Line */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Your line · one motto</span>
+            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you live by — e.g. Strong is a skill." style={field} />
+          </div>
+          {/* M2 · The Start line */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Training for · a countdown</span>
+            <input value={startTitle} onChange={(e) => setStartTitle(e.target.value.slice(0, STTM))} maxLength={STTM} placeholder="What you're training for — e.g. My first marathon" style={field} />
+            <input value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="Date · YYYY-MM-DD" style={{ ...field, marginTop: 8 }} />
+            {startDate.trim() && !startState && <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10, color: "#c0533b" }}>{startValid ? "That date has passed — clear or update it." : "Enter a real date as YYYY-MM-DD."}</div>}
+            {startState && <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10, color: dHexA(LV_INK, 0.5) }}>{startState.days === 0 ? "Shows: TODAY" : `Shows: ${startState.days} ${startState.days === 1 ? "day" : "days"} out`}</div>}
+            {(startTitle.trim() || startDate.trim()) && <button type="button" onClick={() => { setStartTitle(""); setStartDate(""); }} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Clear start line</button>}
+          </div>
+          {/* M1 · The Wall */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The wall · pinned photos · up to {WMAX}</span>
+            <input ref={wallRef} type="file" accept="image/*" onChange={onWallFile} style={{ display: "none" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {wall.map((w, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div aria-hidden="true" style={{ width: 54, height: 54, flexShrink: 0, borderRadius: 8, border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} />
+                  <input value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={CAPM} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
+                  <button type="button" onClick={() => removeWall(i)} aria-label="Remove photo" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
+                </div>
+              ))}
+            </div>
+            {wall.length < WMAX && <button type="button" onClick={() => !wallBusy && wallRef.current && wallRef.current.click()} disabled={wallBusy} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: wallBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{wallBusy ? "Uploading…" : "+ Add photo"}</button>}
+          </div>
+          {/* M3 · The Shelf */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The shelf · proudest · up to {SMAX}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {shelf.map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input value={s.title} onChange={(e) => setShelfField(i, "title", e.target.value)} maxLength={STM} placeholder="e.g. Deadlift 140kg" style={{ ...field, flex: 1 }} />
+                  <input value={s.when} onChange={(e) => setShelfField(i, "when", e.target.value)} maxLength={SWM} placeholder="When" style={{ ...field, flex: "0 0 110px" }} />
+                  <button type="button" onClick={() => removeShelf(i)} aria-label="Remove row" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
+                </div>
+              ))}
+            </div>
+            {shelf.length < SMAX && <button type="button" onClick={addShelfRow} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add row</button>}
+          </div>
+        </>)}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
           <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(accent || c, 0.4)}, ${dHexA(accent || c, 0.08)})` }}>
@@ -1140,7 +1291,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               <section id="dk-activity" style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
                 <div style={{ position: "relative", paddingLeft: 22 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
-                  <ProfileExtras d={d} owner={owner} />
+                  <ProfileExtras d={d} owner={owner} coach={coach} />
                   <FeedBlock d={d} direction={direction} owner={owner} />
                 </div>
               </section>
