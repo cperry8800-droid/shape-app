@@ -4520,10 +4520,14 @@ async function uploadCoachMedia(file, opts = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
   if (!file) throw new Error('No file selected.');
   const isVideoType = (file.type || '').startsWith('video/');
-  // Prefer the MIME subtype; fall back to the filename extension when the picker
-  // omits the type (camera-roll HEIC etc.) so the stored key keeps a real ext.
+  // Map the MIME to a CANONICAL extension — a raw subtype split gives `.quicktime`
+  // for MOV and `.xm4v` for M4V, which the profile-film video allowlist
+  // (mp4/mov/webm/m4v) rejects, so a MOV intro film would upload then silently drop
+  // at save. Fall back to the filename ext when the picker omits the type
+  // (camera-roll HEIC etc.) so the stored key keeps a real ext.
+  const MIME_EXT = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v', 'video/m4v': 'm4v', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif' };
   const nameExt = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : '';
-  const ext = ((file.type && file.type.split('/')[1]) || nameExt || (isVideoType ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideoType ? 'mp4' : 'jpg');
+  const ext = (MIME_EXT[(file.type || '').toLowerCase()] || nameExt || (isVideoType ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideoType ? 'mp4' : 'jpg');
   // A blank-MIME file is a video when its extension says so — keep ext, contentType
   // and the returned `type` coherent (a .mp4 must not come back as an image).
   const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];

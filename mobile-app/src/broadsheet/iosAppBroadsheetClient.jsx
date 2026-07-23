@@ -11233,6 +11233,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // Reject non-video BEFORE upload — the film gate (bsOwnVideoUrl) accepts only
     // mp4/mov/webm/m4v, so anything else would upload then be dropped at save.
     if (!/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '')) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
+    if (file.size > 200 * 1024 * 1024) { window.__bsToast?.('That video is too large — keep it under 200 MB.', 'err'); return; }
     setFilmBusy(true);
     try { const up = await window.ShapeCoachMedia?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload film.', 'err'); }
@@ -11366,7 +11367,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             {pickReviews && pickReviews.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {pickReviews.map((r) => { const on = pins.includes(r.id); return (
-                  <button key={r.id} type="button" onClick={() => togglePin(r.id)} style={{ textAlign: 'left', cursor: 'pointer', background: on ? bsTHexA(c, 0.1) : 'transparent', border: `1px solid ${on ? c : bsTHexA(INK, 0.14)}`, borderRadius: 9, padding: '11px 13px' }}>
+                  <button key={r.id} type="button" aria-pressed={on} onClick={() => togglePin(r.id)} style={{ textAlign: 'left', cursor: 'pointer', background: on ? bsTHexA(c, 0.1) : 'transparent', border: `1px solid ${on ? c : bsTHexA(INK, 0.14)}`, borderRadius: 9, padding: '11px 13px' }}>
                     <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? c : bsTHexA(INK, 0.45) }}>{on ? '✓ Pinned' : 'Tap to pin'} · ★ {Math.round(r.rating || 0)}/10 · {r.author || 'Member'}</div>
                     <div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.82), marginTop: 5, lineHeight: 1.35 }}>“{(r.text || '').slice(0, 120)}{(r.text || '').length > 120 ? '…' : ''}”</div>
                   </button>

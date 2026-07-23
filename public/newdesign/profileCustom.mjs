@@ -41,6 +41,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // precedent).
 const BS_WALL_SCAN = BS_WALL_MAX * 4;
 const BS_SHELF_SCAN = BS_SHELF_MAX * 4;
+const BS_PINNED_REVIEWS_SCAN = BS_PINNED_REVIEWS_MAX * 4;
 
 const CONTROL_CHARS = new RegExp("[\u0000-\u001F\u007F]", "g");
 
@@ -157,7 +158,11 @@ export function bsProfilePinnedReviews(v) {
   if (!Array.isArray(v)) return [];
   const out = [];
   const seen = new Set();
-  for (const id of v) {
+  // Bound the source scan (the wall/shelf DoS-guard precedent): the doc is public-
+  // read + owner-writable, so a crafted array of junk ids with few/no valid uuids
+  // would otherwise walk the whole thing on every visitor's render.
+  const items = v.length > BS_PINNED_REVIEWS_SCAN ? v.slice(0, BS_PINNED_REVIEWS_SCAN) : v;
+  for (const id of items) {
     if (out.length >= BS_PINNED_REVIEWS_MAX) break;
     if (typeof id !== 'string') continue;
     const s = id.trim().toLowerCase();

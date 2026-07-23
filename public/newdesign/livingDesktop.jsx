@@ -1004,6 +1004,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file) return;
     if (!/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "")) { alert("Pick an MP4, MOV or WebM video."); return; }
+    if (file.size > 200 * 1024 * 1024) { alert("That video is too large — keep it under 200 MB."); return; }
     const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || "mp4";
     setFilmBusy(true);
     try {
@@ -1171,7 +1172,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             {pickReviews && pickReviews.length ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {pickReviews.map((r) => { const on = pins.includes(r.id); return (
-                  <button key={r.id} type="button" onClick={() => togglePin(r.id)} style={{ textAlign: "left", cursor: "pointer", background: on ? dHexA(c, 0.1) : "transparent", border: `1px solid ${on ? c : dHexA(LV_INK, 0.14)}`, borderRadius: 10, padding: "11px 13px" }}>
+                  <button key={r.id} type="button" aria-pressed={on} onClick={() => togglePin(r.id)} style={{ textAlign: "left", cursor: "pointer", background: on ? dHexA(c, 0.1) : "transparent", border: `1px solid ${on ? c : dHexA(LV_INK, 0.14)}`, borderRadius: 10, padding: "11px 13px" }}>
                     <div style={{ fontFamily: dMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: on ? c : dHexA(LV_INK, 0.45) }}>{on ? "✓ Pinned" : "Tap to pin"} · ★ {Math.round(r.rating || 0)}/10 · {r.author || "Member"}</div>
                     <div style={{ fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.82), marginTop: 5, lineHeight: 1.35 }}>“{(r.text || "").slice(0, 120)}{(r.text || "").length > 120 ? "…" : ""}”</div>
                   </button>

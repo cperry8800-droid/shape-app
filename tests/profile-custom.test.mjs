@@ -173,6 +173,10 @@ test('bsProfilePinnedReviews (P5): uuid-only, deduped, ≤3, lowercased', () => 
   assert.equal(bsProfilePinnedReviews([R1, R2, R3, R4]).length, BS_PINNED_REVIEWS_MAX); // ≤3
   assert.deepEqual(bsProfilePinnedReviews([R1, 'not-a-uuid', 42, null, {}, R3]), [R1, R3]); // junk dropped
   for (const junk of [null, 'str', {}, 42]) assert.deepEqual(bsProfilePinnedReviews(junk), []);
+  // scan cap (DoS guard): a valid uuid BEYOND the bounded window is never inspected;
+  // a massive junk array doesn't hang.
+  assert.deepEqual(bsProfilePinnedReviews([...Array.from({ length: 20 }, () => 'not-a-uuid'), R1]), []);
+  assert.deepEqual(bsProfilePinnedReviews(Array.from({ length: 100000 }, () => 'x')), []);
 });
 
 test('bsNormalizeProfileCustom: P4/P5 keys + film via opts.filmBucket + film passthrough', () => {
