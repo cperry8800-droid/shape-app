@@ -336,7 +336,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={c.ownerId ? ("MemberProfile.html?u=" + encodeURIComponent(c.ownerId)) : ("MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : ""))} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={c.ownerId ? ("MemberProfile.html?u=" + encodeURIComponent(c.ownerId) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")) : ("MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : ""))} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative", aspectRatio: "4 / 3", overflow: "hidden", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {(c.cover || c.coverImage) && (<>
           <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover || c.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
@@ -391,6 +391,8 @@ function mapLiveCoach(row, tab) {
   const services = Array.isArray(row.services) ? row.services.filter(Boolean) : [];
   const specs = (isNutri ? [...tags, ...services] : tags).slice(0, 3);
   const fmt = (() => { const f = String(row.format || "").toLowerCase(); if (/hybrid/.test(f)) return "Hybrid"; if (/remote|online|virtual/.test(f)) return "Remote"; if (/person|studio|gym/.test(f)) return "In-person"; return row.location ? "In-person" : "Remote"; })();
+  const lib = (typeof window !== "undefined" && window.ShapeListingLib) || null;
+  const media = (lib && lib.bsNormalizeListingMedia) ? lib.bsNormalizeListingMedia(row.listing_media, row.owner_id) : null;
   return {
     name: row.name || (isNutri ? "Shape Nutritionist" : "Shape Trainer"),
     role: row.specialty || row.category || (isNutri ? "Nutrition Coaching" : "Personal Training"),
@@ -402,7 +404,13 @@ function mapLiveCoach(row, tab) {
     cert: row.credential || "Certified", years: yrs, format: fmt,
     category: "All Categories",
     ownerId: row.owner_id || null,
-    photo: "", live: true, verified: !!row.verified,
+    // Coach-authored listing media (normalized via the canonical guard — an
+    // invalid/foreign URL is dropped). The listing portrait is preferred over
+    // the get_public_profile avatar (set below only if photo is still empty);
+    // CoachCard already renders c.cover.
+    photo: (media && media.portrait) || "",
+    cover: (media && media.cover) || "",
+    live: true, verified: !!row.verified,
   };
 }
 function useLiveCoaches(tab) {
@@ -420,7 +428,7 @@ function useLiveCoaches(tab) {
         try {
           const r = await cl.rpc("get_public_profile", { p_user_id: c.ownerId });
           const row = Array.isArray(r && r.data) ? r.data[0] : (r && r.data);
-          if (row && row.avatar) c.photo = row.avatar;
+          if (row && row.avatar && !c.photo) c.photo = row.avatar;
         } catch (e) { /* keep initials */ }
       }));
       if (on) setLive(coaches);

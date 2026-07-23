@@ -590,16 +590,37 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   // provider tables are public-read; pre-migration the select just errors
   // quietly and the coupon renders without it (honest absence, no fallback).
   const [offer, setOffer] = React.useState(null);
+  const [studio, setStudio] = React.useState([]);
+  // Prefer the URL &role= (the clicked listing's role) over the profile's guessed
+  // d.role — a dual-role coach holds both provider rows, and the offer/STUDIO must
+  // read the row the visitor actually clicked, never the other listing's.
+  const listingRole = (() => {
+    let p = null;
+    try { p = new URLSearchParams(window.location.search).get("role"); } catch (e) {}
+    if (p === "trainer" || p === "nutritionist") return p;
+    return /nutritionist/i.test(String(d.role || "")) ? "nutritionist" : "trainer";
+  })();
+  const providerTable = listingRole === "nutritionist" ? "nutritionists" : "trainers";
   React.useEffect(() => {
     const cl = window.shapeDb && window.shapeDb.client;
     if (!d.uid || !cl || !cl.from) return;
     let on = true;
-    const table = /nutritionist/i.test(String(d.role || "")) ? "nutritionists" : "trainers";
-    cl.from(table).select("monthly_offer").eq("owner_id", d.uid).maybeSingle()
-      .then((r) => { if (on && r && !r.error && r.data && r.data.monthly_offer) setOffer(r.data.monthly_offer); })
+    // Clear any prior coach's data first, so a same-mount profile swap can't
+    // leave the previous coach's offer/studio showing until the new fetch lands.
+    setOffer(null); setStudio([]);
+    cl.from(providerTable).select("monthly_offer, listing_media").eq("owner_id", d.uid).maybeSingle()
+      .then((r) => {
+        if (!on || !r || r.error || !r.data) return;
+        if (r.data.monthly_offer) setOffer(r.data.monthly_offer);
+        const lib = window.ShapeListingLib;
+        if (lib && lib.bsNormalizeListingMedia) {
+          const m = lib.bsNormalizeListingMedia(r.data.listing_media, d.uid);
+          if (m && Array.isArray(m.gallery) && m.gallery.length) setStudio(m.gallery);
+        }
+      })
       .catch(() => {});
     return () => { on = false; };
-  }, [d.uid, d.role]);
+  }, [d.uid, providerTable]);
   const offerLines = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 8) : [];
   const hasOffer = Boolean(offer && ((offer.blurb && String(offer.blurb).trim()) || offerLines.length));
   React.useEffect(() => {
@@ -654,6 +675,22 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
             <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
             <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
           </div>
+          </div>
+        </div>
+      )}
+      {/* THE STUDIO — the coach's studio gallery (listing_media), a captioned
+          strip in the ledger grammar. Photos are normalized (own-bucket, image
+          -only) by ShapeListingLib; absent → nothing. */}
+      {studio.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          {stHead("The studio")}
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+            {studio.map((g, i) => (
+              <figure key={i} style={{ flex: "none", width: 168, margin: 0 }}>
+                <div style={{ width: 168, height: 112, borderRadius: 8, border: `1px solid ${hexA(ink, 0.14)}`, backgroundImage: `url("${g.url}")`, backgroundSize: "cover", backgroundPosition: "center" }} aria-hidden="true" />
+                {g.caption ? <figcaption style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.04em", color: hexA(ink, 0.5), marginTop: 6, lineHeight: 1.3 }}>{String(g.caption)}</figcaption> : null}
+              </figure>
+            ))}
           </div>
         </div>
       )}
