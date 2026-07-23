@@ -21,6 +21,7 @@ import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsStepTimers, bsFractionalDuration, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX } from '../services/profileCustom.mjs';
 import { bsOrchestrate } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
@@ -10213,7 +10214,7 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
@@ -10228,7 +10229,14 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
   const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
   const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => stats && stats[k] ? { k, ...stats[k] } : null).filter(Boolean).slice(0, 3);
-  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length;
+  // M1 (wall) / M3 (shelf) — member (Terrain) features, normalized at render; wall
+  // URLs are bound to the profile owner's own community-photos folder (userId), so
+  // a doc can't point at a foreign object. Absent/junk → empty → no station. Gated
+  // to members: the profile_custom doc is shared across roles, so a client→coach
+  // switch must not surface these on the coach Signal profile (the web !coach gate).
+  const wall = coach ? [] : bsProfileWall(cu.wall, userId);
+  const shelf = coach ? [] : bsProfileShelf(cu.shelf);
+  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length && !wall.length && !shelf.length;
   if (empty && !isSelf) return null;
   const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   // ── Ledger variant (Terrain) — zero-box registers, line-only heat. ──
@@ -10247,6 +10255,32 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
             <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
             {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.7), margin: '6px 0 0' }}>{pinned.note}</p>}
             {pinned.metric && <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 8 }}>{pinned.metric}</div>}
+          </div>
+        )}
+        {wall.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <BSTStationHead heat={c} INK={INK} label={tr('profile:wall.head', { defaultValue: 'The wall' })} meta={tr('profile:wall.count', { defaultValue: '{count, plural, one {# shot} other {# shots}}', count: wall.length })} />
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
+              {wall.map((w, i) => (
+                <figure key={i} style={{ flex: 'none', width: 132, margin: 0 }}>
+                  <div style={{ width: 132, height: 96, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} aria-hidden="true" />
+                  {w.caption ? <figcaption style={{ marginTop: 6, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.02em', color: bsTHexA(INK, 0.55), lineHeight: 1.3 }}>{w.caption}</figcaption> : null}
+                </figure>
+              ))}
+            </div>
+          </div>
+        )}
+        {shelf.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <BSTStationHead heat={c} INK={INK} label={tr('profile:shelf.head', { defaultValue: 'The shelf · Proudest' })} />
+            {shelf.map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 9, padding: '9px 0', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 'none' }}>
+                <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontFamily: SERIF, fontSize: 15, letterSpacing: '-0.01em', color: INK }}>{s.title}</span>
+                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.28)}`, transform: 'translateY(-3px)', minWidth: 12 }} />
+                {s.when ? <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{s.when}</span> : null}
+              </div>
+            ))}
           </div>
         )}
         {embed && (
@@ -11140,8 +11174,44 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: BS_PROFILE_PROMPTS[prev.length % BS_PROFILE_PROMPTS.length], a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
+  // ── Member profile-wave sections (M1–M4). State round-trips init even when the
+  //    section isn't shown (coach path is PR D), so the doc never loses a key. ──
+  const [line, setLine] = useStateBSC(init.line || '');
+  const [startTitle, setStartTitle] = useStateBSC((init.startLine && init.startLine.title) || '');
+  const [startDate, setStartDate] = useStateBSC((init.startLine && init.startLine.date) || '');
+  const [wall, setWall] = useStateBSC(Array.isArray(init.wall) ? init.wall.slice(0, BS_WALL_MAX).map((w) => ({ url: w && w.url, caption: (w && w.caption) || '' })) : []);
+  const [shelf, setShelf] = useStateBSC(Array.isArray(init.shelf) ? init.shelf.slice(0, BS_SHELF_MAX).map((s) => ({ title: (s && s.title) || '', when: (s && s.when) || '' })) : []);
+  const [wallBusy, setWallBusy] = useStateBSC(false);
+  const wallRef = React.useRef(null);
+  const onWallFile = async (e) => {
+    const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
+    if (!file || wall.length >= BS_WALL_MAX) return;
+    // Reject types the wall's image allowlist can't accept BEFORE upload — an SVG
+    // (or avif/bmp) uploads then gets dropped by bsOwnMediaUrl at save, orphaning
+    // the blob in storage. Mirrors the web dkWallExt allowlist.
+    if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.('Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image.', 'err'); return; }
+    setWallBusy(true);
+    try { const url = await window.ShapeCommunity?.uploadPhoto?.(file); if (url) setWall((prev) => prev.length >= BS_WALL_MAX ? prev : [...prev, { url, caption: '' }]); else throw new Error('Upload failed'); }
+    catch (err) { window.__bsToast?.(err?.message || 'Could not upload photo.', 'err'); }
+    finally { setWallBusy(false); }
+  };
+  const setWallCap = (i, v) => setWall((prev) => prev.map((w, j) => j === i ? { ...w, caption: v.slice(0, BS_CAPTION_MAX) } : w));
+  const removeWall = (i) => setWall((prev) => prev.filter((_, j) => j !== i));
+  const addShelfRow = () => setShelf((prev) => prev.length >= BS_SHELF_MAX ? prev : [...prev, { title: '', when: '' }]);
+  const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
+  const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
+  const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
   const save = async () => {
+    // A real signed-in owner is REQUIRED before we normalize: bsProfileWall drops
+    // every wall entry when ownerUid is empty, so persisting with no uid would
+    // SILENTLY erase the member's wall. Surface save failures instead of
+    // swallowing them, and only close (onSave) once the write actually lands.
+    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!uid) { window.__bsToast?.('Sign in to save your profile.', 'err'); return; }
+    // A wall/cover upload still in flight would be omitted from the saved doc AND
+    // left orphaned in storage (onSave closes the editor before it lands) — wait.
+    if (wallBusy || coverBusy) { window.__bsToast?.('Hang on — a photo is still uploading.', 'err'); return; }
     setBusy(true);
     const doc = {
       ...init,
@@ -11154,10 +11224,23 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
+      // Profile-wave keys (M1–M4 / shared line). The normalizer below cleans +
+      // caps these and DROPS them when empty; every legacy key passes byte-identical.
+      line,
+      wall,
+      shelf,
+      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
     };
-    try { await window.shapeDb?.saveUserGoals?.('profile_custom', doc); } catch (e) {}
+    const clean = bsNormalizeProfileCustom(doc, uid);
+    let res;
+    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
+    catch (e) { res = { error: e }; }
     setBusy(false);
-    onSave(doc);
+    // saveUserGoals RESOLVES { ok } | { error } (never throws on an RLS/no-backend
+    // failure), so the old empty catch could never see a failed write. Keep the
+    // sheet open + toast on any non-ok result rather than faking success.
+    if (!res || res.error) { window.__bsToast?.((res && res.error && res.error.message) || 'Could not save — try again.', 'err'); return; }
+    onSave(clean);
   };
   return createPortal(
     // Full-page takeover (was a bottom sheet) — the customizer owns the screen.
@@ -11196,6 +11279,51 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={label}>Bio</span>
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: 'vertical', minHeight: 64 }} />
         </div>
+        {!coach && (<>
+          {/* M4 · The Line */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Your line · one motto</span>
+            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX} placeholder="A line you live by — e.g. Strong is a skill." style={field} />
+          </div>
+          {/* M2 · The Start line */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Training for · a countdown</span>
+            <input value={startTitle} onChange={(e) => setStartTitle(e.target.value.slice(0, BS_START_TITLE_MAX))} maxLength={BS_START_TITLE_MAX} placeholder="What you're training for — e.g. My first marathon" style={field} />
+            <input value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="Date · YYYY-MM-DD" style={{ ...field, marginTop: 8 }} />
+            {startDate.trim() && !startState && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>{bsValidStartDate(startDate) ? 'That date has passed — clear or update it.' : 'Enter a real date as YYYY-MM-DD.'}</div>}
+            {startState && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5), letterSpacing: '0.04em' }}>{startState.days === 0 ? 'Shows: TODAY' : `Shows: ${startState.days} ${startState.days === 1 ? 'day' : 'days'} out`}</div>}
+            {(startTitle.trim() || startDate.trim()) && <button onClick={() => { setStartTitle(''); setStartDate(''); }} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Clear start line</button>}
+          </div>
+          {/* M1 · The Wall */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The wall · pinned photos · up to {BS_WALL_MAX}</span>
+            <input ref={wallRef} type="file" accept="image/*" onChange={onWallFile} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {wall.map((w, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div aria-hidden="true" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: bsTHexA(INK, 0.05) }} />
+                  <input value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={BS_CAPTION_MAX} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
+                  <button onClick={() => removeWall(i)} aria-label="Remove photo" style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+            {wall.length < BS_WALL_MAX && <button onClick={() => !wallBusy && wallRef.current && wallRef.current.click()} disabled={wallBusy} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: wallBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{wallBusy ? 'Uploading…' : '+ Add photo'}</button>}
+          </div>
+          {/* M3 · The Shelf */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The shelf · proudest · up to {BS_SHELF_MAX}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {shelf.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input value={s.title} onChange={(e) => setShelfField(i, 'title', e.target.value)} maxLength={BS_SHELF_TITLE_MAX} placeholder="e.g. Deadlift 140kg" style={{ ...field, flex: 1 }} />
+                  <input value={s.when} onChange={(e) => setShelfField(i, 'when', e.target.value)} maxLength={BS_SHELF_WHEN_MAX} placeholder="When" style={{ ...field, flex: '0 0 88px' }} />
+                  <button onClick={() => removeShelf(i)} aria-label="Remove row" style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+            {shelf.length < BS_SHELF_MAX && <button onClick={addShelfRow} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add row</button>}
+          </div>
+        </>)}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
           <div style={{ position: 'relative', height: 130, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)', overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${bsTHexA(accent || c, 0.8)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
@@ -11287,7 +11415,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
         </button>
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
+          <button onClick={save} disabled={busy || wallBusy || coverBusy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: (busy || wallBusy || coverBusy) ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
         </div>
       </div>
     </div>,
@@ -12191,6 +12319,32 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
             onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
         </div>
+        {/* M2 · the Start line + M4 · the Line — hero character, under the identity
+            head. Absent/past/invalid date → the start line doesn't render. */}
+        {(() => {
+          const heroLine = bsProfileLine(custom && custom.line);
+          const heroStart = bsProfileStartLine(custom && custom.startLine);
+          const heroStartState = heroStart ? bsStartLineState(heroStart.date, new Date()) : null;
+          if (!heroLine && !heroStartState) return null;
+          const firstName = (String(name || '').trim().split(/\s+/)[0] || '').toUpperCase();
+          let dateLabel = '';
+          if (heroStartState) { const v = bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(bsDateLocale(), { month: 'short', day: 'numeric' }).toUpperCase(); } catch (e) {} }
+          return (
+            <div style={{ padding: '8px 8px 0' }}>
+              {heroStartState && (
+                <div style={{ fontFamily: BST_MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), lineHeight: 1.5 }}>
+                  <span style={{ color: c }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>{heroStart.title ? ` · ${heroStart.title}` : ''}{dateLabel ? ` · ${dateLabel}` : ''} · <span style={{ color: c }}>{heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}</span>
+                </div>
+              )}
+              {heroLine && (
+                <div style={{ marginTop: heroStartState ? 8 : 0 }}>
+                  <span style={{ fontFamily: BST_SERIF, fontSize: 17, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.3, color: INK }}>{heroLine}</span>
+                  <div style={{ marginTop: 4, fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>— {firstName} {tr('profile:line.attribution', { defaultValue: 'line' })}</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
             preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}
         <div style={{ padding: '14px 0 2px' }}>
@@ -12447,7 +12601,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
@@ -13124,7 +13278,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (

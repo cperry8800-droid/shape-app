@@ -225,5 +225,12 @@
   "coach.buy": "Beli",
   "coach.publishFirst": "Publikasikan rencana pertamamu untuk mencantumkannya di sini",
   "coach.nothingLogged": "Belum ada yang tercatat — ketuk ＋ Catat aktivitas untuk memposting kabar pertamamu.",
-  "coach.noActivity": "Belum ada aktivitas."
+  "coach.noActivity": "Belum ada aktivitas.",
+  "wall.head": "Dinding",
+  "wall.count": "{count, plural, other {# foto}}",
+  "shelf.head": "Rak · Kebanggaan",
+  "startLine.trainingFor": "Berlatih untuk",
+  "startLine.today": "Hari ini",
+  "startLine.daysOut": "{count, plural, other {# hari lagi}}",
+  "line.attribution": "moto"
 }

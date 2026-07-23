@@ -225,5 +225,12 @@
   "coach.buy": "Buy",
   "coach.publishFirst": "Publish your first plan so e go list for here",
   "coach.nothingLogged": "Never log anything yet — tap ＋ Log activity to post your first update.",
-  "coach.noActivity": "No activity yet."
+  "coach.noActivity": "No activity yet.",
+  "wall.head": "Di wall",
+  "wall.count": "{count, plural, one {# snap} other {# snaps}}",
+  "shelf.head": "Di shelf · Wetin I proud pass",
+  "startLine.trainingFor": "Dey train for",
+  "startLine.today": "Today",
+  "startLine.daysOut": "{count, plural, one {# day remain} other {# days remain}}",
+  "line.attribution": "word"
 }

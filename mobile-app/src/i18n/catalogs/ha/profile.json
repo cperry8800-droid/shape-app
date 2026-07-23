@@ -225,5 +225,12 @@
   "coach.buy": "Saya",
   "coach.publishFirst": "Buga shirinka na farko don lissafa shi a nan",
   "coach.nothingLogged": "Babu abin da aka rubuta tukuna — danna ＋ Rubuta aiki don buga sabuntawarka ta farko.",
-  "coach.noActivity": "Babu ayyuka tukuna."
+  "coach.noActivity": "Babu ayyuka tukuna.",
+  "wall.head": "Bango",
+  "wall.count": "{count, plural, one {hoto #} other {hotuna #}}",
+  "shelf.head": "Kanti · Abin alfahari",
+  "startLine.trainingFor": "Horo don",
+  "startLine.today": "Yau",
+  "startLine.daysOut": "{count, plural, one {kwana #} other {kwanaki #}}",
+  "line.attribution": "kalma"
 }

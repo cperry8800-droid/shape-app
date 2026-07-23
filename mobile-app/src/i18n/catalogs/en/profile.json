@@ -225,5 +225,12 @@
   "coach.buy": "Buy",
   "coach.publishFirst": "Publish your first plan to list it here",
   "coach.nothingLogged": "Nothing logged yet — tap ＋ Log activity to post your first update.",
-  "coach.noActivity": "No activity yet."
+  "coach.noActivity": "No activity yet.",
+  "wall.head": "The wall",
+  "wall.count": "{count, plural, one {# shot} other {# shots}}",
+  "shelf.head": "The shelf · Proudest",
+  "startLine.trainingFor": "Training for",
+  "startLine.today": "Today",
+  "startLine.daysOut": "{count, plural, one {# day out} other {# days out}}",
+  "line.attribution": "line"
 }
