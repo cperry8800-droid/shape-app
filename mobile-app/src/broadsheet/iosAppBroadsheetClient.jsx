@@ -11189,7 +11189,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // Reject types the wall's image allowlist can't accept BEFORE upload — an SVG
     // (or avif/bmp) uploads then gets dropped by bsOwnMediaUrl at save, orphaning
     // the blob in storage. Mirrors the web dkWallExt allowlist.
-    if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.('Pick a JPG, PNG, WebP, GIF or HEIC image.', 'err'); return; }
+    if (!/^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.('Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image.', 'err'); return; }
     setWallBusy(true);
     try { const url = await window.ShapeCommunity?.uploadPhoto?.(file); if (url) setWall((prev) => prev.length >= BS_WALL_MAX ? prev : [...prev, { url, caption: '' }]); else throw new Error('Upload failed'); }
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload photo.', 'err'); }

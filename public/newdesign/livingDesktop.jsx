@@ -965,7 +965,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file || wall.length >= WMAX) return;
     const ext = dkWallExt(file);
-    if (!ext) { alert("Pick a JPG, PNG, WebP, GIF or HEIC image."); return; }
+    if (!ext) { alert("Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image."); return; }
     setWallBusy(true);
     try {
       const cl = window.shapeDb && window.shapeDb.client;
