@@ -129,7 +129,18 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   }, [st.isSelf, st.uid]);
 
   const onMessage = () => {
-    if (st.isSelf) { window.location.href = "/newdesign/ClientMe.html"; return; }
+    if (st.isSelf) {
+      // "Edit profile" on your own profile. A CLIENT lands on the Settings tab —
+      // ClientMeSettings (details / log out) moved there off the profile route.
+      // A COACH keeps the profile page: their settings ride its extras, and the
+      // coach apps (TrainerApp/NutritionistApp) have no #settings route, so
+      // routing them there would fall back to Today. ClientMe.html → #profile
+      // → the role guard forwards a coach to their own app's profile.
+      const role = st.row && st.row.role;
+      const isCoach = role === "trainer" || role === "nutritionist";
+      window.location.href = isCoach ? "/newdesign/ClientMe.html" : "/newdesign/ClientApp.html#settings";
+      return;
+    }
     const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
     try { if (window.__openChat) { window.__openChat({ who: nm }); return; } } catch (e) {}
     const b = document.getElementById("shape-global-chat-button"); if (b) { b.click(); return; }
