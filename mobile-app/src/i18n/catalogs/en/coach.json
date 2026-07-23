@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "SEE THE FULL ROSTER",
   "wire.theWire": "THE WIRE",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, one {# meal prepped} other {# meals prepped}}"
+  "case.prepLine": "{count, plural, one {# meal prepped} other {# meals prepped}}",
+  "listing.row": "Listing photos",
+  "listing.rowSub": "Your box on the marketplace — portrait, cover, studio",
+  "listing.title": "Listing photos",
+  "listing.portrait": "Portrait · you",
+  "listing.cover": "Cover · your background",
+  "listing.gallery": "Studio gallery · up to {max}",
+  "listing.caption": "Caption",
+  "listing.addPhoto": "＋ Add photo",
+  "listing.save": "Save listing",
+  "listing.saved": "Listing saved",
+  "listing.unavailable": "Listing photos aren't available yet — try again after the next update."
 }

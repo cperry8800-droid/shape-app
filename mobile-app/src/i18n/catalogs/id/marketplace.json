@@ -166,5 +166,7 @@
   "stat.score": "Skor",
   "stat.sessions": "Sesi",
   "stat.years": "Tahun",
+  "studio.head": "Studio",
+  "studio.photos": "{count, plural, other {# foto}}",
   "thread.bookedIntro": "Konsultasi intro dipesan: {title}."
 }

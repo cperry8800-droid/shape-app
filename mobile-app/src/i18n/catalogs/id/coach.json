@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "LIHAT SELURUH DAFTAR KLIEN",
   "wire.theWire": "KABAR",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, other {# makanan disiapkan}}"
+  "case.prepLine": "{count, plural, other {# makanan disiapkan}}",
+  "listing.row": "Foto listing",
+  "listing.rowSub": "Kotak Anda di marketplace — potret, sampul, studio",
+  "listing.title": "Foto listing",
+  "listing.portrait": "Potret · Anda",
+  "listing.cover": "Sampul · latar Anda",
+  "listing.gallery": "Galeri studio · hingga {max}",
+  "listing.caption": "Keterangan",
+  "listing.addPhoto": "＋ Tambah foto",
+  "listing.save": "Simpan listing",
+  "listing.saved": "Listing disimpan",
+  "listing.unavailable": "Foto listing belum tersedia — coba lagi setelah pembaruan berikutnya."
 }

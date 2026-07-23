@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "ПЕРЕГЛЯНУТИ ВЕСЬ СПИСОК",
   "wire.theWire": "ЗВЕДЕННЯ",
   "case.prep": "ПРЕП",
-  "case.prepLine": "{count, plural, one {# страву підготовлено} few {# страви підготовлено} many {# страв підготовлено} other {# страв підготовлено}}"
+  "case.prepLine": "{count, plural, one {# страву підготовлено} few {# страви підготовлено} many {# страв підготовлено} other {# страв підготовлено}}",
+  "listing.row": "Фото оголошення",
+  "listing.rowSub": "Ваша картка на маркетплейсі — портрет, обкладинка, студія",
+  "listing.title": "Фото оголошення",
+  "listing.portrait": "Портрет · ви",
+  "listing.cover": "Обкладинка · ваш фон",
+  "listing.gallery": "Галерея студії · до {max}",
+  "listing.caption": "Підпис",
+  "listing.addPhoto": "＋ Додати фото",
+  "listing.save": "Зберегти оголошення",
+  "listing.saved": "Оголошення збережено",
+  "listing.unavailable": "Фото оголошення поки недоступні — спробуйте ще раз після наступного оновлення."
 }

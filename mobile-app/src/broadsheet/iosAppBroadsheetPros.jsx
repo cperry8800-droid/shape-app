@@ -6740,8 +6740,158 @@ function BSProMonthlyOfferSheet({ role, accent, onClose }) {
   );
 }
 
+// Listing-media editor — the coach dresses their marketplace box: a portrait of
+// themselves, a cover (the box's background picture), and a studio gallery of
+// their space. Saves owner-scoped onto the provider row via
+// window.ShapeListingMedia (role-explicit — this app's own role names the table,
+// so a dual-role coach customizes each listing separately). Uploads go to the
+// coach's own <uid>/listing/ folder in the coach-media bucket; images only,
+// ≤10 MB, enforced here before any bytes move (the bucket also allows video for
+// plan clips, so the listing contract is client-enforced). The render-side
+// normalizer (listingMedia.mjs) re-validates every URL — this is the write half.
+function BSProListingMediaSheet({ role, accent, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [portrait, setPortrait] = React.useState(null);
+  const [cover, setCover] = React.useState(null);
+  const [gallery, setGallery] = React.useState([]); // [{ id, url, caption }] — stable keys survive mid-list deletes
+  const nextId = React.useRef(0);
+  const [meta, setMeta] = React.useState({ loaded: false, signedIn: true, hasRow: true });
+  const [busy, setBusy] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const portraitRef = React.useRef(null);
+  const coverRef = React.useRef(null);
+  const galleryRef = React.useRef(null);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const r = await window.ShapeListingMedia?.mine?.(role);
+        if (!on) return;
+        if (r) {
+          const m = r.media || {};
+          setPortrait(m.portrait || null);
+          setCover(m.cover || null);
+          setGallery((Array.isArray(m.gallery) ? m.gallery : []).map((g) => ({ id: nextId.current++, url: g.url, caption: g.caption || '' })));
+          setMeta({ loaded: true, signedIn: r.signedIn !== false, hasRow: !!r.hasRow });
+        } else setMeta({ loaded: true, signedIn: false, hasRow: false });
+      } catch (e) { if (on) setMeta({ loaded: true, signedIn: true, hasRow: true }); }
+    })();
+    return () => { on = false; };
+  }, [role]);
+  const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'];
+  const MAX_BYTES = 10 * 1024 * 1024;
+  const flashErr = (msg) => { setErr(msg); setTimeout(() => setErr(''), 2600); };
+  // Returns the uploaded { url } or null (having surfaced an honest message).
+  const uploadImage = async (file) => {
+    if (!file) return null;
+    if (!window.ShapeCoachMedia?.upload) { flashErr(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); return null; }
+    // Images only, ≤10 MB — rejected before any bytes move (the bucket allows video).
+    if (!IMAGE_MIMES.includes((file.type || '').toLowerCase()) || file.size > MAX_BYTES) {
+      flashErr(tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }));
+      return null;
+    }
+    setUploading(true);
+    try {
+      const m = await window.ShapeCoachMedia.upload(file, { prefix: 'listing' });
+      return m && m.url ? m : null;
+    } catch (e) { flashErr(String((e && e.message) || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); return null; }
+    finally { setUploading(false); }
+  };
+  const pickSlot = (setter) => async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    const m = await uploadImage(file);
+    if (m) setter(m.url);
+  };
+  const pickGallery = async (e) => {
+    const file = (e.target.files || [])[0];
+    if (e.target) e.target.value = '';
+    if (gallery.length >= 6) return;
+    const m = await uploadImage(file);
+    if (m) setGallery((prev) => (prev.length >= 6 ? prev : [...prev, { id: nextId.current++, url: m.url, caption: '' }]));
+  };
+  const setCaption = (id, v) => setGallery((prev) => prev.map((g) => (g.id === id ? { ...g, caption: v.slice(0, 80) } : g)));
+  const rmGallery = (id) => setGallery((prev) => prev.filter((g) => g.id !== id));
+  const save = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      await window.ShapeListingMedia.set(role, { portrait, cover, gallery: gallery.map((g) => ({ url: g.url, caption: g.caption })) });
+      window.__bsToast?.(tr('coach:listing.saved', { defaultValue: 'Listing saved' }), 'ok');
+      onClose();
+    } catch (e) {
+      if (e && e.code === 'LISTING_MEDIA_UNAVAILABLE') setErr(tr('coach:listing.unavailable', { defaultValue: "Listing photos aren't available yet — try again after the next update." }));
+      else setErr(String((e && e.message) || 'Could not save — are you signed in as an approved coach?'));
+    }
+    setBusy(false);
+  };
+  const labelStyle = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
+  const chip = (label, onClick) => (
+    <button onClick={onClick} disabled={uploading || busy} style={{ border: `1px solid ${accent}`, background: `${accent}14`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: uploading || busy ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: uploading || busy ? 0.6 : 1 }}>{label}</button>
+  );
+  // A single-image slot (portrait / cover): preview or empty ground, plus
+  // replace/remove controls. `aspect` shapes the preview to its use.
+  const slot = (label, url, inputRef, onRemove, aspect) => (
+    <div style={{ marginTop: 16 }}>
+      <span style={labelStyle}>{label}</span>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ width: aspect === 'wide' ? 108 : 60, height: 60, flexShrink: 0, borderRadius: 12, border: `1px solid ${t.RULE}`, background: url ? `center/cover no-repeat url("${url}")` : t.PAPER2, backgroundColor: t.PAPER2 }} aria-hidden="true" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {chip(url ? '↻ Replace' : tr('coach:listing.addPhoto', { defaultValue: '＋ Add photo' }), () => inputRef.current && inputRef.current.click())}
+          {url && chip('× Remove', onRemove)}
+        </div>
+      </div>
+    </div>
+  );
+  return (
+    <div onClick={() => !busy && !uploading && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your listing photos" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+        <input ref={portraitRef} type="file" accept="image/*" onChange={pickSlot(setPortrait)} style={{ display: 'none' }} />
+        <input ref={coverRef} type="file" accept="image/*" onChange={pickSlot(setCover)} style={{ display: 'none' }} />
+        <input ref={galleryRef} type="file" accept="image/*" onChange={pickGallery} style={{ display: 'none' }} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>{tr('coach:listing.title', { defaultValue: 'Listing photos' })}</div>
+        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' })}</div>
+        {!meta.loaded ? (
+          <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+        ) : !meta.signedIn ? (
+          <div style={{ padding: '18px 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })}</div>
+        ) : !meta.hasRow ? (
+          <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>Your listing box appears once your coach application is approved.</div>
+        ) : (<>
+          {slot(tr('coach:listing.portrait', { defaultValue: 'Portrait · you' }), portrait, portraitRef, () => setPortrait(null), 'square')}
+          {slot(tr('coach:listing.cover', { defaultValue: 'Cover · your background' }), cover, coverRef, () => setCover(null), 'wide')}
+          <div style={{ marginTop: 18 }}>
+            <span style={labelStyle}>{tr('coach:listing.gallery', { defaultValue: 'Studio gallery · up to {max}', max: 6 })}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {gallery.map((g) => (
+                <div key={g.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: `center/cover no-repeat url("${g.url}")` }} aria-hidden="true" />
+                  <input value={g.caption} onChange={(e) => setCaption(g.id, e.target.value)} maxLength={80} placeholder={tr('coach:listing.caption', { defaultValue: 'Caption' })}
+                    style={{ flex: 1, boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '9px 11px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
+                  <button onClick={() => rmGallery(g.id)} aria-label="Remove photo" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
+                </div>
+              ))}
+            </div>
+            {gallery.length < 6 && (
+              <button onClick={() => galleryRef.current && galleryRef.current.click()} disabled={uploading || busy} style={{ marginTop: 10, width: '100%', textAlign: 'left', cursor: uploading || busy ? 'default' : 'pointer', padding: '12px 12px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: uploading || busy ? 0.6 : 1 }}>{tr('coach:listing.addPhoto', { defaultValue: '＋ Add photo' })}</button>
+            )}
+          </div>
+          {err && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+            <button onClick={() => !busy && !uploading && onClose()} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
+            <button onClick={save} disabled={busy || uploading} style={{ flex: 1, padding: 14, border: 0, background: accent, color: t.isLight ? '#fff' : '#0c0a08', cursor: busy || uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', opacity: busy || uploading ? 0.6 : 1 }}>{busy ? 'Saving…' : tr('coach:listing.save', { defaultValue: 'Save listing' })}</button>
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {}, onBack = null, onAppearance = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   const isCoach = role === 'trainer';
   const accent = isCoach ? t.RUST : '#a07a2e';   // trainer rust · nutritionist gold
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -6757,6 +6907,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
   const [showOfferEditor, setShowOfferEditor] = useStateBSP(false);
+  const [showListingMedia, setShowListingMedia] = useStateBSP(false);
   const [showContact, setShowContact] = useStateBSP(false);
   const [showTerms, setShowTerms] = useStateBSP(false);
   const [showGoals, setShowGoals] = useStateBSP(false);
@@ -6936,6 +7087,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           { l: 'Availability', sub: 'Mon-Fri · 9 am - 6 pm', r: 'Edit', onClick: () => setShowBookingCalendar(true) },
           { l: 'Rates', sub: isCoach ? '$95/session · $120/mo' : '$140/plan · $80/consult', r: 'Edit', onClick: () => setShowPublicProfile(true) },
           { l: 'Monthly offer', sub: "What's included — shown on your marketplace listing", r: 'Edit', onClick: () => setShowOfferEditor(true) },
+          { l: tr('coach:listing.row', { defaultValue: 'Listing photos' }), sub: tr('coach:listing.rowSub', { defaultValue: 'Your box on the marketplace — portrait, cover, studio' }), r: 'Edit', onClick: () => setShowListingMedia(true) },
           { l: 'Soundtracks', sub: 'Saved playlists · assign to plans', r: '→', onClick: () => setShowSoundtracks(true) },
           { l: 'Shape Radio', sub: 'Live stations · coach mixes', r: '→', onClick: () => onRadio() },
           { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
@@ -6958,6 +7110,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ padding: `4px ${t.padX}px 8px` }}>
             {head('YOUR PRACTICE', 'Shortcuts', 22)}
             {showOfferEditor && <BSProMonthlyOfferSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowOfferEditor(false)} />}
+            {showListingMedia && <BSProListingMediaSheet role={isCoach ? 'trainer' : 'nutritionist'} accent={accent} onClose={() => setShowListingMedia(false)} />}
             <div style={{ marginTop: 8 }}>{shortcuts.map((it, i) => numRow(it, i, accent))}</div>
             {head('ACCOUNT', 'Settings', 26)}
             <div style={{ marginTop: 8 }}>{settings.map((it, i) => numRow(it, i, t.INK50))}</div>
@@ -7519,3 +7672,4 @@ window.BSNutritionistApp = BSNutritionistApp;
 
 
 Object.assign(window, { BSTrainerApp, BSNutritionistApp });
+

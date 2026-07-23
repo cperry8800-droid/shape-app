@@ -166,5 +166,7 @@
   "stat.score": "Баллы",
   "stat.sessions": "Сессии",
   "stat.years": "Лет",
+  "studio.head": "Студия",
+  "studio.photos": "{count, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
   "thread.bookedIntro": "Записана вводная консультация: {title}."
 }

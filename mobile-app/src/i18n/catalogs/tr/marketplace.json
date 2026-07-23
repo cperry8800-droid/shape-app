@@ -166,5 +166,7 @@
   "stat.score": "Skor",
   "stat.sessions": "Seans",
   "stat.years": "Yıl",
+  "studio.head": "Stüdyo",
+  "studio.photos": "{count, plural, one {# fotoğraf} other {# fotoğraf}}",
   "thread.bookedIntro": "Tanışma görüşmesi ayarlandı: {title}."
 }

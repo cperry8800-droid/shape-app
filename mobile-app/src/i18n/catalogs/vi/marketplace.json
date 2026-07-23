@@ -166,5 +166,7 @@
   "stat.score": "Điểm",
   "stat.sessions": "Buổi",
   "stat.years": "Năm",
+  "studio.head": "Studio",
+  "studio.photos": "{count, plural, other {# ảnh}}",
   "thread.bookedIntro": "Đã đặt buổi tư vấn giới thiệu: {title}."
 }

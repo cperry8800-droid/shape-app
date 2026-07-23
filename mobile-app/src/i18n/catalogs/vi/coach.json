@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "XEM TOÀN BỘ DANH SÁCH",
   "wire.theWire": "BẢN TIN",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, other {# bữa đã sơ chế}}"
+  "case.prepLine": "{count, plural, other {# bữa đã sơ chế}}",
+  "listing.row": "Ảnh hồ sơ",
+  "listing.rowSub": "Hộp của bạn trên marketplace — chân dung, ảnh bìa, studio",
+  "listing.title": "Ảnh hồ sơ",
+  "listing.portrait": "Chân dung · bạn",
+  "listing.cover": "Ảnh bìa · nền của bạn",
+  "listing.gallery": "Thư viện studio · tối đa {max}",
+  "listing.caption": "Chú thích",
+  "listing.addPhoto": "＋ Thêm ảnh",
+  "listing.save": "Lưu hồ sơ",
+  "listing.saved": "Đã lưu hồ sơ",
+  "listing.unavailable": "Ảnh hồ sơ chưa khả dụng — hãy thử lại sau bản cập nhật tiếp theo."
 }

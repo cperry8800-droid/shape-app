@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "TÜM KADROYU GÖR",
   "wire.theWire": "BÜLTEN",
   "case.prep": "HAZIRLIK",
-  "case.prepLine": "{count, plural, one {# öğün hazırlandı} other {# öğün hazırlandı}}"
+  "case.prepLine": "{count, plural, one {# öğün hazırlandı} other {# öğün hazırlandı}}",
+  "listing.row": "İlan fotoğrafları",
+  "listing.rowSub": "Pazar yerindeki kutunuz — portre, kapak, stüdyo",
+  "listing.title": "İlan fotoğrafları",
+  "listing.portrait": "Portre · siz",
+  "listing.cover": "Kapak · arka planınız",
+  "listing.gallery": "Stüdyo galerisi · en fazla {max}",
+  "listing.caption": "Başlık",
+  "listing.addPhoto": "＋ Fotoğraf ekle",
+  "listing.save": "İlanı kaydet",
+  "listing.saved": "İlan kaydedildi",
+  "listing.unavailable": "İlan fotoğrafları henüz kullanılamıyor — bir sonraki güncellemeden sonra tekrar deneyin."
 }

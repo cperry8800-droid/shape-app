@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "СМОТРЕТЬ ВЕСЬ СПИСОК",
   "wire.theWire": "СВОДКА",
   "case.prep": "ПРЕП",
-  "case.prepLine": "{count, plural, one {# блюдо подготовлено} few {# блюда подготовлено} many {# блюд подготовлено} other {# блюд подготовлено}}"
+  "case.prepLine": "{count, plural, one {# блюдо подготовлено} few {# блюда подготовлено} many {# блюд подготовлено} other {# блюд подготовлено}}",
+  "listing.row": "Фото объявления",
+  "listing.rowSub": "Ваша карточка на маркетплейсе — портрет, обложка, студия",
+  "listing.title": "Фото объявления",
+  "listing.portrait": "Портрет · вы",
+  "listing.cover": "Обложка · ваш фон",
+  "listing.gallery": "Галерея студии · до {max}",
+  "listing.caption": "Подпись",
+  "listing.addPhoto": "＋ Добавить фото",
+  "listing.save": "Сохранить объявление",
+  "listing.saved": "Объявление сохранено",
+  "listing.unavailable": "Фото объявления пока недоступны — повторите попытку после следующего обновления."
 }

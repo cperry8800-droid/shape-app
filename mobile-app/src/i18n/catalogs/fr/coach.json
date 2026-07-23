@@ -865,5 +865,16 @@
   "wire.seeFullRoster": "VOIR LA LISTE COMPLÈTE",
   "wire.theWire": "LE FIL",
   "case.prep": "PRÉPA",
-  "case.prepLine": "{count, plural, one {# repas préparé} other {# repas préparés}}"
+  "case.prepLine": "{count, plural, one {# repas préparé} other {# repas préparés}}",
+  "listing.row": "Photos de l'annonce",
+  "listing.rowSub": "Votre encart sur la place de marché — portrait, couverture, studio",
+  "listing.title": "Photos de l'annonce",
+  "listing.portrait": "Portrait · vous",
+  "listing.cover": "Couverture · votre arrière-plan",
+  "listing.gallery": "Galerie du studio · jusqu'à {max}",
+  "listing.caption": "Légende",
+  "listing.addPhoto": "＋ Ajouter une photo",
+  "listing.save": "Enregistrer l'annonce",
+  "listing.saved": "Annonce enregistrée",
+  "listing.unavailable": "Les photos de l'annonce ne sont pas encore disponibles — réessayez après la prochaine mise à jour."
 }

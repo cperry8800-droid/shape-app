@@ -166,5 +166,7 @@
   "stat.score": "Бали",
   "stat.sessions": "Сесії",
   "stat.years": "Років",
+  "studio.head": "Студія",
+  "studio.photos": "{count, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
   "thread.bookedIntro": "Записано вступну консультацію: {title}."
 }
