@@ -4519,18 +4519,22 @@ window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update
 async function uploadCoachMedia(file, opts = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
   if (!file) throw new Error('No file selected.');
-  const isVideo = (file.type || '').startsWith('video/');
+  const isVideoType = (file.type || '').startsWith('video/');
   // Prefer the MIME subtype; fall back to the filename extension when the picker
   // omits the type (camera-roll HEIC etc.) so the stored key keeps a real ext.
   const nameExt = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : '';
-  const ext = ((file.type && file.type.split('/')[1]) || nameExt || (isVideo ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideo ? 'mp4' : 'jpg');
+  const ext = ((file.type && file.type.split('/')[1]) || nameExt || (isVideoType ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideoType ? 'mp4' : 'jpg');
+  // A blank-MIME file is a video when its extension says so — keep ext, contentType
+  // and the returned `type` coherent (a .mp4 must not come back as an image).
+  const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
+  const isVideo = isVideoType || VIDEO_EXT.includes(ext.toLowerCase());
   // Optional opaque sub-folder (e.g. 'listing') so a surface's uploads group
   // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
   const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';
   const path = `${state.user.id}/${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   // When the picker omits file.type, derive the content type from the extension
-  // so HEIC/WebP/GIF/PNG bytes aren't stored/served as image/jpeg.
-  const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+  // so HEIC/WebP/GIF/PNG (and video) bytes aren't stored/served as image/jpeg.
+  const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v' };
   const contentType = file.type || EXT_MIME[ext.toLowerCase()] || (isVideo ? 'video/mp4' : 'image/jpeg');
   const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType, upsert: false });
   if (error) throw error;
