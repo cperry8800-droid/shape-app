@@ -29,8 +29,11 @@
         // translate #settings -> #profile. This is the ONE place that knows the
         // role, so it's where the role-blind ClientMe.html alias (which now
         // targets #settings) is made safe for coaches following an old link.
+        // Preserve the query string (e.g. ?u=/?name= the profile stack reads),
+        // ordered before the hash so it doesn't become part of the route key.
+        var search = window.location.search || '';
         var hash = window.location.hash === '#settings' ? '#profile' : (window.location.hash || '');
-        window.location.replace('/newdesign/' + dash + hash);
+        window.location.replace('/newdesign/' + dash + search + hash);
       }
     })
     .catch(function () {});
