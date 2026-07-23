@@ -14,6 +14,7 @@ import { bsLiveAudience } from './liveProgress.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
 import { bsPrunePrep } from './mealPrep.mjs';
+import { bsNormalizeListingMedia } from './listingMedia.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -3929,6 +3930,56 @@ async function coachOfferSave(role, offer) {
 }
 window.ShapeCoachOffer = { get: coachOfferGet, save: coachOfferSave };
 
+// Coach-authored listing media (the marketplace box's portrait / cover / studio
+// gallery): lives on the coach's own provider row (listing_media jsonb, migration
+// 2026-07-23). ROLE-EXPLICIT — an account can hold BOTH provider rows, so
+// owner_id alone is ambiguous; the caller passes the app shell's own role, so a
+// dual-role coach customizes each listing separately from each app. listing_media
+// is not an admin-pinned column (2026-06-25 guard), so the own-row UPDATE policy
+// covers the write (the monthly_offer precedent).
+function listingTable(role) {
+  return providerDiscipline(normalizeRole(role)) === 'nutritionist' ? 'nutritionists' : 'trainers';
+}
+async function listingMediaMine(role) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  const empty = bsNormalizeListingMedia(null, uid || 'x');
+  if (!supabase || !uid) return { providerId: null, media: empty, hasRow: false, signedIn: false };
+  // select('*') on purpose — an explicit `listing_media` select 400s before the
+  // migration is applied; a missing column just yields an absent key.
+  const { data, error } = await supabase.from(listingTable(role)).select('*').eq('owner_id', uid).maybeSingle();
+  // A real read failure must PROPAGATE so the editor shows its retry state — not
+  // be flattened into hasRow:false, which would tell an approved coach their
+  // listing doesn't exist. Only a genuinely absent row (no error) is "no row yet".
+  if (error) throw error;
+  if (!data) return { providerId: null, media: bsNormalizeListingMedia(null, uid), hasRow: false, signedIn: true };
+  return { providerId: data.id, media: bsNormalizeListingMedia(data.listing_media || null, uid), hasRow: true, signedIn: true };
+}
+async function listingMediaSet(role, media) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!supabase || !uid) throw new Error('Sign in first.');
+  // Stamp updatedAt then normalize with ownerUid=uid — stored data is already
+  // clean (the media only counts as the coach's own when it lives in the coach's
+  // own folder; the render-side guard is defense in depth).
+  const stamped = { ...(media && typeof media === 'object' && !Array.isArray(media) ? media : {}), updatedAt: new Date().toISOString() };
+  const clean = bsNormalizeListingMedia(stamped, uid);
+  // .select('id') so a zero-row update (row vanished between load and save, or no
+  // provider row) surfaces as an error instead of a silent "saved" no-op.
+  const { data: rows, error } = await supabase.from(listingTable(role)).update({ listing_media: clean }).eq('owner_id', uid).select('id');
+  if (error) {
+    // Pre-migration the column doesn't exist — surface an honest retry line via a
+    // stable code instead of the raw PostgREST error (the unknown-column codes).
+    if (error.code === '42703' || error.code === 'PGRST204') {
+      const e = new Error('Listing photos aren\'t available yet — try again after the next update.');
+      e.code = 'LISTING_MEDIA_UNAVAILABLE';
+      throw e;
+    }
+    throw error;
+  }
+  if (!rows || rows.length === 0) throw new Error('Could not save — your coach listing was not found.');
+  return clean;
+}
+window.ShapeListingMedia = { mine: listingMediaMine, set: listingMediaSet };
+
 
 window.ShapeWaitlist = {
   join: waitlistJoin,
@@ -4465,13 +4516,27 @@ window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update
 // Upload a coach's workout media (photo or video) to the public `coach-media`
 // bucket (own <uid>/ folder, gated by storage RLS). Returns { url, type, name }
 // — the URL rides in coach_plans.detail.media so clients can view it inline.
-async function uploadCoachMedia(file) {
+async function uploadCoachMedia(file, opts = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
   if (!file) throw new Error('No file selected.');
-  const isVideo = (file.type || '').startsWith('video/');
-  const ext = ((file.type && file.type.split('/')[1]) || (isVideo ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideo ? 'mp4' : 'jpg');
-  const path = `${state.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'), upsert: false });
+  const isVideoType = (file.type || '').startsWith('video/');
+  // Prefer the MIME subtype; fall back to the filename extension when the picker
+  // omits the type (camera-roll HEIC etc.) so the stored key keeps a real ext.
+  const nameExt = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : '';
+  const ext = ((file.type && file.type.split('/')[1]) || nameExt || (isVideoType ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideoType ? 'mp4' : 'jpg');
+  // A blank-MIME file is a video when its extension says so — keep ext, contentType
+  // and the returned `type` coherent (a .mp4 must not come back as an image).
+  const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
+  const isVideo = isVideoType || VIDEO_EXT.includes(ext.toLowerCase());
+  // Optional opaque sub-folder (e.g. 'listing') so a surface's uploads group
+  // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
+  const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';
+  const path = `${state.user.id}/${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  // When the picker omits file.type, derive the content type from the extension
+  // so HEIC/WebP/GIF/PNG (and video) bytes aren't stored/served as image/jpeg.
+  const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v' };
+  const contentType = file.type || EXT_MIME[ext.toLowerCase()] || (isVideo ? 'video/mp4' : 'image/jpeg');
+  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType, upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from('coach-media').getPublicUrl(path);
   return { url: data?.publicUrl || null, type: isVideo ? 'video' : 'image', name: file.name || '' };

@@ -166,5 +166,7 @@
   "stat.score": "Maki",
   "stat.sessions": "Zama",
   "stat.years": "Shekaru",
+  "studio.head": "Studio",
+  "studio.photos": "{count, plural, one {hoto #} other {hotuna #}}",
   "thread.bookedIntro": "An ajiye tuntuɓar gabatarwa: {title}."
 }

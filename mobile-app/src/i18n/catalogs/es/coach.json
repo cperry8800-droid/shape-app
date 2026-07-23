@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "VER LA LISTA COMPLETA",
   "wire.theWire": "EL HILO",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, one {# comida preparada} other {# comidas preparadas}}"
+  "case.prepLine": "{count, plural, one {# comida preparada} other {# comidas preparadas}}",
+  "listing.row": "Fotos del anuncio",
+  "listing.rowSub": "Tu ficha en el mercado: retrato, portada, estudio",
+  "listing.title": "Fotos del anuncio",
+  "listing.portrait": "Retrato · tú",
+  "listing.cover": "Portada · tu fondo",
+  "listing.gallery": "Galería del estudio · hasta {max}",
+  "listing.caption": "Leyenda",
+  "listing.addPhoto": "＋ Añadir foto",
+  "listing.save": "Guardar anuncio",
+  "listing.saved": "Anuncio guardado",
+  "listing.unavailable": "Las fotos del anuncio aún no están disponibles: inténtalo de nuevo después de la próxima actualización.",
+  "listing.loadError": "No se pudieron cargar las fotos del anuncio: tus fotos guardadas están intactas. Inténtalo de nuevo.",
+  "listing.retry": "Reintentar",
+  "listing.replace": "Reemplazar",
+  "listing.pending": "Tu ficha aparece cuando se apruebe tu solicitud como coach.",
+  "listing.saveError": "No se pudo guardar: ¿has iniciado sesión como coach aprobado?",
+  "listing.editAria": "Editar las fotos de tu anuncio"
 }

@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "TÜM KADROYU GÖR",
   "wire.theWire": "BÜLTEN",
   "case.prep": "HAZIRLIK",
-  "case.prepLine": "{count, plural, one {# öğün hazırlandı} other {# öğün hazırlandı}}"
+  "case.prepLine": "{count, plural, one {# öğün hazırlandı} other {# öğün hazırlandı}}",
+  "listing.row": "İlan fotoğrafları",
+  "listing.rowSub": "Pazar yerindeki kutunuz — portre, kapak, stüdyo",
+  "listing.title": "İlan fotoğrafları",
+  "listing.portrait": "Portre · siz",
+  "listing.cover": "Kapak · arka planınız",
+  "listing.gallery": "Stüdyo galerisi · en fazla {max}",
+  "listing.caption": "Başlık",
+  "listing.addPhoto": "＋ Fotoğraf ekle",
+  "listing.save": "İlanı kaydet",
+  "listing.saved": "İlan kaydedildi",
+  "listing.unavailable": "İlan fotoğrafları henüz kullanılamıyor — bir sonraki güncellemeden sonra tekrar deneyin.",
+  "listing.loadError": "İlan fotoğrafları yüklenemedi — kayıtlı fotoğraflarınız olduğu gibi duruyor. Tekrar deneyin.",
+  "listing.retry": "Tekrar dene",
+  "listing.replace": "Değiştir",
+  "listing.pending": "İlan kutunuz, koç başvurunuz onaylandığında görünür.",
+  "listing.saveError": "Kaydedilemedi — onaylı bir koç olarak giriş yaptınız mı?",
+  "listing.editAria": "İlan fotoğraflarınızı düzenleyin"
 }

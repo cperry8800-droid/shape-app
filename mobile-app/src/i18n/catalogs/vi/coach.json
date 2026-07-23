@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "XEM TOÀN BỘ DANH SÁCH",
   "wire.theWire": "BẢN TIN",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, other {# bữa đã sơ chế}}"
+  "case.prepLine": "{count, plural, other {# bữa đã sơ chế}}",
+  "listing.row": "Ảnh tin đăng",
+  "listing.rowSub": "Hộp của bạn trên marketplace — chân dung, ảnh bìa, studio",
+  "listing.title": "Ảnh tin đăng",
+  "listing.portrait": "Chân dung · bạn",
+  "listing.cover": "Ảnh bìa · nền của bạn",
+  "listing.gallery": "Thư viện studio · tối đa {max}",
+  "listing.caption": "Chú thích",
+  "listing.addPhoto": "＋ Thêm ảnh",
+  "listing.save": "Lưu tin đăng",
+  "listing.saved": "Đã lưu tin đăng",
+  "listing.unavailable": "Ảnh tin đăng chưa khả dụng — hãy thử lại sau bản cập nhật tiếp theo.",
+  "listing.loadError": "Không thể tải ảnh tin đăng — ảnh đã lưu của bạn vẫn nguyên vẹn. Hãy thử lại.",
+  "listing.retry": "Thử lại",
+  "listing.replace": "Thay thế",
+  "listing.pending": "Hộp tin đăng của bạn xuất hiện khi đơn đăng ký huấn luyện viên được duyệt.",
+  "listing.saveError": "Không thể lưu — bạn đã đăng nhập với tư cách huấn luyện viên được duyệt chưa?",
+  "listing.editAria": "Chỉnh sửa ảnh tin đăng"
 }

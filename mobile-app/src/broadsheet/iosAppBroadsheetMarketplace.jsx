@@ -10,6 +10,7 @@ import React from 'react';
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
+import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -189,6 +190,9 @@ function mapSupabaseProvider(row, role) {
     capacity_resume_at: row.capacity_resume_at || null,
     verified: Boolean(row.verified),
     monthly_offer: row.monthly_offer || null,
+    // Normalized at the ingestion boundary (ownerUid = row.owner_id): every
+    // render then trusts this object. A malicious/foreign URL is already dropped.
+    listing_media: bsNormalizeListingMedia(row.listing_media, row.owner_id),
   };
 }
 
@@ -261,7 +265,10 @@ function writeShapeCoachThread(coach, text, sync = {}) {
 
 const BSM_MARKETPLACE_COACHES = {
   Trainer: [
-    { id: 't1', name: 'Jordan Chen', loc: 'Brooklyn, NY', category: 'Strength & Resistance', format: 'Hybrid', cred: 'NASM-CPT - 9 yrs', spec: ['Strength', 'Hypertrophy', 'Block periodization'], rate: 180, sessions: '50-min - 1:1', years: 9, sessionCount: 740, match: 96, rating: 4.9, clients: 28, init: 'J', bio: 'Block-style strength coach. Tempo-driven progressions, weekly RPE check-ins, no fluff.', tag: 'YOUR COACH' },
+    { id: 't1', name: 'Jordan Chen', loc: 'Brooklyn, NY', category: 'Strength & Resistance', format: 'Hybrid', cred: 'NASM-CPT - 9 yrs', spec: ['Strength', 'Hypertrophy', 'Block periodization'], rate: 180, sessions: '50-min - 1:1', years: 9, sessionCount: 740, match: 96, rating: 4.9, clients: 28, init: 'J', bio: 'Block-style strength coach. Tempo-driven progressions, weekly RPE check-ins, no fluff.', tag: 'YOUR COACH',
+      // Demo-only combo media (signed-out preview) — the mkBg Unsplash precedent.
+      // Real coaches carry only what they upload; this proves the mixed grid.
+      listing_media: { portrait: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400', cover: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1000', gallery: [{ url: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600', caption: 'The floor' }, { url: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600', caption: 'Free weights' }, { url: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=600', caption: 'Conditioning corner' }], updatedAt: null } },
     { id: 't2', name: 'Maya Okafor', loc: 'Brooklyn, NY', category: 'Just for Women', format: 'In-person', cred: 'NASM-CPT - 9 yrs', spec: ['Hypertrophy', 'Women 30+', 'Posture'], rate: 165, sessions: '45-min - 1:1', years: 9, sessionCount: 690, match: 92, rating: 4.9, clients: 32, init: 'M', bio: 'Hypertrophy-first coach focused on women 30+. Big on posture and joint care.' },
     { id: 't3', name: 'Diego Morales', loc: 'Austin, TX', category: 'Bodybuilding', format: 'Hybrid', cred: 'CSCS - 7 yrs', spec: ['Powerlifting', 'Conjugate', 'Masters'], rate: 195, sessions: '60-min - 1:1', years: 7, sessionCount: 510, match: 88, rating: 4.8, clients: 21, init: 'D', bio: 'Conjugate-style powerlifting coach. Comfortable with masters lifters and rehab return.' },
     { id: 't4', name: 'Sana Bhatt', loc: 'Remote', category: 'At Home', format: 'Remote', cred: 'NSCA-CPT - 5 yrs', spec: ['Postpartum', 'At-home', 'Kettlebell'], rate: 130, sessions: '30-min - 1:1', years: 5, sessionCount: 460, match: 85, rating: 4.9, clients: 28, init: 'S', bio: 'Remote-only. Postpartum return-to-strength. Equipment-light, kettlebell-leaning.' },
@@ -276,7 +283,8 @@ const BSM_MARKETPLACE_COACHES = {
     { id: 't13', name: 'Mateo Ruiz', loc: 'Chamonix', category: 'Ultra', format: 'Hybrid', cred: 'UESCA - 10 yrs', spec: ['Ultra', 'Trail', 'Vert'], rate: 170, sessions: '50-min - 1:1', years: 10, sessionCount: 640, match: 83, rating: 4.8, clients: 27, init: 'M', bio: 'Ultra-distance coaching for trail, vert, fueling tolerance, durable legs, and back-to-back long days.' },
   ],
   Nutritionist: [
-    { id: 'n1', name: 'Dr. Maya Patel', loc: 'Remote', category: 'Sports Performance & Hydration', cred: 'RD, CSSD - 12 yrs', spec: ['Sports', 'Body comp', 'Cuts/builds'], rate: 140, sessions: '30-min - 1:1', years: 12, sessionCount: 760, match: 94, rating: 5.0, clients: 41, init: 'M', bio: 'Sports-focused RD. Body-composition phases, refeeds, fueling around training.', tag: 'YOUR NUTRITIONIST' },
+    { id: 'n1', name: 'Dr. Maya Patel', loc: 'Remote', category: 'Sports Performance & Hydration', cred: 'RD, CSSD - 12 yrs', spec: ['Sports', 'Body comp', 'Cuts/builds'], rate: 140, sessions: '30-min - 1:1', years: 12, sessionCount: 760, match: 94, rating: 5.0, clients: 41, init: 'M', bio: 'Sports-focused RD. Body-composition phases, refeeds, fueling around training.', tag: 'YOUR NUTRITIONIST',
+      listing_media: { portrait: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400', cover: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1000', gallery: [{ url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600', caption: 'Prep station' }, { url: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600', caption: 'Market haul' }, { url: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=600', caption: 'The pantry' }], updatedAt: null } },
     { id: 'n2', name: 'Owen Halverson', loc: 'Toronto', category: 'Plant-Based', cred: 'RDN - 8 yrs', spec: ['Endurance', 'Plant-based'], rate: 110, sessions: '30-min - 1:1', years: 8, sessionCount: 430, match: 86, rating: 4.8, clients: 24, init: 'O', bio: 'Plant-based endurance fueling. Long-form training. Race-day plans.' },
     { id: 'n3', name: 'Priya Iyer', loc: 'Remote', category: 'Gut Health & Functional Nutrition', cred: 'CNS - 6 yrs', spec: ['GI / IBS', 'Anti-inflam.', 'Cuts'], rate: 125, sessions: '45-min - 1:1', years: 6, sessionCount: 390, match: 81, rating: 4.9, clients: 18, init: 'P', bio: 'GI-sensitive eaters. Anti-inflammatory protocols, low-FODMAP cuts.' },
     { id: 'n4', name: 'Jules Bonner', loc: 'London', category: 'Medical & Condition-Specific', cred: 'RDN, CDCES - 7 yrs', spec: ['Diabetes', 'Insulin sens.', 'Family meals'], rate: 130, sessions: '45-min - 1:1', years: 7, sessionCount: 410, match: 76, rating: 4.7, clients: 22, init: 'J', bio: 'Type-2 diabetes and insulin-sensitivity work. Family-meal planning that scales.' },
@@ -401,11 +409,93 @@ function MktCoachCard({ c, onOpen, photo }) {
   );
 }
 
+// One guard for a coach/provider's listing media, shared by the combo card and
+// THE LISTING so the two sites can't drift: guard the object, validate the
+// cover, default the gallery to an array. (Portrait rides the coachPhoto ladder.)
+function mktListingMedia(entity) {
+  const lm = (entity && entity.listing_media && typeof entity.listing_media === 'object') ? entity.listing_media : {};
+  return { cover: mktValidPhoto(lm.cover), gallery: Array.isArray(lm.gallery) ? lm.gallery : [] };
+}
+
+// THE STUDIO — the coach's studio gallery as a captioned, swipeable strip.
+// Shared by the featured combo card and THE LISTING. Photos are already
+// normalized (own-bucket, image-only) by the time they reach here. Absent → null.
+function MktStudioStrip({ gallery, role }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  if (!Array.isArray(gallery) || !gallery.length) return null;
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+        <span aria-hidden style={{ flex: 'none', width: 6, height: 6, background: role }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:studio.head', { defaultValue: 'The studio' })}</span>
+        <span aria-hidden style={{ flex: 1, height: 1.5, background: `linear-gradient(90deg, ${t.INK}, ${role} 70%, transparent)` }} />
+        <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:studio.photos', { defaultValue: '{count, plural, one {# photo} other {# photos}}', count: gallery.length })}</span>
+      </div>
+      <div className="bs-hide-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+        {gallery.map((g, i) => (
+          <div key={i} style={{ flex: 'none', width: 116 }}>
+            <div style={{ width: 116, height: 78, borderRadius: 8, border: `1px solid ${t.INK}24`, background: `center/cover no-repeat url("${g.url}")`, backgroundColor: t.PAPER2 }} aria-hidden="true" />
+            {g.caption ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.3 }}>{g.caption}</div> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Featured "combo" box (E) — full-width: the coach's cover band with their
+// portrait overlapping it, name + role/tier/loc/vetted line, the card price line,
+// and THE STUDIO strip. Degrades by content: no gallery → no strip; no cover →
+// today's portrait-cell at full width; no portrait → initials. The whole box is
+// ONE role=button (the COTW precedent) so the inner strip scrolls without a
+// nested <button> and a tap anywhere (incl. a photo) opens the Listing.
+function MktComboCard({ c, onOpen, photo }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const isNutri = getPublicProfileKind(c) === 'nutritionist';
+  const role = mktRoleColor(c);
+  const { name: tierName } = mktCoachTier(c);
+  const { cover, gallery } = mktListingMedia(c);
+  const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } };
+  const metaLine = [bsmRoleWord(tr, isNutri), tierName, mktShortLoc(c.loc)].filter(Boolean).join(' · ')
+    + (c.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : '');
+  const nameEl = <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>;
+  const metaEl = <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{metaLine}</div>;
+  return (
+    <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={onKey} aria-label={c.name} style={{ cursor: 'pointer', border: `1px solid ${t.INK}1f`, background: t.PAPER, overflow: 'hidden' }}>
+      {cover ? (
+        <div>
+          <div style={{ position: 'relative', height: 72, background: `center/cover no-repeat url("${cover}")`, backgroundColor: t.PAPER2 }}>
+            <div aria-hidden style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${t.PAPER}00, ${t.PAPER}cc)` }} />
+            <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: role }} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', padding: '0 13px', marginTop: -26 }}>
+            <div style={{ position: 'relative', zIndex: 1 }}><MktPortrait photo={photo} name={c.name} w={56} h={56} fontSize={20} spine={role} /></div>
+            <div style={{ minWidth: 0, paddingBottom: 8 }}>{nameEl}{metaEl}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: 13 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <MktPortrait photo={photo} name={c.name} w={72} h={72} fontSize={26} spine={role} />
+            <div style={{ minWidth: 0 }}>{nameEl}{metaEl}</div>
+          </div>
+        </div>
+      )}
+      <div style={{ padding: '8px 13px 0' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
+      </div>
+      {gallery.length ? <div style={{ padding: '12px 13px 13px' }}><MktStudioStrip gallery={gallery} role={role} /></div> : <div style={{ height: 13 }} />}
+    </div>
+  );
+}
+
 // Classifieds listing row — role spine, mono index, serif name, a dot leader
-// running to the rate figure. Dense on purpose: portraits live on the feature
-// + featured cells; the listings are the paper's want-ads. Role is named in
-// the meta line (never color-only).
-function MktRow({ c, onOpen, n }) {
+// running to the rate figure. A small portrait thumb (D) sits between the index
+// and the name; a photo-less coach shows a same-size initials block so the thumb
+// column never gaps. Role is named in the meta line (never color-only).
+function MktRow({ c, onOpen, n, photo }) {
   const t = useBS();
   const tr = useShapeTr();
   const role = mktRoleColor(c);
@@ -415,6 +505,18 @@ function MktRow({ c, onOpen, n }) {
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, position: 'relative', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '12px 0 12px 12px', borderTop: `1px solid ${t.HAIR}` }}>
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, background: role }} />
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
+      {(() => {
+        // D — the want-ad thumb: portrait through the coachPhoto ladder, else a
+        // same-size initials block so the column stays uniform (never a gap).
+        const src = mktValidPhoto(photo);
+        return (
+          <span aria-hidden style={{ position: 'relative', flexShrink: 0, alignSelf: 'center', width: 30, height: 36, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK50 }}>{mktInitials(c.name)}</span>
+            {src ? <img src={src} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} /> : null}
+            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: role }} />
+          </span>
+        );
+      })()}
       <span style={{ minWidth: 0 }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
         <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isNutri)} · {getPrimaryCredential(c)} · {mktShortLoc(c.loc)} · {tierName}</span>
@@ -527,7 +629,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (on && m) setAvatarByUser(m); }).catch(() => {});
     return () => { on = false; };
   }, [everyone]);
-  const coachPhoto = (c) => (c && (c.photo || c.avatar || (c.provider_user_id ? avatarByUser[c.provider_user_id] : null))) || undefined;
+  // Portrait ladder: the coach's listing portrait (normalized — an invalid one
+  // is already null and falls through) → their profile photo/avatar → the
+  // fetched account avatar → initials (MktPortrait's own fallback).
+  const coachPhoto = (c) => (c && ((c.listing_media && c.listing_media.portrait) || c.photo || c.avatar || (c.provider_user_id ? avatarByUser[c.provider_user_id] : null))) || undefined;
 
   // Filter tab STATE values stay English (the logic branches on them); only the
   // displayed label localizes.
@@ -706,7 +811,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
         <>
           <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? tr('marketplace:dir.kickerEveryone', { defaultValue: 'Everyone' }) : pillLabel(pill))} title={tr('marketplace:dir.onTheBooks', { defaultValue: '{count} on the books', count: list.length })} teal={teal} />
           <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column' }}>
-            {list.map((c, i) => <MktRow key={c.id} c={c} n={i + 1} onOpen={() => { setOpenNo(i + 1); setOpen(c); }} />)}
+            {list.map((c, i) => <MktRow key={c.id} c={c} n={i + 1} photo={coachPhoto(c)} onOpen={() => { setOpenNo(i + 1); setOpen(c); }} />)}
             {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('marketplace:dir.noMatch', { defaultValue: 'No coaches match that — try a different filter.' })}</div> : null}
           </div>
         </>
@@ -757,11 +862,13 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             );
           })() : null}
 
-          {/* Featured this week — 2-up grid */}
+          {/* Featured this week — stacked full-width combo boxes (E). Every cell
+              renders full-width in the new section, media or not; a media-less
+              coach's box degrades to today's cell content at the new width. */}
           <div style={{ marginTop: 26 }}>
             <MktSectionHead kicker={tr('marketplace:dir.rosterKicker', { defaultValue: 'On the roster' })} title={tr('marketplace:dir.thisWeek', { defaultValue: 'This week' })} action={tr('marketplace:dir.seeAll', { defaultValue: 'See all' })} onAction={() => setForceList(true)} teal={teal} />
-            <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 14px' }}>
-              {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
+            <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {featuredWeek.map((c) => <MktComboCard key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
             </div>
           </div>
 
@@ -1285,6 +1392,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const p = buildPublicProfile(coach);
   const roleColor = mktRoleColor(coach);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Listing media (normalized upstream for real coaches; authored for demo).
+  const { cover: listingCover, gallery: listingGallery } = mktListingMedia(coach);
   const [action, setAction] = useStateBSM2(null);
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const [showProfile, setShowProfile] = useStateBSM2(false);
@@ -1601,41 +1710,58 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
 
   return (
     <BSPage>
-      {/* Back */}
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
-        <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
-          {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}
-        </div>
-      </div>
-
-      {/* The portrait — duotone frame, role spine; honest initials fallback. */}
-      <div style={{ margin: `12px ${t.padX}px 0` }}>
-        <MktPortrait photo={photo || coach.photo || coach.avatar} name={coach.name} w="100%" h={180} fontSize={44} spine={roleColor} />
-      </div>
-
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{firstName}<br/><span style={{ fontStyle: 'italic' }}>{last}<span style={{ color: roleColor }}>.</span></span></h1>
-        <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)} · <span style={{ color: tierColor }}>{tr('marketplace:listing.tierSuffix', { defaultValue: '{tier} tier', tier: tierName })}</span></div>
-        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>{p.headline}</div>
-        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-          {[
-            [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
-            [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount != null ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
-            [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
-            [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
-          ].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
-              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+      {(() => {
+        // The header block — eyebrow, portrait, name, register. When the coach
+        // set a cover, it renders scrimmed BEHIND the whole block; absent, the
+        // block renders exactly as before (byte-identical — no wrapper).
+        const header = (<>
+          {/* Back */}
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
+            <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
+              {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}
             </div>
-          ))}
-        </div>
-        <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${roleColor} 72%, transparent)` }} />
-        {p.tagline ? <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.45, color: t.INK70, letterSpacing: '-0.01em' }}>“{p.tagline}”</div> : null}
-        <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookTheIntro', { defaultValue: 'Book the intro · $0' })}</button>
-        <button onClick={openMessage} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${t.INK}59` }}>{tr('marketplace:listing.messageName', { defaultValue: '✉ Message {name}', name: firstName })}</button>
-      </div>
+          </div>
+
+          {/* The portrait — duotone frame, role spine; honest initials fallback. */}
+          <div style={{ margin: `12px ${t.padX}px 0` }}>
+            <MktPortrait photo={photo || coach.photo || coach.avatar} name={coach.name} w="100%" h={180} fontSize={44} spine={roleColor} />
+          </div>
+
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{firstName}<br/><span style={{ fontStyle: 'italic' }}>{last}<span style={{ color: roleColor }}>.</span></span></h1>
+            <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)} · <span style={{ color: tierColor }}>{tr('marketplace:listing.tierSuffix', { defaultValue: '{tier} tier', tier: tierName })}</span></div>
+            <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>{p.headline}</div>
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[
+                [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
+                [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount != null ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
+                [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
+                [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],
+              ].map(([l, v]) => (
+                <div key={l}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${roleColor} 72%, transparent)` }} />
+            {p.tagline ? <div style={{ marginTop: 13, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.45, color: t.INK70, letterSpacing: '-0.01em' }}>“{p.tagline}”</div> : null}
+            <button onClick={openIntro} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 15, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('marketplace:listing.bookTheIntro', { defaultValue: 'Book the intro · $0' })}</button>
+            <button onClick={openMessage} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', minHeight: 24, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${t.INK}59` }}>{tr('marketplace:listing.messageName', { defaultValue: '✉ Message {name}', name: firstName })}</button>
+          </div>
+        </>);
+        return listingCover ? (
+          <div style={{ position: 'relative' }}>
+            <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(180deg, ${t.PAPER}b3, ${t.PAPER}e6 62%, ${t.PAPER}), url("${listingCover}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+            <div style={{ position: 'relative' }}>{header}</div>
+          </div>
+        ) : header;
+      })()}
+
+      {/* THE STUDIO — the coach's studio gallery, between the register block and
+          the coupon. Absent → the station does not exist. */}
+      {listingGallery.length ? <div style={{ padding: `18px ${t.padX}px 0` }}><MktStudioStrip gallery={listingGallery} role={roleColor} /></div> : null}
 
       {/* ── Open this week ─────────────────────────────── */}
       <Station>{tr('marketplace:listing.openThisWeek', { defaultValue: 'Open this week · intro is free' })}</Station>
@@ -1885,3 +2011,4 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
 
 // Expose
 Object.assign(window, { BSMarketplaceScreen, BSCoachDetail: BSCoachDetailPublic, BSCoachDetailPublic, BSHeadshot });
+

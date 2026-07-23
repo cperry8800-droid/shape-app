@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "VEDI LA LISTA COMPLETA",
   "wire.theWire": "IL FILO",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, one {# pasto preparato} other {# pasti preparati}}"
+  "case.prepLine": "{count, plural, one {# pasto preparato} other {# pasti preparati}}",
+  "listing.row": "Foto dell'annuncio",
+  "listing.rowSub": "Il tuo riquadro nel marketplace — ritratto, copertina, studio",
+  "listing.title": "Foto dell'annuncio",
+  "listing.portrait": "Ritratto · tu",
+  "listing.cover": "Copertina · il tuo sfondo",
+  "listing.gallery": "Galleria dello studio · fino a {max}",
+  "listing.caption": "Didascalia",
+  "listing.addPhoto": "＋ Aggiungi foto",
+  "listing.save": "Salva annuncio",
+  "listing.saved": "Annuncio salvato",
+  "listing.unavailable": "Le foto dell’annuncio non sono ancora disponibili — riprova dopo il prossimo aggiornamento.",
+  "listing.loadError": "Impossibile caricare le foto dell’annuncio — le tue foto salvate sono intatte. Riprova.",
+  "listing.retry": "Riprova",
+  "listing.replace": "Sostituisci",
+  "listing.pending": "Il tuo riquadro appare una volta approvata la tua candidatura come coach.",
+  "listing.saveError": "Impossibile salvare — hai effettuato l’accesso come coach approvato?",
+  "listing.editAria": "Modifica le foto del tuo annuncio"
 }

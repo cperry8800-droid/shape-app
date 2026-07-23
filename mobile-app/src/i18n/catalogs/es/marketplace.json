@@ -166,5 +166,7 @@
   "stat.score": "Puntos",
   "stat.sessions": "Sesiones",
   "stat.years": "Años",
+  "studio.head": "El estudio",
+  "studio.photos": "{count, plural, one {# foto} other {# fotos}}",
   "thread.bookedIntro": "Consulta de intro reservada: {title}."
 }

@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "VOIR LA LISTE COMPLÈTE",
   "wire.theWire": "LE FIL",
   "case.prep": "PRÉPA",
-  "case.prepLine": "{count, plural, one {# repas préparé} other {# repas préparés}}"
+  "case.prepLine": "{count, plural, one {# repas préparé} other {# repas préparés}}",
+  "listing.row": "Photos de l'annonce",
+  "listing.rowSub": "Votre encart sur la place de marché — portrait, couverture, studio",
+  "listing.title": "Photos de l'annonce",
+  "listing.portrait": "Portrait · vous",
+  "listing.cover": "Couverture · votre arrière-plan",
+  "listing.gallery": "Galerie du studio · jusqu'à {max}",
+  "listing.caption": "Légende",
+  "listing.addPhoto": "＋ Ajouter une photo",
+  "listing.save": "Enregistrer l'annonce",
+  "listing.saved": "Annonce enregistrée",
+  "listing.unavailable": "Les photos de l'annonce ne sont pas encore disponibles — réessayez après la prochaine mise à jour.",
+  "listing.loadError": "Impossible de charger les photos de l’annonce — vos photos enregistrées sont intactes. Réessayez.",
+  "listing.retry": "Réessayer",
+  "listing.replace": "Remplacer",
+  "listing.pending": "Votre encart apparaît une fois votre candidature de coach approuvée.",
+  "listing.saveError": "Enregistrement impossible — êtes-vous connecté en tant que coach approuvé ?",
+  "listing.editAria": "Modifier les photos de votre annonce"
 }

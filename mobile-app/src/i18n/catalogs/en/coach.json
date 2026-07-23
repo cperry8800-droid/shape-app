@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "SEE THE FULL ROSTER",
   "wire.theWire": "THE WIRE",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, one {# meal prepped} other {# meals prepped}}"
+  "case.prepLine": "{count, plural, one {# meal prepped} other {# meals prepped}}",
+  "listing.row": "Listing photos",
+  "listing.rowSub": "Your box on the marketplace — portrait, cover, studio",
+  "listing.title": "Listing photos",
+  "listing.portrait": "Portrait · you",
+  "listing.cover": "Cover · your background",
+  "listing.gallery": "Studio gallery · up to {max}",
+  "listing.caption": "Caption",
+  "listing.addPhoto": "＋ Add photo",
+  "listing.save": "Save listing",
+  "listing.saved": "Listing saved",
+  "listing.unavailable": "Listing photos aren't available yet — try again after the next update.",
+  "listing.loadError": "Couldn’t load your listing photos — your saved photos are untouched. Try again.",
+  "listing.retry": "Retry",
+  "listing.replace": "Replace",
+  "listing.pending": "Your listing box appears once your coach application is approved.",
+  "listing.saveError": "Could not save — are you signed in as an approved coach?",
+  "listing.editAria": "Edit your listing photos"
 }

@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "DUBA CIKAKKEN JERIN",
   "wire.theWire": "WAYAR",
   "case.prep": "SHIRI",
-  "case.prepLine": "{count, plural, one {An shirya abinci #} other {An shirya abinci #}}"
+  "case.prepLine": "{count, plural, one {An shirya abinci #} other {An shirya abinci #}}",
+  "listing.row": "Hotunan talla",
+  "listing.rowSub": "Akwatin ka a kasuwa — hoton fuska, murfi, studio",
+  "listing.title": "Hotunan talla",
+  "listing.portrait": "Hoton fuska · kai",
+  "listing.cover": "Murfi · bayanka",
+  "listing.gallery": "Hotunan studio · har {max}",
+  "listing.caption": "Bayani",
+  "listing.addPhoto": "＋ Ƙara hoto",
+  "listing.save": "Ajiye talla",
+  "listing.saved": "An ajiye talla",
+  "listing.unavailable": "Hotunan talla ba su samu ba tukuna — sake gwadawa bayan sabuntawa ta gaba.",
+  "listing.loadError": "An kāsa loda hotunan talla — hotunanka da aka ajiye ba su canza ba. Sake gwadawa.",
+  "listing.retry": "Sake gwadawa",
+  "listing.replace": "Maye gurbi",
+  "listing.pending": "Akwatin talla naka zai bayyana da zarar an amince da neman ka na horarwa.",
+  "listing.saveError": "An kāsa ajiyewa — ka shiga a matsayin horarwa da aka amince da shi?",
+  "listing.editAria": "Gyara hotunan talla naka"
 }

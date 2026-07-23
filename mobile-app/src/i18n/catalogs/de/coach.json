@@ -865,5 +865,22 @@
   "wire.seeFullRoster": "GESAMTEN KADER ANSEHEN",
   "wire.theWire": "DER DRAHT",
   "case.prep": "PREP",
-  "case.prepLine": "{count, plural, one {# Mahlzeit vorbereitet} other {# Mahlzeiten vorbereitet}}"
+  "case.prepLine": "{count, plural, one {# Mahlzeit vorbereitet} other {# Mahlzeiten vorbereitet}}",
+  "listing.row": "Anzeigenfotos",
+  "listing.rowSub": "Deine Box im Marktplatz — Porträt, Titelbild, Studio",
+  "listing.title": "Anzeigenfotos",
+  "listing.portrait": "Porträt · du",
+  "listing.cover": "Titelbild · dein Hintergrund",
+  "listing.gallery": "Studio-Galerie · bis zu {max}",
+  "listing.caption": "Bildunterschrift",
+  "listing.addPhoto": "＋ Foto hinzufügen",
+  "listing.save": "Anzeige speichern",
+  "listing.saved": "Anzeige gespeichert",
+  "listing.unavailable": "Anzeigenfotos sind noch nicht verfügbar — bitte nach dem nächsten Update erneut versuchen.",
+  "listing.loadError": "Deine Anzeigenfotos konnten nicht geladen werden — deine gespeicherten Fotos bleiben unberührt. Erneut versuchen.",
+  "listing.retry": "Erneut versuchen",
+  "listing.replace": "Ersetzen",
+  "listing.pending": "Deine Anzeigenbox erscheint, sobald deine Coach-Bewerbung genehmigt ist.",
+  "listing.saveError": "Speichern fehlgeschlagen — bist du als freigegebener Coach angemeldet?",
+  "listing.editAria": "Deine Anzeigenfotos bearbeiten"
 }
