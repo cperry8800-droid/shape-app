@@ -6893,7 +6893,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
                   <div style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: `center/cover no-repeat url("${g.url}")` }} aria-hidden="true" />
                   <input value={g.caption} onChange={(e) => setCaption(g.id, e.target.value)} maxLength={BS_LISTING_CAPTION_MAX} placeholder={tr('coach:listing.caption', { defaultValue: 'Caption' })}
                     style={{ flex: 1, boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '9px 11px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
-                  <button onClick={() => rmGallery(g.id)} aria-label="Remove photo" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
+                  <button onClick={() => rmGallery(g.id)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '6px 4px' }}>×</button>
                 </div>
               ))}
             </div>

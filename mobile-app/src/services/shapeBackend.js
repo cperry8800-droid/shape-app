@@ -4528,7 +4528,11 @@ async function uploadCoachMedia(file, opts = {}) {
   // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
   const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';
   const path = `${state.user.id}/${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'), upsert: false });
+  // When the picker omits file.type, derive the content type from the extension
+  // so HEIC/WebP/GIF/PNG bytes aren't stored/served as image/jpeg.
+  const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+  const contentType = file.type || EXT_MIME[ext.toLowerCase()] || (isVideo ? 'video/mp4' : 'image/jpeg');
+  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType, upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from('coach-media').getPublicUrl(path);
   return { url: data?.publicUrl || null, type: isVideo ? 'video' : 'image', name: file.name || '' };
