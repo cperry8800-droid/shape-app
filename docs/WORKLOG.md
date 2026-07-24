@@ -193,7 +193,7 @@ changelog whenever something ships.
 > only in the coach spread → never persisted) before the first push; post-open review then
 > hardened the account-deletion purge end to end (bucket coverage · >1000-object
 > pagination · sub-folder recursion · storage-purge-FIRST with abort-on-failure · a
-> post-delete sweep of the writable window). ✅ **ALL 3 OWNER MIGRATIONS APPLIED +
+> post-delete sweep of the writable window). ✓ **ALL 3 OWNER MIGRATIONS APPLIED +
 > verified live 2026-07-24** (`2026-07-23-provider-listing-media.sql` box PR A ·
 > `2026-07-23-coach-reviews-owner-id.sql` PR D · `2026-07-23-member-films-bucket.sql`
 > PR E) — no migration or merge work remains. ⚠ **The wave is NOT fully closed:**
@@ -996,7 +996,7 @@ changelog whenever something ships.
 ### 2026-07-24 — Profile customization wave — BUILD complete (PR C · D · E), all merged
 
 - **Session handoff: [`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)** —
-  the build-complete wave at session level. ✅ **ALL 3 owner migrations APPLIED +
+  the build-complete wave at session level. ✓ **ALL 3 owner migrations APPLIED +
   verified live 2026-07-24** (`provider-listing-media` box PR A ·
   `coach-reviews-owner-id` PR D · `member-films-bucket` PR E, checked read-only
   against prod), so no migration or merge work remains. ⚠ **The wave is NOT

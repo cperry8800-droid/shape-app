@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { WarRoomSnapshot, ServiceStatus, ApiRouteInfo } from '@/lib/warroom';
+import { pruneDeclinedTicks } from '@/lib/warroom-ticks.mjs';
 
 const TICKS_KEY = 'shape.warroom.ticks';
 
@@ -71,6 +72,19 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
       if (raw) setTicks(JSON.parse(raw));
     } catch { /* ignore */ }
   }, []);
+
+  // Prune ticks belonging to `declined` items from state AND storage. Ignoring
+  // them only at render isn't enough: a ruling can later flip back to `pending`,
+  // and a stale tick left in localStorage would silently re-mark the item
+  // complete with no fresh confirmation. `pruneDeclinedTicks` returns the same
+  // reference when there is nothing to drop, so this is self-terminating and
+  // the `ticks` dependency can't loop.
+  useEffect(() => {
+    const next = pruneDeclinedTicks(ticks, snap.checklist);
+    if (next === ticks) return;
+    setTicks(next);
+    try { localStorage.setItem(TICKS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  }, [snap.checklist, ticks]);
 
   const toggleTick = useCallback((label: string) => {
     setTicks((prev) => {
