@@ -185,7 +185,16 @@ export async function POST(request: Request) {
     authDeleted = !error;
   } catch { /* fall through; data is already purged */ }
 
-  // 4. Close the audit row.
+  // 4. Best-effort sweep of anything a still-authenticated concurrent session wrote in the
+  //    window between the storage pass (step 1) and this delete — those objects wouldn't
+  //    have been listed by step 1, and the account is now gone, so re-purge to catch them.
+  //    Best-effort (the account is already deleted; a straggler written with an access token
+  //    still valid until its expiry is caught by the platform-wide orphan-GC follow-up).
+  if (authDeleted) {
+    for (const b of BUCKETS) { await purgeBucket(admin, b, uid); }
+  }
+
+  // 5. Close the audit row.
   if (auditId) {
     try {
       await admin.from('account_deletions').update({
