@@ -64,10 +64,11 @@ const PURGE: { table: string; col: string }[] = [
   { table: 'nutritionists', col: 'owner_id' },
 ];
 
-// Private storage buckets that hold the user's files under a `<uid>/` prefix.
-// `coach-credentials` holds a coach's COI/certification uploads — included so a
-// coach's verification files aren't orphaned after their account is deleted.
-const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials'];
+// Storage buckets that hold the user's files under a `<uid>/` prefix (the purge
+// walks that folder). `coach-credentials` holds a coach's COI/certification uploads;
+// `member-films` holds a member's M5 intro film — both PUBLIC buckets with no other
+// owner UI to remove the object, so they're purged here or the file is orphaned.
+const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films'];
 
 // List + remove every object under `<uid>/`, paginating so large folders are
 // fully cleared, and only reporting success if no list/remove call errored — so a

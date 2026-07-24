@@ -12,11 +12,15 @@
 -- The film url rides on the existing `profile_custom` doc's `film` key (no table
 -- column, no RPC). Idempotent — safe to re-run.
 
--- public bucket · VIDEO mimes only · 60 MB (a short intro, not a full workout video)
+-- public bucket · VIDEO mimes only · 60 MB (a short intro, not a full workout video).
+-- Both M4V spellings are allowed: the film pickers pass file.type straight through as
+-- the upload contentType, and a device may report an .m4v as EITHER video/x-m4v or the
+-- non-standard video/m4v — allowing only one would reject the other after the client
+-- validation already passed.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'member-films', 'member-films', true, 62914560,
-  array['video/mp4','video/quicktime','video/webm','video/x-m4v']
+  array['video/mp4','video/quicktime','video/webm','video/x-m4v','video/m4v']
 )
 on conflict (id) do update
   set public = true,
