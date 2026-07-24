@@ -1014,7 +1014,11 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
       const path = `${u.user.id}/film-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const up = await cl.storage.from("coach-media").upload(path, file, { upsert: true, contentType: file.type });
+      // Derive a real video content type for a blank-MIME file — the coach-media
+      // bucket is MIME-allowlisted, so uploading a valid .mp4/.mov with an empty
+      // contentType would be rejected despite passing the extension validation.
+      const ctype = file.type || ({ mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/x-m4v" }[ext] || "video/mp4");
+      const up = await cl.storage.from("coach-media").upload(path, file, { upsert: true, contentType: ctype });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("coach-media").getPublicUrl(path);
       setFilm((prev) => ({ url: pub.publicUrl, caption: (prev && prev.caption) || "" }));
@@ -1027,15 +1031,17 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   // The coach's OWN pinnable reviews (owner_id === the profile owner) for the picker.
   const [pickReviews, setPickReviews] = React.useState([]);
   React.useEffect(() => {
-    if (!coach || !ownerUid || !ownerName) return;
-    const slug = String(ownerName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    if (!coach || !ownerUid) return;
+    // Fetch pin candidates by owner_id (the trigger-stamped column), NOT the display-
+    // name slug — a coach whose profile name differs from their provider listing name
+    // would otherwise see no pinnable reviews though the reviews carry the right owner.
     let on = true;
-    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" })
+    fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId)); })
       .catch(() => {});
     return () => { on = false; };
-  }, [coach, ownerUid, ownerName]);
+  }, [coach, ownerUid]);
   const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;
   const startValid = (plib && plib.bsValidStartDate) ? plib.bsValidStartDate(startDate) : null;
   const onWallFile = async (e) => {

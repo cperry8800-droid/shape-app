@@ -11160,7 +11160,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   );
 }
 
-function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, pickReviews = null }) {
+function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, ownerUid = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const PROMPT_OPTS = coach ? BS_COACH_PROMPTS : BS_PROFILE_PROMPTS;
@@ -11246,6 +11246,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const [biz, setBiz] = useStateBSC({ name: (init.bizCard && init.bizCard.name) || '', where: (init.bizCard && init.bizCard.where) || '', hours: (init.bizCard && init.bizCard.hours) || '', handle: (init.bizCard && init.bizCard.handle) || '' });
   const [pins, setPins] = useStateBSC(Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : []);
   const togglePin = (id) => setPins((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : (prev.length >= BS_PINNED_REVIEWS_MAX ? prev : [...prev, id]));
+  // Pin candidates: the coach's OWN reviews by owner_id (the trigger-stamped column),
+  // NOT a display-name slug — a name mismatch would otherwise hide pinnable reviews.
+  // Filtered to a MEMBER's review (authorId !== ownerId), so a self-authored row can't be pinned.
+  const [pickReviews, setPickReviews] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!coach || !ownerUid) return;
+    let on = true;
+    fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [coach, ownerUid]);
   const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
   const save = async () => {
@@ -13475,7 +13488,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach pickReviews={(liveReviews || []).filter((r) => r && r.ownerId === person.userId && r.authorId !== r.ownerId)} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach ownerUid={person.userId} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}

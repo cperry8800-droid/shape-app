@@ -41,6 +41,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
   }
 
+  // ?owner=<uid> — reviews for a specific coach by the trigger-stamped owner_id, so
+  // the wins-wall pin picker is independent of any display-name vs provider-name slug
+  // mismatch. Public read; the picker still filters to a MEMBER's review (authorId !== ownerId).
+  const ownerParam = cleanText(url.searchParams.get('owner'), 64);
+  if (ownerParam) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });
+    const { data, error } = await supabase.from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
+    if (error) return NextResponse.json({ reviews: [] });
+    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
+  }
+
   if (slug) {
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
