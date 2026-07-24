@@ -70,26 +70,35 @@ const PURGE: { table: string; col: string }[] = [
 // owner UI to remove the object, so they're purged here or the file is orphaned.
 const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films'];
 
-// Remove every FILE under `<uid>/`, and only report success if nothing errored — so
-// a "purged" result can't hide files left behind (CWE-459). Deletion SHIFTS the
-// remaining objects down, so we must NOT paginate by advancing an offset (that would
-// skip the shifted objects and orphan them for a >PAGE folder); instead we re-list
-// from the start each pass and remove until no files remain. Only real files are
-// removed (an entry with an id) — folder PREFIXES (id null, e.g. coach-media's
-// `<uid>/listing/…`) are skipped so they can't spin the loop forever. (Sub-folder
-// CONTENTS aren't recursed here, matching the prior behavior.)
+// Remove every object under `<uid>/` (files AND anything nested in sub-folders), and
+// only report success if nothing errored — so a "purged" result can't hide files left
+// behind (CWE-459). Two hazards handled:
+//   • Deletion SHIFTS the remaining objects down, so we must NOT paginate by advancing
+//     an offset (that would skip the shifted objects and orphan them for a >PAGE
+//     folder); we re-list from the start each pass and remove until no files remain.
+//   • `list(prefix)` returns a sub-folder as a PREFIX entry (id === null, e.g.
+//     coach-media's `<uid>/listing/…`) whose CONTENTS aren't in this page — so we
+//     RECURSE into each prefix, or those public objects would survive account deletion
+//     while the audit falsely marks the bucket purged.
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
   const PAGE = 1000;
-  try {
-    let ok = true;
+  let ok = true;
+  const purgePrefix = async (prefix: string): Promise<void> => {
     for (;;) {
-      const { data, error } = await admin.storage.from(bucket).list(uid, { limit: PAGE });
-      if (error) return false;
-      const files = (data || []).filter((o) => o && o.name && o.id);
-      if (!files.length) break; // no more files under <uid>/ (only prefixes or empty)
-      const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${uid}/${o.name}`));
-      if (rmErr) { ok = false; break; } // stop on a remove error rather than spin
+      const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: PAGE });
+      if (error) { ok = false; return; }
+      const entries = data || [];
+      const files = entries.filter((o) => o && o.name && o.id);       // real objects
+      const folders = entries.filter((o) => o && o.name && !o.id);    // sub-folder prefixes
+      for (const f of folders) await purgePrefix(`${prefix}/${f.name}`); // empty nested folders first
+      if (!files.length) return; // no objects at this level — sub-folders handled above
+      const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${prefix}/${o.name}`));
+      if (rmErr) { ok = false; return; } // stop on a remove error rather than spin
+      // loop: re-list from the start — removed files are gone, emptied folders vanish
     }
+  };
+  try {
+    await purgePrefix(uid);
     return ok;
   } catch {
     return false;
