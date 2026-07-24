@@ -1357,7 +1357,7 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
     </div>
   );
 
-  return createPortal(
+  const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div
         onClick={(e) => e.stopPropagation()}
@@ -1433,9 +1433,14 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
           ) : null}
         </div>
       </div>
-    </div>,
-    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
+    </div>
   );
+
+  // Surface-only, no document.body fallback — body is where a sheet escapes the
+  // phone frame to (the bug PR #1825 fixes), so the guard must not offer it as a
+  // target. Absent surface renders in place: contained, not outside the frame.
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
+  return surface ? createPortal(sheet, surface) : sheet;
 }
 
 // ── Demo catalogue (signed-out preview ONLY) ─────────────────────────────────
