@@ -90,7 +90,17 @@ async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: 
   const purgePrefix = async (prefix: string): Promise<boolean> => {
     for (;;) {
       const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: PAGE });
-      if (error) return false;
+      if (error) {
+        // An ABSENT bucket (404 / "not found") has nothing to orphan — treat it as
+        // already purged so a not-yet-provisioned bucket (e.g. member-films before its
+        // migration reaches this env) can't hard-block account deletion. This preserves
+        // the route's "no-ops gracefully on missing buckets" guarantee. Any OTHER error
+        // (a real list failure on an existing bucket) still fails, so we never delete the
+        // auth user while removable objects might remain.
+        const e = error as { message?: string; status?: number; statusCode?: number };
+        if (e?.status === 404 || e?.statusCode === 404 || /not\s*found/i.test(e?.message || '')) return true;
+        return false;
+      }
       const entries = data || [];
       if (!entries.length) return true; // fully cleared
       const files = entries.filter((o) => o && o.name && o.id);       // real objects

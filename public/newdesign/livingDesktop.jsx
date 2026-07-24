@@ -1118,6 +1118,12 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
     if (wallBusy || coverBusy || filmBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
+    // Only write `film` into the doc when it CHANGED this session. Otherwise a save of
+    // unrelated fields would re-validate the STORED film against THIS role's bucket and
+    // drop a valid opposite-role or untouched film (a dual-role user's coach film erased
+    // by a member save). Untouched → leave init.film byte-identical (no filmBucket).
+    const filmCap = ((film && film.caption) || "").trim(), initFilmCap = ((init.film && init.film.caption) || "").trim();
+    const filmTouched = (((film && film.url) || null) !== ((init.film && init.film.url) || null)) || (filmCap !== initFilmCap);
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -1135,10 +1141,9 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // The intro film is a SHARED key — coach (P1 → coach-media) and member (M5 →
-      // member-films) both manage it; the filmBucket-routed normalizer below validates
-      // it against the right bucket per role.
-      film: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
+      // The intro film — coach (P1 → coach-media) and member (M5 → member-films) both
+      // manage it, but only write it when CHANGED (else preserve init's copy byte-identical).
+      ...(filmTouched ? { film: (film && film.url) ? { url: film.url, caption: filmCap } : null } : {}),
       // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
       // copies untouched (spread above).
       ...(coach ? {
@@ -1156,7 +1161,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
-    const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: coach ? "coach-media" : "member-films" });
+    const out = plib.bsNormalizeProfileCustom(doc, uid, filmTouched ? { filmBucket: coach ? "coach-media" : "member-films" } : undefined);
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
     catch (e) { error = e; }

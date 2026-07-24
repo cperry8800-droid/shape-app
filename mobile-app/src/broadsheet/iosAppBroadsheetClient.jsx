@@ -11297,6 +11297,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.('Hang on — an upload is still in progress.', 'err'); return; }
     setBusy(true);
+    // Only write `film` into the doc when it CHANGED this session. Otherwise a save of
+    // unrelated fields would re-validate the STORED film against THIS role's bucket and
+    // drop a valid opposite-role or untouched film (a dual-role user's coach film erased
+    // by a member save). Untouched → leave init.film byte-identical (no filmBucket).
+    const filmCap = ((film && film.caption) || '').trim(), initFilmCap = ((init.film && init.film.caption) || '').trim();
+    const filmTouched = (((film && film.url) || null) !== ((init.film && init.film.url) || null)) || (filmCap !== initFilmCap);
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -11314,10 +11320,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // The intro film is a SHARED key — coach (P1 → coach-media) and member (M5 →
-      // member-films) both manage it; the filmBucket-routed normalizer below validates
-      // it against the right bucket per role.
-      film: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
+      // The intro film — coach (P1 → coach-media) and member (M5 → member-films) both
+      // manage it, but only write it when CHANGED (else preserve init's copy byte-identical).
+      ...(filmTouched ? { film: (film && film.url) ? { url: film.url, caption: filmCap } : null } : {}),
       // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
       // copies untouched (spread above).
       ...(coach ? {
@@ -11325,9 +11330,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         pinnedReviews: pins,
       } : {}),
     };
-    // filmBucket routes by role — coach films live in coach-media, member films in the
-    // dedicated member-films bucket; the render re-validates against the same bucket.
-    const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: coach ? 'coach-media' : 'member-films' });
+    // filmBucket routes by role — but only when the film CHANGED (see filmTouched); an
+    // untouched film stays byte-identical so an opposite-role film is never dropped.
+    const clean = bsNormalizeProfileCustom(doc, uid, filmTouched ? { filmBucket: coach ? 'coach-media' : 'member-films' } : undefined);
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
     catch (e) { res = { error: e }; }
