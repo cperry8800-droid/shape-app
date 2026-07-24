@@ -1316,6 +1316,78 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
   return surface ? createPortal(panel, surface) : panel;
 }
 
+// ── Demo catalogue (signed-out preview ONLY) ─────────────────────────────────
+// A demo coach has no provider row, so ShapeCoachPlans.salePlans can never
+// return anything for them and the Listing's PROGRAMS & PLANS / SINGLE WORKOUTS
+// shelves render empty — which is why the preview reads as a half-built page.
+// These stand-ins carry the SAME shape a real coach_plans row does (id · name ·
+// meta · price · category · detail{blocks,note,media}) so every downstream
+// surface — the sale rows, their media strip, and the plan preview — runs the
+// real code path against them. Gated on `!saleProviderId` (demo listings only),
+// so a REAL coach with no plans still honestly shows nothing.
+// Signed-in check for the demo gate. Reads the auth cache the rest of the app
+// uses (window.ShapeAuth), so it needs no props threading and matches the
+// preview-vs-live boundary every other demo fallback keys off.
+const bsmSignedIn = () => !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+const BSM_DEMO_MEDIA = `${import.meta.env.BASE_URL}demo/`;
+const BSM_DEMO_SALE_PLANS = (isNutri) => (isNutri ? [
+  {
+    id: 'demo-plan-cut', name: 'The Lean Block', meta: '6 weeks · 1,900 kcal base', price: '$160', category: 'program',
+    detail: {
+      note: 'Built for a training week, not a diet week. Protein anchors every meal; carbs follow the sessions.',
+      media: [{ url: `${BSM_DEMO_MEDIA}plan-01.webp`, type: 'image', name: 'plan-01' }],
+      blocks: [
+        'Breakfast — Greek yogurt, berries, honey · 420 kcal',
+        'Lunch — chicken rice bowl, slaw · 610 kcal',
+        'Snack — cottage cheese, apple · 240 kcal',
+        'Dinner — salmon, potatoes, greens · 630 kcal',
+      ],
+    },
+  },
+  {
+    id: 'demo-meal-single', name: 'Race-week fuelling day', meta: 'One day · full macros', price: '$32', category: 'meal',
+    detail: {
+      note: 'The day before a long effort. Carbs up, fibre down, nothing new on race morning.',
+      media: [],
+      blocks: [
+        'Breakfast — oats, banana, maple · 520 kcal',
+        'Lunch — white rice, chicken, soy · 640 kcal',
+        'Dinner — pasta, lean beef ragu · 700 kcal',
+      ],
+    },
+  },
+] : [
+  {
+    id: 'demo-plan-strength', name: 'Strength Block 3', meta: '6 weeks · 4 days', price: '$160', category: 'program',
+    detail: {
+      note: 'Two heavy days, two builders. Add weight only when every rep of the last set looked the same as the first.',
+      media: [
+        { url: `${BSM_DEMO_MEDIA}studio-02.webp`, type: 'image', name: 'studio-02' },
+        { url: `${BSM_DEMO_MEDIA}plan-01.webp`, type: 'image', name: 'plan-01' },
+      ],
+      blocks: [
+        'Mon — Lower (squat)',
+        'Tue — Upper (push)',
+        'Thu — Lower (hinge)',
+        'Fri — Upper (pull)',
+      ],
+    },
+  },
+  {
+    id: 'demo-workout-single', name: 'Heavy singles — squat day', meta: 'One session · 52 min', price: '$32', category: 'workout',
+    detail: {
+      note: 'Work up until the bar slows, then stop. The back-offs are where the size comes from.',
+      media: [{ url: `${BSM_DEMO_MEDIA}studio-03.webp`, type: 'image', name: 'studio-03' }],
+      blocks: [
+        'Back squat · 5×3',
+        'Front squat · 3×6',
+        'Bulgarian split squat · 3×8',
+        'Hanging leg raise · 3×12',
+      ],
+    },
+  },
+]);
+
 // 24h 'HH:MM' -> 12h label, shared by the Listing's slot rows + the calendar.
 function bsFmtSlot12(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number);
@@ -1433,9 +1505,17 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const saleProviderId = coach.provider_id || coach.db_id || null;
   const [salePlans, setSalePlans] = useStateBSM2(null);
   React.useEffect(() => {
-    if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
+    // The signed-out PREVIEW falls back to the stand-in catalogue so the Listing
+    // reads as a finished page instead of skipping straight from the rate card to
+    // THE APPROACH. Gated on "no signed-in user", never on the coach row — a
+    // signed-in member always sees that coach's REAL plans, and a real coach with
+    // none still honestly shows nothing (the demo-leak rule, 2026-06-14).
+    const demoFallback = () => (bsmSignedIn() ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
+    if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans(demoFallback()); return; }
     let on = true;
-    window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId)
+      .then((r) => { if (on) setSalePlans((r && r.length) ? r : demoFallback()); })
+      .catch(() => { if (on) setSalePlans(demoFallback()); });
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole]);
   React.useEffect(() => {
