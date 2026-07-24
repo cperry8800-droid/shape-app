@@ -1034,13 +1034,25 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     // Fetch pin candidates by owner_id (the trigger-stamped column), NOT the display-
     // name slug — a coach whose profile name differs from their provider listing name
     // would otherwise see no pinnable reviews though the reviews carry the right owner.
+    // The owner list is a capped latest-200 page, so a review already pinned but aged
+    // past it would still render on the wall (by-id resolver) yet vanish from the picker,
+    // leaving no way to UNPIN it. UNION the ≤3 saved pins (resolved by id) into the
+    // candidates so every currently-pinned review always has a removal control.
     let on = true;
     setPickReviews([]);   // drop the prior coach's candidates before (re)loading — a stale
     if (!coach || !ownerUid) return () => { on = false; };  // set could be shown/pinned for the wrong coach
-    fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (on) setPickReviews(j && Array.isArray(j.reviews) ? j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []); })
-      .catch(() => { if (on) setPickReviews([]); });
+    const savedIds = Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, PRM) : [];
+    const keep = (list) => (Array.isArray(list) ? list.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []);
+    Promise.all([
+      fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      savedIds.length ? fetch(`/api/coaches/reviews?ids=${encodeURIComponent(savedIds.join(","))}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
+    ]).then(([ownerJ, idsJ]) => {
+      if (!on) return;
+      const owned = keep(ownerJ && ownerJ.reviews);
+      const seen = new Set(owned.map((r) => r.id));
+      const extraPins = keep(idsJ && idsJ.reviews).filter((r) => !seen.has(r.id));
+      setPickReviews(owned.concat(extraPins));
+    });
     return () => { on = false; };
   }, [coach, ownerUid]);
   const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;

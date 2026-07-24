@@ -63,10 +63,20 @@ begin
   -- slug column doesn't change on a rename). A slug/kind CHANGE (the kind-agnostic
   -- upsert repointing the row at a different coach) falls through and re-derives below,
   -- so owner_id can never be left mis-attributed to the previous coach.
+  --
+  -- EXCEPTION — honor a clear to NULL. The `owner_id references auth.users on delete
+  -- set null` action fires as an identity-stable UPDATE (only owner_id changes, → NULL)
+  -- when a reviewed coach's auth account is deleted; reverting that NULL to old.owner_id
+  -- would defeat the referential action and FAIL the account delete for any reviewed
+  -- coach. So a NULL new.owner_id passes through untouched (also covers an admin clear).
+  -- A NON-null client value that differs is still a forge attempt and is reverted below;
+  -- a member nulling their own review's owner (RLS scopes updates to their own row) only
+  -- makes that review unprovable/unpinnable — harmless, not an escalation.
   if (tg_op = 'UPDATE'
       and new.coach_slug is not distinct from old.coach_slug
       and new.coach_kind is not distinct from old.coach_kind) then
-    new.owner_id := old.owner_id;
+    if new.owner_id is null then return new; end if;   -- FK/admin clear — let it stand
+    new.owner_id := old.owner_id;                       -- else keep the immutable stamp
     return new;
   end if;
   if new.coach_kind = 'nutritionist' then
