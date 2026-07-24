@@ -98,7 +98,7 @@ function BSSheetHost({ children, onDismiss, z }) {
         overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none',
         borderTop: 0, boxShadow: '0 -20px 40px rgba(0,0,0,0.25)',
       }}>
-        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div style={{ position: 'sticky', top: 0, background: t.PAPER, zIndex: 2, borderBottom: `1px solid ${t.RULE}`, paddingTop: 'max(env(safe-area-inset-top, 0px), var(--bs-notch-floor, 0px))' }}>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '11px 0 9px', minHeight: 24 }}>
             <button onClick={onDismiss} style={{
               position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',

@@ -1349,7 +1349,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
   const first = (coach.name || '').split(' ')[0];
   return (
     <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
+      <div style={{ padding: `max(14px, var(--bs-notch-floor, 0px)) ${t.padX}px 0` }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
@@ -1737,8 +1737,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // set a cover, it renders scrimmed BEHIND the whole block; absent, the
         // block renders exactly as before (byte-identical — no wrapper).
         const header = (<>
-          {/* Back */}
-          <div style={{ padding: `14px ${t.padX}px 0` }}>
+          {/* Back — floor the top so it clears the desktop-preview notch. */}
+          <div style={{ padding: `max(14px, var(--bs-notch-floor, 0px)) ${t.padX}px 0` }}>
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
               {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}

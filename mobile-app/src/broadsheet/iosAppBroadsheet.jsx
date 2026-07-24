@@ -537,7 +537,7 @@ function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true, noS
       // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
       // the bar; only its vertical padding is trimmed vs the hero.
-      padding: `calc(12px + env(safe-area-inset-top, 0px)) ${t.padX}px 11px`,
+      padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${t.padX}px 11px`,
       background: `linear-gradient(0deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
       backgroundColor: t.PAPER,
       color: t.INK,
@@ -1520,6 +1520,15 @@ function BSPhone({ children }) {
         zoom: t.TEXT_SCALE || 1,
         borderRadius: 42, overflow: 'hidden',
         position: 'relative', background: t.PAPER_BG,
+        // Desktop-preview notch clearance. On a real device the status bar /
+        // Dynamic Island is handled by env(safe-area-inset-top); in this desktop
+        // mock the inset is 0, so a small-top masthead rides UNDER the drawn
+        // notch below. Mastheads floor their top with
+        // max(<natural>, var(--bs-notch-floor, 0px)); this sets the floor to 46px
+        // (BSDetailHeader's proven clearance) in the preview ONLY. The native
+        // surface never sets it, so the var falls back to 0 and native spacing is
+        // byte-identical — max() then always picks the real safe-area value.
+        '--bs-notch-floor': '46px',
       }}>
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',

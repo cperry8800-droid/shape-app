@@ -14622,7 +14622,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
       {/* masthead — same chrome as every other page (logo/Vol·No + search/avatar),
           then a back + context row. No top hairline (clean edge). */}
-      <div style={{ flexShrink: 0, position: 'relative', padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px' }}>
+      <div style={{ flexShrink: 0, position: 'relative', padding: 'max(calc(env(safe-area-inset-top,0px) + 13px), var(--bs-notch-floor, 0px)) 16px 11px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
@@ -14859,7 +14859,7 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
   const gridCols = `minmax(52px,1fr) auto${anyHr ? ' auto' : ''}${anyCad ? ' auto' : ''}${anyElev ? ' auto' : ''}`;
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flexShrink: 0, padding: 'max(calc(env(safe-area-inset-top,0px) + 13px), var(--bs-notch-floor, 0px)) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('session:splits.title', { defaultValue: 'The splits' })}</span>
         {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:splits.estimatedFromTrace', { defaultValue: 'Estimated · from trace' })}</span>}
