@@ -193,11 +193,13 @@ changelog whenever something ships.
 > only in the coach spread → never persisted) before the first push; post-open review then
 > hardened the account-deletion purge end to end (bucket coverage · >1000-object
 > pagination · sub-folder recursion · storage-purge-FIRST with abort-on-failure · a
-> post-delete sweep of the writable window). ⚠ **2 OWNER MIGRATIONS to run:**
-> `2026-07-23-coach-reviews-owner-id.sql` (PR D) + `2026-07-23-member-films-bucket.sql`
-> (PR E) — code degrades cleanly until then. Full dated entry below. Open follow-ups:
-> platform-wide media orphan-GC (now incl. the film buckets) · persisted provider-slug
-> column · on-device pass across the new surfaces.
+> post-delete sweep of the writable window). ✅ **ALL 3 OWNER MIGRATIONS APPLIED +
+> verified live 2026-07-24** (`2026-07-23-provider-listing-media.sql` box PR A ·
+> `2026-07-23-coach-reviews-owner-id.sql` PR D · `2026-07-23-member-films-bucket.sql`
+> PR E) — nothing left owner-side on this wave. Handoff:
+> **[`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)**. Full dated entry below.
+> Open follow-ups: platform-wide media orphan-GC (now incl. the film buckets) ·
+> persisted provider-slug column · on-device pass across the new surfaces.
 >
 > **Prior (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase.** Coaches
 > dress their marketplace box and everyone gets profile customizations — specs written on
@@ -987,6 +989,11 @@ changelog whenever something ships.
 
 ### 2026-07-24 — Profile customization wave — BUILD complete (PR C · D · E), all merged
 
+- **Session handoff: [`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)** —
+  the build-complete wave at session level. ✅ **ALL 3 owner migrations APPLIED +
+  verified live 2026-07-24** (`provider-listing-media` box PR A ·
+  `coach-reviews-owner-id` PR D · `member-films-bucket` PR E, checked read-only
+  against prod) — nothing left owner-side on this wave.
 - **The build phase of the coach-box + profile-customization wave** (specs #1815/#1816)
   shipped end to end after the owner's go: box PR A+B → **profile PR C** (member M1–M4)
   → **PR D #1821** (coach P1–P5) → **PR E #1822** (member M5 film). The customizations
