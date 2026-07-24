@@ -11251,12 +11251,13 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   // Filtered to a MEMBER's review (authorId !== ownerId), so a self-authored row can't be pinned.
   const [pickReviews, setPickReviews] = useStateBSC([]);
   React.useEffect(() => {
-    if (!coach || !ownerUid) return;
     let on = true;
+    setPickReviews([]);   // drop the prior coach's candidates before (re)loading — a stale
+    if (!coach || !ownerUid) return () => { on = false; };  // set could be shown/pinned for the wrong coach
     fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId)); })
-      .catch(() => {});
+      .then((j) => { if (on) setPickReviews(j && Array.isArray(j.reviews) ? j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []); })
+      .catch(() => { if (on) setPickReviews([]); });
     return () => { on = false; };
   }, [coach, ownerUid]);
   const startState = bsStartLineState(startDate, new Date());

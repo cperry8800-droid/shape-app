@@ -1031,15 +1031,16 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   // The coach's OWN pinnable reviews (owner_id === the profile owner) for the picker.
   const [pickReviews, setPickReviews] = React.useState([]);
   React.useEffect(() => {
-    if (!coach || !ownerUid) return;
     // Fetch pin candidates by owner_id (the trigger-stamped column), NOT the display-
     // name slug — a coach whose profile name differs from their provider listing name
     // would otherwise see no pinnable reviews though the reviews carry the right owner.
     let on = true;
+    setPickReviews([]);   // drop the prior coach's candidates before (re)loading — a stale
+    if (!coach || !ownerUid) return () => { on = false; };  // set could be shown/pinned for the wrong coach
     fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPickReviews(j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId)); })
-      .catch(() => {});
+      .then((j) => { if (on) setPickReviews(j && Array.isArray(j.reviews) ? j.reviews.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []); })
+      .catch(() => { if (on) setPickReviews([]); });
     return () => { on = false; };
   }, [coach, ownerUid]);
   const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;

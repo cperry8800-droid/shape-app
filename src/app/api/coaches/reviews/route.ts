@@ -121,10 +121,13 @@ export async function POST(request: Request) {
   // Falls back to a plain insert until the unique-index migration is applied (42P10 =
   // no constraint matching ON CONFLICT).
   const payload: Record<string, unknown> = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
-  const cols = 'id, rating, body, author_name, user_id, created_at';
+  // select('*') (not an explicit column list) so shape() returns the trigger-stamped
+  // owner_id in the write response — AND stays migration-safe: naming owner_id explicitly
+  // would 400 pre-migration (PostgREST rejects an unknown column), the same reason the GET
+  // slug branch uses '*'. Pre-migration '*' just omits owner_id → shape() reads it as null.
   const writeReview = async (p: Record<string, unknown>) => {
-    let r = await supabase.from('coach_reviews').upsert(p, { onConflict: 'user_id,coach_slug' }).select(cols).single();
-    if (r.error && r.error.code === '42P10') r = await supabase.from('coach_reviews').insert(p).select(cols).single();
+    let r = await supabase.from('coach_reviews').upsert(p, { onConflict: 'user_id,coach_slug' }).select('*').single();
+    if (r.error && r.error.code === '42P10') r = await supabase.from('coach_reviews').insert(p).select('*').single();
     return r;
   };
   const { data, error } = await writeReview(payload);
