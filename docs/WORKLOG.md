@@ -193,19 +193,11 @@ changelog whenever something ships.
 > only in the coach spread → never persisted) before the first push; post-open review then
 > hardened the account-deletion purge end to end (bucket coverage · >1000-object
 > pagination · sub-folder recursion · storage-purge-FIRST with abort-on-failure · a
-> post-delete sweep of the writable window). ✓ **ALL 3 OWNER MIGRATIONS APPLIED +
-> verified live 2026-07-24** (`2026-07-23-provider-listing-media.sql` box PR A ·
-> `2026-07-23-coach-reviews-owner-id.sql` PR D · `2026-07-23-member-films-bucket.sql`
-> PR E) — no migration or merge work remains. ⚠ **The wave is NOT fully closed:**
-> the **OWNER on-device pass** across the new profile surfaces is still open.
-> Handoff: **[`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)**. Full dated
-> entry below. Pending engineering follow-ons (registered, not started):
-> platform-wide **signed/authenticated media** (public-bucket URLs stay fetchable
-> after a visibility flip — the spec's documented residual, distinct from
-> orphan-GC) · platform-wide media orphan-GC (now incl. the film buckets) ·
-> persisted provider-slug column · Reviews-section re-key onto `owner_id` · P3
-> render verification. Declined-with-rationale: RLS-scoping the account-delete
-> purge (documented admin-erasure exception).
+> post-delete sweep of the writable window). ✓ **BOTH OWNER MIGRATIONS APPLIED +
+> verified live 2026-07-24** — `2026-07-23-coach-reviews-owner-id.sql` (PR D) +
+> `2026-07-23-member-films-bucket.sql` (PR E). Full dated entry below. Open follow-ups:
+> platform-wide media orphan-GC (now incl. the film buckets) · persisted provider-slug
+> column · on-device pass across the new surfaces.
 >
 > **Prior (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase.** Coaches
 > dress their marketplace box and everyone gets profile customizations — specs written on
@@ -995,17 +987,6 @@ changelog whenever something ships.
 
 ### 2026-07-24 — Profile customization wave — BUILD complete (PR C · D · E), all merged
 
-- **Session handoff: [`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)** —
-  the build-complete wave at session level. ✓ **ALL 3 owner migrations APPLIED +
-  verified live 2026-07-24** (`provider-listing-media` box PR A ·
-  `coach-reviews-owner-id` PR D · `member-films-bucket` PR E, checked read-only
-  against prod), so no migration or merge work remains. ⚠ **The wave is NOT
-  fully closed** — the OWNER on-device pass across the new profile surfaces is
-  still open, and the pending engineering follow-ons stand: platform-wide
-  **signed/authenticated media** (the visibility-flip residual — distinct from,
-  and not covered by, orphan-GC) · media orphan-GC · persisted provider-slug
-  column · Reviews-section re-key · P3 render verification. The account-delete
-  purge staying service-role is **declined-with-rationale**, not pending.
 - **The build phase of the coach-box + profile-customization wave** (specs #1815/#1816)
   shipped end to end after the owner's go: box PR A+B → **profile PR C** (member M1–M4)
   → **PR D #1821** (coach P1–P5) → **PR E #1822** (member M5 film). The customizations
@@ -1039,15 +1020,10 @@ changelog whenever something ships.
   add `member-films` to the purge list · fix a >1000-object pagination skip · **recurse
   sub-folder prefixes** so nested media (coach-media's `<uid>/listing/…`) can't survive
   deletion. The `video/m4v` MIME was added to the allowlist to match the pickers.
-- **Review dispositions — ONE status each** (matching the handoff bullet above, the
-  handoff doc, and the War Room; do not re-label these separately):
-  **→ PENDING** (declined only as an *in-PR* fix, registered as platform work):
-  the media-orphan-GC class (remove/replace leaves the old object in a public
-  bucket — same ruling as PR C, now scoped to include the film buckets) · the
-  persisted provider-slug column (would replace the trigger's provider scan).
-  **→ DECLINED outright** (no work planned): `CREATE INDEX CONCURRENTLY` on the
-  tiny reviews table · RLS-scoping the account-delete storage purge (the route is
-  service-role by design — documented admin-erasure exception).
+- **Declined-with-rationale, registered:** the media-orphan-GC class (remove/replace
+  leaves the old object in a public bucket) — same ruling as PR C, now scoped to include
+  the film buckets; the persisted provider-slug column (the trigger's provider scan);
+  `CREATE INDEX CONCURRENTLY` on the tiny reviews table.
 
 ### 2026-07-23 — Coach box + profile customization: the spec phase (#1815 · #1816) — ⚠ BUILD OWNER-PAUSED
 

@@ -10,7 +10,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { WarRoomSnapshot, ServiceStatus, ApiRouteInfo } from '@/lib/warroom';
-import { pruneDeclinedTicks } from '@/lib/warroom-ticks.mjs';
 
 const TICKS_KEY = 'shape.warroom.ticks';
 
@@ -73,19 +72,6 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
     } catch { /* ignore */ }
   }, []);
 
-  // Prune ticks belonging to `declined` items from state AND storage. Ignoring
-  // them only at render isn't enough: a ruling can later flip back to `pending`,
-  // and a stale tick left in localStorage would silently re-mark the item
-  // complete with no fresh confirmation. `pruneDeclinedTicks` returns the same
-  // reference when there is nothing to drop, so this is self-terminating and
-  // the `ticks` dependency can't loop.
-  useEffect(() => {
-    const next = pruneDeclinedTicks(ticks, snap.checklist);
-    if (next === ticks) return;
-    setTicks(next);
-    try { localStorage.setItem(TICKS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-  }, [snap.checklist, ticks]);
-
   const toggleTick = useCallback((label: string) => {
     setTicks((prev) => {
       const next = { ...prev, [label]: !prev[label] };
@@ -147,27 +133,21 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
     return () => clearInterval(id);
   }, [refreshSnapshot]);
 
-  // `declined` items are closed review decisions with no work planned: never
-  // open, never tickable, and excluded from the go-live counts entirely (they
-  // are records, not outstanding work).
   const checklistWithTicks = useMemo(
     () => snap.checklist.map((sec) => ({
       ...sec,
-      items: sec.items.map((it) => {
-        const declined = it.status === 'declined';
-        return { ...it, declined, done: it.status === 'done' || (!declined && !!ticks[it.label]) };
-      }),
+      items: sec.items.map((it) => ({ ...it, done: it.status === 'done' || !!ticks[it.label] })),
     })),
     [snap.checklist, ticks],
   );
 
   const nextSteps = useMemo(() => {
     const out: { section: string; label: string }[] = [];
-    for (const sec of checklistWithTicks) for (const it of sec.items) if (!it.done && !it.declined) out.push({ section: sec.section, label: it.label });
+    for (const sec of checklistWithTicks) for (const it of sec.items) if (!it.done) out.push({ section: sec.section, label: it.label });
     return out;
   }, [checklistWithTicks]);
 
-  const totalChecklist = checklistWithTicks.reduce((n, s) => n + s.items.filter((i) => !i.declined).length, 0);
+  const totalChecklist = checklistWithTicks.reduce((n, s) => n + s.items.length, 0);
   const doneChecklist = totalChecklist - nextSteps.length;
 
   // Group the open steps by section so the panel reads as tabs, not one long list.
@@ -441,9 +421,8 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
           {view === 'checklist' && (
           <Panel title="Go-live checklist" hint={`${doneChecklist}/${totalChecklist} done`} wide>
             {checklistWithTicks.map((sec) => {
-              const counted = sec.items.filter((i) => !i.declined);
-              const done = counted.filter((i) => i.done).length;
-              const complete = done === counted.length;
+              const done = sec.items.filter((i) => i.done).length;
+              const complete = done === sec.items.length;
               const isOpen = !!secOpen[sec.section];
               return (
                 <div key={sec.section} style={{ border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
@@ -454,25 +433,12 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
                       <b style={{ textAlign: 'left' }}>{sec.section}</b>
                     </span>
                     <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: complete ? C.ok : C.warn }}>
-                      {complete ? '✓ ' : ''}{done}/{counted.length}
+                      {complete ? '✓ ' : ''}{done}/{sec.items.length}
                     </span>
                   </button>
                   {isOpen && (
                     <div style={{ padding: '6px 14px 12px', borderTop: `1px solid ${C.border}` }}>
                       {sec.items.map((it) => {
-                        // A declined decision is a record, not a task: no checkbox,
-                        // so it can't be ticked "complete" and never reads as open work.
-                        if (it.declined) {
-                          return (
-                            <div key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '5px 0', opacity: 0.55, lineHeight: 1.45 }}>
-                              <span aria-hidden style={{ marginTop: 1, flexShrink: 0, color: C.dim }}>⊘</span>
-                              <span>
-                                {it.label}
-                                <em style={{ fontSize: 10, color: C.dim, fontStyle: 'normal', marginLeft: 6, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>declined</em>
-                              </span>
-                            </div>
-                          );
-                        }
                         const auto = it.status === 'done';
                         return (
                           <label key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '5px 0', cursor: auto ? 'default' : 'pointer', opacity: it.done ? 0.6 : 1, lineHeight: 1.45 }}>
