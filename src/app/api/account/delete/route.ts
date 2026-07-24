@@ -147,36 +147,35 @@ export async function POST(request: Request) {
     auditId = data?.id ?? null;
   } catch { /* table not provisioned yet */ }
 
-  // 1. Explicit row purge (covers tables that don't cascade on auth-user delete).
-  for (const t of PURGE) {
-    try {
-      const { error } = await admin.from(t.table).delete().eq(t.col, uid);
-      if (!error) purged.push(t.table);
-    } catch { /* table may not exist; continue */ }
-  }
-
-  // 2. Storage purge.
+  // 1. Storage purge FIRST. If any bucket can't be fully cleared we abort BEFORE deleting
+  //    any DB row or the auth user — otherwise a storage failure would leave a PARTIAL
+  //    erasure (health/personal rows gone, but the account + its public media remain).
+  //    Aborting here keeps everything intact for a clean retry, and never orphans media in
+  //    a public bucket with no owner left to remove it (CWE-459). The row purge below and
+  //    the auth delete are idempotent, so a retry converges on full erasure.
   let allBucketsPurged = true;
   for (const b of BUCKETS) {
     if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
     else allBucketsPurged = false;
   }
-
-  // If any bucket couldn't be fully cleared, do NOT delete the auth user — that would
-  // orphan the caller's media in a PUBLIC bucket with no owner left to remove it and no
-  // retry path (CWE-459). Leave the account intact and surface a 500 so the client can
-  // re-try; the row purge above is idempotent, so a retry converges on full erasure.
   if (!allBucketsPurged) {
     if (auditId) {
       try {
         await admin.from('account_deletions').update({
-          tables_purged: purged,
           buckets_purged: bucketsPurged,
-          note: 'storage purge incomplete — auth user NOT deleted; retry required',
+          note: 'storage purge incomplete — nothing deleted; retry required',
         }).eq('id', auditId);
       } catch { /* non-fatal */ }
     }
     return NextResponse.json({ error: 'Could not fully remove your files. Please try again in a moment.' }, { status: 500 });
+  }
+
+  // 2. Explicit row purge (covers tables that don't cascade on auth-user delete).
+  for (const t of PURGE) {
+    try {
+      const { error } = await admin.from(t.table).delete().eq(t.col, uid);
+      if (!error) purged.push(t.table);
+    } catch { /* table may not exist; continue */ }
   }
 
   // 3. Delete the auth user — cascades any remaining FK-linked rows.
