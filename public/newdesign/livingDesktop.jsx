@@ -1321,7 +1321,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
           </div>
         </div>
         {err && <div role="alert" style={{ marginBottom: 10, fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{err}</div>}
-        <button onClick={save} disabled={busy || wallBusy || coverBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
+        <button onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
       </div>
     </div>
   );

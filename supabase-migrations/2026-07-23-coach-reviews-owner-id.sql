@@ -33,13 +33,21 @@ alter table public.coach_reviews
 -- key — so without this a signed-in coach could INSERT a coach_reviews row directly
 -- with owner_id = their own uid + a fabricated body, then pin it on their wins wall
 -- (which trusts owner_id) as a "real review". This BEFORE trigger stamps owner_id from
--- coach_slug (the same slugify the app uses) at INSERT, so it can't be forged, and
--- treats it as IMMUTABLE thereafter: on UPDATE it preserves OLD.owner_id, ignoring
--- both the client's NEW value AND any later provider rename — a pinned review's
--- ownership can never drift or be re-forged via the upsert path. It stamps only when
--- EXACTLY ONE provider owner matches the slug — a collision or no match leaves NULL
--- (an unprovable row is never pinnable). SECURITY DEFINER so it can read the provider
--- tables regardless of the writer.
+-- coach_slug (the same slugify the app uses), so it can't be forged. Immutability is
+-- IDENTITY-SCOPED: on an UPDATE that leaves BOTH coach_slug AND coach_kind unchanged
+-- (an ordinary body/rating edit, or a provider rename that leaves this row's slug
+-- intact) it preserves OLD.owner_id — ignoring the client's NEW value and any later
+-- provider rename, so a pinned review's ownership can't drift or be re-forged. But if
+-- the row is REPOINTED at a different coach identity, it re-derives: the POST upsert
+-- conflicts on (user_id, coach_slug) — kind-agnostic — so a member who reviews a
+-- trainer AND a same-slug nutritionist has the second review UPDATE the first row,
+-- flipping coach_kind (and body); preserving the old owner_id there would stamp the
+-- nutritionist's words with the trainer's owner, letting that trainer pin a review
+-- written for someone else. Recomputing on a slug/kind change keeps owner_id honest
+-- (and never lets an author own their own row — the wall's authorId != ownerId guard
+-- filters a self-derived stamp). It stamps only when EXACTLY ONE provider owner
+-- matches the slug — a collision or no match leaves NULL (an unprovable row is never
+-- pinnable). SECURITY DEFINER so it can read the provider tables regardless of the writer.
 create or replace function public.coach_review_owner_id()
 returns trigger
 language plpgsql
@@ -49,9 +57,15 @@ as $$
 declare
   v_owners uuid[];
 begin
-  -- Immutable after insert: keep the original stamp on every UPDATE (this also skips
-  -- the provider scan on ordinary body/rating edits — the scan runs at INSERT only).
-  if (tg_op = 'UPDATE') then
+  -- Identity-stable edit: an UPDATE that leaves the coach identity (slug + kind)
+  -- untouched keeps the original stamp and skips the provider scan — this preserves
+  -- the stamp across a body/rating edit AND across a later provider rename (the row's
+  -- slug column doesn't change on a rename). A slug/kind CHANGE (the kind-agnostic
+  -- upsert repointing the row at a different coach) falls through and re-derives below,
+  -- so owner_id can never be left mis-attributed to the previous coach.
+  if (tg_op = 'UPDATE'
+      and new.coach_slug is not distinct from old.coach_slug
+      and new.coach_kind is not distinct from old.coach_kind) then
     new.owner_id := old.owner_id;
     return new;
   end if;
