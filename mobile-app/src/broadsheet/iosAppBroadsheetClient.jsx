@@ -10235,7 +10235,7 @@ function BSProfileFilmCard({ film, INK, c, label }) {
   );
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false, userId = null, coach = false, demo = false }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
@@ -10255,7 +10255,13 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   // a doc can't point at a foreign object. Absent/junk → empty → no station. Gated
   // to members: the profile_custom doc is shared across roles, so a client→coach
   // switch must not surface these on the coach Signal profile (the web !coach gate).
-  const wall = coach ? [] : bsProfileWall(cu.wall, userId);
+  // The wall is media-guarded (bsProfileWall requires a Supabase-hosted URL under
+  // the owner's folder). The signed-out PREVIEW persona has no userId, so the
+  // guard drops everything — for the demo ONLY (demo && no userId, so a real
+  // profile can never reach this) render the developer-authored demo shots as-is.
+  const wall = coach ? [] : ((demo && !userId && Array.isArray(cu.wall))
+    ? cu.wall.filter((w) => w && w.url).slice(0, BS_WALL_MAX).map((w) => ({ url: String(w.url), caption: String(w.caption || '') }))
+    : bsProfileWall(cu.wall, userId));
   const shelf = coach ? [] : bsProfileShelf(cu.shelf);
   const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length && !wall.length && !shelf.length;
   if (empty && !isSelf) return null;
@@ -11947,6 +11953,65 @@ function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20 }) {
   );
 }
 
+// Signed-out PREVIEW ONLY — a fully-filled demo of the profile customizations
+// (M1 wall · M2 start line · M3 shelf · M4 line · cover · prompts · bio), so a
+// prospect can see what a live profile looks like once someone fills it in.
+// Developer-authored constants (the LV_PEOPLE / COMMUNITY_ACTIVITIES precedent),
+// never user input. The intro film (M5) needs a real hosted video and is left
+// unset (the card renders nothing). Media are same-origin /m/demo/* assets; the
+// wall render takes a demo bypass gated on (demo && no userId), so a REAL
+// profile — which always carries a userId — can never reach it.
+const BS_DEMO_MEDIA = `${import.meta.env.BASE_URL}demo/`;
+function bsDemoMemberCustom() {
+  const d = new Date(); d.setDate(d.getDate() + 74);
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return {
+    bio: 'Two years in. Slower than most, more stubborn than all of them. Here for the long game.',
+    cover: { image: `${BS_DEMO_MEDIA}wall-03.webp` },
+    line: 'Consistency is the only secret — show up on the ordinary days.',
+    startLine: { title: 'First half-marathon', date: iso },
+    shelf: [
+      { title: 'First 5K under 25:00', when: 'Mar 2026' },
+      { title: 'Bodyweight deadlift ×2', when: 'Jan 2026' },
+      { title: '100 workouts logged', when: 'Dec 2025' },
+    ],
+    prompts: [
+      { q: 'Why I train', a: 'So the rest of my life is easier — the last mile, the long day, carrying everything in one trip.' },
+      { q: 'The lift I love', a: "Deadlift. Nothing else feels that honest." },
+    ],
+    wall: [
+      { url: `${BS_DEMO_MEDIA}wall-01.webp`, caption: 'Dawn miles before work.' },
+      { url: `${BS_DEMO_MEDIA}wall-02.webp`, caption: 'Chalk on, doubts off.' },
+      { url: `${BS_DEMO_MEDIA}studio-02.webp`, caption: 'PR day — two times bodyweight.' },
+    ],
+  };
+}
+// Coach (Signal) demo customizations — the new profile-wave items only (line ·
+// business card · cover · prompts). The rest of the coach demo (disciplines,
+// certs, offerings, reviews) already fills from the component's own fallbacks;
+// this adds the customizations that need a filled profile_custom doc. The intro
+// film (needs a hosted video) and the wins wall (resolves REAL coach_reviews by
+// id) are left unset. Signed-out preview only — a real coach sees their own doc.
+function bsDemoCoachCustom(isNutri) {
+  return isNutri ? {
+    cover: { image: `${BS_DEMO_MEDIA}box-cover.webp` },
+    line: 'Food is fuel, not a moral test — specific enough to help, simple enough to repeat.',
+    bizCard: { name: 'Rae Lindqvist Nutrition', where: 'Brooklyn, NY · remote', hours: 'Async daily · calls Tue & Thu', handle: '@raeats.rd' },
+    prompts: [
+      { q: 'How I work', a: 'We build the plan around your training and your real week — not a template.' },
+      { q: 'Who I work best with', a: "Athletes who want to perform, not diet. Endurance, strength, and everything in between." },
+    ],
+  } : {
+    cover: { image: `${BS_DEMO_MEDIA}studio-01.webp` },
+    line: 'Get strong, move well, recover enough to do it again — that is the whole game.',
+    bizCard: { name: 'Iron & Ordinary — private studio', where: 'Portland, OR', hours: 'Mon–Sat · by appointment', handle: '@leah.trains' },
+    prompts: [
+      { q: 'My coaching in one line', a: 'Fewer exercises, heavier where it counts, written down and adjusted every week.' },
+      { q: 'Who I work best with', a: 'People done program-hopping who want to actually finish a block and see the number move.' },
+    ],
+  };
+}
+
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -12004,6 +12069,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // never the demo persona's numbers. Demo sub-data is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const signedInSelf = isSelf && signedIn;
+  // Signed-out preview persona (no real doc loaded) → show the demo
+  // customizations so the profile reads as a finished page. A signed-in member
+  // always sees their REAL doc (empty until they fill it in) — never the demo.
+  const demoFill = !signedIn && !custom;
+  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoMemberCustom() : null), [custom, demoFill]);
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -12025,7 +12095,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     return Math.round(f + (nx - f) * 0.45);
   })();
   const goal = (!isPrivate && ((live && live.goal) || person.goal)) || null;
-  const bio = (!isPrivate && ((custom && custom.bio) || (live && live.bio) || person.bio)) || null;
+  const bio = (!isPrivate && ((customEff && customEff.bio) || (live && live.bio) || person.bio)) || null;
   const tierName = String(tierKey).charAt(0).toUpperCase() + String(tierKey).slice(1);
   // Illustrative living-identity data (wire to real logs later).
   const streak = 14;
@@ -12476,8 +12546,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         {/* M2 · the Start line + M4 · the Line — hero character, under the identity
             head. Absent/past/invalid date → the start line doesn't render. */}
         {(() => {
-          const heroLine = bsProfileLine(custom && custom.line);
-          const heroStart = bsProfileStartLine(custom && custom.startLine);
+          const heroLine = bsProfileLine(customEff && customEff.line);
+          const heroStart = bsProfileStartLine(customEff && customEff.startLine);
           const heroStartState = heroStart ? bsStartLineState(heroStart.date, new Date()) : null;
           if (!heroLine && !heroStartState) return null;
           const firstName = (String(name || '').trim().split(/\s+/)[0] || '').toUpperCase();
@@ -12503,15 +12573,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             bound to the member-films bucket + the owner folder (a wrong-bucket/photo
             url → null → nothing renders). */}
         {(() => {
-          const memberFilm = bsProfileFilm(custom && custom.filmMember, person.userId, 'member-films');
+          const memberFilm = bsProfileFilm(customEff && customEff.filmMember, person.userId, 'member-films');
           return memberFilm ? <BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /> : null;
         })()}
         {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
             preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}
         <div style={{ padding: '14px 0 2px' }}>
-          {custom && custom.cover && custom.cover.image && (
+          {customEff && customEff.cover && customEff.cover.image && (
             <div style={{ height: 116, marginBottom: 6, borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}`, overflow: 'hidden' }}>
-              <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
           )}
           {(() => {
@@ -12762,7 +12832,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
@@ -12920,6 +12990,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   const ownZero = isSelf && signedIn;
   const isNutri = person.kind === 'NUTRI';
+  // Signed-out preview → demo customizations (line/business card/cover/prompts)
+  // so the coach's profile-wave items read as filled. A signed-in coach always
+  // sees their REAL doc (empty until they fill it in).
+  const demoFill = !signedIn && !custom;
+  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [custom, demoFill, isNutri]);
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
   const tierName = bsCoachTier(baseTier);
@@ -13031,9 +13106,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // reviews by id AND ownerId — a hand-written id / another coach's review never
   // resolves. Declared AFTER liveReviews: winsWall reads it, and its .map fires the
   // moment a coach has a pinned review — a TDZ here would crash the whole profile.
-  const coachLine = bsProfileLine(custom && custom.line);
-  const coachFilm = bsProfileFilm(custom && custom.film, person.userId, 'coach-media');
-  const bizCard = bsProfileBizCard(custom && custom.bizCard);
+  const coachLine = bsProfileLine(customEff && customEff.line);
+  const coachFilm = bsProfileFilm(customEff && customEff.film, person.userId, 'coach-media');
+  const bizCard = bsProfileBizCard(customEff && customEff.bizCard);
   // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
   // list), so a pinned review never vanishes once a coach passes 200 reviews; the
   // results are still filtered to ownerId === the profile owner.
@@ -13203,9 +13278,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       <div style={{ flex: 1, padding: meMode ? '46px 22px 112px' : '46px 22px 28px', position: 'relative' }}>
-        {custom && custom.cover && custom.cover.image && (
+        {customEff && customEff.cover && customEff.cover.image && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 320, zIndex: -1, pointerEvents: 'none' }}>
-            <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
+            <img src={customEff.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
             <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.35)}, ${bsTHexA(BG, 0.55)} 58%, ${BG})` }} />
           </div>
         )}
@@ -13512,7 +13587,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
+            <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} coach bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, rating: { label: tr('profile:stat.rating', { defaultValue: 'Rating' }), value: rating }, reviews: { label: tr('profile:tab.reviews', { defaultValue: 'Reviews' }), value: reviewCount } }} />
             <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
             <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (
