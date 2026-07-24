@@ -1051,7 +1051,16 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       const owned = keep(ownerJ && ownerJ.reviews);
       const seen = new Set(owned.map((r) => r.id));
       const extraPins = keep(idsJ && idsJ.reviews).filter((r) => !seen.has(r.id));
-      setPickReviews(owned.concat(extraPins));
+      const merged = owned.concat(extraPins);
+      setPickReviews(merged);
+      // On a FULLY successful load, reconcile pins to what actually resolves — drop a
+      // deleted/unresolvable saved pin so its dead id can't hold a slot and block the
+      // coach from pinning a replacement (togglePin counts it toward the max otherwise).
+      // Guarded so a transient fetch failure can't wipe live pins.
+      if (ownerJ != null && (savedIds.length === 0 || idsJ != null)) {
+        const live = new Set(merged.map((r) => r.id));
+        setPins((prev) => prev.filter((id) => live.has(id)));
+      }
     });
     return () => { on = false; };
   }, [coach, ownerUid]);
