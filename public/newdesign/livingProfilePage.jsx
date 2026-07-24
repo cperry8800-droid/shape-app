@@ -16,6 +16,39 @@ function liveTier(points, coach) {
   return { name: t[1], color: t[2], rank: t[3] };
 }
 
+// Map a real community_posts row → the DesktopProfile feed entry shape
+// ({ k, t, b, time, vis, metric }). So a real profile's "activity" feed shows the
+// person's OWN posts (RLS-scoped to the viewer), not the demo persona's field
+// notes. A metric is emitted ONLY from a stored PR delta — never fabricated.
+function lvRelTime(iso) {
+  const t = Date.parse(iso); if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  if (s < 86400 * 7) return Math.floor(s / 86400) + "d";
+  if (s < 86400 * 30) return Math.floor(s / 86400 / 7) + "w";
+  if (s < 86400 * 365) return Math.floor(s / 86400 / 30) + "mo";
+  return Math.floor(s / 86400 / 365) + "y";
+}
+function lvPostKind(row) {
+  const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
+  if (m.kind === "meal") return "meal";
+  if (m.kind === "milestone") return "win";
+  if (m.delta) return "pr";
+  const at = String(row.activity_type || "").toLowerCase();
+  if (at === "run") return "run";
+  if (row.source_provider || at === "workout") return "workout";
+  if (row.photo_url && !row.title && !row.body) return "photo";
+  return "note";
+}
+function lvMapPost(row) {
+  if (!row) return null;
+  const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
+  const k = lvPostKind(row);
+  const title = String(row.title || "").trim() || (k === "meal" ? "Meal" : k === "pr" ? "New PR" : k === "photo" ? "Photo" : "Activity");
+  return { k, t: title, b: String(row.body || "").trim(), time: lvRelTime(row.created_at), vis: "public", metric: m.delta ? ["New PR", String(m.delta)] : null };
+}
+
 // `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
 // chrome — site Header + DashSidebar (pageShell/trainerDashboard globals, only
 // referenced when the prop is passed) — so the side nav stays present on the
@@ -35,6 +68,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [backState, setBackState] = React.useState({}); // userId -> 'following' (follow-back)
   const [reqCount, setReqCount] = React.useState(0);
   const [liveSelf, setLiveSelf] = React.useState(null); // real self metrics (streak/weekly delta/trajectory/program) — own client profile only
+  const [feedPosts, setFeedPosts] = React.useState(null); // real community posts by this profile owner (RLS-scoped); null = not a real account / loading
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
@@ -85,6 +119,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
       // Posts stat — visible activity-post count (RLS-scoped to the viewer).
       try { c.from("community_posts").select("id", { count: "exact", head: true }).eq("author_id", uid).then((r) => { if (on && r && !r.error && r.count != null) setPosts(r.count); }); } catch (e) {}
+      // The activity feed — this profile owner's OWN posts (RLS-scoped), so a real
+      // profile shows their real activity, not the demo persona's field notes.
+      try { c.from("community_posts").select("id,title,body,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (on && r && !r.error && Array.isArray(r.data)) setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); else if (on) setFeedPosts([]); }); } catch (e) { if (on) setFeedPosts([]); }
     })();
     return () => { on = false; };
   }, []);
@@ -282,6 +319,11 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     portrait: row.avatar || "",
     link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : base.link,
     custom: (!isPrivate && row.custom) || null,
+    // The activity feed: a REAL account shows its own posts (empty while loading /
+    // if none — never the demo persona's field notes); a DERIVED (no-account,
+    // example) profile keeps the demo feed. The signed-out demo-mode branch above
+    // renders the persona directly, so it's unaffected.
+    feed: isDerived ? base.feed : (feedPosts || []),
   });
   // Overlay the real self metrics over the demo persona (own client profile
   // only). Per-field: a live value wins; a missing one keeps the example.
