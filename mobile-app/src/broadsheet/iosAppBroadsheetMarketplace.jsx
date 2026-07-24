@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 // iosAppBroadsheetMarketplace.jsx — Coach marketplace in the Broadsheet visual language.
 // "The Personals" / classifieds-meets-features. Browse trainers + nutritionists.
 //
@@ -1143,13 +1144,24 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
       ? tr('marketplace:panel.typeCheckout', { defaultValue: 'Checkout' })
       : tr('marketplace:panel.typeMessage', { defaultValue: 'Message' });
 
-  return (
+  // Sheets portal into #bs-phone-surface and position ABSOLUTE (the app-wide
+  // rule — see the architecture map in docs/WORKLOG.md). `fixed` resolves
+  // against the viewport (no ancestor establishes a fixed containing block:
+  // the surface is position:relative + zoom, neither of which does), so in the
+  // desktop preview the panel escaped the phone frame entirely. Plain
+  // `absolute` without the portal is also wrong — BSPage's children live
+  // inside a scrolling container, so it would pin to the bottom of the scrolled
+  // CONTENT and scroll away. The surface is frame-sized and doesn't scroll.
+  const panel = (
     <div style={{
-      position: 'fixed',
+      position: 'absolute',
       left: 0,
       right: 0,
       bottom: 0,
-      zIndex: 80,
+      // Above the signed-out preview banner (z 150, BSPreviewBannerGated) — an
+      // open action sheet is the active surface and must not be covered by a
+      // passive notice. Only visible once the panel was correctly framed.
+      zIndex: 200,
       padding: `16px ${t.padX}px calc(16px + env(safe-area-inset-bottom))`,
       background: `linear-gradient(180deg, transparent, ${t.PAPER} 26%)`,
       maxWidth: 560,
@@ -1292,6 +1304,16 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
       </BSProfileCard>
     </div>
   );
+
+  // Resolve ONLY the phone surface — deliberately no document.body fallback.
+  // The house idiom elsewhere falls back to body, but body is precisely where
+  // this panel used to escape to, so keeping it would re-open the bug in the
+  // very case the guard exists for. If the surface is somehow absent we render
+  // IN PLACE instead: worst case it pins to the bottom of the scrolled content
+  // (contained, slightly mispositioned) rather than outside the frame. Rendering
+  // nothing was the other option and is worse — a tapped BUY would open no sheet.
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
+  return surface ? createPortal(panel, surface) : panel;
 }
 
 // 24h 'HH:MM' -> 12h label, shared by the Listing's slot rows + the calendar.
