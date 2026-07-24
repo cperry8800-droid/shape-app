@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
+import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
@@ -1316,6 +1317,127 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
   return surface ? createPortal(panel, surface) : panel;
 }
 
+// ── The plan preview sheet ("what's inside", spec 2026-07-24) ────────────────
+// A buyer could see a name, a price and one line of meta before paying. This
+// opens the coach's OWN authored outline. Every row comes from bsPlanPreview,
+// which parses coach_plans.detail.blocks through the same planOutline parsers
+// the Assign flow uses — so a preview can never describe a plan differently
+// from how it is delivered, and a plan with no authored outline shows the
+// honest "the coach hasn't published an outline" state rather than a fabricated
+// one. Portals into #bs-phone-surface + position:absolute (the sheet rule).
+function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  if (!plan) return null;
+  const p = bsPlanPreview(plan, { isNutri });
+  const eyebrow = p.kind === 'split'
+    ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
+    : p.kind === 'menu'
+      ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
+      : tr('marketplace:preview.eyebrowSession', { defaultValue: 'Single session' });
+
+  const register = [];
+  if (p.weeks) register.push([tr('marketplace:preview.weeks', { defaultValue: 'Weeks' }), String(p.weeks)]);
+  if (p.sessionsPerWeek) register.push([tr('marketplace:preview.perWeek', { defaultValue: 'Days / wk' }), String(p.sessionsPerWeek)]);
+  if (p.units.length) register.push([
+    p.kind === 'menu' ? tr('marketplace:preview.meals', { defaultValue: 'Meals' }) : tr('marketplace:preview.moves', { defaultValue: 'Entries' }),
+    String(p.units.length),
+  ]);
+
+  const row = (u, i) => (
+    <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}`, opacity: u.rest ? 0.55 : 1 }}>
+      {u.label ? <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span> : null}
+      <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 10 }} />
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+        {u.rest ? tr('marketplace:preview.rest', { defaultValue: 'Rest' })
+          : u.scheme ? u.scheme
+            : (u.kcal != null ? `${u.kcal} kcal` : '')}
+      </span>
+    </div>
+  );
+
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr('marketplace:preview.aria', { defaultValue: "What's inside {name}", name: plan.name || '' })}
+        className="bs-hide-scroll"
+        style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}
+      >
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>
+          {eyebrow}{plan.price ? ` · ${plan.price}` : ''}
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>
+          {plan.name}<span style={{ color: roleColor }}>.</span>
+        </div>
+        <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+
+        {p.media.length > 0 && (
+          <div style={{ margin: '12px 0 2px', display: 'flex', gap: 7, overflowX: 'auto' }} className="bs-hide-scroll">
+            {p.media.map((m, i) => (
+              <div key={i} style={{ flex: 'none', width: 132, height: 96, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
+                {m.type === 'video'
+                  ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                  : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {register.length > 0 && (
+          <div style={{ display: 'flex', gap: 22, marginTop: 14 }}>
+            {register.map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {p.kind ? (
+          <>
+            <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
+              {tr('marketplace:preview.outline', { defaultValue: 'The outline' })}
+            </div>
+            <div style={{ marginTop: 4 }}>{p.free.map(row)}</div>
+            {p.locked > 0 && (
+              <div style={{ marginTop: 10, padding: '10px 0', borderTop: `1px dashed ${t.INK}3d`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+                {tr('marketplace:preview.locked', { defaultValue: '＋{count} more · unlocked when you buy', count: p.locked })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>
+            {tr('marketplace:preview.noOutline', { defaultValue: "This coach hasn't published an outline for this one yet." })}
+          </div>
+        )}
+
+        {p.note ? (
+          <div style={{ marginTop: 14, paddingLeft: 11, borderLeft: `3px solid ${roleColor}` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.5, color: t.INK }}>{p.note}</div>
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>
+            <span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:sheet.close', { defaultValue: 'Close' })}</span>
+          </button>
+          {plan.price ? (
+            <button onClick={onBuy} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>
+              {tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: plan.price })}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
+  );
+}
+
 // ── Demo catalogue (signed-out preview ONLY) ─────────────────────────────────
 // A demo coach has no provider row, so ShapeCoachPlans.salePlans can never
 // return anything for them and the Listing's PROGRAMS & PLANS / SINGLE WORKOUTS
@@ -1504,6 +1626,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const saleProviderRole = getPublicProfileKind(coach);
   const saleProviderId = coach.provider_id || coach.db_id || null;
   const [salePlans, setSalePlans] = useStateBSM2(null);
+  const [previewPlan, setPreviewPlan] = useStateBSM2(null);
   React.useEffect(() => {
     // The signed-out PREVIEW falls back to the stand-in catalogue so the Listing
     // reads as a finished page instead of skipping straight from the rate card to
@@ -1803,6 +1926,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             ))}
           </div>
         )}
+        <button onClick={() => setPreviewPlan(pl)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 14px 10px 0', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:preview.action', { defaultValue: "What's inside →" })}</span></button>
         {pl.price ? (
           <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:listing.buyKeep', { defaultValue: 'Buy · yours to keep →' })}</span></button>
         ) : <div style={{ height: 10 }} />}
@@ -2093,6 +2217,21 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           </div>
         );
       })()}
+
+      {previewPlan && (
+        <BSPlanPreviewSheet
+          plan={previewPlan}
+          isNutri={isNutriDetail}
+          roleColor={roleColor}
+          teal={teal}
+          onClose={() => setPreviewPlan(null)}
+          onBuy={() => {
+            const pl = previewPlan;
+            setPreviewPlan(null);
+            openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] });
+          }}
+        />
+      )}
 
       <BSPublicActionPanel
         action={action}
