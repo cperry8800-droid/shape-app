@@ -11222,9 +11222,14 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const addShelfRow = () => setShelf((prev) => prev.length >= BS_SHELF_MAX ? prev : [...prev, { title: '', when: '' }]);
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
-  // ── Coach profile-wave state (P1 film · P4 business card · P5 wins wall). Round-
-  //    trips init even when hidden (member path), so the doc never loses a key. ──
-  const [film, setFilm] = useStateBSC((init.film && init.film.url) ? { url: init.film.url, caption: (init.film.caption || '') } : null);
+  // ── Profile-wave state (film · P4 business card · P5 wins wall). ──
+  // The film section (coach P1 → coach-media, member M5 → member-films) only ever exposes
+  // THIS role's stored film: a dual-role user's opposite-role film (e.g. a coach film seen
+  // while editing the member profile) is NOT seeded into the editable state, so it can't be
+  // shown, removed, or caption-edited here — and the save leaves it byte-identical.
+  const filmRoleBucket = coach ? 'coach-media' : 'member-films';
+  const initFilmIsOwn = !!(init.film && init.film.url && init.film.url.includes('/' + filmRoleBucket + '/'));
+  const [film, setFilm] = useStateBSC(initFilmIsOwn ? { url: init.film.url, caption: (init.film.caption || '') } : null);
   const [filmBusy, setFilmBusy] = useStateBSC(false);
   const filmRef = React.useRef(null);
   const onFilmFile = async (e) => {
@@ -11297,12 +11302,14 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.('Hang on — an upload is still in progress.', 'err'); return; }
     setBusy(true);
-    // Only write `film` into the doc when it CHANGED this session. Otherwise a save of
-    // unrelated fields would re-validate the STORED film against THIS role's bucket and
-    // drop a valid opposite-role or untouched film (a dual-role user's coach film erased
-    // by a member save). Untouched → leave init.film byte-identical (no filmBucket).
-    const filmCap = ((film && film.caption) || '').trim(), initFilmCap = ((init.film && init.film.caption) || '').trim();
-    const filmTouched = (((film && film.url) || null) !== ((init.film && init.film.url) || null)) || (filmCap !== initFilmCap);
+    // Only write `film` into the doc when THIS role's film changed this session. The
+    // baseline is the same-role stored film (an opposite-role film is invisible here, per
+    // initFilmIsOwn), so a save of unrelated fields — or of a member profile that holds a
+    // coach film — leaves the stored film byte-identical (no re-validation, no drop).
+    const filmCap = ((film && film.caption) || '').trim();
+    const baseFilmUrl = initFilmIsOwn ? init.film.url : null;
+    const baseFilmCap = initFilmIsOwn ? ((init.film.caption || '').trim()) : '';
+    const filmTouched = (((film && film.url) || null) !== baseFilmUrl) || (filmCap !== baseFilmCap);
     const doc = {
       ...init,
       bio: bio.trim(),
