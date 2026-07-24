@@ -1007,20 +1007,23 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     // type for a valid video), and derive the storage ext from whichever is present.
     const nameExt = (file.name || "").split(".").pop().toLowerCase();
     if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "") || (!file.type && ["mp4", "mov", "webm", "m4v"].includes(nameExt)))) { alert("Pick an MP4, MOV or WebM video."); return; }
-    if (file.size > 200 * 1024 * 1024) { alert("That video is too large — keep it under 200 MB."); return; }
+    // Coaches film to coach-media (200 MB); members to the dedicated member-films bucket (60 MB).
+    const filmBucket = coach ? "coach-media" : "member-films";
+    const maxMb = coach ? 200 : 60;
+    if (file.size > maxMb * 1024 * 1024) { alert(`That video is too large — keep it under ${maxMb} MB.`); return; }
     const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || (["mp4", "mov", "webm", "m4v"].includes(nameExt) ? nameExt : "mp4");
     setFilmBusy(true);
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
       const path = `${u.user.id}/film-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      // Derive a real video content type for a blank-MIME file — the coach-media
-      // bucket is MIME-allowlisted, so uploading a valid .mp4/.mov with an empty
-      // contentType would be rejected despite passing the extension validation.
+      // Derive a real video content type for a blank-MIME file — the film buckets are
+      // MIME-allowlisted, so uploading a valid .mp4/.mov with an empty contentType
+      // would be rejected despite passing the extension validation.
       const ctype = file.type || ({ mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/x-m4v" }[ext] || "video/mp4");
-      const up = await cl.storage.from("coach-media").upload(path, file, { upsert: true, contentType: ctype });
+      const up = await cl.storage.from(filmBucket).upload(path, file, { upsert: true, contentType: ctype });
       if (up.error) throw up.error;
-      const { data: pub } = cl.storage.from("coach-media").getPublicUrl(path);
+      const { data: pub } = cl.storage.from(filmBucket).getPublicUrl(path);
       setFilm((prev) => ({ url: pub.publicUrl, caption: (prev && prev.caption) || "" }));
     } catch (err) { alert((err && err.message) || "Could not upload film."); }
     finally { setFilmBusy(false); }
@@ -1132,10 +1135,13 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // Coach profile-wave keys (P1 film · P4 card · P5 pins) — only the coach path
-      // manages them; the member path leaves init's copies untouched (spread above).
+      // The intro film is a SHARED key — coach (P1 → coach-media) and member (M5 →
+      // member-films) both manage it; the filmBucket-routed normalizer below validates
+      // it against the right bucket per role.
+      film: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
+      // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
+      // copies untouched (spread above).
       ...(coach ? {
-        film: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
         bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
         pinnedReviews: pins,
       } : {}),
@@ -1150,7 +1156,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
-    const out = plib.bsNormalizeProfileCustom(doc, uid, coach ? { filmBucket: "coach-media" } : undefined);
+    const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: coach ? "coach-media" : "member-films" });
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
     catch (e) { error = e; }
@@ -1158,6 +1164,26 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (error) { setErr((error && error.message) || "Couldn't save — try again."); return; }
     onSave(out);
   };
+  // The intro film section — shared by the coach (P1 → coach-media) and member
+  // (M5 → member-films) blocks; onFilmFile + save route the bucket by role.
+  const filmSection = (
+    <div style={{ marginBottom: 18 }}>
+      <span style={label}>Intro film · a short video</span>
+      <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: "none" }} />
+      {film && film.url ? (
+        <div>
+          <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: "#000" }}>
+            <video src={film.url} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 240, background: "#000" }} />
+          </div>
+          <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, FCM) }))} maxLength={FCM} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
+          <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Remove film</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: filmBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{filmBusy ? "Uploading…" : "+ Add intro film"}</button>
+      )}
+      <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, color: dHexA(LV_INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
+    </div>
+  );
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", background: LV_BG, borderRadius: 20, border: `1px solid ${dHexA(LV_INK, 0.12)}`, padding: 26 }}>
@@ -1172,23 +1198,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             <span style={label}>Your line · one motto</span>
             <input value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
           </div>
-          {/* P1 · The intro film */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>Intro film · a short video</span>
-            <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: "none" }} />
-            {film && film.url ? (
-              <div>
-                <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: "#000" }}>
-                  <video src={film.url} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 240, background: "#000" }} />
-                </div>
-                <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, FCM) }))} maxLength={FCM} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
-                <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Remove film</button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: filmBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{filmBusy ? "Uploading…" : "+ Add intro film"}</button>
-            )}
-            <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, color: dHexA(LV_INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
-          </div>
+          {/* P1 · The intro film (coach → coach-media) */}
+          {filmSection}
           {/* P4 · The Business card */}
           <div style={{ marginBottom: 18 }}>
             <span style={label}>The practice · business card</span>
@@ -1258,6 +1269,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             </div>
             {shelf.length < SMAX && <button type="button" onClick={addShelfRow} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add row</button>}
           </div>
+          {/* M5 · The intro film (member → member-films) */}
+          {filmSection}
         </>)}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
@@ -1479,10 +1492,13 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
         ) : (
           <React.Fragment>
             <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
-            {/* P1 · The intro film — coach only, a full-width video band under the hero. */}
-            {coach && (() => {
+            {/* P1 / M5 · The intro film — a full-width video band under the hero. A
+                coach's film lives in coach-media, a member's in member-films; the
+                guard binds the url to the matching bucket + owner folder, so nothing
+                cross-renders. */}
+            {(() => {
               const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
-              const film = (plib && plib.bsProfileFilm && d.uid) ? plib.bsProfileFilm(custom && custom.film, d.uid, "coach-media") : null;
+              const film = (plib && plib.bsProfileFilm && d.uid) ? plib.bsProfileFilm(custom && custom.film, d.uid, coach ? "coach-media" : "member-films") : null;
               return film ? <DFilmCard film={film} c={c} label="Intro film" /> : null;
             })()}
             {/* Availability at-a-glance — coach profiles only, the same slots

@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, other {còn # ngày}}",
   "line.attribution": "châm ngôn",
   "film.headCoach": "Video giới thiệu",
+  "film.headMember": "Video giới thiệu",
   "biz.head": "Cơ sở",
   "biz.where": "Ở đâu",
   "biz.hours": "Giờ",

@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, other {# hari lagi}}",
   "line.attribution": "moto",
   "film.headCoach": "Video perkenalan",
+  "film.headMember": "Video perkenalan",
   "biz.head": "Praktik",
   "biz.where": "Di mana",
   "biz.hours": "Jam",

@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {noch # Tag} other {noch # Tage}}",
   "line.attribution": "Motto",
   "film.headCoach": "Vorstellungsvideo",
+  "film.headMember": "Vorstellungsvideo",
   "biz.head": "Das Studio",
   "biz.where": "Wo",
   "biz.hours": "Zeiten",

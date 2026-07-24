@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {# day out} other {# days out}}",
   "line.attribution": "line",
   "film.headCoach": "Intro film",
+  "film.headMember": "Intro film",
   "biz.head": "The practice",
   "biz.where": "Where",
   "biz.hours": "Hours",

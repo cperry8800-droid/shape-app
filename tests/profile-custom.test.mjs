@@ -201,6 +201,12 @@ test('bsNormalizeProfileCustom: P4/P5 keys + film via opts.filmBucket + film pas
   // WITH filmBucket but a WRONG-bucket film → key dropped
   const wrongFilm = bsNormalizeProfileCustom({ film: { url: vid('member-films', UID, 'a.mp4') } }, UID, { filmBucket: 'coach-media' });
   assert.equal('film' in wrongFilm, false);
+  // M5 member path: film in member-films normalizes with filmBucket:'member-films'…
+  const memberOut = bsNormalizeProfileCustom({ film: { url: vid('member-films', UID, 'm.mov'), caption: 'me' } }, UID, { filmBucket: 'member-films' });
+  assert.deepEqual(memberOut.film, { url: vid('member-films', UID, 'm.mov'), caption: 'me' });
+  // …and a coach-media film is DROPPED under the member normalizer (bucket isolation both ways)
+  const crossFilm = bsNormalizeProfileCustom({ film: { url: vid('coach-media', UID, 'x.mp4') } }, UID, { filmBucket: 'member-films' });
+  assert.equal('film' in crossFilm, false);
   // empty/invalid P4/P5 → keys dropped
   const cleared = bsNormalizeProfileCustom({ bio: 'x', bizCard: { where: 'no name' }, pinnedReviews: ['junk'] }, UID);
   assert.equal('bizCard' in cleared, false);

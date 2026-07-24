@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {# gün} other {# gün}}",
   "line.attribution": "sözü",
   "film.headCoach": "Tanıtım videosu",
+  "film.headMember": "Tanıtım videosu",
   "biz.head": "İşletme",
   "biz.where": "Nerede",
   "biz.hours": "Saatler",
