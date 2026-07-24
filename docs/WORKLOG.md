@@ -1039,10 +1039,15 @@ changelog whenever something ships.
   add `member-films` to the purge list · fix a >1000-object pagination skip · **recurse
   sub-folder prefixes** so nested media (coach-media's `<uid>/listing/…`) can't survive
   deletion. The `video/m4v` MIME was added to the allowlist to match the pickers.
-- **Declined-with-rationale, registered:** the media-orphan-GC class (remove/replace
-  leaves the old object in a public bucket) — same ruling as PR C, now scoped to include
-  the film buckets; the persisted provider-slug column (the trigger's provider scan);
-  `CREATE INDEX CONCURRENTLY` on the tiny reviews table.
+- **Review dispositions — ONE status each** (matching the handoff bullet above, the
+  handoff doc, and the War Room; do not re-label these separately):
+  **→ PENDING** (declined only as an *in-PR* fix, registered as platform work):
+  the media-orphan-GC class (remove/replace leaves the old object in a public
+  bucket — same ruling as PR C, now scoped to include the film buckets) · the
+  persisted provider-slug column (would replace the trigger's provider scan).
+  **→ DECLINED outright** (no work planned): `CREATE INDEX CONCURRENTLY` on the
+  tiny reviews table · RLS-scoping the account-delete storage purge (the route is
+  service-role by design — documented admin-erasure exception).
 
 ### 2026-07-23 — Coach box + profile customization: the spec phase (#1815 · #1816) — ⚠ BUILD OWNER-PAUSED
 
