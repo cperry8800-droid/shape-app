@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Horo don",
   "startLine.today": "Yau",
   "startLine.daysOut": "{count, plural, one {kwana #} other {kwanaki #}}",
-  "line.attribution": "kalma"
+  "line.attribution": "kalma",
+  "film.headCoach": "Bidiyon gabatarwa",
+  "biz.head": "Wurin aiki",
+  "biz.where": "Ina",
+  "biz.hours": "Lokuta",
+  "biz.find": "Nemo ni",
+  "wins.head": "Bangon nasara",
+  "wins.pinned": "Bita ta gaskiya · An kafa"
 }

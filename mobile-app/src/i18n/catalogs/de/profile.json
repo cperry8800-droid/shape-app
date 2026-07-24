@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Training für",
   "startLine.today": "Heute",
   "startLine.daysOut": "{count, plural, one {noch # Tag} other {noch # Tage}}",
-  "line.attribution": "Motto"
+  "line.attribution": "Motto",
+  "film.headCoach": "Vorstellungsvideo",
+  "biz.head": "Das Studio",
+  "biz.where": "Wo",
+  "biz.hours": "Zeiten",
+  "biz.find": "Finden",
+  "wins.head": "Erfolge-Wand",
+  "wins.pinned": "Echte Bewertung · Angepinnt"
 }

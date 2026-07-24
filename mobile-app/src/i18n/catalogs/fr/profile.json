@@ -232,5 +232,12 @@
   "startLine.trainingFor": "En préparation de",
   "startLine.today": "Aujourd’hui",
   "startLine.daysOut": "{count, plural, one {# jour} other {# jours}}",
-  "line.attribution": "devise"
+  "line.attribution": "devise",
+  "film.headCoach": "Vidéo de présentation",
+  "biz.head": "Le studio",
+  "biz.where": "Où",
+  "biz.hours": "Horaires",
+  "biz.find": "Me trouver",
+  "wins.head": "Mur des réussites",
+  "wins.pinned": "Avis réel · Épinglé"
 }

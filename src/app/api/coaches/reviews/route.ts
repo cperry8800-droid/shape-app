@@ -12,9 +12,12 @@ function clampRating(value: unknown): number {
   const n = Math.round(Number(value) || 0);
   return Math.max(0, Math.min(10, n));
 }
-type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; created_at: string };
+type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; owner_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
-  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, date: row.created_at };
+  // ownerId (the coach BEING reviewed) is what the wins wall resolves a pinned id
+  // against — a pin only renders when ownerId === the profile owner's uid. NULL for
+  // any pre-migration review (there is no backfill), so it never pins.
+  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, ownerId: row.owner_id ?? null, date: row.created_at };
 }
 
 // GET /api/coaches/reviews?coach=<slug>  -> { reviews, avg, count }
@@ -23,10 +26,39 @@ export async function GET(request: Request) {
   const slug = cleanText(url.searchParams.get('coach'), 160);
   const supabase = await clientForRequest(request);
 
+  // ?ids=<uuid,uuid,uuid> — resolve specific reviews by id, INDEPENDENT of the
+  // slug list's 200-row page. The wins wall uses this so a pinned testimonial never
+  // vanishes once a popular coach passes 200 reviews. Reviews are public-read; the
+  // wall still filters the results to ownerId === the profile owner, so requesting
+  // arbitrary ids can never surface another coach's review on this wall.
+  const idsParam = cleanText(url.searchParams.get('ids'), 200);
+  if (idsParam) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ids = idsParam.split(',').map((x) => x.trim().toLowerCase()).filter((x) => uuid.test(x)).slice(0, 3);
+    if (!ids.length) return NextResponse.json({ reviews: [] });
+    const { data, error } = await supabase.from('coach_reviews').select('*').in('id', ids).limit(3);
+    if (error) return NextResponse.json({ reviews: [] });
+    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
+  }
+
+  // ?owner=<uid> — reviews for a specific coach by the trigger-stamped owner_id, so
+  // the wins-wall pin picker is independent of any display-name vs provider-name slug
+  // mismatch. Public read; the picker still filters to a MEMBER's review (authorId !== ownerId).
+  const ownerParam = cleanText(url.searchParams.get('owner'), 64);
+  if (ownerParam) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(ownerParam)) return NextResponse.json({ reviews: [] });
+    const { data, error } = await supabase.from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
+    if (error) return NextResponse.json({ reviews: [] });
+    return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
+  }
+
   if (slug) {
+    // select('*') keeps this migration-safe — an explicit owner_id column would
+    // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
     const { data, error } = await supabase
       .from('coach_reviews')
-      .select('id, rating, body, author_name, user_id, created_at')
+      .select('*')
       .eq('coach_slug', slug)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -78,16 +110,27 @@ export async function POST(request: Request) {
     /* best effort */
   }
 
+  // owner_id (the coach BEING reviewed) is stamped ENTIRELY by the DB trigger
+  // (2026-07-23-coach-reviews-owner-id.sql) from coach_slug — the route never sends
+  // it, because the client-scoped insert can't be a trust boundary (a coach could
+  // insert directly and forge it, CWE-639). The trigger runs server-side on every
+  // write regardless of who inserts; a collision/unresolvable slug leaves it NULL.
+  //
   // Upsert so a re-submit (double-tap / retry / two tabs) UPDATES the user's single
   // review instead of inserting a duplicate row that skews the coach's public average.
   // Falls back to a plain insert until the unique-index migration is applied (42P10 =
   // no constraint matching ON CONFLICT).
-  const payload = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
-  const cols = 'id, rating, body, author_name, user_id, created_at';
-  let { data, error } = await supabase.from('coach_reviews').upsert(payload, { onConflict: 'user_id,coach_slug' }).select(cols).single();
-  if (error && error.code === '42P10') {
-    ({ data, error } = await supabase.from('coach_reviews').insert(payload).select(cols).single());
-  }
+  const payload: Record<string, unknown> = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
+  // select('*') (not an explicit column list) so shape() returns the trigger-stamped
+  // owner_id in the write response — AND stays migration-safe: naming owner_id explicitly
+  // would 400 pre-migration (PostgREST rejects an unknown column), the same reason the GET
+  // slug branch uses '*'. Pre-migration '*' just omits owner_id → shape() reads it as null.
+  const writeReview = async (p: Record<string, unknown>) => {
+    let r = await supabase.from('coach_reviews').upsert(p, { onConflict: 'user_id,coach_slug' }).select('*').single();
+    if (r.error && r.error.code === '42P10') r = await supabase.from('coach_reviews').insert(p).select('*').single();
+    return r;
+  };
+  const { data, error } = await writeReview(payload);
   if (error) {
     console.error('coach review write failed:', error);
     return NextResponse.json({ error: 'Could not save your review.' }, { status: 500 });

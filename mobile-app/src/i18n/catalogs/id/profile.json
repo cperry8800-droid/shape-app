@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Berlatih untuk",
   "startLine.today": "Hari ini",
   "startLine.daysOut": "{count, plural, other {# hari lagi}}",
-  "line.attribution": "moto"
+  "line.attribution": "moto",
+  "film.headCoach": "Video perkenalan",
+  "biz.head": "Praktik",
+  "biz.where": "Di mana",
+  "biz.hours": "Jam",
+  "biz.find": "Cari saya",
+  "wins.head": "Dinding pencapaian",
+  "wins.pinned": "Ulasan asli · Disematkan"
 }

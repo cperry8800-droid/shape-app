@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Dey train for",
   "startLine.today": "Today",
   "startLine.daysOut": "{count, plural, one {# day remain} other {# days remain}}",
-  "line.attribution": "word"
+  "line.attribution": "word",
+  "film.headCoach": "Intro video",
+  "biz.head": "Di practice",
+  "biz.where": "Where",
+  "biz.hours": "Time",
+  "biz.find": "Find me",
+  "wins.head": "Wins wall",
+  "wins.pinned": "Real review · Pinned"
 }

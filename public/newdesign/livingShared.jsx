@@ -646,6 +646,29 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const reviewItems = (liveReviews && liveReviews.length)
     ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "", authorId: r.authorId || null }))
     : d.reviews.map((r) => ({ ...r, stars10: 10, authorId: null }));
+  // P4 · business card + P5 · wins wall (profile wave). d.custom = the coach's
+  // profile_custom doc. The wall resolves pinned ids against the OWNER's OWN
+  // reviews by id AND ownerId, so a cross-coach / hand-written id never resolves.
+  const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  const bizCard = plib && plib.bsProfileBizCard ? plib.bsProfileBizCard(d.custom && d.custom.bizCard) : null;
+  // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
+  // list), so a pinned review never vanishes once a coach passes 200 reviews; the
+  // results are still filtered to ownerId === the profile owner.
+  const pinnedKey = (plib && plib.bsProfilePinnedReviews ? plib.bsProfilePinnedReviews(d.custom && d.custom.pinnedReviews) : []).join(",");
+  const [pinnedResolved, setPinnedResolved] = React.useState([]);
+  React.useEffect(() => {
+    setPinnedResolved([]); // clear the previous profile's / pins' data on any change
+    if (!pinnedKey || !d.uid) return;
+    let on = true;
+    fetch(`/api/coaches/reviews?ids=${encodeURIComponent(pinnedKey)}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      // Only a MEMBER's review counts (authorId !== ownerId) — a coach can't insert a
+      // self-authored row (insert RLS forces user_id = their uid) and pin it.
+      .then((j) => { if (on && j && Array.isArray(j.reviews)) setPinnedResolved(j.reviews.filter((r) => r && r.ownerId === d.uid && r.authorId !== r.ownerId)); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [pinnedKey, d.uid]);
+  const winsWall = pinnedKey ? pinnedKey.split(",").map((id) => pinnedResolved.find((r) => r && r.id === id && r.ownerId === d.uid && r.authorId !== r.ownerId)).filter(Boolean) : [];
   return (
     <div>
       {showCoaching && <React.Fragment>
@@ -690,6 +713,37 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                 <div style={{ width: 168, height: 112, borderRadius: 8, border: `1px solid ${hexA(ink, 0.14)}`, backgroundImage: `url("${g.url}")`, backgroundSize: "cover", backgroundPosition: "center" }} aria-hidden="true" />
                 {g.caption ? <figcaption style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.04em", color: hexA(ink, 0.5), marginTop: 6, lineHeight: 1.3 }}>{String(g.caption)}</figcaption> : null}
               </figure>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* P4 · The Business card — a grounded contact station (name over dot-leader rows). */}
+      {bizCard && (
+        <div style={{ marginTop: 30 }}>
+          {stHead("The practice")}
+          <div style={{ borderLeft: `3px solid ${c}`, paddingLeft: 15, maxWidth: 460 }}>
+            <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.02em", lineHeight: 1.1, color: ink }}>{bizCard.name}</div>
+            {[["Where", bizCard.where], ["Hours", bizCard.hours], ["Find", bizCard.handle]].filter(([, v]) => v).map(([lbl, v]) => (
+              <div key={lbl} style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 11 }}>
+                <span style={{ flex: "none", fontFamily: lvMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>{lbl}</span>
+                <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${hexA(ink, 0.28)}`, transform: "translateY(-3px)" }} />
+                <span style={{ flex: "none", fontFamily: lvSans, fontSize: 14, color: hexA(ink, 0.85) }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* P5 · The Wins wall — up to 3 pinned REAL reviews (resolved by id + owner). */}
+      {winsWall.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          {stHead("Wins wall")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 560 }}>
+            {winsWall.map((r) => (
+              <div key={r.id} style={{ borderLeft: `3px solid ${c}`, paddingLeft: 15 }}>
+                <div style={{ fontFamily: lvSerif, fontSize: 18, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.4, color: hexA(ink, 0.9) }}>“{r.text}”</div>
+                <div style={{ marginTop: 8, fontFamily: lvMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: c }}>★ {Math.round(r.rating || 0)}/10 · Real review · Pinned</div>
+                <div style={{ marginTop: 3, fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.5) }}>— {r.author || "Member"}</div>
+              </div>
             ))}
           </div>
         </div>

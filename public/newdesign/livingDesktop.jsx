@@ -233,6 +233,22 @@ function TerrainVisual({ d }) {
   );
 }
 
+// Shared inline-video card — P1 coach intro film (PR E reuses it for the member
+// film). `film` is the already-normalized { url, caption }; native controls,
+// tap-to-play; NO fabricated poster — a playback failure shows the browser's state.
+function DFilmCard({ film, c, label }) {
+  if (!film || !film.url) return null;
+  return (
+    <div style={{ maxWidth: 1240, margin: "18px auto 0", padding: "0 40px" }}>
+      {label ? <div style={{ fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}><span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: c }} />{label}</div> : null}
+      <div style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.12)}`, background: "#000", maxWidth: 640 }}>
+        <video src={film.url} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 400, background: "#000" }} />
+      </div>
+      {film.caption ? <div style={{ marginTop: 9, fontFamily: dSerif, fontSize: 16, fontStyle: "italic", letterSpacing: "-0.01em", color: dHexA(LV_INK, 0.75), maxWidth: 640 }}>{film.caption}</div> : null}
+    </div>
+  );
+}
+
 // ── Hero — split: identity (left) · signature visual (right) ───
 function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow, coachingHref }) {
   const c = tierOf(d).color;
@@ -265,6 +281,20 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
           <DKick c={dHexA(LV_INK, 0.55)} style={{ marginBottom: 9, fontSize: 10.5, letterSpacing: "0.2em" }}>{direction === "terrain" ? "⛰ Summit · " : ""}{d.goalKicker}</DKick>
           <div style={{ fontFamily: dSerif, fontSize: 27, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.15 }}>{d.goal}</div>
         </div>
+        {/* P2 · The Line — the coach's motto on the Signal hero, role-heat attribution
+            (members get the line via the terrain block below). */}
+        {coach && (() => {
+          const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+          const heroLine = plib && plib.bsProfileLine ? plib.bsProfileLine(d.custom && d.custom.line) : "";
+          if (!heroLine) return null;
+          const firstName = (String(d.name || "").trim().split(/\s+/)[0] || "").toUpperCase();
+          return (
+            <div style={{ marginTop: 22, maxWidth: 460 }}>
+              <span style={{ fontFamily: dSerif, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.3, color: LV_INK }}>{heroLine}</span>
+              <div style={{ marginTop: 5, fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c }}>— {firstName} line</div>
+            </div>
+          );
+        })()}
         {/* M2 · Start line + M4 · Line — member hero character (terrain only). */}
         {direction === "terrain" && (() => {
           const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
@@ -769,6 +799,9 @@ function MusicBlock({ d }) {
 
 // ── Profile customization (song · prompts · links · bio) — desktop ────────────
 const DK_PROMPTS = ["Never skip", "Pre-workout fuel", "Currently chasing", "Form check I love", "My non-negotiable", "Rest day looks like", "A win this month", "Training motto"];
+// P3 · coach-flavored prompt suggestions (the prompts render already shows on the
+// Signal profile — this only swaps the picker's suggested questions for coaches).
+const DK_COACH_PROMPTS = ["My coaching philosophy", "First session with me", "Who I coach best", "What I won't program", "My approach", "A client win"];
 const DK_ACCENTS = ["#34d6c5", "#5ec8e0", "#7bbf5a", "#d8a23a", "#e0644b", "#e0518a", "#8a5cf6"];
 const DK_PIN_KINDS = ["PR", "Workout", "Meal", "Post", "Win"];
 const DK_STAT_OPTIONS = [{ key: "score", label: "Shape Score" }, { key: "tier", label: "Tier" }, { key: "streak", label: "Day streak" }, { key: "since", label: "Member since" }];
@@ -922,12 +955,13 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
           )}
         </div>
       )}
-      {edit && <ProfileCustomizer initial={custom} c={c} coach={coach} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
+      {edit && <ProfileCustomizer key={(d && d.uid) || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
     </div>
   );
 }
-function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
+function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUid = null, ownerName = "" }) {
   const init = initial || {};
+  const PROMPT_OPTS = coach ? DK_COACH_PROMPTS : DK_PROMPTS;
   const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const WMAX = (plib && plib.BS_WALL_MAX) || 6, SMAX = (plib && plib.BS_SHELF_MAX) || 4;
   const CAPM = (plib && plib.BS_CAPTION_MAX) || 80, STM = (plib && plib.BS_SHELF_TITLE_MAX) || 60, SWM = (plib && plib.BS_SHELF_WHEN_MAX) || 20, LM = (plib && plib.BS_LINE_MAX) || 80, STTM = (plib && plib.BS_START_TITLE_MAX) || 60;
@@ -935,7 +969,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const [songUrl, setSongUrl] = React.useState((init.song && init.song.url) || "");
   const [songLabel, setSongLabel] = React.useState((init.song && init.song.label) || "");
   const [links, setLinks] = React.useState({ ...(init.links || {}) });
-  const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: DK_PROMPTS[0], a: "" }]);
+  const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0], a: "" }]);
   const [coverUrl, setCoverUrl] = React.useState((init.cover && init.cover.image) || "");
   const [accent, setAccent] = React.useState(init.accent || "");
   const [pinKind, setPinKind] = React.useState((init.pinned && init.pinned.kind) || "PR");
@@ -959,6 +993,77 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const [shelf, setShelf] = React.useState(() => Array.isArray(init.shelf) ? init.shelf.slice(0, SMAX).map((s) => ({ _k: nk(), title: (s && s.title) || "", when: (s && s.when) || "" })) : []);
   const [wallBusy, setWallBusy] = React.useState(false);
   const wallRef = React.useRef(null);
+  // ── Coach profile-wave state (P1 film · P4 business card · P5 wins wall). ──
+  const FCM = (plib && plib.BS_FILM_CAPTION_MAX) || 80;
+  const BNM = (plib && plib.BS_BIZ_NAME_MAX) || 60, BWM = (plib && plib.BS_BIZ_WHERE_MAX) || 80, BHM = (plib && plib.BS_BIZ_HOURS_MAX) || 40, BKM = (plib && plib.BS_BIZ_HANDLE_MAX) || 40;
+  const PRM = (plib && plib.BS_PINNED_REVIEWS_MAX) || 3;
+  const [film, setFilm] = React.useState((init.film && init.film.url) ? { url: init.film.url, caption: (init.film.caption || "") } : null);
+  const [filmBusy, setFilmBusy] = React.useState(false);
+  const filmRef = React.useRef(null);
+  const onFilmFile = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
+    if (!file) return;
+    // Accept a video MIME OR a video filename extension (some pickers return a blank
+    // type for a valid video), and derive the storage ext from whichever is present.
+    const nameExt = (file.name || "").split(".").pop().toLowerCase();
+    if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || "") || (!file.type && ["mp4", "mov", "webm", "m4v"].includes(nameExt)))) { alert("Pick an MP4, MOV or WebM video."); return; }
+    if (file.size > 200 * 1024 * 1024) { alert("That video is too large — keep it under 200 MB."); return; }
+    const ext = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v", "video/m4v": "m4v" }[String(file.type).toLowerCase()] || (["mp4", "mov", "webm", "m4v"].includes(nameExt) ? nameExt : "mp4");
+    setFilmBusy(true);
+    try {
+      const cl = window.shapeDb && window.shapeDb.client;
+      const { data: u } = await cl.auth.getUser();
+      const path = `${u.user.id}/film-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      // Derive a real video content type for a blank-MIME file — the coach-media
+      // bucket is MIME-allowlisted, so uploading a valid .mp4/.mov with an empty
+      // contentType would be rejected despite passing the extension validation.
+      const ctype = file.type || ({ mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/x-m4v" }[ext] || "video/mp4");
+      const up = await cl.storage.from("coach-media").upload(path, file, { upsert: true, contentType: ctype });
+      if (up.error) throw up.error;
+      const { data: pub } = cl.storage.from("coach-media").getPublicUrl(path);
+      setFilm((prev) => ({ url: pub.publicUrl, caption: (prev && prev.caption) || "" }));
+    } catch (err) { alert((err && err.message) || "Could not upload film."); }
+    finally { setFilmBusy(false); }
+  };
+  const [biz, setBiz] = React.useState({ name: (init.bizCard && init.bizCard.name) || "", where: (init.bizCard && init.bizCard.where) || "", hours: (init.bizCard && init.bizCard.hours) || "", handle: (init.bizCard && init.bizCard.handle) || "" });
+  const [pins, setPins] = React.useState(Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, PRM) : []);
+  const togglePin = (id) => setPins((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : (prev.length >= PRM ? prev : [...prev, id]));
+  // The coach's OWN pinnable reviews (owner_id === the profile owner) for the picker.
+  const [pickReviews, setPickReviews] = React.useState([]);
+  React.useEffect(() => {
+    // Fetch pin candidates by owner_id (the trigger-stamped column), NOT the display-
+    // name slug — a coach whose profile name differs from their provider listing name
+    // would otherwise see no pinnable reviews though the reviews carry the right owner.
+    // The owner list is a capped latest-200 page, so a review already pinned but aged
+    // past it would still render on the wall (by-id resolver) yet vanish from the picker,
+    // leaving no way to UNPIN it. UNION the ≤3 saved pins (resolved by id) into the
+    // candidates so every currently-pinned review always has a removal control.
+    let on = true;
+    setPickReviews([]);   // drop the prior coach's candidates before (re)loading — a stale
+    if (!coach || !ownerUid) return () => { on = false; };  // set could be shown/pinned for the wrong coach
+    const savedIds = Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, PRM) : [];
+    const keep = (list) => (Array.isArray(list) ? list.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []);
+    Promise.all([
+      fetch(`/api/coaches/reviews?owner=${encodeURIComponent(ownerUid)}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      savedIds.length ? fetch(`/api/coaches/reviews?ids=${encodeURIComponent(savedIds.join(","))}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null),
+    ]).then(([ownerJ, idsJ]) => {
+      if (!on) return;
+      const owned = keep(ownerJ && ownerJ.reviews);
+      const seen = new Set(owned.map((r) => r.id));
+      const extraPins = keep(idsJ && idsJ.reviews).filter((r) => !seen.has(r.id));
+      const merged = owned.concat(extraPins);
+      setPickReviews(merged);
+      // On a FULLY successful load, reconcile pins to what actually resolves — drop a
+      // deleted/unresolvable saved pin so its dead id can't hold a slot and block the
+      // coach from pinning a replacement (togglePin counts it toward the max otherwise).
+      // Guarded so a transient fetch failure can't wipe live pins.
+      if (ownerJ != null && (savedIds.length === 0 || idsJ != null)) {
+        const live = new Set(merged.map((r) => r.id));
+        setPins((prev) => prev.filter((id) => live.has(id)));
+      }
+    });
+    return () => { on = false; };
+  }, [coach, ownerUid]);
   const startState = (plib && plib.bsStartLineState) ? plib.bsStartLineState(startDate, new Date()) : null;
   const startValid = (plib && plib.bsValidStartDate) ? plib.bsValidStartDate(startDate) : null;
   const onWallFile = async (e) => {
@@ -1008,7 +1113,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
   const save = async () => {
     // A wall/cover upload still in flight would be omitted from the saved doc AND
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
-    if (wallBusy || coverBusy) { setErr("Hang on — a photo is still uploading."); return; }
+    if (wallBusy || coverBusy || filmBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
     const doc = {
       ...init,
@@ -1021,12 +1126,19 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
-      // Profile-wave keys (M1–M4). The normalizer below cleans + caps and DROPS
-      // them when empty; every legacy key passes byte-identical.
+      // Member profile-wave keys (M1–M4). The normalizer below cleans + caps and
+      // DROPS them when empty; every legacy key passes byte-identical.
       line,
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
+      // Coach profile-wave keys (P1 film · P4 card · P5 pins) — only the coach path
+      // manages them; the member path leaves init's copies untouched (spread above).
+      ...(coach ? {
+        film: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
+        bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
+        pinnedReviews: pins,
+      } : {}),
     };
     // Trusted save: a real signed-in owner AND the normalizer are REQUIRED. We
     // never persist OR hand back a raw (un-normalized) doc — the wall's
@@ -1038,7 +1150,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
-    const out = plib.bsNormalizeProfileCustom(doc, uid);
+    const out = plib.bsNormalizeProfileCustom(doc, uid, coach ? { filmBucket: "coach-media" } : undefined);
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
     catch (e) { error = e; }
@@ -1054,6 +1166,54 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
           <button onClick={onClose} style={{ background: "transparent", border: 0, color: dHexA(LV_INK, 0.6), fontSize: 22, cursor: "pointer" }}>×</button>
         </div>
         <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /></div>
+        {coach && (<>
+          {/* P2 · The Line (shared key) */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Your line · one motto</span>
+            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
+          </div>
+          {/* P1 · The intro film */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Intro film · a short video</span>
+            <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: "none" }} />
+            {film && film.url ? (
+              <div>
+                <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: "#000" }}>
+                  <video src={film.url} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 240, background: "#000" }} />
+                </div>
+                <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, FCM) }))} maxLength={FCM} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
+                <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Remove film</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: filmBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{filmBusy ? "Uploading…" : "+ Add intro film"}</button>
+            )}
+            <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, color: dHexA(LV_INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
+          </div>
+          {/* P4 · The Business card */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>The practice · business card</span>
+            <input value={biz.name} onChange={(e) => setBiz((p) => ({ ...p, name: e.target.value.slice(0, BNM) }))} maxLength={BNM} placeholder="Business name — e.g. Iron Path Strength" style={field} />
+            <input value={biz.where} onChange={(e) => setBiz((p) => ({ ...p, where: e.target.value.slice(0, BWM) }))} maxLength={BWM} placeholder="Where (optional) — e.g. Austin, TX · online" style={{ ...field, marginTop: 8 }} />
+            <input value={biz.hours} onChange={(e) => setBiz((p) => ({ ...p, hours: e.target.value.slice(0, BHM) }))} maxLength={BHM} placeholder="Hours (optional) — e.g. Mon–Fri, mornings" style={{ ...field, marginTop: 8 }} />
+            <input value={biz.handle} onChange={(e) => setBiz((p) => ({ ...p, handle: e.target.value.slice(0, BKM) }))} maxLength={BKM} placeholder="Find me (optional) — e.g. @ironpath" style={{ ...field, marginTop: 8 }} />
+          </div>
+          {/* P5 · The Wins wall picker — only the coach's OWN pinnable reviews */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Wins wall · pin up to {PRM} reviews</span>
+            {pickReviews && pickReviews.length ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {pickReviews.map((r) => { const on = pins.includes(r.id); return (
+                  <button key={r.id} type="button" aria-pressed={on} onClick={() => togglePin(r.id)} style={{ textAlign: "left", cursor: "pointer", background: on ? dHexA(c, 0.1) : "transparent", border: `1px solid ${on ? c : dHexA(LV_INK, 0.14)}`, borderRadius: 10, padding: "11px 13px" }}>
+                    <div style={{ fontFamily: dMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: on ? c : dHexA(LV_INK, 0.45) }}>{on ? "✓ Pinned" : "Tap to pin"} · ★ {Math.round(r.rating || 0)}/10 · {r.author || "Member"}</div>
+                    <div style={{ fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.82), marginTop: 5, lineHeight: 1.35 }}>“{(r.text || "").slice(0, 120)}{(r.text || "").length > 120 ? "…" : ""}”</div>
+                  </button>
+                ); })}
+              </div>
+            ) : (
+              <div style={{ fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.55), lineHeight: 1.5 }}>No reviews to pin yet — reviews members leave from now on can be pinned here.</div>
+            )}
+          </div>
+        </>)}
         {!coach && (<>
           {/* M4 · The Line */}
           <div style={{ marginBottom: 18 }}>
@@ -1162,14 +1322,14 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
             {prompts.map((p, i) => (
               <div key={i} style={{ border: `1px solid ${dHexA(LV_INK, 0.12)}`, borderRadius: 11, padding: 11 }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <select value={p.q} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{DK_PROMPTS.map((q) => <option key={q} value={q}>{q}</option>)}</select>
+                  <select value={p.q} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{PROMPT_OPTS.map((q) => <option key={q} value={q}>{q}</option>)}</select>
                   <button onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 32, cursor: "pointer" }}>×</button>
                 </div>
                 <input value={p.a} onChange={(e) => setPrompt(i, "a", e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
               </div>
             ))}
           </div>
-          {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: DK_PROMPTS[prev.length % DK_PROMPTS.length], a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
+          {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length], a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
         </div>
         <div style={{ marginBottom: 22 }}>
           <span style={label}>Social links</span>
@@ -1183,7 +1343,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false }) {
           </div>
         </div>
         {err && <div role="alert" style={{ marginBottom: 10, fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{err}</div>}
-        <button onClick={save} disabled={busy || wallBusy || coverBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
+        <button onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
       </div>
     </div>
   );
@@ -1319,6 +1479,12 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
         ) : (
           <React.Fragment>
             <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
+            {/* P1 · The intro film — coach only, a full-width video band under the hero. */}
+            {coach && (() => {
+              const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+              const film = (plib && plib.bsProfileFilm && d.uid) ? plib.bsProfileFilm(custom && custom.film, d.uid, "coach-media") : null;
+              return film ? <DFilmCard film={film} c={c} label="Intro film" /> : null;
+            })()}
             {/* Availability at-a-glance — coach profiles only, the same slots
                 the Schedule tab edits + the booking flow reads. */}
             {coach && <LvCoachAvailability d={d} />}
@@ -1374,7 +1540,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
                 <div style={{ position: "relative", paddingLeft: 22 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
-                  <LvCoachBlocks d={d} light={false} owner={owner} view="coaching" onReviews={() => setTab("reviews")} />
+                  <LvCoachBlocks d={heroPerson} light={false} owner={owner} view="coaching" onReviews={() => setTab("reviews")} />
                 </div>
               </section>
             )}
@@ -1384,7 +1550,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
                 <div style={{ position: "relative", paddingLeft: 22 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
-                  <LvCoachBlocks d={d} light={false} owner={owner} view="reviews" />
+                  <LvCoachBlocks d={heroPerson} light={false} owner={owner} view="reviews" />
                 </div>
               </section>
             )}

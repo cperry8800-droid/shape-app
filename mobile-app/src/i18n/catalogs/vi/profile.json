@@ -232,5 +232,12 @@
   "startLine.trainingFor": "Tập luyện cho",
   "startLine.today": "Hôm nay",
   "startLine.daysOut": "{count, plural, other {còn # ngày}}",
-  "line.attribution": "châm ngôn"
+  "line.attribution": "châm ngôn",
+  "film.headCoach": "Video giới thiệu",
+  "biz.head": "Cơ sở",
+  "biz.where": "Ở đâu",
+  "biz.hours": "Giờ",
+  "biz.find": "Tìm tôi",
+  "wins.head": "Bảng thành tích",
+  "wins.pinned": "Đánh giá thật · Đã ghim"
 }
