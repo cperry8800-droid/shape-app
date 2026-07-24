@@ -196,10 +196,16 @@ changelog whenever something ships.
 > post-delete sweep of the writable window). ✅ **ALL 3 OWNER MIGRATIONS APPLIED +
 > verified live 2026-07-24** (`2026-07-23-provider-listing-media.sql` box PR A ·
 > `2026-07-23-coach-reviews-owner-id.sql` PR D · `2026-07-23-member-films-bucket.sql`
-> PR E) — nothing left owner-side on this wave. Handoff:
-> **[`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)**. Full dated entry below.
-> Open follow-ups: platform-wide media orphan-GC (now incl. the film buckets) ·
-> persisted provider-slug column · on-device pass across the new surfaces.
+> PR E) — no migration or merge work remains. ⚠ **The wave is NOT fully closed:**
+> the **OWNER on-device pass** across the new profile surfaces is still open.
+> Handoff: **[`docs/HANDOFF-2026-07-24.md`](HANDOFF-2026-07-24.md)**. Full dated
+> entry below. Pending engineering follow-ons (registered, not started):
+> platform-wide **signed/authenticated media** (public-bucket URLs stay fetchable
+> after a visibility flip — the spec's documented residual, distinct from
+> orphan-GC) · platform-wide media orphan-GC (now incl. the film buckets) ·
+> persisted provider-slug column · Reviews-section re-key onto `owner_id` · P3
+> render verification. Declined-with-rationale: RLS-scoping the account-delete
+> purge (documented admin-erasure exception).
 >
 > **Prior (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase.** Coaches
 > dress their marketplace box and everyone gets profile customizations — specs written on
@@ -993,7 +999,13 @@ changelog whenever something ships.
   the build-complete wave at session level. ✅ **ALL 3 owner migrations APPLIED +
   verified live 2026-07-24** (`provider-listing-media` box PR A ·
   `coach-reviews-owner-id` PR D · `member-films-bucket` PR E, checked read-only
-  against prod) — nothing left owner-side on this wave.
+  against prod), so no migration or merge work remains. ⚠ **The wave is NOT
+  fully closed** — the OWNER on-device pass across the new profile surfaces is
+  still open, and the pending engineering follow-ons stand: platform-wide
+  **signed/authenticated media** (the visibility-flip residual — distinct from,
+  and not covered by, orphan-GC) · media orphan-GC · persisted provider-slug
+  column · Reviews-section re-key · P3 render verification. The account-delete
+  purge staying service-role is **declined-with-rationale**, not pending.
 - **The build phase of the coach-box + profile-customization wave** (specs #1815/#1816)
   shipped end to end after the owner's go: box PR A+B → **profile PR C** (member M1–M4)
   → **PR D #1821** (coach P1–P5) → **PR E #1822** (member M5 film). The customizations
