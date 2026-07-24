@@ -70,25 +70,25 @@ const PURGE: { table: string; col: string }[] = [
 // owner UI to remove the object, so they're purged here or the file is orphaned.
 const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films'];
 
-// List + remove every object under `<uid>/`, paginating so large folders are
-// fully cleared, and only reporting success if no list/remove call errored — so a
-// "purged" result can't hide files that were left behind.
+// Remove every FILE under `<uid>/`, and only report success if nothing errored — so
+// a "purged" result can't hide files left behind (CWE-459). Deletion SHIFTS the
+// remaining objects down, so we must NOT paginate by advancing an offset (that would
+// skip the shifted objects and orphan them for a >PAGE folder); instead we re-list
+// from the start each pass and remove until no files remain. Only real files are
+// removed (an entry with an id) — folder PREFIXES (id null, e.g. coach-media's
+// `<uid>/listing/…`) are skipped so they can't spin the loop forever. (Sub-folder
+// CONTENTS aren't recursed here, matching the prior behavior.)
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
   const PAGE = 1000;
   try {
-    let offset = 0;
     let ok = true;
     for (;;) {
-      const { data, error } = await admin.storage.from(bucket).list(uid, { limit: PAGE, offset });
+      const { data, error } = await admin.storage.from(bucket).list(uid, { limit: PAGE });
       if (error) return false;
-      if (!data || !data.length) break;
-      const paths = data.filter((o) => o.name).map((o) => `${uid}/${o.name}`);
-      if (paths.length) {
-        const { error: rmErr } = await admin.storage.from(bucket).remove(paths);
-        if (rmErr) ok = false;
-      }
-      if (data.length < PAGE) break; // last page
-      offset += data.length;
+      const files = (data || []).filter((o) => o && o.name && o.id);
+      if (!files.length) break; // no more files under <uid>/ (only prefixes or empty)
+      const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${uid}/${o.name}`));
+      if (rmErr) { ok = false; break; } // stop on a remove error rather than spin
     }
     return ok;
   } catch {
