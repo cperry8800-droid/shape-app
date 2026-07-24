@@ -146,8 +146,27 @@ export async function POST(request: Request) {
   }
 
   // 2. Storage purge.
+  let allBucketsPurged = true;
   for (const b of BUCKETS) {
     if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
+    else allBucketsPurged = false;
+  }
+
+  // If any bucket couldn't be fully cleared, do NOT delete the auth user — that would
+  // orphan the caller's media in a PUBLIC bucket with no owner left to remove it and no
+  // retry path (CWE-459). Leave the account intact and surface a 500 so the client can
+  // re-try; the row purge above is idempotent, so a retry converges on full erasure.
+  if (!allBucketsPurged) {
+    if (auditId) {
+      try {
+        await admin.from('account_deletions').update({
+          tables_purged: purged,
+          buckets_purged: bucketsPurged,
+          note: 'storage purge incomplete — auth user NOT deleted; retry required',
+        }).eq('id', auditId);
+      } catch { /* non-fatal */ }
+    }
+    return NextResponse.json({ error: 'Could not fully remove your files. Please try again in a moment.' }, { status: 500 });
   }
 
   // 3. Delete the auth user — cascades any remaining FK-linked rows.
