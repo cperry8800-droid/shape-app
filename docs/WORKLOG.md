@@ -193,9 +193,9 @@ changelog whenever something ships.
 > only in the coach spread → never persisted) before the first push; post-open review then
 > hardened the account-deletion purge end to end (bucket coverage · >1000-object
 > pagination · sub-folder recursion · storage-purge-FIRST with abort-on-failure · a
-> post-delete sweep of the writable window). ⚠ **2 OWNER MIGRATIONS to run:**
-> `2026-07-23-coach-reviews-owner-id.sql` (PR D) + `2026-07-23-member-films-bucket.sql`
-> (PR E) — code degrades cleanly until then. Full dated entry below. Open follow-ups:
+> post-delete sweep of the writable window). ✓ **BOTH OWNER MIGRATIONS APPLIED +
+> verified live 2026-07-24** — `2026-07-23-coach-reviews-owner-id.sql` (PR D) +
+> `2026-07-23-member-films-bucket.sql` (PR E). Full dated entry below. Open follow-ups:
 > platform-wide media orphan-GC (now incl. the film buckets) · persisted provider-slug
 > column · on-device pass across the new surfaces.
 >
