@@ -82,24 +82,34 @@ const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-med
 //     while the audit falsely marks the bucket purged.
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
   const PAGE = 1000;
-  let ok = true;
-  const purgePrefix = async (prefix: string): Promise<void> => {
+  // Empty `prefix` completely; returns true only if nothing was left un-removed. Re-lists
+  // from the start each pass (deletion-shift can't skip a >PAGE folder) and loops until the
+  // listing is EXHAUSTED — NOT until a page happens to hold no files, since a page can be
+  // all sub-folder prefixes with real files sorted after it. A page that makes no progress
+  // (nothing removable) bails as false so an un-deletable entry can't spin the loop.
+  const purgePrefix = async (prefix: string): Promise<boolean> => {
     for (;;) {
       const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: PAGE });
-      if (error) { ok = false; return; }
+      if (error) return false;
       const entries = data || [];
+      if (!entries.length) return true; // fully cleared
       const files = entries.filter((o) => o && o.name && o.id);       // real objects
       const folders = entries.filter((o) => o && o.name && !o.id);    // sub-folder prefixes
-      for (const f of folders) await purgePrefix(`${prefix}/${f.name}`); // empty nested folders first
-      if (!files.length) return; // no objects at this level — sub-folders handled above
-      const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${prefix}/${o.name}`));
-      if (rmErr) { ok = false; return; } // stop on a remove error rather than spin
-      // loop: re-list from the start — removed files are gone, emptied folders vanish
+      let progressed = false;
+      for (const f of folders) {
+        if (!(await purgePrefix(`${prefix}/${f.name}`))) return false; // a nested object stuck → bail
+        progressed = true;                                            // an emptied folder vanishes next list
+      }
+      if (files.length) {
+        const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${prefix}/${o.name}`));
+        if (rmErr) return false;
+        progressed = true;
+      }
+      if (!progressed) return false; // page held only un-actionable entries — don't spin
     }
   };
   try {
-    await purgePrefix(uid);
-    return ok;
+    return await purgePrefix(uid);
   } catch {
     return false;
   }
