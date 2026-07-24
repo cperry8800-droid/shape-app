@@ -178,10 +178,31 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase is
-> COMPLETE; ⚠ THE BUILD IS OWNER-PAUSED.** Coaches will dress their marketplace
-> box and everyone gets profile customizations — specs written on Fable, builds
-> queued for Opus behind an explicit owner go ("pause before you start build").
+> **Latest (2026-07-24): PROFILE CUSTOMIZATION WAVE — SHIPPED end to end (Box A/B →
+> C → D → E), all merged.** The coach marketplace box + everyone's profile
+> customizations are live. **PR D #1821** — coach Signal profile: P1 intro film · P2 the
+> Line · P3 prompts · P4 business card · P5 the **Wins wall** (pins REAL `coach_reviews`,
+> resolved by id + a new **immutable, non-forgeable `coach_reviews.owner_id`** — a
+> SECURITY DEFINER trigger stamps it from the slug, immutable on identity-stable edits,
+> re-derived on a slug/kind repoint, and honoring the FK `on delete set null` so account
+> deletion still works; **NO backfill**, so pre-migration rows never pin). Pin lifecycle
+> fully closed (cross-owner · aged-out-but-alive · deleted). 10 review rounds. **PR E
+> #1822** — member M5 intro film in a **dedicated video-only `member-films` bucket** + its
+> own **`filmMember`** doc key (so coach + member films coexist rather than overwriting one
+> shared key). A **pre-push adversarial review caught a Critical** (member film serialized
+> only in the coach spread → never persisted) before the first push; post-open review then
+> hardened the account-deletion purge end to end (bucket coverage · >1000-object
+> pagination · sub-folder recursion · storage-purge-FIRST with abort-on-failure · a
+> post-delete sweep of the writable window). ⚠ **2 OWNER MIGRATIONS to run:**
+> `2026-07-23-coach-reviews-owner-id.sql` (PR D) + `2026-07-23-member-films-bucket.sql`
+> (PR E) — code degrades cleanly until then. Full dated entry below. Open follow-ups:
+> platform-wide media orphan-GC (now incl. the film buckets) · persisted provider-slug
+> column · on-device pass across the new surfaces.
+>
+> **Prior (2026-07-23): COACH BOX + PROFILE CUSTOMIZATION — the SPEC phase.** Coaches
+> dress their marketplace box and everyone gets profile customizations — specs written on
+> Fable, builds queued for Opus behind an explicit owner go ("pause before you start
+> build"; the go later came via "continue" + "merge when clean and continue build").
 > **Spec #1815** (merged `864b5a3b`) — the box: owner-picked **E "The Combo"**
 > (portrait + cover-as-background + ≤6-photo studio gallery on the marketplace
 > box, both surfaces) **+ D want-ad row thumbs** (owner: "yes add D"). One
