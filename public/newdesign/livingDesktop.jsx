@@ -955,7 +955,7 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
           )}
         </div>
       )}
-      {edit && <ProfileCustomizer initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
+      {edit && <ProfileCustomizer key={(d && d.uid) || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
     </div>
   );
 }

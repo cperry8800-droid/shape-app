@@ -13489,7 +13489,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach ownerUid={person.userId} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer key={(person && person.userId) || 'self'} initial={custom} c={c} INK={INK} BG={BG} coach ownerUid={person.userId} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
