@@ -64,32 +64,62 @@ const PURGE: { table: string; col: string }[] = [
   { table: 'nutritionists', col: 'owner_id' },
 ];
 
-// Private storage buckets that hold the user's files under a `<uid>/` prefix.
-// `coach-credentials` holds a coach's COI/certification uploads — included so a
-// coach's verification files aren't orphaned after their account is deleted.
-const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials'];
+// Storage buckets that hold the user's files under a `<uid>/` prefix (the purge
+// walks that folder). `coach-credentials` holds a coach's COI/certification uploads;
+// `member-films` holds a member's M5 intro film — both PUBLIC buckets with no other
+// owner UI to remove the object, so they're purged here or the file is orphaned.
+const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials', 'member-films'];
 
-// List + remove every object under `<uid>/`, paginating so large folders are
-// fully cleared, and only reporting success if no list/remove call errored — so a
-// "purged" result can't hide files that were left behind.
+// Remove every object under `<uid>/` (files AND anything nested in sub-folders), and
+// only report success if nothing errored — so a "purged" result can't hide files left
+// behind (CWE-459). Two hazards handled:
+//   • Deletion SHIFTS the remaining objects down, so we must NOT paginate by advancing
+//     an offset (that would skip the shifted objects and orphan them for a >PAGE
+//     folder); we re-list from the start each pass and remove until no files remain.
+//   • `list(prefix)` returns a sub-folder as a PREFIX entry (id === null, e.g.
+//     coach-media's `<uid>/listing/…`) whose CONTENTS aren't in this page — so we
+//     RECURSE into each prefix, or those public objects would survive account deletion
+//     while the audit falsely marks the bucket purged.
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
   const PAGE = 1000;
-  try {
-    let offset = 0;
-    let ok = true;
+  // Empty `prefix` completely; returns true only if nothing was left un-removed. Re-lists
+  // from the start each pass (deletion-shift can't skip a >PAGE folder) and loops until the
+  // listing is EXHAUSTED — NOT until a page happens to hold no files, since a page can be
+  // all sub-folder prefixes with real files sorted after it. A page that makes no progress
+  // (nothing removable) bails as false so an un-deletable entry can't spin the loop.
+  const purgePrefix = async (prefix: string): Promise<boolean> => {
     for (;;) {
-      const { data, error } = await admin.storage.from(bucket).list(uid, { limit: PAGE, offset });
-      if (error) return false;
-      if (!data || !data.length) break;
-      const paths = data.filter((o) => o.name).map((o) => `${uid}/${o.name}`);
-      if (paths.length) {
-        const { error: rmErr } = await admin.storage.from(bucket).remove(paths);
-        if (rmErr) ok = false;
+      const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: PAGE });
+      if (error) {
+        // An ABSENT bucket (404 / "not found") has nothing to orphan — treat it as
+        // already purged so a not-yet-provisioned bucket (e.g. member-films before its
+        // migration reaches this env) can't hard-block account deletion. This preserves
+        // the route's "no-ops gracefully on missing buckets" guarantee. Any OTHER error
+        // (a real list failure on an existing bucket) still fails, so we never delete the
+        // auth user while removable objects might remain.
+        const e = error as { message?: string; status?: number; statusCode?: number };
+        if (e?.status === 404 || e?.statusCode === 404 || /not\s*found/i.test(e?.message || '')) return true;
+        return false;
       }
-      if (data.length < PAGE) break; // last page
-      offset += data.length;
+      const entries = data || [];
+      if (!entries.length) return true; // fully cleared
+      const files = entries.filter((o) => o && o.name && o.id);       // real objects
+      const folders = entries.filter((o) => o && o.name && !o.id);    // sub-folder prefixes
+      let progressed = false;
+      for (const f of folders) {
+        if (!(await purgePrefix(`${prefix}/${f.name}`))) return false; // a nested object stuck → bail
+        progressed = true;                                            // an emptied folder vanishes next list
+      }
+      if (files.length) {
+        const { error: rmErr } = await admin.storage.from(bucket).remove(files.map((o) => `${prefix}/${o.name}`));
+        if (rmErr) return false;
+        progressed = true;
+      }
+      if (!progressed) return false; // page held only un-actionable entries — don't spin
     }
-    return ok;
+  };
+  try {
+    return await purgePrefix(uid);
   } catch {
     return false;
   }
@@ -117,17 +147,35 @@ export async function POST(request: Request) {
     auditId = data?.id ?? null;
   } catch { /* table not provisioned yet */ }
 
-  // 1. Explicit row purge (covers tables that don't cascade on auth-user delete).
+  // 1. Storage purge FIRST. If any bucket can't be fully cleared we abort BEFORE deleting
+  //    any DB row or the auth user — otherwise a storage failure would leave a PARTIAL
+  //    erasure (health/personal rows gone, but the account + its public media remain).
+  //    Aborting here keeps everything intact for a clean retry, and never orphans media in
+  //    a public bucket with no owner left to remove it (CWE-459). The row purge below and
+  //    the auth delete are idempotent, so a retry converges on full erasure.
+  let allBucketsPurged = true;
+  for (const b of BUCKETS) {
+    if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
+    else allBucketsPurged = false;
+  }
+  if (!allBucketsPurged) {
+    if (auditId) {
+      try {
+        await admin.from('account_deletions').update({
+          buckets_purged: bucketsPurged,
+          note: 'storage purge incomplete — nothing deleted; retry required',
+        }).eq('id', auditId);
+      } catch { /* non-fatal */ }
+    }
+    return NextResponse.json({ error: 'Could not fully remove your files. Please try again in a moment.' }, { status: 500 });
+  }
+
+  // 2. Explicit row purge (covers tables that don't cascade on auth-user delete).
   for (const t of PURGE) {
     try {
       const { error } = await admin.from(t.table).delete().eq(t.col, uid);
       if (!error) purged.push(t.table);
     } catch { /* table may not exist; continue */ }
-  }
-
-  // 2. Storage purge.
-  for (const b of BUCKETS) {
-    if (await purgeBucket(admin, b, uid)) bucketsPurged.push(b);
   }
 
   // 3. Delete the auth user — cascades any remaining FK-linked rows.
@@ -137,7 +185,16 @@ export async function POST(request: Request) {
     authDeleted = !error;
   } catch { /* fall through; data is already purged */ }
 
-  // 4. Close the audit row.
+  // 4. Best-effort sweep of anything a still-authenticated concurrent session wrote in the
+  //    window between the storage pass (step 1) and this delete — those objects wouldn't
+  //    have been listed by step 1, and the account is now gone, so re-purge to catch them.
+  //    Best-effort (the account is already deleted; a straggler written with an access token
+  //    still valid until its expiry is caught by the platform-wide orphan-GC follow-up).
+  if (authDeleted) {
+    for (const b of BUCKETS) { await purgeBucket(admin, b, uid); }
+  }
+
+  // 5. Close the audit row.
   if (auditId) {
     try {
       await admin.from('account_deletions').update({

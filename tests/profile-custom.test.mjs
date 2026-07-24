@@ -201,6 +201,20 @@ test('bsNormalizeProfileCustom: P4/P5 keys + film via opts.filmBucket + film pas
   // WITH filmBucket but a WRONG-bucket film → key dropped
   const wrongFilm = bsNormalizeProfileCustom({ film: { url: vid('member-films', UID, 'a.mp4') } }, UID, { filmBucket: 'coach-media' });
   assert.equal('film' in wrongFilm, false);
+  // M5 member path: the member film lives in its DEDICATED `filmMember` key, normalized
+  // with { filmBucket:'member-films', filmKey:'filmMember' }…
+  const memberOut = bsNormalizeProfileCustom({ filmMember: { url: vid('member-films', UID, 'm.mov'), caption: 'me' } }, UID, { filmBucket: 'member-films', filmKey: 'filmMember' });
+  assert.deepEqual(memberOut.filmMember, { url: vid('member-films', UID, 'm.mov'), caption: 'me' });
+  // …a coach film + a member film COEXIST — the member save (filmKey:'filmMember') leaves
+  // the coach `film` key BYTE-IDENTICAL (they no longer overwrite one shared key):
+  const bothFilms = bsNormalizeProfileCustom(
+    { film: { url: vid('coach-media', UID, 'c.mp4'), caption: 'coach' }, filmMember: { url: vid('member-films', UID, 'm.mp4'), caption: 'mem' } },
+    UID, { filmBucket: 'member-films', filmKey: 'filmMember' });
+  assert.deepEqual(bothFilms.film, { url: vid('coach-media', UID, 'c.mp4'), caption: 'coach' });
+  assert.deepEqual(bothFilms.filmMember, { url: vid('member-films', UID, 'm.mp4'), caption: 'mem' });
+  // …and a WRONG-bucket url in the member key is dropped (bucket isolation on the keyed field)
+  const crossFilm = bsNormalizeProfileCustom({ filmMember: { url: vid('coach-media', UID, 'x.mp4') } }, UID, { filmBucket: 'member-films', filmKey: 'filmMember' });
+  assert.equal('filmMember' in crossFilm, false);
   // empty/invalid P4/P5 → keys dropped
   const cleared = bsNormalizeProfileCustom({ bio: 'x', bizCard: { where: 'no name' }, pinnedReviews: ['junk'] }, UID);
   assert.equal('bizCard' in cleared, false);

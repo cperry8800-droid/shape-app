@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {kwana #} other {kwanaki #}}",
   "line.attribution": "kalma",
   "film.headCoach": "Bidiyon gabatarwa",
+  "film.headMember": "Bidiyon gabatarwa",
   "biz.head": "Wurin aiki",
   "biz.where": "Ina",
   "biz.hours": "Lokuta",

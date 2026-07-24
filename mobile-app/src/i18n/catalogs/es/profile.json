@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {# día} other {# días}}",
   "line.attribution": "lema",
   "film.headCoach": "Vídeo de presentación",
+  "film.headMember": "Vídeo de presentación",
   "biz.head": "El estudio",
   "biz.where": "Dónde",
   "biz.hours": "Horario",

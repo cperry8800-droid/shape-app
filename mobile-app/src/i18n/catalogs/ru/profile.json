@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {# день} few {# дня} many {# дней} other {# дня}}",
   "line.attribution": "девиз",
   "film.headCoach": "Видео-знакомство",
+  "film.headMember": "Видео-знакомство",
   "biz.head": "Практика",
   "biz.where": "Где",
   "biz.hours": "Часы",

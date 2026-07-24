@@ -11222,9 +11222,13 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const addShelfRow = () => setShelf((prev) => prev.length >= BS_SHELF_MAX ? prev : [...prev, { title: '', when: '' }]);
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
-  // ── Coach profile-wave state (P1 film · P4 business card · P5 wins wall). Round-
-  //    trips init even when hidden (member path), so the doc never loses a key. ──
-  const [film, setFilm] = useStateBSC((init.film && init.film.url) ? { url: init.film.url, caption: (init.film.caption || '') } : null);
+  // ── Profile-wave state (film · P4 business card · P5 wins wall). ──
+  // Each role's intro film lives in its OWN doc key so they coexist: coach P1 → `film`
+  // (coach-media), member M5 → `filmMember` (member-films). The customizer reads/writes
+  // only this role's key; the other role's film key rides through the save untouched.
+  const filmKey = coach ? 'film' : 'filmMember';
+  const filmRoleBucket = coach ? 'coach-media' : 'member-films';
+  const [film, setFilm] = useStateBSC((init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || '') } : null);
   const [filmBusy, setFilmBusy] = useStateBSC(false);
   const filmRef = React.useRef(null);
   const onFilmFile = async (e) => {
@@ -11237,9 +11241,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // already handles the blank-MIME .mp4/.mov/.webm/.m4v case via the filename ext.
     const nameExt = (file.name || '').split('.').pop().toLowerCase();
     if (!(/^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '') || (!file.type && ['mp4', 'mov', 'webm', 'm4v'].includes(nameExt)))) { window.__bsToast?.('Pick an MP4, MOV or WebM video.', 'err'); return; }
-    if (file.size > 200 * 1024 * 1024) { window.__bsToast?.('That video is too large — keep it under 200 MB.', 'err'); return; }
+    // Coaches film to coach-media (200 MB); members to the dedicated member-films bucket (60 MB).
+    const maxMb = coach ? 200 : 60;
+    if (file.size > maxMb * 1024 * 1024) { window.__bsToast?.(`That video is too large — keep it under ${maxMb} MB.`, 'err'); return; }
     setFilmBusy(true);
-    try { const up = await window.ShapeCoachMedia?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }
+    const uploader = coach ? window.ShapeCoachMedia : window.ShapeMemberFilm;
+    try { const up = await uploader?.upload?.(file); if (up && up.url) setFilm((prev) => ({ url: up.url, caption: (prev && prev.caption) || '' })); else throw new Error('Upload failed'); }
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload film.', 'err'); }
     finally { setFilmBusy(false); }
   };
@@ -11311,17 +11318,19 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // Coach profile-wave keys (P1 film · P4 card · P5 pins) — only the coach path
-      // manages them; the member path leaves init's copies untouched (spread above).
+      // This role's intro film → its own key (coach `film`, member `filmMember`). The
+      // other role's film key rides through via ...init untouched, so they can coexist.
+      [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
+      // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
+      // copies untouched (spread above).
       ...(coach ? {
-        film: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
         bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
         pinnedReviews: pins,
       } : {}),
     };
-    // filmBucket=coach-media only on the coach path — the render re-validates
-    // either way, so a member save leaves any film byte-identical.
-    const clean = bsNormalizeProfileCustom(doc, uid, coach ? { filmBucket: 'coach-media' } : undefined);
+    // Normalize only THIS role's film key against its bucket; the other role's film key
+    // isn't named here, so it passes through byte-identical.
+    const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
     catch (e) { res = { error: e }; }
@@ -11332,6 +11341,26 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     if (!res || res.error) { window.__bsToast?.((res && res.error && res.error.message) || 'Could not save — try again.', 'err'); return; }
     onSave(clean);
   };
+  // The intro film section — shared by the coach (P1 → coach-media) and member
+  // (M5 → member-films) blocks; onFilmFile + save route the bucket by role.
+  const filmSection = (
+    <div style={{ marginBottom: 18 }}>
+      <span style={label}>Intro film · a short video</span>
+      <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: 'none' }} />
+      {film && film.url ? (
+        <div>
+          <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: '#000' }}>
+            <video src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 220, background: '#000' }} />
+          </div>
+          <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, BS_FILM_CAPTION_MAX) }))} maxLength={BS_FILM_CAPTION_MAX} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
+          <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Remove film</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: '10px 15px', cursor: filmBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{filmBusy ? 'Uploading…' : '+ Add intro film'}</button>
+      )}
+      <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
+    </div>
+  );
   return createPortal(
     // Full-page takeover (was a bottom sheet) — the customizer owns the screen.
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: 'auto' }}>
@@ -11375,23 +11404,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             <span style={label}>Your line · one motto</span>
             <input value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
           </div>
-          {/* P1 · The intro film */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>Intro film · a short video</span>
-            <input ref={filmRef} type="file" accept="video/*" onChange={onFilmFile} style={{ display: 'none' }} />
-            {film && film.url ? (
-              <div>
-                <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: '#000' }}>
-                  <video src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 220, background: '#000' }} />
-                </div>
-                <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, BS_FILM_CAPTION_MAX) }))} maxLength={BS_FILM_CAPTION_MAX} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
-                <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Remove film</button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => !filmBusy && filmRef.current && filmRef.current.click()} disabled={filmBusy} style={{ background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: '10px 15px', cursor: filmBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{filmBusy ? 'Uploading…' : '+ Add intro film'}</button>
-            )}
-            <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45) }}>30–60 seconds · MP4, MOV or WebM</div>
-          </div>
+          {/* P1 · The intro film (coach → coach-media) */}
+          {filmSection}
           {/* P4 · The Business card */}
           <div style={{ marginBottom: 18 }}>
             <span style={label}>The practice · business card</span>
@@ -11461,6 +11475,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             </div>
             {shelf.length < BS_SHELF_MAX && <button onClick={addShelfRow} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add row</button>}
           </div>
+          {/* M5 · The intro film (member → member-films) */}
+          {filmSection}
         </>)}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
@@ -12482,6 +12498,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               )}
             </div>
           );
+        })()}
+        {/* M5 · The intro film — a full-width video band under the hero character,
+            bound to the member-films bucket + the owner folder (a wrong-bucket/photo
+            url → null → nothing renders). */}
+        {(() => {
+          const memberFilm = bsProfileFilm(custom && custom.filmMember, person.userId, 'member-films');
+          return memberFilm ? <BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /> : null;
         })()}
         {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
             preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}

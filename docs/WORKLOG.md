@@ -964,6 +964,46 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-24 — Profile customization wave — BUILD complete (PR C · D · E), all merged
+
+- **The build phase of the coach-box + profile-customization wave** (specs #1815/#1816)
+  shipped end to end after the owner's go: box PR A+B → **profile PR C** (member M1–M4)
+  → **PR D #1821** (coach P1–P5) → **PR E #1822** (member M5 film). The customizations
+  ride the existing `profile_custom` doc — new keys, an allowlisted save normalizer that
+  keeps every legacy key byte-identical, and per-key owner-folder media guards; every
+  M/P feature renders nothing until the member/coach fills it in (additive, opt-in).
+- **PR D #1821 — coach Signal-profile customizations** (merged `fc6b9e12`): **P1** intro
+  film (coach-media bucket, video-gate + 200 MB cap), **P2** the Line, **P3** coach
+  prompts, **P4** business card, **P5** the Wins wall — pinning REAL `coach_reviews` ids
+  resolved by id **AND** an immutable **`coach_reviews.owner_id`**. ⚠ **OWNER MIGRATION
+  `2026-07-23-coach-reviews-owner-id.sql`** (raw link posted): a SECURITY DEFINER trigger
+  stamps `owner_id` from the slug at write time — non-forgeable (CWE-639), **immutable for
+  identity-stable edits** (forge-blocked), **re-derived on a slug/kind repoint** (the
+  kind-agnostic upsert can collapse two same-slug reviews), and it **honors the FK
+  `on delete set null`** so account deletion still works. **NO backfill** — every
+  pre-migration row stays NULL (unprovable → never pins). The pin lifecycle is fully
+  closed: cross-owner (keyed customizer mount) · aged-out-but-alive (union `?ids=` into
+  the picker) · deleted/unresolvable (prune on a fully-successful load). **10 review
+  rounds** — the load-bearing catches were the owner_id trust boundary + an
+  account-delete break the trigger's immutability introduced, both Codex-validated.
+- **PR E #1822 — member M5 intro film**: a member adds a short video to their Terrain
+  profile, reusing PR D's film infrastructure. ⚠ **OWNER MIGRATION
+  `2026-07-23-member-films-bucket.sql`**: a DEDICATED public **`member-films`** bucket,
+  **video-mimes-only + 60 MB** (deliberately NOT a `community-photos` widening — its
+  photo paths don't check `file.type`). Backend extracted a shared `uploadMediaFile`
+  core (`uploadCoachMedia` byte-identical + a new video-only `uploadMemberFilm`); the
+  customizer routes the bucket/cap by role and hoists `film` to the SHARED save keys so a
+  member's film persists; `film.headMember` ×13. **A pre-push adversarial review caught a
+  Critical** (member film serialized only in the coach spread → never persisted) before
+  the first push. Post-open review then hardened the **account-deletion purge** it touched:
+  add `member-films` to the purge list · fix a >1000-object pagination skip · **recurse
+  sub-folder prefixes** so nested media (coach-media's `<uid>/listing/…`) can't survive
+  deletion. The `video/m4v` MIME was added to the allowlist to match the pickers.
+- **Declined-with-rationale, registered:** the media-orphan-GC class (remove/replace
+  leaves the old object in a public bucket) — same ruling as PR C, now scoped to include
+  the film buckets; the persisted provider-slug column (the trigger's provider scan);
+  `CREATE INDEX CONCURRENTLY` on the tiny reviews table.
+
 ### 2026-07-23 — Coach box + profile customization: the spec phase (#1815 · #1816) — ⚠ BUILD OWNER-PAUSED
 
 - **Session handoff: [`docs/HANDOFF-2026-07-23.md`](HANDOFF-2026-07-23.md)** —

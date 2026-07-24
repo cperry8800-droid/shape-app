@@ -234,6 +234,7 @@
   "startLine.daysOut": "{count, plural, one {# day remain} other {# days remain}}",
   "line.attribution": "word",
   "film.headCoach": "Intro video",
+  "film.headMember": "Intro video",
   "biz.head": "Di practice",
   "biz.where": "Where",
   "biz.hours": "Time",

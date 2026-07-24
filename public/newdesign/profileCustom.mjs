@@ -176,10 +176,12 @@ export function bsProfilePinnedReviews(v) {
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
-// shapes → the key is dropped. Never throws. `opts.filmBucket` (coach-media /
-// member-films) is REQUIRED to normalize the film — the bucket varies by role, so
-// a save path that doesn't manage film for this role leaves the key byte-identical
-// (the render re-validates against the right bucket regardless).
+// shapes → the key is dropped. Never throws. Film normalization is opt-in per role:
+// `opts.filmBucket` (coach-media / member-films) + `opts.filmKey` (defaults 'film';
+// the coach P1 film lives in `film`, the member M5 film in its own `filmMember` key so
+// the two role-specific films COEXIST rather than overwriting one shared key). A save
+// path only ever normalizes ITS role's key — the other role's film key rides through
+// byte-identical (the render re-validates each against the right bucket regardless).
 export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   const base = (doc && typeof doc === 'object' && !Array.isArray(doc)) ? { ...doc } : {};
   const line = bsProfileLine(base.line);
@@ -195,9 +197,10 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   const pinnedReviews = bsProfilePinnedReviews(base.pinnedReviews);
   if (pinnedReviews.length) base.pinnedReviews = pinnedReviews; else delete base.pinnedReviews;
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
+  const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {
-    const film = bsProfileFilm(base.film, ownerUid, filmBucket);
-    if (film) base.film = film; else delete base.film;
+    const film = bsProfileFilm(base[filmKey], ownerUid, filmBucket);
+    if (film) base[filmKey] = film; else delete base[filmKey];
   }
   return base;
 }

@@ -4513,12 +4513,17 @@ async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
 }
 window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
 
-// Upload a coach's workout media (photo or video) to the public `coach-media`
-// bucket (own <uid>/ folder, gated by storage RLS). Returns { url, type, name }
-// — the URL rides in coach_plans.detail.media so clients can view it inline.
-async function uploadCoachMedia(file, opts = {}) {
+// Shared media-upload core: put a photo/video into a public bucket's own <uid>/…
+// folder (gated by storage RLS) and return { url, type, name }. `opts.bucket` +
+// `opts.maxVideoBytes` vary by surface; `opts.videoOnly` rejects a non-video before
+// upload (member-films is video-only); `opts.prefix` groups a surface's uploads under
+// <uid>/<prefix>/…. Both public wrappers below funnel through this so the MIME→ext
+// mapping + content-type derivation can't drift between them.
+async function uploadMediaFile(file, opts = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
   if (!file) throw new Error('No file selected.');
+  const bucket = opts.bucket || 'coach-media';
+  const maxVideoBytes = opts.maxVideoBytes || 200 * 1024 * 1024;
   const isVideoType = (file.type || '').startsWith('video/');
   // Map the MIME to a CANONICAL extension — a raw subtype split gives `.quicktime`
   // for MOV and `.xm4v` for M4V, which the profile-film video allowlist
@@ -4532,9 +4537,10 @@ async function uploadCoachMedia(file, opts = {}) {
   // and the returned `type` coherent (a .mp4 must not come back as an image).
   const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
   const isVideo = isVideoType || VIDEO_EXT.includes(ext.toLowerCase());
+  if (opts.videoOnly && !isVideo) throw new Error('Pick a video file — MP4, MOV or WebM.');
   // Guard the shared helper (not just the film picker) so no video flow can push an
-  // oversized file to storage — the coach-media bucket caps at 200 MB.
-  if (isVideo && file.size > 200 * 1024 * 1024) throw new Error('That video is too large — keep it under 200 MB.');
+  // oversized file to storage — the bucket has its own file_size_limit as a backstop.
+  if (isVideo && file.size > maxVideoBytes) throw new Error(`That video is too large — keep it under ${Math.round(maxVideoBytes / 1024 / 1024)} MB.`);
   // Optional opaque sub-folder (e.g. 'listing') so a surface's uploads group
   // under <uid>/<prefix>/… — validated to a bare token so it can't alter the path.
   const prefix = (typeof opts.prefix === 'string' && /^[a-z0-9]+$/i.test(opts.prefix)) ? `${opts.prefix}/` : '';
@@ -4543,12 +4549,26 @@ async function uploadCoachMedia(file, opts = {}) {
   // so HEIC/WebP/GIF/PNG (and video) bytes aren't stored/served as image/jpeg.
   const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v' };
   const contentType = file.type || EXT_MIME[ext.toLowerCase()] || (isVideo ? 'video/mp4' : 'image/jpeg');
-  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType, upsert: false });
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType, upsert: false });
   if (error) throw error;
-  const { data } = supabase.storage.from('coach-media').getPublicUrl(path);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return { url: data?.publicUrl || null, type: isVideo ? 'video' : 'image', name: file.name || '' };
 }
+
+// A coach's workout media (photo or video) → the public `coach-media` bucket. The
+// URL rides in coach_plans.detail.media (+ the coach P1 intro film).
+async function uploadCoachMedia(file, opts = {}) {
+  return uploadMediaFile(file, { bucket: 'coach-media', maxVideoBytes: 200 * 1024 * 1024, prefix: opts.prefix });
+}
 window.ShapeCoachMedia = { upload: uploadCoachMedia };
+
+// M5 · a member's intro film → the dedicated video-only `member-films` bucket (60 MB).
+// The URL rides on the member's profile_custom.film key and renders on their Terrain
+// profile via bsProfileFilm bound to this bucket + the owner folder.
+async function uploadMemberFilm(file) {
+  return uploadMediaFile(file, { bucket: 'member-films', maxVideoBytes: 60 * 1024 * 1024, videoOnly: true });
+}
+window.ShapeMemberFilm = { upload: uploadMemberFilm };
 
 // Live Bluetooth heart-rate monitor (standard HR profile straps/watches).
 // Readings broadcast as `shape:hrm` window events; see services/hrm.js.
