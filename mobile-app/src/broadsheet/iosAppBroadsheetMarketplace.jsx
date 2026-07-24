@@ -1152,7 +1152,7 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
   // `absolute` without the portal is also wrong — BSPage's children live
   // inside a scrolling container, so it would pin to the bottom of the scrolled
   // CONTENT and scroll away. The surface is frame-sized and doesn't scroll.
-  return createPortal(
+  const panel = (
     <div style={{
       position: 'absolute',
       left: 0,
@@ -1302,9 +1302,18 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
           }}>{action.cta || tr('marketplace:panel.confirm', { defaultValue: 'Confirm' })}</button>
         )}
       </BSProfileCard>
-    </div>,
-    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
+    </div>
   );
+
+  // Resolve ONLY the phone surface — deliberately no document.body fallback.
+  // The house idiom elsewhere falls back to body, but body is precisely where
+  // this panel used to escape to, so keeping it would re-open the bug in the
+  // very case the guard exists for. If the surface is somehow absent we render
+  // IN PLACE instead: worst case it pins to the bottom of the scrolled content
+  // (contained, slightly mispositioned) rather than outside the frame. Rendering
+  // nothing was the other option and is worse — a tapped BUY would open no sheet.
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
+  return surface ? createPortal(panel, surface) : panel;
 }
 
 // 24h 'HH:MM' -> 12h label, shared by the Listing's slot rows + the calendar.
