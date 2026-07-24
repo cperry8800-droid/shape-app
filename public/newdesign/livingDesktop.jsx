@@ -997,12 +997,12 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const FCM = (plib && plib.BS_FILM_CAPTION_MAX) || 80;
   const BNM = (plib && plib.BS_BIZ_NAME_MAX) || 60, BWM = (plib && plib.BS_BIZ_WHERE_MAX) || 80, BHM = (plib && plib.BS_BIZ_HOURS_MAX) || 40, BKM = (plib && plib.BS_BIZ_HANDLE_MAX) || 40;
   const PRM = (plib && plib.BS_PINNED_REVIEWS_MAX) || 3;
-  // The film section only exposes THIS role's stored film (coach → coach-media, member →
-  // member-films); a dual-role user's opposite-role film is NOT seeded, so it can't be
-  // shown/removed/edited here and the save leaves it byte-identical.
+  // Each role's intro film lives in its OWN doc key so they coexist: coach P1 → `film`
+  // (coach-media), member M5 → `filmMember` (member-films). The customizer reads/writes
+  // only this role's key; the other role's film key rides through the save untouched.
+  const filmKey = coach ? "film" : "filmMember";
   const filmRoleBucket = coach ? "coach-media" : "member-films";
-  const initFilmIsOwn = !!(init.film && init.film.url && init.film.url.includes("/" + filmRoleBucket + "/"));
-  const [film, setFilm] = React.useState(initFilmIsOwn ? { url: init.film.url, caption: (init.film.caption || "") } : null);
+  const [film, setFilm] = React.useState((init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || "") } : null);
   const [filmBusy, setFilmBusy] = React.useState(false);
   const filmRef = React.useRef(null);
   const onFilmFile = async (e) => {
@@ -1123,14 +1123,6 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
     if (wallBusy || coverBusy || filmBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
-    // Only write `film` into the doc when THIS role's film changed this session. The
-    // baseline is the same-role stored film (an opposite-role film is invisible here, per
-    // initFilmIsOwn), so a save of unrelated fields — or of a member profile that holds a
-    // coach film — leaves the stored film byte-identical (no re-validation, no drop).
-    const filmCap = ((film && film.caption) || "").trim();
-    const baseFilmUrl = initFilmIsOwn ? init.film.url : null;
-    const baseFilmCap = initFilmIsOwn ? ((init.film.caption || "").trim()) : "";
-    const filmTouched = (((film && film.url) || null) !== baseFilmUrl) || (filmCap !== baseFilmCap);
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -1148,9 +1140,9 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // The intro film — coach (P1 → coach-media) and member (M5 → member-films) both
-      // manage it, but only write it when CHANGED (else preserve init's copy byte-identical).
-      ...(filmTouched ? { film: (film && film.url) ? { url: film.url, caption: filmCap } : null } : {}),
+      // This role's intro film → its own key (coach `film`, member `filmMember`). The
+      // other role's film key rides through via ...init untouched, so they can coexist.
+      [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
       // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
       // copies untouched (spread above).
       ...(coach ? {
@@ -1168,7 +1160,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
-    const out = plib.bsNormalizeProfileCustom(doc, uid, filmTouched ? { filmBucket: coach ? "coach-media" : "member-films" } : undefined);
+    const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
     catch (e) { error = e; }
@@ -1510,7 +1502,8 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
                 cross-renders. */}
             {(() => {
               const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
-              const film = (plib && plib.bsProfileFilm && d.uid) ? plib.bsProfileFilm(custom && custom.film, d.uid, coach ? "coach-media" : "member-films") : null;
+              const filmSrc = coach ? (custom && custom.film) : (custom && custom.filmMember);
+              const film = (plib && plib.bsProfileFilm && d.uid) ? plib.bsProfileFilm(filmSrc, d.uid, coach ? "coach-media" : "member-films") : null;
               return film ? <DFilmCard film={film} c={c} label="Intro film" /> : null;
             })()}
             {/* Availability at-a-glance — coach profiles only, the same slots

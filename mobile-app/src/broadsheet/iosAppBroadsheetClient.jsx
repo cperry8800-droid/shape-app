@@ -11223,13 +11223,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
   // ── Profile-wave state (film · P4 business card · P5 wins wall). ──
-  // The film section (coach P1 → coach-media, member M5 → member-films) only ever exposes
-  // THIS role's stored film: a dual-role user's opposite-role film (e.g. a coach film seen
-  // while editing the member profile) is NOT seeded into the editable state, so it can't be
-  // shown, removed, or caption-edited here — and the save leaves it byte-identical.
+  // Each role's intro film lives in its OWN doc key so they coexist: coach P1 → `film`
+  // (coach-media), member M5 → `filmMember` (member-films). The customizer reads/writes
+  // only this role's key; the other role's film key rides through the save untouched.
+  const filmKey = coach ? 'film' : 'filmMember';
   const filmRoleBucket = coach ? 'coach-media' : 'member-films';
-  const initFilmIsOwn = !!(init.film && init.film.url && init.film.url.includes('/' + filmRoleBucket + '/'));
-  const [film, setFilm] = useStateBSC(initFilmIsOwn ? { url: init.film.url, caption: (init.film.caption || '') } : null);
+  const [film, setFilm] = useStateBSC((init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || '') } : null);
   const [filmBusy, setFilmBusy] = useStateBSC(false);
   const filmRef = React.useRef(null);
   const onFilmFile = async (e) => {
@@ -11302,14 +11301,6 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.('Hang on — an upload is still in progress.', 'err'); return; }
     setBusy(true);
-    // Only write `film` into the doc when THIS role's film changed this session. The
-    // baseline is the same-role stored film (an opposite-role film is invisible here, per
-    // initFilmIsOwn), so a save of unrelated fields — or of a member profile that holds a
-    // coach film — leaves the stored film byte-identical (no re-validation, no drop).
-    const filmCap = ((film && film.caption) || '').trim();
-    const baseFilmUrl = initFilmIsOwn ? init.film.url : null;
-    const baseFilmCap = initFilmIsOwn ? ((init.film.caption || '').trim()) : '';
-    const filmTouched = (((film && film.url) || null) !== baseFilmUrl) || (filmCap !== baseFilmCap);
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -11327,9 +11318,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // The intro film — coach (P1 → coach-media) and member (M5 → member-films) both
-      // manage it, but only write it when CHANGED (else preserve init's copy byte-identical).
-      ...(filmTouched ? { film: (film && film.url) ? { url: film.url, caption: filmCap } : null } : {}),
+      // This role's intro film → its own key (coach `film`, member `filmMember`). The
+      // other role's film key rides through via ...init untouched, so they can coexist.
+      [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
       // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
       // copies untouched (spread above).
       ...(coach ? {
@@ -11337,9 +11328,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         pinnedReviews: pins,
       } : {}),
     };
-    // filmBucket routes by role — but only when the film CHANGED (see filmTouched); an
-    // untouched film stays byte-identical so an opposite-role film is never dropped.
-    const clean = bsNormalizeProfileCustom(doc, uid, filmTouched ? { filmBucket: coach ? 'coach-media' : 'member-films' } : undefined);
+    // Normalize only THIS role's film key against its bucket; the other role's film key
+    // isn't named here, so it passes through byte-identical.
+    const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
     catch (e) { res = { error: e }; }
@@ -12512,7 +12503,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             bound to the member-films bucket + the owner folder (a wrong-bucket/photo
             url → null → nothing renders). */}
         {(() => {
-          const memberFilm = bsProfileFilm(custom && custom.film, person.userId, 'member-films');
+          const memberFilm = bsProfileFilm(custom && custom.filmMember, person.userId, 'member-films');
           return memberFilm ? <BSProfileFilmCard film={memberFilm} INK={INK} c={c} label={tr('profile:film.headMember', { defaultValue: 'Intro film' })} /> : null;
         })()}
         {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
