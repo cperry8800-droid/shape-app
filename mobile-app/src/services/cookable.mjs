@@ -166,7 +166,18 @@ export const bsSplitMethodProse = (text) => {
 // the qualifier). Cap 4 per step.
 // The per-side qualifier appears both as words ("3 minutes per side") and the
 // shipped shorthand ("3 min/side") — match both so the CTA keeps the flip cue.
-const TIMER_RE = /(\d+(?:\s*[–-]\s*\d+)?)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)(\s*\/\s*side|\s+per\s+side)?/gi;
+//
+// The unit vocabulary is exported because it is the SINGLE definition of what
+// counts as a stated duration in a step. Any other rule that has to reason
+// about one (the scheduling-note gate in `tests/cook-steps.test.mjs`) derives
+// from this alternation rather than restating it — a second copy would keep
+// passing while silently ceasing to cover a unit added here, which is exactly
+// the kind of quietly-narrowed gate that guards nothing.
+export const BS_TIMER_UNITS = 'hours?|hrs?|minutes?|mins?|seconds?|secs?';
+const TIMER_RE = new RegExp(
+  `(\\d+(?:\\s*[–-]\\s*\\d+)?)\\s*(${BS_TIMER_UNITS})(\\s*\\/\\s*side|\\s+per\\s+side)?`,
+  'gi',
+);
 const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
 
 export const bsStepTimers = (text) => {
