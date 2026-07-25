@@ -6623,7 +6623,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   return (
     <BSPage noSwipe mast={false}>
-      <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })}>
+      {/* minHeight:100% + column flex lets the METHOD phase claim the space left
+          under the band and centre the step in it — a short instruction used to
+          cling to the top with the whole screen empty beneath the CTA. Percent
+          (not vh) because in desktop preview the phone frame is NOT the viewport;
+          BSPage's scroller is height:100%, so this resolves against the frame.
+          Only the method block takes flex:1, so mise/plated are unchanged. */}
+      <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })} style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
         {band}
         {seam}
 
@@ -6685,7 +6691,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         )}
 
         {phase === 'method' && hasMethod && (
-          <div style={{ padding: `18px ${t.padX}px 24px` }}>
+          <div style={{ padding: `18px ${t.padX}px 24px`, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + stepIdx)}.</span>
               {cookable.fromPlan && (
@@ -8266,7 +8272,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             { n: '60 g',  m: 'Cucumber',       k: '10 kcal' },
             { n: '15 g',  m: 'Soy + honey',    k: '40 kcal' },
           ],
-          steps: ['Whisk soy + honey + grated ginger.', 'Sear salmon 4 min/side, glaze in pan last 30 sec.', 'Plate rice, salmon, edamame, cucumber. Sesame on top.'],
+          steps: [
+            'Whisk the soy and honey together with the grated ginger until the honey has fully dissolved and the glaze pours glossy instead of streaky. Undissolved honey sits on the fish and scorches the moment it hits the pan.',
+            'Pat the salmon completely dry on both sides. A damp fillet steams rather than sears, and the glaze slides straight off a wet surface.',
+            'Set a non-stick pan over medium-high until a flick of water skitters across it. Lay the salmon in skin-side down and press it flat for a moment so the whole skin makes contact.',
+            'Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.',
+            'Flip, spoon over half the glaze, and give it 2 minutes more — the thickest part should flake when you nudge it with a fork.',
+            'Off the heat, brush on the rest of the glaze and let it tighten against the residual warmth. Bowl the rice, ribbon the cucumber over it, add the edamame, lay the salmon on top and scatter the sesame.',
+          ],
           coachNote: 'Glaze at the end, not the start. Sugar burns fast.',
         }),
         mk({ id: 's22-dn', time: '19:30', tag: 'DINR', tagColor: t.RUST, title: 'Pho — beef + rice noodles', kcal: 580, p: 38, c: 72, f: 12, last: true,
