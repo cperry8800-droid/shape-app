@@ -1041,7 +1041,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             // seeing them would be shown fabricated coach offerings — priced,
             // with working taps — for plans nobody published (the demo-leak
             // rule). With no live plans they get the honest empty state below.
-            const all = live.length ? live : (bsmSignedIn() ? [] : BSM_DEMO_PLANS);
+            const all = live.length ? live : (_bsmSignedIn ? [] : BSM_DEMO_PLANS);
             const tabPlans = all.filter((p) => p.tab === planTab).slice(0, 8);
             // Mono underline toggles (the rounded pills died with the Classifieds pass).
             const tabPill = (on) => ({ flex: 'none', minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap',
