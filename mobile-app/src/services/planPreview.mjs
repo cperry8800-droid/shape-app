@@ -37,13 +37,20 @@ function blockText(b) {
   return '';
 }
 
-// "6 weeks · 4 days" / "6 week hypertrophy" → 6. Only ever reads a STATED
-// number — an unstated length is null, never a guess from the block count.
+// "6 weeks · 4 days" / "6 week hypertrophy" / "12 wk · 48 on it" → 6 / 12. Only
+// ever reads a STATED number — an unstated length is null, never a guess from
+// the block count.
+//
+// `wk`/`wks` are accepted because that is what the live catalogue actually
+// writes ("12 wk · 48 on it · 4.9 ★", "4 wks · fast & balanced · $130"), and
+// the Assign flow's own duration parser already reads `wk|week`. Matching only
+// the long form here made every one of those plans silently drop its Weeks
+// register — real stated information lost in this preview alone.
 function statedWeeks(...sources) {
   for (const s of sources) {
     // \b before the digits so a longer number can't be misread — "106 weeks"
     // must not parse as "6 weeks". slice bounds the (attacker-controllable) scan.
-    const m = String(s || '').slice(0, 200).match(/\b(\d{1,2})\s*[-\s]?\s*weeks?\b/i);
+    const m = String(s || '').slice(0, 200).match(/\b(\d{1,2})\s*[-\s]?\s*(?:wks?|weeks?)\b/i);
     if (m) {
       const n = Number(m[1]);
       if (Number.isFinite(n) && n >= 1 && n <= 52) return n;
@@ -70,8 +77,16 @@ export function bsPlanPreview(plan, opts) {
   if (!texts.length) return empty;
 
   // A weekday split — the shape the Assign flow also keys off (≥3 day lines).
+  //
+  // Gated on !isNutri to match `iosAppBroadsheetPros.jsx`'s own test verbatim
+  // (`const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3`). A
+  // nutrition plan whose meals happen to carry weekday prefixes ("Mon —
+  // Breakfast…" through "Wed — Dinner…") clears the ≥3 bar, so without this
+  // gate it was classified as a workout split: rows labelled as DAYS, every
+  // meal exposed with `locked: 0`, and the meal-specific kcal treatment skipped
+  // — a preview that disagrees with what the buyer is actually assigned.
   const dayLines = texts.map(bsAssignDayLine);
-  if (dayLines.filter(Boolean).length >= 3) {
+  if (!isNutri && dayLines.filter(Boolean).length >= 3) {
     const units = [];
     for (let i = 0; i < texts.length; i += 1) {
       const dl = dayLines[i];

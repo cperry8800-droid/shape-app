@@ -1330,9 +1330,19 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
   const tr = useShapeTr();
   if (!plan) return null;
   const p = bsPlanPreview(plan, { isNutri });
-  const eyebrow = p.kind === 'split'
+  // `p.kind === null` is the EXPECTED state for a published plan with no
+  // authored outline — it is not evidence the product is a single session.
+  // Falling through to "Single session" mislabelled every empty nutrition plan
+  // and every empty multi-week trainer program. The plan still declares what it
+  // is, so the fallback reads the same `category` the shelf above buckets this
+  // very row by (`singleMatch`), plus the role.
+  const planCat = String((plan && plan.category) || '').toLowerCase();
+  const isSinglePlan = isNutri ? /meal/.test(planCat) : /workout|single/.test(planCat);
+  const eyebrowKind = p.kind
+    || (isNutri ? 'menu' : (isSinglePlan ? 'session' : 'split'));
+  const eyebrow = eyebrowKind === 'split'
     ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
-    : p.kind === 'menu'
+    : eyebrowKind === 'menu'
       ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
       : tr('marketplace:preview.eyebrowSession', { defaultValue: 'Single session' });
 

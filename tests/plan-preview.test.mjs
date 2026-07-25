@@ -134,3 +134,37 @@ test('a hostile blocks payload cannot blow up the model', () => {
   assert.ok(p.units.length <= 40);
   for (const u of p.units) assert.ok(u.title.length <= 120);
 });
+
+// ── Regression: the two parser faults found in review on #1827 ──────────────
+
+test('the catalogue\'s own "wk"/"wks" duration reads as weeks', () => {
+  // The live catalogue writes "12 wk · 48 on it · 4.9 ★" and "4 wks · fast &
+  // balanced · $130", and the Assign flow's parser already accepts `wk|week`.
+  // Reading only the long form silently dropped the Weeks register on every one
+  // of those plans — stated information lost in the preview alone.
+  const split = ['Mon — Upper (push)', 'Wed — Lower', 'Fri — Full'];
+  assert.equal(bsPlanPreview({ name: 'x', meta: '12 wk · 48 on it', detail: { blocks: split } }).weeks, 12);
+  assert.equal(bsPlanPreview({ name: 'x', meta: '4 wks · fast & balanced', detail: { blocks: split } }).weeks, 4);
+  // The long form still works, and the 3-digit guard still holds for both.
+  assert.equal(bsPlanPreview({ name: 'x', meta: '6 week block', detail: { blocks: split } }).weeks, 6);
+  assert.equal(bsPlanPreview({ name: 'x', meta: '106 wks', detail: { blocks: split } }).weeks, null);
+});
+
+test('a nutrition plan with weekday-prefixed meals is a MENU, never a workout split', () => {
+  // Meals can legitimately carry weekday prefixes, which clears the ≥3 day-line
+  // bar. Classifying that as a split labelled the rows as DAYS, exposed every
+  // meal with locked:0, and skipped the kcal treatment — a preview that
+  // disagreed with what the buyer is actually assigned. The Assign flow gates
+  // the same test on !isNutri; this mirrors it.
+  const blocks = [
+    'Mon — Breakfast — oats · 420 kcal',
+    'Tue — Lunch — chicken bowl · 610 kcal',
+    'Wed — Dinner — salmon · 580 kcal',
+  ];
+  const p = bsPlanPreview({ name: 'x', detail: { blocks } }, { isNutri: true });
+  assert.equal(p.kind, 'menu');
+  assert.equal(p.sessionsPerWeek, null);          // a menu has no days/week
+  assert.ok(p.units.every((u) => u.kcal > 0));    // real kcal survived
+  // …and the same blocks for a TRAINER still read as a split.
+  assert.equal(bsPlanPreview({ name: 'x', detail: { blocks } }).kind, 'split');
+});
