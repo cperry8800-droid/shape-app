@@ -38,15 +38,22 @@ function lvPostKind(row) {
   const at = String(row.activity_type || "").toLowerCase();
   if (at === "run") return "run";
   if (row.source_provider || at === "workout") return "workout";
-  if (row.photo_url && !row.title && !row.body) return "photo";
+  if (row.photo_url && !row.title && !row.note) return "photo";
   return "note";
+}
+// community_posts.privacy is one of public|community|private; preserve it (fail
+// closed to non-public) so FeedBlock's lvFeedVisible can hide non-public posts
+// from other viewers instead of rendering everything as public.
+function lvPostVis(row) {
+  const p = String(row && row.privacy || "").toLowerCase();
+  return (p === "public" || p === "community" || p === "private") ? p : "private";
 }
 function lvMapPost(row) {
   if (!row) return null;
   const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
   const k = lvPostKind(row);
   const title = String(row.title || "").trim() || (k === "meal" ? "Meal" : k === "pr" ? "New PR" : k === "photo" ? "Photo" : "Activity");
-  return { k, t: title, b: String(row.body || "").trim(), time: lvRelTime(row.created_at), vis: "public", metric: m.delta ? ["New PR", String(m.delta)] : null };
+  return { k, t: title, b: String(row.note || "").trim(), time: lvRelTime(row.created_at), vis: lvPostVis(row), metric: m.delta ? ["New PR", String(m.delta)] : null };
 }
 
 // `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
@@ -121,7 +128,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       try { c.from("community_posts").select("id", { count: "exact", head: true }).eq("author_id", uid).then((r) => { if (on && r && !r.error && r.count != null) setPosts(r.count); }); } catch (e) {}
       // The activity feed — this profile owner's OWN posts (RLS-scoped), so a real
       // profile shows their real activity, not the demo persona's field notes.
-      try { c.from("community_posts").select("id,title,body,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (on && r && !r.error && Array.isArray(r.data)) setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); else if (on) setFeedPosts([]); }); } catch (e) { if (on) setFeedPosts([]); }
+      try { c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (on && r && !r.error && Array.isArray(r.data)) setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); else if (on) setFeedPosts([]); }); } catch (e) { if (on) setFeedPosts([]); }
     })();
     return () => { on = false; };
   }, []);

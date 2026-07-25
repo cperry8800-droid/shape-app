@@ -73,6 +73,10 @@ test('a menu shows the first meals and locks the rest, carrying real kcal only',
   assert.equal(p.locked, 1);
   assert.equal(p.free[0].label, 'BREAKFAST');
   assert.equal(p.free[0].kcal, 420);
+  // The kcal is carried by the kcal field only — the title must not repeat it
+  // (bsAssignMeal keeps the whole tail, incl. "· 420 kcal", as the title).
+  assert.ok(!/kcal/i.test(p.free[0].title), 'title must not repeat the kcal value');
+  assert.ok(/Greek yogurt/.test(p.free[0].title), 'title keeps the meal name');
 });
 
 test('a meal with no stated kcal reports null, never 0', () => {

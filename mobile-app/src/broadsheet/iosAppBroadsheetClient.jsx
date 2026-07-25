@@ -12072,7 +12072,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // Signed-out preview persona (no real doc loaded) → show the demo
   // customizations so the profile reads as a finished page. A signed-in member
   // always sees their REAL doc (empty until they fill it in) — never the demo.
-  const demoFill = !signedIn && !custom;
+  const demoFill = !signedIn && !person.userId && !custom;
   const customEff = React.useMemo(() => custom || (demoFill ? bsDemoMemberCustom() : null), [custom, demoFill]);
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
@@ -12993,7 +12993,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Signed-out preview → demo customizations (line/business card/cover/prompts)
   // so the coach's profile-wave items read as filled. A signed-in coach always
   // sees their REAL doc (empty until they fill it in).
-  const demoFill = !signedIn && !custom;
+  const demoFill = !signedIn && !person.userId && !custom;
   const customEff = React.useMemo(() => custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [custom, demoFill, isNutri]);
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));

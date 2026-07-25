@@ -1638,7 +1638,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // THE APPROACH. Gated on "no signed-in user", never on the coach row — a
     // signed-in member always sees that coach's REAL plans, and a real coach with
     // none still honestly shows nothing (the demo-leak rule, 2026-06-14).
-    const demoFallback = () => (bsmSignedIn() ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
+    // Demo catalogue is the SIGNED-OUT preview of a PROVIDER-LESS demo row only
+    // (BSM_MARKETPLACE_COACHES carry no provider_id/db_id → saleProviderId null).
+    // A real coach (has a provider id) whose fetch is empty or fails keeps an
+    // honest empty list — never fabricated "for sale" plans + buy links on a
+    // coach who published nothing (the demo-leak rule, both reviewers P1).
+    const demoFallback = () => ((!saleProviderId && !bsmSignedIn()) ? BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist') : []);
     if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans(demoFallback()); return; }
     let on = true;
     window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId)
