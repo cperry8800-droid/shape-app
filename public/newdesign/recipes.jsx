@@ -425,8 +425,8 @@ const RECIPES_EXTRA = [
     ],
     steps: [
       "Bring a pot of water to a gentle boil and lower in the eggs for exactly 7 minutes for jammy yolks, then chill in cold water and peel.",
-      "In the same water, boil the halved baby potatoes 10 minutes, until a knife slides into the thickest one with no resistance.",
-      "Drop the green beans in for a further 2 minutes, until they are bright and still squeak, then drain everything together.",
+      "In the same water, boil the halved baby potatoes 8 minutes — they will still be firm at this point, which is what you want.",
+      "Drop the green beans in for the last 2 minutes, until they are bright and still squeak and a knife slides into the thickest potato with no resistance, then drain everything together.",
       "Whisk the vinaigrette: olive oil, dijon, a squeeze of lemon, salt and pepper, until slightly thickened.",
       "Drain the tuna well and break it into large flakes rather than mashing it fine.",
       "Arrange the potatoes, beans, halved tomatoes, olives and tuna in sections in a bowl, and halve the eggs on top.",

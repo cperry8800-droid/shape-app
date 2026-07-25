@@ -8384,6 +8384,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             { n: '80 g',  m: 'Edamame',        k: '90 kcal' },
             { n: '60 g',  m: 'Cucumber',       k: '10 kcal' },
             { n: '15 g',  m: 'Soy + honey',    k: '40 kcal' },
+            // The method calls for both, so they belong on the shopping list.
+            // No `k`: the row shape makes kcal optional, and these are garnish
+            // quantities — an invented figure would be worse than an honest
+            // absence, and this meal's rows already sit above its stated total.
+            { n: '5 g',   m: 'Ginger, grated' },
+            { n: '5 g',   m: 'Sesame seeds' },
           ],
           steps: [
             'Whisk the soy and honey together with the grated ginger until the honey has fully dissolved and the glaze pours glossy instead of streaky. Undissolved honey sits on the fish and scorches the moment it hits the pan.',
@@ -8410,8 +8416,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Season with the fish sauce a little at a time, tasting as you go; it salts and deepens at once and cannot be pulled back.',
             'Cook the noodles 3 minutes in separate water and drain them — cooked in the broth they shed starch and thicken it.',
             'Slice the beef as thinly as you can across the grain. Half-freezing it first makes this far easier.',
-            'Bring the broth back up to a full rolling boil right before you serve. It has been sitting at a bare simmer, and simmering broth will not cook raw beef through — this is the step that makes the next one safe.',
-            'Lay the raw beef over the noodles and ladle the boiling broth straight on, covering every slice — the broth is what cooks it. Any piece left proud of the liquid stays raw, so push it under.',
+            'Bring the broth back up to a full rolling boil right before you serve — it drops while the noodles cook, and broth at a bare simmer is not hot enough to do the next step\'s work.',
+            'Lay the beef over the noodles and ladle the boiling broth straight on, pushing any slice that sits proud under the surface. Paper-thin slices cook through in the bowl; if yours came out thicker, poach them in the boiling broth for a minute first rather than relying on the pour.',
             'Finish at the table with the herbs, a squeeze of lime and sriracha to taste.',
           ],
           coachNote: 'Pho replaces a lot of what threshold work loses. It\'s a recovery tool, not a treat.',
