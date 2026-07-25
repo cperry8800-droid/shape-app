@@ -138,7 +138,18 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       try {
         let fq = c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid);
         if (!isSelf) fq = fq.in("privacy", ["public", "profile", "followers"]);
-        fq.order("created_at", { ascending: false }).limit(12).then((r) => { if (!on) return; if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); } else { setFeedStatus("error"); } });
+        // The try/catch only covers the SYNCHRONOUS setup — a rejected promise (a
+        // dropped network) or a throw inside lvMapPost escapes it, which would
+        // leave feedStatus stuck on "loading" forever (an endless spinner, not the
+        // honest error state this comment promises) plus an unhandled rejection.
+        // The mapping runs inside the .then so a mapper throw lands in .catch too.
+        fq.order("created_at", { ascending: false }).limit(12)
+          .then((r) => {
+            if (!on) return;
+            if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); }
+            else { setFeedStatus("error"); }
+          })
+          .catch(() => { if (on) setFeedStatus("error"); });
       } catch (e) { if (on) setFeedStatus("error"); }
     })();
     return () => { on = false; };

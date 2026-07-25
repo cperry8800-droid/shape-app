@@ -2088,8 +2088,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       </>)}
 
       {/* Single workouts/meals — individually buyable one-off files. Live coaches
-          list theirs via coach_plans; the demo shelf shows on preview rows only. */}
-      {(salePlanSingles.length > 0 || (!saleProviderId && Array.isArray(p.singles) && p.singles.length > 0)) && (<>
+          list theirs via coach_plans; the demo shelf shows on preview rows only.
+          The legacy p.singles fallback carries a live checkout button, so it is
+          gated exactly like the demo catalogue above (signed-OUT preview of a
+          provider-less row) — otherwise a signed-in viewer would see the demo
+          programs correctly hidden but still get fabricated singles to buy. */}
+      {(salePlanSingles.length > 0 || (!saleProviderId && !bsmSignedIn() && Array.isArray(p.singles) && p.singles.length > 0)) && (<>
         <Station>{isNutriDetail ? tr('marketplace:listing.singleMeals', { defaultValue: 'Single meals' }) : tr('marketplace:listing.singleWorkouts', { defaultValue: 'Single workouts' })}</Station>
         <div style={{ padding: `2px ${t.padX}px 0` }}>
           {salePlanSingles.length > 0
