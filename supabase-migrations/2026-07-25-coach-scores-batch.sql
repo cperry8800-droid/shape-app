@@ -19,8 +19,12 @@
 --   * completion% is rounded to a whole percent FIRST, then multiplied by 10,
 --     exactly as Math.round(pct) * 10 does.
 --
--- Returns a row per requested id (0 when a coach has nothing yet) so the caller
--- can tell "looked up, no standing" from "not looked up" and render honestly.
+-- Returns a row per requested id that is a REAL provider of that role (0 when
+-- the coach has nothing yet) so the caller can tell "looked up, no standing"
+-- from "not looked up" and render honestly. An id that is not a provider of the
+-- requested role returns NO ROW — the caller reads an absent id as "no
+-- standing" and renders nothing, which is the honest answer for a coach who
+-- does not exist.
 -- SECURITY DEFINER because the directory is public-facing (browsable signed
 -- out) while subscriptions/sessions are RLS-protected: the function exposes ONLY
 -- the aggregated score, never a client id, a session row, or a raw count.
@@ -44,11 +48,46 @@ begin
       using errcode = '22023';
   end if;
 
+  -- Only the two marketplace coach roles are scoreable. Rejecting anything else
+  -- LOUDLY (rather than returning an empty set) matters because of how the
+  -- caller settles a batch: an empty-but-successful answer is indistinguishable
+  -- from "these coaches have no standing", so every id would be cached as
+  -- no-tier for the session. A raise leaves the keys uncached and retryable —
+  -- the same reasoning as the >200 guard above.
+  if p_role is null or p_role not in ('trainer', 'nutritionist') then
+    raise exception 'get_coach_scores: unknown role %', coalesce(p_role, '<null>')
+      using errcode = '22023';
+  end if;
+
   return query
-  with ids as (
+  with req as (
     -- De-duplicated: a crafted call can't fan this out.
     select distinct x as id
     from unnest(coalesce(p_ids, '{}'::bigint[])) as x
+  ),
+  ids as (
+    -- Score only ids that are REAL provider rows of the requested role.
+    --
+    -- `trainers`/`nutritionists` are the marketplace's own source and are
+    -- unconditionally public-read today (SELECT policy `qual: true` for
+    -- anon+authenticated — verified live), so this intersection hides nothing
+    -- that is visible now. It makes the boundary EXPLICIT: this function scores
+    -- the public coach set and nothing else, so if an "unlisted coach" flag is
+    -- ever added to those tables it narrows this function automatically instead
+    -- of quietly continuing to expose the hidden rows.
+    --
+    -- It also stops the function asserting a real-looking "0 points" about a
+    -- provider id that does not exist — an unknown id now returns NO ROW, which
+    -- is the honest answer and the one the caller already handles.
+    select r.id
+    from req r
+    where exists (
+      select 1 from public.trainers t
+      where p_role = 'trainer' and t.id = r.id
+    ) or exists (
+      select 1 from public.nutritionists n
+      where p_role = 'nutritionist' and n.id = r.id
+    )
   ),
   subs as (
     select s.provider_id as pid,
