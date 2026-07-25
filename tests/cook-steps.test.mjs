@@ -26,7 +26,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { bsStepTimers, bsFractionalDuration } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS } from '../mobile-app/src/services/cookable.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -108,7 +108,13 @@ test('cook steps: a SCHEDULING note never carries a parseable duration', () => {
   // breaking it apart" is a real wait that merely contains the word "before".
   // Matching on mere co-occurrence flagged both and would have forced perfectly
   // good rest steps to be reworded.
-  const SCHED = /\d+\s*(?:min|sec|hour|hr)[a-z]*\.?\s+(?:before|after|ahead of|prior to)\b/i;
+  //
+  // The unit vocabulary comes from the PARSER (BS_TIMER_UNITS), not a second
+  // copy written here. Restating it would let this rule keep passing while
+  // silently ceasing to cover a unit the parser had gained — the gate would
+  // narrow with nothing failing, which is the exact failure mode this file
+  // exists to prevent (see the "every source is read" guard above).
+  const SCHED = new RegExp(`\\d+\\s*(?:${BS_TIMER_UNITS})\\.?\\s+(?:before|after|ahead of|prior to)\\b`, 'i');
   const bad = ALL.filter((x) => {
     if (bsFractionalDuration(x.step)) return false;      // already flagged above
     if (!bsStepTimers(x.step).length) return false;
