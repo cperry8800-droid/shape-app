@@ -16,6 +16,98 @@ function liveTier(points, coach) {
   return { name: t[1], color: t[2], rank: t[3] };
 }
 
+// Map a real community_posts row → the DesktopProfile feed entry shape
+// ({ k, t, b, time, vis, metric }). So a real profile's "activity" feed shows the
+// person's OWN posts (RLS-scoped to the viewer), not the demo persona's field
+// notes. A metric is emitted ONLY from a stored PR delta — never fabricated.
+function lvRelTime(iso) {
+  const t = Date.parse(iso); if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  if (s < 86400 * 7) return Math.floor(s / 86400) + "d";
+  if (s < 86400 * 30) return Math.floor(s / 86400 / 7) + "w";
+  if (s < 86400 * 365) return Math.floor(s / 86400 / 30) + "mo";
+  return Math.floor(s / 86400 / 365) + "y";
+}
+// `activity_type` alone CANNOT be trusted: the community API defaults it to
+// 'workout' even on a plain note or photo, so keying off it labelled ordinary
+// posts as workouts (the documented trap behind the #1684/#1685 dashboard fix).
+// Mirror the evidence gate bucketsFor() uses there — a post is an activity only
+// when something real backs it (composer marker, provider sync, workout stats, a
+// route, a sensor trace, or a stamped PR delta). Everything else is a note or a
+// photo, and the photo test now runs BEFORE the fallthrough rather than after
+// the workout branch, where it was unreachable for a default-typed photo post.
+function lvPostKind(row) {
+  const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
+  if (m.kind === "meal") return "meal";
+  // NOT "win": LV_FEED labels that "Client win", which is a COACH's post about
+  // a client's success. The milestone composer uses this kind for the author's
+  // own career events (promoted, certified, launched), so mapping it to `win`
+  // put a client-success badge on someone's own promotion.
+  if (m.kind === "milestone") return "milestone";
+  if (m.delta) return "pr";
+  const isActivity = m.kind === "workout"
+    || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
+    || !!row.source_provider
+    || !!(m.route && typeof m.route === "object" && Array.isArray(m.route.points) && m.route.points.length)
+    || !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations);
+  if (isActivity) {
+    const at = String(row.activity_type || "").toLowerCase();
+    return /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at) ? "run" : "workout";
+  }
+  // The composer STORES what it made (`metrics.kind`), so honour it rather than
+  // re-deriving from whichever field happens to be set. Without this a video
+  // post was badged "Photo" (it has a video_url, not a photo) and a link post
+  // "Note" — both while the card rendered a Watch / Open-link action, so the
+  // badge contradicted the affordance right next to it.
+  if (m.kind === "video" || (!row.photo_url && m.video_url)) return "video";
+  if (m.kind === "link") return "link";
+  if (row.photo_url) return "photo";
+  return "note";
+}
+// Preserve the post's real privacy tier so FeedBlock's lvFeedVisible can apply
+// the right rule per viewer. community_posts.privacy has been widened over time
+// to public|community|private|profile|followers (the 2026-06-09 profile-visibility
+// + 2026-07-08 followers migrations); an unknown value fails closed to private.
+function lvPostVis(row) {
+  const p = String(row && row.privacy || "").toLowerCase();
+  return ["public", "community", "private", "profile", "followers"].includes(p) ? p : "private";
+}
+// A post's media url is user-supplied, so only http(s) reaches an <img>/href —
+// never a javascript:/data: scheme (the same guard safeMusicUrl applies to
+// member-supplied playlist links).
+function lvSafeMedia(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return null;
+  if (/^\//.test(s)) return s;                       // same-origin path
+  return /^https?:\/\//i.test(s) ? s : null;
+}
+function lvMapPost(row) {
+  if (!row) return null;
+  const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
+  const k = lvPostKind(row);
+  const title = String(row.title || "").trim() || (k === "meal" ? "Meal" : k === "pr" ? "New PR" : k === "photo" ? "Photo" : "Activity");
+  // Carry the media through. When a post's meaningful content IS its photo or
+  // video, dropping it here left FeedBlock rendering a bare "Photo" title with
+  // the actual post missing. Only same-origin/https URLs pass — a post's media
+  // url is user-supplied (community-photos / coach-media), so it is checked
+  // before it can become an <img> or a link target.
+  const media = lvSafeMedia(row.photo_url);
+  const video = lvSafeMedia(m.video_url);
+  // A LINK post's whole content is its destination — the composer stores it at
+  // metrics.link.url and nowhere else. Dropping it here rendered the title and
+  // note with no way to reach the thing the post is about, so every link post
+  // on a real profile lost its primary content. Same scheme guard as the media.
+  const link = (m.link && typeof m.link === "object") ? lvSafeMedia(m.link.url) : null;
+  const linkTitle = (m.link && typeof m.link === "object") ? String(m.link.title || "").trim() : "";
+  return {
+    k, t: title, b: String(row.note || "").trim(), time: lvRelTime(row.created_at),
+    vis: lvPostVis(row), metric: m.delta ? ["New PR", String(m.delta)] : null,
+    photo: media, video, link, linkTitle,
+  };
+}
+
 // `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
 // chrome — site Header + DashSidebar (pageShell/trainerDashboard globals, only
 // referenced when the prop is passed) — so the side nav stays present on the
@@ -35,6 +127,8 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [backState, setBackState] = React.useState({}); // userId -> 'following' (follow-back)
   const [reqCount, setReqCount] = React.useState(0);
   const [liveSelf, setLiveSelf] = React.useState(null); // real self metrics (streak/weekly delta/trajectory/program) — own client profile only
+  const [feedPosts, setFeedPosts] = React.useState(null); // real community posts by this profile owner (RLS-scoped); null = not a real account / loading
+  const [feedStatus, setFeedStatus] = React.useState("loading"); // loading | error | ok — so a load failure isn't shown as "no activity"
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
@@ -85,6 +179,29 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
       // Posts stat — visible activity-post count (RLS-scoped to the viewer).
       try { c.from("community_posts").select("id", { count: "exact", head: true }).eq("author_id", uid).then((r) => { if (on && r && !r.error && r.count != null) setPosts(r.count); }); } catch (e) {}
+      // The activity feed — this profile owner's OWN posts (RLS-scoped), so a real
+      // profile shows their real activity, not the demo persona's field notes.
+      // A fetch failure stays "error" (never collapsed to an empty feed) so the
+      // profile shows an honest "unavailable" state, not a false "no activity".
+      // For a non-owner, constrain to the profile-visible tiers BEFORE the limit —
+      // else 12 recent community-only posts (which lvFeedVisible hides) could crowd
+      // out older public/profile/followers posts and read as an empty feed.
+      try {
+        let fq = c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid);
+        if (!isSelf) fq = fq.in("privacy", ["public", "profile", "followers"]);
+        // The try/catch only covers the SYNCHRONOUS setup — a rejected promise (a
+        // dropped network) or a throw inside lvMapPost escapes it, which would
+        // leave feedStatus stuck on "loading" forever (an endless spinner, not the
+        // honest error state this comment promises) plus an unhandled rejection.
+        // The mapping runs inside the .then so a mapper throw lands in .catch too.
+        fq.order("created_at", { ascending: false }).limit(12)
+          .then((r) => {
+            if (!on) return;
+            if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); }
+            else { setFeedStatus("error"); }
+          })
+          .catch(() => { if (on) setFeedStatus("error"); });
+      } catch (e) { if (on) setFeedStatus("error"); }
     })();
     return () => { on = false; };
   }, []);
@@ -282,6 +399,14 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     portrait: row.avatar || "",
     link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : base.link,
     custom: (!isPrivate && row.custom) || null,
+    // The activity feed: a REAL account shows its own posts (empty while loading /
+    // if none — never the demo persona's field notes); a DERIVED (no-account,
+    // example) profile keeps the demo feed. The signed-out demo-mode branch above
+    // renders the persona directly, so it's unaffected.
+    feed: isDerived ? base.feed : (feedPosts || []),
+    // 'ok' for a derived (always-loaded) demo persona; the real fetch's status
+    // otherwise, so FeedBlock shows loading/unavailable instead of "no activity".
+    feedStatus: isDerived ? "ok" : feedStatus,
   });
   // Overlay the real self metrics over the demo persona (own client profile
   // only). Per-field: a live value wins; a missing one keeps the example.

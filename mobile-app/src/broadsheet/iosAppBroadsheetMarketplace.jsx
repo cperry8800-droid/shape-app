@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
+import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
@@ -1316,6 +1317,217 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent 
   return surface ? createPortal(panel, surface) : panel;
 }
 
+// ── The plan preview sheet ("what's inside", spec 2026-07-24) ────────────────
+// A buyer could see a name, a price and one line of meta before paying. This
+// opens the coach's OWN authored outline. Every row comes from bsPlanPreview,
+// which parses coach_plans.detail.blocks through the same planOutline parsers
+// the Assign flow uses — so a preview can never describe a plan differently
+// from how it is delivered, and a plan with no authored outline shows the
+// honest "the coach hasn't published an outline" state rather than a fabricated
+// one. Portals into #bs-phone-surface + position:absolute (the sheet rule).
+function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  if (!plan) return null;
+  const p = bsPlanPreview(plan, { isNutri });
+  // `p.kind === null` is the EXPECTED state for a published plan with no
+  // authored outline — it is not evidence the product is a single session.
+  // Falling through to "Single session" mislabelled every empty nutrition plan
+  // and every empty multi-week trainer program. The plan still declares what it
+  // is, so the fallback reads the same `category` the shelf above buckets this
+  // very row by (`singleMatch`), plus the role.
+  const planCat = String((plan && plan.category) || '').toLowerCase();
+  const isSinglePlan = isNutri ? /meal/.test(planCat) : /workout|single/.test(planCat);
+  const eyebrowKind = p.kind
+    || (isNutri ? 'menu' : (isSinglePlan ? 'session' : 'split'));
+  // 'block' (a Week 1..N outline) reads as a Program — same as a weekday split.
+  // Both are multi-session products; only the unit shape differs.
+  const eyebrow = (eyebrowKind === 'split' || eyebrowKind === 'block')
+    ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
+    : eyebrowKind === 'menu'
+      ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
+      : tr('marketplace:preview.eyebrowSession', { defaultValue: 'Single session' });
+
+  const register = [];
+  if (p.weeks) register.push([tr('marketplace:preview.weeks', { defaultValue: 'Weeks' }), String(p.weeks)]);
+  if (p.sessionsPerWeek) register.push([tr('marketplace:preview.perWeek', { defaultValue: 'Days / wk' }), String(p.sessionsPerWeek)]);
+  if (p.units.length) register.push([
+    p.kind === 'menu' ? tr('marketplace:preview.meals', { defaultValue: 'Meals' }) : tr('marketplace:preview.moves', { defaultValue: 'Entries' }),
+    String(p.units.length),
+  ]);
+
+  const row = (u, i) => (
+    <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}`, opacity: u.rest ? 0.55 : 1 }}>
+      {u.label ? <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span> : null}
+      <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 10 }} />
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+        {u.rest ? tr('marketplace:preview.rest', { defaultValue: 'Rest' })
+          : u.scheme ? u.scheme
+            : u.load ? u.load
+              : (u.kcal != null ? `${u.kcal} kcal` : '')}
+      </span>
+    </div>
+  );
+
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr('marketplace:preview.aria', { defaultValue: "What's inside {name}", name: plan.name || '' })}
+        className="bs-hide-scroll"
+        style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}
+      >
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>
+          {eyebrow}{plan.price ? ` · ${plan.price}` : ''}
+        </div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>
+          {plan.name}<span style={{ color: roleColor }}>.</span>
+        </div>
+        <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+
+        {p.media.length > 0 && (
+          <div style={{ margin: '12px 0 2px', display: 'flex', gap: 7, overflowX: 'auto' }} className="bs-hide-scroll">
+            {p.media.map((m, i) => (
+              <div key={i} style={{ flex: 'none', width: 132, height: 96, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
+                {m.type === 'video'
+                  ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                  : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {register.length > 0 && (
+          <div style={{ display: 'flex', gap: 22, marginTop: 14 }}>
+            {register.map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {p.kind ? (
+          <>
+            <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
+              {tr('marketplace:preview.outline', { defaultValue: 'The outline' })}
+            </div>
+            <div style={{ marginTop: 4 }}>{p.free.map(row)}</div>
+            {p.locked > 0 && (
+              <div style={{ marginTop: 10, padding: '10px 0', borderTop: `1px dashed ${t.INK}3d`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+                {tr('marketplace:preview.locked', { defaultValue: '＋{count} more · unlocked when you buy', count: p.locked })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>
+            {tr('marketplace:preview.noOutline', { defaultValue: "This coach hasn't published an outline for this one yet." })}
+          </div>
+        )}
+
+        {p.note ? (
+          <div style={{ marginTop: 14, paddingLeft: 11, borderLeft: `3px solid ${roleColor}` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.5, color: t.INK }}>{p.note}</div>
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>
+            <span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:sheet.close', { defaultValue: 'Close' })}</span>
+          </button>
+          {plan.price ? (
+            <button onClick={onBuy} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>
+              {tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: plan.price })}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Surface-only, no document.body fallback — body is where a sheet escapes the
+  // phone frame to (the bug PR #1825 fixes), so the guard must not offer it as a
+  // target. Absent surface renders in place: contained, not outside the frame.
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
+  return surface ? createPortal(sheet, surface) : sheet;
+}
+
+// ── Demo catalogue (signed-out preview ONLY) ─────────────────────────────────
+// A demo coach has no provider row, so ShapeCoachPlans.salePlans can never
+// return anything for them and the Listing's PROGRAMS & PLANS / SINGLE WORKOUTS
+// shelves render empty — which is why the preview reads as a half-built page.
+// These stand-ins carry the SAME shape a real coach_plans row does (id · name ·
+// meta · price · category · detail{blocks,note,media}) so every downstream
+// surface — the sale rows, their media strip, and the plan preview — runs the
+// real code path against them. Gated on `!saleProviderId` (demo listings only),
+// so a REAL coach with no plans still honestly shows nothing.
+// Signed-in check for the demo gate. Reads the auth cache the rest of the app
+// uses (window.ShapeAuth), so it needs no props threading and matches the
+// preview-vs-live boundary every other demo fallback keys off.
+const bsmSignedIn = () => !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+const BSM_DEMO_MEDIA = `${import.meta.env.BASE_URL}demo/`;
+const BSM_DEMO_SALE_PLANS = (isNutri) => (isNutri ? [
+  {
+    id: 'demo-plan-cut', name: 'The Lean Block', meta: '6 weeks · 1,900 kcal base', price: '$160', category: 'program',
+    detail: {
+      note: 'Built for a training week, not a diet week. Protein anchors every meal; carbs follow the sessions.',
+      media: [{ url: `${BSM_DEMO_MEDIA}plan-01.webp`, type: 'image', name: 'plan-01' }],
+      blocks: [
+        'Breakfast — Greek yogurt, berries, honey · 420 kcal',
+        'Lunch — chicken rice bowl, slaw · 610 kcal',
+        'Snack — cottage cheese, apple · 240 kcal',
+        'Dinner — salmon, potatoes, greens · 630 kcal',
+      ],
+    },
+  },
+  {
+    id: 'demo-meal-single', name: 'Race-week fuelling day', meta: 'One day · full macros', price: '$32', category: 'meal',
+    detail: {
+      note: 'The day before a long effort. Carbs up, fibre down, nothing new on race morning.',
+      media: [],
+      blocks: [
+        'Breakfast — oats, banana, maple · 520 kcal',
+        'Lunch — white rice, chicken, soy · 640 kcal',
+        'Dinner — pasta, lean beef ragu · 700 kcal',
+      ],
+    },
+  },
+] : [
+  {
+    id: 'demo-plan-strength', name: 'Strength Block 3', meta: '6 weeks · 4 days', price: '$160', category: 'program',
+    detail: {
+      note: 'Two heavy days, two builders. Add weight only when every rep of the last set looked the same as the first.',
+      media: [
+        { url: `${BSM_DEMO_MEDIA}studio-02.webp`, type: 'image', name: 'studio-02' },
+        { url: `${BSM_DEMO_MEDIA}plan-01.webp`, type: 'image', name: 'plan-01' },
+      ],
+      blocks: [
+        'Mon — Lower (squat)',
+        'Tue — Upper (push)',
+        'Thu — Lower (hinge)',
+        'Fri — Upper (pull)',
+      ],
+    },
+  },
+  {
+    id: 'demo-workout-single', name: 'Heavy singles — squat day', meta: 'One session · 52 min', price: '$32', category: 'workout',
+    detail: {
+      note: 'Work up until the bar slows, then stop. The back-offs are where the size comes from.',
+      media: [{ url: `${BSM_DEMO_MEDIA}studio-03.webp`, type: 'image', name: 'studio-03' }],
+      blocks: [
+        'Back squat · 5×3',
+        'Front squat · 3×6',
+        'Bulgarian split squat · 3×8',
+        'Hanging leg raise · 3×12',
+      ],
+    },
+  },
+]);
+
 // 24h 'HH:MM' -> 12h label, shared by the Listing's slot rows + the calendar.
 function bsFmtSlot12(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number);
@@ -1432,12 +1644,43 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const saleProviderRole = getPublicProfileKind(coach);
   const saleProviderId = coach.provider_id || coach.db_id || null;
   const [salePlans, setSalePlans] = useStateBSM2(null);
+  const [previewPlan, setPreviewPlan] = useStateBSM2(null);
+  // The signed-in identity is a DEPENDENCY of the demo fallback below, not just
+  // something it reads. Keyed only on the coach, a sign-in that happened while
+  // this Listing stayed mounted left the stand-in catalogue — and its Buy CTAs —
+  // on screen for a real member. That is precisely the demo-leak the branch
+  // below is written to prevent, so the uid rides in the dep array.
+  const bsmAuthUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   React.useEffect(() => {
-    if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
+    // The signed-out PREVIEW falls back to the stand-in catalogue so the Listing
+    // reads as a finished page instead of skipping straight from the rate card to
+    // THE APPROACH. Gated on "no signed-in user", never on the coach row — a
+    // signed-in member always sees that coach's REAL plans, and a real coach with
+    // none still honestly shows nothing (the demo-leak rule, 2026-06-14).
+    // Demo catalogue is the SIGNED-OUT preview of a PROVIDER-LESS demo row only
+    // (BSM_MARKETPLACE_COACHES carry no provider_id/db_id → saleProviderId null).
+    // The demo call lives ONLY on this no-provider branch, so a real coach's
+    // fetch path can never reach it: a real coach (has a provider id) with no
+    // plans / a failed fetch stays honestly empty — never fabricated "for sale"
+    // plans + buy links on a coach who published nothing (the demo-leak rule).
+    if (!saleProviderId) {
+      // "No provider id" is NOT the same as "not a real coach". A coach opened
+      // from the "What's hot" plans rail arrives carrying only provider_user_id,
+      // so a REAL coach lands here — and showing them the stand-in catalogue
+      // would put fabricated, buyable products on a real person's listing, which
+      // is precisely what the comment above forbids. Any identity at all means
+      // honest-empty instead.
+      const coachIsReal = !!(coach.provider_id || coach.db_id || coach.provider_user_id);
+      setSalePlans((bsmSignedIn() || coachIsReal) ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
+      return;
+    }
+    if (!window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
     let on = true;
-    window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId)
+      .then((r) => { if (on) setSalePlans((r && r.length) ? r : []); })
+      .catch(() => { if (on) setSalePlans([]); });
     return () => { on = false; };
-  }, [saleProviderId, saleProviderRole]);
+  }, [saleProviderId, saleProviderRole, bsmAuthUid]);
   React.useEffect(() => {
     if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }
     let on = true;
@@ -1723,6 +1966,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             ))}
           </div>
         )}
+        <button onClick={() => setPreviewPlan(pl)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 14px 10px 0', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:preview.action', { defaultValue: "What's inside →" })}</span></button>
         {pl.price ? (
           <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0 10px', minHeight: 36, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${teal}`, paddingBottom: 2 }}>{tr('marketplace:listing.buyKeep', { defaultValue: 'Buy · yours to keep →' })}</span></button>
         ) : <div style={{ height: 10 }} />}
@@ -1869,8 +2113,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       </>)}
 
       {/* Single workouts/meals — individually buyable one-off files. Live coaches
-          list theirs via coach_plans; the demo shelf shows on preview rows only. */}
-      {(salePlanSingles.length > 0 || (!saleProviderId && Array.isArray(p.singles) && p.singles.length > 0)) && (<>
+          list theirs via coach_plans; the demo shelf shows on preview rows only.
+          The legacy p.singles fallback carries a live checkout button, so it is
+          gated exactly like the demo catalogue above (signed-OUT preview of a
+          provider-less row) — otherwise a signed-in viewer would see the demo
+          programs correctly hidden but still get fabricated singles to buy. */}
+      {(salePlanSingles.length > 0 || (!saleProviderId && !bsmSignedIn() && Array.isArray(p.singles) && p.singles.length > 0)) && (<>
         <Station>{isNutriDetail ? tr('marketplace:listing.singleMeals', { defaultValue: 'Single meals' }) : tr('marketplace:listing.singleWorkouts', { defaultValue: 'Single workouts' })}</Station>
         <div style={{ padding: `2px ${t.padX}px 0` }}>
           {salePlanSingles.length > 0
@@ -2013,6 +2261,21 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           </div>
         );
       })()}
+
+      {previewPlan && (
+        <BSPlanPreviewSheet
+          plan={previewPlan}
+          isNutri={isNutriDetail}
+          roleColor={roleColor}
+          teal={teal}
+          onClose={() => setPreviewPlan(null)}
+          onBuy={() => {
+            const pl = previewPlan;
+            setPreviewPlan(null);
+            openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] });
+          }}
+        />
+      )}
 
       <BSPublicActionPanel
         action={action}

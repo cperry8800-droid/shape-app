@@ -623,7 +623,7 @@ function FeedBlock({ d, direction, owner }) {
   return (
     <div style={dStation()}>
       <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? "＋ Post" : null} />
-      {shown.length === 0 && hidden === 0 && <DRedact label="No activity yet" />}
+      {shown.length === 0 && hidden === 0 && <DRedact label={d.feedStatus === "loading" ? "Loading activity…" : d.feedStatus === "error" ? "Activity unavailable right now" : "No activity yet"} />}
       {shown.map((it, i) => (
         <div key={i}>
           {/* slim header — relative time left, type tag right with a heat underline */}
@@ -643,6 +643,28 @@ function FeedBlock({ d, direction, owner }) {
             </div>
           )}
           <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "8px 0 0", textWrap: "pretty" }}>{it.b}</p>
+          {/* The post's own media. `aspect-ratio` + object-fit reserves the box
+              before decode, so an image landing cannot shove the feed down (the
+              2026-06-29 CLS convention). A video renders as a labelled link
+              rather than an autoplaying player in a profile feed. */}
+          {it.photo && (
+            <img src={it.photo} alt={it.t || "Post photo"} loading="lazy"
+                 style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", marginTop: 12, borderRadius: 10, border: `1px solid ${dHexA(LV_INK, 0.12)}`, backgroundColor: dHexA(LV_INK, 0.05) }} />
+          )}
+          {it.video && (
+            <a href={it.video} target="_blank" rel="noopener noreferrer"
+               style={{ display: "inline-block", marginTop: 12, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c, borderBottom: `1px solid ${dHexA(c, 0.5)}`, paddingBottom: 2, textDecoration: "none" }}>
+              ▸ Watch
+            </a>
+          )}
+          {/* A link post's destination IS its content — without this the post
+              rendered as an unopenable title. Same treatment as the video link. */}
+          {it.link && (
+            <a href={it.link} target="_blank" rel="noopener noreferrer"
+               style={{ display: "inline-block", marginTop: 12, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c, borderBottom: `1px solid ${dHexA(c, 0.5)}`, paddingBottom: 2, textDecoration: "none" }}>
+              ↗ {it.linkTitle || "Open link"}
+            </a>
+          )}
           {/* ink→heat separator between dispatches (suppressed on the last) */}
           {i < shown.length - 1 && (
             <div aria-hidden="true" style={{ height: 2, margin: "22px 0", background: `linear-gradient(90deg, ${dHexA(LV_INK, 0.5)}, ${dHexA(c, 0.7)} 55%, transparent)` }} />

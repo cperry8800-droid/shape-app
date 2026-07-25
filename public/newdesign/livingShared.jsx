@@ -809,10 +809,21 @@ function SpVerifiedDot() {
 const LV_FEED = {
   workout: "Workout", run: "Run", pr: "PR", meal: "Meal", note: "Note",
   photo: "Photo", tip: "Tip", win: "Client win", recipe: "Recipe",
+  // The composer can author these two as well; without labels their badge fell
+  // back to the raw key (livingDesktop's `LV_FEED[it.k] || it.k`) or rendered
+  // blank (livingSignal indexes the map directly).
+  video: "Video", link: "Link",
+  // A career milestone is the AUTHOR's own event (promoted, certified,
+  // launched) — distinct from `win`, which is a coach posting about a client.
+  milestone: "Milestone",
 };
-// Owner sees everything; a public viewer sees only public; circle viewer
-// (not modeled separately here) would also see circle. variant drives it.
-function lvFeedVisible(vis, owner) { return owner ? true : vis === "public"; }
+// Owner sees everything. RLS is the security authority — a post that reached the
+// client is already one this viewer may see — so the profile feed shows the tiers
+// meant to appear as this person's activity: `public` (everywhere), `profile`
+// (on the profile, not the community feed — the 2026-06-09 tier), and `followers`
+// (only ever returned to an accepted follower). `community` stays feed-scoped and
+// `private` is owner-only, so both count as hidden for a non-owner viewer.
+function lvFeedVisible(vis, owner) { return owner ? true : (vis === "public" || vis === "profile" || vis === "followers"); }
 
 // Owner-cycle hook: per-item visibility state with a cycle fn.
 function useLvFeed(items) {
