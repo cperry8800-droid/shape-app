@@ -30,15 +30,29 @@ function lvRelTime(iso) {
   if (s < 86400 * 365) return Math.floor(s / 86400 / 30) + "mo";
   return Math.floor(s / 86400 / 365) + "y";
 }
+// `activity_type` alone CANNOT be trusted: the community API defaults it to
+// 'workout' even on a plain note or photo, so keying off it labelled ordinary
+// posts as workouts (the documented trap behind the #1684/#1685 dashboard fix).
+// Mirror the evidence gate bucketsFor() uses there — a post is an activity only
+// when something real backs it (composer marker, provider sync, workout stats, a
+// route, a sensor trace, or a stamped PR delta). Everything else is a note or a
+// photo, and the photo test now runs BEFORE the fallthrough rather than after
+// the workout branch, where it was unreachable for a default-typed photo post.
 function lvPostKind(row) {
   const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
   if (m.kind === "meal") return "meal";
   if (m.kind === "milestone") return "win";
   if (m.delta) return "pr";
-  const at = String(row.activity_type || "").toLowerCase();
-  if (at === "run") return "run";
-  if (row.source_provider || at === "workout") return "workout";
-  if (row.photo_url && !row.title && !row.note) return "photo";
+  const isActivity = m.kind === "workout"
+    || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
+    || !!row.source_provider
+    || !!(m.route && typeof m.route === "object" && Array.isArray(m.route.points) && m.route.points.length)
+    || !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations);
+  if (isActivity) {
+    const at = String(row.activity_type || "").toLowerCase();
+    return /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at) ? "run" : "workout";
+  }
+  if (row.photo_url || m.video_url) return "photo";
   return "note";
 }
 // Preserve the post's real privacy tier so FeedBlock's lvFeedVisible can apply
@@ -49,12 +63,32 @@ function lvPostVis(row) {
   const p = String(row && row.privacy || "").toLowerCase();
   return ["public", "community", "private", "profile", "followers"].includes(p) ? p : "private";
 }
+// A post's media url is user-supplied, so only http(s) reaches an <img>/href —
+// never a javascript:/data: scheme (the same guard safeMusicUrl applies to
+// member-supplied playlist links).
+function lvSafeMedia(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return null;
+  if (/^\//.test(s)) return s;                       // same-origin path
+  return /^https?:\/\//i.test(s) ? s : null;
+}
 function lvMapPost(row) {
   if (!row) return null;
   const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
   const k = lvPostKind(row);
   const title = String(row.title || "").trim() || (k === "meal" ? "Meal" : k === "pr" ? "New PR" : k === "photo" ? "Photo" : "Activity");
-  return { k, t: title, b: String(row.note || "").trim(), time: lvRelTime(row.created_at), vis: lvPostVis(row), metric: m.delta ? ["New PR", String(m.delta)] : null };
+  // Carry the media through. When a post's meaningful content IS its photo or
+  // video, dropping it here left FeedBlock rendering a bare "Photo" title with
+  // the actual post missing. Only same-origin/https URLs pass — a post's media
+  // url is user-supplied (community-photos / coach-media), so it is checked
+  // before it can become an <img> or a link target.
+  const media = lvSafeMedia(row.photo_url);
+  const video = lvSafeMedia(m.video_url);
+  return {
+    k, t: title, b: String(row.note || "").trim(), time: lvRelTime(row.created_at),
+    vis: lvPostVis(row), metric: m.delta ? ["New PR", String(m.delta)] : null,
+    photo: media, video,
+  };
 }
 
 // `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
