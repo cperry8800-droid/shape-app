@@ -8325,17 +8325,23 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         hero: 'Salmon, jasmine rice, cucumber ribbons, honey-soy glaze, sesame.',
         brief: 'A conditioning-day bowl built for fast turnaround. Glaze caramelizes on the salmon in three minutes; rice carries it. Cool cucumber resets your palate between bites.',
         ingredients: [
-          { n: '180 g', m: 'Salmon fillet',          k: '320 kcal' },
+          { n: '180 g', m: 'Salmon fillet, skin-on', k: '320 kcal' },
           { n: '150 g', m: 'Jasmine rice',           k: '195 kcal' },
           { n: '½',     m: 'Cucumber',               k: '8 kcal' },
           { n: '20 g',  m: 'Honey + soy (1:2)',      k: '30 kcal' },
           { n: '5 g',   m: 'Toasted sesame',         k: '30 kcal' },
+          // Both are called for by step 1 but were missing from the list, so
+          // the shopping data did not match the method. No `k` — pantry
+          // quantities, and these rows already sum above the stated total.
+          { n: '1 tsp', m: 'Rice vinegar' },
+          { n: '5 g',   m: 'Ginger, grated' },
         ],
         steps: [
           'Whisk honey + soy + 1 tsp rice vinegar + grated ginger.',
           'Pat the salmon dry — the glaze slides straight off a wet surface.',
           'Sear skin-side down 3 minutes, until the skin releases cleanly from the pan.',
-          'Flip, brush the glaze over, and cook 2 minutes more until it flakes at the thickest point.',
+          'Flip and cook 90 seconds — the thickest part should be close to flaking.',
+          'Brush the glaze over and give it a final 30 seconds, so the honey tightens without scorching.',
           'Off heat: brush again, let glaze tighten on the fish.',
           'Bowl rice, ribbon the cucumber over, lay salmon on top.',
           'Pour residual glaze, scatter sesame.',
@@ -8398,8 +8404,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Pat the salmon completely dry on both sides. A damp fillet steams rather than sears, and the glaze slides straight off a wet surface.',
             'Set a non-stick pan over medium-high until a flick of water skitters across it. Lay the salmon in skin-side down and press it flat for a moment so the whole skin makes contact.',
             'Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.',
-            'Flip and give it 2 minutes more, until the thickest part flakes when you nudge it with a fork.',
-            'Only now spoon half the glaze over, for the last 30 seconds of that time — honey at this heat scorches in about a minute, which is exactly what the coach note is warning about.',
+            'Flip and cook 90 seconds — the thickest part should be close to flaking.',
+            'Now spoon half the glaze over and give it a final 30 seconds. Honey scorches in about a minute at this heat, which is exactly what the coach note is warning about — so it goes on at the END of the cook, not the start of it.',
             'Off the heat, brush on the rest of the glaze and let it tighten against the residual warmth. Bowl the rice, ribbon the cucumber over it, add the edamame, lay the salmon on top and scatter the sesame.',
           ],
           coachNote: 'Glaze at the end, not the start. Sugar burns fast.',
