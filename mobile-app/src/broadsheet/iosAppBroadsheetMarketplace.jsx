@@ -1664,7 +1664,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // plans / a failed fetch stays honestly empty — never fabricated "for sale"
     // plans + buy links on a coach who published nothing (the demo-leak rule).
     if (!saleProviderId) {
-      setSalePlans(bsmSignedIn() ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
+      // "No provider id" is NOT the same as "not a real coach". A coach opened
+      // from the "What's hot" plans rail arrives carrying only provider_user_id,
+      // so a REAL coach lands here — and showing them the stand-in catalogue
+      // would put fabricated, buyable products on a real person's listing, which
+      // is precisely what the comment above forbids. Any identity at all means
+      // honest-empty instead.
+      const coachIsReal = !!(coach.provider_id || coach.db_id || coach.provider_user_id);
+      setSalePlans((bsmSignedIn() || coachIsReal) ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
       return;
     }
     if (!window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
