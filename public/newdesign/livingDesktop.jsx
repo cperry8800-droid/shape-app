@@ -623,7 +623,7 @@ function FeedBlock({ d, direction, owner }) {
   return (
     <div style={dStation()}>
       <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? "＋ Post" : null} />
-      {shown.length === 0 && hidden === 0 && <DRedact label="No activity yet" />}
+      {shown.length === 0 && hidden === 0 && <DRedact label={d.feedStatus === "loading" ? "Loading activity…" : d.feedStatus === "error" ? "Activity unavailable right now" : "No activity yet"} />}
       {shown.map((it, i) => (
         <div key={i}>
           {/* slim header — relative time left, type tag right with a heat underline */}

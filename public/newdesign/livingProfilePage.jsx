@@ -41,12 +41,13 @@ function lvPostKind(row) {
   if (row.photo_url && !row.title && !row.note) return "photo";
   return "note";
 }
-// community_posts.privacy is one of public|community|private; preserve it (fail
-// closed to non-public) so FeedBlock's lvFeedVisible can hide non-public posts
-// from other viewers instead of rendering everything as public.
+// Preserve the post's real privacy tier so FeedBlock's lvFeedVisible can apply
+// the right rule per viewer. community_posts.privacy has been widened over time
+// to public|community|private|profile|followers (the 2026-06-09 profile-visibility
+// + 2026-07-08 followers migrations); an unknown value fails closed to private.
 function lvPostVis(row) {
   const p = String(row && row.privacy || "").toLowerCase();
-  return (p === "public" || p === "community" || p === "private") ? p : "private";
+  return ["public", "community", "private", "profile", "followers"].includes(p) ? p : "private";
 }
 function lvMapPost(row) {
   if (!row) return null;
@@ -76,6 +77,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [reqCount, setReqCount] = React.useState(0);
   const [liveSelf, setLiveSelf] = React.useState(null); // real self metrics (streak/weekly delta/trajectory/program) — own client profile only
   const [feedPosts, setFeedPosts] = React.useState(null); // real community posts by this profile owner (RLS-scoped); null = not a real account / loading
+  const [feedStatus, setFeedStatus] = React.useState("loading"); // loading | error | ok — so a load failure isn't shown as "no activity"
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
@@ -128,7 +130,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       try { c.from("community_posts").select("id", { count: "exact", head: true }).eq("author_id", uid).then((r) => { if (on && r && !r.error && r.count != null) setPosts(r.count); }); } catch (e) {}
       // The activity feed — this profile owner's OWN posts (RLS-scoped), so a real
       // profile shows their real activity, not the demo persona's field notes.
-      try { c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (on && r && !r.error && Array.isArray(r.data)) setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); else if (on) setFeedPosts([]); }); } catch (e) { if (on) setFeedPosts([]); }
+      // A fetch failure stays "error" (never collapsed to an empty feed) so the
+      // profile shows an honest "unavailable" state, not a false "no activity".
+      try { c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (!on) return; if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); } else { setFeedStatus("error"); } }); } catch (e) { if (on) setFeedStatus("error"); }
     })();
     return () => { on = false; };
   }, []);
@@ -331,6 +335,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     // example) profile keeps the demo feed. The signed-out demo-mode branch above
     // renders the persona directly, so it's unaffected.
     feed: isDerived ? base.feed : (feedPosts || []),
+    // 'ok' for a derived (always-loaded) demo persona; the real fetch's status
+    // otherwise, so FeedBlock shows loading/unavailable instead of "no activity".
+    feedStatus: isDerived ? "ok" : feedStatus,
   });
   // Overlay the real self metrics over the demo persona (own client profile
   // only). Per-field: a live value wins; a missing one keeps the example.
