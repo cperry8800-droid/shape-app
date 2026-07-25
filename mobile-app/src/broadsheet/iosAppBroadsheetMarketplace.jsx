@@ -1046,7 +1046,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                     // the plan + Buy live). Real coaches resolve to their live account;
                     // sample plans open the demo coach's derived detail page — every
                     // row is a working link, never a dead toast.
-                    setOpen({ name: pl.coachName, provider_user_id: (!pl.demo && pl.providerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
+                    // Both ids, in their OWN fields. This previously put the
+                    // provider ROW id (a bigint) into `provider_user_id`, which
+                    // everywhere else holds the owner's user UUID (see the
+                    // canonical mapping above, the avatar batch, and the
+                    // `userId` passthrough). So a coach opened from this rail
+                    // had no provider_id — no tier, no points — AND a bigint
+                    // where a uuid was expected, so the avatar lookup missed and
+                    // the downstream userId was wrong. Two distinct id spaces.
+                    setOpen({ name: pl.coachName, provider_id: (!pl.demo && pl.providerId) || undefined, provider_user_id: (!pl.demo && pl.ownerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
                   }} />
                 ))}
               </div>
