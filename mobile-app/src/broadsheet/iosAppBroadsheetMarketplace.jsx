@@ -413,11 +413,17 @@ function useMktCoachPoints(coaches) {
       });
       if (on) bump((n) => n + 1);
     };
-    Promise.resolve()
-      .then(() => (window.ShapeProfiles && window.ShapeProfiles.getUserPoints ? window.ShapeProfiles.getUserPoints(want) : null))
-      .then((map) => settle(map))
-      .catch(() => settle(null));
-    return () => { on = false; };
+    // Race a timeout: supabase.rpc has no deadline of its own, so a stalled
+    // request would never settle — leaving these ids pinned in the in-flight set
+    // forever, which both withholds their tier AND blocks any retry. On timeout
+    // we settle to absent and release the ids so a later mount can try again.
+    let timer = null;
+    const raced = Promise.race([
+      Promise.resolve().then(() => (window.ShapeProfiles && window.ShapeProfiles.getUserPoints ? window.ShapeProfiles.getUserPoints(want) : null)),
+      new Promise((res) => { timer = setTimeout(() => res(null), 8000); }),
+    ]);
+    raced.then((map) => settle(map)).catch(() => settle(null)).finally(() => { if (timer) clearTimeout(timer); });
+    return () => { on = false; if (timer) clearTimeout(timer); };
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 // A row is DEMO only when it carries no provider identity at all. Keying the demo
@@ -427,17 +433,16 @@ function useMktCoachPoints(coaches) {
 // trainers.id = 1 and no owner would print the authored demo standing as their own.
 function bsmIsDemoCoach(c) { return !!c && !c.provider_id && !c.db_id && !c.provider_user_id; }
 function mktCoachTier(c) {
-  const prof = buildPublicProfile(c);
   const owner = bsmCoachOwner(c);
   const pts = owner ? _MKT_POINTS.get(owner) : (bsmIsDemoCoach(c) ? BSM_DEMO_POINTS[c.id] : undefined);
   // Not yet loaded, looked-up-and-absent, or a real zero all render NOTHING —
   // "hidden when none" (a coach who hasn't earned a standing has no rung to show).
-  if (!Number.isFinite(pts) || pts <= 0) return { name: null, color: mktRoleColor(c), prof, points: null };
+  if (!Number.isFinite(pts) || pts <= 0) return { name: null, color: mktRoleColor(c), points: null };
   const clientTier = window.bsTierForPoints ? window.bsTierForPoints(pts) : null;
   const name = (clientTier && window.bsCoachTier) ? window.bsCoachTier(clientTier) : null;
-  if (!name) return { name: null, color: mktRoleColor(c), prof, points: null };
+  if (!name) return { name: null, color: mktRoleColor(c), points: null };
   const color = (window.bsTierColor && window.bsTierColor(String(name).toLowerCase())) || mktRoleColor(c);
-  return { name, color, prof, points: pts };
+  return { name, color, points: pts };
 }
 // Only turn a value into an <img> src when it's a real http(s)/data/blob URL
 // (mirrors bsValidPhoto, which isn't exposed cross-module) — junk/blank values
