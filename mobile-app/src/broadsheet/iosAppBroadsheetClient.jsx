@@ -8379,7 +8379,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           hero: 'Glazed salmon, jasmine rice, edamame, cucumber, sesame.',
           brief: 'Post-threshold refill. Glycogen window owed, sodium owed.',
           ingredients: [
-            { n: '180 g', m: 'Salmon',         k: '320 kcal' },
+            { n: '180 g', m: 'Salmon, skin-on', k: '320 kcal' },
             { n: '180 g', m: 'Cooked rice',    k: '230 kcal' },
             { n: '80 g',  m: 'Edamame',        k: '90 kcal' },
             { n: '60 g',  m: 'Cucumber',       k: '10 kcal' },
@@ -8410,7 +8410,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Season with the fish sauce a little at a time, tasting as you go; it salts and deepens at once and cannot be pulled back.',
             'Cook the noodles 3 minutes in separate water and drain them — cooked in the broth they shed starch and thicken it.',
             'Slice the beef as thinly as you can across the grain. Half-freezing it first makes this far easier.',
-            'Lay the raw beef over the noodles and ladle the boiling broth straight onto it — the broth is what cooks it, so it has to be at a rolling heat when it lands.',
+            'Bring the broth back up to a full rolling boil right before you serve. It has been sitting at a bare simmer, and simmering broth will not cook raw beef through — this is the step that makes the next one safe.',
+            'Lay the raw beef over the noodles and ladle the boiling broth straight on, covering every slice — the broth is what cooks it. Any piece left proud of the liquid stays raw, so push it under.',
             'Finish at the table with the herbs, a squeeze of lime and sriracha to taste.',
           ],
           coachNote: 'Pho replaces a lot of what threshold work loses. It\'s a recovery tool, not a treat.',

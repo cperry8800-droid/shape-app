@@ -122,6 +122,21 @@ test('cook steps: a SCHEDULING note never carries a parseable duration', () => {
   });
   assert.deepEqual(bad.map((x) => `${x.where} :: ${x.step}`), [],
     'a scheduling phrase with a parseable duration — write the time in words so it does not render as a countdown');
+
+  // RANGED durations are covered, and this pins it rather than leaving it to be
+  // re-argued. bsStepTimers accepts "10–15 minutes"; SCHED is unanchored, so it
+  // matches from the range's SECOND number ("15 minutes before") — the prefix is
+  // irrelevant to whether a scheduling phrase carries a parseable duration.
+  // Both polarities are asserted so the rule can't silently widen either way.
+  for (const s of ['Rest 10-15 minutes before slicing', 'Rest 10–15 minutes before slicing',
+                   'Rest 10 - 15 minutes before slicing', 'Chill 30-45 min before serving',
+                   'Marinate 2-3 hours ahead of dinner', 'Eat 30 min prior to training']) {
+    assert.ok(SCHED.test(s), `ranged scheduling note should be flagged: ${s}`);
+  }
+  for (const s of ['sit 2 minutes to build a crust before breaking it apart',
+                   'Rest 10-15 minutes, then slice', 'Roast 30 minutes until golden']) {
+    assert.ok(!SCHED.test(s), `real wait must NOT be flagged as a schedule: ${s}`);
+  }
 });
 
 // NOTE — deliberately NOT asserted here: "every step carries a doneness cue".
