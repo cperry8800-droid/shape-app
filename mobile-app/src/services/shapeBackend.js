@@ -5258,14 +5258,19 @@ async function getUserPoints(ids) {
 // marketplace is the SAME number their own Coach Score page shows. Deliberately
 // NOT getUserPoints — that sums the member activity ledger, a different
 // quantity, and using it made the two surfaces disagree.
-// Returns { providerId: points }; {} on any failure (caller renders absent).
+// Returns { providerId: points } on success, or NULL when we never got an
+// answer (bad role, no client, read fault). The caller MUST be able to tell
+// those apart: a successful answer that omits an id means "no standing", but a
+// failure must stay uncached so the lookup can be retried — caching a failure
+// as "absent" would suppress that coach's standing for the whole session.
 async function getCoachScores(role, ids) {
   const r = String(role || '').toLowerCase();
-  if (r !== 'trainer' && r !== 'nutritionist') return {};
+  if (r !== 'trainer' && r !== 'nutritionist') return null;
   const list = [...new Set((ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
-  if (!supabase || !list.length) return {};
+  if (!supabase) return null;
+  if (!list.length) return {};
   const { data, error } = await supabase.rpc('get_coach_scores', { p_role: r, p_ids: list });
-  if (error) return {};
+  if (error) return null;
   const out = {};
   (data || []).forEach((row) => {
     const p = Number(row && row.points);

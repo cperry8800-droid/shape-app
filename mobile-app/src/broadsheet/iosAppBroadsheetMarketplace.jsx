@@ -391,6 +391,7 @@ const BSM_DEMO_POINTS = {
 };
 const _MKT_POINTS = new Map();   // "role:providerId" -> points | null (looked up, none)
 const _MKT_POINTS_INFLIGHT = new Set();
+const _MKT_CHUNK = 200;   // must stay <= the id cap inside get_coach_scores
 // A coach's score key is their PROVIDER row (id + role) — the identity
 // /api/coach/score is computed against. Only a mapped Supabase row has one, so
 // this doubles as the real-vs-demo discriminator.
@@ -414,48 +415,70 @@ function useMktCoachPoints(coaches) {
     if (!want.length) return undefined;
     want.forEach((k) => _MKT_POINTS_INFLIGHT.add(k));
     let on = true;
-    // Mark every requested key as looked-up regardless of outcome, so an empty or
-    // failed lookup settles on honest-absent instead of re-fetching each render.
+    const timers = [];
+    // Settle ONE batch. `ok` separates "the server answered" from "we never
+    // heard back", and it decides whether anything is cached at all:
+    //   ok   → cache every key in the batch (a key the answer omits is
+    //          genuinely absent — that coach has no standing yet)
+    //   !ok  → cache NOTHING, release only the in-flight hold.
+    // That asymmetry IS the retry: `want` filters on _MKT_POINTS.has(k), so
+    // caching a failure as "absent" would make the key look resolved and
+    // suppress that coach's standing for the rest of the session. A failed
+    // lookup has to leave the key uncached for a later mount to ask again.
     //
     // A MISSING value must never coerce to a real reading: `Number(null)` is 0,
-    // which is finite, so a failed fetch would otherwise record a genuine-looking
-    // "0 points" and render the bottom rung. Only a real positive number counts.
-    const settle = (map) => {
-      want.forEach((k) => {
-        const raw = (map && typeof map === 'object') ? map[k] : undefined;
-        const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
-        _MKT_POINTS.set(k, (Number.isFinite(p) && p > 0) ? p : null);
+    // which is finite, so it would otherwise record a genuine-looking "0 points"
+    // and render the bottom rung. Only a real positive number counts.
+    const settle = (batchKeys, map, ok) => {
+      batchKeys.forEach((k) => {
+        if (ok) {
+          const raw = (map && typeof map === 'object') ? map[k] : undefined;
+          const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
+          _MKT_POINTS.set(k, (Number.isFinite(p) && p > 0) ? p : null);
+        }
         _MKT_POINTS_INFLIGHT.delete(k);
       });
       if (on) bump((n) => n + 1);
     };
-    // One RPC per role, over that role's provider ids.
     const byRole = {};
     want.forEach((k) => {
       const i = k.indexOf(':');
       const r = k.slice(0, i);
       (byRole[r] = byRole[r] || []).push(Number(k.slice(i + 1)));
     });
-    const run = Promise.all(Object.keys(byRole).map((r) => Promise.resolve()
-      .then(() => ((window.ShapeCoachScores && window.ShapeCoachScores.batch) ? window.ShapeCoachScores.batch(r, byRole[r]) : null))
-      .then((m) => ({ r, m: m || {} }))
-      .catch(() => ({ r, m: {} }))
-    )).then((rows) => {
-      const out = {};
-      rows.forEach((x) => { Object.keys(x.m).forEach((pid) => { out[x.r + ':' + pid] = x.m[pid]; }); });
-      return out;
+    // One RPC per role, CHUNKED to the function's own id cap. Without the chunk
+    // a directory holding more than the cap for one role would have the extra
+    // ids silently dropped by the RPC and then cached as "absent" — those
+    // coaches would lose their standing for the session.
+    Object.keys(byRole).forEach((r) => {
+      for (let i = 0; i < byRole[r].length; i += _MKT_CHUNK) {
+        const ids = byRole[r].slice(i, i + _MKT_CHUNK);
+        const batchKeys = ids.map((id) => r + ':' + id);
+        // Race a timeout: supabase.rpc has no deadline of its own, so a stalled
+        // request would otherwise never settle and would pin these keys.
+        let timer = null;
+        const timeout = new Promise((res) => { timer = setTimeout(() => res(undefined), 8000); });
+        timers.push(() => { if (timer) clearTimeout(timer); });
+        Promise.race([
+          Promise.resolve().then(() => ((window.ShapeCoachScores && window.ShapeCoachScores.batch) ? window.ShapeCoachScores.batch(r, ids) : null)),
+          timeout,
+        ])
+          // batch() answers with an object, returns null on a read fault, and
+          // the timeout resolves undefined — only a real object counts as `ok`.
+          .then((m) => settle(batchKeys, m, !!m && typeof m === 'object'))
+          .catch(() => settle(batchKeys, null, false))
+          .finally(() => { if (timer) clearTimeout(timer); });
+      }
     });
-    // Race a timeout: supabase.rpc has no deadline of its own, so a stalled
-    // request would never settle — leaving these ids pinned in the in-flight set
-    // forever, which both withholds their tier AND blocks any retry. On timeout
-    // we settle to absent and release the ids so a later mount can try again.
-    let timer = null;
-    const raced = Promise.race([
-      run,
-      new Promise((res) => { timer = setTimeout(() => res(null), 8000); }),
-    ]);
-    raced.then((map) => settle(map)).catch(() => settle(null)).finally(() => { if (timer) clearTimeout(timer); });
-    return () => { on = false; if (timer) clearTimeout(timer); };
+    return () => {
+      on = false;
+      timers.forEach((f) => f());
+      // Those cleared timers mean a still-stalled batch may now never settle, so
+      // release every key this effect is still holding — otherwise it stays
+      // pinned in-flight for the life of the page and no later mount can ask
+      // for it again. Resolved keys are left alone (they are cached already).
+      want.forEach((k) => { if (!_MKT_POINTS.has(k)) _MKT_POINTS_INFLIGHT.delete(k); });
+    };
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 // A row is DEMO only when it carries no provider identity at all. Keying the demo

@@ -28,16 +28,27 @@
 
 create or replace function public.get_coach_scores(p_role text, p_ids bigint[])
 returns table (provider_id bigint, points integer)
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public, pg_temp
 as $$
+begin
+  -- REJECT an oversized call rather than silently truncating it. A `limit 200`
+  -- would return an arbitrary subset, and the caller — which cannot tell a
+  -- dropped id from one with no standing — would cache every omitted coach as
+  -- "no tier" for the session. Failing loudly is the only honest option; the
+  -- client chunks to this size, so this only fires on a caller that doesn't.
+  if array_length(p_ids, 1) > 200 then
+    raise exception 'get_coach_scores: at most 200 ids per call (got %)', array_length(p_ids, 1)
+      using errcode = '22023';
+  end if;
+
+  return query
   with ids as (
-    -- Bounded + de-duplicated: a crafted call can't fan this out.
+    -- De-duplicated: a crafted call can't fan this out.
     select distinct x as id
     from unnest(coalesce(p_ids, '{}'::bigint[])) as x
-    limit 200
   ),
   subs as (
     select s.provider_id as pid,
@@ -79,6 +90,7 @@ as $$
   left join subs  on subs.pid  = ids.id
   left join sess  on sess.pid  = ids.id
   left join progs on progs.pid = ids.id;
+end;
 $$;
 
 -- Public directory: browsable signed out, so anon needs execute. Only the
