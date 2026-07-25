@@ -671,15 +671,15 @@ function MktRow({ c, onOpen, n, photo }) {
 // Sample plans for preview / before any coach has published priced plans, so the
 // "What's hot" rail always demonstrates the feature (tagged demo → not buyable).
 const BSM_DEMO_PLANS = [
-  { id: 'demo-p1', tab: 'program', name: '8-Week Hypertrophy Block', coachName: 'Maya Okafor', providerRole: 'trainer', price: '$160', demo: true },
-  { id: 'demo-p2', tab: 'program', name: 'Powerbuilding Foundations', coachName: 'Marcus Johnson', providerRole: 'trainer', price: '$180', demo: true },
-  { id: 'demo-p3', tab: 'program', name: 'Marathon Base Builder', coachName: 'Cal Redmond', providerRole: 'trainer', price: '$140', demo: true },
-  { id: 'demo-w1', tab: 'workout', name: 'Heavy Pull Day', coachName: 'Leah Kim', providerRole: 'trainer', price: '$32', demo: true },
-  { id: 'demo-w2', tab: 'workout', name: 'Full-Body HIIT', coachName: 'Zoë Carter', providerRole: 'trainer', price: '$28', demo: true },
-  { id: 'demo-w3', tab: 'workout', name: 'Mobility Reset', coachName: 'Priya Natarajan', providerRole: 'trainer', price: '$24', demo: true },
-  { id: 'demo-m1', tab: 'meal', name: 'High-Protein Cut · 2 Weeks', coachName: 'Tanya Brooks', providerRole: 'nutritionist', price: '$120', demo: true },
-  { id: 'demo-m2', tab: 'meal', name: 'Plant-Based Performance', coachName: 'Omar Hassan', providerRole: 'nutritionist', price: '$95', demo: true },
-  { id: 'demo-m3', tab: 'meal', name: 'Gut-Health Reset Plan', coachName: 'Dr. Sarah Mitchell', providerRole: 'nutritionist', price: '$130', demo: true },
+  { id: 'demo-p1', tab: 'program', name: '8-Week Hypertrophy Block', coachName: 'Diego Morales', coachId: 't3', providerRole: 'trainer', price: '$160', demo: true },
+  { id: 'demo-p2', tab: 'program', name: 'Powerbuilding Foundations', coachName: 'Jordan Chen', coachId: 't1', providerRole: 'trainer', price: '$180', demo: true },
+  { id: 'demo-p3', tab: 'program', name: 'Marathon Base Builder', coachName: 'Clara Hayes', coachId: 't12', providerRole: 'trainer', price: '$140', demo: true },
+  { id: 'demo-w1', tab: 'workout', name: 'Heavy Pull Day', coachName: 'Diego Morales', coachId: 't3', providerRole: 'trainer', price: '$32', demo: true },
+  { id: 'demo-w2', tab: 'workout', name: 'Full-Body HIIT', coachName: 'Nico Alvarez', coachId: 't7', providerRole: 'trainer', price: '$28', demo: true },
+  { id: 'demo-w3', tab: 'workout', name: 'Mobility Reset', coachName: 'Tariq Osei', coachId: 't6', providerRole: 'trainer', price: '$24', demo: true },
+  { id: 'demo-m1', tab: 'meal', name: 'High-Protein Cut · 2 Weeks', coachName: 'Nadia Brooks', coachId: 'n8', providerRole: 'nutritionist', price: '$120', demo: true },
+  { id: 'demo-m2', tab: 'meal', name: 'Plant-Based Performance', coachName: 'Owen Halverson', coachId: 'n2', providerRole: 'nutritionist', price: '$95', demo: true },
+  { id: 'demo-m3', tab: 'meal', name: 'Gut-Health Reset Plan', coachName: 'Priya Iyer', coachId: 'n3', providerRole: 'nutritionist', price: '$130', demo: true },
 ];
 function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCoach = null, onCoachConsumed = null }) {
   const t = useBS();
@@ -1054,7 +1054,13 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                     // had no provider_id — no tier, no points — AND a bigint
                     // where a uuid was expected, so the avatar lookup missed and
                     // the downstream userId was wrong. Two distinct id spaces.
-                    setOpen({ name: pl.coachName, provider_id: (!pl.demo && pl.providerId) || undefined, provider_user_id: (!pl.demo && pl.ownerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
+                    // A DEMO row carries its roster coach id (and no provider
+                    // identity), so the opened page resolves that coach's demo
+                    // standing + avatar instead of `BSM_DEMO_POINTS[undefined]`.
+                    // The sample plans name real directory coaches for exactly
+                    // this reason — a rail advertising coaches who don't exist
+                    // in the directory opened a page with no identity at all.
+                    setOpen({ name: pl.coachName, id: (pl.demo && pl.coachId) || undefined, provider_id: (!pl.demo && pl.providerId) || undefined, provider_user_id: (!pl.demo && pl.ownerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
                   }} />
                 ))}
               </div>

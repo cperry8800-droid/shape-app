@@ -83,6 +83,17 @@ export async function GET(req: Request) {
       : Promise.resolve({ count: 0 } as { count: number }),
   ]);
 
+  // A FAILED count is not a zero. Coercing one to 0 would publish a real-looking
+  // score built on data we never read — the coach's own page would quietly show
+  // a lower standing (or a wrong completion%) with nothing indicating why. Fail
+  // the request instead; the caller already handles a non-200 as "unavailable".
+  const failed = [activeRes, sessTotalRes, sessDoneRes, workoutsRes]
+    .find((r) => (r as { error?: unknown }).error);
+  if (failed) {
+    console.error('[coach/score] count query failed', (failed as { error?: unknown }).error);
+    return NextResponse.json({ error: 'Could not read your score right now.' }, { status: 500 });
+  }
+
   const activeClients = (activeRes as { count: number | null }).count || 0;
 
   const totalSessions = (sessTotalRes as { count: number | null }).count || 0;
