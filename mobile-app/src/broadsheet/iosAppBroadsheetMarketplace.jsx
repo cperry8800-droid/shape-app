@@ -390,7 +390,12 @@ const BSM_DEMO_POINTS = {
   n8: 4400, n9: 900, n10: 1950,
 };
 const _MKT_POINTS = new Map();   // "role:providerId" -> points | null (looked up, none)
-const _MKT_POINTS_INFLIGHT = new Set();
+// key -> the OWNER token of the request that claimed it. A Set was not enough:
+// React runs an effect's cleanup BEFORE the next effect, so a superseded request
+// could release keys the NEW request had just claimed, and its late completion
+// could then cache a stale answer or delete a live claim. Ownership makes both
+// impossible — a request only ever writes or releases the keys it still owns.
+const _MKT_POINTS_INFLIGHT = new Map();
 const _MKT_CHUNK = 200;   // must stay <= the id cap inside get_coach_scores
 // A coach's score key is their PROVIDER row (id + role) — the identity
 // /api/coach/score is computed against. Only a mapped Supabase row has one, so
@@ -413,7 +418,8 @@ function useMktCoachPoints(coaches) {
     // while the grid is still loading would fire a second RPC for the same id.
     const want = keys.filter((k) => !_MKT_POINTS.has(k) && !_MKT_POINTS_INFLIGHT.has(k));
     if (!want.length) return undefined;
-    want.forEach((k) => _MKT_POINTS_INFLIGHT.add(k));
+    const owner = {};   // identity token for THIS effect run
+    want.forEach((k) => _MKT_POINTS_INFLIGHT.set(k, owner));
     let on = true;
     const timers = [];
     // Settle ONE batch. `ok` separates "the server answered" from "we never
@@ -437,6 +443,9 @@ function useMktCoachPoints(coaches) {
     const settle = (r, ids, map, ok) => {
       ids.forEach((id) => {
         const k = r + ':' + id;
+        // Someone newer owns this key — a superseded request must not write its
+        // answer over theirs, nor release their claim.
+        if (_MKT_POINTS_INFLIGHT.get(k) !== owner) return;
         if (ok) {
           const raw = (map && typeof map === 'object') ? map[id] : undefined;
           const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
@@ -482,7 +491,10 @@ function useMktCoachPoints(coaches) {
       // release every key this effect is still holding — otherwise it stays
       // pinned in-flight for the life of the page and no later mount can ask
       // for it again. Resolved keys are left alone (they are cached already).
-      want.forEach((k) => { if (!_MKT_POINTS.has(k)) _MKT_POINTS_INFLIGHT.delete(k); });
+      want.forEach((k) => {
+        if (_MKT_POINTS_INFLIGHT.get(k) !== owner) return;   // reclaimed since — leave it
+        if (!_MKT_POINTS.has(k)) _MKT_POINTS_INFLIGHT.delete(k);
+      });
     };
   }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
@@ -1025,7 +1037,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
             // Live published plans when present; else sample plans so the rail is
             // populated in preview / before any coach has published.
             const live = Array.isArray(marketPlans) ? marketPlans : [];
-            const all = live.length ? live : BSM_DEMO_PLANS;
+            // Sample plans are the SIGNED-OUT preview only. A signed-in member
+            // seeing them would be shown fabricated coach offerings — priced,
+            // with working taps — for plans nobody published (the demo-leak
+            // rule). With no live plans they get the honest empty state below.
+            const all = live.length ? live : (bsmSignedIn() ? [] : BSM_DEMO_PLANS);
             const tabPlans = all.filter((p) => p.tab === planTab).slice(0, 8);
             // Mono underline toggles (the rounded pills died with the Classifieds pass).
             const tabPill = (on) => ({ flex: 'none', minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap',
