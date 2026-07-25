@@ -813,6 +813,9 @@ const LV_FEED = {
   // back to the raw key (livingDesktop's `LV_FEED[it.k] || it.k`) or rendered
   // blank (livingSignal indexes the map directly).
   video: "Video", link: "Link",
+  // A career milestone is the AUTHOR's own event (promoted, certified,
+  // launched) — distinct from `win`, which is a coach posting about a client.
+  milestone: "Milestone",
 };
 // Owner sees everything. RLS is the security authority — a post that reached the
 // client is already one this viewer may see — so the profile feed shows the tiers

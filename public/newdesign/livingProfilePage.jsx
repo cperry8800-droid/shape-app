@@ -41,7 +41,11 @@ function lvRelTime(iso) {
 function lvPostKind(row) {
   const m = (row.metrics && typeof row.metrics === "object") ? row.metrics : {};
   if (m.kind === "meal") return "meal";
-  if (m.kind === "milestone") return "win";
+  // NOT "win": LV_FEED labels that "Client win", which is a COACH's post about
+  // a client's success. The milestone composer uses this kind for the author's
+  // own career events (promoted, certified, launched), so mapping it to `win`
+  // put a client-success badge on someone's own promotion.
+  if (m.kind === "milestone") return "milestone";
   if (m.delta) return "pr";
   const isActivity = m.kind === "workout"
     || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
