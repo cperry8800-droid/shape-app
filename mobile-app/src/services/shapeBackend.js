@@ -5266,9 +5266,16 @@ async function getUserPoints(ids) {
 async function getCoachScores(role, ids) {
   const r = String(role || '').toLowerCase();
   if (r !== 'trainer' && r !== 'nutritionist') return null;
-  const list = [...new Set((ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
-  if (!supabase) return null;
+  // isSafeInteger, not isFinite: a provider_id is a bigint. `1.5` and 2^53+ both
+  // clear isFinite, and sending either into the RPC's bigint[] errors the WHOLE
+  // batch — every coach in that chunk would then go uncached and be retried, so
+  // one malformed id could suppress a page of standings. Drop them here instead.
+  const list = [...new Set((ids || []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
+  // An empty ask is not a failure: answer {} BEFORE the client check, so "you
+  // asked about nobody" can never be reported as "we never got an answer"
+  // (which the caller treats as retryable).
   if (!list.length) return {};
+  if (!supabase) return null;
   const { data, error } = await supabase.rpc('get_coach_scores', { p_role: r, p_ids: list });
   if (error) return null;
   const out = {};

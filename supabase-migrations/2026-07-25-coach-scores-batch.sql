@@ -71,10 +71,15 @@ begin
     -- `trainers`/`nutritionists` are the marketplace's own source and are
     -- unconditionally public-read today (SELECT policy `qual: true` for
     -- anon+authenticated — verified live), so this intersection hides nothing
-    -- that is visible now. It makes the boundary EXPLICIT: this function scores
-    -- the public coach set and nothing else, so if an "unlisted coach" flag is
-    -- ever added to those tables it narrows this function automatically instead
-    -- of quietly continuing to expose the hidden rows.
+    -- that is visible now. What it buys is an EXPLICIT boundary: membership of
+    -- the role table is now the stated admission test, so the set this function
+    -- scores is written down instead of being "whatever id you ask about".
+    --
+    -- ⚠ Be precise about what that does NOT do: this is a membership test, not
+    -- a visibility test. If an "unlisted"/"hidden" flag is ever added to those
+    -- tables, it will NOT be enforced here for free — the predicate below has
+    -- to be extended to read it, or this function will keep scoring hidden
+    -- coaches. Whoever adds such a column owns updating this WHERE clause.
     --
     -- It also stops the function asserting a real-looking "0 points" about a
     -- provider id that does not exist — an unknown id now returns NO ROW, which
