@@ -164,7 +164,17 @@ test('a nutrition plan with weekday-prefixed meals is a MENU, never a workout sp
   const p = bsPlanPreview({ name: 'x', detail: { blocks } }, { isNutri: true });
   assert.equal(p.kind, 'menu');
   assert.equal(p.sessionsPerWeek, null);          // a menu has no days/week
-  assert.ok(p.units.every((u) => u.kcal > 0));    // real kcal survived
+  // Assert the ACTUAL parse, not a predicate an empty array satisfies:
+  // `[].every(...)` is true, so a regression that dropped every meal would have
+  // slipped straight through the kcal check. Pin the count and the values.
+  assert.equal(p.units.length, 3);
+  assert.deepEqual(p.units.map((u) => u.kcal), [420, 610, 580]);
+  // The slot degrades to the generic MEAL when a weekday prefix sits in front of
+  // it — and that is pinned deliberately, because `bsAssignMeal` is SHARED with
+  // the assign flow and gives it the same answer. The contract this test defends
+  // is that the preview matches what the buyer is assigned, so "fixing" the slot
+  // here alone would break it; the fix belongs in the shared parser or nowhere.
+  assert.deepEqual(p.units.map((u) => u.label), ['MEAL', 'MEAL', 'MEAL']);
   // …and the same blocks for a TRAINER still read as a split.
   assert.equal(bsPlanPreview({ name: 'x', detail: { blocks } }).kind, 'split');
 });
