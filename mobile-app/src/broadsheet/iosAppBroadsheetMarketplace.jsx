@@ -429,10 +429,16 @@ function useMktCoachPoints(coaches) {
     // A MISSING value must never coerce to a real reading: `Number(null)` is 0,
     // which is finite, so it would otherwise record a genuine-looking "0 points"
     // and render the bottom rung. Only a real positive number counts.
-    const settle = (batchKeys, map, ok) => {
-      batchKeys.forEach((k) => {
+    // Takes the ROLE and the BARE ids, never a pre-joined key: the batch answer is
+    // keyed by plain provider_id ({ 1: 600 }) while the cache is keyed by
+    // "role:id". Reading the answer with the composite key silently missed every
+    // time, so every real coach cached null and the whole feature returned no
+    // tier. Keeping both forms explicit here makes that mismatch unrepresentable.
+    const settle = (r, ids, map, ok) => {
+      ids.forEach((id) => {
+        const k = r + ':' + id;
         if (ok) {
-          const raw = (map && typeof map === 'object') ? map[k] : undefined;
+          const raw = (map && typeof map === 'object') ? map[id] : undefined;
           const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
           _MKT_POINTS.set(k, (Number.isFinite(p) && p > 0) ? p : null);
         }
@@ -453,7 +459,6 @@ function useMktCoachPoints(coaches) {
     Object.keys(byRole).forEach((r) => {
       for (let i = 0; i < byRole[r].length; i += _MKT_CHUNK) {
         const ids = byRole[r].slice(i, i + _MKT_CHUNK);
-        const batchKeys = ids.map((id) => r + ':' + id);
         // Race a timeout: supabase.rpc has no deadline of its own, so a stalled
         // request would otherwise never settle and would pin these keys.
         let timer = null;
@@ -465,8 +470,8 @@ function useMktCoachPoints(coaches) {
         ])
           // batch() answers with an object, returns null on a read fault, and
           // the timeout resolves undefined — only a real object counts as `ok`.
-          .then((m) => settle(batchKeys, m, !!m && typeof m === 'object'))
-          .catch(() => settle(batchKeys, null, false))
+          .then((m) => settle(r, ids, m, !!m && typeof m === 'object'))
+          .catch(() => settle(r, ids, null, false))
           .finally(() => { if (timer) clearTimeout(timer); });
       }
     });
