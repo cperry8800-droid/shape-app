@@ -8316,10 +8316,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
       copy: 'Conditioning day. Carbs front-loaded — fuel the intervals, recover with protein. Skip the heavy fats early.',
       totals: { cal: '1898', p: '128', c: '232', f: '50', target: { cal: '1950', p: '130', c: '240', f: '52' } },
       recipeName: <>Honey-soy<br/>salmon rice bowl.</>,
-      recipeMeta: '5 ingredients · 16 min · Bowl',
+      recipeMeta: '7 ingredients · 16 min · Bowl',
       recipe: {
         title: <>Honey-soy<br/>salmon rice bowl.</>,
-        meta: '5 ingredients · 16 min · Bowl',
+        meta: '7 ingredients · 16 min · Bowl',
         accent: t.RUST,
         kcal: 560, p: 38, c: 64, f: 18, prep: '16 min', portion: '1 bowl', score: 'A',
         hero: 'Salmon, jasmine rice, cucumber ribbons, honey-soy glaze, sesame.',
