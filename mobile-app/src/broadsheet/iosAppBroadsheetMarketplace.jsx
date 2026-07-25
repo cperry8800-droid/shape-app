@@ -358,17 +358,25 @@ function mktInitials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   return (((p[0] || '')[0] || '') + ((p[1] || '')[0] || '')).toUpperCase() || '?';
 }
-// THE STANDING — a coach's rung on the Shape Score ladder.
+// THE STANDING — a coach's rung on the coach ladder.
 //
-// A REAL coach's rung is their REAL Shape Score points, batch-resolved from their
-// owner id (ONE rpc for the whole directory, cached below). When we don't know
-// their points the tier is ABSENT and nothing renders — inventing a rung for a
-// live coach is a fabricated credential (the honest-data rule).
+// A REAL coach's rung is their CANONICAL COACH SCORE — the very number
+// /api/coach/score renders on their own Coach Score page (active clients +
+// session completion + programs published), batch-resolved through
+// get_coach_scores (one RPC per role for the whole directory, cached below).
+// When we can't resolve it the tier is ABSENT and nothing renders — inventing a
+// rung for a live coach is a fabricated credential (the honest-data rule).
 //
-// A DEMO coach (signed-out preview — no owner id) reads an AUTHORED standing so
-// the preview shows a real ladder instead of one rung for everyone.
+// ⚠ NOT the member activity ledger (get_user_points). That sums a DIFFERENT
+// quantity — personal workouts/habits/meals — so a successful coach with no
+// personal logging showed no standing while a coach who logs their own training
+// showed a rung contradicting their own Coach Score page (Codex P1). One number,
+// one ladder, both surfaces.
 //
-// The old derivation was `score = match×18 + sessions/5 + clients×4` → rung. It
+// A DEMO coach (signed-out preview — no provider row) reads an AUTHORED standing
+// so the preview shows a real ladder instead of one rung for everyone.
+//
+// The original derivation was `match×18 + sessions/5 + clients×4` → rung. It
 // could not separate anyone: `match` only varies 73–96, so every demo coach
 // landed in a 1,448–2,008 band and 22 of 23 read "Pro" (Master and Icon were
 // unreachable), while every real coach hit the same fallback and read one
@@ -381,45 +389,69 @@ const BSM_DEMO_POINTS = {
   n1: 15400, n2: 2100, n3: 1150, n4: 1680, n5: 5600, n6: 2750, n7: 3100,
   n8: 4400, n9: 900, n10: 1950,
 };
-const _MKT_POINTS = new Map();   // owner uid -> points | null (looked up, none)
+const _MKT_POINTS = new Map();   // "role:providerId" -> points | null (looked up, none)
 const _MKT_POINTS_INFLIGHT = new Set();
-function bsmCoachOwner(c) { return (c && (c.provider_user_id || c.owner_id)) || null; }
-// Resolve every visible REAL coach's points in one batch. Cached per session, so
-// scrolling the directory or reopening a Listing never re-fetches.
+// A coach's score key is their PROVIDER row (id + role) — the identity
+// /api/coach/score is computed against. Only a mapped Supabase row has one, so
+// this doubles as the real-vs-demo discriminator.
+function bsmCoachScoreKey(c) {
+  const pid = c && (c.provider_id || c.db_id);
+  if (!pid) return null;
+  const role = (c.provider_role === 'nutritionist' || getPublicProfileKind(c) === 'nutritionist') ? 'nutritionist' : 'trainer';
+  return role + ':' + pid;
+}
+// Resolve every visible REAL coach's standing in one batch per role. Cached per
+// session, so scrolling the directory or reopening a Listing never re-fetches.
 function useMktCoachPoints(coaches) {
   const [, bump] = React.useState(0);
-  const owners = Array.from(new Set((coaches || []).map(bsmCoachOwner).filter(Boolean)));
-  const key = owners.join(',');
+  const keys = Array.from(new Set((coaches || []).map(bsmCoachScoreKey).filter(Boolean)));
+  const key = keys.join(',');
   React.useEffect(() => {
-    // Skip ids already resolved OR already being fetched — the directory and an
+    // Skip keys already resolved OR already being fetched — the directory and an
     // open Listing both call this, and without the in-flight guard a coach opened
     // while the grid is still loading would fire a second RPC for the same id.
-    const want = owners.filter((o) => !_MKT_POINTS.has(o) && !_MKT_POINTS_INFLIGHT.has(o));
+    const want = keys.filter((k) => !_MKT_POINTS.has(k) && !_MKT_POINTS_INFLIGHT.has(k));
     if (!want.length) return undefined;
-    want.forEach((o) => _MKT_POINTS_INFLIGHT.add(o));
+    want.forEach((k) => _MKT_POINTS_INFLIGHT.add(k));
     let on = true;
-    // Mark every requested id as looked-up regardless of outcome, so an empty or
+    // Mark every requested key as looked-up regardless of outcome, so an empty or
     // failed lookup settles on honest-absent instead of re-fetching each render.
     //
     // A MISSING value must never coerce to a real reading: `Number(null)` is 0,
     // which is finite, so a failed fetch would otherwise record a genuine-looking
     // "0 points" and render the bottom rung. Only a real positive number counts.
     const settle = (map) => {
-      want.forEach((id) => {
-        const raw = (map && typeof map === 'object') ? map[id] : undefined;
+      want.forEach((k) => {
+        const raw = (map && typeof map === 'object') ? map[k] : undefined;
         const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
-        _MKT_POINTS.set(id, (Number.isFinite(p) && p > 0) ? p : null);
-        _MKT_POINTS_INFLIGHT.delete(id);
+        _MKT_POINTS.set(k, (Number.isFinite(p) && p > 0) ? p : null);
+        _MKT_POINTS_INFLIGHT.delete(k);
       });
       if (on) bump((n) => n + 1);
     };
+    // One RPC per role, over that role's provider ids.
+    const byRole = {};
+    want.forEach((k) => {
+      const i = k.indexOf(':');
+      const r = k.slice(0, i);
+      (byRole[r] = byRole[r] || []).push(Number(k.slice(i + 1)));
+    });
+    const run = Promise.all(Object.keys(byRole).map((r) => Promise.resolve()
+      .then(() => ((window.ShapeCoachScores && window.ShapeCoachScores.batch) ? window.ShapeCoachScores.batch(r, byRole[r]) : null))
+      .then((m) => ({ r, m: m || {} }))
+      .catch(() => ({ r, m: {} }))
+    )).then((rows) => {
+      const out = {};
+      rows.forEach((x) => { Object.keys(x.m).forEach((pid) => { out[x.r + ':' + pid] = x.m[pid]; }); });
+      return out;
+    });
     // Race a timeout: supabase.rpc has no deadline of its own, so a stalled
     // request would never settle — leaving these ids pinned in the in-flight set
     // forever, which both withholds their tier AND blocks any retry. On timeout
     // we settle to absent and release the ids so a later mount can try again.
     let timer = null;
     const raced = Promise.race([
-      Promise.resolve().then(() => (window.ShapeProfiles && window.ShapeProfiles.getUserPoints ? window.ShapeProfiles.getUserPoints(want) : null)),
+      run,
       new Promise((res) => { timer = setTimeout(() => res(null), 8000); }),
     ]);
     raced.then((map) => settle(map)).catch(() => settle(null)).finally(() => { if (timer) clearTimeout(timer); });
@@ -433,8 +465,8 @@ function useMktCoachPoints(coaches) {
 // trainers.id = 1 and no owner would print the authored demo standing as their own.
 function bsmIsDemoCoach(c) { return !!c && !c.provider_id && !c.db_id && !c.provider_user_id; }
 function mktCoachTier(c) {
-  const owner = bsmCoachOwner(c);
-  const pts = owner ? _MKT_POINTS.get(owner) : (bsmIsDemoCoach(c) ? BSM_DEMO_POINTS[c.id] : undefined);
+  const skey = bsmCoachScoreKey(c);
+  const pts = skey ? _MKT_POINTS.get(skey) : (bsmIsDemoCoach(c) ? BSM_DEMO_POINTS[c.id] : undefined);
   // Not yet loaded, looked-up-and-absent, or a real zero all render NOTHING —
   // "hidden when none" (a coach who hasn't earned a standing has no rung to show).
   if (!Number.isFinite(pts) || pts <= 0) return { name: null, color: mktRoleColor(c), points: null };

@@ -5252,6 +5252,29 @@ async function getUserPoints(ids) {
   (data || []).forEach(r => { out[r.user_id] = Number(r.points) || 0; });
   return out;
 }
+// Batch CANONICAL coach standing for the marketplace directory.
+// get_coach_scores mirrors /api/coach/score's formula server-side (active
+// clients + session completion + programs published), so a coach's rung on the
+// marketplace is the SAME number their own Coach Score page shows. Deliberately
+// NOT getUserPoints — that sums the member activity ledger, a different
+// quantity, and using it made the two surfaces disagree.
+// Returns { providerId: points }; {} on any failure (caller renders absent).
+async function getCoachScores(role, ids) {
+  const r = String(role || '').toLowerCase();
+  if (r !== 'trainer' && r !== 'nutritionist') return {};
+  const list = [...new Set((ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!supabase || !list.length) return {};
+  const { data, error } = await supabase.rpc('get_coach_scores', { p_role: r, p_ids: list });
+  if (error) return {};
+  const out = {};
+  (data || []).forEach((row) => {
+    const p = Number(row && row.points);
+    if (row && row.provider_id != null && Number.isFinite(p)) out[row.provider_id] = p;
+  });
+  return out;
+}
+window.ShapeCoachScores = { batch: getCoachScores };
+
 // Batch member avatars (profile photos) for chat/feed avatars. Reads
 // get_public_profile per unique id (visibility-gated) and caches the result so
 // repeat lookups across the feed/threads are free. Returns { userId: dataUrl }.
