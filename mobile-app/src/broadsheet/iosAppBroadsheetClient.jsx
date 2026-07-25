@@ -6628,8 +6628,10 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           cling to the top with the whole screen empty beneath the CTA. Percent
           (not vh) because in desktop preview the phone frame is NOT the viewport;
           BSPage's scroller is height:100%, so this resolves against the frame.
-          Only the method block takes flex:1, so mise/plated are unchanged. */}
-      <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })} style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+          SCOPED to the method phase: mise and plated never needed the centring,
+          and applying flex-column to them as well meant a layout change reaching
+          two screens it was not written for. Inert everywhere else now. */}
+      <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })} style={(phase === 'method' && hasMethod) ? { minHeight: '100%', display: 'flex', flexDirection: 'column' } : undefined}>
         {band}
         {seam}
 
@@ -7747,7 +7749,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             { n: 'pinch', m: 'Cinnamon',        k: '0 kcal' },
           ],
           steps: [
-            'Bring the milk and water to a bare simmer, then stir the oats in. Starting them in liquid that is already hot keeps the grains separate instead of gluey.',
+            'Bring the milk and 100 ml water to a bare simmer, then stir the oats in. Starting them in liquid that is already hot keeps the grains separate instead of gluey.',
             'Simmer 5 minutes, stirring now and then, until the oats hold a spoon-trail and the liquid has thickened around them rather than pooling.',
             'Off the heat, stir the peanut butter through while everything is still hot — it ribbons in; added cold it sits in lumps.',
             'Slice the banana over the top so it warms through without breaking down.',
@@ -8396,7 +8398,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
             'Pat the salmon completely dry on both sides. A damp fillet steams rather than sears, and the glaze slides straight off a wet surface.',
             'Set a non-stick pan over medium-high until a flick of water skitters across it. Lay the salmon in skin-side down and press it flat for a moment so the whole skin makes contact.',
             'Sear undisturbed 4 minutes, until the skin releases from the pan on its own and the flesh has turned opaque about a third of the way up the fillet.',
-            'Flip, spoon over half the glaze, and give it 2 minutes more — the thickest part should flake when you nudge it with a fork.',
+            'Flip and give it 2 minutes more, until the thickest part flakes when you nudge it with a fork.',
+            'Only now spoon half the glaze over, for the last 30 seconds of that time — honey at this heat scorches in about a minute, which is exactly what the coach note is warning about.',
             'Off the heat, brush on the rest of the glaze and let it tighten against the residual warmth. Bowl the rice, ribbon the cucumber over it, add the edamame, lay the salmon on top and scatter the sesame.',
           ],
           coachNote: 'Glaze at the end, not the start. Sugar burns fast.',
