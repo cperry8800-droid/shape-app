@@ -657,6 +657,14 @@ function FeedBlock({ d, direction, owner }) {
               ▸ Watch
             </a>
           )}
+          {/* A link post's destination IS its content — without this the post
+              rendered as an unopenable title. Same treatment as the video link. */}
+          {it.link && (
+            <a href={it.link} target="_blank" rel="noopener noreferrer"
+               style={{ display: "inline-block", marginTop: 12, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: c, borderBottom: `1px solid ${dHexA(c, 0.5)}`, paddingBottom: 2, textDecoration: "none" }}>
+              ↗ {it.linkTitle || "Open link"}
+            </a>
+          )}
           {/* ink→heat separator between dispatches (suppressed on the last) */}
           {i < shown.length - 1 && (
             <div aria-hidden="true" style={{ height: 2, margin: "22px 0", background: `linear-gradient(90deg, ${dHexA(LV_INK, 0.5)}, ${dHexA(c, 0.7)} 55%, transparent)` }} />

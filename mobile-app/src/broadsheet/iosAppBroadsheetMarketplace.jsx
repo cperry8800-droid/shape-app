@@ -1340,7 +1340,9 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
   const isSinglePlan = isNutri ? /meal/.test(planCat) : /workout|single/.test(planCat);
   const eyebrowKind = p.kind
     || (isNutri ? 'menu' : (isSinglePlan ? 'session' : 'split'));
-  const eyebrow = eyebrowKind === 'split'
+  // 'block' (a Week 1..N outline) reads as a Program — same as a weekday split.
+  // Both are multi-session products; only the unit shape differs.
+  const eyebrow = (eyebrowKind === 'split' || eyebrowKind === 'block')
     ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
     : eyebrowKind === 'menu'
       ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
@@ -1643,6 +1645,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const saleProviderId = coach.provider_id || coach.db_id || null;
   const [salePlans, setSalePlans] = useStateBSM2(null);
   const [previewPlan, setPreviewPlan] = useStateBSM2(null);
+  // The signed-in identity is a DEPENDENCY of the demo fallback below, not just
+  // something it reads. Keyed only on the coach, a sign-in that happened while
+  // this Listing stayed mounted left the stand-in catalogue — and its Buy CTAs —
+  // on screen for a real member. That is precisely the demo-leak the branch
+  // below is written to prevent, so the uid rides in the dep array.
+  const bsmAuthUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   React.useEffect(() => {
     // The signed-out PREVIEW falls back to the stand-in catalogue so the Listing
     // reads as a finished page instead of skipping straight from the rate card to
@@ -1665,7 +1673,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       .then((r) => { if (on) setSalePlans((r && r.length) ? r : []); })
       .catch(() => { if (on) setSalePlans([]); });
     return () => { on = false; };
-  }, [saleProviderId, saleProviderRole]);
+  }, [saleProviderId, saleProviderRole, bsmAuthUid]);
   React.useEffect(() => {
     if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }
     let on = true;

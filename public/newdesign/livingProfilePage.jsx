@@ -84,10 +84,16 @@ function lvMapPost(row) {
   // before it can become an <img> or a link target.
   const media = lvSafeMedia(row.photo_url);
   const video = lvSafeMedia(m.video_url);
+  // A LINK post's whole content is its destination — the composer stores it at
+  // metrics.link.url and nowhere else. Dropping it here rendered the title and
+  // note with no way to reach the thing the post is about, so every link post
+  // on a real profile lost its primary content. Same scheme guard as the media.
+  const link = (m.link && typeof m.link === "object") ? lvSafeMedia(m.link.url) : null;
+  const linkTitle = (m.link && typeof m.link === "object") ? String(m.link.title || "").trim() : "";
   return {
     k, t: title, b: String(row.note || "").trim(), time: lvRelTime(row.created_at),
     vis: lvPostVis(row), metric: m.delta ? ["New PR", String(m.delta)] : null,
-    photo: media, video,
+    photo: media, video, link, linkTitle,
   };
 }
 

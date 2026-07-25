@@ -109,6 +109,38 @@ export function bsPlanPreview(plan, opts) {
     };
   }
 
+  // A WEEK-BLOCK outline — "Week 1 — Accumulation" … "Week 6 — Retest". Both
+  // builders emit exactly this for their multi-week products (the trainer's
+  // paid `plan` and the nutritionist's `program`), and none of those lines is a
+  // weekday, so without this they fell through to the exercise parser: a
+  // six-week program was labelled "Single session" and its WEEKS were listed as
+  // moves. Checked before the exercise fallback for that reason.
+  const weekLines = texts.map((t) => /^\s*week\s*(\d{1,2})\b[\s.:—–-]*(.*)$/i.exec(t));
+  if (weekLines.filter(Boolean).length >= 2) {
+    const units = [];
+    let maxWeek = 0;
+    for (const w of weekLines) {
+      if (!w) continue;
+      const n = Number(w[1]);
+      if (Number.isFinite(n) && n > maxWeek && n <= 52) maxWeek = n;
+      units.push({ label: `WEEK ${w[1]}`, title: clean(w[2]) });
+    }
+    return {
+      kind: 'block',
+      // The outline STATES its own week numbers, so the highest one is stated
+      // information — not a guess from the block count (which is what the
+      // no-fabrication rule forbids, and which would be wrong here anyway:
+      // the nutrition program outline carries a trailing non-week block).
+      weeks: weeks || (maxWeek > 0 ? maxWeek : null),
+      sessionsPerWeek: null,
+      units,
+      free: units.slice(0, BS_PREVIEW_FREE_UNITS),
+      locked: Math.max(0, units.length - BS_PREVIEW_FREE_UNITS),
+      note,
+      media,
+    };
+  }
+
   if (isNutri) {
     const units = texts.map((t) => {
       const m = bsAssignMeal(t);
@@ -119,7 +151,11 @@ export function bsPlanPreview(plan, opts) {
       // A kcal-only title (a block with no dish name) strips to empty — leave it
       // empty rather than falling back to the raw text, which would show the kcal
       // twice (kcal renders from u.kcal).
-      const title = clean(m.title).replace(/\s*[·,]?\s*\d{2,4}\s*kcal\s*$/i, '').trim();
+      // `~` is consumed with the number: the nutrition builder's own default
+      // outline writes "Breakfast · ~500 kcal", so stripping only the digits
+      // left a dangling "Breakfast · ~" on every generated paid meal plan.
+      // The separator is taken with it for the same reason.
+      const title = clean(m.title).replace(/\s*[·,-]?\s*[~≈]?\s*\d{2,4}\s*kcal\s*$/i, '').trim();
       return {
         label: m.slot,
         title,

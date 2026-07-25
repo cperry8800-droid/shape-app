@@ -178,3 +178,51 @@ test('a nutrition plan with weekday-prefixed meals is a MENU, never a workout sp
   // …and the same blocks for a TRAINER still read as a split.
   assert.equal(bsPlanPreview({ name: 'x', detail: { blocks } }).kind, 'split');
 });
+
+test('a Week 1..N outline is a PROGRAM, never a single session', () => {
+  // Both builders emit exactly this for their multi-week products — the
+  // trainer's paid `plan` (iosAppBroadsheetPros.jsx) and the nutritionist's
+  // `program`. None of the lines is a weekday, so before this they fell to the
+  // exercise parser: a six-week program was labelled "Single session" and its
+  // WEEKS were listed as moves.
+  const p = bsPlanPreview({ name: 'Hypertrophy Plan', detail: { blocks: [
+    'Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification',
+    'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest',
+  ] } });
+  assert.equal(p.kind, 'block');
+  assert.equal(p.units.length, 6);
+  assert.deepEqual(p.units.slice(0, 2), [
+    { label: 'WEEK 1', title: 'Accumulation' },
+    { label: 'WEEK 2', title: 'Accumulation' },
+  ]);
+  // The outline STATES its week numbers, so 6 is read information — not a guess
+  // from the block count. The nutrition program proves the difference: 5 blocks,
+  // only 4 of them weeks.
+  assert.equal(p.weeks, 6);
+  const n = bsPlanPreview({ name: 'Reset', detail: { blocks: [
+    'Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros',
+    'Week 4 — Lock it in', 'Grocery + prep guide',
+  ] } }, { isNutri: true });
+  assert.equal(n.kind, 'block');
+  assert.equal(n.weeks, 4);
+  assert.equal(n.units.length, 4);
+  // A stated duration in the metadata still wins over the outline's numbers.
+  assert.equal(bsPlanPreview({ name: 'x', meta: '12 wks', detail: { blocks: [
+    'Week 1 — A', 'Week 2 — B',
+  ] } }).weeks, 12);
+});
+
+test('an estimated-kcal suffix strips whole, leaving no dangling "~"', () => {
+  // The nutrition builder's default outline writes "Breakfast · ~500 kcal".
+  // Removing only the digits left titles reading "Breakfast · ~" on every
+  // generated paid meal plan.
+  const p = bsPlanPreview({ name: 'x', detail: { blocks: [
+    'Breakfast · ~500 kcal', 'Lunch · ~600 kcal', 'Snack · ~250 kcal',
+  ] } }, { isNutri: true });
+  assert.equal(p.kind, 'menu');
+  for (const u of p.units) {
+    assert.ok(!/[~≈]/.test(u.title), `dangling approximation marker in: ${u.title}`);
+    assert.ok(!/·\s*$/.test(u.title), `dangling separator in: ${u.title}`);
+  }
+  assert.deepEqual(p.units.map((u) => u.kcal), [500, 600, 250]);
+});
