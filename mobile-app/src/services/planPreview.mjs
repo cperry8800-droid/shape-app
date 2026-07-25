@@ -17,7 +17,7 @@
 // menu IS the product, so it shows BS_PREVIEW_FREE_UNITS units and reports the
 // remainder as locked. The sheet never renders a locked unit's text.
 
-import { bsAssignDayLine, bsAssignExercise, bsAssignMeal } from './planOutline.mjs';
+import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine } from './planOutline.mjs';
 
 // How many units of a session/menu a buyer sees before paying.
 export const BS_PREVIEW_FREE_UNITS = 2;
@@ -115,15 +115,16 @@ export function bsPlanPreview(plan, opts) {
   // weekday, so without this they fell through to the exercise parser: a
   // six-week program was labelled "Single session" and its WEEKS were listed as
   // moves. Checked before the exercise fallback for that reason.
-  const weekLines = texts.map((t) => /^\s*week\s*(\d{1,2})\b[\s.:—–-]*(.*)$/i.exec(t));
+  // ONE grammar, shared with the delivery path (bsAssignWeekLine) — a local copy
+  // here could drift and make the preview promise a shape Assign doesn't build.
+  const weekLines = texts.map(bsAssignWeekLine);
   if (weekLines.filter(Boolean).length >= 2) {
     const units = [];
     let maxWeek = 0;
     for (const w of weekLines) {
       if (!w) continue;
-      const n = Number(w[1]);
-      if (Number.isFinite(n) && n > maxWeek && n <= 52) maxWeek = n;
-      units.push({ label: `WEEK ${w[1]}`, title: clean(w[2]) });
+      if (w.week > maxWeek) maxWeek = w.week;
+      units.push({ label: `WEEK ${w.week}`, title: clean(w.title) });
     }
     return {
       kind: 'block',

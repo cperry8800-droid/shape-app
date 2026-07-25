@@ -13,6 +13,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
+import { bsAssignWeekLine, bsAssignDayLine } from '../services/planOutline.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
@@ -1595,6 +1596,20 @@ function BSLibraryDetail({ item, onBack }) {
   const nextMonISO = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + ((8 - ((d.getDay() + 6) % 7 + 1)) % 7 || 7)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
   const [startISO, setStartISO] = useStateBSC(nextMonISO);
   const [startWeeks, setStartWeeks] = useStateBSC(4);
+  // A week-block plan ("Week 1 — Accumulation" …) states its OWN length, so the
+  // materializer schedules the coach's weeks and ignores this stepper — showing
+  // it would let the member pick a number the plan then overrides. Same
+  // precedence + threshold as bsMaterializeOutline / the Listing preview.
+  // 0 when the plan is not a week block; otherwise its DISTINCT week count (the
+  // same dedupe the materializer applies, so this can't advertise 6 and build 5).
+  const startBlockWeeks = (() => {
+    const blocks = ((item.detail && Array.isArray(item.detail.blocks)) ? item.detail.blocks : [])
+      .map(b => (b && b.text != null) ? b.text : b).map(s => String(s || '').trim()).filter(Boolean);
+    if (blocks.filter(b => bsAssignDayLine(b)).length >= 3) return 0;
+    const weeks = new Set();
+    for (const b of blocks) { const w = bsAssignWeekLine(b); if (w) weeks.add(w.week); }
+    return weeks.size >= 2 ? weeks.size : 0;
+  })();
   const [starting, setStarting] = useStateBSC(false);
   const [startErr, setStartErr] = useStateBSC('');
   const doStart = async () => {
@@ -1649,12 +1664,20 @@ function BSLibraryDetail({ item, onBack }) {
             <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
             <label style={{ display: 'block' }}><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Start date</span>
               <input className="bs-uline" type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} /></label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Weeks</span>
-              <button onClick={() => setStartWeeks(Math.max(1, startWeeks - 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{startWeeks}</span>
-              <button onClick={() => setStartWeeks(Math.min(26, startWeeks + 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
-            </div>
+            {startBlockWeeks ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Weeks</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{startBlockWeeks}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>set by the plan</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Weeks</span>
+                <button onClick={() => setStartWeeks(Math.max(1, startWeeks - 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>−</button>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, minWidth: 18, textAlign: 'center' }}>{startWeeks}</span>
+                <button onClick={() => setStartWeeks(Math.min(26, startWeeks + 1))} style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>＋</button>
+              </div>
+            )}
             {startErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{startErr}</div>}
             <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
               <button onClick={() => !starting && setStartSheet(false)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>Cancel</span></button>
