@@ -1352,7 +1352,8 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
         {u.rest ? tr('marketplace:preview.rest', { defaultValue: 'Rest' })
           : u.scheme ? u.scheme
-            : (u.kcal != null ? `${u.kcal} kcal` : '')}
+            : u.load ? u.load
+              : (u.kcal != null ? `${u.kcal} kcal` : '')}
       </span>
     </div>
   );
@@ -1640,15 +1641,19 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     // none still honestly shows nothing (the demo-leak rule, 2026-06-14).
     // Demo catalogue is the SIGNED-OUT preview of a PROVIDER-LESS demo row only
     // (BSM_MARKETPLACE_COACHES carry no provider_id/db_id → saleProviderId null).
-    // A real coach (has a provider id) whose fetch is empty or fails keeps an
-    // honest empty list — never fabricated "for sale" plans + buy links on a
-    // coach who published nothing (the demo-leak rule, both reviewers P1).
-    const demoFallback = () => ((!saleProviderId && !bsmSignedIn()) ? BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist') : []);
-    if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans(demoFallback()); return; }
+    // The demo call lives ONLY on this no-provider branch, so a real coach's
+    // fetch path can never reach it: a real coach (has a provider id) with no
+    // plans / a failed fetch stays honestly empty — never fabricated "for sale"
+    // plans + buy links on a coach who published nothing (the demo-leak rule).
+    if (!saleProviderId) {
+      setSalePlans(bsmSignedIn() ? [] : BSM_DEMO_SALE_PLANS(saleProviderRole === 'nutritionist'));
+      return;
+    }
+    if (!window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
     let on = true;
     window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId)
-      .then((r) => { if (on) setSalePlans((r && r.length) ? r : demoFallback()); })
-      .catch(() => { if (on) setSalePlans(demoFallback()); });
+      .then((r) => { if (on) setSalePlans((r && r.length) ? r : []); })
+      .catch(() => { if (on) setSalePlans([]); });
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole]);
   React.useEffect(() => {

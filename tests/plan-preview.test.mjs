@@ -79,6 +79,12 @@ test('a menu shows the first meals and locks the rest, carrying real kcal only',
   assert.ok(/Greek yogurt/.test(p.free[0].title), 'title keeps the meal name');
 });
 
+test('a stated weeks reads only a standalone number — "106 weeks" is not 6', () => {
+  // 6 weeks is a real duration; a 3-digit number is not one this parser accepts.
+  assert.equal(bsPlanPreview({ name: 'x', meta: '6 week block', detail: { blocks: ['Mon — Upper (push)', 'Wed — Lower', 'Fri — Full'] } }).weeks, 6);
+  assert.equal(bsPlanPreview({ name: 'x', meta: '106 week block', detail: { blocks: ['Mon — Upper (push)', 'Wed — Lower', 'Fri — Full'] } }).weeks, null);
+});
+
 test('a meal with no stated kcal reports null, never 0', () => {
   const p = bsPlanPreview({
     name: 'x', detail: { blocks: ['Lunch — leftovers', 'Dinner — whatever', 'Snack — fruit'] },

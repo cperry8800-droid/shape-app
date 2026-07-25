@@ -132,7 +132,14 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       // profile shows their real activity, not the demo persona's field notes.
       // A fetch failure stays "error" (never collapsed to an empty feed) so the
       // profile shows an honest "unavailable" state, not a false "no activity".
-      try { c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid).order("created_at", { ascending: false }).limit(12).then((r) => { if (!on) return; if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); } else { setFeedStatus("error"); } }); } catch (e) { if (on) setFeedStatus("error"); }
+      // For a non-owner, constrain to the profile-visible tiers BEFORE the limit —
+      // else 12 recent community-only posts (which lvFeedVisible hides) could crowd
+      // out older public/profile/followers posts and read as an empty feed.
+      try {
+        let fq = c.from("community_posts").select("id,title,note,activity_type,metrics,privacy,photo_url,source_provider,created_at").eq("author_id", uid);
+        if (!isSelf) fq = fq.in("privacy", ["public", "profile", "followers"]);
+        fq.order("created_at", { ascending: false }).limit(12).then((r) => { if (!on) return; if (r && !r.error && Array.isArray(r.data)) { setFeedPosts(r.data.map(lvMapPost).filter(Boolean)); setFeedStatus("ok"); } else { setFeedStatus("error"); } });
+      } catch (e) { if (on) setFeedStatus("error"); }
     })();
     return () => { on = false; };
   }, []);
