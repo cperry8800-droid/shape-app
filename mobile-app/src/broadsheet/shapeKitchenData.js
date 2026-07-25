@@ -33,7 +33,7 @@ export const SHAPE_KITCHEN_RECIPES = [
       "Heat 1 tsp oil in a small skillet over medium-high. Sear the chicken 3 minutes per side until deeply golden, then lift it onto a plate (it won't be cooked through yet).",
       "Lower the heat to medium, add the minced garlic and rice, and toast for 1 minute, stirring, until the grains smell nutty.",
       "Pour in the broth, scrape up any browned bits from the base, and bring to a gentle simmer.",
-      "Nestle the chicken back in, skin-side up, cover tightly, and cook on low for 18 minutes without lifting the lid.",
+      "Nestle the chicken back in, skin-side up, cover tightly, and cook on low for 18 minutes without lifting the lid — it's done when the thickest part hits 165°F.",
       "Stir the frozen peas into the rice, replace the lid, and rest off the heat for 5 minutes. Fork through and serve.",
     ],
     tip: "No lid? Cover the skillet with a plate or foil — trapping the steam is what cooks the rice evenly. Doubles cleanly for two days of lunches; keeps 3 days chilled.",
