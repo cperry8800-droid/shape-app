@@ -226,3 +226,18 @@ test('an estimated-kcal suffix strips whole, leaving no dangling "~"', () => {
   }
   assert.deepEqual(p.units.map((u) => u.kcal), [500, 600, 250]);
 });
+
+test('ONE week line is below the block threshold — not a program', () => {
+  // The >=2 threshold is deliberate: a single "Week 1 — …" line among ordinary
+  // exercise blocks is a heading, not a multi-week product, and promoting it
+  // would relabel a single session as a Program. Boundary pinned in both
+  // directions so the threshold can't drift silently.
+  const one = bsPlanPreview({ name: 'x', detail: { blocks: [
+    'Week 1 — Base', 'Back squat · 5×5', 'Romanian deadlift · 3×8',
+  ] } });
+  assert.notEqual(one.kind, 'block');
+  const two = bsPlanPreview({ name: 'x', detail: { blocks: [
+    'Week 1 — Base', 'Week 2 — Build',
+  ] } });
+  assert.equal(two.kind, 'block');
+});

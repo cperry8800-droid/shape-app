@@ -809,6 +809,10 @@ function SpVerifiedDot() {
 const LV_FEED = {
   workout: "Workout", run: "Run", pr: "PR", meal: "Meal", note: "Note",
   photo: "Photo", tip: "Tip", win: "Client win", recipe: "Recipe",
+  // The composer can author these two as well; without labels their badge fell
+  // back to the raw key (livingDesktop's `LV_FEED[it.k] || it.k`) or rendered
+  // blank (livingSignal indexes the map directly).
+  video: "Video", link: "Link",
 };
 // Owner sees everything. RLS is the security authority — a post that reached the
 // client is already one this viewer may see — so the profile feed shows the tiers

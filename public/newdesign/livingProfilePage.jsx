@@ -52,7 +52,14 @@ function lvPostKind(row) {
     const at = String(row.activity_type || "").toLowerCase();
     return /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at) ? "run" : "workout";
   }
-  if (row.photo_url || m.video_url) return "photo";
+  // The composer STORES what it made (`metrics.kind`), so honour it rather than
+  // re-deriving from whichever field happens to be set. Without this a video
+  // post was badged "Photo" (it has a video_url, not a photo) and a link post
+  // "Note" — both while the card rendered a Watch / Open-link action, so the
+  // badge contradicted the affordance right next to it.
+  if (m.kind === "video" || (!row.photo_url && m.video_url)) return "video";
+  if (m.kind === "link") return "link";
+  if (row.photo_url) return "photo";
   return "note";
 }
 // Preserve the post's real privacy tier so FeedBlock's lvFeedVisible can apply
