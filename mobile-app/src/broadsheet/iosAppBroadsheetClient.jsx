@@ -8071,7 +8071,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
           { n: '15 g',  m: 'Butter + soy',           k: '110 kcal' },
         ],
         steps: [
-          'Salt steak heavily 40 min before cooking. Pat dry just before pan.',
+          'Salt the steak heavily and leave it out while the pan heats — a short dry brine, ideally the better part of an hour. Pat it dry again just before it goes in.',
           'Cast iron, screaming hot, neutral oil. Sear 2:30 each side for medium-rare.',
           'Pull steak. Rest 6 min on a board. Don\'t skip this.',
           'Same pan: scallions 30 sec, off heat add butter + 1 tbsp soy.',
