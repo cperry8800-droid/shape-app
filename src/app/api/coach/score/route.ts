@@ -48,18 +48,33 @@ export async function GET(req: Request) {
   const since90 = new Date(); since90.setUTCDate(since90.getUTCDate() - 90);
   const since90Iso = since90.toISOString();
 
-  const [subsRes, sessionsRes, workoutsRes] = await Promise.all([
+  // COUNT in the database, never by fetching rows and measuring the array.
+  // A plain `.select()` is capped by PostgREST's max-rows, so a coach past that
+  // cap had activeClients / completion% computed from a TRUNCATED set — while
+  // the marketplace's get_coach_scores counts every row. The two "canonical"
+  // numbers could therefore disagree for exactly the busiest coaches, which
+  // defeats the point of having one ladder on both surfaces.
+  // ⚠ KEEP IN SYNC with supabase-migrations/2026-07-25-coach-scores-batch.sql.
+  const [activeRes, sessTotalRes, sessDoneRes, workoutsRes] = await Promise.all([
     supabase
       .from('subscriptions')
-      .select('client_id, status')
+      .select('id', { count: 'exact', head: true })
       .eq('provider_id', providerId)
-      .eq('provider_role', role),
+      .eq('provider_role', role)
+      .in('status', ['active', 'trialing']),
     supabase
       .from('sessions')
-      .select('status, scheduled_at')
+      .select('id', { count: 'exact', head: true })
       .eq('provider_id', providerId)
       .eq('provider_role', role)
       .gte('scheduled_at', since90Iso),
+    supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', providerId)
+      .eq('provider_role', role)
+      .gte('scheduled_at', since90Iso)
+      .eq('status', 'completed'),
     role === 'trainer'
       ? supabase
           .from('client_workouts')
@@ -68,12 +83,21 @@ export async function GET(req: Request) {
       : Promise.resolve({ count: 0 } as { count: number }),
   ]);
 
-  const subs = subsRes.data || [];
-  const activeClients = subs.filter(s => s.status === 'active' || s.status === 'trialing').length;
+  // A FAILED count is not a zero. Coercing one to 0 would publish a real-looking
+  // score built on data we never read — the coach's own page would quietly show
+  // a lower standing (or a wrong completion%) with nothing indicating why. Fail
+  // the request instead; the caller already handles a non-200 as "unavailable".
+  const failed = [activeRes, sessTotalRes, sessDoneRes, workoutsRes]
+    .find((r) => (r as { error?: unknown }).error);
+  if (failed) {
+    console.error('[coach/score] count query failed', (failed as { error?: unknown }).error);
+    return NextResponse.json({ error: 'Could not read your score right now.' }, { status: 500 });
+  }
 
-  const sessions = sessionsRes.data || [];
-  const completed = sessions.filter(s => s.status === 'completed').length;
-  const totalSessions = sessions.length;
+  const activeClients = (activeRes as { count: number | null }).count || 0;
+
+  const totalSessions = (sessTotalRes as { count: number | null }).count || 0;
+  const completed = (sessDoneRes as { count: number | null }).count || 0;
   const completionPct = totalSessions ? Math.round((completed / totalSessions) * 100) : 0;
 
   const programsPublished = (workoutsRes as { count: number | null }).count || 0;

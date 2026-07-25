@@ -12939,6 +12939,59 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
   );
 }
 
+// A demo coach's OWN training activity, for the signed-out preview.
+//
+// A coach's activity feed is the same thing a client's is: what THEY trained.
+// The preview used to fall back to curated "Tip / Client win" marketing notes,
+// so a coach's profile read like a newsletter while a client's read like a
+// training log. This gives demo coaches the same rich activity cards a client
+// gets. Real coaches never reach here — signed-in and real-profile paths resolve
+// to their own published posts only (and render nothing when they have none).
+//
+// Deterministic per coach (name hash), so a given coach always shows the same
+// sessions rather than reshuffling between renders.
+function _bsCoachActPick(name, n) {
+  const s = String(name || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % n;
+}
+function bsDemoCoachActivity(name, isNutri, tier) {
+  const role = isNutri ? 'Nutritionist' : 'Trainer';
+  const lift = [
+    { title: 'Back squat · heavy triples', body: 'Coach still has to do the work. Bar speed held through the top set.', top: '285 lb', vol: '14,200 lb', rows: [['Set 1', '245 lb × 3', 'RPE 7'], ['Set 2', '265 lb × 3', 'RPE 8'], ['Set 3', '285 lb × 3', 'RPE 9']] },
+    { title: 'Pull day · rows and chins', body: 'Kept every rep strict. Volume up on last block, no elbow noise.', top: '195 lb', vol: '11,600 lb', rows: [['Barbell row', '4 × 8 @ 175', 'RPE 8'], ['Weighted chin', '4 × 6 @ +45', 'RPE 8'], ['Face pull', '3 × 15', 'RPE 6']] },
+    { title: 'Press · long cycle', body: 'Overhead is the honest lift. Slower than I want, moving anyway.', top: '165 lb', vol: '9,400 lb', rows: [['Strict press', '5 × 3 @ 155', 'RPE 8'], ['Push press', '3 × 5 @ 165', 'RPE 7'], ['Lateral raise', '3 × 15', 'RPE 6']] },
+  ][_bsCoachActPick(name, 3)];
+  const run = [
+    { title: 'Easy 6 · zone 2', dist: '6.1 mi', pace: '8:44/mi', dur: '53:18', body: 'Practising what I preach — conversational the whole way.', rows: [['Miles 1–2', '8:52/mi', 'Settle'], ['Miles 3–5', '8:41/mi', 'Steady'], ['Mile 6', '8:30/mi', 'Float']] },
+    { title: 'Threshold intervals', dist: '5.4 mi', pace: '7:36/mi', dur: '41:02', body: 'Four by five minutes. Held the last one, which is the whole test.', rows: [['Rep 1', '6:58/mi', 'On'], ['Rep 2', '6:55/mi', 'On'], ['Rep 3', '6:57/mi', 'Held'], ['Rep 4', '6:54/mi', 'Held']] },
+    { title: 'Long run · steady', dist: '11.2 mi', pace: '9:02/mi', dur: '1:41:06', body: 'Sunday long one. Fuelled early, felt strong through the back half.', rows: [['Miles 1–4', '9:14/mi', 'Warm'], ['Miles 5–8', '9:00/mi', 'Steady'], ['Miles 9–11', '8:50/mi', 'Strong']] },
+  ][_bsCoachActPick(name + 'r', 3)];
+  const trace = [104, 118, 132, 120, 110, 124, 140, 128, 114, 126, 146, 134, 118, 130, 150, 138, 120, 132, 152, 140, 122, 134, 148, 136, 116, 128, 144, 130, 112, 108];
+  return [
+    {
+      real: false, key: 'demo-coach-lift', postId: null, who: name, role, tier, hot: false,
+      kind: 'workout', typeLabel: 'Workout', activityType: 'workout',
+      title: lift.title, body: lift.body, ago: '2d', city: 'Shape · training floor',
+      duration: '58 min', exercises: 4, rpe: 8, kudos: 0, replies: 0,
+      stats: [['Top set', lift.top], ['Total sets', '18'], ['Avg HR', '134 bpm'], ['Max HR', '162 bpm'], ['Volume', lift.vol]],
+      zones: [['Z1', 30], ['Z2', 38], ['Z3', 22], ['Z4', 8], ['Z5', 2]],
+      trace, breakdown: { label: 'Working sets', rows: lift.rows },
+      likers: [], comments: [],
+    },
+    {
+      real: false, key: 'demo-coach-run', postId: null, who: name, role, tier, hot: false,
+      kind: 'run', typeLabel: 'Run', activityType: 'run',
+      title: run.title, body: run.body, ago: '4d', city: 'Shape · outdoors',
+      distance: run.dist, pace: run.pace, duration: run.dur, kudos: 0, replies: 0,
+      stats: [['Distance', run.dist], ['Avg pace', run.pace], ['Time', run.dur], ['Avg HR', '142 bpm'], ['Max HR', '158 bpm']],
+      zones: [['Z1', 20], ['Z2', 56], ['Z3', 18], ['Z4', 5], ['Z5', 1]],
+      trace, breakdown: { label: 'Splits', rows: run.rows },
+      likers: [], comments: [],
+    },
+  ];
+}
 function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -13206,38 +13259,29 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
     ? [['Sofia M.', 'SM', 300, 'She found my low ferritin before any doctor did. I train 50% more volume now.'], ['Diego R.', 'DR', 200, 'Learned what fueling a lifting block actually looks like. Clearest plans I’ve seen.']]
     : [['Priya S.', 'PS', 168, '+60 lb on my deadlift in 14 weeks without a single bad-back day.'], ['Marcus L.', 'ML', 220, 'World-class programming. She books up fast — plan ahead, it’s worth it.']];
   const relation = isNutri ? ['Recent win', 'Sofia M.', 'SM', 300, 'Found her low ferritin before any doctor did — training volume up 50%.'] : ['Recent win', 'Jonah W.', 'JW', 200, 'Pulled 2× bodyweight after 8 months — never touched a barbell before me.'];
-  const feed = isNutri
-    ? [['Tip', 'Always tired? Check ferritin before macros', 'Half the “low energy” DMs I get are iron, not calories.', '3d'], ['Win', 'Sofia’s training volume up 50%', 'Fix the input, the output follows.', '5d']]
-    : [['Tip', 'The 3 cues that fix most squats', 'Brace, spread the floor, own the bottom. Save this for leg day.', '2d'], ['Win', 'Jonah pulled 2× bodyweight today', 'Showed up every week. That’s the whole secret.', '4d']];
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   // Render this coach's personal-activities feed as the SAME rich BSActivityCard
   // the community feed uses (author header hidden — the profile owns identity).
-  // Published author posts map via the shared mapper; the demo field-notes
-  // ([kick, title, body, time] tuples) via a slim adapter.
   const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
-  const tupleToCard = (k, t2, b, time, idx) => ({
-    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, tier: baseTier, hot: false,
-    kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
-    city: '', activityType: '', stats: [], likers: [], comments: [],
-  });
-  // Signed in → only REAL published posts; never the demo "Tip/Win" field-notes —
-  // on your OWN coach profile or anyone else's (honest-data rule, mirroring the
-  // member profile's `signedIn ? [] : feed` gating). Demo tuples are the signed-out
-  // preview only. (The illustrative sub-data — disciplines/certs/offerings — stays
-  // on `ownZero` own-profile zeroing; only this activity feed is fully gated.)
+  // Signed in → only REAL published posts, on your OWN coach profile or anyone
+  // else's (honest-data rule, mirroring the member profile's gating). The
+  // illustrative sub-data — disciplines/certs/offerings — stays on `ownZero`
+  // own-profile zeroing; only this activity feed is fully gated.
   // Signed-out preview: a REAL public coach profile (sigFeedAuthorId set) shows only
   // its real posts; a demo/preview persona shows this coach's activities from the
-  // shared community set (same rich cards as the community feed), falling back to the
-  // Tip/Win field-notes only when the coach has no entry there. Signed-in → only real.
+  // shared community set, falling back to their own demo training activity when
+  // the coach has no entry there. Signed-in → only real.
   const coachShared = (!signedIn && !sigFeedAuthorId)
     ? COMMUNITY_ACTIVITIES.filter((x) => x.who === name && (x.role === 'Trainer' || x.role === 'Nutritionist')).map((x, i) => ({ ...x, real: false, key: `demo-act-${i}` }))
     : [];
-  const coachDemoFeed = (signedIn || sigFeedAuthorId || coachShared.length) ? [] : feed;
+  // Preview fallback is the coach's OWN training activity — the same rich cards a
+  // client's profile shows — not the curated Tip/Win notes it used to render.
+  const coachDemoFeed = (signedIn || sigFeedAuthorId || coachShared.length) ? [] : bsDemoCoachActivity(name, isNutri, baseTier);
   const coachFeedEff = [
     ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
     ...coachShared,
-    ...coachDemoFeed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
+    ...coachDemoFeed,
   ];
   // Profile reaction handler — optimistic toggle + best-effort backend like via
   // the SAME path the community feed uses. Sample cards (no postId) toggle visually.

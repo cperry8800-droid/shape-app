@@ -5252,6 +5252,41 @@ async function getUserPoints(ids) {
   (data || []).forEach(r => { out[r.user_id] = Number(r.points) || 0; });
   return out;
 }
+// Batch CANONICAL coach standing for the marketplace directory.
+// get_coach_scores mirrors /api/coach/score's formula server-side (active
+// clients + session completion + programs published), so a coach's rung on the
+// marketplace is the SAME number their own Coach Score page shows. Deliberately
+// NOT getUserPoints — that sums the member activity ledger, a different
+// quantity, and using it made the two surfaces disagree.
+// Returns { providerId: points } on success, or NULL when we never got an
+// answer (bad role, no client, read fault). The caller MUST be able to tell
+// those apart: a successful answer that omits an id means "no standing", but a
+// failure must stay uncached so the lookup can be retried — caching a failure
+// as "absent" would suppress that coach's standing for the whole session.
+async function getCoachScores(role, ids) {
+  const r = String(role || '').toLowerCase();
+  if (r !== 'trainer' && r !== 'nutritionist') return null;
+  // isSafeInteger, not isFinite: a provider_id is a bigint. `1.5` and 2^53+ both
+  // clear isFinite, and sending either into the RPC's bigint[] errors the WHOLE
+  // batch — every coach in that chunk would then go uncached and be retried, so
+  // one malformed id could suppress a page of standings. Drop them here instead.
+  const list = [...new Set((ids || []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
+  // An empty ask is not a failure: answer {} BEFORE the client check, so "you
+  // asked about nobody" can never be reported as "we never got an answer"
+  // (which the caller treats as retryable).
+  if (!list.length) return {};
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('get_coach_scores', { p_role: r, p_ids: list });
+  if (error) return null;
+  const out = {};
+  (data || []).forEach((row) => {
+    const p = Number(row && row.points);
+    if (row && row.provider_id != null && Number.isFinite(p)) out[row.provider_id] = p;
+  });
+  return out;
+}
+window.ShapeCoachScores = { batch: getCoachScores };
+
 // Batch member avatars (profile photos) for chat/feed avatars. Reads
 // get_public_profile per unique id (visibility-gated) and caches the result so
 // repeat lookups across the feed/threads are free. Returns { userId: dataUrl }.
