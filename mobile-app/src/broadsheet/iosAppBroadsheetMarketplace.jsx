@@ -358,12 +358,86 @@ function mktInitials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   return (((p[0] || '')[0] || '') + ((p[1] || '')[0] || '')).toUpperCase() || '?';
 }
+// THE STANDING — a coach's rung on the Shape Score ladder.
+//
+// A REAL coach's rung is their REAL Shape Score points, batch-resolved from their
+// owner id (ONE rpc for the whole directory, cached below). When we don't know
+// their points the tier is ABSENT and nothing renders — inventing a rung for a
+// live coach is a fabricated credential (the honest-data rule).
+//
+// A DEMO coach (signed-out preview — no owner id) reads an AUTHORED standing so
+// the preview shows a real ladder instead of one rung for everyone.
+//
+// The old derivation was `score = match×18 + sessions/5 + clients×4` → rung. It
+// could not separate anyone: `match` only varies 73–96, so every demo coach
+// landed in a 1,448–2,008 band and 22 of 23 read "Pro" (Master and Icon were
+// unreachable), while every real coach hit the same fallback and read one
+// identical fabricated tier.
+const BSM_DEMO_POINTS = {
+  // Signed-out preview only — never consulted for a real coach. Loosely tracks
+  // each demo coach's authored tenure/roster so the ladder reads plausibly.
+  t1: 5400, t2: 4600, t3: 2450, t4: 1850, t5: 1420, t6: 2900, t7: 3700,
+  t8: 640, t9: 6800, t10: 16200, t11: 2300, t12: 5100, t13: 3300,
+  n1: 15400, n2: 2100, n3: 1150, n4: 1680, n5: 5600, n6: 2750, n7: 3100,
+  n8: 4400, n9: 900, n10: 1950,
+};
+const _MKT_POINTS = new Map();   // owner uid -> points | null (looked up, none)
+const _MKT_POINTS_INFLIGHT = new Set();
+function bsmCoachOwner(c) { return (c && (c.provider_user_id || c.owner_id)) || null; }
+// Resolve every visible REAL coach's points in one batch. Cached per session, so
+// scrolling the directory or reopening a Listing never re-fetches.
+function useMktCoachPoints(coaches) {
+  const [, bump] = React.useState(0);
+  const owners = Array.from(new Set((coaches || []).map(bsmCoachOwner).filter(Boolean)));
+  const key = owners.join(',');
+  React.useEffect(() => {
+    // Skip ids already resolved OR already being fetched — the directory and an
+    // open Listing both call this, and without the in-flight guard a coach opened
+    // while the grid is still loading would fire a second RPC for the same id.
+    const want = owners.filter((o) => !_MKT_POINTS.has(o) && !_MKT_POINTS_INFLIGHT.has(o));
+    if (!want.length) return undefined;
+    want.forEach((o) => _MKT_POINTS_INFLIGHT.add(o));
+    let on = true;
+    // Mark every requested id as looked-up regardless of outcome, so an empty or
+    // failed lookup settles on honest-absent instead of re-fetching each render.
+    //
+    // A MISSING value must never coerce to a real reading: `Number(null)` is 0,
+    // which is finite, so a failed fetch would otherwise record a genuine-looking
+    // "0 points" and render the bottom rung. Only a real positive number counts.
+    const settle = (map) => {
+      want.forEach((id) => {
+        const raw = (map && typeof map === 'object') ? map[id] : undefined;
+        const p = (raw === null || raw === undefined || raw === '') ? NaN : Number(raw);
+        _MKT_POINTS.set(id, (Number.isFinite(p) && p > 0) ? p : null);
+        _MKT_POINTS_INFLIGHT.delete(id);
+      });
+      if (on) bump((n) => n + 1);
+    };
+    Promise.resolve()
+      .then(() => (window.ShapeProfiles && window.ShapeProfiles.getUserPoints ? window.ShapeProfiles.getUserPoints(want) : null))
+      .then((map) => settle(map))
+      .catch(() => settle(null));
+    return () => { on = false; };
+  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
+}
+// A row is DEMO only when it carries no provider identity at all. Keying the demo
+// branch on "no owner id" would be wrong and dangerous: a mapped Supabase row's
+// `id` is `t{serial}` / `n{serial}`, which COLLIDES with the demo ids, and
+// `owner_id` is nullable (an unclaimed provider row) — so a real trainer with
+// trainers.id = 1 and no owner would print the authored demo standing as their own.
+function bsmIsDemoCoach(c) { return !!c && !c.provider_id && !c.db_id && !c.provider_user_id; }
 function mktCoachTier(c) {
   const prof = buildPublicProfile(c);
-  const clientTier = String(prof.tier || 'base').toLowerCase();
-  const name = (window.bsCoachTier ? window.bsCoachTier(clientTier) : prof.tier) || 'Certified';
-  const color = (window.bsTierColor ? window.bsTierColor(String(name).toLowerCase()) : mktRoleColor(c)) || mktRoleColor(c);
-  return { name, color, prof };
+  const owner = bsmCoachOwner(c);
+  const pts = owner ? _MKT_POINTS.get(owner) : (bsmIsDemoCoach(c) ? BSM_DEMO_POINTS[c.id] : undefined);
+  // Not yet loaded, looked-up-and-absent, or a real zero all render NOTHING —
+  // "hidden when none" (a coach who hasn't earned a standing has no rung to show).
+  if (!Number.isFinite(pts) || pts <= 0) return { name: null, color: mktRoleColor(c), prof, points: null };
+  const clientTier = window.bsTierForPoints ? window.bsTierForPoints(pts) : null;
+  const name = (clientTier && window.bsCoachTier) ? window.bsCoachTier(clientTier) : null;
+  if (!name) return { name: null, color: mktRoleColor(c), prof, points: null };
+  const color = (window.bsTierColor && window.bsTierColor(String(name).toLowerCase())) || mktRoleColor(c);
+  return { name, color, prof, points: pts };
 }
 // Only turn a value into an <img> src when it's a real http(s)/data/blob URL
 // (mirrors bsValidPhoto, which isn't exposed cross-module) — junk/blank values
@@ -404,7 +478,7 @@ function MktCoachCard({ c, onOpen, photo }) {
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: 0 }}>
       <MktPortrait photo={photo} name={c.name} w="100%" h={122} fontSize={30} spine={role} />
       <span style={{ display: 'block', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-      <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isNutri)} · {tierName}</span>
+      <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isNutri), tierName].filter(Boolean).join(' · ')}</span>
       <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
     </button>
   );
@@ -520,7 +594,7 @@ function MktRow({ c, onOpen, n, photo }) {
       })()}
       <span style={{ minWidth: 0 }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isNutri)} · {getPrimaryCredential(c)} · {mktShortLoc(c.loc)} · {tierName}</span>
+        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isNutri), getPrimaryCredential(c), mktShortLoc(c.loc), tierName].filter(Boolean).join(' · ')}</span>
       </span>
       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>★ {formatCoachRating10(c)}</span>
       <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
@@ -619,6 +693,9 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   const trainers = marketplaceCoaches.Trainer || [];
   const nutritionists = marketplaceCoaches.Nutritionist || [];
   const everyone = useMemoBSM2(() => [...trainers, ...nutritionists], [trainers, nutritionists]);
+  // Resolve every REAL coach's Shape Score points in one batch so their rung is
+  // their own standing, not a derived guess (demo coaches read BSM_DEMO_POINTS).
+  useMktCoachPoints(everyone);
 
   // Real profile photos for live coaches (those with an account) — shown in the
   // facet avatar; demo coaches fall back to initials.
@@ -838,7 +915,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
                   <MktPortrait photo={photo} name={cotw.name} w={96} h={118} fontSize={26} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{cotw.name}<span style={{ color: role }}>.</span></div>
-                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsmRoleWord(tr, isN)} · {ct.name} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[bsmRoleWord(tr, isN), ct.name, mktShortLoc(cotw.loc)].filter(Boolean).join(' · ')}</div>
                     <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{cotw.bio}”</div>
                     <div style={{ display: 'flex', gap: 22, marginTop: 10 }}>
                       {[[tr('marketplace:stat.rating', { defaultValue: 'Rating' }), '★ ' + formatCoachRating10(cotw)], [tr('marketplace:stat.clients', { defaultValue: 'Clients' }), (cotw.clients || 0) + '+'], [tr('marketplace:stat.years', { defaultValue: 'Years' }), String(cotw.years || 1)]].map(([l, v]) => (
@@ -986,7 +1063,6 @@ function buildPublicProfile(coach) {
   const kind = getPublicProfileKind(coach);
   const isNutritionist = kind === 'nutritionist';
   const first = coach.name.split(' ')[0].replace('Dr.', '').trim() || coach.name.split(' ')[0];
-  const score = Math.round((coach.match || 80) * 18 + (coach.sessionCount || 300) / 5 + (coach.clients || 20) * 4);
   // A rate can be absent (e.g. the plans-rail door builds a minimal coach) —
   // fall back so package math never renders $NaN.
   const rate = Number(coach.rate) || (isNutritionist ? 120 : 140);
@@ -1021,8 +1097,8 @@ function buildPublicProfile(coach) {
     philosophy: isNutritionist
       ? 'Food is fuel, not a moral test. The plan should be specific enough to help and simple enough to repeat when life gets busy.'
       : 'Get strong, move well, and recover enough to repeat it. The work is measured, written down, and adjusted every week.',
-    score,
-    tier: score >= 2000 ? 'FORM' : score >= 750 ? 'TEMPO' : 'BASE',
+    // No `score`/`tier` here — a coach's standing is their REAL Shape Score points
+    // (mktCoachTier), never a figure derived from match% + session counts.
     sessionsLabel: isNutritionist ? 'Plans delivered' : 'Sessions delivered',
     packages: [
       {
@@ -1455,7 +1531,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // The coupon = the subscription package; everything else lists as rows.
   const monthlyPkg = p.packages.find((x) => x.type === 'Subscription') || null;
   const oneTimePkgs = p.packages.filter((x) => x !== monthlyPkg);
-  const { name: tierName, color: tierColor } = mktCoachTier(coach);
+  // The hook keys its effect on the resolved owner ids, so a fresh array literal
+  // each render is fine — it only refetches when the coach actually changes.
+  useMktCoachPoints([coach]);
+  const { name: tierName, color: tierColor, points: tierPoints } = mktCoachTier(coach);
   // Waiting room — port of the Signal storefront gate, shown only when the
   // coach is effectively at capacity (mirrors src/lib/capacity.ts).
   const capProviderId = coach.provider_id || coach.db_id || null;
@@ -1752,11 +1831,29 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
 
           <div style={{ padding: `14px ${t.padX}px 0` }}>
             <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.035em', color: t.INK }}>{firstName}<br/><span style={{ fontStyle: 'italic' }}>{last}<span style={{ color: roleColor }}>.</span></span></h1>
-            <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{getPrimaryCredential(coach)} · {mktShortLoc(coach.loc)} · <span style={{ color: tierColor }}>{tr('marketplace:listing.tierSuffix', { defaultValue: '{tier} tier', tier: tierName })}</span></div>
+            {/* THE STANDING — the coach's rung owns its own register row (tier
+                spine + name, dot-leader, points) instead of competing inside the
+                credential line. Renders ONLY when the rung is actually known: a
+                real coach with no Shape Score points shows nothing here. */}
+            {tierName ? (
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 9, borderLeft: `3px solid ${tierColor}`, paddingLeft: 10 }}>
+                <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: tierColor }}>{tierName}</span>
+                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}3d`, transform: 'translateY(-3px)', minWidth: 10 }} />
+                {/* The points term reuses the score namespace's own per-locale
+                    word (every namespace is bundled on one instance), so this
+                    adds no new key and can't drift from the Score page. */}
+                {tierPoints != null ? (
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{Number(tierPoints).toLocaleString(bsmLocale())} {tr('score:unit.pts', { defaultValue: 'pts' })}</span>
+                ) : null}
+              </div>
+            ) : null}
+            <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{[getPrimaryCredential(coach), mktShortLoc(coach.loc)].filter(Boolean).join(' · ')}</div>
             <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK }}>{p.headline}</div>
-            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {/* Score left this grid when the tier register took it over — the rung
+                + its real points ARE the standing, and a second copy (from the
+                old derived formula) would both duplicate and contradict it. */}
+            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {[
-                [tr('marketplace:stat.score', { defaultValue: 'Score' }), p.score != null ? String(p.score) : '—'],
                 [tr('marketplace:stat.sessions', { defaultValue: 'Sessions' }), coach.sessionCount != null ? Number(coach.sessionCount).toLocaleString(bsmLocale()) : '—'],
                 [tr('marketplace:stat.years', { defaultValue: 'Years' }), coach.years ? String(coach.years) : '—'],
                 [tr('marketplace:stat.rating', { defaultValue: 'Rating' }), avgRev != null ? String(avgRev) : formatCoachRating10(coach)],

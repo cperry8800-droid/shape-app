@@ -96,12 +96,16 @@ const LV_PEOPLE = {
     ],
     traj: [20, 35, 48, 60, 72, 84, 90], trajLabel: "Roster trajectory", trajDelta: "+18", trajNote: "clients this year",
     prRecent: ["Client PR", "2× BW pull", "Jonah W."],
-    feedLabel: "Field notes",
+    // A coach's feed is the same thing a member's is: what THEY trained. This used
+    // to be coaching commentary (tips + client wins), which read like a newsletter
+    // next to a member's training log — so a coach's own work was invisible.
+    feedLabel: "Transmissions",
     feed: [
-      { k: "tip", t: "The 3 cues that fix most squats", b: "Brace, spread the floor, own the bottom. Stop adding weight until these are automatic. Save this for leg day.", time: "2d", vis: "public" },
-      { k: "win", t: "Jonah pulled 2× bodyweight today", b: "Came in scared of barbells 8 months ago. Showed up every week. That’s the whole secret.", metric: ["DL", "2×BW"], time: "4d", vis: "public" },
-      { k: "note", t: "You don’t need a new program", b: "You need 8 more weeks on this one. Program-hopping is the #1 thing stalling the lifters in my DMs.", time: "6d", vis: "public" },
-      { k: "workout", t: "My own session — heavy singles", b: "Still training hard at 4.97. Coaches who don’t lift age out fast.", metric: ["Squat", "315"], time: "1w", vis: "circle" },
+      { k: "workout", t: "Heavy singles · back squat", b: "Coach still has to do the work. Held 315 for a clean single, bar speed better than last block.", metric: ["Squat", "315"], time: "2d", vis: "public" },
+      { k: "run", t: "Threshold intervals", b: "4 × 5 min. Held the last rep, which is the whole test. Conditioning is the thing I skip first — not this block.", metric: ["5.4 mi", "7:36/mi"], time: "4d", vis: "public" },
+      { k: "pr", t: "New PR — Weighted chin", b: "+45 lb for six. Two years of doing them badly, one year of doing them right.", metric: ["▲", "+10 lb"], time: "6d", vis: "public" },
+      { k: "note", t: "Deload, taken on time for once", b: "Wrote the plan, then nearly ignored it. Sleep was down, bar speed was down. Took the week. Everything moved after.", time: "1w", vis: "public" },
+      { k: "workout", t: "Pull day · rows and chins", b: "Strict reps only. Volume up on the block with no elbow noise, so it stays.", metric: ["Row", "195"], time: "1w", vis: "circle" },
     ],
     week: [88, 60, 92, 70, 95, 50, 80], seed: 41027,
   },
@@ -141,12 +145,14 @@ const LV_PEOPLE = {
     ],
     traj: [120, 140, 158, 172, 184, 194, 200], trajLabel: "Caseload trajectory", trajDelta: "+22", trajNote: "clients this year",
     prRecent: ["Client win", "Ferritin fixed", "Sofia M."],
-    feedLabel: "Fuel notes",
+    // Same rule as the trainer: her own log, not client commentary.
+    feedLabel: "Transmissions",
     feed: [
-      { k: "recipe", t: "The post-lift shake I give everyone", b: "Whey, banana, oats, milk, cinnamon. 50g protein, blends in 30 seconds. Recipe in the comments.", metric: ["Protein", "50g"], time: "1d", vis: "public" },
-      { k: "tip", t: "Always tired? Check ferritin before macros", b: "Half the ‘low energy’ DMs I get are iron, not calories. Ask your doctor for a full iron panel.", time: "3d", vis: "public" },
-      { k: "win", t: "Sofia’s training volume up 50%", b: "Found her low ferritin before any doctor did. Fix the input, the output follows.", time: "5d", vis: "public" },
-      { k: "recipe", t: "Sheet-pan salmon for recovery nights", b: "Omega-3s + carbs for the next session. 20 minutes, one pan.", metric: ["Protein", "45g"], time: "1w", vis: "circle" },
+      { k: "meal", t: "Closed the day at 172g protein", b: "Salmon, sweet potato, asparagus. I hold myself to the targets I hand out — it's the only way I know they're liveable.", metric: ["Protein", "172g"], time: "1d", vis: "public" },
+      { k: "workout", t: "Lower body · straightforward", b: "Squats, split squats, hamstring curls. I lift three times a week so I can speak about training from inside it.", metric: ["Squat", "165"], time: "3d", vis: "public" },
+      { k: "run", t: "Easy 5 before clinic", b: "Conversational the whole way. The easy days are the ones I used to skip.", metric: ["5.1 mi", "8:58/mi"], time: "5d", vis: "public" },
+      { k: "note", t: "Ate badly for three days, wrote it down", b: "Travel week, no prep, too much on. Logging it honestly matters more than the streak — that's the same thing I tell clients.", time: "1w", vis: "public" },
+      { k: "meal", t: "Sheet-pan salmon, recovery night", b: "Omega-3s and carbs for the next session. Twenty minutes, one pan, no thinking required.", metric: ["Protein", "45g"], time: "1w", vis: "circle" },
     ],
     week: [70, 85, 55, 78, 90, 62, 75], seed: 90218,
   },
