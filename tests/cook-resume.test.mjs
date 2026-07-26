@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsCookStepSig, bsCookStepsSig, bsCookResumeStamp, bsCookResumeValid } from '../mobile-app/src/services/cookResume.mjs';
+import { bsCookStepsSig, bsCookResumeStamp, bsCookResumeValid } from '../mobile-app/src/services/cookResume.mjs';
 
 const STEPS = ['Heat the pan.', 'Sear 4 minutes a side.', 'Rest 5 minutes.', 'Plate it.'];
 const DAY = '2026-07-25';
@@ -60,6 +60,31 @@ test('the method fingerprint cannot collide across step boundaries', () => {
   assert.equal(bsCookStepsSig(STEPS), bsCookStepsSig([...STEPS])); // stable
 });
 
+test('no separator character is assumed impossible — control chars cannot collide either', () => {
+  // `\s+` normalisation does NOT strip control characters, so a step may legally
+  // contain the very character a naive serialiser would use as its delimiter.
+  const SEP = String.fromCharCode(31); // U+001F, the obvious "impossible" pick
+  assert.notEqual(bsCookStepsSig([`a${SEP}b`, 'c']), bsCookStepsSig(['a', `b${SEP}c`]));
+  const TAB = String.fromCharCode(9);  // whitespace: normalised away, so these DO match
+  assert.equal(bsCookStepsSig([`a${TAB}b`]), bsCookStepsSig(['a b']));
+});
+
+test('an edit PAST the old 80-char bound still invalidates the resume', () => {
+  // The fingerprint hashes the full normalised text. A bounded per-step
+  // signature would have made every edit after character 80 invisible.
+  const long = 'z'.repeat(120);
+  const saved = stampAt(0, [long, 'Plate it.']);
+  const edited = [long.slice(0, 119) + 'Q', 'Plate it.'];
+  assert.equal(edited[0].slice(0, 80), long.slice(0, 80), 'identical for the first 80 chars');
+  assert.equal(bsCookResumeValid(saved, 'k', edited, DAY), null);
+});
+
+test('whitespace-only differences and the authored object shape still resume', () => {
+  const saved = stampAt(1);
+  const same = ['Heat   the pan.', { t: 'Sear 4 minutes a side.', station: 'stove' }, 'Rest 5 minutes.', 'Plate it.'];
+  assert.equal(bsCookResumeValid(saved, 'k', same, DAY).stepIdx, 1);
+});
+
 test('a shortened list does not resume past its end', () => {
   assert.equal(bsCookResumeValid(stampAt(3), 'k', STEPS.slice(0, 2), DAY), null);
 });
@@ -81,12 +106,9 @@ test('junk in never yields a resume', () => {
   assert.equal(bsCookResumeValid(stampAt(0), 'k', null, DAY), null);
 });
 
-test('step signature normalises whitespace, bounds length, and reads authored objects', () => {
-  assert.equal(bsCookStepSig('  Sear   the\nchicken.  '), 'Sear the chicken.');
-  assert.equal(bsCookStepSig({ t: 'Roast 30 minutes.', station: 'oven' }), 'Roast 30 minutes.');
-  assert.equal(bsCookStepSig('x'.repeat(200)).length, 80);
-  assert.equal(bsCookStepSig(null), '');
-  // Two steps differing only past the 80-char bound share a signature; the
-  // length check still pins the list, so this is a bounded, deliberate limit.
-  assert.equal(bsCookStepSig('y'.repeat(90)), bsCookStepSig('y'.repeat(85)));
+test('step normalisation: whitespace collapses, authored objects read, nullish is empty', () => {
+  assert.equal(bsCookStepsSig(['  Sear   the\nchicken.  ']), bsCookStepsSig(['Sear the chicken.']));
+  assert.equal(bsCookStepsSig([{ t: 'Roast 30 minutes.', station: 'oven' }]), bsCookStepsSig(['Roast 30 minutes.']));
+  assert.equal(bsCookStepsSig([null]), bsCookStepsSig(['']));
+  assert.equal(bsCookStepsSig([]), bsCookStepsSig(null)); // no method at all
 });

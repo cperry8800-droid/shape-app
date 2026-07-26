@@ -12,24 +12,37 @@
 // than a confidently wrong one — the same absence-over-invention rule the rest
 // of Cook Mode runs on.
 
-// Bounded, whitespace-normalised signature of one step's text. Accepts the bare
+// One step's text, whitespace-normalised and UNTRUNCATED. Accepts the bare
 // string and the PR-E authored object shape ({ t, station }).
-export const bsCookStepSig = (s) =>
-  String(s == null ? '' : (s && typeof s === 'object' && s.t != null ? s.t : s))
-    .replace(/\s+/g, ' ').trim().slice(0, 80);
-
-// Fingerprint of the ENTIRE method: length + FNV-1a over every step's signature.
 //
-// Checking only the length and the step AT THE SAVED INDEX is not enough: a coach
-// can replace or reorder an EARLIER instruction — a substituted preparation, an
-// added safety step — without changing either, and the cook would resume past a
-// method that changed underneath them. Any edit anywhere invalidates the resume.
+// Deliberately unbounded: this feeds the fingerprint, and truncating it would
+// make every edit past the cut invisible — an "any edit anywhere" contract that
+// silently stops applying at character 80.
+const normStep = (s) =>
+  String(s == null ? '' : (s && typeof s === 'object' && s.t != null ? s.t : s))
+    .replace(/\s+/g, ' ').trim();
+
+// Fingerprint of the ENTIRE method: FNV-1a over every step's full normalised
+// text, each LENGTH-PREFIXED.
+//
+// Checking only the list length and the step AT THE SAVED INDEX is not enough: a
+// coach can replace or reorder an EARLIER instruction — a substituted
+// preparation, an added safety step — without changing either, and the cook
+// would resume past a method that changed underneath them.
+//
+// The length prefix is what makes the concatenation unambiguous, and a separator
+// character cannot do that job: there is no character step text is guaranteed
+// not to contain. `\s+` normalisation does NOT strip control characters, so even
+// U+001F survives and ['ab','c'] would serialise identically to ['a','bc'].
+// Prefixing each step with its own length removes the need for an "impossible"
+// character entirely.
 export const bsCookStepsSig = (steps) => {
   const list = Array.isArray(steps) ? steps : [];
-  // Separated by a unit separator, which bsCookStepSig can never emit (it
-  // collapses whitespace and the step text carries no control chars), so
-  // ['ab','c'] and ['a','bc'] cannot hash alike.
-  const joined = list.map(bsCookStepSig).join('\u001f');
+  let joined = '';
+  for (const s of list) {
+    const t = normStep(s);
+    joined += `${t.length}:${t}`;
+  }
   let h = 0x811c9dc5;
   for (let i = 0; i < joined.length; i++) {
     h ^= joined.charCodeAt(i);
