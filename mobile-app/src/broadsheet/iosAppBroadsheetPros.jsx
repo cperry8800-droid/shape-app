@@ -3324,12 +3324,41 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // A week-block plan ("Week 1 — Accumulation" …) — what the paid-`plan` builder
   // emits. Same precedence + threshold as bsMaterializeOutline and the Listing
   // preview, so all three classify a plan identically.
-  const isWeekBlock = !isNutri && !isSplit && weekLines.filter(Boolean).length >= 2;
+  const weekBlockShape = weekLines.filter(Boolean).length >= 2;
+  const isWeekBlock = !isNutri && !isSplit && weekBlockShape;
+  // C0 — the NUTRITION half of the same class. `isWeekBlock` is gated on
+  // `!isNutri`, so week-block detection was structurally unreachable here and
+  // the isNutri branch mapped every block through bsAssignMeal — installing a
+  // 7-day menu whose meals were named after the week phases ("Reset & habits",
+  // "Build routine"). That is fabricated food on the client's Eat tab.
+  // A week block is a coaching ARC: it states what to focus on each week and
+  // contains no meals, so it must never yield a menu row. Same grammar and same
+  // ≥2 threshold as training (planOutline.mjs), so both disciplines classify an
+  // outline identically.
+  // ⚠ This ALIGNS Assign with what the buyer-facing Listing preview already
+  // does: planPreview.mjs:121 tests the week-block shape BEFORE its isNutri
+  // meal branch (:144), so the preview has always shown a nutrition week block
+  // as weeks. Assign was the one surface that fabricated, purely because of the
+  // `!isNutri` gate above — preview, Assign and Start-this-plan now agree.
+  const isNutriWeekBlock = isNutri && weekBlockShape;
+  // What the arc carries that ISN'T a week — the builder's trailing
+  // "Grocery + prep guide". Ruling 7: dropped from delivery, but NEVER silently.
+  // It is redundant rather than impossible: bsBuildPlanGrocery already derives
+  // the shop list from the assigned menu's own ingredients every week, so
+  // materializing this block would mean a second, hand-authored list that can
+  // disagree with the derived one.
+  const droppedBlocks = isNutriWeekBlock ? blocks.filter((_, i) => !weekLines[i]) : [];
   const weekUnits = bsWeekUnits(weekLines);
   const planNote = (plan && plan.detail && plan.detail.note) || '';
 
   const apply = async () => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
+    // C0 — an arc carries no meals, so there is nothing honest to install.
+    // The CTA is already replaced by the notice below; this is the structural
+    // guard, so a stale selection can never reach bsAssignMeal and it can never
+    // reach the replace-confirm (which archives every published row for the
+    // pair — a client's real, separately-assigned menu must survive untouched).
+    if (isNutriWeekBlock) return;
     if (isNutri) {
       if (!(await window.bsAskConfirm({
         title: tr('coach:assign.replaceTitle', { defaultValue: 'Replace active meal plan?' }),
@@ -3424,7 +3453,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const ctaLabel = working ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' }) : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' }) : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
   const timeLabel = timeSel ? (() => { const [h, m] = timeSel.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return ` · ${hh}:${String(m).padStart(2, '0')} ${ap}`; })() : '';
   const fromLabel = `${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`;
-  const summaryWhen = isNutri
+  const summaryWhen = isNutriWeekBlock
+    // An arc states weeks, not a menu — say so rather than promising a replace
+    // that will not happen.
+    ? tr('coach:assign.whenArc', { defaultValue: '{weeks, plural, one {# week} other {# weeks}} · a coaching arc, no menu', weeks: bsWeekSpan(weekUnits) })
+    : isNutri
     ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
     : isSplit
       ? tr('coach:assign.whenSplit', { defaultValue: '{sessions} sessions/wk · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: dayLines.filter(d => d && !d.rest).length, weeks, from: fromLabel })
@@ -3502,13 +3535,29 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
               <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
             </div>
-            <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
-            {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
-            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-              {uid
-                ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
-                : fixedClient ? tr('coach:assign.demoAssigns', { defaultValue: 'Demo client · assigns once linked to a live member' }) : tr('coach:assign.pickLinked', { defaultValue: 'Pick a linked client above' })}
-            </div>
+            {/* C0 — a week block has no menu to install, so there is no assign
+                action. State what it is, what to do instead, and (ruling 7)
+                name anything the arc carried that isn't delivered. */}
+            {isNutriWeekBlock ? (
+              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{tr('coach:assign.arcEyebrow', { defaultValue: 'Not a menu' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{tr('coach:assign.arcTitle', { defaultValue: 'This program describes weeks, not meals.' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{tr('coach:assign.arcBody', { defaultValue: "It sets the focus for each week and contains no food. Assign a Diet or Meal plan to install {name}'s menu — the shop list then builds itself from those meals.", name: first })}</div>
+                {droppedBlocks.length > 0 && (
+                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.arcDropped', { defaultValue: 'Not delivered · {blocks}', blocks: droppedBlocks.join(' · ') })}</div>
+                )}
+              </div>
+            ) : (
+              <>
+                <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
+                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {uid
+                    ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
+                    : fixedClient ? tr('coach:assign.demoAssigns', { defaultValue: 'Demo client · assigns once linked to a live member' }) : tr('coach:assign.pickLinked', { defaultValue: 'Pick a linked client above' })}
+                </div>
+              </>
+            )}
             {disclaimer && (
               <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid ${accent}33`, background: `${accent}10`, padding: '10px 12px', fontFamily: t.BODY, fontSize: 10.5, lineHeight: 1.5, color: t.INK }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>{tr('coach:assign.scopeCompliance', { defaultValue: 'Scope & compliance' })}</span>
