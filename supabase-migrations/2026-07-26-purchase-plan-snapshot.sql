@@ -91,3 +91,38 @@ $$;
 
 revoke execute on function public.get_my_purchased_plans() from public, anon;
 grant execute on function public.get_my_purchased_plans() to authenticated;
+
+-- A named snapshot can NEVER be replaced by an unnamed marker.
+--
+-- The webhook preserves a stored full snapshot when it handles a replay whose
+-- plan has since been deleted, but that is a read-then-write: two concurrent
+-- duplicate deliveries can both observe "no full snapshot", one writes the real
+-- one, and the other overwrites it with the id-only deletion marker. The Library
+-- gates on a name, so the buyer would lose a plan they already had — the exact
+-- outcome this migration exists to prevent, reachable purely by Stripe
+-- redelivering. A guard in application code cannot close it; the invariant has
+-- to live where the write happens.
+--
+-- This also covers the honest-degrade case: if the webhook cannot read the prior
+-- row it declines to send a marker at all, and if any future writer forgets, the
+-- database still refuses the downgrade.
+create or replace function public.preserve_named_plan_snapshot()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  -- Only ever REFUSES a downgrade; never invents or upgrades a snapshot.
+  if coalesce(OLD.plan_snapshot->>'name', '') <> ''
+     and coalesce(NEW.plan_snapshot->>'name', '') = '' then
+    NEW.plan_snapshot := OLD.plan_snapshot;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists one_time_purchases_preserve_snapshot on public.one_time_purchases;
+create trigger one_time_purchases_preserve_snapshot
+  before update on public.one_time_purchases
+  for each row
+  execute function public.preserve_named_plan_snapshot();

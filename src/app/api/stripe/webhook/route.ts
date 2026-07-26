@@ -314,22 +314,31 @@ export async function POST(request: Request) {
               // destroy exactly what this PR exists to preserve, on a delivery
               // that changes nothing. So reuse a stored snapshot when one exists.
               // select('*') because plan_snapshot may not exist pre-migration.
-              const { data: priorRow } = await admin
+              const { data: priorRow, error: priorErr } = await admin
                 .from('one_time_purchases')
                 .select('*')
                 .eq('stripe_checkout_session_id', session.id)
                 .maybeSingle();
               const priorSnap = (priorRow as { plan_snapshot?: Record<string, unknown> | null } | null)?.plan_snapshot ?? null;
               const priorIsFull = !!priorSnap && typeof priorSnap === 'object' && typeof priorSnap.name === 'string' && priorSnap.name !== '';
-              planSnapshot = priorIsFull
-                ? (priorSnap as Record<string, unknown>)
-                : {
-                    id: purchasedPlanId,
-                    snapshot_at: new Date().toISOString(),
-                    snapshot_source: 'plan_deleted_before_payment',
-                  };
+              if (priorErr) {
+                // Could not READ the prior row, so we cannot know whether a full
+                // snapshot is already stored. Writing the marker here would risk
+                // destroying one. Send NO plan_snapshot at all: the upsert then
+                // omits the column and leaves any stored value untouched.
+                planSnapshot = null;
+              } else {
+                planSnapshot = priorIsFull
+                  ? (priorSnap as Record<string, unknown>)
+                  : {
+                      id: purchasedPlanId,
+                      snapshot_at: new Date().toISOString(),
+                      snapshot_source: 'plan_deleted_before_payment',
+                    };
+              }
               console.error('[stripe webhook] purchased plan was deleted before payment completed — recording the purchase without plan_id', {
-                session: session.id, plan: purchasedPlanId, client: clientId, keptPriorSnapshot: priorIsFull,
+                session: session.id, plan: purchasedPlanId, client: clientId,
+                keptPriorSnapshot: priorIsFull, priorReadFailed: !!priorErr,
               });
             }
           }
