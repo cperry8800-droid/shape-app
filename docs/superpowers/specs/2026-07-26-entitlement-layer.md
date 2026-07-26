@@ -8,7 +8,7 @@
 > is split out of
 > [`2026-07-25-nutrition-week-block-programs.md`](2026-07-25-nutrition-week-block-programs.md),
 > where it was section **E**, so that the parts of that wave which *are*
-> build-ready (C0, C1) are not held behind it.
+> build-ready track (C0, shipped) is not held behind it. See the parent spec's build-ready table — as of this revision C1a is itself blocked on a per-day storage contract.
 
 ## Why this is its own document
 
@@ -82,7 +82,7 @@ recorded so the thinking is not lost, **not** so it can be built from.
 ## The design as reviewed (round 4)
 
 Ruling 6 puts this outside nutrition: it is a **platform** change that also fixes
-a live training hole (finding ③). It can be built in parallel with C0/C1 and must
+a live training hole (finding ③). It can be built in parallel with the C tracks and must
 land before C2's end-of-program rule.
 
 - **Make the purchase kind real** (finding ②) — `booking` | `program` |

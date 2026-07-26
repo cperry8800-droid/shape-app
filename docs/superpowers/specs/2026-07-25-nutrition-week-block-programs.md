@@ -5,8 +5,10 @@ fix; scoping it surfaced a blocker that reorders the work, and the rulings reach
 past nutrition into **training purchases and platform entitlement**.
 
 ⚠ **Scope of "answered": every question this document rules on — the six owner
-rulings plus rounds 2's two — is closed, and that is what makes C0/C1
-build-ready. It does NOT mean the wave has no open questions.** The entitlement
+rulings plus round 2's two — is closed. That is what unblocked **C0**, which has
+shipped. It does NOT mean the wave has no open questions, and it does NOT make
+any remaining track build-ready — see the table below, which is the build
+signal.** The entitlement
 work those rulings imply was split into
 [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md), which is
 **NOT build-ready** and carries four unresolved conditions of its own (run
@@ -21,21 +23,31 @@ signal, not this paragraph.
 | Track | State |
 | --- | --- |
 | **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
-| **C1a** — per-DAY menus (the builder authors a different day) | ✅ **build-ready — next** |
+| **C1a** — per-DAY menus (the builder authors a different day) | ⛔ **blocked on the per-day storage contract** (below) |
 | **C1b** — make the ✦ AI DRAFT real | ⛔ **blocked on the AI contract** (below) |
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
-Build order is therefore **C0 (done) → C1a**, then C1b once the AI contract is
-written, then C2 → C3 once E is ruled build-ready. **C1a depends on nothing in
-E and nothing in the AI contract** — it is pure builder + assign work, and it is
-the half carrying the standalone value.
+⚠ **Nothing in this wave is currently build-ready. C0 has shipped; every other
+track is blocked on a contract that does not yet exist.** Build order once they
+are written: **C1a → C1b → C2 → C3**, with E in parallel.
 
-⚠ **C1 was split because the AI half is not build-ready.** An earlier revision
-marked the whole of C1 build-ready; review established that the route cannot
-express what the builders need (below), so shipping "make the draft real" would
-put training content in a nutrition editor. The per-day half is untouched by
-that and proceeds.
+⚠ **Read this before marking anything ready again — it has been wrong three
+times.** Each revision of this spec has declared a track build-ready on the
+strength of the half that had been checked, and review has found the other half
+each time:
+
+| Claimed ready | What was missed |
+| --- | --- |
+| C1 (whole) | the AI route can't express what the builders send → split into C1a/C1b |
+| C1b | a rename can't fix it; nutri `program` and trainer `program` collide *without* resolving wrongly |
+| C1a | "independent of E and of the AI route" ≠ ready — it has no per-day storage contract |
+
+The pattern is identical every time: **readiness was inferred from independence.**
+A track that depends on nothing blocked is not thereby ready; it is ready when
+the contract it writes *through* is defined. Do not re-mark any track ready
+without naming, explicitly, the stored shape it produces and every consumer that
+reads it.
 
 ## ⚠ The finding that reorders this work
 
@@ -346,13 +358,42 @@ weeks a coach actually filled and still forbids fabricating "Reset & habits"
 into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
 of the rule C2 generalizes.
 
-**C1a — Per-DAY menus (the prerequisite). BUILD-READY.** The builder learns to
-author a different day; the assign stops replicating one `meals` array across all
-seven (`BSProAssignPage`'s `apply()`, the `Array.from({ length: 7 }, …)` week
-builder). Without this, every week in C2 is the same five meals repeated and the
-wave delivers nothing a client can taste. **Largest standalone value in the whole
-spec, and it touches neither E nor the AI route** — which is why it is the half
-that proceeds.
+**C1a — Per-DAY menus (the prerequisite). BLOCKED on the storage contract
+below.** The builder learns to author a different day; the assign stops
+replicating one `meals` array across all seven (`BSProAssignPage`'s `apply()`,
+the `Array.from({ length: 7 }, …)` week builder). Without this, every week in C2
+is the same five meals repeated and the wave delivers nothing a client can taste.
+Largest standalone value in the whole spec — and it touches neither E nor the AI
+route, which is why an earlier revision called it ready. That was the wrong test.
+
+⚠ **The per-day STORAGE contract must be written first, because two consumers
+share one flat shape and a paid surface is one of them.** Authoring per-day
+menus changes what a plan *is*, and today:
+
+- `BSProAssignPage` reads `plan.detail.blocks` as a flat array
+  (`iosAppBroadsheetPros.jsx:3318`, mapping `b.text ?? b`);
+- **`planPreview.mjs` reads the SAME flat `detail.blocks`** (`:65`) — and that is
+  the **buyer-facing marketplace preview of a paid plan**.
+
+So the two obvious moves both fail, in opposite directions: **nesting** meals
+under days makes `detail.blocks` empty and the paid preview **renders nothing**
+for a plan someone is being asked to buy; **adding day metadata alongside**
+leaves the preview ignoring it and showing all seven days as **one
+undifferentiated menu** — misrepresenting what the buyer gets. Neither is
+acceptable on a commerce surface.
+
+The contract must therefore state, before any code is written:
+
+1. **The stored shape** — how seven distinct days are persisted on
+   `coach_plans.detail`, and what `detail.blocks` still contains (it cannot
+   simply go away while `planPreview` and the marketplace read it).
+2. **The legacy fallback** — every plan authored before C1a has no per-day data
+   and must render *exactly* as it does today, on both surfaces. Same
+   invariant-preserving discipline C0 held for the standing menu.
+3. **ONE shared normalizer** that both the assign path and `planPreview` call, so
+   the coach's authoring, the buyer's preview and the client's menu cannot
+   disagree — the `planOutline.mjs` precedent, and the reason C0's fix was
+   provably correct (three surfaces, one grammar).
 
 **C1b — The AI draft made real. BLOCKED on the contract below.** Per ruling 1
 this is where the draft stops being discarded (finding ①) — but the route cannot
@@ -629,9 +670,10 @@ radius, and the rest of this wave stops waiting on it.
 
 **What this changes for the build:**
 
-- **C0 and C1a do not depend on E at all.** C0 is already shipped (#1836);
-  **C1a** (per-day menus) is the next build. **C1b** (the AI draft made real) is
-  independent of E too, but is blocked on its own AI contract — see C1b above.
+- **C0, C1a and C1b do not depend on E at all** — but independence from E is not
+  readiness (see the warning at the top of this spec). C0 is shipped (#1836);
+  **C1a is blocked on the per-day storage contract** and **C1b on the AI
+  contract**, both defined in "What C actually requires" above.
 - **C2 and C3 remain blocked on E** — specifically C2's end-of-program rule,
   which needs a term to end. They are **not** build-ready, and the sections
   above describing them stand as design, not as a build contract.
