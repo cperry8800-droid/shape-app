@@ -112,11 +112,33 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
-  -- Only ever REFUSES a downgrade; never invents or upgrades a snapshot.
+  -- Nothing stored yet: accept whatever is offered.
+  if OLD.plan_snapshot is null then
+    return NEW;
+  end if;
+
+  -- A stored 'checkout' snapshot is the record of what was actually sold, taken
+  -- at the moment it was sold. It is IMMUTABLE. This is the case a
+  -- named-vs-unnamed rule alone misses: a replay of the same Checkout Session
+  -- AFTER the coach edits a still-live plan produces a perfectly valid NEW named
+  -- snapshot, which would silently overwrite the purchased name/meta/detail —
+  -- so the buyer's record would describe a plan they did not buy. A replay must
+  -- never re-snapshot.
+  if coalesce(OLD.plan_snapshot->>'snapshot_source', '') = 'checkout' then
+    NEW.plan_snapshot := OLD.plan_snapshot;
+    return NEW;
+  end if;
+
+  -- A 'backfill' snapshot was reconstructed from the live row after the fact, so
+  -- a checkout capture is strictly better provenance and may PROMOTE it. Nothing
+  -- else may replace a named snapshot — not the id-only deletion marker, not
+  -- NULL, not another backfill.
   if coalesce(OLD.plan_snapshot->>'name', '') <> ''
-     and coalesce(NEW.plan_snapshot->>'name', '') = '' then
+     and coalesce(NEW.plan_snapshot->>'snapshot_source', '') <> 'checkout' then
     NEW.plan_snapshot := OLD.plan_snapshot;
   end if;
+
+  -- An unnamed marker CAN still be upgraded to a real snapshot (falls through).
   return NEW;
 end;
 $$;
