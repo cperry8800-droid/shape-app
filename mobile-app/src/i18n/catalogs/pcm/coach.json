@@ -899,12 +899,14 @@
   "editor.dayStart": "GIVE DIS DAY IM OWN MENU",
   "editor.dayInherit": "← GO BACK TO DI DEFAULT MENU",
   "editor.dayEmpty": "Nothing dey serve dis day.",
-  "editor.dayFull": "One day fit hold {max} max — comot one first.",
   "editor.dowMon": "MON",
   "editor.dowTue": "TUE",
   "editor.dowWed": "WED",
   "editor.dowThu": "THU",
   "editor.dowFri": "FRI",
   "editor.dowSat": "SAT",
-  "editor.dowSun": "SUN"
+  "editor.dowSun": "SUN",
+  "editor.dayInheritTitle": "You wan use di default menu for dis day?",
+  "editor.dayInheritMsg": "Dis go delete wetin you write for dis day.",
+  "editor.dayInheritConfirm": "Use di default"
 }

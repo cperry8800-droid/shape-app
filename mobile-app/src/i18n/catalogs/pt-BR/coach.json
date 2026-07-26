@@ -899,12 +899,14 @@
   "editor.dayStart": "DAR A ESTE DIA UM CARDÁPIO PRÓPRIO",
   "editor.dayInherit": "← VOLTAR AO CARDÁPIO PADRÃO",
   "editor.dayEmpty": "Nada é servido neste dia.",
-  "editor.dayFull": "Um dia comporta no máximo {max} — retire um antes.",
   "editor.dowMon": "SEG",
   "editor.dowTue": "TER",
   "editor.dowWed": "QUA",
   "editor.dowThu": "QUI",
   "editor.dowFri": "SEX",
   "editor.dowSat": "SÁB",
-  "editor.dowSun": "DOM"
+  "editor.dowSun": "DOM",
+  "editor.dayInheritTitle": "Usar o cardápio padrão neste dia?",
+  "editor.dayInheritMsg": "Isso apaga o que você escreveu para este dia.",
+  "editor.dayInheritConfirm": "Usar o padrão"
 }

@@ -899,12 +899,14 @@
   "editor.dayStart": "GIVE THIS DAY ITS OWN MENU",
   "editor.dayInherit": "← BACK TO THE DEFAULT MENU",
   "editor.dayEmpty": "Nothing served this day.",
-  "editor.dayFull": "A day holds {max} at most — trim one first.",
   "editor.dowMon": "MON",
   "editor.dowTue": "TUE",
   "editor.dowWed": "WED",
   "editor.dowThu": "THU",
   "editor.dowFri": "FRI",
   "editor.dowSat": "SAT",
-  "editor.dowSun": "SUN"
+  "editor.dowSun": "SUN",
+  "editor.dayInheritTitle": "Use the default menu for this day?",
+  "editor.dayInheritMsg": "This deletes what you wrote for this day.",
+  "editor.dayInheritConfirm": "Use the default"
 }

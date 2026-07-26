@@ -899,12 +899,14 @@
   "editor.dayStart": "BU GÜNE KENDİ MENÜSÜNÜ VER",
   "editor.dayInherit": "← VARSAYILAN MENÜYE DÖN",
   "editor.dayEmpty": "Bu gün hiçbir şey sunulmuyor.",
-  "editor.dayFull": "Bir gün en fazla {max} tutar — önce birini çıkar.",
   "editor.dowMon": "PZT",
   "editor.dowTue": "SAL",
   "editor.dowWed": "ÇAR",
   "editor.dowThu": "PER",
   "editor.dowFri": "CUM",
   "editor.dowSat": "CMT",
-  "editor.dowSun": "PAZ"
+  "editor.dowSun": "PAZ",
+  "editor.dayInheritTitle": "Bu gün için varsayılan menü kullanılsın mı?",
+  "editor.dayInheritMsg": "Bu, bu gün için yazdıklarını siler.",
+  "editor.dayInheritConfirm": "Varsayılanı kullan"
 }

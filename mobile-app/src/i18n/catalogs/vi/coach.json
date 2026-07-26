@@ -899,12 +899,14 @@
   "editor.dayStart": "CHO NGÀY NÀY THỰC ĐƠN RIÊNG",
   "editor.dayInherit": "← TRỞ LẠI THỰC ĐƠN MẶC ĐỊNH",
   "editor.dayEmpty": "Ngày này không phục vụ gì.",
-  "editor.dayFull": "Một ngày chứa tối đa {max} — bớt một cái trước.",
   "editor.dowMon": "T2",
   "editor.dowTue": "T3",
   "editor.dowWed": "T4",
   "editor.dowThu": "T5",
   "editor.dowFri": "T6",
   "editor.dowSat": "T7",
-  "editor.dowSun": "CN"
+  "editor.dowSun": "CN",
+  "editor.dayInheritTitle": "Dùng thực đơn mặc định cho ngày này?",
+  "editor.dayInheritMsg": "Thao tác này xóa những gì bạn đã viết cho ngày này.",
+  "editor.dayInheritConfirm": "Dùng mặc định"
 }

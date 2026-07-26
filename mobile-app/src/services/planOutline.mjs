@@ -121,22 +121,25 @@ const DAYS_SCAN = 7;
 // how published-but-never-delivered paid content happens.
 export const BS_DAY_BLOCK_MAX = 40;
 
-// ⚠ The per-day bound is a FLOOR of 40, not a flat 40: a day may always hold at
-// least as much as the default menu it is overriding.
+// ⚠ DELIVERY DOES NOT TRUNCATE AN OVERRIDE — deliberately, and by this
+// contract's own rule: *a display bound may truncate; a delivery bound may only
+// ever truncate data that could not have been authored in good faith.*
 //
-// Without this the contract contradicted itself. The legacy default is
-// deliberately uncapped (a 45-block plan delivers all 45), so a coach varying
-// one day of that plan would copy 45 blocks into the override — which a flat
-// 40 then refuses. They would be forced either to delete meals from a plan
-// already sold, or to give up on varying that day at all. An override that
-// cannot even express the day it overrides is not a bound, it is a dead end.
+// A 41st meal on a day CAN be authored in good faith — the editor produces one
+// the moment a coach varies a legacy plan whose uncapped default already holds
+// more than 40. An earlier revision capped each override at 40 here, which made
+// that content vanish on assign; raising the cap to a floor of the default's
+// length only moved the trap (trim the default afterwards and the day becomes
+// unpublishable). Both were the same mistake the legacy `blocks` exemption
+// above already rules out, so `days` now gets the same treatment as `blocks`:
+// **delivery serves what was stored.**
 //
-// This does not widen what a crafted plan can cost: `blocks` is already
-// uncapped, so it — not this — sets the ceiling, and the paid preview re-caps
-// every resolved day at BS_DAY_BLOCK_MAX for display regardless.
-export function bsDayBlockMax(defaultBlocks) {
-  return Math.max(BS_DAY_BLOCK_MAX, Array.isArray(defaultBlocks) ? defaultBlocks.length : 0);
-}
+// The economy bound lives where the exposure is — planPreview re-caps every
+// resolved day at BS_DAY_BLOCK_MAX before scanning, and the preview is the only
+// surface a crafted public-read row reaches unauthenticated. Assign is an
+// authenticated coach acting on their own plan, and it has always delivered an
+// unbounded `detail.blocks`.
+
 
 // A dow is valid only as a real integer 0..6 (0 = MONDAY, matching
 // BS_ASSIGN_DOW and bsRepeatSpec — NOT the reminders table's 0 = Sunday).
@@ -162,11 +165,21 @@ function validDow(v) {
 // normalization delivery uses, or the claim and the product diverge.
 // (Identity never matters either way: a per-day authoring UI naturally
 // produces fresh objects for an unmodified day.)
+// ⚠ The coercion is `raw || ''`, NOT `String(raw)`. Assign's mealsFrom reduces
+// each block with `String(((b && b.text != null) ? b.text : b) || '').trim()`
+// and skips the empties, so a `false`, a `0` or a `NaN` in a blocks array
+// delivers NOTHING. Coercing with plain String() turns those into the non-empty
+// texts "false" and "0", and a default ['Breakfast'] against an override
+// ['Breakfast', false] would then compare as DIFFERENT while delivering the
+// identical menu — "menus vary by day" on a paid listing, with a phantom meal
+// inflating the weekly count. Same rule as ever, one level deeper: the claim
+// must be computed with the same semantics as the thing it claims about,
+// including the coercion.
 function deliveredTexts(list) {
   const out = [];
   for (const b of (Array.isArray(list) ? list : [])) {
     const raw = (b && b.text != null) ? b.text : b;
-    const t = String(raw == null ? '' : raw).trim();
+    const t = String(raw || '').trim();
     if (t) out.push(t);
   }
   return out;
@@ -198,11 +211,6 @@ export function bsPlanWeek(detail) {
   // carry them).
   const fallback = Array.isArray(d.blocks) ? d.blocks : [];
 
-  // A day may hold at least what the default holds — see bsDayBlockMax. A flat
-  // cap here would truncate an override the editor legitimately produced by
-  // copying an oversized legacy default.
-  const dayCap = bsDayBlockMax(fallback);
-
   const byDow = new Map();
   if (Array.isArray(d.days)) {
     for (const entry of d.days.slice(0, DAYS_SCAN)) {
@@ -210,7 +218,7 @@ export function bsPlanWeek(detail) {
       if (!validDow(entry.dow)) continue;
       if (byDow.has(entry.dow)) continue;          // first authored entry wins
       if (!Array.isArray(entry.blocks)) continue;  // a day with no list inherits
-      byDow.set(entry.dow, entry.blocks.slice(0, dayCap));
+      byDow.set(entry.dow, entry.blocks);
     }
   }
 
@@ -249,7 +257,13 @@ export function bsPlanWeek(detail) {
 export function bsCanonicalDays(days) {
   const seen = new Set();
   const out = [];
-  for (const entry of (Array.isArray(days) ? days : [])) {
+  // ⚠ The SAME raw slice the reader applies. bsPlanWeek takes the first
+  // DAYS_SCAN entries and validates them afterwards, so a scan over the whole
+  // array here would disagree with it: for 7 junk entries followed by a real
+  // Thursday, canonicalizing would PROMOTE Thursday into the first seven and
+  // change the menu that day serves. Writer and reader must consider the same
+  // entries, or canonicalization stops being lossless.
+  for (const entry of (Array.isArray(days) ? days : []).slice(0, DAYS_SCAN)) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     if (!validDow(entry.dow)) continue;
     if (!Array.isArray(entry.blocks)) continue;

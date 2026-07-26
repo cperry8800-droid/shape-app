@@ -899,12 +899,14 @@
   "editor.dayStart": "ЗАДАТИ ЦЬОМУ ДНЮ ВЛАСНЕ МЕНЮ",
   "editor.dayInherit": "← ПОВЕРНУТИ МЕНЮ ЗА ЗАМОВЧУВАННЯМ",
   "editor.dayEmpty": "Цього дня нічого не подають.",
-  "editor.dayFull": "У дні не більше {max} — спершу приберіть одне.",
   "editor.dowMon": "ПН",
   "editor.dowTue": "ВТ",
   "editor.dowWed": "СР",
   "editor.dowThu": "ЧТ",
   "editor.dowFri": "ПТ",
   "editor.dowSat": "СБ",
-  "editor.dowSun": "НД"
+  "editor.dowSun": "НД",
+  "editor.dayInheritTitle": "Використати меню за замовчуванням для цього дня?",
+  "editor.dayInheritMsg": "Це видалить те, що ви написали для цього дня.",
+  "editor.dayInheritConfirm": "Використати за замовчуванням"
 }

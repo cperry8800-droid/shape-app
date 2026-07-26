@@ -17,14 +17,18 @@
 // menu IS the product, so it shows BS_PREVIEW_FREE_UNITS units and reports the
 // remainder as locked. The sheet never renders a locked unit's text.
 
-import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsPlanWeek } from './planOutline.mjs';
+import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsPlanWeek, BS_DAY_BLOCK_MAX } from './planOutline.mjs';
 
 // How many units of a session/menu a buyer sees before paying.
 export const BS_PREVIEW_FREE_UNITS = 2;
 
 // Bounds — blocks come off a public-read provider row, so a crafted plan could
 // carry a huge array or huge strings. We only ever parse/keep this many.
-const BLOCK_SCAN = 40;
+// The one display bound, shared with planOutline. Delivery does not truncate a
+// per-day override, so this IS the bound that keeps a crafted public-read row
+// from fanning out 7x on the preview — it must not quietly diverge from the
+// number the contract states.
+const BLOCK_SCAN = BS_DAY_BLOCK_MAX;
 const TITLE_MAX = 120;
 
 const clean = (v) => String(v == null ? '' : v).slice(0, 2000).replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, TITLE_MAX);

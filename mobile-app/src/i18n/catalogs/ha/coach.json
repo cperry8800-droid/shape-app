@@ -899,12 +899,14 @@
   "editor.dayStart": "BA WANNAN RANA MENU NATA",
   "editor.dayInherit": "← KOMA GA TSOHON MENU",
   "editor.dayEmpty": "Ba a ba da komai a wannan rana.",
-  "editor.dayFull": "Rana ɗaya na ɗaukar {max} kawai — cire ɗaya tukuna.",
   "editor.dowMon": "LIT",
   "editor.dowTue": "TAL",
   "editor.dowWed": "LAR",
   "editor.dowThu": "ALH",
   "editor.dowFri": "JUM",
   "editor.dowSat": "ASA",
-  "editor.dowSun": "LAH"
+  "editor.dowSun": "LAH",
+  "editor.dayInheritTitle": "A yi amfani da tsohon menu don wannan rana?",
+  "editor.dayInheritMsg": "Wannan zai share abin da ka rubuta don wannan rana.",
+  "editor.dayInheritConfirm": "Yi amfani da tsoho"
 }

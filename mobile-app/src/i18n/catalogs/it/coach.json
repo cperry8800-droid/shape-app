@@ -899,12 +899,14 @@
   "editor.dayStart": "DAI A QUESTO GIORNO UN MENU PROPRIO",
   "editor.dayInherit": "← TORNA AL MENU PREDEFINITO",
   "editor.dayEmpty": "Questo giorno non serve nulla.",
-  "editor.dayFull": "Un giorno contiene al massimo {max} — togline uno prima.",
   "editor.dowMon": "LUN",
   "editor.dowTue": "MAR",
   "editor.dowWed": "MER",
   "editor.dowThu": "GIO",
   "editor.dowFri": "VEN",
   "editor.dowSat": "SAB",
-  "editor.dowSun": "DOM"
+  "editor.dowSun": "DOM",
+  "editor.dayInheritTitle": "Usare il menu predefinito per questo giorno?",
+  "editor.dayInheritMsg": "Questo elimina ciò che hai scritto per questo giorno.",
+  "editor.dayInheritConfirm": "Usa il predefinito"
 }

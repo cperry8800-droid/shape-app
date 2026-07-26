@@ -899,12 +899,14 @@
   "editor.dayStart": "ЗАДАТЬ ЭТОМУ ДНЮ СВОЁ МЕНЮ",
   "editor.dayInherit": "← ВЕРНУТЬ МЕНЮ ПО УМОЛЧАНИЮ",
   "editor.dayEmpty": "В этот день ничего не подаётся.",
-  "editor.dayFull": "В дне не больше {max} — сначала уберите одно.",
   "editor.dowMon": "ПН",
   "editor.dowTue": "ВТ",
   "editor.dowWed": "СР",
   "editor.dowThu": "ЧТ",
   "editor.dowFri": "ПТ",
   "editor.dowSat": "СБ",
-  "editor.dowSun": "ВС"
+  "editor.dowSun": "ВС",
+  "editor.dayInheritTitle": "Использовать меню по умолчанию для этого дня?",
+  "editor.dayInheritMsg": "Это удалит то, что вы написали для этого дня.",
+  "editor.dayInheritConfirm": "Использовать по умолчанию"
 }

@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsPlanWeek, bsCanonicalDays, bsDayBlockMax } from '../mobile-app/src/services/planOutline.mjs';
+import { bsPlanWeek, bsCanonicalDays } from '../mobile-app/src/services/planOutline.mjs';
 import { bsPlanPreview, BS_PREVIEW_FREE_UNITS } from '../mobile-app/src/services/planPreview.mjs';
 
 const MENU = ['Breakfast · Oats · 500 kcal', 'Lunch · Chicken bowl · 620 kcal'];
@@ -104,16 +104,24 @@ test('hardening: a day entry with no blocks array inherits the default', () => {
   }
 });
 
-test('hardening: crafted oversized `days` are bounded, and never throw', () => {
+test('hardening: a crafted oversized `days` never throws, and the WEEK stays bounded', () => {
   const huge = Array.from({ length: 500 }, (_, i) => `Meal ${i} · 100 kcal`);
   const w = bsPlanWeek({
     blocks: [],
     days: Array.from({ length: 200 }, (_, i) => ({ dow: i % 7, blocks: huge })),
   });
+  // 200 entries collapse to seven days — the scan bound that still applies.
   assert.equal(w.days.length, 7);
-  // AUTHORED day entries are capped — they are new data with no legacy
-  // expectations, and the attack surface (a crafted public-read row).
-  w.days.forEach((d) => assert.ok(d.blocks.length <= 40, 'authored day bounded'));
+  // The per-day blocks are NOT capped here: delivery serves what was stored,
+  // because a long day can be authored in good faith and this function cannot
+  // tell the two apart. The economy bound belongs to the surface that is
+  // actually exposed — the public preview — and it is asserted there.
+  // Distinct per day, so the preview actually takes its per-day branch.
+  const varied = Array.from({ length: 200 }, (_, i) => ({ dow: i % 7, blocks: huge.map((x) => `d${i % 7} ${x}`) }));
+  const p = bsPlanPreview({ name: 'N', detail: { blocks: [], days: varied } }, { isNutri: true });
+  assert.equal(p.perDay, true);
+  assert.ok(p.days.every((d) => d.count <= 40), 'the PREVIEW bounds the crafted row');
+  assert.ok(p.units.length <= 7 * 40, 'and the whole-week register with it');
 });
 
 test('legacy: the DEFAULT blocks are deliberately UNCAPPED — delivery must not drop sold meals', () => {
@@ -395,23 +403,47 @@ test('canonical: a draft with no per-day authoring canonicalizes to nothing', ()
   assert.deepEqual(bsCanonicalDays(undefined), []);
 });
 
-test('bound: a day may hold at least what the oversized default holds', () => {
-  // Acceptance 6 keeps a legacy >40-block plan delivering every block. If the
-  // per-day bound were a flat 40, a coach varying ONE day of that plan would
-  // copy 45 blocks into the override and then be refused at publish — forced to
-  // delete meals from a sold plan, or to give up on varying that day.
+test('bound: DELIVERY never truncates an authored day', () => {
+  // The contract's own rule: a delivery bound may only ever truncate data that
+  // could not have been authored in good faith. A 41st meal CAN be authored in
+  // good faith — the editor produces one the moment a coach varies a legacy plan
+  // whose uncapped default already holds more than 40. Capping here made that
+  // content vanish on assign; a floor of the default's length only moved the
+  // trap (trim the default afterwards and the day became unpublishable).
   const big = Array.from({ length: 45 }, (_, i) => `Meal ${i + 1}`);
-  assert.equal(bsDayBlockMax(big), 45);
-  assert.equal(bsDayBlockMax(MENU), 40, 'ordinary plans keep the flat 40');
-  assert.equal(bsDayBlockMax(undefined), 40);
-
   const w = bsPlanWeek({ blocks: big, days: [{ dow: 1, blocks: big }] });
-  assert.equal(w.days[1].blocks.length, 45, 'the override survives intact');
+  assert.equal(w.days[1].blocks.length, 45, 'every sold meal is delivered');
   assert.equal(w.perDay, false, 'copying the default is not variation');
+
+  // ...and that holds for an override far larger than any default, because
+  // delivery serves what was stored. The economy bound lives in the PREVIEW.
+  const crafted = Array.from({ length: 300 }, (_, i) => `x${i}`);
+  const w2 = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: crafted }] });
+  assert.equal(w2.days[0].blocks.length, 300, 'delivery is lossless');
+  const p = bsPlanPreview({ name: 'N', detail: { blocks: MENU, days: [{ dow: 0, blocks: crafted }] } }, { isNutri: true });
+  assert.ok(p.days.every((d) => d.count <= 40), 'the preview still bounds the crafted row');
 });
 
-test('bound: an ordinary plan still caps a crafted day at 40', () => {
-  const crafted = Array.from({ length: 300 }, (_, i) => `x${i}`);
-  const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: crafted }] });
-  assert.equal(w.days[0].blocks.length, 40);
+test('perDay: falsy blocks are dropped, because delivery drops them', () => {
+  // Assign reduces each block with String(value || '').trim() and skips the
+  // empties, so a `false` delivers NOTHING. Coercing it to the text "false"
+  // would make these two menus compare as different while serving the same
+  // food — "menus vary by day" on a paid listing, with a phantom meal inflating
+  // the weekly count.
+  const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: [...MENU, false] }] });
+  assert.equal(w.perDay, false);
+  const w2 = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: [...MENU, 0, NaN, ''] }] });
+  assert.equal(w2.perDay, false);
+});
+
+test('canonical: the writer scans exactly what the reader scans', () => {
+  // bsPlanWeek takes the first DAYS_SCAN raw entries and validates AFTERWARDS.
+  // A canonicalizer that scanned the whole array would promote a real entry out
+  // of a junk prefix and into the reader's window — changing the menu a day
+  // serves, in the one function whose entire job is to be lossless.
+  const raw = [...Array.from({ length: 7 }, () => ({ dow: 99, blocks: ['x'] })), { dow: 3, blocks: ['THU MENU'] }];
+  const a = bsPlanWeek({ blocks: MENU, days: raw });
+  const b = bsPlanWeek({ blocks: MENU, days: bsCanonicalDays(raw) });
+  assert.deepEqual(b.days.map((d) => texts(d.blocks)), a.days.map((d) => texts(d.blocks)));
+  assert.deepEqual(texts(b.days[3].blocks), MENU, 'Thursday still inherits — consistently, in both');
 });
