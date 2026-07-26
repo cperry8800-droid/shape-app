@@ -393,18 +393,55 @@ and at most one program-week row per (nutritionist, client, **run**, week). A
 single constraint over both kinds cannot express this, which is why the program
 key has to be a real column rather than something parsed out of `payload`.
 
+⚠ **A per-run constraint is not enough — add a single-active-run invariant.**
+Keying weeks on the run (below) is what makes a re-buy representable, but it
+also makes **two live runs** representable: a client can start a purchased
+program while a coach-assigned one is still running, and both would then hold a
+row for the same current week. The precedence ladder says "**a** running,
+un-paused program week wins" — with two, there is no winner, and
+`/api/client/plan` would serve whichever the query happened to order first,
+which on a paid program is serving the wrong menu. So: **at most one ACTIVE
+nutrition run per client**, enforced as a partial unique index on the run row
+(active = started and not expired), the same shape as E's one-active-run-per-
+purchase bound and taken under the same lock. A second activation is **refused
+with an explicit choice** — end the running program now and start this one, or
+keep the current one — never silently accepted. Training carries the identical
+rule on its own discipline (ruling 6). As defense in depth the reader still
+needs a deterministic tiebreak — **most recently activated run wins** — so that
+even a bypassed constraint yields one answer rather than an arbitrary one.
+
 ⚠ **The row key is the RUN, not the catalog program — `program_id` alone
 collides on a re-buy.** Ruling 2 makes a program a repeatable sale, so
 `(client, program, week)` is not unique across two purchases of the same catalog
 program: the second run's week 1 would either overwrite the first's or attach to
 the expired entitlement. `program_id` therefore stays a **catalog reference**
 (what was bought, for labelling and re-buy), while **row identity, the
-uniqueness constraint, and the reader's selection all key on the run** — the
-`one_time_purchases.id` for a client-started purchase, and a coach-assignment id
-for a coach-assigned run, which has no purchase behind it. This is the same
-finding as E's purchase-id bullet reaching a second surface: E fixes *activation
-and the term check*, C2 fixes *the rows those produce*. Fixing one without the
-other leaves the collision intact.
+uniqueness constraint, and the reader's selection all key on the run**. This is
+the same finding as E's purchase-id bullet reaching a second surface: E fixes
+*activation and the term check*, C2 fixes *the rows those produce*. Fixing one
+without the other leaves the collision intact.
+
+⚠ **The run key must be a row we CREATE — there is no coach-assignment id to
+borrow.** An earlier draft said "the `one_time_purchases.id` for a purchase, a
+coach-assignment id for a coach-assigned run." The first exists; **the second
+does not.** `BSProAssignPage` writes straight through `ShapeAssign.mealPlan` /
+`ShapeAssign.workout` (`iosAppBroadsheetPros.jsx:3363`, `:3373`) and creates no
+assignment record at all, and the one table with a plausible name,
+`coach_program_assignments`, carries `program_template_id uuid not null
+references coach_program_templates` (`2026-05-08-coach-program-tools.sql:145`) —
+a NOT NULL FK to *templates*, not to the `coach_plans` row being assigned here,
+and it is only ever inserted by `/api/program-tools/templates`
+(`route.ts:149`). So half the runs would have had no key.
+
+The build must therefore create a **durable run row** — one record per run,
+written **atomically before any week is materialized**, carrying: client,
+provider, discipline, **source** (`purchase` with its `one_time_purchases.id`,
+or `coach_assign`), the catalog `program_id`, `started_at`, the immutable
+`term_days` (below), and the ruling-5 conflict choice. **That row's id is the
+run key** every program week points at, and it is what the term check, the
+replay bound, and the reader all read. It is the entitlement record; the weeks
+are its output. A run whose rows exist but whose run row doesn't is
+unrepresentable, which is the point.
 
 **Precedence when both cover the same week — one rule, applied identically by
 `/api/client/plan` and the mobile reader:**
@@ -456,7 +493,9 @@ land before C2's end-of-program rule.
   means a coach shortening their program silently expires clients who already
   paid, lengthening it silently extends them, and deleting the plan row makes
   expiry undefined. Store an immutable **`term_days`** (or a resolved
-  `term_ends_at` at start) **captured at purchase**, and compute expiry from
+  `term_ends_at` at start) **on the run row, snapshotted at activation** — taken
+  from the purchase for a bought program and from the assignment for a
+  coach-assigned one, which has no purchase behind it — and compute expiry from
   that alone. Where a legacy plan carries no stateable duration the purchase is
   **unclassifiable** and takes the rule below — not a guessed default, which
   would be fabricated precision about something a member paid for.
@@ -535,15 +574,30 @@ happens to them rather than leave it to the reader:
   entitlement**, reachable by any purchase that misses classification — which is
   the opposite of what the term exists to do, and is exploitable by whatever
   makes a row unclassifiable. So the rule is keyed on the **migration
-  timestamp**, not on the classifier's mood:
-  - `created_at < migration_ts` and unclassifiable → **grandfathered** (no term,
-    behaves as today).
-  - `created_at >= migration_ts` and unclassifiable → **no entitlement is
-    granted**, and the row is **quarantined and surfaced** (a loud server log +
-    a War Room item), because post-migration the kind is written at checkout
-    from what was actually bought (finding ②) — an unclassifiable row there is
-    a **bug in our write path, not a legitimate state**, and silently granting
-    it forever would hide the bug behind a free program.
+  boundary**, not on the classifier's mood:
+  - **legacy-shaped** and unclassifiable → **grandfathered** (no term, behaves
+    as today).
+  - **current-shaped** and unclassifiable → **no entitlement is granted**, and
+    the row is **quarantined and surfaced** (a loud server log + a War Room
+    item), because under the current schema the kind is written at checkout from
+    what was actually bought (finding ②) — an unclassifiable row there is a
+    **bug in our write path, not a legitimate state**, and silently granting it
+    forever would hide the bug behind a free program.
+
+  ⚠ **The boundary is a stamped schema version — NOT
+  `one_time_purchases.created_at`.** That row is inserted by the **webhook, on
+  payment completion**, so its `created_at` records when the money landed, not
+  when the session was built. A checkout opened before the migration and paid
+  after it therefore lands post-cutoff carrying legacy metadata and no term
+  snapshot — and a `created_at >= migration_ts` rule would **quarantine a
+  genuinely paid purchase** for nothing but crossing the deploy boundary
+  mid-checkout. So the build stamps an explicit **checkout-schema version into
+  the Stripe session metadata at session-creation time**, and classification
+  reads that (falling back to the Stripe session's own creation timestamp for
+  sessions opened before stamping existed). **Already-open legacy sessions
+  complete as legacy** — grandfathered, never quarantined. The version travels
+  with the purchase, so it cannot be desynchronized by delivery latency,
+  webhook retries, or a redeploy mid-flight.
   - The client-facing state for a quarantined row is the **honest** one — the
     purchase is visible and support can resolve it — never a silent empty tab
     and never a fabricated term.
