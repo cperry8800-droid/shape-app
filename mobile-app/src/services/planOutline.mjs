@@ -97,6 +97,112 @@ export function bsAssignMeal(text) {
   return { slot: (slot || 'meal').toUpperCase(), title: p.tail || p.head, kcal: kcal ? Number(kcal) : 0 };
 }
 
+// ── The per-day menu contract ────────────────────────────────────────────────
+// docs/superpowers/specs/2026-07-26-per-day-menu-contract.md
+//
+// The single source of truth for "what does this plan serve on each day?".
+// BSProAssignPage delivers from it and planPreview.mjs renders the buyer-facing
+// paid preview from it, so a preview can never describe a week the delivery does
+// not build — the same reason the parsers above are shared rather than copied.
+//
+// `detail.days` is ADDITIVE. `detail.blocks` stays and is the DEFAULT menu: a
+// plan with no `days` key, or a `days` that omits a weekday, serves
+// `detail.blocks` on those days. That is what keeps every already-published plan
+// byte-identical with no backfill, and what keeps the paid preview from ever
+// seeing an empty block list.
+
+// `detail` comes off a PUBLIC-READ provider row, so a crafted plan can carry a
+// huge array. Bound the scan the way planPreview.mjs already does.
+const DAYS_SCAN = 7;
+const DAY_BLOCK_SCAN = 40;
+
+// A dow is valid only as a real integer 0..6 (0 = MONDAY, matching
+// BS_ASSIGN_DOW and bsRepeatSpec — NOT the reminders table's 0 = Sunday).
+// Invalid/duplicate values are DROPPED, never clamped: clamping would silently
+// move a coach's Thursday menu onto Sunday, whereas dropping falls back to that
+// day's default menu, which is the honest degrade.
+//
+// Deliberately strict about type. `Number('1')` is 1, so a stringy dow off a
+// jsonb column would coerce — but a value we cannot distinguish from a typo is
+// not a day the coach chose, and this is the write path for PAID content.
+function validDow(v) {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6;
+}
+
+// Two block lists say the same thing when their DELIVERED text matches in
+// order — trimmed, empties dropped — because that is exactly what the meal
+// parse does on the way to the client (String(...).trim() + filter(Boolean)).
+// Comparing raw strings made perDay disagree with delivery: an authored day
+// differing from the fallback only by trailing whitespace or a stray empty
+// block DELIVERS the identical menu, but a raw compare called it a per-day
+// plan — "Menus vary by day" on a paid listing over seven identical menus,
+// with every repeat counted as a locked meal. Equality here must use the same
+// normalization delivery uses, or the claim and the product diverge.
+// (Identity never matters either way: a per-day authoring UI naturally
+// produces fresh objects for an unmodified day.)
+function deliveredTexts(list) {
+  const out = [];
+  for (const b of (Array.isArray(list) ? list : [])) {
+    const raw = (b && b.text != null) ? b.text : b;
+    const t = String(raw == null ? '' : raw).trim();
+    if (t) out.push(t);
+  }
+  return out;
+}
+function sameBlocks(a, b) {
+  if (a === b) return true;
+  const ta = deliveredTexts(a);
+  const tb = deliveredTexts(b);
+  if (ta.length !== tb.length) return false;
+  for (let i = 0; i < ta.length; i += 1) if (ta[i] !== tb[i]) return false;
+  return true;
+}
+
+// → { perDay: boolean, days: [{ dow, blocks }] } — ALWAYS seven entries, dow 0..6
+// ascending, each carrying the blocks that day actually serves.
+//
+// `perDay` is true only when at least one day's blocks DIFFER from the default.
+// A `days` array that is present but says the same thing everywhere is not a
+// per-day plan and must not be sold as one — §5.3 of the contract.
+export function bsPlanWeek(detail) {
+  const d = (detail && typeof detail === 'object' && !Array.isArray(detail)) ? detail : {};
+  // ⚠ The FALLBACK is deliberately UNCAPPED. Legacy Assign delivered every
+  // block in detail.blocks with no limit, and the contract promises a plan with
+  // no `days` key behaves byte-identically — capping here would silently drop
+  // meals from an already-SOLD plan on delivery. Truncation in the preview is
+  // cosmetic; truncation in delivery is taking content someone paid for. The
+  // bounds below apply only to `days` entries, which are NEW data with no
+  // legacy expectations (and the attack surface, since a legacy row can't
+  // carry them).
+  const fallback = Array.isArray(d.blocks) ? d.blocks : [];
+
+  const byDow = new Map();
+  if (Array.isArray(d.days)) {
+    for (const entry of d.days.slice(0, DAYS_SCAN)) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      if (!validDow(entry.dow)) continue;
+      if (byDow.has(entry.dow)) continue;          // first authored entry wins
+      if (!Array.isArray(entry.blocks)) continue;  // a day with no list inherits
+      byDow.set(entry.dow, entry.blocks.slice(0, DAY_BLOCK_SCAN));
+    }
+  }
+
+  const days = [];
+  for (let dow = 0; dow < 7; dow += 1) {
+    days.push({ dow, blocks: byDow.get(dow) || fallback });
+  }
+  // perDay is a claim about what is DELIVERED, so it is computed from the
+  // resolved week, not from how the week was authored: seven authored days that
+  // all say the same thing are one menu, even when that menu differs from a
+  // detail.blocks nobody will ever be served. Selling that as "per-day" would
+  // advertise variation that does not exist.
+  let perDay = false;
+  for (let i = 1; i < 7 && !perDay; i += 1) {
+    if (!sameBlocks(days[i].blocks, days[0].blocks)) perDay = true;
+  }
+  return { perDay, days };
+}
+
 export function bsAssignIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

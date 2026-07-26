@@ -1587,6 +1587,34 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
             <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
               {tr('marketplace:preview.outline', { defaultValue: 'The outline' })}
             </div>
+            {/* C1a — a per-day menu's SEVEN DAYS are the table of contents and
+                the differentiator being paid for, so they render free. Counts
+                only: no locked meal's text is in `p.days`, so nothing here can
+                leak paid content. Without this strip the model carried the
+                structure and the buyer never saw it — the sheet showed a sample
+                day plus a locked count, which is what a single-day menu looks
+                like too. */}
+            {p.perDay && Array.isArray(p.days) && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                {p.days.map((d) => (
+                  <div key={d.label} style={{ flex: 1, textAlign: 'center', padding: '7px 0', border: `1px solid ${d.count ? t.HAIR : 'transparent'}`, background: d.count ? `${teal}14` : 'transparent', opacity: d.count ? 1 : 0.4 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>{d.label}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: d.count ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{d.count || '—'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {p.perDay && (
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+                {/* "Menus vary by day", not "a different menu each day" — perDay
+                    fires on ONE differing day (Mon/Wed/Fri overrides + four
+                    inherited defaults is the normal authored shape), so the
+                    stronger claim would overstate what several real plans
+                    deliver. Copy on a paid surface states what is true of
+                    every plan it renders on. */}
+                {tr('marketplace:preview.perDay', { defaultValue: 'Menus vary by day · meals per day' })}
+              </div>
+            )}
             <div style={{ marginTop: 4 }}>{p.free.map(row)}</div>
             {p.locked > 0 && (
               <div style={{ marginTop: 10, padding: '10px 0', borderTop: `1px dashed ${t.INK}3d`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>

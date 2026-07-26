@@ -17,7 +17,7 @@
 // menu IS the product, so it shows BS_PREVIEW_FREE_UNITS units and reports the
 // remainder as locked. The sheet never renders a locked unit's text.
 
-import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan } from './planOutline.mjs';
+import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsPlanWeek } from './planOutline.mjs';
 
 // How many units of a session/menu a buyer sees before paying.
 export const BS_PREVIEW_FREE_UNITS = 2;
@@ -59,6 +59,31 @@ function statedWeeks(...sources) {
   return null;
 }
 
+// One meal block → one preview unit. Extracted so the per-day and legacy menu
+// paths cannot drift on how a meal is titled or how an absent kcal renders.
+//
+// bsAssignMeal keeps the whole tail as the title (e.g. "Chicken bowl · 420
+// kcal"); the sheet renders u.kcal separately, so strip a trailing kcal from the
+// title to avoid showing the number twice. A kcal-only title (a block with no
+// dish name) strips to empty — leave it empty rather than falling back to the
+// raw text, which would show the kcal twice.
+// `~` is consumed with the number: the nutrition builder's own default outline
+// writes "Breakfast · ~500 kcal", so stripping only the digits left a dangling
+// "Breakfast · ~" on every generated paid meal plan. The separator goes with it
+// for the same reason.
+function mealUnit(t) {
+  const m = bsAssignMeal(t);
+  if (!m) return null;
+  const title = clean(m.title).replace(/\s*[·,-]?\s*[~≈]?\s*\d{2,4}\s*kcal\s*$/i, '').trim();
+  return {
+    label: m.slot,
+    title,
+    // bsAssignMeal reports 0 for "no kcal stated"; an absent number must render
+    // as nothing, never as a real-looking 0.
+    kcal: m.kcal > 0 ? m.kcal : null,
+  };
+}
+
 export function bsPlanPreview(plan, opts) {
   const isNutri = !!(opts && opts.isNutri);
   const detail = (plan && plan.detail && typeof plan.detail === 'object') ? plan.detail : {};
@@ -73,8 +98,30 @@ export function bsPlanPreview(plan, opts) {
   const note = clean(detail.note);
   const weeks = statedWeeks(plan && plan.meta, plan && plan.name);
 
+  // C1a — the per-day week has to be resolved BEFORE the empty check, or a
+  // per-day plan whose DEFAULT menu is empty (every day authored individually,
+  // nothing left in `detail.blocks`) returns the empty model and previews as
+  // nothing. That is the same "paid preview renders nothing" failure the per-day
+  // contract exists to prevent, in a narrower form — an empty `blocks` is no
+  // longer the same thing as an empty plan.
+  const week = bsPlanWeek(detail);
+  // ⚠ The PREVIEW re-caps every resolved day at BLOCK_SCAN. bsPlanWeek leaves
+  // the legacy fallback uncapped because DELIVERY must not drop sold meals —
+  // but this module is a PUBLIC workload (any visitor can open any listing's
+  // preview), and one authored day makes the six inherited days each carry the
+  // uncapped fallback, so flattening them unbounded turns a crafted
+  // detail.blocks into a 6× amplified scan. Delivery keeps every meal; the
+  // preview scans at most 40 per day, exactly the display bound the legacy
+  // path has always applied via rawBlocks.
+  const dayScan = (d) => (Array.isArray(d.blocks) ? d.blocks.slice(0, BLOCK_SCAN) : []);
+  // Content anywhere in the RESOLVED week keeps the preview alive — perDay is
+  // deliberately not part of this test. A week whose seven days are authored
+  // identically (perDay false) over an empty default still DELIVERS meals, so
+  // it must not preview as an empty plan.
+  const weekHasContent = week.days.some((d) => dayScan(d).some((b) => blockText(b)));
+
   const empty = { kind: null, weeks, sessionsPerWeek: null, units: [], free: [], locked: 0, note, media };
-  if (!texts.length) return empty;
+  if (!texts.length && !(isNutri && weekHasContent)) return empty;
 
   // A weekday split — the shape the Assign flow also keys off (≥3 day lines).
   //
@@ -142,28 +189,54 @@ export function bsPlanPreview(plan, opts) {
   }
 
   if (isNutri) {
-    const units = texts.map((t) => {
-      const m = bsAssignMeal(t);
-      if (!m) return null;
-      // bsAssignMeal keeps the whole tail as the title (e.g. "Chicken bowl · 420
-      // kcal"); the sheet renders u.kcal separately, so strip a trailing kcal
-      // from the title to avoid showing the number twice.
-      // A kcal-only title (a block with no dish name) strips to empty — leave it
-      // empty rather than falling back to the raw text, which would show the kcal
-      // twice (kcal renders from u.kcal).
-      // `~` is consumed with the number: the nutrition builder's own default
-      // outline writes "Breakfast · ~500 kcal", so stripping only the digits
-      // left a dangling "Breakfast · ~" on every generated paid meal plan.
-      // The separator is taken with it for the same reason.
-      const title = clean(m.title).replace(/\s*[·,-]?\s*[~≈]?\s*\d{2,4}\s*kcal\s*$/i, '').trim();
+    // C1a — a per-day menu previews as BOTH structure and content (§5.4 of the
+    // per-day menu contract). The seven day labels are the table of contents AND
+    // the differentiator the buyer is paying for, so they are FREE — withholding
+    // them would hide the product's value from the person deciding whether to
+    // buy. The meals stay on the existing paid allowance.
+    //
+    // `week` is resolved above (before the empty check) through the SAME
+    // bsPlanWeek the Assign flow delivers from, so the week shown here is the
+    // week that gets installed.
+    if (week.perDay) {
+      const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+      const perDayMeals = week.days.map((d) => dayScan(d)
+        .map(blockText).filter(Boolean).map(mealUnit).filter(Boolean));
+      // `units` stays the WHOLE plan, as it is on every other kind — the sheet
+      // renders `units.length` as the product's Meals count, so sampling it
+      // would tell a buyer a three-meal plan has two.
+      const units = perDayMeals.flat();
+      // The FREE rows come from the first day that has meals, so what a buyer
+      // reads is a real day rather than an interleaving of seven.
+      const sample = perDayMeals.find((list) => list.length) || [];
+      const free = sample.slice(0, BS_PREVIEW_FREE_UNITS);
       return {
-        label: m.slot,
-        title,
-        // bsAssignMeal reports 0 for "no kcal stated"; an absent number must
-        // render as nothing, never as a real-looking 0.
-        kcal: m.kcal > 0 ? m.kcal : null,
+        kind: units.length ? 'menu' : null,
+        perDay: true,
+        // Structure: free. Counts only — a locked meal's text never renders.
+        days: week.days.map((d, i) => ({ label: DAY_LABELS[i], count: perDayMeals[i].length })),
+        weeks,
+        sessionsPerWeek: null,
+        units,
+        free,
+        // Derived from what was ACTUALLY shown, never from the constant: when
+        // the sampled day holds fewer meals than the allowance (a light
+        // Monday), `free.length < BS_PREVIEW_FREE_UNITS`, and subtracting the
+        // constant would leave meals counted in neither the free rows nor the
+        // locked total — paid content invisible on both sides of the paywall.
+        locked: Math.max(0, units.length - free.length),
+        note,
+        media,
       };
-    }).filter(Boolean);
+    }
+    // A UNIFORM week previews from the RESOLVED day, not from detail.blocks.
+    // The two only differ in one case — all seven days authored identically
+    // (perDay false) over a different default — and there the resolved day is
+    // what Assign delivers, while detail.blocks is a menu nobody will ever be
+    // served. For a legacy plan (no `days` key) days[0].blocks IS detail.blocks,
+    // so this maps to exactly the old `texts` and the model is byte-identical.
+    const dayTexts = (week.days[0].blocks || []).slice(0, BLOCK_SCAN).map(blockText).filter(Boolean);
+    const units = dayTexts.map(mealUnit).filter(Boolean);
     return {
       kind: units.length ? 'menu' : null,
       weeks,

@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -3313,11 +3313,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const today = new Date();
   const dayCells = Array.from({ length: 7 }, (_, k) => { const d = new Date(today); d.setDate(today.getDate() + k); return d; });
-  // Raw block OBJECTS survive alongside the flattened texts — a meal block's
-  // authored method steps (PR E) ride the assign conversion onto the menu meal.
-  const rawBlocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
-    .filter(b => String(((b && b.text != null) ? b.text : b) || '').trim());
-  const blocks = rawBlocks.map(b => String(((b && b.text != null) ? b.text : b) || '').trim());
+  // The flattened DEFAULT-menu texts, used to classify the outline below
+  // (split / week block / exercises). The nutrition delivery path no longer
+  // reads these — C1a routes it through bsPlanWeek so it can serve a different
+  // menu per day, and the raw block OBJECTS (carrying PR E's authored method
+  // steps) ride that path instead.
+  const blocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
+    .map(b => String(((b && b.text != null) ? b.text : b) || '').trim())
+    .filter(Boolean);
   const dayLines = blocks.map(bsAssignDayLine);
   const weekLines = blocks.map(bsAssignWeekLine);
   const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
@@ -3377,8 +3380,18 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         // (PR E) re-derive through bsAuthorStep on the way out — stored windows
         // can't drift from their own text — and ride the menu meal so the
         // client's Cook door opens tier-1 (bsCookableFromMeal reads meal.steps).
-        const meals = rawBlocks.map((rb, bi) => {
-          const m = bsAssignMeal(blocks[bi]);
+        // C1a — one menu per DAY. The derivation below is unchanged; only its
+        // INPUT becomes per-day. bsPlanWeek is the shared normalizer the Listing
+        // preview also reads through, so the week a buyer was shown and the week
+        // we install cannot disagree.
+        //
+        // A plan with no `detail.days` gets `blocks` on all seven days — exactly
+        // what the previous `Array.from({length:7}, … meals)` did — so every
+        // already-published plan assigns byte-identically.
+        const mealsFrom = (blockList) => (Array.isArray(blockList) ? blockList : []).map((rb) => {
+          const text = String(((rb && rb.text != null) ? rb.text : rb) || '').trim();
+          if (!text) return null;
+          const m = bsAssignMeal(text);
           if (!m) return null;
           const ds = (rb && Array.isArray(rb.steps) ? rb.steps : [])
             .map((s) => (s && typeof s === 'object' ? bsAuthorStep(s.t, s.station) : bsAuthorStep(s, null)))
@@ -3388,7 +3401,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         }).filter(Boolean);
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
         const targets = calM ? { cal: Number(calM[1]) } : {};
-        const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
+        const days = bsPlanWeek(plan.detail).days.map(({ dow, blocks: dayBlocks }) => ({
+          dow, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals: mealsFrom(dayBlocks),
+        }));
         const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
         // NC1 — show the individualized-care / scope disclaimer the server returns.
         if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
