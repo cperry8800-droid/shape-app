@@ -157,20 +157,41 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
 ```
 
 - Returns **seven entries, always**, `dow` 0..6 ascending.
-- `perDay` is `true` only when `detail.days` contributed at least one day whose
-  blocks differ from the default. A `days` array that is present but says the
-  same thing everywhere is not a per-day plan and must not be sold as one.
+- `perDay` is a claim about what is **DELIVERED**, so it is computed from the
+  **resolved week**: true only when the seven fallback-resolved day menus
+  contain more than one distinct value. Defining it from authorship ("any
+  override differs from the default") gets the uniform-override case wrong —
+  seven days authored identically deliver ONE menu even though each differs
+  from a `detail.blocks` nobody will ever be served, and selling that as
+  per-day advertises variation that does not exist. Corollary: when `perDay`
+  is false, the preview sources from the resolved day (which for a legacy plan
+  IS `detail.blocks`), so a uniform-override plan previews the menu that is
+  actually installed.
 **Bounds and malformed input — one canonical policy, stated exactly.** `detail`
 comes off a **public-read provider row**, so every rule below is a rule about
 attacker-shaped data, not a tidiness preference. Assign and the preview share
 this policy because they share the function; a second policy in either would
 reproduce the preview/delivery split this contract exists to close.
 
+⚠ **The bounds apply to `days` entries ONLY — the legacy default is exempt.**
+An earlier revision capped `detail.blocks` at 40 too, reasoning that the
+preview already showed at most 40 so delivery should "agree". That confused two
+different truncations: the preview's cap is **cosmetic** (a display sample),
+while a delivery cap **drops sold content** — a 45-meal plan that already sold
+would deliver 40, and five meals a buyer paid for would silently vanish. It
+also contradicted §5.2's byte-identical promise, since legacy Assign applied no
+limit. So the fallback passes through **uncapped**, exactly as legacy Assign
+behaves; the bounds below cover `days` entries, which are new data with no
+legacy expectations — and the actual attack surface, since a legacy row cannot
+carry them. (The preview keeps its own display cap for what it *shows*, as it
+always has; that cap never touches what Assign *delivers*.)
+
 | Input | Policy | Why |
 | --- | --- | --- |
+| `detail.blocks` (the default) | **UNCAPPED** — passes through as-is | legacy delivery applied no limit; capping here drops sold meals (see above) |
 | `days` scan | first **7** entries only | a week has seven days; more is either a mistake or an attack |
-| blocks per day | first **40** (`= planPreview`'s `BLOCK_SCAN`) | the preview has always capped at 40, so this makes delivery agree instead of silently exceeding what the buyer saw |
-| block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) | unchanged — the per-day path reuses it rather than adding a second limit |
+| blocks per authored day | first **40** (`= planPreview`'s `BLOCK_SCAN`) | new data, no legacy expectations; bounds the crafted-row scan |
+| block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) — **in the preview only**; Assign's meal parse is unchanged | the per-day path reuses the existing display bound rather than adding a second limit, and adds no new bound to delivery |
 | invalid / out-of-range `dow` | **DROPPED**, never clamped | clamping would move a coach's Thursday menu onto Sunday; dropping falls back to that day's default, which is the honest degrade |
 | non-integer `dow` (`"1"`, `1.5`, `true`) | dropped | a value indistinguishable from a typo is not a day the coach chose, and this is the write path for PAID content |
 | duplicate `dow` | **first authored entry wins** | deterministic, and matches `bsWeekUnits`'s existing dedupe posture |
@@ -215,26 +236,46 @@ A per-day menu is **both**. It therefore previews as:
   correct.
 
 **The exact payload**, since a renderer cannot be written against prose and a
-wrong `locked` count on a paid surface is a money bug:
+wrong `locked` count on a paid surface is a money bug. The fixture is complete
+so every number below is **derivable**, not asserted: Monday authors 2 meals,
+Tuesday authors 1, and the other five days inherit a 1-meal default —
+`2 + 1 + 5×1 = 8` meals in the week.
 
 ```jsonc
 {
   "kind": "menu",           // null when the whole week has no parseable meal
   "perDay": true,           // ABSENT on a non-per-day menu — see below
   "days": [                 // exactly 7, dow order. FREE: structure, counts only
-    { "label": "MON", "count": 2 },
-    { "label": "TUE", "count": 1 }
-    // … through SUN. `count` includes meals a day INHERITS from the default.
+    { "label": "MON", "count": 2 },   // authored
+    { "label": "TUE", "count": 1 },   // authored
+    { "label": "WED", "count": 1 },   // inherits the 1-meal default …
+    { "label": "THU", "count": 1 },
+    { "label": "FRI", "count": 1 },
+    { "label": "SAT", "count": 1 },
+    { "label": "SUN", "count": 1 }
+    // `count` includes meals a day INHERITS from the default.
   ],
   "weeks": null,
   "sessionsPerWeek": null,
-  "units": [ /* the WHOLE week's meal units, existing {label,title,kcal} shape */ ],
-  "free":  [ /* units.slice(0, BS_PREVIEW_FREE_UNITS) */ ],
-  "locked": 6,              // units.length - free.length. NEVER minus the constant.
-  "note": "…",
-  "media": []
+  "units": [ /* ALL 8 meal units, whole week, existing {label,title,kcal} shape */ ],
+  "free":  [ /* sampleDay.slice(0, BS_PREVIEW_FREE_UNITS) — Monday's 2 meals.
+                NOT units.slice: whole-week units means that slice would cross
+                into Tuesday whenever the sampled day holds fewer than the
+                allowance, mixing days into a "sample" nobody would ever eat. */ ],
+  "locked": 6               // units.length (8) - free.length (2). NEVER minus the constant.
+  // note / media — unchanged from the existing model.
 }
 ```
+
+Invariants over that fixture, all checkable by an implementer:
+`units.length === 8 === Σ days[].count` · `free.length === 2` (Monday's own
+size) · `locked === 6 === units.length - free.length`.
+
+⚠ **The Meals register reads `units.length`** — which under this shape equals
+`Σ days[].count`, so the paid listing advertises the WEEK's meal count. Under
+the earlier sample-day `units` it advertised "Meals 5" beside "＋33 more
+locked" on a 35-meal plan — two numbers on one screen that could not both be
+true of the same product.
 
 Four things that shape pins down. The first three are each a bug that was
 actually shipped and caught in review, so they are stated as rules rather than
@@ -243,9 +284,12 @@ description:
 - **`units` is the WHOLE week**, exactly as it is for every other kind. The
   sheet renders `units.length` as the product's meal count, so sampling it made
   a three-meal plan display "Meals 2". Only `free` is sampled.
-- **`free` is ONE real day** — the first day that has any meals — not an
-  interleaving of seven. A sample has to be something the member would actually
-  eat on a Tuesday.
+- **`free` is ONE real day, sampled from that day's OWN units** — the first day
+  that has any meals — never `units.slice(...)`. With whole-week `units`, the
+  slice form crosses into the next day whenever the sampled day holds fewer
+  meals than the allowance (a one-meal Monday plus a fuller Tuesday exposes one
+  meal from each), producing a "sample" the member would never eat on one day.
+  The implementation keeps a separate `sample` list and derives `free` from it.
 - **`locked = units.length - free.length`, never `total - BS_PREVIEW_FREE_UNITS`.**
   `free` is capped by the sampled day's own size, so when that day is light (one
   Monday breakfast, fuller days after) the constant leaves meals counted in
@@ -282,6 +326,19 @@ unchanged, field for field.**
   visible rather than something a coach discovers by assigning.
 - Publishing writes `days` **only for days actually authored**, so a coach who
   never opens a day tab publishes a plan byte-identical to today's.
+- ⚠ **"Authored" is an explicit per-day state the editor tracks — not "has
+  blocks".** §5.3 makes `blocks: []` a real override (cleared Sunday stays
+  empty), so the editor must distinguish *never touched* (publish nothing for
+  that dow → inherits) from *explicitly cleared* (publish `{ dow, blocks: [] }`
+  → stays empty). Inferring authorship from non-emptiness would silently turn
+  every cleared day back into the default menu on the next publish — undoing
+  the one choice §5.3 promises survives. A cleared day needs an equally
+  explicit un-clear ("use the default menu") to stop being published.
+- **Publish canonicalization preserves the reader's first-wins semantics**:
+  resolve duplicate `dow`s by keeping the **first entry in original order**,
+  *then* sort by `dow`. Sorting before deduping (or deduping last-wins) could
+  store a different winner than `bsPlanWeek` resolves, and the stored data
+  would then disagree with every read of it.
 
 ⚠ **A day tab edits the entry whose `dow` MATCHES — never `detail.days[dow]`.**
 `days` is a **sparse** array of `{ dow, blocks }`, so array position is not the
@@ -303,12 +360,23 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
    dow 0/2/4 and the default menu on the other four.
 4. `days` present but every day identical to the default ⇒ `perDay === false`
    and the preview is the non-per-day render.
-5. A crafted `days` (200 entries, `dow: 99`, `dow: "1"`, duplicate dows, a
+5. **Seven days authored identically (differing from the default)** ⇒
+   `perDay === false`, and the preview shows the AUTHORED (delivered) menu, not
+   `detail.blocks` — including when `detail.blocks` is empty, which must not
+   read as an empty plan.
+6. **A legacy plan with more than 40 blocks delivers ALL of them** — the
+   fallback is uncapped; only `days` entries are bounded.
+7. A crafted `days` (200 entries, `dow: 99`, `dow: "1"`, duplicate dows, a
    40k-char block) neither throws nor moves a menu to the wrong day.
-6. `dow` 0 lands on **Monday** in the assigned week, verified against
+8. `dow` 0 lands on **Monday** in the assigned week, verified against
    `bsAssignIso(monday)` — not off by one.
-7. The Cook door still opens tier-1 on a per-day meal (PR E `steps` survive the
+9. The Cook door still opens tier-1 on a per-day meal (PR E `steps` survive the
    per-day path).
+10. On a per-day preview: `free.length + locked === units.length ===`
+    `Σ days[].count`, and `free` contains only meals from one day.
+11. Clearing a day in the editor then republishing keeps `{ dow, blocks: [] }`
+    in the stored `days` — the cleared day does not silently revert to the
+    default.
 
 ## 8 — Registered, not in scope
 
