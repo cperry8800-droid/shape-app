@@ -306,13 +306,30 @@ export async function POST(request: Request) {
               // keeps it OUT of the Library (see the migration's filter) rather
               // than rendering an entry the client cannot open.
               planIdForRow = null;
-              planSnapshot = {
-                id: purchasedPlanId,
-                snapshot_at: new Date().toISOString(),
-                snapshot_source: 'plan_deleted_before_payment',
-              };
+              // A REPLAY can also land here: the first delivery stored a FULL
+              // snapshot, the coach then deleted the plan, and Stripe redelivered
+              // the same event. Blindly writing the marker would overwrite that
+              // snapshot on the conflict-update, and the Library — which gates on
+              // a name — would then drop a row the buyer already had. That would
+              // destroy exactly what this PR exists to preserve, on a delivery
+              // that changes nothing. So reuse a stored snapshot when one exists.
+              // select('*') because plan_snapshot may not exist pre-migration.
+              const { data: priorRow } = await admin
+                .from('one_time_purchases')
+                .select('*')
+                .eq('stripe_checkout_session_id', session.id)
+                .maybeSingle();
+              const priorSnap = (priorRow as { plan_snapshot?: Record<string, unknown> | null } | null)?.plan_snapshot ?? null;
+              const priorIsFull = !!priorSnap && typeof priorSnap === 'object' && typeof priorSnap.name === 'string' && priorSnap.name !== '';
+              planSnapshot = priorIsFull
+                ? (priorSnap as Record<string, unknown>)
+                : {
+                    id: purchasedPlanId,
+                    snapshot_at: new Date().toISOString(),
+                    snapshot_source: 'plan_deleted_before_payment',
+                  };
               console.error('[stripe webhook] purchased plan was deleted before payment completed — recording the purchase without plan_id', {
-                session: session.id, plan: purchasedPlanId, client: clientId,
+                session: session.id, plan: purchasedPlanId, client: clientId, keptPriorSnapshot: priorIsFull,
               });
             }
           }
@@ -360,6 +377,30 @@ export async function POST(request: Request) {
             ({ error: purchaseErr } = await admin
               .from('one_time_purchases')
               .upsert(withOrigin, { onConflict: 'stripe_checkout_session_id' }));
+          }
+          // The plan can also be deleted BETWEEN the snapshot read above and this
+          // write, so the FK rejects a plan_id that was valid moments ago. The
+          // outcome is identical to the known-deleted case — error logged, 200
+          // acked, Stripe never retries, paid buyer with no purchase row — so the
+          // same recovery applies: retry once with plan_id NULL, keeping the FULL
+          // snapshot already captured, which is strictly better than the marker
+          // (the buyer keeps their content because we read the plan before it
+          // vanished). 23503 = foreign_key_violation.
+          if (purchaseErr?.code === '23503' && planIdForRow) {
+            console.error('[stripe webhook] purchased plan deleted between snapshot read and write — retrying with plan_id null', {
+              session: session.id, plan: planIdForRow, client: clientId,
+            });
+            planIdForRow = null;
+            const fkRetry: Record<string, unknown> = { ...withOrigin, plan_id: null };
+            if (planSnapshot) fkRetry.plan_snapshot = planSnapshot;
+            ({ error: purchaseErr } = await admin
+              .from('one_time_purchases')
+              .upsert(fkRetry, { onConflict: 'stripe_checkout_session_id' }));
+            if (isUndefinedColumn(purchaseErr)) {
+              ({ error: purchaseErr } = await admin
+                .from('one_time_purchases')
+                .upsert({ ...withOrigin, plan_id: null }, { onConflict: 'stripe_checkout_session_id' }));
+            }
           }
           if (isUndefinedColumn(purchaseErr)) {
             if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps)) {
