@@ -103,3 +103,32 @@ test('broadsheet: every referenced identifier resolves (lexical | browser | wind
   assert.deepEqual([...new Set(unresolved)], [],
     'identifier with no declaration, no browser global and no window export — this throws ReferenceError when the code path runs');
 });
+
+// A component NAME is a JSXIdentifier, not an Identifier, so the visitor above
+// never sees it — `<BSMissing />` sailed straight through the gate that exists to
+// catch exactly this. It is the same crash, one render deeper: React resolves the
+// name at element-creation time, so an undeclared component throws ReferenceError
+// the moment the branch renders, with parse + tsc + tests + build all green.
+test('broadsheet: every JSX component name resolves (lexical | browser | window)', () => {
+  const unresolved = [];
+  for (const [file, ast] of asts) {
+    traverse(ast, {
+      JSXOpeningElement(p) {
+        let node = p.node.name;
+        // <Foo.Bar /> / <a.b.c /> — only the ROOT object is a binding.
+        while (node.type === 'JSXMemberExpression') node = node.object;
+        // <svg:rect /> namespaced names reference no binding at all.
+        if (node.type !== 'JSXIdentifier') return;
+        const n = node.name;
+        // A lowercase tag is an intrinsic host element (div, span, path…), which
+        // React resolves as a string — never a binding. Capitalised names are.
+        if (!/^[A-Z]/.test(n)) return;
+        if (BROWSER.has(n) || windowNames.has(n)) return;
+        if (p.scope.hasBinding(n)) return;
+        unresolved.push(`${file}:${node.loc.start.line} :: <${n}>`);
+      },
+    });
+  }
+  assert.deepEqual([...new Set(unresolved)], [],
+    'JSX component with no declaration, no browser global and no window export — this throws ReferenceError when the branch renders');
+});
