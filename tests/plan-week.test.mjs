@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsPlanWeek } from '../mobile-app/src/services/planOutline.mjs';
+import { bsPlanWeek, bsCanonicalDays, bsDayBlockMax } from '../mobile-app/src/services/planOutline.mjs';
 import { bsPlanPreview, BS_PREVIEW_FREE_UNITS } from '../mobile-app/src/services/planPreview.mjs';
 
 const MENU = ['Breakfast · Oats · 500 kcal', 'Lunch · Chicken bowl · 620 kcal'];
@@ -331,4 +331,87 @@ test('perDay: whitespace/empty-block noise is not per-day variation', () => {
 test('perDay: a REAL text difference still registers through the normalization', () => {
   const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: ['Breakfast · Eggs · 400 kcal'] }] });
   assert.equal(w.perDay, true);
+});
+
+// ── bsCanonicalDays — the WRITER's half of the same contract ────────────────
+// The editor calls this on publish; bsPlanWeek reads what it produces. These
+// live in one file for the same reason the two functions live in one module:
+// a writer and a reader that disagree about `days` is the whole failure mode.
+
+test('canonical: sorted by dow, first entry wins a duplicate', () => {
+  const d = bsCanonicalDays([
+    { dow: 4, blocks: ['Fri'] },
+    { dow: 0, blocks: ['Mon'] },
+    { dow: 4, blocks: ['Fri LATER'] },
+  ]);
+  assert.deepEqual(d.map((x) => x.dow), [0, 4]);
+  assert.deepEqual(d[1].blocks, ['Fri'], 'first authored entry wins, not the last');
+});
+
+test('canonical: an EXPLICITLY EMPTY day survives — it is an override, not absence', () => {
+  const d = bsCanonicalDays([{ dow: 6, blocks: [] }]);
+  assert.equal(d.length, 1);
+  assert.deepEqual(d[0], { dow: 6, blocks: [] });
+  // ...and the reader honours it: Sunday stays empty rather than inheriting.
+  const w = bsPlanWeek({ blocks: MENU, days: d });
+  assert.deepEqual(w.days[6].blocks, []);
+  assert.equal(w.perDay, true, 'a day serving nothing IS a difference');
+});
+
+test('canonical: entries it cannot place are dropped, never repaired', () => {
+  const d = bsCanonicalDays([
+    { dow: 99, blocks: ['nope'] },
+    { dow: '1', blocks: ['stringy'] },   // strict: a coercible typo is not a choice
+    { dow: 2 },                          // no list → inherits, nothing to store
+    null,
+    'not an entry',
+    { dow: 3, blocks: ['Thu'] },
+  ]);
+  assert.deepEqual(d, [{ dow: 3, blocks: ['Thu'] }]);
+});
+
+test('canonical: canonicalizing NEVER changes the week the reader resolves', () => {
+  // The real invariant behind "dedupe first-wins, then sort": whatever the
+  // editor hands over, storing the canonical form must deliver exactly what
+  // storing the raw form would. If these two ever disagree, the stored winner
+  // is not the one every read of it resolves.
+  const raws = [
+    [{ dow: 2, blocks: ['A'] }, { dow: 0, blocks: ['B'] }, { dow: 2, blocks: ['C'] }],
+    [{ dow: 6, blocks: [] }, { dow: 6, blocks: ['later'] }, { dow: 1, blocks: ['T'] }],
+    [{ dow: 5, blocks: ['S'] }, { dow: 99, blocks: ['x'] }, { dow: 5, blocks: ['S2'] }],
+  ];
+  for (const raw of raws) {
+    const a = bsPlanWeek({ blocks: MENU, days: raw });
+    const b = bsPlanWeek({ blocks: MENU, days: bsCanonicalDays(raw) });
+    assert.deepEqual(b.days.map((d) => texts(d.blocks)), a.days.map((d) => texts(d.blocks)));
+    assert.equal(b.perDay, a.perDay);
+  }
+});
+
+test('canonical: a draft with no per-day authoring canonicalizes to nothing', () => {
+  // What keeps every existing flow byte-identical: the editor omits the `days`
+  // key entirely when this is empty, so `detail` is exactly today's shape.
+  assert.deepEqual(bsCanonicalDays([]), []);
+  assert.deepEqual(bsCanonicalDays(undefined), []);
+});
+
+test('bound: a day may hold at least what the oversized default holds', () => {
+  // Acceptance 6 keeps a legacy >40-block plan delivering every block. If the
+  // per-day bound were a flat 40, a coach varying ONE day of that plan would
+  // copy 45 blocks into the override and then be refused at publish — forced to
+  // delete meals from a sold plan, or to give up on varying that day.
+  const big = Array.from({ length: 45 }, (_, i) => `Meal ${i + 1}`);
+  assert.equal(bsDayBlockMax(big), 45);
+  assert.equal(bsDayBlockMax(MENU), 40, 'ordinary plans keep the flat 40');
+  assert.equal(bsDayBlockMax(undefined), 40);
+
+  const w = bsPlanWeek({ blocks: big, days: [{ dow: 1, blocks: big }] });
+  assert.equal(w.days[1].blocks.length, 45, 'the override survives intact');
+  assert.equal(w.perDay, false, 'copying the default is not variation');
+});
+
+test('bound: an ordinary plan still caps a crafted day at 40', () => {
+  const crafted = Array.from({ length: 300 }, (_, i) => `x${i}`);
+  const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: crafted }] });
+  assert.equal(w.days[0].blocks.length, 40);
 });

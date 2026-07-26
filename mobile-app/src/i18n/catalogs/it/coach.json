@@ -889,5 +889,22 @@
   "listing.replace": "Sostituisci",
   "listing.pending": "Il tuo riquadro appare una volta approvata la tua candidatura come coach.",
   "listing.saveError": "Impossibile salvare — hai effettuato l’accesso come coach approvato?",
-  "listing.editAria": "Modifica le foto del tuo annuncio"
+  "listing.editAria": "Modifica le foto del tuo annuncio",
+  "editor.dayLabel": "MENU · PER GIORNO",
+  "editor.dayDefault": "PREDEFINITO",
+  "editor.dayDefaultHint": "Ogni giorno che non imposti serve questo menu.",
+  "editor.dayAuthoredHint": "Un punto segnala un giorno con un menu proprio.",
+  "editor.dayBlockLabel": "{day} · {label}",
+  "editor.dayInherits": "SERVE IL MENU PREDEFINITO",
+  "editor.dayStart": "DAI A QUESTO GIORNO UN MENU PROPRIO",
+  "editor.dayInherit": "← TORNA AL MENU PREDEFINITO",
+  "editor.dayEmpty": "Questo giorno non serve nulla.",
+  "editor.dayFull": "Un giorno contiene al massimo {max} — togline uno prima.",
+  "editor.dowMon": "LUN",
+  "editor.dowTue": "MAR",
+  "editor.dowWed": "MER",
+  "editor.dowThu": "GIO",
+  "editor.dowFri": "VEN",
+  "editor.dowSat": "SAB",
+  "editor.dowSun": "DOM"
 }

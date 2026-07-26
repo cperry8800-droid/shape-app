@@ -889,5 +889,22 @@
   "listing.replace": "Change am",
   "listing.pending": "Your listing box go show once dem approve your coach application.",
   "listing.saveError": "We no fit save — you sign in as coach wey dem approve?",
-  "listing.editAria": "Edit your listing foto"
+  "listing.editAria": "Edit your listing foto",
+  "editor.dayLabel": "MENU · FOR EACH DAY",
+  "editor.dayDefault": "DEFAULT",
+  "editor.dayDefaultHint": "Any day wey you no set go serve dis menu.",
+  "editor.dayAuthoredHint": "Di dot dey mark day wey get im own menu.",
+  "editor.dayBlockLabel": "{day} · {label}",
+  "editor.dayInherits": "E DEY SERVE DI DEFAULT MENU",
+  "editor.dayStart": "GIVE DIS DAY IM OWN MENU",
+  "editor.dayInherit": "← GO BACK TO DI DEFAULT MENU",
+  "editor.dayEmpty": "Nothing dey serve dis day.",
+  "editor.dayFull": "One day fit hold {max} max — comot one first.",
+  "editor.dowMon": "MON",
+  "editor.dowTue": "TUE",
+  "editor.dowWed": "WED",
+  "editor.dowThu": "THU",
+  "editor.dowFri": "FRI",
+  "editor.dowSat": "SAT",
+  "editor.dowSun": "SUN"
 }

@@ -889,5 +889,22 @@
   "listing.replace": "Değiştir",
   "listing.pending": "İlan kutunuz, koç başvurunuz onaylandığında görünür.",
   "listing.saveError": "Kaydedilemedi — onaylı bir koç olarak giriş yaptınız mı?",
-  "listing.editAria": "İlan fotoğraflarınızı düzenleyin"
+  "listing.editAria": "İlan fotoğraflarınızı düzenleyin",
+  "editor.dayLabel": "MENÜ · GÜNE GÖRE",
+  "editor.dayDefault": "VARSAYILAN",
+  "editor.dayDefaultHint": "Belirlemediğin her gün bu menüyü sunar.",
+  "editor.dayAuthoredHint": "Nokta, kendi menüsü olan günü işaretler.",
+  "editor.dayBlockLabel": "{day} · {label}",
+  "editor.dayInherits": "VARSAYILAN MENÜYÜ SUNAR",
+  "editor.dayStart": "BU GÜNE KENDİ MENÜSÜNÜ VER",
+  "editor.dayInherit": "← VARSAYILAN MENÜYE DÖN",
+  "editor.dayEmpty": "Bu gün hiçbir şey sunulmuyor.",
+  "editor.dayFull": "Bir gün en fazla {max} tutar — önce birini çıkar.",
+  "editor.dowMon": "PZT",
+  "editor.dowTue": "SAL",
+  "editor.dowWed": "ÇAR",
+  "editor.dowThu": "PER",
+  "editor.dowFri": "CUM",
+  "editor.dowSat": "CMT",
+  "editor.dowSun": "PAZ"
 }

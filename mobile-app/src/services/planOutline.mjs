@@ -114,7 +114,29 @@ export function bsAssignMeal(text) {
 // `detail` comes off a PUBLIC-READ provider row, so a crafted plan can carry a
 // huge array. Bound the scan the way planPreview.mjs already does.
 const DAYS_SCAN = 7;
-const DAY_BLOCK_SCAN = 40;
+// The EDITOR enforces this same number at authoring time, with visible
+// feedback. The reader's slice below is a backstop against data written by
+// something other than our editor — it must never be the thing that decides a
+// coach's 41st meal disappears, because silent truncation on the write path is
+// how published-but-never-delivered paid content happens.
+export const BS_DAY_BLOCK_MAX = 40;
+
+// ⚠ The per-day bound is a FLOOR of 40, not a flat 40: a day may always hold at
+// least as much as the default menu it is overriding.
+//
+// Without this the contract contradicted itself. The legacy default is
+// deliberately uncapped (a 45-block plan delivers all 45), so a coach varying
+// one day of that plan would copy 45 blocks into the override — which a flat
+// 40 then refuses. They would be forced either to delete meals from a plan
+// already sold, or to give up on varying that day at all. An override that
+// cannot even express the day it overrides is not a bound, it is a dead end.
+//
+// This does not widen what a crafted plan can cost: `blocks` is already
+// uncapped, so it — not this — sets the ceiling, and the paid preview re-caps
+// every resolved day at BS_DAY_BLOCK_MAX for display regardless.
+export function bsDayBlockMax(defaultBlocks) {
+  return Math.max(BS_DAY_BLOCK_MAX, Array.isArray(defaultBlocks) ? defaultBlocks.length : 0);
+}
 
 // A dow is valid only as a real integer 0..6 (0 = MONDAY, matching
 // BS_ASSIGN_DOW and bsRepeatSpec — NOT the reminders table's 0 = Sunday).
@@ -176,6 +198,11 @@ export function bsPlanWeek(detail) {
   // carry them).
   const fallback = Array.isArray(d.blocks) ? d.blocks : [];
 
+  // A day may hold at least what the default holds — see bsDayBlockMax. A flat
+  // cap here would truncate an override the editor legitimately produced by
+  // copying an oversized legacy default.
+  const dayCap = bsDayBlockMax(fallback);
+
   const byDow = new Map();
   if (Array.isArray(d.days)) {
     for (const entry of d.days.slice(0, DAYS_SCAN)) {
@@ -183,7 +210,7 @@ export function bsPlanWeek(detail) {
       if (!validDow(entry.dow)) continue;
       if (byDow.has(entry.dow)) continue;          // first authored entry wins
       if (!Array.isArray(entry.blocks)) continue;  // a day with no list inherits
-      byDow.set(entry.dow, entry.blocks.slice(0, DAY_BLOCK_SCAN));
+      byDow.set(entry.dow, entry.blocks.slice(0, dayCap));
     }
   }
 
@@ -201,6 +228,36 @@ export function bsPlanWeek(detail) {
     if (!sameBlocks(days[i].blocks, days[0].blocks)) perDay = true;
   }
   return { perDay, days };
+}
+
+// The WRITER's half of the same contract, deliberately in this file: whatever
+// canonicalizes `days` on publish has to agree with bsPlanWeek above, and two
+// modules is how they stop agreeing. The editor calls this; bsPlanWeek reads
+// what it produces.
+//
+// Order of operations matters and is not interchangeable: **dedupe FIRST, in
+// the caller's original order (first entry wins), THEN sort by dow.** The reader
+// resolves duplicates first-wins over the stored order, so deduping last-wins —
+// or sorting before deduping, which lets a stable sort reorder equal dows —
+// could store a different winner than every read of it resolves. The stored data
+// would then disagree with the only function that interprets it.
+//
+// Invalid entries are DROPPED, not repaired, matching the reader: a day we can't
+// place is a day that inherits the default menu, which is the honest degrade.
+// Nothing here truncates — the block bound is enforced at authoring where the
+// coach can see it happen.
+export function bsCanonicalDays(days) {
+  const seen = new Set();
+  const out = [];
+  for (const entry of (Array.isArray(days) ? days : [])) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    if (!validDow(entry.dow)) continue;
+    if (!Array.isArray(entry.blocks)) continue;
+    if (seen.has(entry.dow)) continue;
+    seen.add(entry.dow);
+    out.push({ dow: entry.dow, blocks: entry.blocks });
+  }
+  return out.sort((a, b) => a.dow - b.dow);
 }
 
 export function bsAssignIso(d) {

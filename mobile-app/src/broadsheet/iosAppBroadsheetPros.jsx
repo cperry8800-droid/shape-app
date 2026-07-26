@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek, bsCanonicalDays, bsDayBlockMax } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -4880,19 +4880,60 @@ const bsEditorSteps = (steps) => (Array.isArray(steps)
   ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
   : undefined);
 
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, stepAuthoring = false, onPublish, onCancel }) {
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, onPublish, onCancel }) {
   const tr = useShapeTr();
   const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
-  const [name, setName] = useStateBSP(initialName || '');
-  const [blocks, setBlocks] = useStateBSP((initialBlocks || []).map((b) => {
+  const hydrate = (list) => (list || []).map((b) => {
     const steps = b && bsEditorSteps(b.steps);
     return steps ? { ...b, steps } : b;
-  }));
+  });
+  const [name, setName] = useStateBSP(initialName || '');
+  const [blocks, setBlocks] = useStateBSP(hydrate(initialBlocks));
+  // Per-day overrides (contract §5.1). PRESENCE in this list IS authorship —
+  // an entry with `blocks: []` is a day the coach explicitly emptied and must
+  // stay empty, which is why authorship can't be inferred from non-emptiness.
+  // Absence means the day inherits `blocks` (the DEFAULT menu).
+  const [days, setDays] = useStateBSP(perDayAuthoring
+    ? bsCanonicalDays(initialDays).map((d) => ({ dow: d.dow, blocks: hydrate(d.blocks) }))
+    : []);
+  const [activeDow, setActiveDow] = useStateBSP(null); // null = the DEFAULT menu
   const [note, setNote] = useStateBSP(initialNote || '');
   const [media, setMedia] = useStateBSP(initialMedia || []);
   const [uploading, setUploading] = useStateBSP(false);
   const mediaInputRef = React.useRef(null);
   const [status, setStatus] = useStateBSP('');
+  const [dayNotice, setDayNotice] = useStateBSP('');
+  // ⚠ Find the active day BY `dow`, never by array position. `days` is a SPARSE
+  // list, so `days[1]` is whatever weekday happens to sit second — for
+  // [{dow:0},{dow:2},{dow:4}] that is Wednesday. An editor that indexed by
+  // position would write Tuesday's edits onto Wednesday's menu, and it would be
+  // the only thing in the system reading the array that way (bsPlanWeek keys a
+  // Map on entry.dow).
+  const dayEntry = activeDow == null ? null : (days.find((d) => d.dow === activeDow) || null);
+  // `null` = this day is INHERITED: it has no list of its own yet, so there is
+  // nothing to edit until the coach starts one. Distinct from `[]`, which is a
+  // day deliberately emptied.
+  const activeBlocks = activeDow == null ? blocks : (dayEntry ? dayEntry.blocks : null);
+  // A floor of 40, raised to the default's own length: starting a day from an
+  // oversized legacy menu must not create a day the coach is then forbidden to
+  // publish. Recomputed from `blocks` so editing the default keeps the two in
+  // step within a session.
+  const dayMax = bsDayBlockMax(blocks);
+  const editBlocks = (fn) => {
+    if (activeDow == null) { setBlocks(fn); return; }
+    setDays((list) => list.map((d) => (d.dow === activeDow ? { ...d, blocks: fn(d.blocks) } : d)));
+  };
+  const notice = (msg) => { setDayNotice(msg); setTimeout(() => setDayNotice(''), 2600); };
+  // Starting a day from the default is a COPY, not a reference: editing Tuesday
+  // must not edit the menu every other day inherits.
+  const startDay = () => {
+    if (activeDow == null) return;
+    const stamp = Date.now();
+    setDays((list) => [...list, { dow: activeDow, blocks: blocks.map((b, i) => ({ ...b, id: `d${activeDow}b${i}-${stamp}` })) }]);
+  };
+  // The explicit un-clear §6 requires: without it, a day emptied on purpose has
+  // no way back to inheriting, because "empty" is a real override.
+  const inheritDay = () => setDays((list) => list.filter((d) => d.dow !== activeDow));
   const pickMedia = async (e) => {
     const files = Array.from(e.target.files || []);
     if (e.target) e.target.value = '';
@@ -4919,22 +4960,46 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     if (!file || i == null) return;
     if (!window.ShapeCoachMedia?.upload) { setStatus(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); setTimeout(() => setStatus(''), 1800); return; }
     setUploading(true);
-    try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
+    try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
     catch (err) { setStatus(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); setTimeout(() => setStatus(''), 2200); }
     setUploading(false);
   };
-  const clearClip = (i) => setBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
+  const clearClip = (i) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
   const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
-  const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
-  const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
-  const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
+  const setBlock = (i, v) => editBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
+  // The per-day bound is enforced HERE, where the coach can see it refuse —
+  // never by silently slicing at publish or on read. The DEFAULT list is
+  // deliberately unbounded: it is the legacy `detail.blocks` that trainer plans
+  // and every already-published plan write, and capping it would be a new
+  // restriction on content that has always been allowed.
+  const addBlock = () => {
+    if (activeDow != null && (activeBlocks || []).length >= dayMax) {
+      notice(tr('coach:editor.dayFull', { defaultValue: 'A day holds {max} at most — trim one first.', max: dayMax }));
+      return;
+    }
+    editBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
+  };
+  const rmBlock = (i) => editBlocks(bs => bs.filter((_, j) => j !== i));
   // PR E — per-block method steps (meal items → tier-1 cookable at the source).
-  const patchSteps = (bi, fn) => setBlocks(bs => bs.map((b, j) => (j === bi ? { ...b, steps: fn(b.steps || []) } : b)));
+  const patchSteps = (bi, fn) => editBlocks(bs => bs.map((b, j) => (j === bi ? { ...b, steps: fn(b.steps || []) } : b)));
   const addStep = (bi) => patchSteps(bi, (ss) => [...ss, { t: '', station: null }]);
   const rmStep = (bi, si) => patchSteps(bi, (ss) => ss.filter((_, k) => k !== si));
   const setStepText = (bi, si, v) => patchSteps(bi, (ss) => ss.map((s, k) => (k === si ? { ...s, t: v } : s)));
   const setStepStation = (bi, si, v) => patchSteps(bi, (ss) => ss.map((s, k) => (k === si ? { ...s, station: v || null } : s)));
   const stationOpt = (st) => tr(`cook:prep.station.${st}`, { defaultValue: { oven: 'in the oven', stove: 'on the stove', board: 'on the board', off: 'resting' }[st] || st });
+  // ⚠ Seven STATIC keys, not `coach:editor.dow.${d}`. A template-literal key is
+  // invisible to the catalog key-sync, so it passes every check and then ships
+  // English into all 13 locales — the documented failure of this codebase's i18n
+  // tooling, not a style preference.
+  const DOW_LABELS = [
+    tr('coach:editor.dowMon', { defaultValue: 'MON' }),
+    tr('coach:editor.dowTue', { defaultValue: 'TUE' }),
+    tr('coach:editor.dowWed', { defaultValue: 'WED' }),
+    tr('coach:editor.dowThu', { defaultValue: 'THU' }),
+    tr('coach:editor.dowFri', { defaultValue: 'FRI' }),
+    tr('coach:editor.dowSat', { defaultValue: 'SAT' }),
+    tr('coach:editor.dowSun', { defaultValue: 'SUN' }),
+  ];
   const lbl = (s) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent, marginBottom: 8 }}>{s}</div>;
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
@@ -4949,14 +5014,56 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
 
         <div style={{ marginTop: 20 }}>{lbl(tr('coach:editor.name', { defaultValue: 'NAME' }))}<input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} /></div>
 
+        {/* Per-day menus (contract §6) — meal-plan/diet drafts only. DEFAULT is
+            the menu every unauthored day inherits, so a coach who never opens a
+            day tab publishes exactly what they publish today. */}
+        {perDayAuthoring && (
+          <div style={{ marginTop: 18 }}>
+            {lbl(tr('coach:editor.dayLabel', { defaultValue: 'MENU · BY DAY' }))}
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              {[[null, tr('coach:editor.dayDefault', { defaultValue: 'DEFAULT' })], ...DOW_LABELS.map((label, i) => [i, label])].map(([dow, label]) => {
+                const on = activeDow === dow;
+                const authored = dow != null && days.some((d) => d.dow === dow);
+                return (
+                  <button key={String(dow)} type="button" onClick={() => { setActiveDow(dow); setDayNotice(''); }}
+                    style={{ minHeight: 44, flex: '0 0 auto', borderRadius: 10, border: `1px solid ${on ? accent : t.RULE}`, background: on ? accent : 'transparent', color: on ? accentInk : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', padding: '0 11px', cursor: 'pointer' }}>
+                    {label}{authored ? ' ·' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>
+              {activeDow == null
+                ? tr('coach:editor.dayDefaultHint', { defaultValue: 'Every day you don’t set serves this menu.' })
+                : tr('coach:editor.dayAuthoredHint', { defaultValue: 'A dot marks a day with its own menu.' })}
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            {lbl(blockLabelText)}
-            <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>{tr('coach:editor.add', { defaultValue: '+ ADD' })}</button>
+            {lbl(activeDow == null ? blockLabelText : tr('coach:editor.dayBlockLabel', { defaultValue: '{day} · {label}', day: DOW_LABELS[activeDow], label: blockLabelText }))}
+            {activeBlocks && <button onClick={addBlock} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent }}>{tr('coach:editor.add', { defaultValue: '+ ADD' })}</button>}
           </div>
+          {dayNotice && <div style={{ marginBottom: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: accent }}>{dayNotice}</div>}
+          {/* An inherited day shows what it WILL serve, greyed — §5.2's
+              inheritance made visible instead of discovered at assign time. */}
+          {activeDow != null && !activeBlocks && (
+            <div style={{ borderRadius: 12, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '14px 13px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{tr('coach:editor.dayInherits', { defaultValue: 'SERVES THE DEFAULT MENU' })}</div>
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {blocks.length === 0
+                  ? <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.noneYet', { defaultValue: 'None yet — add one.' })}</div>
+                  : blocks.map((b, i) => (
+                      <div key={b.id || i} style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK50 }}>{b.text || '—'}</div>
+                    ))}
+              </div>
+              <button type="button" onClick={startDay} style={{ marginTop: 12, minHeight: 44, width: '100%', borderRadius: 10, border: `1px solid ${accent}`, background: 'transparent', color: accent, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', cursor: 'pointer' }}>{tr('coach:editor.dayStart', { defaultValue: 'GIVE THIS DAY ITS OWN MENU' })}</button>
+            </div>
+          )}
           <input ref={clipInputRef} type="file" accept="video/*" onChange={pickClip} style={{ display: 'none' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {blocks.map((b, i) => (
+            {(activeBlocks || []).map((b, i) => (
               <div key={b.id}>
                 <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
@@ -5011,8 +5118,22 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 )}
               </div>
             ))}
-            {blocks.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>{tr('coach:editor.noneYet', { defaultValue: 'None yet — add one.' })}</div>}
+            {activeBlocks && activeBlocks.length === 0 && (
+              <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '8px 2px' }}>
+                {activeDow == null
+                  ? tr('coach:editor.noneYet', { defaultValue: 'None yet — add one.' })
+                  /* An emptied day is a real choice the client will see: nothing
+                     served that day. Saying so is the difference between a
+                     deliberate fast day and a page the coach thinks is broken. */
+                  : tr('coach:editor.dayEmpty', { defaultValue: 'Nothing served this day.' })}
+              </div>
+            )}
           </div>
+          {/* The explicit un-clear. Without it an emptied day can never go back
+              to inheriting, because empty IS an override — §5.3. */}
+          {activeDow != null && activeBlocks && (
+            <button type="button" onClick={inheritDay} style={{ marginTop: 10, minHeight: 44, border: 0, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 2px' }}>{tr('coach:editor.dayInherit', { defaultValue: '← BACK TO THE DEFAULT MENU' })}</button>
+          )}
         </div>
 
         <div style={{ marginTop: 18 }}>{lbl(tr('coach:editor.coachNote', { defaultValue: 'COACH NOTE' }))}<textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={tr('coach:editor.notePlaceholder', { defaultValue: 'Anything the client should know…' })} style={{ ...inputStyle, lineHeight: 1.5, resize: 'vertical' }} /></div>
@@ -5042,12 +5163,11 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
         </div>
 
         <button onClick={async () => {
-          setStatus(tr('coach:editor.publishing', { defaultValue: 'Publishing…' }));
           // Steps persist in the DERIVED shape ({t, min?, passive?, station?}) —
           // windows re-derived from each step's own text at publish time, empty
           // rows dropped, so stored metadata can never drift from the text.
-          const pubBlocks = stepAuthoring
-            ? blocks.map((b) => {
+          const finish = (list) => (stepAuthoring
+            ? list.map((b) => {
                 const ds = (b.steps || []).map((s) => bsAuthorStep(s.t, s.station)).filter(Boolean).slice(0, 30);
                 // Terminal live-fire windows drop to plain steps at publish too
                 // (matching the ingestion guard), so stored data never carries a
@@ -5057,8 +5177,31 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 const { steps: _raw, ...rest } = b;
                 return ds.length ? { ...rest, steps: ds } : rest;
               })
-            : blocks;
-          await onPublish({ name, blocks: pubBlocks, note, media });
+            : list);
+          const pubBlocks = finish(blocks);
+          // Canonicalized here, by the same module that reads it back, so the
+          // stored winner for a duplicate dow is the one bsPlanWeek resolves.
+          const pubDays = perDayAuthoring
+            ? bsCanonicalDays(days).map((d) => ({ dow: d.dow, blocks: finish(d.blocks) }))
+            : [];
+          // A backstop, not the enforcement: addBlock already refuses the 41st
+          // with visible feedback. If this ever fires, the bound leaked — refuse
+          // rather than truncate, because truncating here would publish a plan
+          // missing meals the coach typed and saw.
+          const over = pubDays.find((d) => d.blocks.length > dayMax);
+          if (over) {
+            notice(tr('coach:editor.dayFull', { defaultValue: 'A day holds {max} at most — trim one first.', max: dayMax }));
+            setActiveDow(over.dow);
+            return;
+          }
+          setStatus(tr('coach:editor.publishing', { defaultValue: 'Publishing…' }));
+          // ⚠ `days` MUST cross this callback. The editor can track seven
+          // authored days perfectly and still lose every one of them if the
+          // payload drops the key — the plan reloads as the legacy repeated
+          // menu and nothing errors. Omitted entirely when there is nothing to
+          // say, so a draft with no per-day authoring publishes a payload
+          // byte-identical to today's.
+          await onPublish({ name, blocks: pubBlocks, note, media, ...(pubDays.length ? { days: pubDays } : {}) });
         }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || tr('coach:editor.publish', { defaultValue: 'Publish {type} →', type: typeName })}</button>
         <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.savesLibrary', { defaultValue: 'Saves to your library · you can edit again anytime' })}</div>
       </div>
@@ -5175,9 +5318,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
-  const publishDraft = async ({ name, blocks, note, media }) => {
+  // `days` is destructured and carried even though the trainer editor never
+  // authors it (perDayAuthoring is nutrition-only): the callback contract lives
+  // on the editor, and a receiver that silently drops a field the editor may one
+  // day send is exactly how this feature would die without erroring.
+  const publishDraft = async ({ name, blocks, note, media, days }) => {
     const typeName = BUILD_LABEL[buildType];
-    const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [] } };
+    const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [], ...(days && days.length ? { days } : {}) } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
     flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
@@ -6059,9 +6206,14 @@ function BSNutriPlans() {
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
-  const publishDraft = async ({ name, blocks, note, media }) => {
+  // ⚠ `days` must survive this destructure. The editor may hand over seven
+  // authored day menus; a payload built without the key stores the legacy
+  // repeated menu, the plan reloads looking untouched, and nothing errors —
+  // the feature would be theatre. Omitted when empty so a draft with no per-day
+  // authoring writes a `detail` byte-identical to today's.
+  const publishDraft = async ({ name, blocks, note, media, days }) => {
     const typeName = BUILD_LABEL[buildType];
-    const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [] } };
+    const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [], ...(days && days.length ? { days } : {}) } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
     flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
@@ -6098,7 +6250,11 @@ function BSNutriPlans() {
   if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} stepAuthoring onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  // perDayAuthoring is capability-gated to the build types that produce a MENU
+  // this contract governs. Never `program`: those blocks are week ARCS (C0), so
+  // day tabs there would invite authoring food into a shape that cannot deliver
+  // it. Never the trainer paths, which share this component.
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} initialDays={editDraft.days} stepAuthoring perDayAuthoring={buildType === 'mealplan' || buildType === 'diet'} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (meal-plan builder) ──
   if (drafting) {

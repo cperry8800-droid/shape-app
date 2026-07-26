@@ -889,5 +889,22 @@
   "listing.replace": "Ersetzen",
   "listing.pending": "Deine Anzeigenbox erscheint, sobald deine Coach-Bewerbung genehmigt ist.",
   "listing.saveError": "Speichern fehlgeschlagen — bist du als freigegebener Coach angemeldet?",
-  "listing.editAria": "Deine Anzeigenfotos bearbeiten"
+  "listing.editAria": "Deine Anzeigenfotos bearbeiten",
+  "editor.dayLabel": "MENÜ · NACH TAG",
+  "editor.dayDefault": "STANDARD",
+  "editor.dayDefaultHint": "Jeder Tag, den du nicht festlegst, serviert dieses Menü.",
+  "editor.dayAuthoredHint": "Ein Punkt markiert einen Tag mit eigenem Menü.",
+  "editor.dayBlockLabel": "{day} · {label}",
+  "editor.dayInherits": "SERVIERT DAS STANDARDMENÜ",
+  "editor.dayStart": "DIESEM TAG EIN EIGENES MENÜ GEBEN",
+  "editor.dayInherit": "← ZURÜCK ZUM STANDARDMENÜ",
+  "editor.dayEmpty": "An diesem Tag wird nichts serviert.",
+  "editor.dayFull": "Ein Tag fasst höchstens {max} — streiche zuerst eines.",
+  "editor.dowMon": "MO",
+  "editor.dowTue": "DI",
+  "editor.dowWed": "MI",
+  "editor.dowThu": "DO",
+  "editor.dowFri": "FR",
+  "editor.dowSat": "SA",
+  "editor.dowSun": "SO"
 }

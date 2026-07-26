@@ -889,5 +889,22 @@
   "listing.replace": "Substituir",
   "listing.pending": "Seu quadro aparece assim que sua candidatura de coach for aprovada.",
   "listing.saveError": "Não foi possível salvar — você entrou como coach aprovado?",
-  "listing.editAria": "Editar as fotos do seu anúncio"
+  "listing.editAria": "Editar as fotos do seu anúncio",
+  "editor.dayLabel": "CARDÁPIO · POR DIA",
+  "editor.dayDefault": "PADRÃO",
+  "editor.dayDefaultHint": "Todo dia que você não definir serve este cardápio.",
+  "editor.dayAuthoredHint": "Um ponto marca um dia com cardápio próprio.",
+  "editor.dayBlockLabel": "{day} · {label}",
+  "editor.dayInherits": "SERVE O CARDÁPIO PADRÃO",
+  "editor.dayStart": "DAR A ESTE DIA UM CARDÁPIO PRÓPRIO",
+  "editor.dayInherit": "← VOLTAR AO CARDÁPIO PADRÃO",
+  "editor.dayEmpty": "Nada é servido neste dia.",
+  "editor.dayFull": "Um dia comporta no máximo {max} — retire um antes.",
+  "editor.dowMon": "SEG",
+  "editor.dowTue": "TER",
+  "editor.dowWed": "QUA",
+  "editor.dowThu": "QUI",
+  "editor.dowFri": "SEX",
+  "editor.dowSat": "SÁB",
+  "editor.dowSun": "DOM"
 }
