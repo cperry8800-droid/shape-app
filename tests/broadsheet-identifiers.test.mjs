@@ -103,3 +103,64 @@ test('broadsheet: every referenced identifier resolves (lexical | browser | wind
   assert.deepEqual([...new Set(unresolved)], [],
     'identifier with no declaration, no browser global and no window export — this throws ReferenceError when the code path runs');
 });
+
+// A component NAME is a JSXIdentifier, not an Identifier, so the visitor above
+// never sees it — `<BSMissing />` sailed straight through the gate that exists to
+// catch exactly this. It is the same crash, one render deeper: React resolves the
+// name at element-creation time, so an undeclared component throws ReferenceError
+// the moment the branch renders, with parse + tsc + tests + build all green.
+// Extracted so the resolver itself can be regression-tested against synthetic
+// source below, not only against whatever the real directory happens to contain.
+function unresolvedJsxNames(ast, file) {
+  const out = [];
+  traverse(ast, {
+    JSXOpeningElement(p) {
+      const root = p.node.name;
+      // <Foo.Bar /> / <icons.foo /> — only the ROOT object is a binding.
+      const isMember = root.type === 'JSXMemberExpression';
+      let node = root;
+      while (node.type === 'JSXMemberExpression') node = node.object;
+      // <svg:rect /> namespaced names reference no binding at all.
+      if (node.type !== 'JSXIdentifier') return;
+      const n = node.name;
+      // The intrinsic-tag exemption applies ONLY to a bare lowercase tag (div,
+      // span, path…), which React resolves as a string. The root of a MEMBER
+      // expression is always a real binding whatever its case — `<icons.Foo />`
+      // needs `icons` to exist, and exempting it by case let an undeclared root
+      // through the gate.
+      if (!isMember && !/^[A-Z]/.test(n)) return;
+      if (BROWSER.has(n) || windowNames.has(n)) return;
+      if (p.scope.hasBinding(n)) return;
+      out.push(`${file}:${node.loc.start.line} :: <${isMember ? `${n}.…` : n}>`);
+    },
+  });
+  return out;
+}
+
+test('broadsheet: every JSX component name resolves (lexical | browser | window)', () => {
+  const unresolved = [];
+  for (const [file, ast] of asts) unresolved.push(...unresolvedJsxNames(ast, file));
+  assert.deepEqual([...new Set(unresolved)], [],
+    'JSX component with no declaration, no browser global and no window export — this throws ReferenceError when the branch renders');
+});
+
+// The resolver's own regression suite. The directory scan above only proves the
+// gate is quiet on today's source; these prove it still BITES.
+test('broadsheet gate: the JSX resolver flags what it should, and only that', () => {
+  const scan = (src) => unresolvedJsxNames(parse(src, { sourceType: 'module', plugins: ['jsx'] }), 't.jsx');
+
+  // Caught: an undeclared component, and an undeclared MEMBER root — including a
+  // lowercase one, which an uppercase-only filter silently skipped.
+  assert.equal(scan('const A = () => <BSMissing />;').length, 1, 'undeclared component');
+  assert.equal(scan('const A = () => <icons.Foo />;').length, 1, 'undeclared lowercase member root');
+  assert.equal(scan('const A = () => <Icons.Foo />;').length, 1, 'undeclared capitalised member root');
+  assert.equal(scan('const A = () => <a.b.c />;').length, 1, 'deep member chain resolves to its root');
+
+  // Not caught: intrinsic tags, declared/imported bindings, params, namespaced.
+  assert.deepEqual(scan('const A = () => <div><span /></div>;'), [], 'intrinsic host tags');
+  assert.deepEqual(scan('import X from "x"; const A = () => <X />;'), [], 'imported component');
+  assert.deepEqual(scan('const Y = 1; const A = () => <Y />;'), [], 'locally declared');
+  assert.deepEqual(scan('import ic from "i"; const A = () => <ic.Foo />;'), [], 'declared member root');
+  assert.deepEqual(scan('const A = ({ Cmp }) => <Cmp />;'), [], 'destructured prop component');
+  assert.deepEqual(scan('const A = () => <svg:rect />;'), [], 'namespaced name is not a binding');
+});

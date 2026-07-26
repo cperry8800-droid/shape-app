@@ -14,6 +14,7 @@ import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
+import { bsCookResumeStamp, bsCookResumeValid } from '../services/cookResume.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
@@ -6085,16 +6086,19 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
 // ═══════════════════════════════════════════════════════════════════════════
 
 const BS_COOK_RESUME_KEY = 'shape.cookResume';
-function bsCookResumeRead(key) {
+// Thin storage wrappers — the resume DECISION (is this stamp still describing
+// this recipe's current step list?) is the pure, tested cookResume.mjs.
+function bsCookResumeRead(key, steps) {
   try {
     const st = JSON.parse(localStorage.getItem(BS_COOK_RESUME_KEY) || 'null');
-    if (!st || st.key !== key) return null;
-    if (st.day !== new Date().toLocaleDateString('en-CA')) return null; // another day's cook = stale
-    return Number.isInteger(st.stepIdx) && st.stepIdx >= 0 ? st : null;
+    return bsCookResumeValid(st, key, steps, new Date().toLocaleDateString('en-CA'));
   } catch (e) { return null; }
 }
-function bsCookResumeWrite(key, stepIdx) {
-  try { localStorage.setItem(BS_COOK_RESUME_KEY, JSON.stringify({ key, stepIdx, day: new Date().toLocaleDateString('en-CA') })); } catch (e) {}
+function bsCookResumeWrite(key, stepIdx, steps) {
+  try {
+    const stamp = bsCookResumeStamp(key, stepIdx, steps, new Date().toLocaleDateString('en-CA'));
+    localStorage.setItem(BS_COOK_RESUME_KEY, JSON.stringify(stamp));
+  } catch (e) {}
 }
 function bsCookResumeClear() { try { localStorage.removeItem(BS_COOK_RESUME_KEY); } catch (e) {} }
 
@@ -6142,7 +6146,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const resumeKey = bsCookKey(cookable);
   // Lazy init — the localStorage read runs ONCE, not on every heartbeat render.
   // Prep mode never resumes (the session's own transition screens own its flow).
-  const [resumeAt] = useStateBSC(() => (inPrep ? null : bsCookResumeRead(resumeKey)));
+  const [resumeAt] = useStateBSC(() => (inPrep ? null : bsCookResumeRead(resumeKey, steps)));
 
   // quick (tier 4) skips straight to the plate; a prep-session recipe skips its
   // own mise (the merged board covered it); everything else opens on mise.
@@ -6237,7 +6241,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           })
         : Promise.resolve(true));
       if (!ok) return;
-      if (!inPrep) bsCookResumeWrite(resumeKey, stepIdx);
+      if (!inPrep) bsCookResumeWrite(resumeKey, stepIdx, steps);
     }
     onClose();
   };
