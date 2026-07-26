@@ -170,15 +170,30 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
 
   **Canonical equality, since "distinct value" is doing load-bearing work over
   arrays of mixed shapes:** two day menus are equal when their **ordered
-  sequences of block TEXTS match** — each block reduced to its text (`b.text`
-  for an authored object, the string itself otherwise, `String()`-coerced),
-  compared position by position, same length required. Explicitly:
+  sequences of DELIVERED block texts match** — each block reduced to its text
+  (`b.text` for an authored object, the string itself otherwise,
+  `String()`-coerced), **trimmed, with empty results dropped**, compared
+  position by position, same length required. Explicitly:
 
-  - **Order matters.** The sequence is the menu's course order (breakfast
-    before dinner); a reordered day is a different day.
+  - **Equality runs on the DELIVERED text, not the stored array.** Trimming and
+    dropping empties is not tidiness — it is the exact normalization
+    `bsAssignMeal`'s caller applies on the way out, so a day whose only
+    difference from the default is a trailing space or a leftover empty row
+    delivers a byte-identical menu and must therefore compare EQUAL. Comparing
+    the raw stored sequence would classify that week as varied and sell
+    "menus vary by day" over seven identical menus. A claim must be computed
+    with the same semantics as the thing it claims about, or the two diverge
+    exactly at the inputs a real editor produces — and trailing spaces and
+    empty rows are the most ordinary editor noise there is.
+  - **Order matters.** The surviving sequence is the menu's course order
+    (breakfast before dinner); a reordered day is a different day.
   - **Object identity never matters.** An editing UI produces fresh objects
-    for untouched days; equality is by rendered text, so those still compare
+    for untouched days; equality is by delivered text, so those still compare
     equal.
+  - **An authored-EMPTY day is not equal to a non-empty default.** It
+    normalizes to the empty sequence, which differs in length — correctly, because
+    one day serves nothing while the others serve food. Dropping empty *blocks*
+    never collapses into dropping an empty *day*.
   - **PR E `steps` and other non-text metadata are EXCLUDED — deliberately.**
     `perDay` backs one buyer-facing claim: *the menus vary by day*. A menu is
     what is eaten; steps are how it is cooked, and the preview renders text

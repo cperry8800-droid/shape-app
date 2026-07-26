@@ -178,7 +178,32 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
+> **Latest (2026-07-26): PER-DAY MENUS (C1a) — CONTRACT + BUILD SHIPPED (#1839 contract,
+> #1840 build).** The week-block wave's prerequisite is closed: a coach can now author a
+> **different menu each DAY**, and the client eats what was authored. The storage contract
+> is deliberately **additive** — `detail.days: [{dow, blocks}]` is optional, `detail.blocks`
+> stays the default menu that any unauthored day inherits, so every plan already sold keeps
+> delivering exactly what it delivered before (`dow` 0 = MONDAY). One shared normalizer,
+> **`bsPlanWeek(detail)`** in `mobile-app/src/services/planOutline.mjs`, resolves the week
+> for BOTH readers — the coach Assign flow (delivery) and the paid-listing preview — because
+> a second implementation is how a preview starts promising something the delivery doesn't
+> build. **No migration, no route change, no client read change:** `client_meal_plans.payload.days`
+> was *already* per-day; only the authoring shape was flat. ⚠ **Two rules came out of review
+> and now govern the file.** (1) **A display bound may truncate; a delivery bound may only
+> ever truncate data that could not have been authored in good faith** — so the preview
+> re-caps each resolved day at 40 blocks (display economy, and it fans a public-read row out
+> 7×) while delivery of the legacy `detail.blocks` stays **uncapped**, because capping it
+> would silently drop *sold* content. (2) **A claim must be computed with the same semantics
+> as the thing it claims about** — the `perDay` flag ("Menus vary by day") compares
+> *delivered* text (trimmed, empties dropped) over the *resolved* week, so neither editor
+> whitespace nor seven identically-authored days can advertise variation that isn't served.
+> Suite 873. **Still owner-run:** `supabase-migrations/2026-07-26-purchase-plan-snapshot.sql`
+> (landed with #1837, idempotent). **Open next in the wave:** C1a's other half — the editor's
+> day tabs (contract §6, its own PR); the publish callback must carry the canonicalized
+> `days` through `onPublish` and both `publishDraft` paths or every authored day is silently
+> discarded on save.
+>
+> **Prior (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
 > next session (#1834, OPEN).** The owner ruled **C** (multi-week menus) and answered
 > every open question, and scoping it turned up the blocker underneath: **the builder
 > cannot author a different menu each DAY** (`iosAppBroadsheetPros.jsx:3362` assigns the
