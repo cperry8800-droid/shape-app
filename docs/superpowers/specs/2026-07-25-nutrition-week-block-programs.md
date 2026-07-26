@@ -330,24 +330,42 @@ expires a day early in one timezone. Define it once:
   the app opens (it is captured opportunistically on launch), so a member who
   travels changes the zone their old start instant is read against, and the same
   instant resolves to a different local calendar date — silently shortening or
-  lengthening a **paid** term by a day. Stamp `started_on` (date-only, in the
-  member's zone at the moment of activation) and derive `term_ends_on` from it;
-  both are then stable under travel and DST because neither is ever recomputed.
+  lengthening a **paid** term by a day. Stamp **`started_on`** (date-only) AND
+  **`activation_tz`** (the member's IANA zone at that moment) — both immutable —
+  and derive `term_ends_on` from `started_on`.
+
+  ⚠ **Freezing the dates alone is not enough — the "today" side of the
+  comparison has its own clock.** An earlier revision froze `started_on` /
+  `term_ends_on` but still compared them against a today derived from the
+  *current* `shape_user_tz` — which `/api/client/timezone` overwrites on every
+  app open. A member crossing the date line near the boundary (or whose zone
+  was first captured late) still gained or lost a paid calendar day, because
+  one side of the `<=` moved while the other was frozen. Both sides now use
+  the SAME frozen clock: `activation_tz`.
 
   **The predicate, stated exactly, because "date arithmetic" leaves an
   off-by-one on PAID access:**
 
   ```text
-  term_ends_on = started_on + term_days - 1     # INCLUSIVE last day
-  active       = member_local_today <= term_ends_on
+  today        = current date in activation_tz    # the FROZEN zone, never shape_user_tz
+  term_ends_on = started_on + term_days - 1       # INCLUSIVE last day
+  active       = started_on <= today AND today <= term_ends_on
   ```
 
+  The lower bound is part of the predicate, not a separate guard: ruling 3
+  starts the term on START, and a future-dated run evaluated only against
+  `today <= term_ends_on` would read as active before it begins — every reader
+  would need its own before-start check, and one of them would forget it.
+
   So a 28-day term started on the 1st ends on the 28th and the member has
-  access *through* the 28th. Every reader uses this one predicate — a reader
-  that treats `term_ends_on` as exclusive gives a day less than was paid for,
-  and one that uses `<` on an exclusive bound gives a day more. This is the SAME class as the coach-clock bug two bullets
-  up — there the reader used the wrong clock, here the reader uses a clock that
-  moves underneath it. Do not re-make it in the other direction.
+  access *through* the 28th, judged in the zone they started in. A reader
+  treating `term_ends_on` as exclusive gives a day less than was paid for; one
+  using `<` on an exclusive bound gives a day more. Trade-off, stated: a member
+  who permanently relocates has the boundary land at an odd local hour — the
+  cost of the calendar-day COUNT being exact, which is what was paid for. This
+  is the SAME class as the coach-clock bug two bullets up — there the reader
+  used the wrong clock, here the reader used one that moves underneath it. Do
+  not re-make it in a third direction.
 
 Every reader — `/api/client/plan`, the mobile reader, and the coach view —
 derives from this one definition. A surface that computes its own week is a bug.
@@ -537,6 +555,33 @@ and at most one program-week row per (nutritionist, client, **run**, week). A
 single constraint over both kinds cannot express this, which is why the program
 key has to be a real column rather than something parsed out of `payload`.
 
+⚠ **The (nutritionist, client) scope is TODAY'S constraint carried forward —
+it is not the invariant the reader runs on, and the gap between the two is
+unresolved.** A client with two linked nutritionists can hold two live
+standing rows (one per pair), while `/api/client/plan` reads published rows
+across **all** nutritionists and rule 2 of the precedence ladder speaks of
+"**the** standing menu" — singular. Three consequences the C2 contract must
+settle before any SQL, and cannot settle alone:
+
+- **Which standing menu is rule 2's?** Either the invariant becomes
+  client-wide (at most one live standing menu per CLIENT, which changes
+  today's behavior for multi-nutritionist clients and needs its own ruling),
+  or the ladder gains a deterministic tiebreak across providers (most
+  recently published wins, stated in the contract, applied identically by
+  `/api/client/plan` and mobile).
+- **Cross-provider archive is impossible under current RLS.** The
+  meal-plan route archives only the assigning nutritionist's own prior row;
+  nutritionist A cannot archive B's published row, so "replace the standing
+  menu" (ruling 5) cannot be honored client-wide from the client's Eat tab
+  without a server-side resolution step that today has no authority to act.
+- **End-of-program restore** (ruling 5's pause branch) has the same question
+  in reverse: restoring "the" paused menu must name whose.
+
+This is registered as a **C2 build-ready condition** alongside E — the
+per-pair constraint is necessary but not sufficient, and building on it as if
+it were the whole invariant would expose an unspecified prior menu whenever a
+program ends for a two-nutritionist client.
+
 ⚠ **A per-run constraint is not enough — add a single-active-run invariant.**
 Keying weeks on the run (below) is what makes a re-buy representable, but it
 also makes **two live runs** representable: a client can start a purchased
@@ -712,8 +757,11 @@ rest of this wave stops waiting on it.
 
 - **C0, C1a and C1b do not depend on E at all** — but independence from E is not
   readiness (see the warning at the top of this spec). C0 is shipped (#1836);
-  **C1a is blocked on the per-day storage contract** and **C1b on the AI
-  contract**, both defined in "What C actually requires" above.
+  **C1a is UNBLOCKED — its storage contract is written**
+  (`2026-07-26-per-day-menu-contract.md`, riding PR #1839) — and **C1b remains
+  blocked on the AI contract**, defined in "What C actually requires" above.
+  The build-ready table at the top of this document is the authority; this
+  summary restates it and must never disagree with it.
 - **C2 and C3 remain blocked on E** — specifically C2's end-of-program rule,
   which needs a term to end. They are **not** build-ready, and the sections
   above describing them stand as design, not as a build contract.

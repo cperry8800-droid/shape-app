@@ -7,8 +7,11 @@
 > design is recorded for continuity, and reading to the end is not the gate. It
 > is split out of
 > [`2026-07-25-nutrition-week-block-programs.md`](2026-07-25-nutrition-week-block-programs.md),
-> where it was section **E**, so that the parts of that wave which *are*
-> build-ready track (C0, shipped) is not held behind it. See the parent spec's build-ready table — as of this revision C1a is itself blocked on a per-day storage contract.
+> where it was section **E**, so the parts of that wave that do not need it are
+> not held behind it. **The parent spec's build-ready table is the sole
+> authority on per-track status** — this document deliberately restates none of
+> it, because a copy here went stale within a day of being written (it said
+> C1a was blocked after the parent had unblocked it).
 
 ## Why this is its own document
 
@@ -125,13 +128,20 @@ land before C2's end-of-program rule.
   as the entitlement authority:
 
   ```text
-  started_on   — date, stamped once in the member's zone at activation
-  term_ends_on = started_on + term_days - 1        # INCLUSIVE
-  active       = member_local_today <= term_ends_on
+  started_on    — date, stamped once at activation        (immutable)
+  activation_tz — the member's IANA zone at that moment   (immutable)
+  today         = current date in activation_tz            # never shape_user_tz
+  term_ends_on  = started_on + term_days - 1               # INCLUSIVE
+  active        = started_on <= today AND today <= term_ends_on
   ```
 
-  A timestamp may still be retained **for audit**, but nothing reads it to
-  decide access. One boundary, one predicate, both documents.
+  Both sides of the comparison run on the SAME frozen clock — freezing only
+  the dates while deriving "today" from the mutable `shape_user_tz` (which
+  `/api/client/timezone` overwrites on every app open) still moved paid access
+  by a day for a member who travels near the boundary. And the lower bound is
+  in the predicate itself: a future-dated run must not read as active before
+  it starts. A timestamp may still be retained **for audit**, but nothing
+  reads it to decide access. One boundary, one predicate, both documents.
 
   ⚠ **For a COACH-ASSIGNED run the source is unresolved, not "the assignment."**
   An earlier draft said the term came "from the assignment," but the parent spec
@@ -167,6 +177,24 @@ land before C2's end-of-program rule.
   but resolving live does not. The Library must also stop vanishing a paid
   purchase whose `plan_id` went NULL: what a client bought is theirs whether or
   not the coach still sells it.
+
+  ⚠ **A snapshot of `detail` is NOT a snapshot of the plan — the media are
+  bytes in a bucket the deletion flow purges.** Plan media and per-exercise
+  clips live as objects under `coach-media/<uid>/…`, and `detail` carries only
+  their **URLs**. `/api/account/delete` purges the coach's entire owner folder
+  (deliberately hardened to do so — >1000-object pagination, sub-folder
+  recursion, purge-first ordering, per the 2026-07-24 wave). So a coach
+  deleting their account leaves every purchased snapshot pointing at deleted
+  objects: the label survives, the demonstration of how to perform the
+  content does not. The durability condition therefore covers **bytes, not
+  just rows**, and the build must choose one of: **copy sold media into a
+  purchase-owned location at snapshot time** (aligns with the checkout-time
+  rule above — same moment, same reasoning), **retain sold objects on
+  deletion** (which weakens the deletion promise and needs its own ruling), or
+  **explicitly rule that media do not survive coach deletion** and say so on
+  the purchase surface. Silently shipping the first option's cost or the
+  third option's loss is not a choice — it is the conflict going unresolved
+  onto whoever hits it first.
 
   ⚠ **The snapshot must be taken at CHECKOUT-SESSION CREATION, not at the
   webhook.** Those are two different moments with a coach-editable gap between
