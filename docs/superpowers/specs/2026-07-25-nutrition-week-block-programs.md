@@ -1,13 +1,39 @@
 # Nutrition week-block programs — design
 
-**Status:** DRAFT — needs an owner decision before build.
+**Status:** OWNER RULED **C** (multi-week menus) 2026-07-26 — see "What C actually
+requires" before any build starts. C is a WAVE, not a fix, and scoping it
+surfaced a blocker that changes the sequencing.
 **Related:** #1832 (the training half: a week label is a phase, not an exercise).
+
+## ⚠ The finding that reorders this work
+
+C's premise is a different menu each week. **The builder cannot author a
+different menu each DAY.**
+
+`iosAppBroadsheetPros.jsx:3362` assigns the *same* `meals` array to all seven
+days:
+
+```js
+const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, …, meals }));
+```
+
+and the nutritionist's `meal_plan` builder emits exactly one day's list
+(`['Breakfast · ~500 kcal', 'Lunch · ~600 kcal', …]`).
+
+So a client on an assigned meal plan today **eats the identical five meals every
+day of the week.** Stacking four weekly rows on top of that gives four weeks of
+the same five meals — a multi-week program that is not multi-anything.
+
+**Per-day variation is the prerequisite, and on its own it is worth more than
+per-week.** A member eating a genuinely different Tuesday and Thursday is a
+bigger product change than the same Tuesday recurring in weeks 1–4. C should be
+sequenced behind it, not instead of it.
 
 ## The bug today
 
 The nutritionist's `program` build type emits a week-phase outline:
 
-```
+```text
 Week 1 — Reset & habits
 Week 2 — Build routine
 Week 3 — Dial macros
@@ -144,17 +170,60 @@ current week.
   installs N *empty* menus. It would only pay off for a builder that emits
   per-week menus, which this one does not.
 
-## Recommendation
+## Recommendation (superseded by the owner's ruling — kept for the record)
 
-**B, on both surfaces, with A's guard as the floor.** Deliver the arc on the rail
-that already exists and already renders; if an outline yields neither meals nor
-phases, block rather than install phantom food.
+The original recommendation was **B**, as the only option that ships value
+against what the builder emits today. **The owner ruled C on 2026-07-26**, taking
+the larger product. B is not discarded: a week's phase name is the natural title
+for that week's menu, so B's arc becomes C's labelling layer rather than a
+competing design.
 
-Concretely, B is build-ready only as: **skip the meal-plan write entirely** (0),
-**write via `set_program_detail`** (1), **carry its own visibility timestamp**
-(2), **reach mobile AND web** (3), and **date the arc from a stated
-`phaseStartISO`** (4). Any of those dropped and the build either fails to remove
-the fabricated menu or ships a phase line nobody sees.
+## What C actually requires
+
+C is a wave, and it has a hard prerequisite (see the finding at the top). Ordered
+by dependency, smallest shippable first:
+
+**C0 — Stop the fabrication.** Week-block detection must skip the
+`isNutri`/`bsAssignMeal` path and write no `client_meal_plans` row. This is the
+bug fix, it is independent of everything below, and it should ship first so the
+phantom menu stops being installed while the rest is built.
+
+**C1 — Per-DAY menus (the prerequisite).** The builder learns to author a
+different day; the assign stops replicating one `meals` array across all seven
+(`iosAppBroadsheetPros.jsx:3362`). Without this, every week in C2 is the same
+five meals repeated, and the wave delivers nothing a client can taste. Largest
+standalone value in the whole spec.
+
+**C2 — Multi-week storage.** N `client_meal_plans` rows coexist, selected by the
+current week. Requires, all of them:
+
+- a **retention/status model** — `status` is CHECK-constrained to
+  `published|archived` with no notion of "scheduled"; a future week is currently
+  indistinguishable from a stale one;
+- the **writer contract** to stop archiving every published row for the pair on
+  each insert (`/api/nutritionist/meal-plan`), or each new week retires the last;
+- the **reader** (`/api/client/plan`, currently `published` / `created_at desc` /
+  `limit 1`) to select by `week_start` against the member's local week;
+- a **migration** plus back-compat for plans already in flight — every existing
+  client has exactly one published row and must keep working unchanged;
+- an **end-of-program rule** (below).
+
+**C3 — Labelling.** The week's phase name from the outline titles that week's
+menu — B's arc, riding C's food.
+
+## Open questions C forces (different from B's)
+
+1. **Who authors N weeks of food?** Hand-authoring 7 days × 4 weeks is 28 menus
+   per program. Realistic options: author week 1 and vary it, generate a draft
+   with the existing `generatePlanDraft` and let the coach edit, or accept that
+   programs are for coaches willing to do the work. This decides whether C1 is a
+   small builder change or a real authoring surface.
+2. **What happens after the last week?** The final week persists, the program
+   ends and the client has no menu, or it loops. "No menu" is honest but harsh;
+   silently repeating week 4 forever is a fabrication of intent.
+3. **Does a plain Meal-plan assignment still behave as it does now?** It must —
+   most clients will never be on a program — so single-menu and multi-week have
+   to coexist under one reader.
 
 ## Open questions for the owner
 
