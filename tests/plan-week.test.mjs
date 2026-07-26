@@ -297,3 +297,20 @@ test('perDay: uniform override over an EMPTY default still previews (not an empt
   assert.equal(p.kind, 'menu');
   assert.equal(p.units[0].title, 'Bowl');
 });
+
+test('preview: the PUBLIC preview re-caps uncapped legacy fallbacks (DoS bound)', () => {
+  // bsPlanWeek leaves the fallback uncapped for DELIVERY, but the preview is a
+  // public workload: one authored day makes six inherited days each carry the
+  // uncapped fallback, a 6x amplified scan of a crafted public-read row. The
+  // preview scans at most 40 per day; delivery still serves every meal.
+  const big = Array.from({ length: 300 }, (_, i) => `Snack — Meal ${i} · 100 kcal`);
+  const detail = { blocks: big, days: [{ dow: 0, blocks: ['Breakfast — Eggs · 400 kcal'] }] };
+  const p = bsPlanPreview({ name: 'Big', detail }, { isNutri: true });
+  assert.equal(p.perDay, true);
+  assert.equal(p.days[0].count, 1, 'the authored day');
+  for (let i = 1; i < 7; i += 1) assert.equal(p.days[i].count, 40, 'inherited days scan at most BLOCK_SCAN');
+  assert.equal(p.units.length, 1 + 6 * 40, 'preview counts are display-bounded');
+  // Delivery is NOT capped — the same detail serves all 300 on inherited days.
+  const w = bsPlanWeek(detail);
+  assert.equal(w.days[1].blocks.length, 300, 'delivery keeps every sold meal');
+});

@@ -105,11 +105,20 @@ export function bsPlanPreview(plan, opts) {
   // contract exists to prevent, in a narrower form — an empty `blocks` is no
   // longer the same thing as an empty plan.
   const week = bsPlanWeek(detail);
+  // ⚠ The PREVIEW re-caps every resolved day at BLOCK_SCAN. bsPlanWeek leaves
+  // the legacy fallback uncapped because DELIVERY must not drop sold meals —
+  // but this module is a PUBLIC workload (any visitor can open any listing's
+  // preview), and one authored day makes the six inherited days each carry the
+  // uncapped fallback, so flattening them unbounded turns a crafted
+  // detail.blocks into a 6× amplified scan. Delivery keeps every meal; the
+  // preview scans at most 40 per day, exactly the display bound the legacy
+  // path has always applied via rawBlocks.
+  const dayScan = (d) => (Array.isArray(d.blocks) ? d.blocks.slice(0, BLOCK_SCAN) : []);
   // Content anywhere in the RESOLVED week keeps the preview alive — perDay is
   // deliberately not part of this test. A week whose seven days are authored
   // identically (perDay false) over an empty default still DELIVERS meals, so
   // it must not preview as an empty plan.
-  const weekHasContent = week.days.some((d) => (d.blocks || []).some((b) => blockText(b)));
+  const weekHasContent = week.days.some((d) => dayScan(d).some((b) => blockText(b)));
 
   const empty = { kind: null, weeks, sessionsPerWeek: null, units: [], free: [], locked: 0, note, media };
   if (!texts.length && !(isNutri && weekHasContent)) return empty;
@@ -191,7 +200,7 @@ export function bsPlanPreview(plan, opts) {
     // week that gets installed.
     if (week.perDay) {
       const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-      const perDayMeals = week.days.map((d) => (d.blocks || [])
+      const perDayMeals = week.days.map((d) => dayScan(d)
         .map(blockText).filter(Boolean).map(mealUnit).filter(Boolean));
       // `units` stays the WHOLE plan, as it is on every other kind — the sheet
       // renders `units.length` as the product's Meals count, so sampling it
