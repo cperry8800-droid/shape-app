@@ -136,8 +136,19 @@ land before C2's end-of-program rule.
   term_ends_on  = started_on + term_days - 1               # INCLUSIVE
   in_term       = started_on <= today AND today <= term_ends_on
   entitled      = the run's SOURCE still authorizes it     # see below
-  active        = in_term AND entitled                     # BOTH, always
+  live          = the run's own status is 'active'         # its lifecycle
+  active        = live AND in_term AND entitled            # ALL THREE, always
   ```
+
+  ⚠ **All three, and the run's own lifecycle is the one that is easiest to
+  forget.** `in_term` and `entitled` describe the *window* and the *right* — but
+  a run can be explicitly **ended or replaced** by the client while both of
+  those still hold: the dates have not elapsed and the purchase is still paid.
+  A predicate built from only those two would keep serving the outgoing program
+  after the client swapped to a new one, and the "one active run" rule below
+  would have two live candidates with no way to choose. The stored status is
+  also what the refund and expiry transitions actually *write*, so leaving it
+  out of the read means the transitions change a value nothing consults.
 
   ⚠ **`entitled` is source-specific, because a coach-assigned run has no
   purchase to ask.** Writing the rule as `purchase.status = 'paid'` reads as
