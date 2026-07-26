@@ -273,6 +273,75 @@ export async function POST(request: Request) {
             // refunds page shows $0 instead of treating the fee as unresolvable.
             applicationFeeCents = intent.application_fee_amount ?? 0;
           }
+          const purchasedPlanId = session.metadata?.plan_id || null;
+          // Snapshot the sold plan onto the purchase. plan_id is ON DELETE SET
+          // NULL, so without this a coach deleting a plan makes the buyer's
+          // purchase disappear from their Library — money taken, nothing owned.
+          // Best-effort by design: a failed read records the purchase anyway
+          // (losing the money is worse than losing the snapshot), and it is only
+          // ever read as a FALLBACK — the live row still wins where it exists.
+          let planSnapshot: Record<string, unknown> | null = null;
+          let planIdForRow = purchasedPlanId;
+          if (purchasedPlanId) {
+            const { data: planRow, error: planErr } = await admin
+              .from('coach_plans')
+              .select('id, kind, name, meta, detail')
+              .eq('id', purchasedPlanId)
+              .maybeSingle();
+            if (planErr) {
+              console.error('[stripe webhook] coach_plans snapshot read failed — purchase records without one', {
+                session: session.id, plan: purchasedPlanId, error: planErr.message,
+              });
+            } else if (planRow) {
+              planSnapshot = { ...planRow, snapshot_at: new Date().toISOString(), snapshot_source: 'checkout' };
+            } else {
+              // The coach DELETED the plan between Checkout Session creation and
+              // this webhook. Sending the stale UUID makes the FK reject the
+              // insert; purchaseErr is only logged and the handler acks 200, so
+              // Stripe never retries — a paid buyer would end up with NO purchase
+              // row at all. That is worse than the Library gap this PR exists to
+              // close, and it predates this change. Record the payment with a
+              // null plan_id, and keep the id in the marker so support can trace
+              // what was bought. The marker carries no `name`, which is what
+              // keeps it OUT of the Library (see the migration's filter) rather
+              // than rendering an entry the client cannot open.
+              planIdForRow = null;
+              // A REPLAY can also land here: the first delivery stored a FULL
+              // snapshot, the coach then deleted the plan, and Stripe redelivered
+              // the same event. Blindly writing the marker would overwrite that
+              // snapshot on the conflict-update, and the Library — which gates on
+              // a name — would then drop a row the buyer already had. That would
+              // destroy exactly what this PR exists to preserve, on a delivery
+              // that changes nothing. So reuse a stored snapshot when one exists.
+              // select('*') because plan_snapshot may not exist pre-migration.
+              const { data: priorRow, error: priorErr } = await admin
+                .from('one_time_purchases')
+                .select('*')
+                .eq('stripe_checkout_session_id', session.id)
+                .maybeSingle();
+              const priorSnap = (priorRow as { plan_snapshot?: Record<string, unknown> | null } | null)?.plan_snapshot ?? null;
+              const priorIsFull = !!priorSnap && typeof priorSnap === 'object' && typeof priorSnap.name === 'string' && priorSnap.name !== '';
+              if (priorErr) {
+                // Could not READ the prior row, so we cannot know whether a full
+                // snapshot is already stored. Writing the marker here would risk
+                // destroying one. Send NO plan_snapshot at all: the upsert then
+                // omits the column and leaves any stored value untouched.
+                planSnapshot = null;
+              } else {
+                planSnapshot = priorIsFull
+                  ? (priorSnap as Record<string, unknown>)
+                  : {
+                      id: purchasedPlanId,
+                      snapshot_at: new Date().toISOString(),
+                      snapshot_source: 'plan_deleted_before_payment',
+                    };
+              }
+              console.error('[stripe webhook] purchased plan was deleted before payment completed — recording the purchase without plan_id', {
+                session: session.id, plan: purchasedPlanId, client: clientId,
+                keptPriorSnapshot: priorIsFull, priorReadFailed: !!priorErr,
+              });
+            }
+          }
           const purchaseRow = {
             client_id: clientId,
             provider_id: Number(providerId),
@@ -282,7 +351,7 @@ export async function POST(request: Request) {
             application_fee_cents: applicationFeeCents,
             stripe_checkout_session_id: session.id,
             stripe_payment_intent_id: pi,
-            plan_id: session.metadata?.plan_id || null,
+            plan_id: planIdForRow,
             status: 'paid',
           };
           // Write the row FIRST and check the error; origin/fee_bps are write-once
@@ -290,12 +359,58 @@ export async function POST(request: Request) {
           // confirmed write do we consume the referral — so a failed row-write
           // never burns the referral without recording the purchase.
           const { origin: purchaseOrigin, feeBps: purchaseFeeBps } = attributionFromMeta(session.metadata);
+          const withOrigin = { ...purchaseRow, origin: purchaseOrigin, fee_bps: purchaseFeeBps };
+          const withSnapshot: Record<string, unknown> = { ...withOrigin };
+          if (planSnapshot) withSnapshot.plan_snapshot = planSnapshot;
           let { error: purchaseErr } = await admin
             .from('one_time_purchases')
-            .upsert(
-              { ...purchaseRow, origin: purchaseOrigin, fee_bps: purchaseFeeBps },
-              { onConflict: 'stripe_checkout_session_id' }
-            );
+            .upsert(withSnapshot, { onConflict: 'stripe_checkout_session_id' });
+          // Pre-migration (or during PostgREST schema-cache lag) the plan_snapshot
+          // column doesn't exist yet. Drop ONLY that column and retry — falling
+          // straight through to the origin-drop path below would let a missing
+          // snapshot column 503 a BYO purchase, trading a cosmetic gap for a
+          // blocked payment.
+          //
+          // Deliberately NOT retryable, unlike the BYO origin case below. A 503
+          // here is only correct if the column is momentarily invisible; if the
+          // migration simply hasn't been applied, Stripe retries for ~3 days and
+          // then gives up, and the purchase is never recorded at all. Losing the
+          // snapshot costs the buyer only if the coach later deletes the plan,
+          // and re-running the (idempotent) migration backfills every row whose
+          // plan still exists. Losing the purchase costs them the money. So we
+          // record the payment and shout about the gap.
+          if (planSnapshot && isUndefinedColumn(purchaseErr)) {
+            console.error('[stripe webhook] plan_snapshot column unavailable — purchase recorded WITHOUT a snapshot; re-run 2026-07-26-purchase-plan-snapshot.sql to backfill', {
+              session: session.id, plan: purchasedPlanId, client: clientId,
+            });
+            ({ error: purchaseErr } = await admin
+              .from('one_time_purchases')
+              .upsert(withOrigin, { onConflict: 'stripe_checkout_session_id' }));
+          }
+          // The plan can also be deleted BETWEEN the snapshot read above and this
+          // write, so the FK rejects a plan_id that was valid moments ago. The
+          // outcome is identical to the known-deleted case — error logged, 200
+          // acked, Stripe never retries, paid buyer with no purchase row — so the
+          // same recovery applies: retry once with plan_id NULL, keeping the FULL
+          // snapshot already captured, which is strictly better than the marker
+          // (the buyer keeps their content because we read the plan before it
+          // vanished). 23503 = foreign_key_violation.
+          if (purchaseErr?.code === '23503' && planIdForRow) {
+            console.error('[stripe webhook] purchased plan deleted between snapshot read and write — retrying with plan_id null', {
+              session: session.id, plan: planIdForRow, client: clientId,
+            });
+            planIdForRow = null;
+            const fkRetry: Record<string, unknown> = { ...withOrigin, plan_id: null };
+            if (planSnapshot) fkRetry.plan_snapshot = planSnapshot;
+            ({ error: purchaseErr } = await admin
+              .from('one_time_purchases')
+              .upsert(fkRetry, { onConflict: 'stripe_checkout_session_id' }));
+            if (isUndefinedColumn(purchaseErr)) {
+              ({ error: purchaseErr } = await admin
+                .from('one_time_purchases')
+                .upsert({ ...withOrigin, plan_id: null }, { onConflict: 'stripe_checkout_session_id' }));
+            }
+          }
           if (isUndefinedColumn(purchaseErr)) {
             if (!canDropOriginColumns(purchaseOrigin, purchaseFeeBps)) {
               // Schema-cache lag on a BYO purchase — defaulting would freeze the
