@@ -1,7 +1,13 @@
 # The per-day menu contract — what C1a writes, and who reads it
 
-**Status:** contract, build-ready. Unblocks **C1a** in
-[`2026-07-25-nutrition-week-block-programs.md`](2026-07-25-nutrition-week-block-programs.md).
+**Status:** contract, build-ready. Unblocks **C1a** in the nutrition week-block
+spec (`2026-07-25-nutrition-week-block-programs.md`).
+
+⚠ **Cross-references in this document are deliberately NAMED, not linked.** Both
+the parent spec and the entitlement-layer spec are *created by* PR #1834 and are
+not on `main` yet, so a relative link from here resolves to nothing for anyone
+who reads this before that lands. Convert both to links in the change that
+merges them.
 
 C1a is "the builder can author a different menu each DAY." It has been blocked
 not because it depends on anything unbuilt, but because **the shape it would
@@ -154,12 +160,23 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
 - `perDay` is `true` only when `detail.days` contributed at least one day whose
   blocks differ from the default. A `days` array that is present but says the
   same thing everywhere is not a per-day plan and must not be sold as one.
-- Bounds mirror `planPreview.mjs`'s existing posture — `detail` comes off a
-  **public-read provider row**, so a crafted plan could carry a huge array. Cap
-  the `days` scan at 7 entries and each day's blocks at `BLOCK_SCAN`.
-- Invalid / duplicate / out-of-range `dow` values are **dropped, not clamped**.
-  Clamping would silently move a coach's Thursday menu to Sunday; dropping falls
-  back to that day's default menu, which is the honest degrade.
+**Bounds and malformed input — one canonical policy, stated exactly.** `detail`
+comes off a **public-read provider row**, so every rule below is a rule about
+attacker-shaped data, not a tidiness preference. Assign and the preview share
+this policy because they share the function; a second policy in either would
+reproduce the preview/delivery split this contract exists to close.
+
+| Input | Policy | Why |
+| --- | --- | --- |
+| `days` scan | first **7** entries only | a week has seven days; more is either a mistake or an attack |
+| blocks per day | first **40** (`= planPreview`'s `BLOCK_SCAN`) | the preview has always capped at 40, so this makes delivery agree instead of silently exceeding what the buyer saw |
+| block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) | unchanged — the per-day path reuses it rather than adding a second limit |
+| invalid / out-of-range `dow` | **DROPPED**, never clamped | clamping would move a coach's Thursday menu onto Sunday; dropping falls back to that day's default, which is the honest degrade |
+| non-integer `dow` (`"1"`, `1.5`, `true`) | dropped | a value indistinguishable from a typo is not a day the coach chose, and this is the write path for PAID content |
+| duplicate `dow` | **first authored entry wins** | deterministic, and matches `bsWeekUnits`'s existing dedupe posture |
+| entry with no `blocks` array | inherits the default | an unfilled day is not an emptied day |
+| `blocks: []` (authored empty) | **stays empty** | clearing Sunday is a real choice and must survive; this is the one case where empty ≠ inherit |
+| `days` not an array / junk entries | skipped, never thrown | a crafted row must not be able to break a coach's assign |
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
@@ -194,8 +211,45 @@ A per-day menu is **both**. It therefore previews as:
   that has any**, so the sample is a real day rather than an interleaving of
   seven.
 - `kind: 'menu'` is retained with a new `perDay: true` flag rather than a new
-  kind, so any consumer that only understands `menu` keeps rendering something
+  kind, so any consumer which only understands `menu` keeps rendering something
   correct.
+
+**The exact payload**, since a renderer cannot be written against prose and a
+wrong `locked` count on a paid surface is a money bug:
+
+```jsonc
+{
+  "kind": "menu",           // null when the whole week has no parseable meal
+  "perDay": true,           // ABSENT on a non-per-day menu — see below
+  "days": [                 // exactly 7, dow order. FREE: structure, counts only
+    { "label": "MON", "count": 2 },
+    { "label": "TUE", "count": 1 }
+    // … through SUN. `count` includes meals a day INHERITS from the default.
+  ],
+  "weeks": null,
+  "sessionsPerWeek": null,
+  "units": [ /* the sample day's meal units, existing {label,title,kcal} shape */ ],
+  "free":  [ /* units.slice(0, BS_PREVIEW_FREE_UNITS) */ ],
+  "locked": 6,              // TOTAL meals across all seven days, minus free
+  "note": "…",
+  "media": []
+}
+```
+
+Three things that shape pins down:
+
+- **`locked` counts the WHOLE week**, not the sample day. A buyer told "6 more"
+  when the plan holds 33 would be misled about what they are purchasing.
+- **`units` / `free` are one real day** — the first day that has any meals — not
+  an interleaving of seven. A sample has to be a thing the member would actually
+  eat on a Tuesday.
+- **`days` carries counts only.** A locked meal's text never enters the model at
+  all, so it cannot leak through a renderer that displays more than it should.
+
+**A non-per-day menu keeps today's model exactly** — no `perDay` key, no `days`
+key, same `units`/`free`/`locked`. Consumers branch on `perDay` being present,
+and the acceptance test in §7.1 asserts the absence of both fields rather than
+just their values.
 
 A non-per-day menu previews exactly as it does today. **This is the acceptance
 test that matters most: an existing published meal plan's preview must be
@@ -207,13 +261,22 @@ unchanged, field for field.**
 **day selector above the existing list** — the block list, its step authoring
 (PR E), and the publish path are otherwise untouched:
 
-- A **DEFAULT** tab (edits `detail.blocks`) plus **MON…SUN** tabs (each edits
-  `detail.days[dow].blocks`).
+- A **DEFAULT** tab (edits `detail.blocks`) plus **MON…SUN** tabs.
 - A day tab with no authored blocks shows the DEFAULT menu greyed and labelled
   as inherited, with one action to start from it — making §5.2's inheritance
   visible rather than something a coach discovers by assigning.
 - Publishing writes `days` **only for days actually authored**, so a coach who
   never opens a day tab publishes a plan byte-identical to today's.
+
+⚠ **A day tab edits the entry whose `dow` MATCHES — never `detail.days[dow]`.**
+`days` is a **sparse** array of `{ dow, blocks }`, so array position is not the
+weekday: for `[{dow:0},{dow:2},{dow:4}]`, `days[1]` is *Wednesday's* entry, and
+an editor that indexed by position would silently overwrite Wednesday's menu
+when the coach edited Tuesday. Find by `dow`, create a new entry carrying that
+`dow` when none exists, and canonicalize (sort by `dow`, drop duplicates) on
+publish. The normalizer already reads it this way — §5.3 keys a Map on
+`entry.dow` — so an index-based editor would be the only thing in the system
+that disagreed, which is exactly how a menu ends up on the wrong day.
 
 ## 7 — Acceptance
 
@@ -243,11 +306,3 @@ unchanged, field for field.**
   contract C1b lands must return a seven-day shape satisfying §5.1.
 - **C2's multi-week rows** consume this shape (a week row's menu is a
   `bsPlanWeek` result) but add the run/precedence questions that wait on E.
-
----
-
-⚠ **Cross-reference note.** This document deliberately does **not** link to
-`2026-07-26-entitlement-layer.md`, because that file rides spec PR #1834 and is
-not on `main` yet — a link would resolve to nothing for any reader who lands
-here first. E is referred to by name only until it lands; add the link in the
-same change that merges it.
