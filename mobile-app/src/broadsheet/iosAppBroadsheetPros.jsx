@@ -3469,7 +3469,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
+        {/* C0 — the heading must not promise what the arc can't deliver: with the
+            "Not a menu" notice below, "Put them on a menu." would contradict it. */}
+        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
         {fixedClient && <BSProClientMini client={clientProp} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
           {!planProp && (
