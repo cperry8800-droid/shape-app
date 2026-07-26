@@ -71,9 +71,11 @@ cause it. **It has its own PR and must not wait on E.**
 ## What must be true before this is build-ready
 
 1. **The run lifecycle is fully specified**, including every transition and who
-   performs it: activation, explicit end-and-replace, natural expiry, failed
-   materialization, and a coach deleting or editing the `coach_plans` row a live
-   run points at.
+   performs it: activation, explicit end-and-replace, natural expiry, **refund
+   and dispute**, failed materialization, and a coach deleting or editing the
+   `coach_plans` row a live run points at. The **partial-refund** case is a
+   product ruling, not a derivable one: whether it ends the run, shortens the
+   term, or does nothing.
 2. **Paid AND assigned content is durable** — the snapshot rule below is settled
    and the Library no longer resolves paid content from mutable catalogue rows.
    This must cover **coach-assigned runs, not only purchased ones**: they have
@@ -132,16 +134,42 @@ land before C2's end-of-program rule.
   activation_tz — the member's IANA zone at that moment   (immutable)
   today         = current date in activation_tz            # never shape_user_tz
   term_ends_on  = started_on + term_days - 1               # INCLUSIVE
-  active        = started_on <= today AND today <= term_ends_on
+  in_term       = started_on <= today AND today <= term_ends_on
+  active        = in_term AND purchase.status = 'paid'     # BOTH, always
   ```
 
-  Both sides of the comparison run on the SAME frozen clock — freezing only
+  Both sides of the date comparison run on the SAME frozen clock — freezing only
   the dates while deriving "today" from the mutable `shape_user_tz` (which
   `/api/client/timezone` overwrites on every app open) still moved paid access
   by a day for a member who travels near the boundary. And the lower bound is
   in the predicate itself: a future-dated run must not read as active before
   it starts. A timestamp may still be retained **for audit**, but nothing
   reads it to decide access. One boundary, one predicate, both documents.
+
+  ⚠ **The term is a CEILING on access, never a grant of it — the purchase must
+  still be paid.** A date-only predicate answers "has the paid window elapsed?"
+  and silently assumes the answer to "was it paid?", which stops being true the
+  moment a charge is refunded or disputed. `charge.refunded` today updates
+  `one_time_purchases.status` and nothing else, and `get_my_purchased_plans()`
+  already filters `status = 'paid'` — the product has *already* decided a
+  refunded purchase is not owned. A run reading dates alone would therefore
+  disagree with the Library on the same row: the plan vanishes from what you own
+  while the materialized Eat/Train content stays live and restartable for the
+  rest of the term. Every authoritative read conjoins both terms, and the run's
+  status is derived from the purchase rather than copied to it — a copy is a
+  second source of truth that drifts the first time a webhook is missed.
+
+  **Refund and dispute are therefore lifecycle transitions, and they must be
+  written down:** on `charge.refunded` / `charge.dispute.created` for a purchase
+  with a live run, the run moves to `refunded` — it stops delivering, it frees
+  the single-active-run slot, and it is **not** restartable. Two things this
+  transition must NOT do, both learned from the expiry rule above: it must not
+  delete the member's logged history (they ate those meals and did those
+  sessions; a refund reverses a sale, not a life), and it must not retro-remove
+  awards already granted for completed work. What ends is future access. A
+  partial refund is **not** a self-evident case — whether it ends the run, shortens
+  the term, or does nothing is a product ruling, and it belongs on the condition
+  list rather than in a default the build picks silently.
 
   ⚠ **For a COACH-ASSIGNED run the source is unresolved, not "the assignment."**
   An earlier draft said the term came "from the assignment," but the parent spec
@@ -315,6 +343,31 @@ happens to them rather than leave it to the reader:
   no other signal — the kind was derived from provider role (finding ②), so it
   cannot be trusted to distinguish them.
 
+  ⚠ **But a non-NULL `plan_id` is not evidence of what was SOLD — the row it
+  points at is coach-editable, and this document's own durability section is the
+  proof.** The whole reason E exists is that `coach_plans` mutates under a
+  purchase: a coach can edit a plan after checkout, and the snapshot rule below
+  exists precisely because resolving paid content live is wrong. Reading the
+  *classification* live re-commits that error at the one moment it is hardest to
+  undo — a backfill, run once, over purchases nobody is watching. A plan
+  reshaped from multi-week to single-workout since the sale would backfill a
+  paid program into an attendance-consumed booking (bought twelve weeks,
+  received one session, and it is consumed on first attendance), and the reverse
+  turns a single session into a term-bounded program. Stripe's metadata carries
+  the `plan_id` but **no sale-time `buildType`**, so for most historical rows
+  there is no immutable record of what shape was bought.
+
+  So the live catalogue is **corroborating evidence, not authority**. A row
+  classifies as a program only on **immutable sale-time evidence** — sale-time
+  metadata, the charge's own line items, or a `coach_plans` row demonstrably
+  unmodified since the purchase (`updated_at <= purchase.created_at`, where that
+  column can carry the claim). Absent that, the row is **unresolved** — the same
+  third outcome the NULL case takes below, for the same reason: the failure
+  direction has to favour the person who paid, and an unresolved row is a
+  question asked of support rather than an answer invented by a migration.
+  Guessing is worse here than in the NULL case, not better, because a non-NULL
+  `plan_id` *looks* like evidence and so no one will re-examine it.
+
   ⚠ **A NULL `plan_id` is UNRESOLVED, never a session.** The rule as stated
   above has a hole that costs a member the thing they paid for: `plan_id` is
   `on delete set null` (`2026-06-08-coach-plans-sale.sql:12`), so a historical
@@ -324,11 +377,14 @@ happens to them rather than leave it to the reader:
   classifies it as one. It then never reaches the grandfathering path below,
   and a client who bought a 12-week program owns a consumed session instead.
   So the classifier has **three** outcomes, not two: program · session ·
-  **unresolved**. An unresolved row is one whose `plan_id` is NULL *and* whose
-  kind cannot otherwise be established; it is recovered from the Stripe session
-  metadata where that exists (the charge knows what was sold) and surfaced to
-  support where it does not. It is never downgraded by default — the failure
-  direction has to favour the person who paid.
+  **unresolved**. An unresolved row is any row whose sold shape cannot be
+  established from immutable sale-time evidence — which covers **both** holes:
+  `plan_id` is NULL (this one), *and* `plan_id` is non-NULL but points at a
+  catalogue row that may have changed since the sale (the rule above). It is
+  recovered from the Stripe session metadata where that exists (the charge knows
+  what was sold) and surfaced to support where it does not. It is never
+  downgraded by default — the failure direction has to favour the person who
+  paid.
 - **Grandfathering, stated explicitly.** Legacy program purchases have no
   `started_at` and no term. They are **not** retro-expired — a client who
   already bought keeps what they bought. They carry a null term and behave as
