@@ -281,6 +281,7 @@ export async function POST(request: Request) {
           // (losing the money is worse than losing the snapshot), and it is only
           // ever read as a FALLBACK — the live row still wins where it exists.
           let planSnapshot: Record<string, unknown> | null = null;
+          let planIdForRow = purchasedPlanId;
           if (purchasedPlanId) {
             const { data: planRow, error: planErr } = await admin
               .from('coach_plans')
@@ -293,6 +294,26 @@ export async function POST(request: Request) {
               });
             } else if (planRow) {
               planSnapshot = { ...planRow, snapshot_at: new Date().toISOString(), snapshot_source: 'checkout' };
+            } else {
+              // The coach DELETED the plan between Checkout Session creation and
+              // this webhook. Sending the stale UUID makes the FK reject the
+              // insert; purchaseErr is only logged and the handler acks 200, so
+              // Stripe never retries — a paid buyer would end up with NO purchase
+              // row at all. That is worse than the Library gap this PR exists to
+              // close, and it predates this change. Record the payment with a
+              // null plan_id, and keep the id in the marker so support can trace
+              // what was bought. The marker carries no `name`, which is what
+              // keeps it OUT of the Library (see the migration's filter) rather
+              // than rendering an entry the client cannot open.
+              planIdForRow = null;
+              planSnapshot = {
+                id: purchasedPlanId,
+                snapshot_at: new Date().toISOString(),
+                snapshot_source: 'plan_deleted_before_payment',
+              };
+              console.error('[stripe webhook] purchased plan was deleted before payment completed — recording the purchase without plan_id', {
+                session: session.id, plan: purchasedPlanId, client: clientId,
+              });
             }
           }
           const purchaseRow = {
@@ -304,7 +325,7 @@ export async function POST(request: Request) {
             application_fee_cents: applicationFeeCents,
             stripe_checkout_session_id: session.id,
             stripe_payment_intent_id: pi,
-            plan_id: purchasedPlanId,
+            plan_id: planIdForRow,
             status: 'paid',
           };
           // Write the row FIRST and check the error; origin/fee_bps are write-once
@@ -318,11 +339,24 @@ export async function POST(request: Request) {
           let { error: purchaseErr } = await admin
             .from('one_time_purchases')
             .upsert(withSnapshot, { onConflict: 'stripe_checkout_session_id' });
-          // Pre-migration the plan_snapshot column doesn't exist yet. Drop ONLY
-          // that column and retry — falling straight through to the origin-drop
-          // path below would let a missing snapshot column 503 a BYO purchase,
-          // trading a cosmetic gap for a blocked payment.
+          // Pre-migration (or during PostgREST schema-cache lag) the plan_snapshot
+          // column doesn't exist yet. Drop ONLY that column and retry — falling
+          // straight through to the origin-drop path below would let a missing
+          // snapshot column 503 a BYO purchase, trading a cosmetic gap for a
+          // blocked payment.
+          //
+          // Deliberately NOT retryable, unlike the BYO origin case below. A 503
+          // here is only correct if the column is momentarily invisible; if the
+          // migration simply hasn't been applied, Stripe retries for ~3 days and
+          // then gives up, and the purchase is never recorded at all. Losing the
+          // snapshot costs the buyer only if the coach later deletes the plan,
+          // and re-running the (idempotent) migration backfills every row whose
+          // plan still exists. Losing the purchase costs them the money. So we
+          // record the payment and shout about the gap.
           if (planSnapshot && isUndefinedColumn(purchaseErr)) {
+            console.error('[stripe webhook] plan_snapshot column unavailable — purchase recorded WITHOUT a snapshot; re-run 2026-07-26-purchase-plan-snapshot.sql to backfill', {
+              session: session.id, plan: purchasedPlanId, client: clientId,
+            });
             ({ error: purchaseErr } = await admin
               .from('one_time_purchases')
               .upsert(withOrigin, { onConflict: 'stripe_checkout_session_id' }));

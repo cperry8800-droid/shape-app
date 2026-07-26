@@ -74,10 +74,18 @@ as $$
   left join coach_plans cp on cp.id = otp.plan_id
   where otp.client_id = auth.uid()
     and otp.status = 'paid'
-    -- Resolvable from either side. A row with neither is a pre-migration
-    -- purchase whose plan was already deleted: nothing to render, and inventing
-    -- a placeholder would be fabricating something the client cannot open.
-    and (cp.id is not null or (otp.plan_snapshot->>'id') is not null)
+    -- Gate on a resolvable NAME, not merely an id. Two kinds of row carry an id
+    -- with no content and must stay OUT of the Library rather than render an
+    -- entry that opens onto nothing:
+    --   * a pre-migration purchase whose plan was already deleted (no snapshot);
+    --   * a purchase whose plan the coach deleted BETWEEN checkout and payment,
+    --     which the webhook records with plan_id NULL and an id-only marker
+    --     (snapshot_source = 'plan_deleted_before_payment') so the payment is
+    --     still on the books and support can trace it.
+    -- Both are real purchases and both stay queryable for refunds/support; they
+    -- simply have nothing for the client to open, and inventing a placeholder
+    -- would be fabricating a plan.
+    and (cp.id is not null or (otp.plan_snapshot->>'name') is not null)
   order by otp.created_at desc;
 $$;
 
