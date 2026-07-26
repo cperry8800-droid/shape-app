@@ -317,8 +317,19 @@ expires a day early in one timezone. Define it once:
   precedence ladder applies (standing menu, or nothing).
 - **After the final week**, the program is complete; what the member sees is
   entitlement-driven (ruling 4), not a wrap-around.
-- **The term is measured in whole member-local days from `started_at`**, so a
-  4-week term is 28 of the member's own days regardless of travel or DST.
+- **The term is measured in whole member-local days from an IMMUTABLE
+  `started_on` date, stamped once at activation** — never re-derived by
+  reinterpreting a `started_at` instant against the current `shape_user_tz`.
+  ⚠ That zone is **mutable**: `/api/client/timezone` overwrites it every time
+  the app opens (it is captured opportunistically on launch), so a member who
+  travels changes the zone their old start instant is read against, and the same
+  instant resolves to a different local calendar date — silently shortening or
+  lengthening a **paid** term by a day. Stamp `started_on` (date-only, in the
+  member's zone at the moment of activation) and derive `term_ends_on` from it
+  by date arithmetic; both are then stable under travel and DST because neither
+  is ever recomputed. This is the SAME class as the coach-clock bug two bullets
+  up — there the reader used the wrong clock, here the reader uses a clock that
+  moves underneath it. Do not re-make it in the other direction.
 
 Every reader — `/api/client/plan`, the mobile reader, and the coach view —
 derives from this one definition. A surface that computes its own week is a bug.
@@ -659,14 +670,20 @@ client owns after they pay, across purchases, Stripe checkout metadata, run
 lifecycle, term expiry, replay bounds and cross-discipline exclusivity —
 and nutrition is only one of its consumers.
 
-**Why it was split rather than finished here.** Four review rounds on this PR
-returned **twelve findings, every one of them inside E**, and rounds 2–4 were
+**Why it was split rather than finished here.** Five review rounds on this PR
+returned **fifteen findings, every one of them inside E**, and rounds 2–4 were
 each caused by the previous round's fix (keying rows on the run made two live
 runs representable; single-active-run made a failed materialization lock the
 client out; the migration-boundary fix moved the same bug onto a different
-clock). Each fix was right in isolation and opened a seam at its edge. That is a
-scope signal, not a polish signal — so E gets a document sized to its blast
-radius, and the rest of this wave stops waiting on it.
+clock). Each fix was right in isolation and opened a seam at its edge. **Round 5
+then found three more that no earlier fix had caused** — in parts of E that had
+been written but never examined closely (when the paid snapshot is taken; that
+a deleted legacy program needs a third classification outcome; that one
+idempotency key cannot mean both "retry" and "restart"). So the seams were not
+being drained by fixing them — rounds were finding what rounds happened to look
+at. That is a scope signal, not a polish signal, and round 5 makes it a
+*coverage* signal too — so E gets a document sized to its blast radius, and the
+rest of this wave stops waiting on it.
 
 **What this changes for the build:**
 

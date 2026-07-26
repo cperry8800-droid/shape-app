@@ -19,8 +19,8 @@ cross-discipline exclusivity. Nutrition is one consumer of it; training is
 another, and training already has a live hole it is meant to close (finding ③
 in the parent spec: `startPurchasedPlan` is replayable forever).
 
-**The evidence that it needed splitting is its own review history.** Across four
-review rounds on PR #1834, reviewers returned **twelve findings — every one of
+**The evidence that it needed splitting is its own review history.** Across five
+review rounds on PR #1834, reviewers returned **fifteen findings — every one of
 them in this section**, and rounds 2–4 were each caused by the *previous* round's
 fix:
 
@@ -30,10 +30,22 @@ fix:
 | 3 | Add **single-active-run** + a durable run row | An active run with **zero weeks** (failed materialization) locks the client out until term expiry; and the "coach-assignment id" the run key relied on **does not exist** |
 | 3 | Gate legacy classification on `one_time_purchases.created_at` | That column is written by the **webhook on payment**, so a checkout opened pre-migration and paid post-migration is quarantined despite being paid |
 | 4 | Gate on the Stripe **session** timestamp instead | A rolling deploy lets the old handler create unstamped legacy sessions *after* the cutoff — same bug, new clock |
+| 5 | — (no round-4 fix caused these; they are seams in the NEIGHBOURS of what rounds 2–4 touched) | Durability said "snapshot onto the purchase" without saying **when**, and the purchase row is created at the webhook — a coach editing between checkout-open and payment has the buyer charged for one thing and delivered another · classification had **two** outcomes where a deleted legacy program needs a third (`plan_id` NULL is *unresolved*, not a session) · activation idempotency keyed on the purchase has to express **retry** and **intentional restart** with one key, and those are opposite |
 
 That is the signature of a design whose blast radius exceeds what a section can
 hold, not of a document being polished. Each fix was correct in isolation and
 opened a seam at its boundary with the next.
+
+⚠ **Round 5 is the one that should settle the question.** Rounds 2–4 could be
+read charitably as a fix-chain converging — each round closing the seam the last
+one opened, so the end is in sight. Round 5 breaks that reading: its three
+findings were **not** caused by round 4's fix. They are in the parts of this
+design that had been *written but never scrutinized at depth* — snapshot timing,
+the classifier's outcome set, the meaning of an idempotency key. So the supply of
+seams is not being drained by fixing them; rounds were finding what rounds
+happened to look at. That is a coverage problem, not a convergence problem, and
+it is why condition 4 below asks for a pass over the **whole document** rather
+than another pass over the last diff.
 
 ## ⚠ A LIVE bug surfaced by this work — fix independently, do not wait for E
 
@@ -71,15 +83,17 @@ cause it. **It has its own PR and must not wait on E.**
    happens when a client holds a live nutrition run and starts a training one,
    and whether "one active run" is per-discipline or global.
 4. **A fresh adversarial pass finds no new seam** — given rounds 2–4 each opened
-   one, one clean round is the minimum bar, and it should be run against the
-   whole document rather than against the last diff.
+   one and round 5 found three more in parts no round had yet examined, one
+   clean round is the minimum bar, and it must be run against the **whole
+   document** rather than against the last diff. Round 5 is the evidence that a
+   diff-scoped pass cannot clear this bar: it would have found none of them.
 
-Everything below is the design as it stood at the end of review round 4. It is
+Everything below is the design as it stood at the end of review round 5. It is
 recorded so the thinking is not lost, **not** so it can be built from.
 
 ---
 
-## The design as reviewed (round 4)
+## The design as reviewed (round 5)
 
 Ruling 6 puts this outside nutrition: it is a **platform** change that also fixes
 a live training hole (finding ③). It can be built in parallel with the C tracks and must
@@ -135,6 +149,21 @@ land before C2's end-of-program rule.
   but resolving live does not. The Library must also stop vanishing a paid
   purchase whose `plan_id` went NULL: what a client bought is theirs whether or
   not the coach still sells it.
+
+  ⚠ **The snapshot must be taken at CHECKOUT-SESSION CREATION, not at the
+  webhook.** Those are two different moments with a coach-editable gap between
+  them: `checkout-session/route.ts` reads the catalogue to price and display the
+  plan, and `webhook/route.ts` creates the purchase row only once payment
+  completes. A snapshot taken at webhook time therefore captures whatever the
+  plan is *then* — so a coach who edits between the buyer opening checkout and
+  the payment landing has the buyer pay for what they were shown and receive
+  something else, with the receipt asserting it was the same thing. Capture the
+  snapshot (or an immutable plan **version** id) when the session is created,
+  carry it through Stripe `metadata`, and have the webhook persist what the
+  session already committed to rather than re-reading the catalogue. The webhook
+  then has no authority to choose content at all, which is the property that
+  makes the guarantee hold: **the buyer is charged for and delivered the same
+  bytes.**
 - ⚠ **Carry the PURCHASE id, not just the plan id — the per-purchase invariant
   is unrepresentable without it.** Ruling 2 makes a program a *repeatable* sale,
   so a client can buy the same catalog program twice; today nothing downstream
@@ -181,9 +210,21 @@ land before C2's end-of-program rule.
   the house pattern already in use for exactly this class —
   `cycle_set_settings`/`cycle_opt_out` share a per-user advisory lock, and
   `claim_tier_reward` + `redeem_store_item` take one before their guarded
-  writes. Activation must also be **idempotent under retry**, keyed on the
-  purchase, so a client re-sending a start (flaky network, double tap) restarts
-  the same run instead of opening a second.
+  writes. Activation must also be **idempotent under retry** — but ⚠ **keying
+  that on the purchase alone cannot work, because it has to express two
+  opposite intents at once.** Ruling 2 permits an intentional within-term
+  restart, and a flaky network produces a duplicate of the very same request;
+  keyed on the purchase these are the same key, so one rule must serve both. If
+  a repeat restarts the run, then a delayed retry silently rematerializes and
+  replaces the member's rows — that is not idempotent, it is a second restart.
+  If a repeat is a no-op, the deliberate restart is unreachable. The purchase
+  identifies *what* is being started; it cannot identify *which attempt*.
+
+  So each activation/restart attempt carries its own **idempotency key**,
+  client-generated per user action: a duplicate key returns the ORIGINAL
+  result unchanged (the retry case), and a new key is a genuine restart
+  request (the intent case). Retry-safety and restart then stop competing for
+  one signal, and the advisory lock above still serializes the writes.
 
   ⚠ **The binding scope is (client, discipline) — NOT (purchase).** An earlier
   draft wrote this bound as "one active run per purchase," which the nutrition
@@ -211,6 +252,21 @@ happens to them rather than leave it to the reader:
   else stays a **single session** (`booking`) or a one-off `meal_plan`. There is
   no other signal — the kind was derived from provider role (finding ②), so it
   cannot be trusted to distinguish them.
+
+  ⚠ **A NULL `plan_id` is UNRESOLVED, never a session.** The rule as stated
+  above has a hole that costs a member the thing they paid for: `plan_id` is
+  `on delete set null` (`2026-06-08-coach-plans-sale.sql:12`), so a historical
+  **program** purchase whose coach has since deleted the plan now reads
+  `kind='booking'`, `plan_id=NULL` — indistinguishable *by this rule* from a
+  single Tuesday session, and "everything else stays a booking" silently
+  classifies it as one. It then never reaches the grandfathering path below,
+  and a client who bought a 12-week program owns a consumed session instead.
+  So the classifier has **three** outcomes, not two: program · session ·
+  **unresolved**. An unresolved row is one whose `plan_id` is NULL *and* whose
+  kind cannot otherwise be established; it is recovered from the Stripe session
+  metadata where that exists (the charge knows what was sold) and surfaced to
+  support where it does not. It is never downgraded by default — the failure
+  direction has to favour the person who paid.
 - **Grandfathering, stated explicitly.** Legacy program purchases have no
   `started_at` and no term. They are **not** retro-expired — a client who
   already bought keeps what they bought. They carry a null term and behave as
