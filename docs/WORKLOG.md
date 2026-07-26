@@ -178,9 +178,14 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-26): PER-DAY MENUS (C1a) — CONTRACT + BUILD SHIPPED (#1839 contract,
-> #1840 build).** The week-block wave's prerequisite is closed: a coach can now author a
-> **different menu each DAY**, and the client eats what was authored. The storage contract
+> **Latest (2026-07-26): PER-DAY MENUS (C1a) — CONTRACT SPEC'D + the DELIVERY half
+> SHIPPED (#1839 contract, #1840 build). ⚠ Authoring is NOT shipped yet.** The week-block
+> wave's prerequisite is specified and half-built: the system can now **store, resolve and
+> deliver** a different menu each day, and the paid preview describes it honestly — but no
+> UI can WRITE that shape yet, so in the product today every day still serves one menu.
+> The editor half (contract §6 — day tabs, and the publish callback that must carry the
+> canonicalized `days`) is the next PR; until it merges, treat per-day authoring as
+> unavailable rather than merely undocumented. The storage contract
 > is deliberately **additive** — `detail.days: [{dow, blocks}]` is optional, `detail.blocks`
 > stays the default menu that any unauthored day inherits, so every plan already sold keeps
 > delivering exactly what it delivered before (`dow` 0 = MONDAY). One shared normalizer,

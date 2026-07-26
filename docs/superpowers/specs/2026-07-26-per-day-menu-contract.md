@@ -225,7 +225,7 @@ always has; that cap never touches what Assign *delivers*.)
 | --- | --- | --- |
 | `detail.blocks` (the default) | **UNCAPPED** — passes through as-is | legacy delivery applied no limit; capping here drops sold meals (see above) |
 | `days` scan | first **7** entries only | a week has seven days; more is either a mistake or an attack |
-| blocks per authored day | first **40** (`= planPreview`'s `BLOCK_SCAN`) — **a backstop, not the enforcement point** (see below) | new data, no legacy expectations; bounds the crafted-row scan |
+| blocks per authored day | **`max(40, detail.blocks.length)`** — a FLOOR of 40, raised to the default's own size (see below) — and **a backstop, not the enforcement point** | new data, no legacy expectations; bounds the crafted-row scan, without forbidding an override from matching the day it overrides |
 | block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) — **in the preview only**; Assign's meal parse is unchanged | the per-day path reuses the existing display bound rather than adding a second limit, and adds no new bound to delivery |
 | invalid / out-of-range `dow` | **DROPPED**, never clamped | clamping would move a coach's Thursday menu onto Sunday; dropping falls back to that day's default, which is the honest degrade |
 | non-integer `dow` (`"1"`, `1.5`, `true`) | dropped | a value indistinguishable from a typo is not a day the coach chose, and this is the write path for PAID content |
@@ -249,6 +249,20 @@ crafted row or an external writer — where truncation is hardening, not loss.
 The same rule that governed the legacy exemption governs here: **a display
 bound may truncate; a delivery bound may only ever truncate data that could
 not have been authored in good faith.**
+
+⚠ **The bound is a FLOOR of 40, not a flat 40 — otherwise this table
+contradicted acceptance item 6.** A legacy plan may carry more than 40 blocks
+and the row above promises it delivers **all** of them. Now put a coach in that
+plan who wants to vary one day: the day starts as a copy of the 45-block
+default, and a flat 40 refuses to publish it. Their only ways out are to delete
+five meals from a plan people have already bought, or to abandon per-day
+authoring on that plan entirely — and neither is a bound doing its job. **An
+override must always be able to express the day it is overriding**, so the
+per-day limit is `max(40, detail.blocks.length)`: ordinary plans keep the flat
+40, and only a plan whose own default already exceeds it gets the room its
+content needs. This costs nothing in exposure — `detail.blocks` is uncapped, so
+it already sets the delivery ceiling, and the paid preview still re-caps every
+resolved day at 40 for display.
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
@@ -478,9 +492,13 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
 14. The day selector renders ONLY on `perDayAuthoring` drafts (nutritionist
     `mealplan`/`diet`); trainer drafts and the nutrition `program` (arc) render
     byte-identically to today.
-15. The editor refuses the 41st block on a day with visible feedback, and
-    publish validates the same bound — the normalizer's 40-cap never truncates
+15. The editor refuses a block past the day's bound with visible feedback, and
+    publish validates the same bound — the normalizer's cap never truncates
     editor-authored content.
+16. **Starting a day from an oversized legacy default keeps every block.** On a
+    plan whose `detail.blocks` has 45 entries, the day override accepts all 45
+    and publishes — the bound is `max(40, default.length)`, so acceptance 6's
+    promise survives being varied. An ordinary plan still refuses the 41st.
 
 ## 8 — Registered, not in scope
 
