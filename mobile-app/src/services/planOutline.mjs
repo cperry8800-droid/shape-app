@@ -129,17 +129,32 @@ function validDow(v) {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6;
 }
 
-// Two block lists say the same thing when their rendered TEXT matches in order.
-// Compared on text, not identity: a per-day authoring UI naturally produces
-// fresh objects for an unmodified day, and those are not a per-day plan.
+// Two block lists say the same thing when their DELIVERED text matches in
+// order — trimmed, empties dropped — because that is exactly what the meal
+// parse does on the way to the client (String(...).trim() + filter(Boolean)).
+// Comparing raw strings made perDay disagree with delivery: an authored day
+// differing from the fallback only by trailing whitespace or a stray empty
+// block DELIVERS the identical menu, but a raw compare called it a per-day
+// plan — "Menus vary by day" on a paid listing over seven identical menus,
+// with every repeat counted as a locked meal. Equality here must use the same
+// normalization delivery uses, or the claim and the product diverge.
+// (Identity never matters either way: a per-day authoring UI naturally
+// produces fresh objects for an unmodified day.)
+function deliveredTexts(list) {
+  const out = [];
+  for (const b of (Array.isArray(list) ? list : [])) {
+    const raw = (b && b.text != null) ? b.text : b;
+    const t = String(raw == null ? '' : raw).trim();
+    if (t) out.push(t);
+  }
+  return out;
+}
 function sameBlocks(a, b) {
   if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    const ta = (a[i] && a[i].text != null) ? a[i].text : a[i];
-    const tb = (b[i] && b[i].text != null) ? b[i].text : b[i];
-    if (String(ta == null ? '' : ta) !== String(tb == null ? '' : tb)) return false;
-  }
+  const ta = deliveredTexts(a);
+  const tb = deliveredTexts(b);
+  if (ta.length !== tb.length) return false;
+  for (let i = 0; i < ta.length; i += 1) if (ta[i] !== tb[i]) return false;
   return true;
 }
 

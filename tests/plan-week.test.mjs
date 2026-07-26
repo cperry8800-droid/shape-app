@@ -314,3 +314,21 @@ test('preview: the PUBLIC preview re-caps uncapped legacy fallbacks (DoS bound)'
   const w = bsPlanWeek(detail);
   assert.equal(w.days[1].blocks.length, 300, 'delivery keeps every sold meal');
 });
+
+test('perDay: whitespace/empty-block noise is not per-day variation', () => {
+  // The delivery path trims text and drops empty blocks, so a day differing
+  // from the default only in that noise DELIVERS the identical menu. perDay
+  // must use the same normalization or "Menus vary by day" lies on a paid
+  // listing — with every repeated meal counted as locked content.
+  const noisy = ['  Breakfast · Oats · 500 kcal  ', '', '   ', 'Lunch · Chicken bowl · 620 kcal'];
+  const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: noisy }] });
+  assert.equal(w.perDay, false, 'same delivered menu → not a per-day plan');
+  const p = bsPlanPreview({ name: 'N', detail: { blocks: MENU, days: [{ dow: 0, blocks: noisy }] } }, { isNutri: true });
+  assert.equal(p.perDay, undefined, 'previews as the ordinary menu it is');
+  assert.equal(p.units.length, 2, 'two meals, not seven-times-two');
+});
+
+test('perDay: a REAL text difference still registers through the normalization', () => {
+  const w = bsPlanWeek({ blocks: MENU, days: [{ dow: 0, blocks: ['Breakfast · Eggs · 400 kcal'] }] });
+  assert.equal(w.perDay, true);
+});
