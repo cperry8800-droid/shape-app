@@ -401,14 +401,34 @@ row for the same current week. The precedence ladder says "**a** running,
 un-paused program week wins" — with two, there is no winner, and
 `/api/client/plan` would serve whichever the query happened to order first,
 which on a paid program is serving the wrong menu. So: **at most one ACTIVE
-nutrition run per client**, enforced as a partial unique index on the run row
-(active = started and not expired), the same shape as E's one-active-run-per-
-purchase bound and taken under the same lock. A second activation is **refused
-with an explicit choice** — end the running program now and start this one, or
-keep the current one — never silently accepted. Training carries the identical
-rule on its own discipline (ruling 6). As defense in depth the reader still
-needs a deterministic tiebreak — **most recently activated run wins** — so that
-even a bypassed constraint yields one answer rather than an arbitrary one.
+nutrition run per client**, the same shape as E's one-active-run-per-purchase
+bound and taken under the same lock. A second activation is **refused with an
+explicit choice** — end the running program now and start this one, or keep the
+current one — never silently accepted. Training carries the identical rule on
+its own discipline (ruling 6). As defense in depth the reader still needs a
+deterministic tiebreak — **most recently activated run wins** — so that even a
+bypassed constraint yields one answer rather than an arbitrary one.
+
+⚠ **"Active" must be a STORED lifecycle value, not a wall-clock predicate.**
+Postgres requires an index predicate to be IMMUTABLE, so
+`... where started_at is not null and ends_at > now()` is **rejected at
+creation** — `now()` is STABLE. And indexing on `started_at is not null` alone
+is worse than useless: a naturally-expired run would hold the unique slot
+**forever**, permanently refusing the client's next program. So the run row
+carries an explicit **`status`** (`active` | `ended`) — or an `ended_at`
+timestamp with the index on `where ended_at is null` — and the unique index is
+over `(client, discipline) where status = 'active'`, which is immutable.
+
+The build must then say **who flips it**, because a row cannot expire itself:
+activation sets `active` inside the activation transaction; an explicit
+end-and-replace sets the outgoing run to `ended` **in the same transaction** as
+the incoming activation, so the slot is never double-held and never
+transiently empty; and **natural expiry is flipped by the server on the
+authoritative path** — lazily when the term check reads a run whose
+`term_ends_at` has passed, plus a sweep so a client who never opens the app
+still frees the slot. Every reader computes eligibility from the stored status
+**and** the term dates, so a missed flip degrades to "expired, no menu" (rule 3,
+honest) rather than to a program that silently runs forever.
 
 ⚠ **The row key is the RUN, not the catalog program — `program_id` alone
 collides on a re-buy.** Ruling 2 makes a program a repeatable sale, so
@@ -434,7 +454,7 @@ and it is only ever inserted by `/api/program-tools/templates`
 (`route.ts:149`). So half the runs would have had no key.
 
 The build must therefore create a **durable run row** — one record per run,
-written **atomically before any week is materialized**, carrying: client,
+carrying: client,
 provider, discipline, **source** (`purchase` with its `one_time_purchases.id`,
 or `coach_assign`), the catalog `program_id`, `started_at`, the immutable
 `term_days` (below), and the ruling-5 conflict choice. **That row's id is the
@@ -442,6 +462,20 @@ run key** every program week points at, and it is what the term check, the
 replay bound, and the reader all read. It is the entitlement record; the weeks
 are its output. A run whose rows exist but whose run row doesn't is
 unrepresentable, which is the point.
+
+⚠ **The run and its weeks commit TOGETHER — an active run with no weeks is the
+worse orphan.** An earlier draft said the run row is written "atomically before
+any week is materialized," which guards only one direction. The other is
+strictly more damaging: if a week insert then fails, an **active** run survives
+with zero or partial coverage, the single-active-run rule refuses any
+replacement, and under pause mode the standing menu is ineligible — so the
+client has **no menu at all until the term expires**, for a program they paid
+for. So either the run row **and every authored week row commit in one
+transaction**, or the run is created **non-active** and flips to `active` only
+once materialization has completed, in that same transaction. Partial coverage
+that the *coach chose* is still fine (the invariant only promises rows for weeks
+they actually filled); partial coverage caused by a *failed write* must roll the
+whole activation back and leave the client exactly where they were.
 
 **Precedence when both cover the same week — one rule, applied identically by
 `/api/client/plan` and the mobile reader:**
@@ -499,6 +533,26 @@ land before C2's end-of-program rule.
   that alone. Where a legacy plan carries no stateable duration the purchase is
   **unclassifiable** and takes the rule below — not a guessed default, which
   would be fabricated precision about something a member paid for.
+- ⚠ **Snapshot the sold CONTENT too, not just its duration — and note that this
+  is a LIVE bug, not only a design gap.** A term snapshot doesn't make a dormant
+  entitlement durable while the catalogue underneath it stays mutable. Today
+  `one_time_purchases.plan_id` is `references coach_plans(id) **on delete set
+  null**` (`2026-06-08-coach-plans-sale.sql:12`) and `get_my_purchased_plans()`
+  **inner-joins** the current `coach_plans` row with `plan_id is not null`
+  (`:45-46`). So right now: a coach **editing** a plan silently changes what an
+  un-started buyer paid for, and a coach **deleting** it makes the purchase
+  **disappear from that client's Library entirely** — money taken, nothing
+  owned, no trace on the client's side. Ruling 3 makes this worse by design,
+  because it stretches the dormant window from "until they open it" to
+  "indefinitely, until they start it."
+
+  The build must **snapshot the sold plan's identity, label, and materializable
+  content onto the purchase (and onto the run at activation)**, and resolve paid
+  content from that snapshot — never from live `coach_plans` at start time. The
+  alternative shape is versioning + retaining sold catalogue rows; either works,
+  but resolving live does not. The Library must also stop vanishing a paid
+  purchase whose `plan_id` went NULL: what a client bought is theirs whether or
+  not the coach still sells it.
 - ⚠ **Carry the PURCHASE id, not just the plan id — the per-purchase invariant
   is unrepresentable without it.** Ruling 2 makes a program a *repeatable* sale,
   so a client can buy the same catalog program twice; today nothing downstream
@@ -593,11 +647,22 @@ happens to them rather than leave it to the reader:
   genuinely paid purchase** for nothing but crossing the deploy boundary
   mid-checkout. So the build stamps an explicit **checkout-schema version into
   the Stripe session metadata at session-creation time**, and classification
-  reads that (falling back to the Stripe session's own creation timestamp for
-  sessions opened before stamping existed). **Already-open legacy sessions
-  complete as legacy** — grandfathered, never quarantined. The version travels
-  with the purchase, so it cannot be desynchronized by delivery latency,
-  webhook retries, or a redeploy mid-flight.
+  reads that. The version travels with the purchase, so it cannot be
+  desynchronized by delivery latency, webhook retries, or a redeploy mid-flight.
+
+  ⚠ **An UNSTAMPED session is legacy — always. No time-based fallback.** The
+  obvious fallback (use the Stripe session's own creation timestamp when the
+  stamp is missing) quietly reintroduces the very bug it was meant to close: on
+  a rolling deploy the old checkout handler is still live, so it can create a
+  **legacy-shaped, unstamped session AFTER the cutoff** — which a timestamp rule
+  then classifies as current and **quarantines a genuinely paid purchase**.
+  Absence of the stamp is itself the only reliable proof that the legacy writer
+  created the session, and it is proof that no clock can contradict. So:
+  **unstamped → legacy → grandfathered**, unconditionally. An unstamped session
+  appearing unexpectedly late is a **monitoring** concern — alert on it, page
+  someone, fix the writer — but it must never be a reason to deny a client
+  something they paid for. Time is evidence about deployment; it is not evidence
+  about entitlement.
   - The client-facing state for a quarantined row is the **honest** one — the
     purchase is visible and support can resolve it — never a silent empty tab
     and never a fabricated term.
