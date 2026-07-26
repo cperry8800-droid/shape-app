@@ -510,11 +510,22 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
 11. Clearing a day in the editor then republishing keeps `{ dow, blocks: [] }`
     in the stored `days` — the cleared day does not silently revert to the
     default.
-12. **The publish round-trip carries `days`**: author a day override, publish,
-    reload the plan — the day tab shows it and Assign delivers it. (The
-    callback contract in §6: `onPublish` and both `publishDraft` constructions
-    carry the canonicalized `days`; without this the editor tracks state the
-    save discards, and nothing errors.)
+12. **Publishing carries `days` all the way to storage**: author a day
+    override, publish, and the created `coach_plans.detail` contains the
+    canonicalized `days`, which `bsPlanWeek` reads back and Assign delivers.
+    (The callback contract in §6: `onPublish` and both `publishDraft`
+    constructions carry it; without this the editor tracks state the save
+    discards, and nothing errors.)
+
+    ⚠ **Deliberately scoped to the STORAGE boundary, because no reopen path
+    exists.** An earlier revision said "reload the plan — the day tab shows
+    it", which cannot be implemented by forwarding `days` and would have read
+    as satisfied while persisted menus stayed uneditable: a published row's
+    `onOpen` calls `openDraft('mealplan')` without passing the row, and
+    `publishDraft` always calls `ShapeCoachPlans.create`, so reopening would
+    start an empty draft and republishing would create a SECOND plan rather
+    than update the first. The editor accepts `initialDays` so the read half
+    drops in unchanged; supplying it is §8's item, not this one's.
 13. Whitespace/empty-block noise on an authored day (vs the default) does not
     make the plan per-day: `perDay === false`, and the preview shows the
     ordinary menu model — equality runs on DELIVERED text (trimmed, empties
@@ -538,6 +549,19 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
   work: it needs a nutrition equivalent of `bsMaterializeOutline` writing
   `client_meal_plans`, plus the replay/entitlement question that belongs to the
   entitlement layer.
+- **Reopening a published plan for editing does not exist, and the write half
+  now outruns it.** `openDraft(type)` opens a blank draft and ignores the row
+  it was invoked from, and `publishDraft` only ever calls
+  `ShapeCoachPlans.create` — so today a coach cannot edit ANY published plan,
+  per-day or not, and the day menus this contract stores are write-once in
+  practice. Closing it needs three things together: pass the plan's id and
+  `detail` (including authored-empty days, which must survive as `blocks: []`)
+  into the editor as `initialName`/`initialBlocks`/`initialDays`; add an update
+  path so republishing revises the row instead of creating a sibling; and
+  decide what a revision means for clients already assigned the old version —
+  which is an entitlement question, not an editor one. Registered here rather
+  than smuggled into this PR: it is a pre-existing gap this contract makes more
+  visible, not one it introduces.
 - **C1b** (the ✦ AI DRAFT) stays blocked on its own contract. A per-day menu
   makes the AI's response shape *more* demanding, not less — whatever six-mode
   contract C1b lands must return a seven-day shape satisfying §5.1.
