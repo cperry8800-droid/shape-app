@@ -151,7 +151,15 @@ function sameBlocks(a, b) {
 // per-day plan and must not be sold as one — §5.3 of the contract.
 export function bsPlanWeek(detail) {
   const d = (detail && typeof detail === 'object' && !Array.isArray(detail)) ? detail : {};
-  const fallback = Array.isArray(d.blocks) ? d.blocks.slice(0, DAY_BLOCK_SCAN) : [];
+  // ⚠ The FALLBACK is deliberately UNCAPPED. Legacy Assign delivered every
+  // block in detail.blocks with no limit, and the contract promises a plan with
+  // no `days` key behaves byte-identically — capping here would silently drop
+  // meals from an already-SOLD plan on delivery. Truncation in the preview is
+  // cosmetic; truncation in delivery is taking content someone paid for. The
+  // bounds below apply only to `days` entries, which are NEW data with no
+  // legacy expectations (and the attack surface, since a legacy row can't
+  // carry them).
+  const fallback = Array.isArray(d.blocks) ? d.blocks : [];
 
   const byDow = new Map();
   if (Array.isArray(d.days)) {
@@ -164,12 +172,18 @@ export function bsPlanWeek(detail) {
     }
   }
 
-  let perDay = false;
   const days = [];
   for (let dow = 0; dow < 7; dow += 1) {
-    const authored = byDow.get(dow);
-    if (authored && !sameBlocks(authored, fallback)) perDay = true;
-    days.push({ dow, blocks: authored || fallback });
+    days.push({ dow, blocks: byDow.get(dow) || fallback });
+  }
+  // perDay is a claim about what is DELIVERED, so it is computed from the
+  // resolved week, not from how the week was authored: seven authored days that
+  // all say the same thing are one menu, even when that menu differs from a
+  // detail.blocks nobody will ever be served. Selling that as "per-day" would
+  // advertise variation that does not exist.
+  let perDay = false;
+  for (let i = 1; i < 7 && !perDay; i += 1) {
+    if (!sameBlocks(days[i].blocks, days[0].blocks)) perDay = true;
   }
   return { perDay, days };
 }

@@ -1606,7 +1606,13 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
             )}
             {p.perDay && (
               <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                {tr('marketplace:preview.perDay', { defaultValue: 'A different menu each day · meals per day' })}
+                {/* "Menus vary by day", not "a different menu each day" — perDay
+                    fires on ONE differing day (Mon/Wed/Fri overrides + four
+                    inherited defaults is the normal authored shape), so the
+                    stronger claim would overstate what several real plans
+                    deliver. Copy on a paid surface states what is true of
+                    every plan it renders on. */}
+                {tr('marketplace:preview.perDay', { defaultValue: 'Menus vary by day · meals per day' })}
               </div>
             )}
             <div style={{ marginTop: 4 }}>{p.free.map(row)}</div>

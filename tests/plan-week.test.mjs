@@ -104,15 +104,25 @@ test('hardening: a day entry with no blocks array inherits the default', () => {
   }
 });
 
-test('hardening: a crafted oversized payload is bounded, and never throws', () => {
+test('hardening: crafted oversized `days` are bounded, and never throw', () => {
   const huge = Array.from({ length: 500 }, (_, i) => `Meal ${i} · 100 kcal`);
   const w = bsPlanWeek({
-    blocks: huge,
+    blocks: [],
     days: Array.from({ length: 200 }, (_, i) => ({ dow: i % 7, blocks: huge })),
   });
   assert.equal(w.days.length, 7);
-  // Both the day scan and each day's block list are capped.
-  w.days.forEach((d) => assert.ok(d.blocks.length <= 40, 'block scan bounded'));
+  // AUTHORED day entries are capped — they are new data with no legacy
+  // expectations, and the attack surface (a crafted public-read row).
+  w.days.forEach((d) => assert.ok(d.blocks.length <= 40, 'authored day bounded'));
+});
+
+test('legacy: the DEFAULT blocks are deliberately UNCAPPED — delivery must not drop sold meals', () => {
+  // Legacy Assign delivered every block with no limit. A 45-block plan that
+  // already sold must keep delivering 45 — truncating in the preview is
+  // cosmetic, truncating in DELIVERY is taking content someone paid for.
+  const big = Array.from({ length: 45 }, (_, i) => `Snack — Meal ${i} · 100 kcal`);
+  const w = bsPlanWeek({ blocks: big });
+  w.days.forEach((d) => assert.equal(d.blocks.length, 45));
 });
 
 test('hardening: junk `days` shapes are skipped without throwing', () => {
@@ -257,4 +267,33 @@ test('preview: units carries the whole plan so the Meals register cannot lie', (
   // The sheet renders units.length as the product's meal count. Sampling it
   // would have shown "Meals 2" for a three-meal plan.
   assert.equal(p.units.length, 3);
+});
+
+// ── perDay is a claim about what is DELIVERED (round-2 review) ───────────────
+
+test('perDay: seven days authored IDENTICALLY are one menu, not a per-day plan', () => {
+  // Every delivered day is the same, so selling this as per-day would advertise
+  // variation that does not exist — even though every day differs from a
+  // detail.blocks nobody will ever be served.
+  const authored = ['Breakfast — Eggs · 400 kcal'];
+  const w = bsPlanWeek({ blocks: MENU, days: Array.from({ length: 7 }, (_, dow) => ({ dow, blocks: [...authored] })) });
+  assert.equal(w.perDay, false);
+  w.days.forEach((d) => assert.deepEqual(d.blocks, authored, 'the AUTHORED menu is still what is delivered'));
+});
+
+test('perDay: a uniform-override plan previews the DELIVERED menu, not detail.blocks', () => {
+  // The one case where the resolved day differs from detail.blocks while
+  // perDay is false. The preview must show what Assign installs.
+  const authored = Array.from({ length: 7 }, (_, dow) => ({ dow, blocks: ['Breakfast — Eggs · 400 kcal'] }));
+  const p = bsPlanPreview({ name: 'U', detail: { blocks: ['Breakfast — Oats · 500 kcal'], days: authored } }, { isNutri: true });
+  assert.equal(p.perDay, undefined, 'uniform week renders the non-per-day model');
+  assert.equal(p.units.length, 1);
+  assert.equal(p.units[0].title, 'Eggs', 'shows the menu that is DELIVERED');
+});
+
+test('perDay: uniform override over an EMPTY default still previews (not an empty plan)', () => {
+  const authored = Array.from({ length: 7 }, (_, dow) => ({ dow, blocks: ['Lunch — Bowl · 600 kcal'] }));
+  const p = bsPlanPreview({ name: 'U', detail: { blocks: [], days: authored } }, { isNutri: true });
+  assert.equal(p.kind, 'menu');
+  assert.equal(p.units[0].title, 'Bowl');
 });

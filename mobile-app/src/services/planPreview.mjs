@@ -105,11 +105,14 @@ export function bsPlanPreview(plan, opts) {
   // contract exists to prevent, in a narrower form — an empty `blocks` is no
   // longer the same thing as an empty plan.
   const week = bsPlanWeek(detail);
-  const perDayHasContent = week.perDay
-    && week.days.some((d) => (d.blocks || []).some((b) => blockText(b)));
+  // Content anywhere in the RESOLVED week keeps the preview alive — perDay is
+  // deliberately not part of this test. A week whose seven days are authored
+  // identically (perDay false) over an empty default still DELIVERS meals, so
+  // it must not preview as an empty plan.
+  const weekHasContent = week.days.some((d) => (d.blocks || []).some((b) => blockText(b)));
 
   const empty = { kind: null, weeks, sessionsPerWeek: null, units: [], free: [], locked: 0, note, media };
-  if (!texts.length && !(isNutri && perDayHasContent)) return empty;
+  if (!texts.length && !(isNutri && weekHasContent)) return empty;
 
   // A weekday split — the shape the Assign flow also keys off (≥3 day lines).
   //
@@ -217,7 +220,14 @@ export function bsPlanPreview(plan, opts) {
         media,
       };
     }
-    const units = texts.map(mealUnit).filter(Boolean);
+    // A UNIFORM week previews from the RESOLVED day, not from detail.blocks.
+    // The two only differ in one case — all seven days authored identically
+    // (perDay false) over a different default — and there the resolved day is
+    // what Assign delivers, while detail.blocks is a menu nobody will ever be
+    // served. For a legacy plan (no `days` key) days[0].blocks IS detail.blocks,
+    // so this maps to exactly the old `texts` and the model is byte-identical.
+    const dayTexts = (week.days[0].blocks || []).slice(0, BLOCK_SCAN).map(blockText).filter(Boolean);
+    const units = dayTexts.map(mealUnit).filter(Boolean);
     return {
       kind: units.length ? 'menu' : null,
       weeks,
