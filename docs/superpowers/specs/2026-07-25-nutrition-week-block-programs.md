@@ -1,8 +1,9 @@
 # Nutrition week-block programs — design
 
-**Status:** OWNER RULED **C** (multi-week menus) 2026-07-26 — see "What C actually
-requires" before any build starts. C is a WAVE, not a fix, and scoping it
-surfaced a blocker that changes the sequencing.
+**Status:** OWNER RULED **C** (multi-week menus) 2026-07-26, and every open
+question is now answered — see "Owner rulings" below. C is a WAVE, not a fix;
+scoping it surfaced a blocker that reorders the work, and the rulings extend it
+past nutrition into **training purchases and platform entitlement**.
 **Related:** #1832 (the training half: a week label is a phase, not an exercise).
 
 ## ⚠ The finding that reorders this work
@@ -28,6 +29,71 @@ the same five meals — a multi-week program that is not multi-anything.
 per-week.** A member eating a genuinely different Tuesday and Thursday is a
 bigger product change than the same Tuesday recurring in weeks 1–4. C should be
 sequenced behind it, not instead of it.
+
+## Owner rulings (2026-07-26)
+
+All six answered. These are binding; do not re-litigate them at build time.
+
+1. **Authoring — week 1, then vary it, and the AI drafts week 1.** The coach
+   authors (or accepts an AI draft of) one real 7-day week; each later week
+   starts as a copy they edit. An unedited copy is a week the coach *chose* to
+   repeat — never food the app invented.
+2. **A purchased program carries a TERM; access ends.** A program is a
+   repeatable sale, not a one-time one. `one_time_purchases` has no expiry
+   today (see the finding below), so this needs a real entitlement model.
+3. **The term starts on START, not on purchase.** Buying in January and
+   starting in March gives the full term from March. A never-started purchase
+   sits in the Library until the client begins it.
+4. **After the last week, the final week persists — while entitled.** On the
+   monthly coach plan the last week's menu keeps serving until the coach
+   assigns the next thing. On a one-off program the term ends, the menu stops,
+   and the client is offered the re-buy. The end state is entitlement-driven,
+   not content-driven.
+5. **On a menu conflict, the COACH chooses at assign time** — replace the
+   client's standing menu, or pause it for the program's term and restore it
+   after. The app never guesses about someone's food.
+6. **All of this applies to TRAINING too**, not just nutrition. A purchased
+   program carries a term in both disciplines; a single session booking is
+   consumed by attendance, not by time.
+
+Precondition, unchanged and unruled-on because it is a correctness rule rather
+than a product call: **a plain Meal-plan assignment must keep behaving exactly
+as it does now.** Most clients will never be on a program, so single-menu and
+multi-week have to coexist under one reader.
+
+## ⚠ Three findings the rulings surfaced
+
+**① The AI is already being called — and its answer is thrown away.**
+`iosAppBroadsheetPros.jsx:6052` (nutritionist) and `:5171` (trainer):
+
+```js
+if (!blankMode) { try { await window.ShapeAI?.generatePlanDraft?.({…}); } catch (e) {} }
+const outline = blankMode ? mk(['', '', '']) : (buildType === 'program'
+  ? mk(['Week 1 — Reset & habits', 'Week 2 — Build routine', …])   // ← hardcoded
+```
+
+Both builders await a real `/api/ai/generate-plan` call, render "Generating…"
+and an **✦ AI DRAFT** eyebrow, then build the outline from a canned template
+regardless. Every coach who taps ✦ AI DRAFT today gets a template, and the call
+costs money to produce nothing. Ruling 1 is therefore mostly *finishing* the AI
+already wired, not adding it.
+
+**② A purchased program is recorded as a "booking."**
+`src/app/api/stripe/checkout-session/route.ts:232`:
+
+```js
+kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
+```
+
+The kind is derived from the **provider's role and nothing else**, so a 12-week
+training program and a single Tuesday session are the same `'booking'`,
+distinguishable only by carrying a `plan_id`. Anything that expires programs but
+not sessions must first make the kind real (`booking` | `program` | `meal_plan`).
+
+**③ Training programs are already replayable forever.**
+`ShapeSelfTraining.startPurchasedPlan` materializes the dated rows under a fresh
+`runId` and deletes the prior run, so a client can restart week 1 indefinitely at
+no further cost. Same paid-forever hole as nutrition, live today.
 
 ## The bug today
 
@@ -188,11 +254,14 @@ by dependency, smallest shippable first:
 bug fix, it is independent of everything below, and it should ship first so the
 phantom menu stops being installed while the rest is built.
 
-**C1 — Per-DAY menus (the prerequisite).** The builder learns to author a
-different day; the assign stops replicating one `meals` array across all seven
-(`iosAppBroadsheetPros.jsx:3362`). Without this, every week in C2 is the same
-five meals repeated, and the wave delivers nothing a client can taste. Largest
-standalone value in the whole spec.
+**C1 — Per-DAY menus (the prerequisite), and the AI draft made real.** The
+builder learns to author a different day; the assign stops replicating one
+`meals` array across all seven (`iosAppBroadsheetPros.jsx:3362`). Per ruling 1,
+this is also where **the AI draft stops being discarded** — `generatePlanDraft`'s
+returned blocks become the outline instead of the hardcoded template (finding ①),
+so a coach drafts week 1 with AI and edits it. Without C1, every week in C2 is
+the same five meals repeated and the wave delivers nothing a client can taste.
+Largest standalone value in the whole spec.
 
 **C2 — Multi-week storage.** N `client_meal_plans` rows coexist, selected by the
 current week. Requires, all of them:
@@ -204,39 +273,47 @@ current week. Requires, all of them:
   each insert (`/api/nutritionist/meal-plan`), or each new week retires the last;
 - the **reader** (`/api/client/plan`, currently `published` / `created_at desc` /
   `limit 1`) to select by `week_start` against the member's local week;
+- the **assign-time choice** (ruling 5) — replace the client's standing menu, or
+  pause it for the term and restore it after. "Pause and restore" is what makes
+  the archive-everything writer unacceptable: a paused menu must survive intact;
 - a **migration** plus back-compat for plans already in flight — every existing
   client has exactly one published row and must keep working unchanged;
-- an **end-of-program rule** (below).
+- the **end-of-program rule**, which is entitlement-driven (ruling 4) and
+  therefore **blocked on E**.
 
 **C3 — Labelling.** The week's phase name from the outline titles that week's
 menu — B's arc, riding C's food.
 
-## Open questions C forces (different from B's)
+## E — The entitlement layer (cross-discipline, blocks C2's end rule)
 
-1. **Who authors N weeks of food?** Hand-authoring 7 days × 4 weeks is 28 menus
-   per program. Realistic options: author week 1 and vary it, generate a draft
-   with the existing `generatePlanDraft` and let the coach edit, or accept that
-   programs are for coaches willing to do the work. This decides whether C1 is a
-   small builder change or a real authoring surface.
-2. **What happens after the last week?** The final week persists, the program
-   ends and the client has no menu, or it loops. "No menu" is honest but harsh;
-   silently repeating week 4 forever is a fabrication of intent.
-3. **Does a plain Meal-plan assignment still behave as it does now?** It must —
-   most clients will never be on a program — so single-menu and multi-week have
-   to coexist under one reader.
+Ruling 6 puts this outside nutrition: it is a **platform** change that also fixes
+a live training hole (finding ③). It can be built in parallel with C0/C1 and must
+land before C2's end-of-program rule.
 
-## Open questions for the owner
+- **Make the purchase kind real** (finding ②) — `booking` | `program` |
+  `meal_plan`, derived from what was bought rather than from the provider's role.
+  Everything downstream depends on telling a program from a single session.
+- **Give a program purchase a term** and, per ruling 3, a **`started_at` stamp
+  set when the client starts it** — not at purchase. A never-started purchase
+  has no clock running.
+- **Bound the replay.** `startPurchasedPlan` currently lets a client restart
+  week 1 forever; under a term, restarting is bounded by the term rather than
+  unlimited.
+- **Honest end state** on both surfaces: the plan stops, the client is told the
+  program is complete, and the re-buy is offered. Never a silent empty Eat or
+  Train tab.
+- **A single session is untouched** — consumed by attendance, not by time.
 
-1. **Is "program = arc, menu = separate assignment" the right model?** B assumes
-   yes. If a nutrition program is meant to carry its own menus, that is option C
-   plus a builder change, and a much larger build.
-2. **What happens when the arc ends?** Silently stop showing the phase line, or
-   surface "program complete" to the coach?
-3. **Should the trailing non-week block ("Grocery + prep guide") show anywhere,**
+## Still open for the owner (2 — neither blocks C0 or C1)
+
+The other two questions here are now answered: "is program = arc?" by the ruling
+for C, and "what happens when the arc ends?" by ruling 4.
+
+1. **Should the trailing non-week block ("Grocery + prep guide") show anywhere,**
    or be dropped as it is on the training side?
-4. **Overrule the web decision?** Precondition 3 commits to delivering phases on
-   web *and* mobile, because the coach cannot know which surface their client
-   uses. Scoping to mobile is cheaper and would ship sooner — but it means the
-   same assignment is visible to one member and silently absent for another. Say
-   the word if you want mobile-only anyway; it is the one precondition that is a
+2. **Overrule the web decision?** Precondition 3 commits to delivering on web
+   *and* mobile, because the coach cannot know which surface their client uses.
+   Scoping to mobile is cheaper and would ship sooner — but it means the same
+   assignment is visible to one member and silently absent for another. Say the
+   word if you want mobile-only anyway; it is the one precondition that is a
    product call rather than a correctness one.
