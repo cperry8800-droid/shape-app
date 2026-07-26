@@ -228,23 +228,38 @@ wrong `locked` count on a paid surface is a money bug:
   ],
   "weeks": null,
   "sessionsPerWeek": null,
-  "units": [ /* the sample day's meal units, existing {label,title,kcal} shape */ ],
+  "units": [ /* the WHOLE week's meal units, existing {label,title,kcal} shape */ ],
   "free":  [ /* units.slice(0, BS_PREVIEW_FREE_UNITS) */ ],
-  "locked": 6,              // TOTAL meals across all seven days, minus free
+  "locked": 6,              // units.length - free.length. NEVER minus the constant.
   "note": "…",
   "media": []
 }
 ```
 
-Three things that shape pins down:
+Four things that shape pins down. The first three are each a bug that was
+actually shipped and caught in review, so they are stated as rules rather than
+description:
 
-- **`locked` counts the WHOLE week**, not the sample day. A buyer told "6 more"
-  when the plan holds 33 would be misled about what they are purchasing.
-- **`units` / `free` are one real day** — the first day that has any meals — not
-  an interleaving of seven. A sample has to be a thing the member would actually
+- **`units` is the WHOLE week**, exactly as it is for every other kind. The
+  sheet renders `units.length` as the product's meal count, so sampling it made
+  a three-meal plan display "Meals 2". Only `free` is sampled.
+- **`free` is ONE real day** — the first day that has any meals — not an
+  interleaving of seven. A sample has to be something the member would actually
   eat on a Tuesday.
+- **`locked = units.length - free.length`, never `total - BS_PREVIEW_FREE_UNITS`.**
+  `free` is capped by the sampled day's own size, so when that day is light (one
+  Monday breakfast, fuller days after) the constant leaves meals counted in
+  **neither** the free rows nor the locked total — paid content invisible on
+  both sides of the paywall. The invariant to test is
+  `free.length + locked === units.length`.
 - **`days` carries counts only.** A locked meal's text never enters the model at
   all, so it cannot leak through a renderer that displays more than it should.
+
+⚠ **The sheet must actually RENDER `days`.** Returning it is not delivering it:
+the only consumer (`BSPlanPreviewSheet`) maps `p.free` and nothing else, so a
+model carrying the structure while the sheet ignored it showed a per-day listing
+as a sample day plus a locked count — indistinguishable from a single-day menu,
+which is the exact comparison the buyer is being asked to pay for.
 
 **A non-per-day menu keeps today's model exactly** — no `perDay` key, no `days`
 key, same `units`/`free`/`locked`. Consumers branch on `perDay` being present,
