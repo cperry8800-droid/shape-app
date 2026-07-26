@@ -345,7 +345,23 @@ current week. Requires, all of them:
   is exactly why it must be an explicit acceptance criterion rather than an
   assumption: **in week 3, the shop list contains week 3's ingredients.** A
   reader that silently keeps returning week 1 would leave a member shopping for
-  the wrong week with no visible error;
+  the wrong week with no visible error.
+
+  ⚠ **A correct reader is necessary but NOT sufficient — the manual selection
+  overrides it.** `activeGroceryList = selectedGroceryList || planGrocery`
+  (`:8679`) means any list the member picked wins over the derived one for as
+  long as it is held, so the criterion above is unenforceable on its own: pick a
+  saved list in week 1 and week 3 still shows week 1's. Today this is invisible
+  precisely because every week carries the same menu — **C2 is what makes the
+  weeks differ, so C2 is what turns it into a wrong-week shopping list.**
+  Therefore the selection must be **scoped to the program week it was made in**:
+  when the member's active program week changes, the selection is dropped and
+  that week's derived list becomes active again (`setSelectedGroceryList(null)`
+  is already the picker's own "back to the plan list" path, `:8876`). A
+  selection made *within* a week still holds for that week — a deliberate choice
+  is not clobbered mid-shop. The picker's plan row must also **name the week it
+  represents**, so "which week am I shopping for" is answerable on screen rather
+  than inferred;
 - the **assign-time choice** (ruling 5) — replace the client's standing menu, or
   pause it for the term and restore it after. "Pause and restore" is what makes
   the archive-everything writer unacceptable: a paused menu must survive intact;
@@ -367,15 +383,28 @@ and mobile will disagree about which menu is live.
 - a **standing menu** — what a plain Meal-plan assignment writes today. Carries
   no program key. This is the row every existing client has, and its behavior
   must not change (the unruled precondition above).
-- a **program week** — carries the program's identity plus which week it is
-  (a `program_id` + a week ordinal or `week_start`). N of these belong to one
-  assigned program.
+- a **program week** — carries the **run's** identity plus which week it is
+  (a run/entitlement key + a week ordinal or `week_start`). N of these belong to
+  one assigned program.
 
 **Uniqueness, stated as two constraints rather than one:** at most one *live*
 standing row per (nutritionist, client) — preserving today's invariant exactly —
-and at most one program-week row per (nutritionist, client, program, week). A
+and at most one program-week row per (nutritionist, client, **run**, week). A
 single constraint over both kinds cannot express this, which is why the program
 key has to be a real column rather than something parsed out of `payload`.
+
+⚠ **The row key is the RUN, not the catalog program — `program_id` alone
+collides on a re-buy.** Ruling 2 makes a program a repeatable sale, so
+`(client, program, week)` is not unique across two purchases of the same catalog
+program: the second run's week 1 would either overwrite the first's or attach to
+the expired entitlement. `program_id` therefore stays a **catalog reference**
+(what was bought, for labelling and re-buy), while **row identity, the
+uniqueness constraint, and the reader's selection all key on the run** — the
+`one_time_purchases.id` for a client-started purchase, and a coach-assignment id
+for a coach-assigned run, which has no purchase behind it. This is the same
+finding as E's purchase-id bullet reaching a second surface: E fixes *activation
+and the term check*, C2 fixes *the rows those produce*. Fixing one without the
+other leaves the collision intact.
 
 **Precedence when both cover the same week — one rule, applied identically by
 `/api/client/plan` and the mobile reader:**
@@ -420,6 +449,17 @@ land before C2's end-of-program rule.
 - **Give a program purchase a term** and, per ruling 3, a **`started_at` stamp
   set when the client starts it** — not at purchase. A never-started purchase
   has no clock running.
+- ⚠ **Snapshot the term LENGTH onto the purchase; never read it from the
+  catalogue at expiry time.** Ruling 3 fixes when the clock *starts* but says
+  nothing about how long it runs, and the only other source is the coach's
+  `coach_plans` row — which the coach can edit at any time. Reading it live
+  means a coach shortening their program silently expires clients who already
+  paid, lengthening it silently extends them, and deleting the plan row makes
+  expiry undefined. Store an immutable **`term_days`** (or a resolved
+  `term_ends_at` at start) **captured at purchase**, and compute expiry from
+  that alone. Where a legacy plan carries no stateable duration the purchase is
+  **unclassifiable** and takes the rule below — not a guessed default, which
+  would be fabricated precision about something a member paid for.
 - ⚠ **Carry the PURCHASE id, not just the plan id — the per-purchase invariant
   is unrepresentable without it.** Ruling 2 makes a program a *repeatable* sale,
   so a client can buy the same catalog program twice; today nothing downstream
@@ -453,6 +493,20 @@ land before C2's end-of-program rule.
   **refused** and offers the re-buy. This must be checked where the rows are
   written, not in the UI — the client owns their own `client_workouts` rows
   under RLS, so a UI-only bound is not a bound at all.
+- ⚠ **"Server-enforced" is not enough — the bound must be ATOMIC.** A read-then-
+  write check races: two start requests arriving together both read "no active
+  run", both pass, and both materialize a run for one purchase — which is
+  exactly the unbounded replay the bullet above exists to close, reachable by a
+  double-tap. The invariant must be held by the database, not by a sequence of
+  statements: a **partial unique index** giving at most one active run per
+  purchase, plus a **per-purchase `pg_advisory_xact_lock`** taken before the
+  read so the restart path (new-rows-then-delete-old) is serialized against a
+  concurrent start rather than interleaved with it. This is the house pattern
+  already in use for exactly this class — `cycle_set_settings`/`cycle_opt_out`
+  share a per-user advisory lock, and `claim_tier_reward` + `redeem_store_item`
+  take one before their guarded writes. Activation must also be **idempotent
+  under retry**, keyed on the purchase, so a client re-sending a start (flaky
+  network, double tap) restarts the same run instead of opening a second.
 - **Honest end state** on both surfaces: the plan stops, the client is told the
   program is complete, and the re-buy is offered. Never a silent empty Eat or
   Train tab.
@@ -473,8 +527,26 @@ happens to them rather than leave it to the reader:
   they do today (own-forever, replayable); the term applies to purchases made
   **after** the migration. Retro-expiring a past purchase would be taking away
   something already paid for.
-- **Unclassifiable rows fail OPEN**, to the client's benefit: no term, current
-  behavior preserved.
+- ⚠ **Fail-open is scoped to PRE-MIGRATION rows only — it is not a general
+  fallback.** An unclassifiable row created *before* the migration is a genuine
+  gap in history we chose not to punish a paying client for: it grandfathers
+  exactly as above (no term, current behavior). But applying the same rule
+  *after* the migration turns "classification failed" into **permanent free
+  entitlement**, reachable by any purchase that misses classification — which is
+  the opposite of what the term exists to do, and is exploitable by whatever
+  makes a row unclassifiable. So the rule is keyed on the **migration
+  timestamp**, not on the classifier's mood:
+  - `created_at < migration_ts` and unclassifiable → **grandfathered** (no term,
+    behaves as today).
+  - `created_at >= migration_ts` and unclassifiable → **no entitlement is
+    granted**, and the row is **quarantined and surfaced** (a loud server log +
+    a War Room item), because post-migration the kind is written at checkout
+    from what was actually bought (finding ②) — an unclassifiable row there is
+    a **bug in our write path, not a legitimate state**, and silently granting
+    it forever would hide the bug behind a free program.
+  - The client-facing state for a quarantined row is the **honest** one — the
+    purchase is visible and support can resolve it — never a silent empty tab
+    and never a fabricated term.
 
 ## Owner rulings, round 2 (2026-07-26) — nothing is open
 
