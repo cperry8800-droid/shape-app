@@ -226,3 +226,35 @@ test('preview: a nutrition WEEK BLOCK still wins over the per-day branch (C0)', 
   assert.equal(p.kind, 'block');
   assert.equal(p.perDay, undefined);
 });
+
+test('preview: locked derives from the ROWS SHOWN, not the constant allowance', () => {
+  // A light first day is the common case, and the constant made meals vanish
+  // from BOTH sides of the paywall: free showed 1, locked subtracted 2, so one
+  // paid meal was counted nowhere. free.length + locked must always == units.length.
+  const plan = { name: 'Light Monday', detail: {
+    blocks: [],
+    days: [
+      { dow: 0, blocks: ['Breakfast — Toast · 200 kcal'] },
+      { dow: 1, blocks: [
+        'Breakfast — Eggs · 400 kcal', 'Lunch — Bowl · 600 kcal',
+        'Dinner — Salmon · 700 kcal', 'Snack — Nuts · 200 kcal', 'Snack — Skyr · 150 kcal',
+      ] },
+    ],
+  } };
+  const p = bsPlanPreview(plan, { isNutri: true });
+  assert.equal(p.units.length, 6, 'units is the WHOLE plan, so the Meals register is right');
+  assert.equal(p.free.length, 1, 'the sampled day only had one meal');
+  assert.equal(p.locked, 5);
+  assert.equal(p.free.length + p.locked, p.units.length, 'nothing may fall between free and locked');
+});
+
+test('preview: units carries the whole plan so the Meals register cannot lie', () => {
+  const plan = { name: 'S', detail: { blocks: [], days: [
+    { dow: 0, blocks: ['Breakfast — Eggs · 400 kcal', 'Lunch — Bowl · 600 kcal'] },
+    { dow: 1, blocks: ['Breakfast — Skyr · 300 kcal'] },
+  ] } };
+  const p = bsPlanPreview(plan, { isNutri: true });
+  // The sheet renders units.length as the product's meal count. Sampling it
+  // would have shown "Meals 2" for a three-meal plan.
+  assert.equal(p.units.length, 3);
+});

@@ -190,20 +190,29 @@ export function bsPlanPreview(plan, opts) {
       const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
       const perDayMeals = week.days.map((d) => (d.blocks || [])
         .map(blockText).filter(Boolean).map(mealUnit).filter(Boolean));
-      const total = perDayMeals.reduce((n, list) => n + list.length, 0);
-      // The sample comes from the first day that HAS meals, so the buyer sees a
-      // real day rather than an interleaving of seven.
+      // `units` stays the WHOLE plan, as it is on every other kind — the sheet
+      // renders `units.length` as the product's Meals count, so sampling it
+      // would tell a buyer a three-meal plan has two.
+      const units = perDayMeals.flat();
+      // The FREE rows come from the first day that has meals, so what a buyer
+      // reads is a real day rather than an interleaving of seven.
       const sample = perDayMeals.find((list) => list.length) || [];
+      const free = sample.slice(0, BS_PREVIEW_FREE_UNITS);
       return {
-        kind: total ? 'menu' : null,
+        kind: units.length ? 'menu' : null,
         perDay: true,
         // Structure: free. Counts only — a locked meal's text never renders.
         days: week.days.map((d, i) => ({ label: DAY_LABELS[i], count: perDayMeals[i].length })),
         weeks,
         sessionsPerWeek: null,
-        units: sample,
-        free: sample.slice(0, BS_PREVIEW_FREE_UNITS),
-        locked: Math.max(0, total - BS_PREVIEW_FREE_UNITS),
+        units,
+        free,
+        // Derived from what was ACTUALLY shown, never from the constant: when
+        // the sampled day holds fewer meals than the allowance (a light
+        // Monday), `free.length < BS_PREVIEW_FREE_UNITS`, and subtracting the
+        // constant would leave meals counted in neither the free rows nor the
+        // locked total — paid content invisible on both sides of the paywall.
+        locked: Math.max(0, units.length - free.length),
         note,
         media,
       };
