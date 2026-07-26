@@ -1014,6 +1014,32 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
+
+- **Dependabot alert #12 cleared** — `sharp` <0.35.0, HIGH, runtime scope (four
+  inherited libvips CVEs: 2026-33327/33328/35590/35591, GHSA-f88m-g3jw-g9cj).
+  sharp arrives only as `next`'s optional dependency and nothing in the repo
+  imports it directly — but it IS the runtime image pipeline (`next/image` is in
+  use), and **no stable Next release accepts the patched line** (16.2.12 still
+  declares `sharp: ^0.34.5`). Pinned via the house `overrides` block →
+  **sharp 0.35.3** (needs node ≥20.9; local + Vercel both well past).
+- **Fixing it surfaced two more HIGH advisories the alerts API did not list:**
+  - **next 16.2.9 → 16.2.12** — nine advisories, several load-bearing for this
+    app's architecture: middleware/proxy bypass in App Router (the membership
+    gate lives in the proxy), SSRF in rewrites + Server Actions, cache
+    confusion of response bodies, image-optimizer DoS. Same-major patch bump,
+    smoke-tested with a REAL `next build` (exit 0, full route table), not just
+    tsc — a patch touching the proxy layer is exactly the kind that compiles
+    and then misbehaves.
+  - **postcss override `^8.5.15` → `^8.5.18`** (resolved 8.5.23) — the June 9
+    override had since fallen back INSIDE the vulnerable `<=8.5.17` range for
+    GHSA-r28c-9q8g-f849 (path traversal via `sourceMappingURL` auto-loading).
+  - ⚠ **The lesson that generalizes: an override pins a FLOOR, and the floor
+    goes stale.** June's pin was correct when written and vulnerable six weeks
+    later. Re-check the whole `overrides` block whenever touching deps.
+- Verified: `npm audit --omit=dev` → **0 vulnerabilities** (was 2 high + the
+  alert) · tsc clean · `next build` exit 0 · 846 tests · deps-only diff.
+
 ### 2026-07-26 — Nutrition week-block programs: RULED + spec'd build-ready (#1834, open) · four fixes merged (#1830–#1833)
 
 - **Session handoff: [`docs/HANDOFF-2026-07-26.md`](HANDOFF-2026-07-26.md)** —
