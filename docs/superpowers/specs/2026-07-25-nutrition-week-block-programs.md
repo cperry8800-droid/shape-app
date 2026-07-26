@@ -21,12 +21,21 @@ signal, not this paragraph.
 | Track | State |
 | --- | --- |
 | **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
-| **C1** — per-day menus + make the ✦ AI DRAFT real | ✅ **build-ready — next** |
+| **C1a** — per-DAY menus (the builder authors a different day) | ✅ **build-ready — next** |
+| **C1b** — make the ✦ AI DRAFT real | ⛔ **blocked on the AI contract** (below) |
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
-Build order is therefore **C0 (done) → C1**, then C2 → C3 once E is ruled
-build-ready. C1 depends on nothing in E.
+Build order is therefore **C0 (done) → C1a**, then C1b once the AI contract is
+written, then C2 → C3 once E is ruled build-ready. **C1a depends on nothing in
+E and nothing in the AI contract** — it is pure builder + assign work, and it is
+the half carrying the standalone value.
+
+⚠ **C1 was split because the AI half is not build-ready.** An earlier revision
+marked the whole of C1 build-ready; review established that the route cannot
+express what the builders need (below), so shipping "make the draft real" would
+put training content in a nutrition editor. The per-day half is untouched by
+that and proceeds.
 
 ## ⚠ The finding that reorders this work
 
@@ -337,38 +346,52 @@ weeks a coach actually filled and still forbids fabricating "Reset & habits"
 into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
 of the rule C2 generalizes.
 
-**C1 — Per-DAY menus (the prerequisite), and the AI draft made real.** The
-builder learns to author a different day; the assign stops replicating one
-`meals` array across all seven (`iosAppBroadsheetPros.jsx:3362`). Per ruling 1,
-this is also where **the AI draft stops being discarded** — `generatePlanDraft`'s
-returned blocks become the outline instead of the hardcoded template (finding ①),
-so a coach drafts week 1 with AI and edits it. Without C1, every week in C2 is
-the same five meals repeated and the wave delivers nothing a client can taste.
-Largest standalone value in the whole spec.
+**C1a — Per-DAY menus (the prerequisite). BUILD-READY.** The builder learns to
+author a different day; the assign stops replicating one `meals` array across all
+seven (`BSProAssignPage`'s `apply()`, the `Array.from({ length: 7 }, …)` week
+builder). Without this, every week in C2 is the same five meals repeated and the
+wave delivers nothing a client can taste. **Largest standalone value in the whole
+spec, and it touches neither E nor the AI route** — which is why it is the half
+that proceeds.
 
-⚠ **"Make the draft real" is NOT just deleting the hardcoded template — the API
-contract does not currently accept what the nutrition builder sends.** Both
-halves of the mismatch are load-bearing:
+**C1b — The AI draft made real. BLOCKED on the contract below.** Per ruling 1
+this is where the draft stops being discarded (finding ①) — but the route cannot
+currently express what the builders need, so building it would put training
+content in a nutrition editor.
 
-- **The kind is silently wrong.** The nutritionist builder's `buildType` is
-  `mealplan | program | diet` (`iosAppBroadsheetPros.jsx:5990`) and it is sent
-  straight through as `kind` (`:6052`); the trainer's is `plan | workout |
-  program` (`:5106`, sent at `:5171`). But the route's `GenerateKind` is
-  `'workout' | 'program' | 'meal_plan'` (`generate-plan/route.ts:9`) and it
-  **normalizes anything unrecognized to `'workout'`** (`:101`). So `mealplan`,
-  `diet` and the trainer's `plan` all resolve to **workout** — a nutritionist
-  asking for a meal plan gets exercises back. Today that is invisible *because
-  the answer is discarded*; the moment C1 renders it, a coach's ✦ AI DRAFT
-  produces a workout in a meal-plan builder. **The build must map the builder's
-  kinds onto the route's before consuming the response** (and either widen
-  `GenerateKind` or reject an unknown kind rather than defaulting — defaulting
-  to `workout` is how this stayed silent).
-- **`meal_plan` doesn't return seven distinct days.** The route's meal-plan
-  branch (`:118`) and program branch (`:144`) return their own schemas, neither
-  of which is "7 different menu days" — which is precisely what C1 exists to
-  author. The **response shape must be specified before the build consumes it**,
-  or C1 ships a real AI call whose answer still can't populate the thing it was
-  called for.
+⚠ **The contract, stated — because "map the kinds" is not a specification.**
+There are **six builder modes** and only three route kinds, and the collision is
+not merely one of naming: `GenerateKind` is `'workout' | 'program' | 'meal_plan'`
+(`generate-plan/route.ts:9`) and anything unrecognized **normalizes to
+`'workout'`** (`:101`).
+
+| Role | `buildType` | Today resolves to | What it actually needs |
+| --- | --- | --- | --- |
+| trainer | `workout` | `workout` ✓ | a single session |
+| trainer | `program` | `program` ✓ | a multi-week training split |
+| trainer | `plan` | **`workout`** ✗ | a sellable multi-week plan |
+| nutritionist | `mealplan` | **`workout`** ✗ | **7 DISTINCT menu days** |
+| nutritionist | `diet` | **`workout`** ✗ | a diet template |
+| nutritionist | `program` | `program` ✗ | nutrition **phases** — week titles, no meals |
+
+⚠ **The last row is why a rename cannot fix this.** Nutritionist `program` and
+trainer `program` both already resolve to the *recognized* `program`, so no
+normalization warning fires — but the route's `program` branch (`:144`) emits a
+**multi-week training block**, while the nutrition side wants an arc of week
+titles carrying no food (exactly the C0 shape). A kind alone cannot separate
+them; the route needs a **role/discipline discriminator alongside the kind**, or
+distinct kinds per mode.
+
+So C1b requires, before any code consumes a response:
+
+1. **A discriminator and a total mapping** — every one of the six modes above
+   resolves explicitly. Unknown combinations are **rejected**, not defaulted;
+   defaulting to `workout` is *how this stayed silent for so long*.
+2. **A response schema per mode**, including the seven-distinct-days shape the
+   nutrition mealplan mode needs, which no current branch returns.
+3. **Validation of the response against that schema before it is persisted or
+   displayed** — the builder must refuse a shape it did not ask for rather than
+   render it. An AI response is untrusted input like any other.
 
 **C2 — Multi-week storage.** N `client_meal_plans` rows coexist, selected by the
 current week. Requires, all of them:
@@ -553,6 +576,19 @@ ordinal** rather than treating the week as uncovered. This applies ONLY to the
 ongoing-entitlement case — a **one-off program whose TERM has ended** still
 stops (ruling 4's other half), falls to rule 2, and offers the re-buy.
 
+⚠ **The clamp and the selection must use the MEMBER-LOCAL week — and the API
+does not today.** "Which week is it" decides both which row wins (rule 1) and
+whether the weeks are exhausted (rule 1b), so a wrong week key produces a wrong
+menu, not a rounding error. `/api/client/plan` currently derives its week from
+the **server-local** `Date` (`weekStartISO()`), so a member near a timezone or
+DST boundary can be served the wrong authored week — and near the end of a
+program, the difference between "last authored week" and "exhausted" is the
+difference between their food and no food. Both the selection and the clamp must
+key on the member-local week defined in **Week-time semantics** above
+(`shape_user_tz`, Monday-based via `bsRepeatSpec`'s `0 = MONDAY`), and the API's
+own week key must be moved onto it. This is the same class as the coach-clock
+bug that already shipped once and needed `2026-07-20-cycle-coach-today.sql`.
+
 ⚠ **Rule 2 is conditional on the stored conflict choice — not a blanket
 fallback.** Partial coverage is explicitly permitted (the invariant only
 promises rows for "weeks a coach actually filled"), so a week the program simply
@@ -593,8 +629,9 @@ radius, and the rest of this wave stops waiting on it.
 
 **What this changes for the build:**
 
-- **C0 and C1 do not depend on E at all** and are build-ready now. C0 is
-  already shipped (#1836); C1 is next.
+- **C0 and C1a do not depend on E at all.** C0 is already shipped (#1836);
+  **C1a** (per-day menus) is the next build. **C1b** (the AI draft made real) is
+  independent of E too, but is blocked on its own AI contract — see C1b above.
 - **C2 and C3 remain blocked on E** — specifically C2's end-of-program rule,
   which needs a term to end. They are **not** build-ready, and the sections
   above describing them stand as design, not as a build contract.
