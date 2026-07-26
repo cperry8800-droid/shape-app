@@ -167,6 +167,26 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
   is false, the preview sources from the resolved day (which for a legacy plan
   IS `detail.blocks`), so a uniform-override plan previews the menu that is
   actually installed.
+
+  **Canonical equality, since "distinct value" is doing load-bearing work over
+  arrays of mixed shapes:** two day menus are equal when their **ordered
+  sequences of block TEXTS match** — each block reduced to its text (`b.text`
+  for an authored object, the string itself otherwise, `String()`-coerced),
+  compared position by position, same length required. Explicitly:
+
+  - **Order matters.** The sequence is the menu's course order (breakfast
+    before dinner); a reordered day is a different day.
+  - **Object identity never matters.** An editing UI produces fresh objects
+    for untouched days; equality is by rendered text, so those still compare
+    equal.
+  - **PR E `steps` and other non-text metadata are EXCLUDED — deliberately.**
+    `perDay` backs one buyer-facing claim: *the menus vary by day*. A menu is
+    what is eaten; steps are how it is cooked, and the preview renders text
+    and kcal only — it cannot show a steps difference, so counting one would
+    make the strip advertise variation the buyer can never see or verify
+    before paying. Two days serving the same meals with different authored
+    methods are the same MENU. (The steps still ride delivery untouched;
+    nothing is lost — they are just not what "per-day" claims.)
 **Bounds and malformed input — one canonical policy, stated exactly.** `detail`
 comes off a **public-read provider row**, so every rule below is a rule about
 attacker-shaped data, not a tidiness preference. Assign and the preview share
