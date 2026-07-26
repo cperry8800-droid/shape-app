@@ -135,8 +135,29 @@ land before C2's end-of-program rule.
   today         = current date in activation_tz            # never shape_user_tz
   term_ends_on  = started_on + term_days - 1               # INCLUSIVE
   in_term       = started_on <= today AND today <= term_ends_on
-  active        = in_term AND purchase.status = 'paid'     # BOTH, always
+  entitled      = the run's SOURCE still authorizes it     # see below
+  active        = in_term AND entitled                     # BOTH, always
   ```
+
+  ⚠ **`entitled` is source-specific, because a coach-assigned run has no
+  purchase to ask.** Writing the rule as `purchase.status = 'paid'` reads as
+  universal, and this document requires assigned content to use the *same* run
+  model — so that phrasing would make every coach-assigned program permanently
+  inactive (or dereference a null purchase) while the client's coaching
+  relationship is perfectly valid. The run therefore records **what authorized
+  it**, and `entitled` asks that source:
+
+  ```text
+  source = 'purchase'      → the one_time_purchases row has status = 'paid'
+  source = 'coach_assign'  → the coaching relationship that assigned it is live
+  ```
+
+  The assigned branch is deliberately named and **not** specified further here:
+  it depends on the immutable assign-time record that conditions 1 + 2 already
+  block on, and inventing its predicate now would be the third time this
+  document guessed at the coach-assigned path. What matters is that the shape
+  is right — one predicate, one source of authority per run — so that closing
+  those conditions fills a defined slot instead of reopening this one.
 
   Both sides of the date comparison run on the SAME frozen clock — freezing only
   the dates while deriving "today" from the mutable `shape_user_tz` (which
@@ -155,9 +176,10 @@ land before C2's end-of-program rule.
   refunded purchase is not owned. A run reading dates alone would therefore
   disagree with the Library on the same row: the plan vanishes from what you own
   while the materialized Eat/Train content stays live and restartable for the
-  rest of the term. Every authoritative read conjoins both terms, and the run's
-  status is derived from the purchase rather than copied to it — a copy is a
-  second source of truth that drifts the first time a webhook is missed.
+  rest of the term. Every authoritative read conjoins both terms, and
+  `entitled` is derived from the run's source rather than copied onto the run —
+  a copy is a second source of truth that drifts the first time a webhook is
+  missed.
 
   **Refund and dispute are therefore lifecycle transitions, and they must be
   written down:** on `charge.refunded` / `charge.dispute.created` for a purchase
@@ -359,9 +381,20 @@ happens to them rather than leave it to the reader:
 
   So the live catalogue is **corroborating evidence, not authority**. A row
   classifies as a program only on **immutable sale-time evidence** — sale-time
-  metadata, the charge's own line items, or a `coach_plans` row demonstrably
-  unmodified since the purchase (`updated_at <= purchase.created_at`, where that
-  column can carry the claim). Absent that, the row is **unresolved** — the same
+  metadata or the charge's own line items.
+
+  ⚠ **And "unmodified since the purchase" must be measured from CHECKOUT-SESSION
+  CREATION, not from the purchase row.** An earlier revision offered
+  `coach_plans.updated_at <= purchase.created_at` as a third form of evidence.
+  It is not evidence: the purchase row is written by the **webhook**, so it is
+  stamped when payment completes, and this document has already established that
+  a coach can edit the plan in the gap between the buyer agreeing to a shape and
+  the payment landing. An edit made inside that window satisfies the comparison
+  while being exactly the change the rule was meant to catch — the same
+  checkout/payment gap the snapshot rule exists for, re-entered from the other
+  end. If the comparison is used at all it must run against the **Checkout
+  Session's** creation time, which is the moment the buyer saw what they were
+  buying. Absent that, the row is **unresolved** — the same
   third outcome the NULL case takes below, for the same reason: the failure
   direction has to favour the person who paid, and an unresolved row is a
   question asked of support rather than an answer invented by a migration.
