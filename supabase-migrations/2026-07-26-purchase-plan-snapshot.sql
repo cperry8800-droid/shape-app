@@ -117,28 +117,30 @@ begin
     return NEW;
   end if;
 
-  -- A stored 'checkout' snapshot is the record of what was actually sold, taken
-  -- at the moment it was sold. It is IMMUTABLE. This is the case a
-  -- named-vs-unnamed rule alone misses: a replay of the same Checkout Session
-  -- AFTER the coach edits a still-live plan produces a perfectly valid NEW named
-  -- snapshot, which would silently overwrite the purchased name/meta/detail —
-  -- so the buyer's record would describe a plan they did not buy. A replay must
-  -- never re-snapshot.
-  if coalesce(OLD.plan_snapshot->>'snapshot_source', '') = 'checkout' then
+  -- ANY stored NAMED snapshot is IMMUTABLE, whatever its source.
+  --
+  -- A replay of the same Checkout Session AFTER the coach edits a still-live
+  -- plan produces a perfectly valid NEW named snapshot, which would silently
+  -- overwrite the purchased name/meta/detail — the buyer's record would then
+  -- describe a plan they did not buy. A replay must never re-snapshot.
+  --
+  -- ⚠ There is deliberately NO 'backfill' -> 'checkout' promotion. An earlier
+  -- revision allowed one, reasoning that a checkout capture has better
+  -- provenance than a reconstruction. It does not, and cannot: the backfill only
+  -- ever touches purchases that ALREADY EXISTED when this migration ran, so any
+  -- later checkout.session.completed for such a row is necessarily a REPLAY of
+  -- an old event — and the webhook labels every successful plan read
+  -- 'checkout', making a replay indistinguishable from a fresh capture. The
+  -- promotion could therefore only ever import content from AFTER the purchase,
+  -- which is the exact failure this guard exists to prevent. A backfilled row
+  -- proving the purchase predates the delivery is precisely why the delivery
+  -- must not be trusted to improve it.
+  if coalesce(OLD.plan_snapshot->>'name', '') <> '' then
     NEW.plan_snapshot := OLD.plan_snapshot;
-    return NEW;
   end if;
 
-  -- A 'backfill' snapshot was reconstructed from the live row after the fact, so
-  -- a checkout capture is strictly better provenance and may PROMOTE it. Nothing
-  -- else may replace a named snapshot — not the id-only deletion marker, not
-  -- NULL, not another backfill.
-  if coalesce(OLD.plan_snapshot->>'name', '') <> ''
-     and coalesce(NEW.plan_snapshot->>'snapshot_source', '') <> 'checkout' then
-    NEW.plan_snapshot := OLD.plan_snapshot;
-  end if;
-
-  -- An unnamed marker CAN still be upgraded to a real snapshot (falls through).
+  -- An unnamed marker CAN still be upgraded to a real snapshot (falls through):
+  -- there is nothing to lose and content to gain.
   return NEW;
 end;
 $$;
