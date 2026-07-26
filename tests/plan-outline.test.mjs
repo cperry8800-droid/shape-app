@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import {
   bsAssignExercise,
   bsAssignDayLine,
+  bsAssignWeekLine,
+  bsWeekUnits,
+  bsWeekSpan,
   bsAssignMeal,
   bsMaterializeOutline,
 } from '../mobile-app/src/services/planOutline.mjs';
+import { bsPlanPreview } from '../mobile-app/src/services/planPreview.mjs';
 
 test('exercise parse: "Back squat — 4 × 6 · RPE 8"', () => {
   const e = bsAssignExercise('Back squat — 4 × 6 · RPE 8');
@@ -63,4 +67,122 @@ test('materializeOutline: a non-split exercise outline becomes one weekly sessio
   assert.equal(rows[0].payload.exercises.length, 2);
   assert.equal(rows[0].payload.exercises[0].name, 'Back squat');
   assert.equal(rows[1].scheduledDate, '2026-07-20');
+});
+
+// ── Week-block outlines ─────────────────────────────────────────────────────
+// NOT malformed input: the trainer's paid `plan` builder and the nutritionist's
+// `program` builder both emit exactly this shape (and label the field "Weeks").
+// A week label describes HOW HARD over time; it is not a movement.
+
+test('week line: "Week 3 — Intensification" parses; weekday / exercise lines do not', () => {
+  const w = bsAssignWeekLine('Week 3 — Intensification');
+  assert.equal(w.week, 3);
+  assert.equal(w.title, 'Intensification');
+  assert.equal(bsAssignWeekLine('Week 1').week, 1);   // a bare label still parses
+  assert.equal(bsAssignWeekLine('Week 1').title, ''); // …with no stated phase
+  assert.equal(bsAssignWeekLine('Mon — Upper (push)'), null);
+  assert.equal(bsAssignWeekLine('Back squat — 4×6'), null);
+  assert.equal(bsAssignWeekLine('Weekly conditioning — 3×10'), null); // "Weekly" is not "Week N"
+});
+
+test('materializeOutline: a week label is NEVER turned into an exercise (the regression)', () => {
+  const plan = { id: 'pw', name: 'Hypertrophy Block', detail: { blocks: [
+    { text: 'Week 1 — Accumulation' }, { text: 'Week 2 — Accumulation' },
+    { text: 'Week 3 — Intensification' }, { text: 'Week 4 — Deload' }] } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 4, runId: 'r' });
+  const names = rows.flatMap((r) => r.payload.exercises.map((e) => e.name));
+  assert.equal(names.length, 0, `week labels leaked in as exercises: ${JSON.stringify(names)}`);
+  // and the old bug's exact signature — a "load" of Intensification — is gone
+  const loads = rows.flatMap((r) => r.payload.exercises.map((e) => e.load));
+  assert.ok(!loads.includes('Intensification'));
+});
+
+test('materializeOutline: a week-block outline schedules ONE session per stated week, titled by phase', () => {
+  const plan = { id: 'pw', name: 'Hypertrophy Block', detail: { blocks: [
+    { text: 'Week 1 — Accumulation' }, { text: 'Week 2 — Accumulation' },
+    { text: 'Week 3 — Intensification' }, { text: 'Week 4 — Deload' }], note: 'Bring the log.' } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 4, runId: 'r' });
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map((r) => r.title),
+    ['Accumulation', 'Accumulation', 'Intensification', 'Deload']);
+  assert.deepEqual(rows.map((r) => r.scheduledDate),
+    ['2026-07-13', '2026-07-20', '2026-07-27', '2026-08-03']);
+  assert.deepEqual(rows.map((r) => r.payload.program.week), [1, 2, 3, 4]);
+  assert.equal(rows[2].payload.program.phase, 'Intensification');
+  assert.ok(rows.every((r) => r.payload.program.id === 'plan:pw' && r.payload.program.runId === 'r'));
+});
+
+test('materializeOutline: the outline states its own length — a trailing non-week block is not a week', () => {
+  // The nutritionist `program` builder emits exactly this (4 weeks + a guide).
+  const plan = { id: 'pn', name: 'Reset', detail: { blocks: [
+    { text: 'Week 1 — Reset & habits' }, { text: 'Week 2 — Build routine' },
+    { text: 'Week 3 — Dial macros' }, { text: 'Week 4 — Lock it in' },
+    { text: 'Grocery + prep guide' }] } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 4, runId: 'r' });
+  assert.equal(rows.length, 4, 'the guide block must not schedule a 5th week');
+  assert.ok(!rows.some((r) => /grocery/i.test(r.title)));
+});
+
+test('materializeOutline: a split keeps its phase label instead of silently dropping it', () => {
+  const plan = { id: 'ps', name: 'PPL', detail: { blocks: [
+    { text: 'Week 1 — Base' }, { text: 'Mon — Push' }, { text: 'Wed — Pull' }, { text: 'Fri — Legs' }] } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 2, runId: 'r' });
+  assert.equal(rows.length, 6, 'split still wins (>=3 day lines) — 3 sessions x 2 weeks');
+  assert.ok(!rows.some((r) => /^week/i.test(r.title)), 'a week label is not a session title here');
+  assert.equal(rows[0].payload.program.phase, 'Base', 'week 1 sessions carry the phase');
+  assert.equal(rows[3].payload.program.phase, undefined, 'week 2 has no stated phase');
+});
+
+test('materializeOutline: duration is the STATED SPAN, not the number of labels', () => {
+  // "Week 1" + "Week 6" is a six-week plan with two authored weeks. Counting
+  // labels would persist weeks:2 while the last session lands five weeks out.
+  const plan = { id: 'sp', name: 'Sparse', detail: { blocks: [
+    { text: 'Week 1 — Base' }, { text: 'Week 6 — Peak' }] } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 4, runId: 'r' });
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.scheduledDate), ['2026-07-13', '2026-08-17']); // +0 and +5 weeks
+  assert.ok(rows.every((r) => r.payload.program.weeks === 6), 'persisted duration is the span');
+  assert.equal(bsPlanPreview(plan).weeks, 6, 'and the preview agrees');
+});
+
+test('week units: duplicates collapse and out-of-order lines sort ascending', () => {
+  const lines = ['Week 3 — Peak', 'Week 1 — Base', 'Week 3 — Duplicate', 'Week 2 — Build'].map(bsAssignWeekLine);
+  const u = bsWeekUnits(lines);
+  assert.deepEqual(u.map((x) => x.week), [1, 2, 3]);
+  assert.equal(u[2].title, 'Peak', 'the first stated title for a week wins');
+  assert.equal(bsWeekSpan(u), 3);
+  assert.deepEqual(bsWeekUnits([]), []);
+  assert.equal(bsWeekSpan([]), 0);
+});
+
+// The preview module's stated contract: "one implementation, so a preview can
+// never describe a plan differently from how it is delivered." Pin it.
+test('preview and materialize AGREE on the built-in 6-week plan outline', () => {
+  const blocks = ['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification',
+    'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest'].map((text, i) => ({ id: 'b' + i, text }));
+  const plan = { id: 'pb', name: 'Hypertrophy Plan', detail: { blocks } };
+  const pv = bsPlanPreview(plan);
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 6, runId: 'r' });
+  assert.equal(pv.kind, 'block');
+  assert.equal(pv.weeks, 6, 'preview reads 6 weeks');
+  assert.equal(rows.length, 6, 'delivery must produce the 6 weeks the preview promised');
+  assert.equal(pv.units.length, rows.length);
+});
+
+test('preview and materialize agree on a MESSY outline (duplicate + out of order)', () => {
+  // A clean 1..6 sequence can't catch the two modules aggregating differently.
+  // Before bsWeekUnits was shared, the preview neither deduped nor sorted, so it
+  // listed 4 units in authored order while delivery built 3 in week order —
+  // a different unit count AND a different paid-content `locked` count.
+  const blocks = ['Week 3 — Peak', 'Week 1 — Base', 'Week 3 — Duplicate', 'Week 2 — Build']
+    .map((text, i) => ({ id: 'b' + i, text }));
+  const plan = { id: 'pm', name: 'Messy', detail: { blocks } };
+  const pv = bsPlanPreview(plan);
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 3, runId: 'r' });
+  assert.equal(pv.units.length, rows.length, 'same unit count');
+  assert.deepEqual(pv.units.map((u) => u.label), ['WEEK 1', 'WEEK 2', 'WEEK 3']);
+  assert.deepEqual(rows.map((r) => r.payload.program.week), [1, 2, 3], 'same order');
+  assert.deepEqual(pv.units.map((u) => u.title), rows.map((r) => r.title), 'same titles');
+  assert.equal(pv.weeks, 3);
+  assert.ok(rows.every((r) => r.payload.program.weeks === 3));
 });

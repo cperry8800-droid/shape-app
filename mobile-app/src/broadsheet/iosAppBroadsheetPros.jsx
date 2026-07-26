@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -3319,7 +3319,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     .filter(b => String(((b && b.text != null) ? b.text : b) || '').trim());
   const blocks = rawBlocks.map(b => String(((b && b.text != null) ? b.text : b) || '').trim());
   const dayLines = blocks.map(bsAssignDayLine);
+  const weekLines = blocks.map(bsAssignWeekLine);
   const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
+  // A week-block plan ("Week 1 — Accumulation" …) — what the paid-`plan` builder
+  // emits. Same precedence + threshold as bsMaterializeOutline and the Listing
+  // preview, so all three classify a plan identically.
+  const isWeekBlock = !isNutri && !isSplit && weekLines.filter(Boolean).length >= 2;
+  const weekUnits = bsWeekUnits(weekLines);
   const planNote = (plan && plan.detail && plan.detail.note) || '';
 
   const apply = async () => {
@@ -3367,8 +3373,19 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
           }
         }
+      } else if (isWeekBlock) {
+        // One session per week the coach STATED, titled by that week's phase.
+        // The outline's own week numbers drive the schedule (the Weeks stepper
+        // is hidden for this shape — a block's length is intrinsic). Exercises
+        // are empty on purpose: the coach wrote a phase, not movements.
+        const basePayload = timeSel ? { time: timeSel } : {};
+        for (const u of weekUnits) {
+          const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
+          await window.ShapeAssign.workout({ clientId: uid, title: u.title || `${plan.name} · Week ${u.week}`, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+        }
       } else {
-        const exercises = blocks.map(bsAssignExercise).filter(Boolean);
+        // Week labels are never movements — keep them out of the exercise list.
+        const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
         const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
           const d = new Date(start); d.setDate(d.getDate() + w * 7);
@@ -3411,7 +3428,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
     : isSplit
       ? tr('coach:assign.whenSplit', { defaultValue: '{sessions} sessions/wk · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: dayLines.filter(d => d && !d.rest).length, weeks, from: fromLabel })
-      : tr('coach:assign.whenWeekly', { defaultValue: 'Weekly · {weeks, plural, one {# week} other {# weeks}} · from {from}', weeks, from: fromLabel });
+      // A week block is one session per stated week — accurate under the existing
+      // "Weekly · N weeks" copy, so it reuses that key with the outline's OWN
+      // length rather than the (hidden) stepper value.
+      : tr('coach:assign.whenWeekly', { defaultValue: 'Weekly · {weeks, plural, one {# week} other {# weeks}} · from {from}', weeks: isWeekBlock ? bsWeekSpan(weekUnits) : weeks, from: fromLabel });
 
   return (
     <BSPage>
@@ -3453,9 +3473,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                   );
                 })}
               </div>
-              <div style={{ marginTop: 12 }}>
-                <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} sub={isSplit ? tr('coach:assign.repeatsSplit', { defaultValue: 'Repeats the weekly split' }) : tr('coach:assign.repeatsSession', { defaultValue: 'Repeats the session weekly' })} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
-              </div>
+              {/* A week block states its own length, so there is nothing to
+                  choose — showing a Weeks stepper would let the coach pick a
+                  number the plan then ignores. */}
+              {!isWeekBlock && (
+                <div style={{ marginTop: 12 }}>
+                  <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} sub={isSplit ? tr('coach:assign.repeatsSplit', { defaultValue: 'Repeats the weekly split' }) : tr('coach:assign.repeatsSession', { defaultValue: 'Repeats the session weekly' })} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
+                </div>
+              )}
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
                 <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
