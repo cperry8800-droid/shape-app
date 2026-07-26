@@ -217,10 +217,9 @@ data the client never sees, or fails to fix the bug at all.
    on the same day.
 
    **This is the build contract: both surfaces, no ambiguity at build time.**
-   The owner can still choose mobile-only — it is a product call, not a
-   correctness one — but that changes the contract, so it is an **amendment
-   made to this spec before the build starts**, never an assumption taken
-   mid-build. Until amended, build both.
+   ✅ **RATIFIED 2026-07-26 (ruling 8) — not overruled.** The owner was offered
+   the mobile-only amendment before any build started and kept both surfaces.
+   Settled: build both, and do not re-raise it mid-build.
 4. **A stated start date.** "Which week are we in" derives from a real
    `phaseStartISO`, never from a `created_at` that moves under a re-assign —
    and it resolves through the single definition in **"Week-time semantics"**
@@ -291,6 +290,18 @@ by dependency, smallest shippable first:
 bug fix, it is independent of everything below, and it should ship first so the
 phantom menu stops being installed while the rest is built.
 
+⚠ **The structural cause, and therefore the shape of the fix.** `isWeekBlock` is
+gated on `!isNutri` (`iosAppBroadsheetPros.jsx:3327`), so week-block detection is
+*unreachable* on the nutrition side and the `isNutri` branch maps every block
+through `bsAssignMeal` unconditionally. C0 is mostly removing a guard that was
+never true for nutrition — reusing the SAME `bsAssignWeekLine` grammar and the
+same ≥2 threshold, so nutrition and training classify an outline identically
+(one grammar, per `planOutline.mjs`).
+
+Per **ruling 7**, C0 also states what it did NOT deliver: the trailing non-week
+block is dropped from delivery and **named in the assign confirmation**, never
+dropped silently.
+
 ⚠ **C0 is the pre-C2 safety behavior, not a permanent ban on writing rows.**
 C2's whole point is to materialize N rows, so read the two together as one
 invariant that survives the wave:
@@ -323,6 +334,18 @@ current week. Requires, all of them:
   each insert (`/api/nutritionist/meal-plan`), or each new week retires the last;
 - the **reader** (`/api/client/plan`, currently `published` / `created_at desc` /
   `limit 1`) to select by `week_start` against the member's local week;
+- the **grocery list to follow the week.** ⚠ Do not re-invent this: the shop list
+  is ALREADY derived from the assigned menu every week —
+  `bsBuildPlanGrocery(PROGRAM, …)` (`iosAppBroadsheetClient.jsx:7530`) walks
+  `days → meals → ingredients`, dedupes by name, collapses repeated quantities,
+  buckets by aisle, and is credited to the real nutritionist + named after their
+  plan; `activeGroceryList = selectedGroceryList || planGrocery` makes it the
+  DEFAULT list. Because it consumes the same `PROGRAM` the reader produces, a
+  correct per-week reader carries the grocery list along **for free** — but that
+  is exactly why it must be an explicit acceptance criterion rather than an
+  assumption: **in week 3, the shop list contains week 3's ingredients.** A
+  reader that silently keeps returning week 1 would leave a member shopping for
+  the wrong week with no visible error;
 - the **assign-time choice** (ruling 5) — replace the client's standing menu, or
   pause it for the term and restore it after. "Pause and restore" is what makes
   the archive-everything writer unacceptable: a paused menu must survive intact;
@@ -419,18 +442,31 @@ happens to them rather than leave it to the reader:
 - **Unclassifiable rows fail OPEN**, to the client's benefit: no term, current
   behavior preserved.
 
-## Still open for the owner (2 — neither blocks C0 or C1)
+## Owner rulings, round 2 (2026-07-26) — nothing is open
 
-The other two questions here are now answered: "is program = arc?" by the ruling
-for C, and "what happens when the arc ends?" by ruling 4.
+Both remaining questions were ruled **before any build started**, which is the
+order this spec demands of the web one.
 
-1. **Should the trailing non-week block ("Grocery + prep guide") show anywhere,**
-   or be dropped as it is on the training side?
-2. **Overrule the web decision?** Precondition 3's build contract is **both
-   surfaces**, and that is what gets built unless this spec is amended first —
-   there is no ambiguity for the builder either way. Raising it here only
-   because it is the one precondition that is a product call rather than a
-   correctness one: scoping to mobile is cheaper and ships sooner, at the cost
-   of the same assignment being visible to one member and silently absent for
-   another. Say the word and the spec is amended before the build; say nothing
-   and both surfaces ship.
+7. **The trailing non-week block is DROPPED from delivery — and the coach is
+   told.** ⚠ **The reason matters, because the first framing of this question was
+   wrong.** It is not that "Grocery + prep guide" has no items to build from —
+   **the app already sends the meal plan's items to the grocery list every week.**
+   `bsBuildPlanGrocery` derives the shop list from the assigned menu's own
+   ingredients (see the C2 bullet above), and it is the DEFAULT list a member
+   sees. So the block is **redundant with a feature that already ships**, and
+   materializing it would create a second, hand-authored grocery list that can
+   disagree with the derived one — two shop lists for one week.
+   Therefore: not delivered, and the assign confirmation **says so and says why**
+   ("Grocery + prep guide — not delivered; the shop list builds automatically
+   from this plan's meals"). The drop is never silent. ⚠ Note the training-side
+   precedent was thinner than assumed — the trainer's week-block template emits
+   six week lines and NO trailing block, so nothing was ever *deliberately*
+   dropped there; the drop is emergent (`bsWeekUnits` skips non-week lines).
+8. **Web parity CONFIRMED — both surfaces, as precondition 3 states.** Not
+   overruled. The mobile-only saving is smaller than "cheaper and ships sooner"
+   implies: **both surfaces already read the same route** (mobile
+   `shapeBackend.js:3715`, web `dashNutri.jsx:194` — both `/api/client/plan`), so
+   mobile-only would still need the same field added and would save only the
+   `dashNutri.jsx` render block. C2's week selection lives in that shared route,
+   so it is correct on both surfaces by construction either way; this ruling
+   governs the phase-line render alone.
