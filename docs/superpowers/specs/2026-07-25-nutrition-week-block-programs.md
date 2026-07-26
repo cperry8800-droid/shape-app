@@ -214,9 +214,18 @@ data the client never sees, or fails to fix the bug at all.
    **Acceptance:** `/api/client/plan` returns the phase arc alongside
    `coachTargets`; `dashNutri.jsx` renders the current week's phase line; and a
    client with an assigned arc sees the *same* week and phase on web and mobile
-   on the same day. (Owner may still overrule and scope to mobile — question 4.)
+   on the same day.
+
+   **This is the build contract: both surfaces, no ambiguity at build time.**
+   The owner can still choose mobile-only — it is a product call, not a
+   correctness one — but that changes the contract, so it is an **amendment
+   made to this spec before the build starts**, never an assumption taken
+   mid-build. Until amended, build both.
 4. **A stated start date.** "Which week are we in" derives from a real
-   `phaseStartISO`, never from a `created_at` that moves under a re-assign.
+   `phaseStartISO`, never from a `created_at` that moves under a re-assign —
+   and it resolves through the single definition in **"Week-time semantics"**
+   below (a member-local `YYYY-MM-DD` date, Monday-based), which C2's
+   `week_start` selection and E's term reuse verbatim.
 
 ### C — N sequential menus
 
@@ -243,6 +252,34 @@ against what the builder emits today. **The owner ruled C on 2026-07-26**, takin
 the larger product. B is not discarded: a week's phase name is the natural title
 for that week's menu, so B's arc becomes C's labelling layer rather than a
 competing design.
+
+## Week-time semantics — ONE definition, reused everywhere
+
+Three separate things now ask "which week is it": `phaseStartISO` (precondition
+4), C2's `week_start` selection, and E's term. If they answer differently, a
+member sees one week on web and another on mobile around midnight, or a term
+expires a day early in one timezone. Define it once:
+
+- **`phaseStartISO` and `week_start` are DATES, not instants** — `YYYY-MM-DD`,
+  no time component, no offset. An instant would make the answer depend on who
+  is asking.
+- **The member's own timezone owns every boundary**, resolved through the
+  existing `shape_user_tz(uid)` helper with the same null fallback the cycle
+  work already uses. Never the coach's clock and never the server's — that exact
+  bug shipped once already and needed the `2026-07-20-cycle-coach-today.sql`
+  fix (`get_client_cycle` now returns a member-local `today`). Do not re-make it.
+- **Weeks start Monday**, matching `bsRepeatSpec`'s `0 = MONDAY` base used by
+  the training materializer. (Note the trap: the reminders table uses
+  `0 = Sunday`. They are different bases; do not cross them.)
+- **Before the start date**, the program is not running — rule 2 of the
+  precedence ladder applies (standing menu, or nothing).
+- **After the final week**, the program is complete; what the member sees is
+  entitlement-driven (ruling 4), not a wrap-around.
+- **The term is measured in whole member-local days from `started_at`**, so a
+  4-week term is 28 of the member's own days regardless of travel or DST.
+
+Every reader — `/api/client/plan`, the mobile reader, and the coach view —
+derives from this one definition. A surface that computes its own week is a bug.
 
 ## What C actually requires
 
@@ -350,13 +387,37 @@ land before C2's end-of-program rule.
 - **Give a program purchase a term** and, per ruling 3, a **`started_at` stamp
   set when the client starts it** — not at purchase. A never-started purchase
   has no clock running.
-- **Bound the replay.** `startPurchasedPlan` currently lets a client restart
-  week 1 forever; under a term, restarting is bounded by the term rather than
-  unlimited.
+- **Bound the replay, and enforce it on the SERVER.** `startPurchasedPlan`
+  currently lets a client restart week 1 forever. The invariant is
+  **one active run per purchase**: starting stamps `started_at` (ruling 3) and
+  opens the term; re-starting *inside* the term is a **restart of the same run**
+  (the existing atomic new-rows-then-delete-old behavior, term unchanged — it
+  does not extend the clock); starting *after* the term has elapsed is
+  **refused** and offers the re-buy. This must be checked where the rows are
+  written, not in the UI — the client owns their own `client_workouts` rows
+  under RLS, so a UI-only bound is not a bound at all.
 - **Honest end state** on both surfaces: the plan stops, the client is told the
   program is complete, and the re-buy is offered. Never a silent empty Eat or
   Train tab.
 - **A single session is untouched** — consumed by attendance, not by time.
+
+**Migration + backfill for rows that already exist.** Every historical row is
+`kind='booking'` or `'meal_plan'` with no term, so the build must state what
+happens to them rather than leave it to the reader:
+
+- **Classification.** A legacy row is a **program** only if it carries a
+  `plan_id` whose `coach_plans` row is a program/multi-week kind; everything
+  else stays a **single session** (`booking`) or a one-off `meal_plan`. There is
+  no other signal — the kind was derived from provider role (finding ②), so it
+  cannot be trusted to distinguish them.
+- **Grandfathering, stated explicitly.** Legacy program purchases have no
+  `started_at` and no term. They are **not** retro-expired — a client who
+  already bought keeps what they bought. They carry a null term and behave as
+  they do today (own-forever, replayable); the term applies to purchases made
+  **after** the migration. Retro-expiring a past purchase would be taking away
+  something already paid for.
+- **Unclassifiable rows fail OPEN**, to the client's benefit: no term, current
+  behavior preserved.
 
 ## Still open for the owner (2 — neither blocks C0 or C1)
 
@@ -365,9 +426,11 @@ for C, and "what happens when the arc ends?" by ruling 4.
 
 1. **Should the trailing non-week block ("Grocery + prep guide") show anywhere,**
    or be dropped as it is on the training side?
-2. **Overrule the web decision?** Precondition 3 commits to delivering on web
-   *and* mobile, because the coach cannot know which surface their client uses.
-   Scoping to mobile is cheaper and would ship sooner — but it means the same
-   assignment is visible to one member and silently absent for another. Say the
-   word if you want mobile-only anyway; it is the one precondition that is a
-   product call rather than a correctness one.
+2. **Overrule the web decision?** Precondition 3's build contract is **both
+   surfaces**, and that is what gets built unless this spec is amended first —
+   there is no ambiguity for the builder either way. Raising it here only
+   because it is the one precondition that is a product call rather than a
+   correctness one: scoping to mobile is cheaper and ships sooner, at the cost
+   of the same assignment being visible to one member and silently absent for
+   another. Say the word and the spec is amended before the build; say nothing
+   and both surfaces ship.
