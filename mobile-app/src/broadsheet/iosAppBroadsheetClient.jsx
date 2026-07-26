@@ -13,7 +13,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
-import { bsAssignWeekLine, bsAssignDayLine } from '../services/planOutline.mjs';
+import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
@@ -1600,15 +1600,17 @@ function BSLibraryDetail({ item, onBack }) {
   // materializer schedules the coach's weeks and ignores this stepper — showing
   // it would let the member pick a number the plan then overrides. Same
   // precedence + threshold as bsMaterializeOutline / the Listing preview.
-  // 0 when the plan is not a week block; otherwise its DISTINCT week count (the
-  // same dedupe the materializer applies, so this can't advertise 6 and build 5).
+  // 0 when the plan is not a week block; otherwise its SPAN — the highest week
+  // the outline states, which is what the materializer schedules to and what the
+  // Listing preview reports. Counting labels instead would read "2 weeks" for a
+  // "Week 1 / Week 6" plan whose last session lands five weeks later.
   const startBlockWeeks = (() => {
     const blocks = ((item.detail && Array.isArray(item.detail.blocks)) ? item.detail.blocks : [])
       .map(b => (b && b.text != null) ? b.text : b).map(s => String(s || '').trim()).filter(Boolean);
     if (blocks.filter(b => bsAssignDayLine(b)).length >= 3) return 0;
-    const weeks = new Set();
-    for (const b of blocks) { const w = bsAssignWeekLine(b); if (w) weeks.add(w.week); }
-    return weeks.size >= 2 ? weeks.size : 0;
+    const lines = blocks.map(bsAssignWeekLine);
+    if (lines.filter(Boolean).length < 2) return 0;
+    return bsWeekSpan(bsWeekUnits(lines));
   })();
   const [starting, setStarting] = useStateBSC(false);
   const [startErr, setStartErr] = useStateBSC('');
@@ -4864,6 +4866,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const days = PROGRAM.map(p => p.d);
   // Apply any coach-approved exercise swaps the user picked for this day.
   const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
+  // "No moves" is NOT the same as "no session". Every outline-delivered session —
+  // a coach-assigned weekday split, and now a week-block phase — ships with an
+  // empty exercise list, because the outline states the day, not the movements.
+  // Keying the start CTA off effMoves alone stamped those days REST, so an
+  // assigned plan read as a week of rest days. Rest is the day model's own state
+  // (tag REST: no workout scheduled, or coach-set recovery); anything else is a
+  // real session, and a moveless one opens as an OPEN session (log as you go).
+  const isRestDay = cur.tag === 'REST';
 
   // Self-serve builder overlay (Build your week / edit a self day). On save it
   // reloads the plan so the new/edited program shows on the deck immediately.
@@ -4873,7 +4883,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // actual session; segment-style cardio (no "× reps") falls back to one set.
   // An empty move list = an OPEN session (log as you go); the player seeds a
   // blank move and shows ＋ Add move.
-  if (session) return <BSSession title={effMoves.length === 0 ? 'Open session' : cur.title} moves={effMoves.map(m => {
+  if (session) return <BSSession title={effMoves.length === 0 && isRestDay ? 'Open session' : cur.title} moves={effMoves.map(m => {
     const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
     // No authored scheme (assigned-plan outline lines / cardio segments):
     // every move starts at 3 sets. "+ Add set" covers anything beyond.
@@ -4971,7 +4981,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach · Trainer</div>
             </div>
           )}
-          {effMoves.length > 0 ? (
+          {!isRestDay ? (
             <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
             <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>

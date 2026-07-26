@@ -17,7 +17,7 @@
 // menu IS the product, so it shows BS_PREVIEW_FREE_UNITS units and reports the
 // remainder as locked. The sheet never renders a locked unit's text.
 
-import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine } from './planOutline.mjs';
+import { bsAssignDayLine, bsAssignExercise, bsAssignMeal, bsAssignWeekLine, bsWeekUnits, bsWeekSpan } from './planOutline.mjs';
 
 // How many units of a session/menu a buyer sees before paying.
 export const BS_PREVIEW_FREE_UNITS = 2;
@@ -119,13 +119,12 @@ export function bsPlanPreview(plan, opts) {
   // here could drift and make the preview promise a shape Assign doesn't build.
   const weekLines = texts.map(bsAssignWeekLine);
   if (weekLines.filter(Boolean).length >= 2) {
-    const units = [];
-    let maxWeek = 0;
-    for (const w of weekLines) {
-      if (!w) continue;
-      if (w.week > maxWeek) maxWeek = w.week;
-      units.push({ label: `WEEK ${w.week}`, title: clean(w.title) });
-    }
+    // Same dedupe + ordering the delivery applies (bsWeekUnits), so a duplicated
+    // or out-of-order week line can't make this list a different set — including
+    // a different `locked` count on paid content — than Assign actually builds.
+    const wu = bsWeekUnits(weekLines);
+    const maxWeek = bsWeekSpan(wu);
+    const units = wu.map((w) => ({ label: `WEEK ${w.week}`, title: clean(w.title) }));
     return {
       kind: 'block',
       // The outline STATES its own week numbers, so the highest one is stated

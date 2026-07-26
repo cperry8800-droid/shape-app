@@ -54,6 +54,30 @@ export function bsAssignWeekLine(text) {
   return { week, title: String(m[2] || '').trim() };
 }
 
+// The ONE aggregation over week lines: dedupe by week number (the first stated
+// title wins), ordered ascending. Sharing the GRAMMAR was not enough — the
+// preview, the coach Assign page and the client start sheet each re-derived this
+// independently, and the preview's copy had neither the dedupe nor the sort, so a
+// duplicated or out-of-order "Week N" line previewed a different set than the
+// delivery built. That is the exact preview/delivery mismatch this file exists to
+// prevent, so the aggregation is shared too.
+export function bsWeekUnits(lines) {
+  const seen = new Set();
+  const out = [];
+  for (const w of (Array.isArray(lines) ? lines : [])) {
+    if (!w || seen.has(w.week)) continue;
+    seen.add(w.week);
+    out.push(w);
+  }
+  return out.sort((a, b) => a.week - b.week);
+}
+
+// A block's DURATION is the highest week it STATES, not how many labels it
+// carries: "Week 1 — Base" + "Week 6 — Peak" is a six-week plan with two authored
+// weeks. Counting labels would report 2 while the schedule runs to week 6 and the
+// Listing preview (which reads the max) says 6 — three numbers, one plan.
+export const bsWeekSpan = (units) => (units.length ? units[units.length - 1].week : 0);
+
 // "Mon — Upper (push)" → { dow: 0, title, rest }; null when not a weekday line.
 export function bsAssignDayLine(text) {
   const p = bsAssignSplitBlock(text);
@@ -122,14 +146,8 @@ export function bsMaterializeOutline({ plan, startISO, weeks = 4, runId }) {
     // which is not what a week block does. Deduped and ordered by the coach's
     // own week numbers; a non-week block (the nutrition builder emits a trailing
     // "Grocery + prep guide") is not a week and is not scheduled as one.
-    const seen = new Set();
-    const units = [];
-    for (const w of weekLines) {
-      if (!w || seen.has(w.week)) continue;
-      seen.add(w.week);
-      units.push(w);
-    }
-    units.sort((a, b) => a.week - b.week);
+    const units = bsWeekUnits(weekLines);
+    const span = bsWeekSpan(units);
     for (const u of units) {
       const d = new Date(start);
       d.setDate(d.getDate() + (u.week - 1) * 7);
@@ -143,7 +161,7 @@ export function bsMaterializeOutline({ plan, startISO, weeks = 4, runId }) {
         // moves from a week label is exactly the old bug.
         payload: {
           exercises: [],
-          program: { id, name, week: u.week, day: dow, weeks: units.length, runId: runId || '', ...(u.title ? { phase: u.title } : {}) },
+          program: { id, name, week: u.week, day: dow, weeks: span, runId: runId || '', ...(u.title ? { phase: u.title } : {}) },
         },
       });
     }

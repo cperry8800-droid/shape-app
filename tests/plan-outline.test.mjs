@@ -4,6 +4,8 @@ import {
   bsAssignExercise,
   bsAssignDayLine,
   bsAssignWeekLine,
+  bsWeekUnits,
+  bsWeekSpan,
   bsAssignMeal,
   bsMaterializeOutline,
 } from '../mobile-app/src/services/planOutline.mjs';
@@ -131,6 +133,28 @@ test('materializeOutline: a split keeps its phase label instead of silently drop
   assert.equal(rows[3].payload.program.phase, undefined, 'week 2 has no stated phase');
 });
 
+test('materializeOutline: duration is the STATED SPAN, not the number of labels', () => {
+  // "Week 1" + "Week 6" is a six-week plan with two authored weeks. Counting
+  // labels would persist weeks:2 while the last session lands five weeks out.
+  const plan = { id: 'sp', name: 'Sparse', detail: { blocks: [
+    { text: 'Week 1 — Base' }, { text: 'Week 6 — Peak' }] } };
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 4, runId: 'r' });
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.scheduledDate), ['2026-07-13', '2026-08-17']); // +0 and +5 weeks
+  assert.ok(rows.every((r) => r.payload.program.weeks === 6), 'persisted duration is the span');
+  assert.equal(bsPlanPreview(plan).weeks, 6, 'and the preview agrees');
+});
+
+test('week units: duplicates collapse and out-of-order lines sort ascending', () => {
+  const lines = ['Week 3 — Peak', 'Week 1 — Base', 'Week 3 — Duplicate', 'Week 2 — Build'].map(bsAssignWeekLine);
+  const u = bsWeekUnits(lines);
+  assert.deepEqual(u.map((x) => x.week), [1, 2, 3]);
+  assert.equal(u[2].title, 'Peak', 'the first stated title for a week wins');
+  assert.equal(bsWeekSpan(u), 3);
+  assert.deepEqual(bsWeekUnits([]), []);
+  assert.equal(bsWeekSpan([]), 0);
+});
+
 // The preview module's stated contract: "one implementation, so a preview can
 // never describe a plan differently from how it is delivered." Pin it.
 test('preview and materialize AGREE on the built-in 6-week plan outline', () => {
@@ -143,4 +167,22 @@ test('preview and materialize AGREE on the built-in 6-week plan outline', () => 
   assert.equal(pv.weeks, 6, 'preview reads 6 weeks');
   assert.equal(rows.length, 6, 'delivery must produce the 6 weeks the preview promised');
   assert.equal(pv.units.length, rows.length);
+});
+
+test('preview and materialize agree on a MESSY outline (duplicate + out of order)', () => {
+  // A clean 1..6 sequence can't catch the two modules aggregating differently.
+  // Before bsWeekUnits was shared, the preview neither deduped nor sorted, so it
+  // listed 4 units in authored order while delivery built 3 in week order —
+  // a different unit count AND a different paid-content `locked` count.
+  const blocks = ['Week 3 — Peak', 'Week 1 — Base', 'Week 3 — Duplicate', 'Week 2 — Build']
+    .map((text, i) => ({ id: 'b' + i, text }));
+  const plan = { id: 'pm', name: 'Messy', detail: { blocks } };
+  const pv = bsPlanPreview(plan);
+  const rows = bsMaterializeOutline({ plan, startISO: '2026-07-13', weeks: 3, runId: 'r' });
+  assert.equal(pv.units.length, rows.length, 'same unit count');
+  assert.deepEqual(pv.units.map((u) => u.label), ['WEEK 1', 'WEEK 2', 'WEEK 3']);
+  assert.deepEqual(rows.map((r) => r.payload.program.week), [1, 2, 3], 'same order');
+  assert.deepEqual(pv.units.map((u) => u.title), rows.map((r) => r.title), 'same titles');
+  assert.equal(pv.weeks, 3);
+  assert.ok(rows.every((r) => r.payload.program.weeks === 3));
 });

@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -3325,11 +3325,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // emits. Same precedence + threshold as bsMaterializeOutline and the Listing
   // preview, so all three classify a plan identically.
   const isWeekBlock = !isNutri && !isSplit && weekLines.filter(Boolean).length >= 2;
-  const weekUnits = (() => {
-    const seen = new Set(); const out = [];
-    for (const w of weekLines) { if (!w || seen.has(w.week)) continue; seen.add(w.week); out.push(w); }
-    return out.sort((a, b) => a.week - b.week);
-  })();
+  const weekUnits = bsWeekUnits(weekLines);
   const planNote = (plan && plan.detail && plan.detail.note) || '';
 
   const apply = async () => {
@@ -3435,7 +3431,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       // A week block is one session per stated week — accurate under the existing
       // "Weekly · N weeks" copy, so it reuses that key with the outline's OWN
       // length rather than the (hidden) stepper value.
-      : tr('coach:assign.whenWeekly', { defaultValue: 'Weekly · {weeks, plural, one {# week} other {# weeks}} · from {from}', weeks: isWeekBlock ? weekUnits.length : weeks, from: fromLabel });
+      : tr('coach:assign.whenWeekly', { defaultValue: 'Weekly · {weeks, plural, one {# week} other {# weeks}} · from {from}', weeks: isWeekBlock ? bsWeekSpan(weekUnits) : weeks, from: fromLabel });
 
   return (
     <BSPage>
