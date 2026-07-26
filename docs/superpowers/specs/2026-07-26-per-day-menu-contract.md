@@ -210,7 +210,7 @@ always has; that cap never touches what Assign *delivers*.)
 | --- | --- | --- |
 | `detail.blocks` (the default) | **UNCAPPED** — passes through as-is | legacy delivery applied no limit; capping here drops sold meals (see above) |
 | `days` scan | first **7** entries only | a week has seven days; more is either a mistake or an attack |
-| blocks per authored day | first **40** (`= planPreview`'s `BLOCK_SCAN`) | new data, no legacy expectations; bounds the crafted-row scan |
+| blocks per authored day | first **40** (`= planPreview`'s `BLOCK_SCAN`) — **a backstop, not the enforcement point** (see below) | new data, no legacy expectations; bounds the crafted-row scan |
 | block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) — **in the preview only**; Assign's meal parse is unchanged | the per-day path reuses the existing display bound rather than adding a second limit, and adds no new bound to delivery |
 | invalid / out-of-range `dow` | **DROPPED**, never clamped | clamping would move a coach's Thursday menu onto Sunday; dropping falls back to that day's default, which is the honest degrade |
 | non-integer `dow` (`"1"`, `1.5`, `true`) | dropped | a value indistinguishable from a typo is not a day the coach chose, and this is the write path for PAID content |
@@ -218,6 +218,22 @@ always has; that cap never touches what Assign *delivers*.)
 | entry with no `blocks` array | inherits the default | an unfilled day is not an emptied day |
 | `blocks: []` (authored empty) | **stays empty** | clearing Sunday is a real choice and must survive; this is the one case where empty ≠ inherit |
 | `days` not an array / junk entries | skipped, never thrown | a crafted row must not be able to break a coach's assign |
+
+⚠ **The 40/day bound is enforced at AUTHORING, with visible feedback — the
+normalizer's cap is a backstop for rows our editor never produced, and it must
+never be the thing that bites legitimate content.** The gap, stated: the
+editor's add-block action has no limit and `/api/coach/plans` stores `detail`
+unvalidated (up to the request-size cap), so without an authoring bound a
+coach *could* publish a 41-meal day and the normalizer would silently deliver
+40 — published-but-never-delivered paid content, the exact failure class the
+legacy exemption above exists to prevent. So: the per-day editor **refuses to
+add a block past 40 for that day and says so** ("Day menus hold up to 40
+meals"), publish validates the same bound, and the normalizer's slice then
+exists only for `detail` written by something other than our editor — a
+crafted row or an external writer — where truncation is hardening, not loss.
+The same rule that governed the legacy exemption governs here: **a display
+bound may truncate; a delivery bound may only ever truncate data that could
+not have been authored in good faith.**
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
@@ -316,8 +332,20 @@ description:
   **neither** the free rows nor the locked total — paid content invisible on
   both sides of the paywall. The invariant to test is
   `free.length + locked === units.length`.
-- **`days` carries counts only.** A locked meal's text never enters the model at
-  all, so it cannot leak through a renderer that displays more than it should.
+- **The paywall is a RENDER contract, not a model contract — and `days` adds
+  no new exposure.** An earlier wording claimed locked text "never enters the
+  model," which is impossible beside a whole-week `units`: every locked meal's
+  title is in `units` by construction, and always has been — the legacy menu
+  branch works the same way. It is also not the security boundary: this model
+  is computed **client-side from the public-read provider row**, so the raw
+  `detail.blocks` is already in the buyer's hands, and locking has always
+  been presentational — the module's own header says "the sheet never renders
+  a locked unit's text," which is the real invariant. Restated for the
+  per-day shape: **the sheet renders `free` and the `days` counts, nothing
+  else from `units`** — and `days` itself carries counts only, so the new
+  strip cannot widen what a correct renderer shows. What the per-day model
+  must NOT do is *rearrange* exposure: `free` stays within the allowance, and
+  no field beyond `units` duplicates a locked title.
 
 ⚠ **The sheet must actually RENDER `days`.** Returning it is not delivering it:
 the only consumer (`BSPlanPreviewSheet`) maps `p.free` and nothing else, so a
@@ -337,8 +365,34 @@ unchanged, field for field.**
 ## 6 — Authoring (the editor half)
 
 `BSCoachDraftEditor` currently edits one flat list. Per-day authoring is a
-**day selector above the existing list** — the block list, its step authoring
-(PR E), and the publish path are otherwise untouched:
+**day selector above the existing list** — the block list and its step
+authoring (PR E) are untouched:
+
+⚠ **The publish path is NOT untouched — the callback contract is where the
+whole feature can silently die.** An earlier revision said "the publish path
+is otherwise untouched," but the editor calls `onPublish({ name, blocks,
+note, media })` and the nutrition `publishDraft` destructures exactly those
+fields and constructs `detail` without `days` — so an editor that dutifully
+tracked seven authored days would hand them to a callback that drops them on
+the floor, the plan would reload as the legacy repeated menu, and nothing
+would error. The `onPublish` payload and BOTH `publishDraft` constructions
+(trainer and nutritionist paths both destructure it) must carry the
+**canonicalized `days` array** (per the canonicalization rule below) through
+to `detail`, and the round-trip — author a day, publish, reload, the day tab
+shows it — is acceptance item 12.
+
+⚠ **The day selector is CAPABILITY-GATED — meal-plan/diet drafts only, via an
+explicit prop.** `BSCoachDraftEditor` is one shared component: the trainer
+builder uses it for every training type, and the nutritionist call renders it
+for all three nutrition build types (`mealplan`, `program`, `diet`) with the
+same props. An unconditional DEFAULT/MON…SUN strip would therefore appear on
+workout drafts, on week-block `program` drafts (whose blocks are ARCS — C0's
+whole ruling is that they carry no meals, so day tabs there would invite
+authoring food into a shape that must never deliver it), and on diet drafts
+that predate the decision. The editor takes a `perDayAuthoring` prop, passed
+`true` only where the draft produces a menu this contract governs — the
+nutritionist `mealplan` and `diet` build types — and never for `program`,
+never for the trainer paths. Every other flow renders byte-identically.
 
 - A **DEFAULT** tab (edits `detail.blocks`) plus **MON…SUN** tabs.
 - A day tab with no authored blocks shows the DEFAULT menu greyed and labelled
@@ -397,6 +451,21 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
 11. Clearing a day in the editor then republishing keeps `{ dow, blocks: [] }`
     in the stored `days` — the cleared day does not silently revert to the
     default.
+12. **The publish round-trip carries `days`**: author a day override, publish,
+    reload the plan — the day tab shows it and Assign delivers it. (The
+    callback contract in §6: `onPublish` and both `publishDraft` constructions
+    carry the canonicalized `days`; without this the editor tracks state the
+    save discards, and nothing errors.)
+13. Whitespace/empty-block noise on an authored day (vs the default) does not
+    make the plan per-day: `perDay === false`, and the preview shows the
+    ordinary menu model — equality runs on DELIVERED text (trimmed, empties
+    dropped), the same normalization the meal parse applies.
+14. The day selector renders ONLY on `perDayAuthoring` drafts (nutritionist
+    `mealplan`/`diet`); trainer drafts and the nutrition `program` (arc) render
+    byte-identically to today.
+15. The editor refuses the 41st block on a day with visible feedback, and
+    publish validates the same bound — the normalizer's 40-cap never truncates
+    editor-authored content.
 
 ## 8 — Registered, not in scope
 
