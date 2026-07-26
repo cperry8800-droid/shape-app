@@ -1,7 +1,11 @@
 # The entitlement layer — design
 
 > ⚠ **DRAFT — NOT BUILD-READY.** Nothing in this document may be built from
-> until the open questions at the bottom are closed. It is split out of
+> until the four conditions in
+> **[What must be true before this is build-ready](#what-must-be-true-before-this-is-build-ready)**
+> are closed. They sit above the design body, not at the end of the file — the
+> design is recorded for continuity, and reading to the end is not the gate. It
+> is split out of
 > [`2026-07-25-nutrition-week-block-programs.md`](2026-07-25-nutrition-week-block-programs.md),
 > where it was section **E**, so that the parts of that wave which *are*
 > build-ready (C0, C1) are not held behind it.
@@ -21,7 +25,7 @@ them in this section**, and rounds 2–4 were each caused by the *previous* roun
 fix:
 
 | Round | Fix made | What the next round found it opened |
-|---|---|---|
+| --- | --- | --- |
 | 2 | Key program-week rows on the **run**, not `program_id` (so a re-buy is representable) | Two runs can now be live at once, and the precedence ladder has no tiebreak |
 | 3 | Add **single-active-run** + a durable run row | An active run with **zero weeks** (failed materialization) locks the client out until term expiry; and the "coach-assignment id" the run key relied on **does not exist** |
 | 3 | Gate legacy classification on `one_time_purchases.created_at` | That column is written by the **webhook on payment**, so a checkout opened pre-migration and paid post-migration is quarantined despite being paid |
@@ -55,8 +59,14 @@ cause it. **It has its own PR and must not wait on E.**
    performs it: activation, explicit end-and-replace, natural expiry, failed
    materialization, and a coach deleting or editing the `coach_plans` row a live
    run points at.
-2. **Paid content is durable** — the snapshot rule below is settled and the
-   Library no longer resolves paid content from mutable catalogue rows.
+2. **Paid AND assigned content is durable** — the snapshot rule below is settled
+   and the Library no longer resolves paid content from mutable catalogue rows.
+   This must cover **coach-assigned runs, not only purchased ones**: they have
+   no purchase to snapshot from and no assignment record to snapshot onto, so
+   today they would resolve term and content from a `coach_plans` row the coach
+   can edit or delete between assigning and activating. Either assignment
+   creates an immutable record, or the durable run is created at assign time and
+   *is* that record.
 3. **The cross-discipline exclusivity rule is owner-ruled**, not inferred: what
    happens when a client holds a live nutrition run and starts a training one,
    and whether "one active run" is per-discipline or global.
@@ -89,9 +99,20 @@ land before C2's end-of-program rule.
   paid, lengthening it silently extends them, and deleting the plan row makes
   expiry undefined. Store an immutable **`term_days`** (or a resolved
   `term_ends_at` at start) **on the run row, snapshotted at activation** — taken
-  from the purchase for a bought program and from the assignment for a
-  coach-assigned one, which has no purchase behind it — and compute expiry from
-  that alone. Where a legacy plan carries no stateable duration the purchase is
+  from the purchase for a bought program — and compute expiry from that alone.
+
+  ⚠ **For a COACH-ASSIGNED run the source is unresolved, not "the assignment."**
+  An earlier draft said the term came "from the assignment," but the parent spec
+  establishes there is no assignment record to take it from: `BSProAssignPage`
+  writes straight through `ShapeAssign` and creates none, and
+  `coach_program_assignments` is FK'd to *templates*, not to the `coach_plans`
+  row being assigned. Creating the durable run **at activation** does not close
+  this either — it means term and content are read from a `coach_plans` row the
+  coach may have edited or deleted in the interval, so a coach-assigned run has
+  no authoritative snapshot to materialize from. Either the assignment must
+  create an immutable record **at assign time**, or the durable run must be
+  created at assign time and *be* that record. **This is condition 1 + 2 below
+  and is unresolved** — do not build the coach-assigned path until it is ruled. Where a legacy plan carries no stateable duration the purchase is
   **unclassifiable** and takes the rule below — not a guessed default, which
   would be fabricated precision about something a member paid for.
 - ⚠ **Snapshot the sold CONTENT too, not just its duration — and note that this
@@ -152,15 +173,28 @@ land before C2's end-of-program rule.
   run", both pass, and both materialize a run for one purchase — which is
   exactly the unbounded replay the bullet above exists to close, reachable by a
   double-tap. The invariant must be held by the database, not by a sequence of
-  statements: a **partial unique index** giving at most one active run per
-  purchase, plus a **per-purchase `pg_advisory_xact_lock`** taken before the
-  read so the restart path (new-rows-then-delete-old) is serialized against a
-  concurrent start rather than interleaved with it. This is the house pattern
-  already in use for exactly this class — `cycle_set_settings`/`cycle_opt_out`
-  share a per-user advisory lock, and `claim_tier_reward` + `redeem_store_item`
-  take one before their guarded writes. Activation must also be **idempotent
-  under retry**, keyed on the purchase, so a client re-sending a start (flaky
-  network, double tap) restarts the same run instead of opening a second.
+  statements: a **partial unique index**, plus a **`pg_advisory_xact_lock`**
+  taken before the read so the restart path (new-rows-then-delete-old) is
+  serialized against a concurrent start rather than interleaved with it. This is
+  the house pattern already in use for exactly this class —
+  `cycle_set_settings`/`cycle_opt_out` share a per-user advisory lock, and
+  `claim_tier_reward` + `redeem_store_item` take one before their guarded
+  writes. Activation must also be **idempotent under retry**, keyed on the
+  purchase, so a client re-sending a start (flaky network, double tap) restarts
+  the same run instead of opening a second.
+
+  ⚠ **The binding scope is (client, discipline) — NOT (purchase).** An earlier
+  draft wrote this bound as "one active run per purchase," which the nutrition
+  spec then referred to while stating its own, *stronger* rule: at most one
+  active nutrition run per client. Those are not the same invariant, and the
+  weaker one does not imply the stronger: **two different purchases could each
+  activate a nutrition run and both satisfy a purchase-scoped index**, leaving
+  two live runs and a precedence ladder with no winner. Per-purchase uniqueness
+  is a consequence, not the rule. So the unique index and the advisory-lock key
+  are both **`(client, discipline)`**, and the two documents state one
+  invariant. ⚠ Whether "discipline" is the right axis at all — i.e. whether a
+  live nutrition run should block a training one — is **condition 3 below and is
+  unresolved**; until it is ruled, do not build either scope.
 - **Honest end state** on both surfaces: the plan stops, the client is told the
   program is complete, and the re-buy is offered. Never a silent empty Eat or
   Train tab.

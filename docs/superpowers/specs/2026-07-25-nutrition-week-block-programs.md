@@ -1,15 +1,25 @@
 # Nutrition week-block programs — design
 
-**Status:** OWNER RULED **C** (multi-week menus) 2026-07-26, and every open
-question is now answered — see "Owner rulings" below. C is a WAVE, not a fix;
-scoping it surfaced a blocker that reorders the work, and the rulings extend it
+**Status:** OWNER RULED **C** (multi-week menus) 2026-07-26. C is a WAVE, not a
+fix; scoping it surfaced a blocker that reorders the work, and the rulings reach
 past nutrition into **training purchases and platform entitlement**.
+
+⚠ **Scope of "answered": every question this document rules on — the six owner
+rulings plus rounds 2's two — is closed, and that is what makes C0/C1
+build-ready. It does NOT mean the wave has no open questions.** The entitlement
+work those rulings imply was split into
+[`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md), which is
+**NOT build-ready** and carries four unresolved conditions of its own (run
+lifecycle, paid-content durability, cross-discipline exclusivity, and a clean
+adversarial pass). C2/C3 inherit those. Read the table below as the build
+signal, not this paragraph.
+
 **Related:** #1832 (the training half: a week label is a phase, not an exercise).
 
 **Build-ready scope — read this before building anything from this document:**
 
 | Track | State |
-|---|---|
+| --- | --- |
 | **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
 | **C1** — per-day menus + make the ✦ AI DRAFT real | ✅ **build-ready — next** |
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
@@ -413,8 +423,11 @@ row for the same current week. The precedence ladder says "**a** running,
 un-paused program week wins" — with two, there is no winner, and
 `/api/client/plan` would serve whichever the query happened to order first,
 which on a paid program is serving the wrong menu. So: **at most one ACTIVE
-nutrition run per client**, the same shape as E's one-active-run-per-purchase
-bound and taken under the same lock. A second activation is **refused with an
+nutrition run per client** — the SAME invariant E states, with the unique index
+and the advisory-lock key both scoped to `(client, discipline)`. A
+purchase-scoped bound is **strictly weaker and does not imply this one**: two
+different purchases could each open a live nutrition run and still satisfy it.
+A second activation is **refused with an
 explicit choice** — end the running program now and start this one, or keep the
 current one — never silently accepted. Training carries the identical rule on
 its own discipline (ruling 6). As defense in depth the reader still needs a
