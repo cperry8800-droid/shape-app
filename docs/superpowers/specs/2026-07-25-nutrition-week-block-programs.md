@@ -28,8 +28,15 @@ signal, not this paragraph.
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
-**C0 has shipped and C1a is now unblocked** — its contract exists. C1b, C2, C3
-and E each remain blocked on a contract that does not yet exist. Build order:
+**C0 has shipped and C1a is now unblocked** — its contract is written AND
+settled. The remaining blocks are not all the same kind, and naming them
+precisely matters because the fix for each is different: **C1b** is blocked on
+a contract that genuinely does not exist yet (its *requirements* are specified
+in "What C actually requires" below, but the six-mode kind-map + seven-day
+response shape has not been authored); **E** has a full draft
+(`2026-07-26-entitlement-layer.md`) that is blocked on **unresolved
+readiness** — four named conditions, not a missing artifact; **C2/C3** inherit
+E's state plus C2's own client-wide standing-menu condition. Build order:
 **C1a → C1b → C2 → C3**, with E in parallel.
 
 ⚠ C1a is unblocked on the STATED test this document uses, and only that one: the
@@ -311,11 +318,19 @@ expires a day early in one timezone. Define it once:
 - **`phaseStartISO` and `week_start` are DATES, not instants** — `YYYY-MM-DD`,
   no time component, no offset. An instant would make the answer depend on who
   is asking.
-- **The member's own timezone owns every boundary**, resolved through the
-  existing `shape_user_tz(uid)` helper with the same null fallback the cycle
-  work already uses. Never the coach's clock and never the server's — that exact
-  bug shipped once already and needed the `2026-07-20-cycle-coach-today.sql`
-  fix (`get_client_cycle` now returns a member-local `today`). Do not re-make it.
+- **The member's own timezone owns every boundary NOT tied to a paid run**,
+  resolved through the existing `shape_user_tz(uid)` helper with the same null
+  fallback the cycle work already uses. Never the coach's clock and never the
+  server's — that exact bug shipped once already and needed the
+  `2026-07-20-cycle-coach-today.sql` fix (`get_client_cycle` now returns a
+  member-local `today`). Do not re-make it.
+  ⚠ **Run-scoped boundaries are the exception**: everything keyed to a paid
+  run — its week ordinal, the final-week clamp, the expiry predicate — reads
+  the run's own frozen `activation_tz` (defined with the term predicate
+  below), because `shape_user_tz` is overwritten on every app open and a
+  moving clock over paid content shifts what was bought. **One run, one
+  clock.** The two zones agree for every member who never travels; they exist
+  as separate rules so the member who does travel loses nothing they paid for.
 - **Weeks start Monday**, matching `bsRepeatSpec`'s `0 = MONDAY` base used by
   the training materializer. (Note the trap: the reminders table uses
   `0 = Sunday`. They are different bases; do not cross them.)
@@ -616,11 +631,22 @@ activation sets `active` inside the activation transaction; an explicit
 end-and-replace sets the outgoing run to `ended` **in the same transaction** as
 the incoming activation, so the slot is never double-held and never
 transiently empty; and **natural expiry is flipped by the server on the
-authoritative path** — lazily when the term check reads a run whose
-`term_ends_at` has passed, plus a sweep so a client who never opens the app
-still frees the slot. Every reader computes eligibility from the stored status
-**and** the term dates, so a missed flip degrades to "expired, no menu" (rule 3,
-honest) rather than to a program that silently runs forever.
+authoritative path** — lazily when the term check reads a run that is past its
+term, plus a sweep so a client who never opens the app still frees the slot.
+
+⚠ **"Past its term" is the INCLUSIVE date predicate, never a timestamp
+passing.** An earlier wording flipped the status "when `term_ends_at` has
+passed" — quietly reintroducing the instant-based boundary the entitlement
+contract explicitly rejects. A run expiring near midnight would then be marked
+ended early or late relative to the paid calendar day, and this flip does TWO
+things at once — it kills the menu AND frees the single-active-run slot — so
+an early flip both takes food away on a day that was paid for and lets a new
+run start inside the old one's term. Natural expiry transitions exactly when
+`today` **in `activation_tz`** `> term_ends_on`; any stored timestamp is
+audit-only, read by nothing that decides. Every reader computes eligibility
+from the stored status **and** the same date predicate, so a missed flip
+degrades to "expired, no menu" (rule 3, honest) rather than to a program that
+silently runs forever.
 
 ⚠ **The row key is the RUN, not the catalog program — `program_id` alone
 collides on a re-buy.** Ruling 2 makes a program a repeatable sale, so
@@ -703,11 +729,27 @@ menu, not a rounding error. `/api/client/plan` currently derives its week from
 the **server-local** `Date` (`weekStartISO()`), so a member near a timezone or
 DST boundary can be served the wrong authored week — and near the end of a
 program, the difference between "last authored week" and "exhausted" is the
-difference between their food and no food. Both the selection and the clamp must
-key on the member-local week defined in **Week-time semantics** above
-(`shape_user_tz`, Monday-based via `bsRepeatSpec`'s `0 = MONDAY`), and the API's
-own week key must be moved onto it. This is the same class as the coach-clock
-bug that already shipped once and needed `2026-07-20-cycle-coach-today.sql`.
+difference between their food and no food.
+
+⚠ **A RUN's week ordinal derives in `activation_tz` — the run's OWN frozen
+clock — never `shape_user_tz`.** An earlier wording keyed both the selection
+and the final-week clamp on the mutable member-local week, while the
+entitlement predicate two sections up runs on the frozen `activation_tz`. Two
+clocks over one run means they disagree at exactly the boundaries that
+matter: around a Monday/date-line crossing the MENU could advance to the next
+authored week while the entitlement clock still stands in the previous one —
+a wrong menu, or a premature final-week clamp, on paid content. Everything
+keyed to a run (week ordinal · final-week clamp · the expiry predicate) reads
+ONE clock, `activation_tz`; the run's week is
+`floor((today_in_activation_tz − started_on) / 7)`. The member-local
+`shape_user_tz` week in **Week-time semantics** above governs surfaces NOT
+tied to a paid run — the standing menu's week and the API's general week key,
+which must still move off the server-local `Date`. This is the same class as
+the coach-clock bug that already shipped once and needed
+`2026-07-20-cycle-coach-today.sql` — now caught a THIRD time in this one
+document (reader's clock, then the frozen-dates-mutable-today split, now the
+week ordinal), which is the strongest argument for the one-clock-per-run rule
+being stated once and referenced, not restated per section.
 
 ⚠ **Rule 2 is conditional on the stored conflict choice — not a blanket
 fallback.** Partial coverage is explicitly permitted (the invariant only
