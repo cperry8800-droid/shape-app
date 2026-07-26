@@ -382,18 +382,28 @@ key has to be a real column rather than something parsed out of `payload`.
 
 1. A **running, un-paused program week** for the member's local current week
    wins.
-2. Otherwise the **standing menu** wins — this covers before the program starts,
-   after its term ends (ruling 4), and any week the program simply doesn't
-   cover.
-3. If neither exists, there is no menu, and the surface says so honestly rather
-   than falling back to the most recent row.
+2. Otherwise the **standing menu** wins — **unless a pause-mode term is still
+   running** (below). This covers before the program starts and after its term
+   ends (ruling 4).
+3. If neither is eligible there is no menu, and the surface says so honestly
+   rather than falling back to the most recent row.
+
+⚠ **Rule 2 is conditional on the stored conflict choice — not a blanket
+fallback.** Partial coverage is explicitly permitted (the invariant only
+promises rows for "weeks a coach actually filled"), so a week the program simply
+doesn't cover would otherwise let rule 2 **revive the very menu the coach
+paused** — mid-term, without anyone choosing it. That silently overrides ruling
+5. Therefore: **while a pause-mode term is running the standing row is
+INELIGIBLE, even on an uncovered week** — the honest state there is rule 3 (no
+menu), not the paused one. It becomes eligible again only when the term ends.
 
 Ruling 5 chooses which of those two rows even exists: **replace** retires the
 standing menu outright (rule 2 then has nothing to fall back to, which is why
 the coach is told that at assign time), while **pause** keeps it stored and
-un-selected for the term, so it returns under rule 2 the moment the program
-ends. Pause is the reason the writer can no longer archive every published row
-on insert.
+un-selected **for the whole term** — it returns under rule 2 when the TERM ends,
+never merely because a week went uncovered. Pause is why the writer can no
+longer archive every published row on insert, and why the conflict choice must
+be **stored on the program** rather than inferred at read time.
 
 **C3 — Labelling.** The week's phase name from the outline titles that week's
 menu — B's arc, riding C's food.
@@ -410,6 +420,30 @@ land before C2's end-of-program rule.
 - **Give a program purchase a term** and, per ruling 3, a **`started_at` stamp
   set when the client starts it** — not at purchase. A never-started purchase
   has no clock running.
+- ⚠ **Carry the PURCHASE id, not just the plan id — the per-purchase invariant
+  is unrepresentable without it.** Ruling 2 makes a program a *repeatable* sale,
+  so a client can buy the same catalog program twice; today nothing downstream
+  can tell the new entitlement from the expired one. `get_my_purchased_plans()`
+  returns `coach_plans.id`, not `one_time_purchases.id`
+  (`2026-06-08-coach-plans-sale.sql:40-47`); the Library dedupes on
+  `plan-<plan id>` (`iosAppBroadsheetClient.jsx:1543-1549`); and
+  `startPurchasedPlan` receives only that plan id (`:1621`). So a re-buy would
+  either re-attach to the OLD expired purchase or overwrite its run instead of
+  opening the newly paid term — the client pays and gets nothing new. The build
+  must **return the purchase id, thread it through activation and onto the
+  materialized rows, and make the server-side term check key on it.** Library
+  identity becomes per-purchase, not per-plan.
+- ⚠ **Define how a purchased NUTRITION program is started — there is no path
+  today.** Rulings 2–3 require a purchased program to sit dormant until the
+  client begins it, but the client start flow is training-only:
+  `BSLibraryDetail` explicitly excludes `planKind === 'meal_plan'` from
+  `canStart` (`iosAppBroadsheetClient.jsx:1592-1594`), and the one call site
+  (`:1621`) invokes `ShapeSelfTraining.startPurchasedPlan`. C2 covers *coach*
+  assignment, so a nutrition purchase can currently **never start its
+  entitlement clock**. The build must state: the activation surface + API, how
+  the assign-time conflict choice (ruling 5 — replace vs pause) is obtained when
+  the CLIENT is the one starting, and how activation materializes/selects its
+  weeks. Without this, E's term is unreachable for half the wave's own subject.
 - **Bound the replay, and enforce it on the SERVER.** `startPurchasedPlan`
   currently lets a client restart week 1 forever. The invariant is
   **one active run per purchase**: starting stamps `started_at` (ruling 3) and
