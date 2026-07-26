@@ -171,9 +171,24 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
   **Canonical equality, since "distinct value" is doing load-bearing work over
   arrays of mixed shapes:** two day menus are equal when their **ordered
   sequences of DELIVERED block texts match** — each block reduced to its text
-  (`b.text` for an authored object, the string itself otherwise,
-  `String()`-coerced), **trimmed, with empty results dropped**, compared
-  position by position, same length required. Explicitly:
+  (`b.text` for an authored object, the string itself otherwise), coerced
+  **exactly as delivery coerces it: `String(value || '')`**, then trimmed, with
+  empty results dropped, compared position by position, same length required.
+  Explicitly:
+
+  - ⚠ **The coercion is `value || ''`, not `String(value)` — falsy non-null
+    values are DROPPED, because that is what delivery does.** `mealsFrom` in
+    the Assign path reduces each block with `String((b.text ?? b) || '').trim()`
+    and skips the empties, so a `false`, a `0` or a `NaN` in a blocks array
+    delivers *nothing*. An earlier revision here specified plain `String()`
+    coercion, which turns those into the strings `"false"` and `"0"` — non-empty,
+    and therefore counted. On a crafted or malformed row the default
+    `['Breakfast …']` and an override `['Breakfast …', false]` deliver identical
+    menus while comparing as different: the listing would advertise varying
+    menus and inflate the weekly meal count with a meal that does not exist.
+    Same rule as ever, applied one level deeper — the claim must be computed
+    with the same semantics as the thing it claims about, including the
+    coercion.
 
   - **Equality runs on the DELIVERED text, not the stored array.** Trimming and
     dropping empties is not tidiness — it is the exact normalization
@@ -263,6 +278,20 @@ per-day limit is `max(40, detail.blocks.length)`: ordinary plans keep the flat
 content needs. This costs nothing in exposure — `detail.blocks` is uncapped, so
 it already sets the delivery ceiling, and the paid preview still re-caps every
 resolved day at 40 for display.
+
+⚠ **The floor is a DELIVERY bound, so the normalizer must implement it in the
+same PR as the editor — not after.** As shipped today `bsPlanWeek` slices each
+override at a flat `DAY_BLOCK_SCAN = 40`, which is safe only because **nothing
+writes `days` yet**: with no authoring UI, no production plan carries an
+override for that slice to truncate. The moment an editor follows this section
+and lets a coach publish a 45-block day, a normalizer still on the flat 40 would
+drop five paid meals on assign — silently, and in exactly the direction
+acceptance item 16 forbids. So the two halves of the floor are **one change**:
+the editor's `addBlock`/publish bound and the normalizer's slice both read
+`bsDayBlockMax(detail.blocks)`, they land together, and item 16 is written to
+fail if either is missing. A contract that documents a delivery bound the
+delivery code does not implement is worse than one that documents nothing — it
+reads as authority.
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
