@@ -111,7 +111,7 @@ land before C2's end-of-program rule.
   coach may have edited or deleted in the interval, so a coach-assigned run has
   no authoritative snapshot to materialize from. Either the assignment must
   create an immutable record **at assign time**, or the durable run must be
-  created at assign time and *be* that record. **This is condition 1 + 2 below
+  created at assign time and *be* that record. **This is condition 1 + 2 above
   and is unresolved** — do not build the coach-assigned path until it is ruled. Where a legacy plan carries no stateable duration the purchase is
   **unclassifiable** and takes the rule below — not a guessed default, which
   would be fabricated precision about something a member paid for.
@@ -161,7 +161,9 @@ land before C2's end-of-program rule.
   weeks. Without this, E's term is unreachable for half the wave's own subject.
 - **Bound the replay, and enforce it on the SERVER.** `startPurchasedPlan`
   currently lets a client restart week 1 forever. The invariant is
-  **one active run per purchase**: starting stamps `started_at` (ruling 3) and
+  **one active run per `(client, discipline)`** — see the scope note below;
+  per-purchase uniqueness follows from it but is strictly weaker and must not be
+  implemented in its place. Starting stamps `started_at` (ruling 3) and
   opens the term; re-starting *inside* the term is a **restart of the same run**
   (the existing atomic new-rows-then-delete-old behavior, term unchanged — it
   does not extend the clock); starting *after* the term has elapsed is
@@ -193,7 +195,7 @@ land before C2's end-of-program rule.
   is a consequence, not the rule. So the unique index and the advisory-lock key
   are both **`(client, discipline)`**, and the two documents state one
   invariant. ⚠ Whether "discipline" is the right axis at all — i.e. whether a
-  live nutrition run should block a training one — is **condition 3 below and is
+  live nutrition run should block a training one — is **condition 3 above and is
   unresolved**; until it is ruled, do not build either scope.
 - **Honest end state** on both surfaces: the plan stops, the client is told the
   program is complete, and the re-buy is offered. Never a silent empty Eat or

@@ -346,6 +346,30 @@ so a coach drafts week 1 with AI and edits it. Without C1, every week in C2 is
 the same five meals repeated and the wave delivers nothing a client can taste.
 Largest standalone value in the whole spec.
 
+⚠ **"Make the draft real" is NOT just deleting the hardcoded template — the API
+contract does not currently accept what the nutrition builder sends.** Both
+halves of the mismatch are load-bearing:
+
+- **The kind is silently wrong.** The nutritionist builder's `buildType` is
+  `mealplan | program | diet` (`iosAppBroadsheetPros.jsx:5990`) and it is sent
+  straight through as `kind` (`:6052`); the trainer's is `plan | workout |
+  program` (`:5106`, sent at `:5171`). But the route's `GenerateKind` is
+  `'workout' | 'program' | 'meal_plan'` (`generate-plan/route.ts:9`) and it
+  **normalizes anything unrecognized to `'workout'`** (`:101`). So `mealplan`,
+  `diet` and the trainer's `plan` all resolve to **workout** — a nutritionist
+  asking for a meal plan gets exercises back. Today that is invisible *because
+  the answer is discarded*; the moment C1 renders it, a coach's ✦ AI DRAFT
+  produces a workout in a meal-plan builder. **The build must map the builder's
+  kinds onto the route's before consuming the response** (and either widen
+  `GenerateKind` or reject an unknown kind rather than defaulting — defaulting
+  to `workout` is how this stayed silent).
+- **`meal_plan` doesn't return seven distinct days.** The route's meal-plan
+  branch (`:118`) and program branch (`:144`) return their own schemas, neither
+  of which is "7 different menu days" — which is precisely what C1 exists to
+  author. The **response shape must be specified before the build consumes it**,
+  or C1 ships a real AI call whose answer still can't populate the thing it was
+  called for.
+
 **C2 — Multi-week storage.** N `client_meal_plans` rows coexist, selected by the
 current week. Requires, all of them:
 
@@ -507,11 +531,27 @@ whole activation back and leave the client exactly where they were.
 
 1. A **running, un-paused program week** for the member's local current week
    wins.
+1b. **Past the last authored week of a still-entitled run, the FINAL authored
+   week keeps serving** (see the clamp below).
 2. Otherwise the **standing menu** wins — **unless a pause-mode term is still
    running** (below). This covers before the program starts and after its term
    ends (ruling 4).
 3. If neither is eligible there is no menu, and the surface says so honestly
    rather than falling back to the most recent row.
+
+⚠ **Rule 1b exists because rules 1–3 alone CONTRADICT ruling 4.** On the ongoing
+monthly coaching entitlement, ruling 4 requires the last week's menu to keep
+serving "until the coach assigns the next thing." But an entitlement outlives
+its authored weeks: once the current-week ordinal passes the last authored one,
+rule 1 finds no row, and the client falls through to the standing menu — or, in
+pause mode, to **no menu at all**, because a running pause-mode term makes the
+standing row ineligible. So a client on a live, paid, ongoing plan would watch
+their food disappear the week after the coach's last authored week, which is the
+opposite of what ruling 4 promises. The clamp: **while the run is still entitled
+and its weeks are exhausted, the reader selects the highest authored week
+ordinal** rather than treating the week as uncovered. This applies ONLY to the
+ongoing-entitlement case — a **one-off program whose TERM has ended** still
+stops (ruling 4's other half), falls to rule 2, and offers the re-buy.
 
 ⚠ **Rule 2 is conditional on the stored conflict choice — not a blanket
 fallback.** Partial coverage is explicitly permitted (the invariant only
