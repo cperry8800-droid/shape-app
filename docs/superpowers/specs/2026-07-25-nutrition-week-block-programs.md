@@ -23,14 +23,20 @@ signal, not this paragraph.
 | Track | State |
 | --- | --- |
 | **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
-| **C1a** — per-DAY menus (the builder authors a different day) | ⛔ **blocked on the per-day storage contract** (below) |
+| **C1a** — per-DAY menus (the builder authors a different day) | ✅ **UNBLOCKED** — the per-day storage contract is written (`2026-07-26-per-day-menu-contract.md`, rides PR #1839; not on `main` until it lands, so it is named here rather than linked) |
 | **C1b** — make the ✦ AI DRAFT real | ⛔ **blocked on the AI contract** (below) |
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
-⚠ **Nothing in this wave is currently build-ready. C0 has shipped; every other
-track is blocked on a contract that does not yet exist.** Build order once they
-are written: **C1a → C1b → C2 → C3**, with E in parallel.
+**C0 has shipped and C1a is now unblocked** — its contract exists. C1b, C2, C3
+and E each remain blocked on a contract that does not yet exist. Build order:
+**C1a → C1b → C2 → C3**, with E in parallel.
+
+⚠ C1a is unblocked on the STATED test this document uses, and only that one: the
+contract names the stored shape it produces and every consumer that reads it.
+That test was chosen because the three failures below all passed the *other*
+test — independence — so nothing here should be read as C1a having been cleared
+by a general sense that it looks ready.
 
 ⚠ **Read this before marking anything ready again — it has been wrong three
 times.** Each revision of this spec has declared a track build-ready on the
@@ -41,7 +47,7 @@ each time:
 | --- | --- |
 | C1 (whole) | the AI route can't express what the builders send → split into C1a/C1b |
 | C1b | a rename can't fix it; nutri `program` and trainer `program` collide *without* resolving wrongly |
-| C1a | "independent of E and of the AI route" ≠ ready — it has no per-day storage contract |
+| C1a | "independent of E and of the AI route" ≠ ready — it had no per-day storage contract (**now written**, which is what changed its status above — not a re-reading of the same evidence) |
 
 The pattern is identical every time: **readiness was inferred from independence.**
 A track that depends on nothing blocked is not thereby ready; it is ready when
@@ -325,9 +331,21 @@ expires a day early in one timezone. Define it once:
   travels changes the zone their old start instant is read against, and the same
   instant resolves to a different local calendar date — silently shortening or
   lengthening a **paid** term by a day. Stamp `started_on` (date-only, in the
-  member's zone at the moment of activation) and derive `term_ends_on` from it
-  by date arithmetic; both are then stable under travel and DST because neither
-  is ever recomputed. This is the SAME class as the coach-clock bug two bullets
+  member's zone at the moment of activation) and derive `term_ends_on` from it;
+  both are then stable under travel and DST because neither is ever recomputed.
+
+  **The predicate, stated exactly, because "date arithmetic" leaves an
+  off-by-one on PAID access:**
+
+  ```text
+  term_ends_on = started_on + term_days - 1     # INCLUSIVE last day
+  active       = member_local_today <= term_ends_on
+  ```
+
+  So a 28-day term started on the 1st ends on the 28th and the member has
+  access *through* the 28th. Every reader uses this one predicate — a reader
+  that treats `term_ends_on` as exclusive gives a day less than was paid for,
+  and one that uses `<` on an exclusive bound gives a day more. This is the SAME class as the coach-clock bug two bullets
   up — there the reader used the wrong clock, here the reader uses a clock that
   moves underneath it. Do not re-make it in the other direction.
 
@@ -369,8 +387,13 @@ weeks a coach actually filled and still forbids fabricating "Reset & habits"
 into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
 of the rule C2 generalizes.
 
-**C1a — Per-DAY menus (the prerequisite). BLOCKED on the storage contract
-below.** The builder learns to author a different day; the assign stops
+**C1a — Per-DAY menus (the prerequisite). UNBLOCKED — the storage contract
+described below is now written** (`2026-07-26-per-day-menu-contract.md`, riding
+PR #1839; named rather than linked until it lands on `main`). The requirements
+in this section are what that document had to satisfy, and they are kept here as
+the record of what was demanded, not as an open question.
+
+The builder learns to author a different day; the assign stops
 replicating one `meals` array across all seven (`BSProAssignPage`'s `apply()`,
 the `Array.from({ length: 7 }, …)` week builder). Without this, every week in C2
 is the same five meals repeated and the wave delivers nothing a client can taste.

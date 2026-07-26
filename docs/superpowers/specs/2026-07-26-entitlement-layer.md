@@ -111,9 +111,27 @@ land before C2's end-of-program rule.
   `coach_plans` row — which the coach can edit at any time. Reading it live
   means a coach shortening their program silently expires clients who already
   paid, lengthening it silently extends them, and deleting the plan row makes
-  expiry undefined. Store an immutable **`term_days`** (or a resolved
-  `term_ends_at` at start) **on the run row, snapshotted at activation** — taken
-  from the purchase for a bought program — and compute expiry from that alone.
+  expiry undefined. Store an immutable **`term_days`** **on the run row,
+  snapshotted at activation** — taken from the purchase for a bought program —
+  and compute expiry from that alone.
+
+  ⚠ **The boundary is DATE-ONLY, and it is the parent spec's, not a second one.**
+  An earlier draft resolved a `term_ends_at` *instant*, which conflicts with the
+  nutrition readers: they use the immutable `started_on` / `term_ends_on` dates
+  the parent spec now mandates, so an instant-based boundary would end paid
+  access on a **different local calendar day** than the surfaces the member is
+  actually looking at — for anyone who starts near midnight or whose
+  launch-captured timezone later changes. E adopts the parent's fields verbatim
+  as the entitlement authority:
+
+  ```text
+  started_on   — date, stamped once in the member's zone at activation
+  term_ends_on = started_on + term_days - 1        # INCLUSIVE
+  active       = member_local_today <= term_ends_on
+  ```
+
+  A timestamp may still be retained **for audit**, but nothing reads it to
+  decide access. One boundary, one predicate, both documents.
 
   ⚠ **For a COACH-ASSIGNED run the source is unresolved, not "the assignment."**
   An earlier draft said the term came "from the assignment," but the parent spec
@@ -225,6 +243,22 @@ land before C2's end-of-program rule.
   result unchanged (the retry case), and a new key is a genuine restart
   request (the intent case). Retry-safety and restart then stop competing for
   one signal, and the advisory lock above still serializes the writes.
+
+  ⚠ **The key is client-generated, so it is not trusted on its own.** A raw key
+  is guessable and collidable across accounts, so the stored result is scoped to
+  the **authenticated** activation context, not to the key:
+
+  - **Uniqueness is `(client, purchase, operation, idempotency_key)`** — the
+    client comes from the session, never the payload. Two members choosing the
+    same key cannot see each other's result, and a key replayed against a
+    *different* purchase is a different row rather than a false hit.
+  - **A key reused with a mismatched payload is REJECTED**, not served the old
+    result. Returning the first result for a second, different request would
+    silently discard what the member asked for; a `409` tells the caller their
+    key is spent.
+  - **Retained for the full retry window** — at minimum the longest interval a
+    client or Stripe will retry over — so a late duplicate still finds the
+    original result rather than falling through and restarting the run.
 
   ⚠ **The binding scope is (client, discipline) — NOT (purchase).** An earlier
   draft wrote this bound as "one active run per purchase," which the nutrition
