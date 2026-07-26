@@ -240,7 +240,7 @@ always has; that cap never touches what Assign *delivers*.)
 | --- | --- | --- |
 | `detail.blocks` (the default) | **UNCAPPED** — passes through as-is | legacy delivery applied no limit; capping here drops sold meals (see above) |
 | `days` scan | first **7** entries only | a week has seven days; more is either a mistake or an attack |
-| blocks per authored day | **`max(40, detail.blocks.length)`** — a FLOOR of 40, raised to the default's own size (see below) — and **a backstop, not the enforcement point** | new data, no legacy expectations; bounds the crafted-row scan, without forbidding an override from matching the day it overrides |
+| blocks per authored day | **NOT truncated in delivery** (see below); the PREVIEW re-caps each resolved day at **40** | a long day can be authored in good faith, and delivery cannot tell that apart from a crafted one — so the economy bound belongs to the surface that is actually exposed |
 | block text | bounded by the existing `clean()` (2000-char slice, control chars stripped, 120-char title) — **in the preview only**; Assign's meal parse is unchanged | the per-day path reuses the existing display bound rather than adding a second limit, and adds no new bound to delivery |
 | invalid / out-of-range `dow` | **DROPPED**, never clamped | clamping would move a coach's Thursday menu onto Sunday; dropping falls back to that day's default, which is the honest degrade |
 | non-integer `dow` (`"1"`, `1.5`, `true`) | dropped | a value indistinguishable from a typo is not a day the coach chose, and this is the write path for PAID content |
@@ -265,33 +265,34 @@ The same rule that governed the legacy exemption governs here: **a display
 bound may truncate; a delivery bound may only ever truncate data that could
 not have been authored in good faith.**
 
-⚠ **The bound is a FLOOR of 40, not a flat 40 — otherwise this table
-contradicted acceptance item 6.** A legacy plan may carry more than 40 blocks
-and the row above promises it delivers **all** of them. Now put a coach in that
-plan who wants to vary one day: the day starts as a copy of the 45-block
-default, and a flat 40 refuses to publish it. Their only ways out are to delete
-five meals from a plan people have already bought, or to abandon per-day
-authoring on that plan entirely — and neither is a bound doing its job. **An
-override must always be able to express the day it is overriding**, so the
-per-day limit is `max(40, detail.blocks.length)`: ordinary plans keep the flat
-40, and only a plan whose own default already exceeds it gets the room its
-content needs. This costs nothing in exposure — `detail.blocks` is uncapped, so
-it already sets the delivery ceiling, and the paid preview still re-caps every
-resolved day at 40 for display.
+⚠ **Delivery does not truncate an authored day. Two revisions got this wrong,
+and the second one looked like the fix.**
 
-⚠ **The floor is a DELIVERY bound, so the normalizer must implement it in the
-same PR as the editor — not after.** As shipped today `bsPlanWeek` slices each
-override at a flat `DAY_BLOCK_SCAN = 40`, which is safe only because **nothing
-writes `days` yet**: with no authoring UI, no production plan carries an
-override for that slice to truncate. The moment an editor follows this section
-and lets a coach publish a 45-block day, a normalizer still on the flat 40 would
-drop five paid meals on assign — silently, and in exactly the direction
-acceptance item 16 forbids. So the two halves of the floor are **one change**:
-the editor's `addBlock`/publish bound and the normalizer's slice both read
-`bsDayBlockMax(detail.blocks)`, they land together, and item 16 is written to
-fail if either is missing. A contract that documents a delivery bound the
-delivery code does not implement is worse than one that documents nothing — it
-reads as authority.
+A flat 40 contradicted acceptance item 6 in this same document: a legacy plan may
+carry more than 40 blocks and is promised to deliver **all** of them, yet a coach
+varying one day of that plan starts from a 45-block copy that publish then
+refuses. Raising the limit to a **floor** of the default's length — `max(40,
+detail.blocks.length)` — fixed that case and merely *moved* the trap: fork a day
+from a 60-block default, then trim the default to 5, and the day becomes
+unpublishable. The bound was now biting content the editor itself had created one
+step earlier, and the only obvious way out was deleting twenty authored meals.
+
+Both revisions were the mistake the legacy exemption above already rules out, so
+`days` gets the same treatment as `blocks`: **delivery serves what was stored.**
+That is this section's own rule applied honestly — *a display bound may truncate;
+a delivery bound may only ever truncate data that could not have been authored in
+good faith* — and a 41st meal **can** be authored in good faith. Since delivery
+cannot distinguish a long legitimate day from a crafted one by length, the
+correct move is not a cleverer threshold; it is to stop deciding at the wrong
+layer.
+
+The economy bound therefore lives **entirely in the preview**, which re-caps each
+resolved day at 40 before scanning. That is the only surface a crafted
+public-read row reaches unauthenticated; Assign is an authenticated coach acting
+on their own plan, and it has always delivered an uncapped `detail.blocks`. The
+two share ONE constant rather than two `40`s free to drift, and the editor
+imposes no per-day cap at all — with delivery lossless, there is nothing left for
+it to protect the coach from.
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
@@ -521,13 +522,15 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
 14. The day selector renders ONLY on `perDayAuthoring` drafts (nutritionist
     `mealplan`/`diet`); trainer drafts and the nutrition `program` (arc) render
     byte-identically to today.
-15. The editor refuses a block past the day's bound with visible feedback, and
-    publish validates the same bound — the normalizer's cap never truncates
-    editor-authored content.
-16. **Starting a day from an oversized legacy default keeps every block.** On a
-    plan whose `detail.blocks` has 45 entries, the day override accepts all 45
-    and publishes — the bound is `max(40, default.length)`, so acceptance 6's
-    promise survives being varied. An ordinary plan still refuses the 41st.
+15. **Delivery never truncates an authored day.** A 300-block override resolves
+    to 300 blocks through `bsPlanWeek`, while the paid preview reports at most
+    40 per day — the display bound and the delivery bound are different things
+    and only one of them exists.
+16. **Starting a day from an oversized legacy default keeps every block, and
+    stays publishable afterwards.** On a plan whose `detail.blocks` has 45
+    entries, the day override accepts all 45; trimming the DEFAULT menu to 5
+    afterwards does not make that day unpublishable. Acceptance 6's promise
+    survives being varied, and then survives being edited.
 
 ## 8 — Registered, not in scope
 
