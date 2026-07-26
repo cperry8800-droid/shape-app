@@ -80,9 +80,19 @@ Diet / Meal-plan assignment.
 - ❌ The program and the menu become two assignments. Arguably correct — they are
   two different products — but it is a workflow change worth naming.
 
-**B is only viable with all four of the following.** Each is a real blocker found
-in review, not an implementation detail — B written without them persists data
-the client never sees.
+**B is only viable with all five of the following.** Each is a real blocker found
+in review, not an implementation detail — B written without them either persists
+data the client never sees, or fails to fix the bug at all.
+
+0. **A phase-only assignment must NOT write a `client_meal_plans` row.**
+   Week-block detection has to *bypass* the existing `isNutri` /
+   `bsAssignMeal` materialization entirely — not run alongside it. Writing the
+   phases while still installing the seven-day menu would leave the fabricated
+   meals ("Reset & habits", "Build routine") exactly where they are, which is the
+   entire defect this spec exists to remove. And because the assign route
+   **archives every published row before inserting**, a phase-only assignment
+   must not call it at all: a client's real, separately-assigned menu has to
+   survive untouched.
 
 1. **Write through `set_program_detail(p_client_id, 'nutrition', p_phase,
    p_detail)`, never `merge_program_detail({ nutrition: … })`.** The latter merges
@@ -100,11 +110,19 @@ the client never sees.
    must stamp its own assignment timestamp or give the phase line its own
    visibility condition — it must not borrow the macro-adjustment timestamp's
    meaning.
-3. **Web parity, or a mobile-only scope stated in writing.** The gated website Eat
-   surface (`public/newdesign/dashNutri.jsx`) reads `/api/client/plan`, and that
-   route reduces `detail.nutrition` to numeric `coachTargets` (`route.ts:174`) —
-   phases are not exposed. Without a change there, the same assigned program is
-   silently absent on web.
+3. **Web parity — DECIDED: both surfaces, in the same wave.** The gated website
+   Eat surface (`public/newdesign/dashNutri.jsx`) reads `/api/client/plan`, and
+   that route reduces `detail.nutrition` to numeric `coachTargets`
+   (`route.ts:174`) — phases are not exposed.
+
+   The coach assigning a program cannot know which surface their client uses, so
+   a mobile-only scope means the same assignment is delivered to one member and
+   silently absent for another. That is the same honest-data failure this spec is
+   written to remove, so shipping mobile-only is not treated as an option here.
+   **Acceptance:** `/api/client/plan` returns the phase arc alongside
+   `coachTargets`; `dashNutri.jsx` renders the current week's phase line; and a
+   client with an assigned arc sees the *same* week and phase on web and mobile
+   on the same day. (Owner may still overrule and scope to mobile — question 4.)
 4. **A stated start date.** "Which week are we in" derives from a real
    `phaseStartISO`, never from a `created_at` that moves under a re-assign.
 
@@ -128,9 +146,15 @@ current week.
 
 ## Recommendation
 
-**B, with A's guard as the floor.** Deliver the arc on the rail that already
-exists and already renders; if an outline yields neither meals nor phases, block
-rather than install phantom food.
+**B, on both surfaces, with A's guard as the floor.** Deliver the arc on the rail
+that already exists and already renders; if an outline yields neither meals nor
+phases, block rather than install phantom food.
+
+Concretely, B is build-ready only as: **skip the meal-plan write entirely** (0),
+**write via `set_program_detail`** (1), **carry its own visibility timestamp**
+(2), **reach mobile AND web** (3), and **date the arc from a stated
+`phaseStartISO`** (4). Any of those dropped and the build either fails to remove
+the fabricated menu or ships a phase line nobody sees.
 
 ## Open questions for the owner
 
@@ -141,3 +165,9 @@ rather than install phantom food.
    surface "program complete" to the coach?
 3. **Should the trailing non-week block ("Grocery + prep guide") show anywhere,**
    or be dropped as it is on the training side?
+4. **Overrule the web decision?** Precondition 3 commits to delivering phases on
+   web *and* mobile, because the coach cannot know which surface their client
+   uses. Scoping to mobile is cheaper and would ship sooner — but it means the
+   same assignment is visible to one member and silently absent for another. Say
+   the word if you want mobile-only anyway; it is the one precondition that is a
+   product call rather than a correctness one.
