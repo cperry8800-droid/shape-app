@@ -69,8 +69,7 @@ describes weeks, not meals — assign a Diet or Meal plan for the menu."*
 ### B — Phases ride the nutrition rail *(recommended)*
 
 Assign writes the arc to `client_programs.detail.nutrition.phases` +
-`phaseStartISO`, **merging within** the nutrition section so Adjust's targets
-survive. The Eat tab's existing `BSCoachAdjustBanner` (already rendered at
+`phaseStartISO`. The Eat tab's existing `BSCoachAdjustBanner` (rendered at
 `iosAppBroadsheetClient.jsx:8968` from `detail.nutrition`) gains a line:
 *"Week 2 of 4 · Build routine."* The **menu** continues to come from a separate
 Diet / Meal-plan assignment.
@@ -78,19 +77,53 @@ Diet / Meal-plan assignment.
 - ✅ Uses storage and a render surface that already exist — no migration.
 - ✅ Delivers exactly what the coach authored, and no food they didn't write.
 - ✅ Composes: a real menu and a phase arc can be live at once.
-- ❌ Needs the nested-merge fix, and a start date to derive "which week".
 - ❌ The program and the menu become two assignments. Arguably correct — they are
   two different products — but it is a workflow change worth naming.
 
-### C — Four sequential menus
+**B is only viable with all four of the following.** Each is a real blocker found
+in review, not an implementation detail — B written without them persists data
+the client never sees.
 
-Materialize N `client_meal_plans` rows keyed by `week_start`, and change the
-client read to select by the current week.
+1. **Write through `set_program_detail(p_client_id, 'nutrition', p_phase,
+   p_detail)`, never `merge_program_detail({ nutrition: … })`.** The latter merges
+   TOP-LEVEL keys, so it replaces the whole nutrition object and silently wipes
+   the calorie/macro targets Adjust set. `set_program_detail` is SECURITY
+   DEFINER, discipline-scoped, and gated on
+   `is_discipline_coach_on_client(client, 'nutritionist')` — the correct
+   primitive. The build must also state whether the **`nutrition_phase` scalar
+   column** is set from the current week's phase or deliberately left alone;
+   leaving that unsaid lets two readers observe conflicting phase state.
+2. **The banner will not render a phase-only write.** `BSCoachAdjustBanner`
+   returns `null` unless `detail.nutrition.updatedAt` exists
+   (`iosAppBroadsheetClient.jsx:1355`). For any client whose nutritionist has
+   never used Adjust, the assignment would persist and be **invisible**. The build
+   must stamp its own assignment timestamp or give the phase line its own
+   visibility condition — it must not borrow the macro-adjustment timestamp's
+   meaning.
+3. **Web parity, or a mobile-only scope stated in writing.** The gated website Eat
+   surface (`public/newdesign/dashNutri.jsx`) reads `/api/client/plan`, and that
+   route reduces `detail.nutrition` to numeric `coachTargets` (`route.ts:174`) —
+   phases are not exposed. Without a change there, the same assigned program is
+   silently absent on web.
+4. **A stated start date.** "Which week are we in" derives from a real
+   `phaseStartISO`, never from a `created_at` that moves under a re-assign.
+
+### C — N sequential menus
+
+Materialize N `client_meal_plans` rows keyed by `week_start`, and select by the
+current week.
 
 - ✅ A genuine multi-week menu capability.
+- ❌ **The WRITER contract has to change too, not just the read.** `POST
+  /api/nutritionist/meal-plan` archives *every* `status='published'` row for the
+  (nutritionist, client) pair before inserting, so materializing N rows would
+  archive each earlier week as the next one lands. This option requires a
+  status/retention redesign (which rows stay published, how a future week is
+  distinguished from a stale one), a migration, and read/write back-compat for
+  plans already in flight — before it is even comparable to A or B.
 - ❌ Changes the read contract for **every** client — the highest-risk option here.
 - ❌ **Solves the wrong problem:** a week-block outline contains no meals, so this
-  installs four *empty* menus. It would only pay off for a builder that emits
+  installs N *empty* menus. It would only pay off for a builder that emits
   per-week menus, which this one does not.
 
 ## Recommendation
