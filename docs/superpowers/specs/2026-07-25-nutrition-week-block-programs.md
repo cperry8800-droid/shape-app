@@ -254,6 +254,19 @@ by dependency, smallest shippable first:
 bug fix, it is independent of everything below, and it should ship first so the
 phantom menu stops being installed while the rest is built.
 
+⚠ **C0 is the pre-C2 safety behavior, not a permanent ban on writing rows.**
+C2's whole point is to materialize N rows, so read the two together as one
+invariant that survives the wave:
+
+> **A week block yields a menu row only when a genuine menu was authored for
+> that week. It never yields one derived from a phase name.**
+
+Before C2 ships, no authored per-week menu can exist, so the invariant reduces
+to C0's "write nothing." After C2, the same invariant permits N rows for the
+weeks a coach actually filled and still forbids fabricating "Reset & habits"
+into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
+of the rule C2 generalizes.
+
 **C1 — Per-DAY menus (the prerequisite), and the AI draft made real.** The
 builder learns to author a different day; the assign stops replicating one
 `meals` array across all seven (`iosAppBroadsheetPros.jsx:3362`). Per ruling 1,
@@ -279,7 +292,48 @@ current week. Requires, all of them:
 - a **migration** plus back-compat for plans already in flight — every existing
   client has exactly one published row and must keep working unchanged;
 - the **end-of-program rule**, which is entitlement-driven (ruling 4) and
-  therefore **blocked on E**.
+  therefore **blocked on E**;
+- **row identity and reader precedence** — the load-bearing one, below.
+
+### C2's row identity + precedence (must be settled before any SQL)
+
+Today the model is *exactly one* published `client_meal_plans` row per
+(nutritionist, client). C2 breaks that, and ruling 5 makes two kinds of row
+coexist deliberately, so the contract has to be explicit or `/api/client/plan`
+and mobile will disagree about which menu is live.
+
+**Two row kinds, told apart by a program key:**
+
+- a **standing menu** — what a plain Meal-plan assignment writes today. Carries
+  no program key. This is the row every existing client has, and its behavior
+  must not change (the unruled precondition above).
+- a **program week** — carries the program's identity plus which week it is
+  (a `program_id` + a week ordinal or `week_start`). N of these belong to one
+  assigned program.
+
+**Uniqueness, stated as two constraints rather than one:** at most one *live*
+standing row per (nutritionist, client) — preserving today's invariant exactly —
+and at most one program-week row per (nutritionist, client, program, week). A
+single constraint over both kinds cannot express this, which is why the program
+key has to be a real column rather than something parsed out of `payload`.
+
+**Precedence when both cover the same week — one rule, applied identically by
+`/api/client/plan` and the mobile reader:**
+
+1. A **running, un-paused program week** for the member's local current week
+   wins.
+2. Otherwise the **standing menu** wins — this covers before the program starts,
+   after its term ends (ruling 4), and any week the program simply doesn't
+   cover.
+3. If neither exists, there is no menu, and the surface says so honestly rather
+   than falling back to the most recent row.
+
+Ruling 5 chooses which of those two rows even exists: **replace** retires the
+standing menu outright (rule 2 then has nothing to fall back to, which is why
+the coach is told that at assign time), while **pause** keeps it stored and
+un-selected for the term, so it returns under rule 2 the moment the program
+ends. Pause is the reason the writer can no longer archive every published row
+on insert.
 
 **C3 — Labelling.** The week's phase name from the outline titles that week's
 menu — B's arc, riding C's food.
