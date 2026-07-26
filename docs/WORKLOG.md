@@ -178,7 +178,36 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-24): PROFILE CUSTOMIZATION WAVE — SHIPPED end to end (Box A/B →
+> **Latest (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
+> next session (#1834, OPEN).** The owner ruled **C** (multi-week menus) and answered
+> every open question, and scoping it turned up the blocker underneath: **the builder
+> cannot author a different menu each DAY** (`iosAppBroadsheetPros.jsx:3362` assigns the
+> same `meals` array to all seven), so a client on an assigned meal plan eats the identical
+> five meals every day — stack weekly rows on that and you get four weeks of the same five
+> meals. **Per-day variation is the prerequisite.** Six binding rulings: author week 1 then
+> vary it, **with the AI drafting week 1** · a purchased program carries a **TERM** and
+> access ends · the term starts **on START, not purchase** · the last week persists **while
+> entitled** · the **coach chooses at assign time** whether a program replaces a standing
+> menu or pauses it · **all of it applies to TRAINING too**. That last one takes the wave
+> past nutrition, so it gained an **E track** (the entitlement layer — a platform change
+> that also fixes a live training hole, builds in parallel with C0/C1, and blocks C2's
+> end-of-program rule). ⚠ **Three findings:** the builders **already call the AI and throw
+> the answer away** (`:6052` nutritionist / `:5171` trainer await `generatePlanDraft`,
+> render an ✦ AI DRAFT eyebrow, then build from a hardcoded template — coaches get a
+> template and the call costs money to produce nothing); a purchased program is recorded
+> as a **"booking"** (`checkout-session/route.ts:232` derives kind from provider role and
+> nothing else, so a 12-week program and a single session are the same row shape); and
+> **training programs are already replayable forever** (`startPurchasedPlan` re-runs with
+> no bound — live today). Build order **C0 → (C1 ∥ E) → C2 → C3**; C0 is independent and
+> ships first. **Nothing is built yet.** Handoff:
+> **[`docs/HANDOFF-2026-07-26.md`](HANDOFF-2026-07-26.md)**. Also merged this window:
+> #1830 chicken doneness is a temperature not clear juices (6 sites) · #1831 untracked
+> 159 MB of stale Android artifacts · #1832 a week label is a phase not an exercise (the
+> TRAINING half of this class, + a moveless-session-reads-as-Rest P1) · #1833 Cook Mode
+> resumes the step you left, not the index, + a JSX component-name gate with its own
+> regression suite.
+>
+> **Prior (2026-07-24): PROFILE CUSTOMIZATION WAVE — SHIPPED end to end (Box A/B →
 > C → D → E), all merged.** The coach marketplace box + everyone's profile
 > customizations are live. **PR D #1821** — coach Signal profile: P1 intro film · P2 the
 > Line · P3 prompts · P4 business card · P5 the **Wins wall** (pins REAL `coach_reviews`,
@@ -984,6 +1013,94 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-26 — Nutrition week-block programs: RULED + spec'd build-ready (#1834, open) · four fixes merged (#1830–#1833)
+
+- **Session handoff: [`docs/HANDOFF-2026-07-26.md`](HANDOFF-2026-07-26.md)** —
+  the wave's rulings, findings, build order, and the file/line anchors the next
+  session needs. **Nothing from the wave is built yet**; it starts at C0.
+- **Four fixes merged to `main`** (each through the full gate):
+  - **#1830 `03e9a19c`** — chicken doneness is a **temperature, not clear
+    juices** (74°C / 165°F). Widened from 2 sites to **6** because the
+    compressed and detailed views of the *same dish* would otherwise disagree;
+    proved via probe that timer parsing was unaffected.
+  - **#1831 `96bf7a51`** — untracked **159 MB** of two-month-stale Android
+    `cap-sync` build artifacts. A deliberate decision that had failed: CI
+    regenerates them in both APK jobs, so the tracked copy was pure drift.
+    Reversed citing the `public/m` #1470 precedent; `npm run sync:android`
+    restores them locally.
+  - **#1832 `9e6207ca`** — **a week label is a phase, not an exercise** (the
+    TRAINING half of the class this wave finishes on the nutrition side). New
+    shared `planOutline.mjs` parsers (`bsAssignWeekLine` · `bsWeekUnits` ·
+    `bsWeekSpan`) so the preview and the materializer share **one grammar and
+    one aggregation**. ⚠ Also carried a **P1**: a moveless session rendered as
+    "Rest" — `isRestDay` now keys off `tag === 'REST'`, verified against all
+    five `tag:'REST'` sites. ⚠ Building it re-made the class-13 bug (used
+    `bsAssignWeekLine` in the pros module without importing it); the identifier
+    gate caught it, and removing the import temporarily *proved* the gate fires.
+  - **#1833 `591cb4c6`** — Cook Mode **resumed a numeric step index** validated
+    only by recipe key + day, but `bsCookKey` survives an edit to the method, so
+    a renumbered recipe dropped the cook at the wrong instruction. The stamp now
+    carries an **FNV-1a fingerprint of the whole normalised method**
+    (length-prefixed per step) and any edit anywhere refuses the resume; the
+    decision is extracted to a pure, tested `cookResume.mjs`. Also **gated JSX
+    component names** — a `JSXIdentifier` is not an `Identifier`, so #1828's gate
+    could not see `<BSMissing />`. ⚠ The new gate **shipped with the exact hole
+    it exists to catch** (`<icons.Foo />` — a lowercase member root skipped by an
+    uppercase-only filter); both reviewers caught it, and the root cause was that
+    the gate had **no test of its own** — now fixed with a regression suite.
+    **846 tests.**
+- **The wave (#1834) — ruled, spec'd, not built.** Spec:
+  `docs/superpowers/specs/2026-07-25-nutrition-week-block-programs.md`.
+  - **The bug:** assigning the nutritionist `program` build type installs a
+    7-day menu where **every day carries meals named "Reset & habits", "Build
+    routine", "Dial macros", "Lock it in"** — fabricated food on the Eat tab.
+  - ⚠ **The blocker that reordered the work:** C's premise is a different menu
+    each week, but **the builder cannot author a different menu each DAY** —
+    `iosAppBroadsheetPros.jsx:3362` assigns the *same* `meals` array to all
+    seven, so a client on an assigned meal plan **eats the identical five meals
+    every day of the week**. Per-day variation is the prerequisite and is worth
+    more standalone than per-week.
+  - **Six binding rulings:** author week 1 then vary it, **with the AI drafting
+    week 1** · a purchased program carries a **TERM**, access ends · the term
+    starts **on START, not purchase** · the last week persists **while
+    entitled** · the **coach chooses at assign time** (replace the standing menu,
+    or pause it for the term and restore it) · **all of it applies to TRAINING
+    too**.
+  - ⚠ **Three findings.** (①) **The AI is already called and its answer is thrown
+    away** — `:6052` (nutritionist) and `:5171` (trainer) both await
+    `generatePlanDraft`, render "Generating…" + an **✦ AI DRAFT** eyebrow, then
+    build the outline from a hardcoded template (`:6055`). Every coach who taps
+    it gets a template, and the call costs money to produce nothing. (②) **A
+    purchased program is recorded as a "booking"** —
+    `checkout-session/route.ts:232` derives `kind` from the provider's role and
+    nothing else, so a 12-week program and a single Tuesday session are the same
+    row shape, separable only by `plan_id`. (③) **Training programs are already
+    replayable forever** — `startPurchasedPlan` re-runs under a fresh `runId`
+    with no bound. Live today.
+  - **Build order C0 → (C1 ∥ E) → C2 → C3.** C0 (stop the fabrication) is
+    independent and ships first. Ruling 6 added an **E track** — the entitlement
+    layer — which is a **platform** change rather than a nutrition one, builds in
+    parallel with C0/C1, and **blocks C2's end-of-program rule**.
+  - **Review rounds folded in** (docs-only PR; Codex deliberately not
+    re-triggered per the quota rule): C0 read as a permanent ban on writing rows
+    while C2 exists to write N of them → restated as one invariant that survives
+    the wave (*a week block yields a menu row only when a genuine menu was
+    authored for that week*); **row identity + precedence** defined (standing
+    menu vs program week, two uniqueness constraints, one precedence ladder both
+    the API and mobile apply); the **replay bound made server-enforced** (one
+    active run per purchase — a UI-only bound is no bound, since the client owns
+    their own `client_workouts` rows under RLS); **migration/backfill** stated
+    (legacy program purchases are **grandfathered**, never retro-expired —
+    unclassifiable rows fail open to the client's benefit); and **week-time
+    semantics defined ONCE** (member-local `YYYY-MM-DD`, Monday-based via
+    `bsRepeatSpec`'s `0 = MONDAY` — *not* the reminders table's `0 = Sunday` —
+    boundaries owned by `shape_user_tz`), because the coach-clock version of that
+    bug already shipped once and needed `2026-07-20-cycle-coach-today.sql`.
+  - **Open for the owner (2, neither blocks C0/C1):** whether the trailing
+    "Grocery + prep guide" block surfaces anywhere; and whether to overrule the
+    web-parity contract (the contract is **both surfaces** — mobile-only is a
+    spec amendment made *before* the build, never assumed mid-build).
 
 ### 2026-07-24 — Profile customization wave — BUILD complete (PR C · D · E), all merged
 
