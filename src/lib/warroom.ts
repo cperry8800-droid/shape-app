@@ -258,6 +258,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/community/feed/[postId]/like', 'POST'],
   ['/api/community/feed', 'GET,POST'],
   ['/api/community/pr-wall', 'POST'],
+  ['/api/console/flight', 'GET'],
   ['/api/consultation', 'POST'],
   ['/api/contact', 'POST'],
   ['/api/conversations/[id]/messages', 'GET,POST'],

@@ -1066,6 +1066,34 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)
+
+- **New admin-only `/console`** (spec
+  `docs/superpowers/specs/2026-07-27-mission-control-console-design.md`) — one
+  screen answering: what's left before launch · what's in flight · is anything
+  broken. Reads the EXISTING `/api/warroom` snapshot (zero duplicated
+  computation — `/warroom` stays the deep archive, linked from the footer).
+  Owner-directed **N.O.R.A. look** (their renamed Obsidian ops dashboard):
+  near-navy `#0a0a1a`, cyan `#00d4ff` glow HUD — a self-contained admin
+  palette, the `WarRoomClient` `C`-object precedent (NOT member theme tokens).
+- **THE COUNTDOWN** — the open checklist items as scannable rows via new pure
+  **`src/lib/console-triage.mjs`** (+`.d.ts`, the funnel pattern;
+  `tests/console-triage.test.mjs`): WHO chips (YOU / EXT / ENG — named
+  outsiders like Apple/counsel/Stripe Connect beat status; `manual`→YOU;
+  `pending` naming an OWNER act→YOU), deterministic first-clause summaries;
+  a row expands to the full item text VERBATIM. Filters + readiness bar.
+- **IN FLIGHT** — new **`GET /api/console/flight`** (admin-gated, 60s cache,
+  registered in `RAW_ROUTES`): open PRs with the three merge gates (CI on
+  head · CodeRabbit verdict via reviews API · Codex presence) +
+  `AWAITING YOUR WORD` only when ALL gates are genuinely green; `main` CI
+  feeds the alarm strip. **Honesty contract:** no record renders `—` (never
+  ✓/✗), loading is a skeleton, GitHub-down reads unavailable, the alarm strip
+  only claims segments it knows. ⚠ **OWNER (optional): set `GITHUB_TOKEN`**
+  (repo read) in Vercel — without it the panel says exactly that and the rest
+  of the board runs fine. No migration.
+- **Dormant BUSINESS / MEMBER ACTIVITY slots** — the unified-dashboard
+  decomposition's pieces 1–2, wired at launch (pre-launch they'd render zeros).
+
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 
 - **Dependabot alert #12 cleared** — `sharp` <0.35.0, HIGH, runtime scope (four
