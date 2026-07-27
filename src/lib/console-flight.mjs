@@ -1,5 +1,5 @@
 // Mission Control flight gates — the pure decision rules behind
-// /api/console/flight, extracted so both review-round P1s live as TESTED
+// /api/console/flight, extracted so every review-round P1 lives as TESTED
 // logic (tests/console-flight.test.mjs), not route plumbing:
 //
 //   1. CI is green ONLY when every required check is present by name and
@@ -10,6 +10,12 @@
 //      review submits no APPROVED record (the house clean-review-leaves-no-
 //      record rule; Codex P1). Trusted bots are matched by EXACT login, never
 //      substring — anyone can comment on a public repo (CodeRabbit CWE-290).
+//   3. A reviewer that was PREVENTED from running is its own state, never a
+//      verdict: a rate-limit/spending-cap notice edits the same summary and
+//      carries the head SHA, so it reads exactly like a completed pass to
+//      anything less careful (Codex P1).
+//
+// The through-line: an unread gate is not a passed gate.
 
 export const REQUIRED_CHECKS = [
   'Web (typecheck + build)',
@@ -24,11 +30,13 @@ export const CODERABBIT_BOTS = ['coderabbitai[bot]'];
 // the house records (docs/HANDOFF-2026-06-22.md) name the pair.
 const CR_CLEAN_RE = /actionable comments posted:\s*0\b|no actionable comments were generated/i;
 
-// ...and its ways of saying it never ran. The HTML marker is the reliable one
-// (CodeRabbit stamps it into the summary it edits in place); the prose forms
-// are belt-and-braces for wording changes.
-const CR_LIMIT_RE =
-  /rate limited by coderabbit\.ai|review limit reached|reached your PR review limit|usage spending cap/i;
+// ...and its way of saying it never ran: the HTML marker CodeRabbit stamps
+// into the summary it edits in place. Deliberately ONLY the stamp, not the
+// prose ("Review limit reached", "usage spending cap") — those sentences now
+// live in this repo's own docs and tests, and a walkthrough that quoted them
+// would jam the gate at CAPPED forever. The stamp is CodeRabbit's, not ours.
+const CR_LIMIT_RE = /<!--[^>]*rate limited by coderabbit\.ai[^>]*-->/i;
+
 export const CODEX_BOTS = ['chatgpt-codex-connector[bot]'];
 
 // Conclusions that mean the check did not pass. `startup_failure` / `stale`
@@ -120,9 +128,16 @@ export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
 }
 
 /**
- * Codex presence — exact bot identity only. (Presence, not freshness: the
- * house gate treats a stale Codex pass as the owner's re-trigger call, so the
- * board reports the record that exists rather than guessing staleness.)
+ * Codex presence — exact bot identity only.
+ *
+ * Presence, NOT freshness, and that is a ruling (owner, 2026-07-27) rather
+ * than an oversight: Codex leaves no record at all when it is clean — it
+ * reacts 👍 on the triggering comment — so head-pinning it the way
+ * coderabbitVerdict is head-pinned would jam every clean pass at 'none' and
+ * the gate could never open. That is the same false-negative that cost a P1
+ * here. The house gate treats a stale Codex pass as the owner's re-trigger
+ * call, so the board reports the record that exists rather than guessing.
+ * (Registered, not built: read reactions to pin freshness without the trap.)
  * @param {{reviews?: Array<{user?: {login?: string}}>,
  *          comments?: Array<{user?: {login?: string}}>}} args
  * @returns {'present' | 'none'}

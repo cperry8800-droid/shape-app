@@ -125,6 +125,19 @@ test('coderabbitVerdict — a rate-limit notice is NOT a review (round-6 P1)', (
   assert.equal(prAllGreen({ ci: 'green', codex: 'present', draft: false, coderabbit: 'limited' }), false);
 });
 
+test('coderabbitVerdict — the cap detector reads the STAMP, not prose about caps', () => {
+  // This repo's own docs and tests now contain "Review limit reached" and
+  // "usage spending cap". A walkthrough quoting them must not jam the gate at
+  // CAPPED forever — only CodeRabbit's own HTML stamp counts.
+  const quoting = {
+    user: { login: 'coderabbitai[bot]' },
+    body:
+      `**Actionable comments posted: 0**\n\nreviewed up to ${SHA}\n\n` +
+      'Walkthrough: adds handling for "Review limit reached" notices and the org usage spending cap.',
+  };
+  assert.equal(coderabbitVerdict({ comments: [quoting], headSha: SHA }), 'clean');
+});
+
 test('coderabbitVerdict — a cap notice outranks a stale clean marker', () => {
   const capped = {
     user: { login: 'coderabbitai[bot]' },

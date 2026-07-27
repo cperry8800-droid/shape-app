@@ -4,9 +4,11 @@ export const REQUIRED_CHECKS: ReadonlyArray<string>;
 export const CODERABBIT_BOTS: ReadonlyArray<string>;
 export const CODEX_BOTS: ReadonlyArray<string>;
 
+// Narrower than Gate on purpose: check runs can't produce 'blocked' (that
+// state belongs to a reviewer that was prevented from running at all).
 export function gateFromRuns(
   runs: Array<{ name?: string; status?: string; conclusion?: string | null }>
-): Gate;
+): Exclude<Gate, 'blocked'>;
 
 export function coderabbitVerdict(args: {
   reviews?: Array<{ user?: { login?: string }; state?: string; commit_id?: string }>;
