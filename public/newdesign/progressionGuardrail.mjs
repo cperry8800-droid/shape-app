@@ -135,11 +135,12 @@ export function bsInterpolateAnchors(anchors, x) {
   if (!finite(x)) return null;
   if (!Array.isArray(anchors)) return null;
 
-  // Copy before sorting: the exported constants are shared module state, and
-  // an in-place sort would mutate a caller's table.
+  // `.filter()` already returns a NEW array, and that — not any later copy —
+  // is what stops the sort mutating a caller's table. The exported constants
+  // are shared module state; an in-place sort would reorder them for every
+  // later reader.
   const points = anchors
     .filter((a) => a && finite(a.at) && finite(a.pct))
-    .slice()
     .sort((a, b) => a.at - b.at);
 
   if (points.length === 0) return null;
@@ -278,6 +279,9 @@ function toNumber(v) {
  */
 const zoneFormatters = new Map();
 
+/** How many zone formatters may be held at once. See `zoneFormatter`. */
+const BS_ZONE_CACHE_MAX = 64;
+
 function zoneFormatter(timeZone) {
   // A non-string zone must be rejected BEFORE construction. `timeZone:
   // undefined` and `timeZone: null` do not throw — they silently fall back to
@@ -286,6 +290,16 @@ function zoneFormatter(timeZone) {
   // section exists to prevent.
   if (typeof timeZone !== 'string' || timeZone.trim() === '') return null;
   if (zoneFormatters.has(timeZone)) return zoneFormatters.get(timeZone);
+
+  // ⚠ BOUNDED. The publish route (SPEC §9.2) is a long-lived Node process, and
+  // every history row's `timezone` reaches this map — a caller sending rows
+  // with distinct garbage zones would grow it permanently across requests. The
+  // real world has a few hundred zones and one client uses one; evicting the
+  // oldest entry past the cap costs a rebuild nobody notices.
+  if (zoneFormatters.size >= BS_ZONE_CACHE_MAX) {
+    zoneFormatters.delete(zoneFormatters.keys().next().value);
+  }
+
   let fmt = null;
   try {
     fmt = new Intl.DateTimeFormat('en-US', {
@@ -534,7 +548,7 @@ export function bsClassifySession(session, index = 0) {
  *
  * @param {*} sessions
  * @returns {{eligible:number, rated:number, loadAu:number, measured:boolean,
- *            realSessions:number, hardestAu:number, malformed:Array}}
+ *            hardestAu:number, malformed:Array}}
  */
 export function bsWeekLoad(sessions) {
   if (!Array.isArray(sessions)) {
@@ -544,7 +558,6 @@ export function bsWeekLoad(sessions) {
       rated: 0,
       loadAu: 0,
       measured: false,
-      realSessions: 0,
       hardestAu: 0,
       malformed: [issue(-1, 'sessions', sessions)],
     };
@@ -562,26 +575,24 @@ export function bsWeekLoad(sessions) {
 /**
  * Sum a set of already-classified, non-malformed sessions into one week.
  *
- * `realSessions` counts the sessions above the gap floor (§4b). It rides here
- * rather than being recomputed later because it is derived from the same pass
- * over the same rows, and a second traversal is a second chance to disagree.
+ * `hardestAu` rides here rather than being recomputed later because it comes
+ * from the same pass over the same rows, and a second traversal is a second
+ * chance to disagree.
  */
 function tally(classified) {
   let eligible = 0;
   let rated = 0;
   let loadAu = 0;
-  let realSessions = 0;
   let hardestAu = 0;
   for (const c of classified) {
     if (c.eligible) eligible += 1;
     if (c.rated) {
       rated += 1;
       loadAu += c.au;
-      if (c.au > BS_GAP_SESSION_FLOOR_AU) realSessions += 1;
       if (c.au > hardestAu) hardestAu = c.au;
     }
   }
-  return { eligible, rated, loadAu, measured: rated > eligible / 2, realSessions, hardestAu };
+  return { eligible, rated, loadAu, measured: rated > eligible / 2, hardestAu };
 }
 
 /**
@@ -837,7 +848,14 @@ export function bsBaseline(sessions, todayISO) {
     basis: unusable ? 'none' : 'measured',
     weeks: windowWeeks.length,
     window: windowWeeks,
-    reason: unusable ? 'baseline_below_floor' : null,
+    // ⚠ B1 vs B2 are different failures. `bsIsUsableBaseline` rejects on
+    // non-finite / <= 0 (B1 — a median that is not a number at all) AND on
+    // below-500 (B2 — a real figure the floor rejects). Reporting
+    // `baseline_below_floor` for the first would name the wrong cause in
+    // telemetry: 499 is below the floor, NaN is not a measurement.
+    reason: unusable
+      ? (finite(au) && au > 0 ? 'baseline_below_floor' : 'baseline_unreadable')
+      : null,
     malformed,
   };
 }
@@ -998,7 +1016,15 @@ export function bsProposedWeek(proposedWeek) {
  * exactly at a ceiling is green (F53, F71, and the peak bound at F46's 700).
  */
 function bsCheck(name, value, amberCeiling, redCeiling) {
-  const state = value > redCeiling ? 'red' : value > amberCeiling ? 'amber' : 'green';
+  // ⚠ A NULL red ceiling means "this check has no red bound BY DESIGN", and it
+  // must be tested for explicitly. `value > null` coerces to `value > 0`, which
+  // would turn every such check red on any positive value. Infinity would give
+  // the right verdict, but it is not JSON-serializable: it reaches the coach as
+  // `null` through the 409 publish-rejection payload and through
+  // `analytics_events.props`, where "no red bound by design" becomes
+  // indistinguishable from "the field was unreadable".
+  const isRed = finite(redCeiling) && value > redCeiling;
+  const state = isRed ? 'red' : value > amberCeiling ? 'amber' : 'green';
   return {
     check: name,
     value,
@@ -1062,8 +1088,11 @@ export function bsColdStartVolumeAxis(proposed) {
  * @param {*} proposed the derived proposed week
  * @param {{hardestLoggedAu?:number}} [bounds]
  */
-export function bsConcentrationAxis(proposed, bounds = {}) {
-  const jump = bsJumpBounds(bounds.hardestLoggedAu);
+export function bsConcentrationAxis(proposed, bounds) {
+  // `bounds = {}` would only default on `undefined`; an explicit null is a
+  // realistic caller slip and this is an EXPORTED function, so it must not
+  // throw — the never-throws contract covers the parts, not just the whole.
+  const jump = bsJumpBounds(bounds && bounds.hardestLoggedAu);
   const checks = [jump
     ? bsCheck('jump_vs_history', proposed.hardestAu, jump.amberAu, jump.redAu)
     : bsCheck('peak', proposed.hardestAu, BS_PEAK_AMBER_AU, BS_PEAK_RED_AU)];
@@ -1078,7 +1107,8 @@ export function bsConcentrationAxis(proposed, bounds = {}) {
       // The share has no red bound of its own — a concentrated week is a
       // coaching question, not an emergency. Red on this axis comes from the
       // peak bound, which measures absolute load rather than proportion.
-      Infinity,
+      // NULL, not Infinity: this rides into jsonb and into an HTTP payload.
+      null,
     ));
   }
 
@@ -1599,7 +1629,14 @@ export function bsResolveState(axes, proposedSessions) {
 
   const reds = live.filter((a) => a.state === 'red');
   if (reds.length > 0) {
-    return { state: 'red', redPath: 'curve', contributingAxes: reds.map((a) => a.axis) };
+    // DEDUPED like the ambers below, and for the same reason: the same axis
+    // named twice is one finding. Nothing produces a duplicate axis today —
+    // which is exactly why the assumption is pinned here rather than assumed.
+    return {
+      state: 'red',
+      redPath: 'curve',
+      contributingAxes: [...new Set(reds.map((a) => a.axis))],
+    };
   }
 
   const ambers = live.filter((a) => a.state === 'amber');
@@ -1889,7 +1926,7 @@ function nameList(labels) {
 function checkClause(check) {
   if (!finite(check.value)) return null;
   const ceiling = check.state === 'red' ? check.redCeiling : check.ceiling;
-  // The share has no red ceiling by design (it is Infinity), so a red
+  // The share has no red ceiling by design (it is null), so a red
   // concentration axis legitimately reaches here with nothing to compare
   // against — the clause drops the comparison rather than printing a limit
   // that does not exist.

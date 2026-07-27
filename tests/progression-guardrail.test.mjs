@@ -178,6 +178,7 @@ test('F15 — anchor ORDER does not matter', () => {
     { at: 5000, pct: 9 },
     { at: 1500, pct: 22 },
   ];
+  const before = shuffled.map((a) => ({ ...a }));
   for (const x of [0, 400, 500, 600, 1000, 1500, 1680, 2250, 3000, 3375, 4000, 5000, 6000]) {
     near(
       bsInterpolateAnchors(shuffled, x),
@@ -185,14 +186,25 @@ test('F15 — anchor ORDER does not matter', () => {
       `F15 shuffled anchors @ ${x}`,
     );
   }
+  // ⚠ THE ORDER CHECK IS ONLY HALF THE TEST. An in-place sort would reorder
+  // `shuffled` on the FIRST call and every later iteration would read an
+  // already-sorted table — identical results, defect invisible. Assert the
+  // caller's array came back untouched.
+  assert.deepEqual(shuffled, before, 'F15 a caller table must not be reordered');
 });
 
 test('F15 — reading a table does not mutate it', () => {
-  // The anchor tables are shared module state. An in-place sort inside the
-  // reader would silently reorder a caller's config.
-  const before = BS_RAMP_ANCHORS.map((a) => ({ ...a }));
+  // ⚠ MIS-SORTED ON PURPOSE. `BS_RAMP_ANCHORS` is already ascending, so an
+  // in-place sort of it is a no-op and deepEqual would pass over the bug this
+  // test exists to catch. A table that is wrong-way-round cannot hide one.
+  const table = [...BS_RAMP_ANCHORS].reverse();
+  const before = table.map((a) => ({ ...a }));
+  near(bsInterpolateAnchors(table, 1680), ramp(1680), 'a reversed table still reads correctly');
+  assert.deepEqual(table, before, 'F15 the anchor table must be untouched');
+  // ...and the exported constant itself, which is shared module state.
+  const shared = BS_RAMP_ANCHORS.map((a) => ({ ...a }));
   bsInterpolateAnchors(BS_RAMP_ANCHORS, 1680);
-  assert.deepEqual(BS_RAMP_ANCHORS, before, 'F15 the anchor table must be untouched');
+  assert.deepEqual(BS_RAMP_ANCHORS, shared, 'F15 the exported table must be untouched');
 });
 
 test('F16 — non-finite x returns null and never throws', () => {
@@ -469,7 +481,7 @@ test('F30-F34 — measured is STRICTLY more than half (the rule lands here)', ()
 test('an empty week is not measured, and reads 0 AU without fabricating one', () => {
   const week = bsWeekLoad([]);
   assert.deepEqual(week, {
-    eligible: 0, rated: 0, loadAu: 0, measured: false, realSessions: 0, hardestAu: 0,
+    eligible: 0, rated: 0, loadAu: 0, measured: false, hardestAu: 0,
     malformed: [],
   });
 });
@@ -994,15 +1006,27 @@ test('one or two qualifying weeks reports its own reason, not "none found"', () 
 });
 
 test('F109 / F129 — a deload pulls the median down by its LENGTH', () => {
-  const twoWeek = bsBaseline([
-    ...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 1200), ...wk(M1, 1200),
-  ], TODAY);
-  near(twoWeek.au, 1600, 'F109 window [1200,1200,2000,2000] -> mean of the middle pair');
+  const twoWeekHistory = [...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 1200), ...wk(M1, 1200)];
+  const threeWeekHistory = [...wk(M4, 2000), ...wk(M3, 1200), ...wk(M2, 1200), ...wk(M1, 1200)];
 
-  const threeWeek = bsBaseline([
-    ...wk(M4, 2000), ...wk(M3, 1200), ...wk(M2, 1200), ...wk(M1, 1200),
-  ], TODAY);
-  near(threeWeek.au, 1200, 'F129 a third deload week drops the baseline to 1200');
+  near(bsBaseline(twoWeekHistory, TODAY).au, 1600,
+    'F109 window [1200,1200,2000,2000] -> mean of the middle pair');
+  near(bsBaseline(threeWeekHistory, TODAY).au, 1200,
+    'F129 a third deload week drops the baseline to 1200');
+
+  // ⚠ THE ROWS SPECIFY A STATE, NOT A BASELINE. These two exist so a retune of
+  // the anchor curves is deliberate and visible — and a baseline-only assertion
+  // cannot see one: at 1600 the ramp is 21.4% (amber over 1942.4) and the red
+  // curve 44% (over 2304), while at 1200 they are 27.4% (1528.8) and 54%
+  // (1848). The SAME 2000 AU week is amber against the two-week deload and red
+  // against the three-week one. Assert that.
+  assert.equal(
+    bsProgressionGuardrail(hist(twoWeekHistory), proposeTotal(2000)).state, 'amber',
+    'F109 — 2000 sits between 1942.4 and 2304',
+  );
+  const deeper = bsProgressionGuardrail(hist(threeWeekHistory), proposeTotal(2000));
+  assert.equal(deeper.state, 'red', 'F129 — 2000 is past the 1848 red ceiling');
+  assert.equal(deeper.redPath, 'curve');
 });
 
 test('a single-session week still qualifies for the window', () => {
@@ -1346,6 +1370,27 @@ test('F52-F56 — the measured ladder at a 2000 AU baseline', () => {
   assert.equal(volumeAt(3000).state, 'red', 'F56 3000 is red');
 });
 
+test('the ceilings are strictly OVER — pinned against the computed value itself', () => {
+  // ⚠ WHY THIS EXISTS BESIDE F53/F55. Those feed a `proposeTotal()` figure
+  // derived by one float path and compare it against a ceiling derived by
+  // another: at a 2000 AU baseline the amber ceiling actually lands on
+  // 2380.0000000000005, so "2380 is green" passes on where the arithmetic
+  // happened to fall — flip that last bit and the row fails against a CORRECT
+  // implementation. Feeding the ceiling back in tests it against ITSELF, which
+  // is exact at any precision, so the strict-vs-non-strict semantics are pinned
+  // rather than inferred.
+  const c = bsMeasuredCeilings(2000);
+  const at = (totalAu) => bsMeasuredVolumeAxis(
+    { totalAu, hardestAu: totalAu / 5, sessions: 5, incomplete: [] }, 2000,
+  ).state;
+  const justOver = (x) => x * (1 + Number.EPSILON);
+
+  assert.equal(at(c.amberAu), 'green', 'exactly AT the amber ceiling is green');
+  assert.equal(at(c.redAu), 'amber', 'exactly AT the red ceiling is amber');
+  assert.equal(at(justOver(c.amberAu)), 'amber', 'one ulp over the amber ceiling flags');
+  assert.equal(at(justOver(c.redAu)), 'red', 'one ulp over the red ceiling reds');
+});
+
 test('F52-F56 — the boundaries are strict on both ceilings', () => {
   // The rows above sit on the lines; these pin that a hair either side moves.
   assert.equal(volumeAt(2380.0001).state, 'amber', 'a hair over amber is amber');
@@ -1659,7 +1704,7 @@ test('the regimes resolve in the ruled order', () => {
   near(measured.baselineAu, 2000);
   assert.equal(measured.reason, null);
 
-  // The same weeks with the recent one dropped: last real session 23 days back.
+  // The same weeks with the recent one dropped: last real session 16 days back.
   const returning = bsResolveRegime([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)], TODAY);
   assert.equal(returning.gapDays, 16, 'the M2 week is 16 days back');
   assert.equal(returning.regime, 'return');
@@ -2305,6 +2350,25 @@ const MEASURED_RED = () => bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeT
 const COMPOUND_RED = () => bsProgressionGuardrail(
   hist(GOOD_HISTORY()), propose(P(140, 10), P(55, 10), P(55, 10)),
 );
+
+test('a SCORED result survives JSON — no Infinity, no NaN, anywhere', () => {
+  // ⚠ THE ONLY nonFinite SWEEP USED TO RUN ON A ZERO-SESSION `unknown`, whose
+  // `axes` is []. So nothing checked the payload that actually carries axes.
+  // `Infinity` is not JSON-serializable: it crosses the 409 publish-rejection
+  // response and `analytics_events.props` as `null`, making "no red bound by
+  // design" indistinguishable from "the field was unreadable" — the exact
+  // ambiguity this module refuses everywhere else.
+  const scored = bsProgressionGuardrail(hist([]), propose(P(75, 10), P(20, 10), P(20, 10)));
+  assert.equal(scored.state, 'amber');
+  const share = scored.axes.find((a) => a.axis === 'concentration')
+    .checks.find((c) => c.check === 'share_of_week');
+  assert.equal(share.redCeiling, null, 'no red bound by design reads as null, not Infinity');
+  assert.equal(share.state, 'amber', '...and a null red bound can never resolve red');
+
+  assert.deepEqual(nonFinite(scored), [], 'no Infinity or NaN anywhere in a scored result');
+  const json = JSON.stringify(scored);
+  assert.equal(JSON.stringify(JSON.parse(json)), json, 'round-trips through JSON unchanged');
+});
 
 test('F97 — green returns null; there is nothing to say', () => {
   const green = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2000));
