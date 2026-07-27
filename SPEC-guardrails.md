@@ -257,7 +257,15 @@ bsInterpolateAnchors(anchors, x)              -> number
 history = {
   todayISO: 'YYYY-MM-DD',                   // an INPUT — never read from a clock
   sessions: [{
-    dateISO:           'YYYY-MM-DD',        // CLIENT-LOCAL date; the caller resolves the zone
+    // AMENDED — the core resolves the client's own calendar week ITSELF, from
+    // an instant plus a zone. It does NOT take a pre-localized `dateISO`: an
+    // unknown zone must be reported as MALFORMED BY NAME, never silently
+    // bucketed in UTC, which would fabricate a week boundary the client never
+    // experienced (Rule E; fixture F125). A caller written against the old
+    // one-field shape omits BOTH of these, so every row reports malformed and
+    // every evaluation returns `unknown`.
+    startedAtISO:      'ISO-8601 instant',  // when the session started, with offset
+    timezone:          'IANA zone',         // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,       // null AND 0 both mean ABSENT
     durationConfirmed: boolean              // the member confirmed or typed the minutes

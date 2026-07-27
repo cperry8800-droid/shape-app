@@ -49,13 +49,16 @@ const THEME = new Proxy(THEME_KNOWN, {
 globalThis.window = globalThis;
 globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
 globalThis.useBS = () => THEME;
-globalThis.useStateBSC = (init) => React.useState(init);
+// Driving (below) swaps React for a shim, and `useStateBSC` must follow it or
+// the component would mix two hook implementations mid-render.
+let ACTIVE_REACT = React;
+globalThis.useStateBSC = (init) => ACTIVE_REACT.useState(init);
 globalThis._bsScrollTopOnMount = () => {};
 globalThis.BSEyebrow = ({ children }) => React.createElement('div', null, children);
 globalThis.BSPage = ({ children }) => React.createElement('div', null, children);
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
 
-async function loadModule() {
+async function loadModule(reactImpl = React) {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta`, not just `import.meta.env`: this file also
   // probes a bare `typeof import.meta !== 'undefined'`, which is a hard
@@ -71,7 +74,7 @@ async function loadModule() {
 
   const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
   const registry = new Map([
-    ['react', React],
+    ['react', reactImpl],
     ['react-dom', { createPortal: (n) => n }],
   ]);
   for (const spec of specs) {
@@ -110,65 +113,20 @@ const session = (props) => React.createElement(MOD.BSSession, {
   ...props,
 });
 
-test('the session player mounts with the RPE prompt present', () => {
+test('the session player mounts, and the effort prompt is NOT on the first paint', () => {
   const { html, warnings } = render(session({}));
   assert.equal(warnings.length, 0, warnings.join('\n'));
-  // The 1-10 scale replaced a three-way easy/moderate/hard control. Assert the
-  // ends of the scale AND the legend, so a silent revert to buckets fails here.
-  assert.match(html, /The effort/);
-  assert.match(html, /1 easy · 10 all-out/);
-  assert.match(html, /aria-label="Effort 1 of 10"/);
-  assert.match(html, /aria-label="Effort 10 of 10"/);
-  assert.doesNotMatch(html, /Moderate/);
-});
-
-test('nothing is pre-selected — a skipped rating must stay skipped', () => {
-  const { html, warnings } = render(session({}));
-  assert.equal(warnings.length, 0, warnings.join('\n'));
-  // No button starts pressed. A default selection would turn "skipped" into a
-  // fabricated rating for every member who never touches the control — the one
-  // outcome §3.1 forbids outright.
-  assert.doesNotMatch(html, /aria-pressed="true"/);
-});
-
-test('the duration fallback renders when the timer has not run', () => {
-  const { html, warnings } = render(session({}));
-  assert.equal(warnings.length, 0, warnings.join('\n'));
-  // A freshly-mounted session has elapsed < 60s, which is exactly the
-  // timer-did-not-run branch. Asserting it here proves the conditional renders
-  // at all rather than being dead JSX — sRPE is a product, so a rating captured
-  // with no minutes measures nothing.
-  assert.match(html, /How long\?/);
-  assert.match(html, /aria-label="Session length in minutes"/);
-  assert.match(html, /timer didn’t run/);
-});
-
-test('a wall-clock overrun asks for confirmation, pre-filled with the timer', () => {
-  // The timer is wall-clock from mount, so "finished three hours later" logs
-  // 180 minutes. Left alone that inflates the trailing baseline and loosens
-  // every FUTURE ceiling — the dangerous direction. Simulate by mounting with
-  // Date.now stubbed forward so elapsedStart lands in the past.
-  // BSSession reads Date.now() twice, in order: `now` first, then `elapsedStart`.
-  // Only the SECOND call is pushed into the past, so elapsed = now - start is a
-  // positive 175 minutes. (Staging both backwards yields a NEGATIVE elapsed,
-  // which sails past the ceiling test while proving nothing.)
-  const realNow = Date.now;
-  const OVERRUN_MS = 175 * 60 * 1000; // 175 min — past the 150-minute ceiling
-  let call = 0;
-  let out;
-  try {
-    Date.now = () => (++call === 2 ? realNow() - OVERRUN_MS : realNow());
-    out = render(session({}));
-  } finally {
-    Date.now = realNow;
-  }
-  assert.equal(call >= 2, true, 'expected BSSession to read Date.now at least twice');
-  assert.equal(out.warnings.length, 0, out.warnings.join('\n'));
-  assert.match(out.html, /How long, really\?/);
-  // Pre-filled with the timer's own figure: confirming is the common answer and
-  // correcting is one edit. An empty field here would invite dismissal.
-  assert.match(out.html, /value="17[0-9]"/);
-  assert.match(out.html, /fix it if you finished earlier/);
+  // A fresh session has an active set, so the primary CTA is `Start set 1`; the
+  // finish action only appears once the last set is logged (driven below).
+  assert.match(html, /Start set 1/);
+  assert.match(html, /End workout early/);
+  // ⚠ THE WHOLE POINT OF THE COMPLETION STEP. The rating used to sit inline
+  // below the finish button, where a member who followed the primary CTA saved
+  // and left without ever seeing it — so nearly every session stored a NULL
+  // rating and no client could reach the `measured` regime. It now lives behind
+  // the finish action. If it reappears here, that regression is back.
+  assert.doesNotMatch(html, /aria-label="Effort 1 of 10"/);
+  assert.doesNotMatch(html, /How hard was that\?/);
 });
 
 test('an open session (no moves handed in) still mounts', () => {
@@ -176,5 +134,283 @@ test('an open session (no moves handed in) still mounts', () => {
   // through the same hooks, which is where a hook-order divergence surfaces.
   const { html, warnings } = render(session({ moves: [] }));
   assert.equal(warnings.length, 0, warnings.join('\n'));
-  assert.match(html, /The effort/);
+  assert.match(html, /End workout early/);
+  assert.doesNotMatch(html, /How hard was that\?/);
+});
+
+// ── Driving the component, not just rendering it ────────────────────────────
+//
+// Everything above renders markup once, which cannot reach the completion
+// screen at all — it is behind a click. And the properties that matter most
+// here are all about what the SAVE receives, which no amount of first-paint
+// markup can show: an adversarial pass on the sibling file proved exactly this
+// class of hole stays green.
+//
+// There is no react-test-renderer or jsdom in this repo, so the component is
+// driven directly: `react` resolves to a shim whose useState/useRef keep state
+// in an array, letting the function component be called, its returned element
+// tree walked, a handler invoked, and the component re-called.
+function makeReactShim() {
+  const ctx = { cells: [], idx: 0 };
+  const shim = {
+    ...React,
+    useState(init) {
+      const i = ctx.idx++;
+      if (!(i in ctx.cells)) ctx.cells[i] = (typeof init === 'function' ? init() : init);
+      return [ctx.cells[i], (next) => { ctx.cells[i] = (typeof next === 'function' ? next(ctx.cells[i]) : next); }];
+    },
+    useRef(init) {
+      const i = ctx.idx++;
+      if (!(i in ctx.cells)) ctx.cells[i] = { current: init };
+      return ctx.cells[i];
+    },
+    // Effects stay no-ops. Running them for real hangs the runner: BSSession's
+    // mount effects start wall-clock timers and reach for browser APIs that a
+    // fake environment cannot honestly stand in for. ⚠ THE GAP THIS LEAVES is
+    // the unmount cleanup — see the note under the drive tests.
+    useEffect() {},
+    useLayoutEffect() {},
+    useInsertionEffect() {},
+    useMemo(fn) { return fn(); },
+    useCallback(fn) { return fn; },
+    useId() { return 'test-id'; },
+  };
+  return { shim, ctx };
+}
+
+const { shim: SHIM, ctx: CTX } = makeReactShim();
+const SHIM_MOD = await loadModule(SHIM);
+
+function flatten(node, out = []) {
+  if (node == null || node === false) return out;
+  if (Array.isArray(node)) { for (const n of node) flatten(n, out); return out; }
+  if (typeof node === 'object' && node.props) {
+    out.push(node);
+    flatten(node.props.children, out);
+  }
+  return out;
+}
+const textOf = (node) => {
+  const parts = [];
+  (function rec(n) {
+    if (n == null || n === false) return;
+    if (typeof n === 'string' || typeof n === 'number') { parts.push(String(n)); return; }
+    if (Array.isArray(n)) { n.forEach(rec); return; }
+    if (typeof n === 'object' && n.props) rec(n.props.children);
+  })(node.props ? node.props.children : node);
+  return parts.join('');
+};
+
+// Everything the save path touches, captured rather than stubbed away, so the
+// assertions are about the real payload the component hands over.
+function harness({ elapsedMinutes = 0 } = {}) {
+  const saved = [];
+  const events = [];
+  const backs = [];
+  globalThis.ShapeWorkoutLogs = { saveSessionLog: async (payload) => { saved.push(payload); } };
+  globalThis.ShapeAnalytics = { track: (event, props) => { events.push({ event, props }); } };
+  globalThis.__bsToast = () => {};
+  globalThis.ShapeLiveProgress = { clear: () => {}, push: () => {} };
+  globalThis.ShapeAuth = { getCachedState: () => ({ user: null }) };
+
+  CTX.cells.length = 0;
+  const props = {
+    moves: [{ m: 'Back squat', s: '5', l: '225 lb', reps: '5', rpe: '8', sets: 3 }],
+    onBack: () => { backs.push(true); },
+  };
+  let tree;
+  const renderOnce = () => { CTX.idx = 0; tree = SHIM_MOD.BSSession(props); return tree; };
+
+  // `now` and `elapsedStart` are BOTH eager `useStateBSC(Date.now())` reads, in
+  // that order, and the shim keeps only the first render's values (the ticking
+  // effect is a no-op here). Pushing the SECOND call into the past makes
+  // elapsed = now - start a positive, controllable duration. Staging both
+  // backwards instead yields a NEGATIVE elapsed, which sails past the ceiling
+  // test while proving nothing.
+  const realNow = Date.now;
+  let call = 0;
+  try {
+    Date.now = () => (++call === 2 ? realNow() - elapsedMinutes * 60 * 1000 : realNow());
+    renderOnce();
+  } finally {
+    Date.now = realNow;
+  }
+
+  const nodes = () => flatten(tree);
+  const api = {
+    get html() { return nodes().map(textOf).join(' '); },
+    nodes,
+    async click(label) {
+      const btn = nodes().find((n) => n.type === 'button' && n.props.onClick && textOf(n).trim() === label);
+      if (!btn) throw new Error(`no button labelled ${JSON.stringify(label)} (have: ${nodes().filter((n) => n.type === 'button').map((n) => JSON.stringify(textOf(n).trim())).join(', ')})`);
+      await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
+    async clickAria(label) {
+      const btn = nodes().find((n) => n.type === 'button' && n.props['aria-label'] === label);
+      if (!btn) throw new Error(`no button with aria-label ${JSON.stringify(label)}`);
+      await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
+    hasAria: (label) => nodes().some((n) => n.props && n.props['aria-label'] === label),
+    // Walk the real session to its end: the primary CTA cycles
+    // Start set → Log set per set, and only becomes `Finish workout ✓` once the
+    // last set of the last move is logged. Driving it this way (rather than
+    // forcing state) is what proves the finish button is reachable at all.
+    async completeAllSets() {
+      for (let guard = 0; guard < 40; guard += 1) {
+        const btn = nodes().find((n) => n.type === 'button' && n.props.onClick && /^(Start set|Log set)/.test(textOf(n).trim()));
+        if (!btn) return api;
+        await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+        renderOnce();
+      }
+      throw new Error('never ran out of sets to log');
+    },
+    saved,
+    events,
+    backs,
+  };
+  return api;
+}
+
+test('drive: the finish CTA opens the completion step instead of saving blind', async () => {
+  const h = harness();
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  // The prompt the member must actually see.
+  assert.match(h.html, /How hard was that\?/);
+  assert.equal(h.hasAria('Effort 1 of 10'), true);
+  assert.equal(h.hasAria('Effort 10 of 10'), true);
+  // ...and nothing has been written or navigated yet: the finish button is now
+  // a door, not a save.
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.backs.length, 0);
+  // Skipping stays possible but is never INVITED — an explicit affordance would
+  // make it a labelled peer of the save.
+  assert.doesNotMatch(h.html, /Skip rating/i);
+});
+
+test('drive: saving persists BOTH the rating and the duration confirmation', async () => {
+  const h = harness({ elapsedMinutes: 175 }); // past the 150-minute ceiling
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  await h.clickAria('Effort 8 of 10');
+  await h.click('Save & finish ✓');
+
+  assert.equal(h.saved.length, 1);
+  assert.equal(h.saved[0].sessionRpe, 8);
+  // ⚠ THE FLAG THE CORE ACTUALLY READS. An overrun is excluded unless a human
+  // vouched for it, so without this a genuinely long, genuinely confirmed
+  // session is discarded forever — indistinguishable from a screen left open.
+  assert.equal(h.saved[0].durationConfirmed, true);
+  assert.equal(h.backs.length, 1, 'saving also leaves the player');
+});
+
+test('drive: backing out STILL saves the workout, with a null rating', async () => {
+  const h = harness();
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  await h.click('← Back');
+
+  // The rating is optional; the workout log is not. Losing an irreplaceable
+  // session over one skipped field is a far worse failure than an unrated
+  // session, which the core already excludes honestly.
+  assert.equal(h.saved.length, 1, 'the workout must persist even when dismissed');
+  assert.equal(h.saved[0].sessionRpe, null);
+  // Backing out is the OPPOSITE of confirming a duration.
+  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.backs.length, 1);
+});
+
+test('drive: the save runs at most once across every exit path', async () => {
+  const h = harness();
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  await h.clickAria('Effort 5 of 10');
+  await h.click('Save & finish ✓');
+  // A double-tap, or a save racing the unmount cleanup, must not write twice —
+  // that would post the session to the feed twice and double any award.
+  await h.click('← Back').catch(() => {});
+  assert.equal(h.saved.length, 1);
+});
+
+test('drive: skip-rate telemetry fires exactly once on BOTH exits', async () => {
+  const rated = harness();
+  await rated.completeAllSets();
+  await rated.click('Finish workout ✓');
+  await rated.clickAria('Effort 7 of 10');
+  await rated.click('Save & finish ✓');
+  const a = rated.events.filter((e) => e.event === 'session_rpe_prompted');
+  assert.equal(a.length, 1);
+  assert.equal(a[0].props.rated, true);
+
+  const skipped = harness();
+  await skipped.completeAllSets();
+  await skipped.click('Finish workout ✓');
+  await skipped.click('← Back');
+  const b = skipped.events.filter((e) => e.event === 'session_rpe_prompted');
+  // Both exits must land in the denominator, or the skip rate — the only read
+  // we have on whether the prompt works — is measuring the wrong population.
+  assert.equal(b.length, 1);
+  assert.equal(b[0].props.rated, false);
+});
+
+test('drive: the duration question is asked only when the timer is not credible', async () => {
+  // A normal-length session: the timer is plainly believable, so asking would
+  // be noise on the one screen that has to stay fast.
+  const normal = harness({ elapsedMinutes: 45 });
+  await normal.completeAllSets();
+  await normal.click('Finish workout ✓');
+  assert.equal(normal.hasAria('Session length in minutes'), false);
+  assert.doesNotMatch(normal.html, /How long/);
+
+  // Too long — someone finished hours after they stopped. Pre-filled with the
+  // timer's own figure: confirming is the common answer, correcting is an edit.
+  const long = harness({ elapsedMinutes: 175 });
+  await long.completeAllSets();
+  await long.click('Finish workout ✓');
+  assert.equal(long.hasAria('Session length in minutes'), true);
+  assert.match(long.html, /How long, really\?/);
+  assert.match(long.html, /fix it if you finished earlier/);
+
+  // Too short — the timer plainly never ran, and there is no credible figure to
+  // offer, so the field starts empty.
+  const short = harness({ elapsedMinutes: 0 });
+  await short.completeAllSets();
+  await short.click('Finish workout ✓');
+  assert.equal(short.hasAria('Session length in minutes'), true);
+  assert.match(short.html, /timer didn’t run/);
+});
+
+test('drive: nothing is pre-selected — a skipped rating must stay skipped', async () => {
+  const h = harness();
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  const pressed = h.nodes().filter((n) => n.props && n.props['aria-pressed'] === true);
+  // A default selection would turn "skipped" into a fabricated rating for every
+  // member who never touches the control — the one outcome §3.1 forbids.
+  assert.equal(pressed.length, 0);
+});
+
+// ⚠ NOT COVERED HERE: the unmount cleanup — the guarantee that a session
+// survives an exit we do not control (hardware back, a route change, the shell
+// tearing the player down). Driving it needs the real mount effects to run,
+// which hangs this runner: BSSession starts wall-clock timers on mount and
+// reaches for browser APIs a fake environment cannot honestly stand in for.
+//
+// The trap it hides is real and was caught by review, not by a test: a
+// `[]`-dep cleanup captures the FIRST render's finishSession, whose closure
+// holds sessionRpe = null, an EMPTY setLogs and ~0 elapsed — so it would save
+// a junk zero-duration session instead of the workout that was done. The fix
+// is the `finishRef` indirection in the component, commented there. Verify on
+// device: start a session, reach the completion screen, then hardware-back out
+// and confirm the saved session carries its real sets and duration.
+
+test('drive: ending early routes to the same completion step', async () => {
+  const h = harness({ elapsedMinutes: 20 });
+  await h.click('End workout early');
+  assert.match(h.html, /How hard was that\?/);
+  assert.equal(h.saved.length, 0, 'ending early asks before it writes');
 });

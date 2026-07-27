@@ -2246,6 +2246,7 @@ async function saveStructuredWorkoutSession({
   workout = 'workout',
   durationSeconds = 0,
   sessionRpe = null,
+  durationConfirmed = false,
   setLogs = [],
   sensorSamples = [],
   privacy = 'private',
@@ -2281,6 +2282,24 @@ async function saveStructuredWorkoutSession({
       completedSets,
       captureMethod: 'in_app_session_timer',
       sensorAuthored: true,
+      // Did the member AFFIRMATIVELY accept this duration? The timer is
+      // wall-clock, so an overrun is only evidence if a human vouched for it —
+      // the guardrail core excludes `overrun && !durationConfirmed` so a
+      // forgotten screen cannot inflate a baseline and loosen every future
+      // ceiling (SPEC-guardrails.md §3.1).
+      //
+      // ⚠ IN `summary`, NOT ITS OWN COLUMN, ON PURPOSE. jsonb accepts an
+      // unknown key on any deployment, so this needs no migration and cannot
+      // reproduce the `session_rpe` schema-cache window below — where an
+      // unapplied column rejects the WHOLE insert and costs the member their
+      // entire session log over one optional field. `summary` is already this
+      // row's capture-metadata home (`captureMethod` sits right above).
+      // The history reader in Deploy 2b reads it from here.
+      //
+      // Only ever true on the completion screen's own save action. Backing out
+      // of that screen is the OPPOSITE of confirming, so it stays false and the
+      // core excludes the session — the safe direction.
+      durationConfirmed: durationConfirmed === true,
     },
   };
 
@@ -2440,6 +2459,7 @@ async function saveWorkoutSessionLog({
   workout = 'workout',
   durationSeconds = 0,
   sessionRpe = null, // post-session rating; null = skipped (SPEC-guardrails.md §3.1)
+  durationConfirmed = false, // the member accepted/typed the minutes on the completion screen
   setLogs = [],
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
@@ -2467,6 +2487,7 @@ async function saveWorkoutSessionLog({
     workout,
     durationSeconds,
     sessionRpe,
+    durationConfirmed,
     setLogs,
     sensorSamples,
     privacy,
