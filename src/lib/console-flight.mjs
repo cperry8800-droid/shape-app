@@ -21,7 +21,10 @@ export const REQUIRED_CHECKS = [
 export const CODERABBIT_BOTS = ['coderabbitai[bot]'];
 export const CODEX_BOTS = ['chatgpt-codex-connector[bot]'];
 
-const BAD = ['failure', 'cancelled', 'timed_out', 'action_required'];
+// Conclusions that mean the check did not pass. `startup_failure` / `stale`
+// are the ones that bite: GitHub marks them `completed`, so a presence-only
+// gate would read them as green (round-2 Codex P1).
+const BAD = ['failure', 'cancelled', 'timed_out', 'action_required', 'startup_failure', 'stale'];
 
 /** @param {unknown} login @param {string[]} allow */
 function isTrusted(login, allow) {
@@ -32,8 +35,10 @@ function isTrusted(login, allow) {
  * Overall CI gate from a commit's check runs.
  * Red / running are judged on the required checks (falling back to all runs
  * when none of the required names registered — a failure is a failure under
- * any name). GREEN requires every required check present AND successful;
- * anything short of full coverage reads 'none' — no record is never a pass.
+ * any name). GREEN is the strict case: every required check present by name
+ * AND each one completed with conclusion exactly 'success'. Anything else —
+ * partial coverage, a `neutral`/`skipped`/null conclusion, a completed-but-
+ * not-successful run — reads 'none'. No complete record is never a pass.
  * @param {Array<{name?: string, status?: string, conclusion?: string | null}>} runs
  * @returns {'green' | 'red' | 'running' | 'none'}
  */
@@ -43,8 +48,10 @@ export function gateFromRuns(runs) {
   const judged = required.length ? required : list;
   if (judged.some((r) => BAD.includes(String(r?.conclusion)))) return 'red';
   if (judged.length && judged.some((r) => r?.status !== 'completed')) return 'running';
-  const names = new Set(required.map((r) => String(r.name)));
-  return REQUIRED_CHECKS.every((n) => names.has(n)) ? 'green' : 'none';
+  const passed = new Set(
+    required.filter((r) => r?.status === 'completed' && r?.conclusion === 'success').map((r) => String(r.name))
+  );
+  return REQUIRED_CHECKS.every((n) => passed.has(n)) ? 'green' : 'none';
 }
 
 /**

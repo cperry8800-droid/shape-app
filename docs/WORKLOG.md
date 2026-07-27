@@ -1101,12 +1101,24 @@ changelog whenever something ships.
   decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
   data to put in them, so they render as labelled dormant slots — **never
   zeroed panels** (a fabricated 0 would read as measured activity).
-- **Review round (2 Codex P1 + 5 CodeRabbit, all real, all fixed in one
-  batch):** the two P1s above (clean-pass recognition + all-required-checks)
-  became the tested `console-flight.mjs`; exact-login bot identity; shared
-  `flight-types.ts` (client never imports the server route); `groupOf()`
-  learns `/api/console` → System; the WORKLOG zeros phrasing tightened; a
-  `human review` EXT test vector added.
+- **Review rounds (9 findings across 2 rounds, all real, all fixed).**
+  **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
+  all-required-checks became the tested `console-flight.mjs`; exact-login bot
+  identity (substring matching was spoofable, CWE-290); shared
+  `flight-types.ts`; `groupOf()` learns `/api/console` → System; a
+  `human review` EXT test vector. **Round 2** (2 Codex, both in the round-1
+  fix — the fix commit is not exempt from review): ⚠ **`completed` ≠
+  `success`** — GitHub marks `startup_failure` / `stale` as completed, so a
+  presence-only gate read them GREEN; green now requires every required check
+  present AND `conclusion === 'success'`, with ambiguous conclusions
+  (`neutral`/`skipped`/null) reading `none`. And ⚠ **the readiness bar was
+  measuring the wrong thing** — `snap.readiness` is required-CONFIG-group
+  readiness, not checklist progress, so a config-complete install would have
+  shown a full bar beside dozens of open items; the bar now reads
+  `CHECKLIST n/m CLOSED` from the triage counts (the same set the open count
+  comes from) and config gets its own labelled line. **The rule that
+  generalizes: a progress bar must share its denominator with the number it
+  sits next to.**
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

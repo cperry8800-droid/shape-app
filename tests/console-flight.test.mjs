@@ -28,6 +28,22 @@ test('gateFromRuns — red and running judged on the required set', () => {
   );
 });
 
+test('gateFromRuns — completed ≠ success: only a real success conclusion counts', () => {
+  // Round-2 Codex P1: GitHub marks these 'completed', so a presence-only gate
+  // would have read them green.
+  for (const bad of ['startup_failure', 'stale']) {
+    assert.equal(gateFromRuns([...ALL_GREEN.slice(0, 2), run(REQUIRED_CHECKS[2], bad)]), 'red', bad);
+  }
+  // Ambiguous / absent conclusions are not a pass and not confidently a fail.
+  for (const amb of ['neutral', 'skipped', null]) {
+    assert.equal(
+      gateFromRuns([...ALL_GREEN.slice(0, 2), run(REQUIRED_CHECKS[2], amb)]),
+      'none',
+      String(amb)
+    );
+  }
+});
+
 test('gateFromRuns — the no-required fallback can flag red/running but NEVER green', () => {
   assert.equal(gateFromRuns([run('Some Renamed Job', 'failure')]), 'red');
   assert.equal(gateFromRuns([run('Some Renamed Job', null, 'queued')]), 'running');

@@ -177,7 +177,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
     () => (who === 'all' ? triage.open : triage.open.filter((o: TriagedItem) => o.who === who)),
     [triage, who]
   );
-  const pct = snap.readiness.total ? Math.round((snap.readiness.score / snap.readiness.total) * 100) : 0;
+  // The bar pairs with the open count, so it must measure the SAME thing:
+  // checklist items closed. snap.readiness is required-CONFIG-group readiness
+  // (a different denominator entirely) and gets its own labelled readout.
+  const pct = triage.counts.total ? Math.round((triage.counts.done / triage.counts.total) * 100) : 0;
+  const cfgPct = snap.readiness.total ? Math.round((snap.readiness.score / snap.readiness.total) * 100) : 0;
 
   const fetchFlight = useCallback(async () => {
     try {
@@ -375,7 +379,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                   <div style={{ width: `${pct}%`, height: '100%', background: N.accent, boxShadow: `0 0 10px ${N.accentDim}` }} />
                 </div>
                 <div style={{ marginTop: 6, fontFamily: MONO, fontSize: 10.5, color: N.dim, fontVariantNumeric: 'tabular-nums' }}>
-                  READINESS {snap.readiness.score} / {snap.readiness.total} · {pct}%
+                  CHECKLIST {triage.counts.done} / {triage.counts.total} CLOSED · {pct}%
+                </div>
+                <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, fontVariantNumeric: 'tabular-nums' }}>
+                  CONFIG {snap.readiness.score} / {snap.readiness.total} GROUPS · {snap.readiness.label.toUpperCase()}
+                  {cfgPct === 100 ? '' : ` · ${cfgPct}%`}
                 </div>
               </div>
             </div>
