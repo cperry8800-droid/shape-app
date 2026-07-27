@@ -22,6 +22,7 @@
 //
 // Built section by section against the table. Landed so far:
 //   §2  bsInterpolateAnchors + the three anchor tables   (F1–F16)
+//   §3  load derivation — eligible / rated / session AU  (F17–F29, F110, F111)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -147,4 +148,169 @@ export function bsInterpolateAnchors(anchors, x) {
   // pair brackets it. Returning null rather than undefined keeps the contract
   // honest if that ever stops being true.
   return null;
+}
+
+/* ── §3. Load derivation ───────────────────────────────────────────────────
+ *
+ * What a logged session contributes to a week's load. Three states per session,
+ * and the difference between them is the whole point:
+ *
+ *   MALFORMED  a caller bug — a negative duration, an RPE of 11. Reported by
+ *              name, never clamped and never silently dropped (rule C). One
+ *              malformed row turns the whole evaluation `unknown`, because a
+ *              client-side defect must not quietly produce a wrong baseline
+ *              forever. `unknown` does not block publish (rule D).
+ *   ABSENT     honest, expected, handled by EXCLUSION — an unrated session, a
+ *              wall-clock overrun nobody confirmed. Contributes no AU and is
+ *              not an error.
+ *   RATED      a real measurement. Contributes rpe x minutes.
+ *
+ * Absent must never become a zero. A session with no rating that scored 0 AU
+ * would enter the week's sum as a real, very light session and deflate the
+ * baseline — which loosens every future ceiling. That is the dangerous
+ * direction, and it is the reason F20 exists.
+ */
+
+/** Wall-clock minutes past which an UNCONFIRMED duration stops being evidence. */
+export const BS_SESSION_MINUTES_CEILING = 150;
+
+/** The rating scale the completion prompt actually offers. */
+export const BS_RPE_MIN = 1;
+export const BS_RPE_MAX = 10;
+
+/**
+ * Describe a value for a malformed report without ever throwing.
+ *
+ * `${Symbol()}` throws a TypeError, so a malformed row carrying a Symbol would
+ * crash the very reporting path built to survive malformed rows. `String(sym)`
+ * is safe; everything else is bounded so a huge string cannot ride into
+ * telemetry.
+ */
+function describe(v) {
+  const t = typeof v;
+  if (t === 'symbol') return String(v);
+  if (v === null) return 'null';
+  if (t === 'undefined') return 'undefined';
+  if (t === 'number' || t === 'boolean') return String(v);
+  if (t === 'string') return v.length > 40 ? `${JSON.stringify(v.slice(0, 40))}...` : JSON.stringify(v);
+  if (Array.isArray(v)) return `array(${v.length})`;
+  return t;
+}
+
+function issue(index, field, value) {
+  return { index, field, value: describe(value) };
+}
+
+/**
+ * Classify one logged session.
+ *
+ * @param {*} session a raw history row — assume nothing about it
+ * @param {number} index its position, so a malformed row can be named
+ * @returns {{malformed:boolean, issues:Array, eligible:boolean, rated:boolean, au:number|null}}
+ */
+export function bsClassifySession(session, index = 0) {
+  const bad = (issues) => ({ malformed: true, issues, eligible: false, rated: false, au: null });
+
+  if (!session || typeof session !== 'object' || Array.isArray(session)) {
+    return bad([issue(index, 'session', session)]);
+  }
+
+  const { durationSec, sessionRpe, durationConfirmed } = session;
+
+  // ── Duration. Required, and the load is meaningless without it.
+  if (!finite(durationSec) || durationSec < 0) {
+    return bad([issue(index, 'durationSec', durationSec)]);
+  }
+
+  // ── RPE. Three-way, and the split is deliberate:
+  //   null / undefined / exactly 0  -> ABSENT. The DB column is nullable and
+  //     its CHECK permits 0, but the prompt only ever writes 1-10, so a stored
+  //     0 means "not rated" — never "zero effort" (F20).
+  //   1..10                         -> RATED.
+  //   anything else                 -> MALFORMED (F29). That includes a value
+  //     the CHECK would have rejected (11, -2) AND one it would have accepted
+  //     but the prompt cannot produce (0.5). Reporting the second is the point
+  //     of rule C: it can only come from a client-side defect, and the cost of
+  //     surfacing it is an `unknown` that does not block publish.
+  //
+  //     ⚠ ASSUMPTION, flagged for the owner, not a ruled fixture. The table
+  //     covers 0 (F20, absent) and 11 / -2 (F29, malformed) but says nothing
+  //     about 0 < rpe < 1. The reading taken here is the tighter one: rated
+  //     means a value the prompt can actually produce. The looser alternative
+  //     — treat anything the DB CHECK permits (0..10) as absent — would
+  //     silently swallow a defect instead of reporting it, which is the
+  //     failure mode rule C exists to prevent. Reversing it is a one-line
+  //     change to the comparison below.
+  const rpeAbsent = sessionRpe === null || sessionRpe === undefined || sessionRpe === 0;
+  let rated = false;
+  if (!rpeAbsent) {
+    if (!finite(sessionRpe) || sessionRpe < BS_RPE_MIN || sessionRpe > BS_RPE_MAX) {
+      return bad([issue(index, 'sessionRpe', sessionRpe)]);
+    }
+    rated = true;
+  }
+
+  // ── Eligibility. A session with no duration measures nothing (F18), and an
+  // unconfirmed wall-clock overrun is the TIMER's word, not the member's — the
+  // clock runs whether or not anyone is training, so a forgotten timer would
+  // inflate the baseline and loosen every future ceiling (F22).
+  //
+  // `durationConfirmed` is treated as a boolean flag: only a truthy value is a
+  // confirmation. A missing flag therefore reads as unconfirmed, which excludes
+  // rather than includes — the safe direction, and not a malformed row.
+  const overrun = durationSec > BS_SESSION_MINUTES_CEILING * 60;
+  const inferredOverrun = overrun && !durationConfirmed;
+  const eligible = durationSec > 0 && !inferredOverrun;
+
+  // Ineligible sessions are not rated either. An excluded overrun must not
+  // linger in the denominator as an "unrated" session — it is not a session we
+  // failed to rate, it is a session we do not have a length for (F27).
+  const isRated = eligible && rated;
+
+  return {
+    malformed: false,
+    issues: [],
+    eligible,
+    rated: isRated,
+    au: isRated ? sessionRpe * (durationSec / 60) : null,
+  };
+}
+
+/**
+ * Derive one week's load from its logged sessions.
+ *
+ * `loadAu` sums the RATED sessions only. `measured` is the qualifying rule:
+ * strictly more than half of the eligible sessions carry a rating, so a week
+ * split exactly down the middle does NOT qualify (F31) — a baseline built from
+ * half-guesses is not a measurement.
+ *
+ * @param {*} sessions
+ * @returns {{eligible:number, rated:number, loadAu:number, measured:boolean, malformed:Array}}
+ */
+export function bsWeekLoad(sessions) {
+  const empty = { eligible: 0, rated: 0, loadAu: 0, measured: false, malformed: [] };
+  if (!Array.isArray(sessions)) {
+    // Not a caller bug we can name a row for — the whole collection is wrong.
+    return { ...empty, malformed: [issue(-1, 'sessions', sessions)] };
+  }
+
+  let eligible = 0;
+  let rated = 0;
+  let loadAu = 0;
+  const malformed = [];
+
+  sessions.forEach((s, i) => {
+    const c = bsClassifySession(s, i);
+    if (c.malformed) {
+      malformed.push(...c.issues);
+      return;
+    }
+    if (c.eligible) eligible += 1;
+    if (c.rated) {
+      rated += 1;
+      loadAu += c.au;
+    }
+  });
+
+  return { eligible, rated, loadAu, measured: rated > eligible / 2, malformed };
 }
