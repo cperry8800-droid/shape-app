@@ -25,6 +25,8 @@
 //   §3  load derivation — eligible / rated / session AU  (F17–F29, F130–F133)
 //   §4a week bucketing — the client's local Monday-start weeks (F41, F42,
 //       F112, F119–F128)
+//   §4b the baseline — bounded trailing window, median, 500 AU floor
+//       (F35–F40, F99–F108, F113–F116)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -294,6 +296,46 @@ function isoDateFromUtcMs(ms) {
 }
 
 /**
+ * The Monday that starts the week containing a UTC-anchored calendar date.
+ *
+ * The ONE place the week boundary is decided, shared by session bucketing and
+ * the baseline window — two Monday rules is how they come to disagree about
+ * which week a session belongs to.
+ */
+function mondayIsoFromUtcMs(ms) {
+  const mondayIndex = (new Date(ms).getUTCDay() + 6) % 7; // 0 = Monday
+  return isoDateFromUtcMs(ms - mondayIndex * DAY_MS);
+}
+
+/**
+ * Parse a bare `YYYY-MM-DD` calendar date to a UTC anchor, or NaN.
+ *
+ * Deliberately NOT `Date.parse`: that accepts a whole grammar of other forms
+ * (`2026-08`, `Aug 3 2026`, an instant with an offset) and would silently take
+ * a value this module has no business interpreting. `todayISO` and every
+ * bucketed week start are plain calendar dates, so the parser is too.
+ */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function utcMsFromIsoDate(iso) {
+  if (typeof iso !== 'string') return NaN;
+  const m = ISO_DATE.exec(iso.trim());
+  if (!m) return NaN;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const ms = Date.UTC(y, mo - 1, d);
+  if (!Number.isFinite(ms)) return NaN;
+  // Reject a date that does not exist (2026-02-31 rolls forward into March).
+  // A caller supplying an impossible date is a bug, not a date to guess at.
+  const back = new Date(ms);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) {
+    return NaN;
+  }
+  return ms;
+}
+
+/**
  * Resolve an instant to the client's local date and the Monday that starts its
  * week.
  *
@@ -330,10 +372,9 @@ export function bsLocalWeek(startedAtISO, timeZone) {
   // across a DST transition, where a local day is 23 or 25 hours long (F123,
   // F126) — calendar arithmetic has no such day.
   const anchor = Date.UTC(y, m - 1, d);
-  const mondayIndex = (new Date(anchor).getUTCDay() + 6) % 7; // 0 = Monday
   return {
     localDateISO: isoDateFromUtcMs(anchor),
-    weekStartISO: isoDateFromUtcMs(anchor - mondayIndex * DAY_MS),
+    weekStartISO: mondayIsoFromUtcMs(anchor),
   };
 }
 
@@ -496,19 +537,27 @@ export function bsWeekLoad(sessions) {
   return { ...tally(classified), malformed };
 }
 
-/** Sum a set of already-classified, non-malformed sessions into one week. */
+/**
+ * Sum a set of already-classified, non-malformed sessions into one week.
+ *
+ * `realSessions` counts the sessions above the gap floor (§4b). It rides here
+ * rather than being recomputed later because it is derived from the same pass
+ * over the same rows, and a second traversal is a second chance to disagree.
+ */
 function tally(classified) {
   let eligible = 0;
   let rated = 0;
   let loadAu = 0;
+  let realSessions = 0;
   for (const c of classified) {
     if (c.eligible) eligible += 1;
     if (c.rated) {
       rated += 1;
       loadAu += c.au;
+      if (c.au > BS_GAP_SESSION_FLOOR_AU) realSessions += 1;
     }
   }
-  return { eligible, rated, loadAu, measured: rated > eligible / 2 };
+  return { eligible, rated, loadAu, measured: rated > eligible / 2, realSessions };
 }
 
 /**
@@ -522,7 +571,8 @@ function tally(classified) {
  *
  * @param {*} sessions
  * @returns {{weeks:Array<{weekStartISO:string, eligible:number, rated:number,
- *            loadAu:number, measured:boolean, sessions:number}>, malformed:Array}}
+ *            loadAu:number, measured:boolean, realSessions:number,
+ *            sessions:number}>, malformed:Array}}
  */
 export function bsBucketWeeks(sessions) {
   if (!Array.isArray(sessions)) {
@@ -556,4 +606,198 @@ export function bsBucketWeeks(sessions) {
     .sort((a, b) => (a.weekStartISO < b.weekStartISO ? -1 : a.weekStartISO > b.weekStartISO ? 1 : 0));
 
   return { weeks, malformed };
+}
+
+/* ── §4b. The baseline — the bounded trailing window ───────────────────────
+ *
+ * Rule A: the median of the most recent QUALIFYING weeks — at most 4, at least
+ * 3 — searching back at most 12 calendar weeks (84 days) from `todayISO`.
+ * Both bounds are load-bearing and pull in opposite directions: "last N
+ * calendar weeks" starves a sparse logger, "last N qualifying weeks" reaches
+ * back indefinitely into stale data.
+ *
+ *   - at most 4  — one training block. Memory that adapts at the rate training
+ *                  actually changes.
+ *   - at least 3 — below that there is no baseline, only a guess.
+ *   - 84 days    — the SAME number as the stale-baseline horizon, deliberately.
+ *                  One staleness concept expressed once; two horizons is how
+ *                  they come to disagree.
+ *
+ * Rule B, kept as two separate guards on purpose:
+ *   B1 `baseline <= 0` is unreachable by construction (a measured week needs a
+ *      rated session, which has positive AU) — and asserted anyway, because
+ *      that is exactly the class of reasoning that turns out to be wrong and
+ *      the failure is severe: every ceiling becomes 0 and every week goes red.
+ *      ⚠ It also catches the case the floor test CANNOT: `NaN < 500` is FALSE,
+ *      so a NaN baseline sails straight through a naive floor check.
+ *   B2 `baseline < 500 AU` → no baseline. 500 is the ramp curve's own lowest
+ *      anchor; below it the curve is outside its domain and a percentage is
+ *      arithmetic dressed as measurement. A 200 AU beginner adding a second
+ *      session is a 100% increase — the guardrail would be at its loudest for
+ *      the people least able to read it. Under the floor the absolute
+ *      session-count caps govern, which is what they were calibrated for.
+ */
+
+/** Below this, a week has no baseline and no percentage is computed against it. */
+export const BS_BASELINE_FLOOR_AU = 500;
+
+/** The window: at least this many qualifying weeks, at most that many. */
+export const BS_WINDOW_MIN_WEEKS = 3;
+export const BS_WINDOW_MAX_WEEKS = 4;
+
+/** How far back the window may search — 12 calendar weeks, the stale horizon. */
+export const BS_WINDOW_REACH_DAYS = 84;
+
+/**
+ * A session must clear this to count as real training for GAP detection.
+ *
+ * A gap is a run of consecutive days with no session ABOVE this floor, so a
+ * 60 AU walk does not reset an interruption (F64) and a 140 AU session does
+ * (F65). Each week carries its own count of such sessions (`realSessions`).
+ *
+ * ⚠ This floor does NOT filter the baseline window. F103 pins four weeks of
+ * ~0.02 AU sub-minute sessions as QUALIFYING — they reach the floor test and
+ * report `baseline_below_floor`, which they could not do if the gap floor had
+ * already excluded them. Light weeks are still weeks; the gap rule decides
+ * regimes (§7), not membership of the median.
+ */
+export const BS_GAP_SESSION_FLOOR_AU = 100;
+
+/**
+ * The median — the mean of the middle PAIR when the count is even (F39).
+ *
+ * A median, not a mean, because one abnormally light week must not drag the
+ * baseline down (F37) and one huge week must not inflate it (F38). Those two
+ * rows are the whole reason this is not an average.
+ */
+export function bsMedian(values) {
+  if (!Array.isArray(values)) return null;
+  const nums = values.filter(finite).slice().sort((a, b) => a - b);
+  if (nums.length === 0) return null;
+  const mid = nums.length >> 1;
+  return nums.length % 2 === 1 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+
+/**
+ * Is a computed baseline usable — rule B, both halves, in one place.
+ *
+ * Exported so B1 can be asserted INDEPENDENTLY of B2 (F104, F116), which is the
+ * whole point of keeping them separate: `baseline <= 0` is unreachable through
+ * real sessions, so the only honest way to pin the guard is to call it directly.
+ *
+ *   B1  not a positive finite number  -> unusable. Catches 0, negatives, and
+ *       NaN — and NaN is the one a bare `< 500` check silently passes.
+ *   B2  below the ramp curve's own lowest anchor -> unusable.
+ */
+export function bsIsUsableBaseline(au) {
+  if (!finite(au) || au <= 0) return false;   // B1
+  return au >= BS_BASELINE_FLOOR_AU;          // B2 — the floor is BELOW, not at
+}
+
+/**
+ * Derive the baseline from a client's logged history.
+ *
+ * `todayISO` is the only "now" and it is an INPUT — never a clock read. It is a
+ * bare client-local calendar date, matching the dates weeks are bucketed on, so
+ * the comparison is calendar-to-calendar with no zone arithmetic left to do.
+ *
+ * @param {*} sessions raw history rows
+ * @param {*} todayISO 'YYYY-MM-DD', the client's local today
+ * @returns {{au:number|null, rawAu:number|null, basis:'measured'|'none',
+ *            weeks:number, window:Array, reason:string|null, malformed:Array}}
+ */
+export function bsBaseline(sessions, todayISO) {
+  const { weeks, malformed } = bsBucketWeeks(sessions);
+
+  const none = (reason, extraIssues = []) => ({
+    au: null,
+    rawAu: null,
+    basis: 'none',
+    weeks: 0,
+    window: [],
+    reason,
+    malformed: extraIssues.length ? [...malformed, ...extraIssues] : malformed,
+  });
+
+  // ── `todayISO` itself can be a caller bug, and it is not history.
+  //
+  // ⚠ DECISION BEYOND THE TABLE: no fixture supplies a malformed `todayISO`.
+  // Reported as malformed rather than guessed at, following rule C — the whole
+  // window is measured from this date, so silently defaulting it would produce
+  // a confidently wrong baseline instead of an honest "could not check".
+  const todayMs = utcMsFromIsoDate(todayISO);
+  if (!Number.isFinite(todayMs)) {
+    return none('malformed_history', [issue(-1, 'todayISO', todayISO)]);
+  }
+
+  if (!Array.isArray(sessions)) return none('malformed_history');
+
+  // No history at all is a DIFFERENT answer from history we cannot use (F107
+  // vs F106): one is "not enough logged", the other is "logged but unusable",
+  // and a coach reads them differently.
+  if (sessions.length === 0) return none('no_history');
+
+  const currentMonday = mondayIsoFromUtcMs(todayMs);
+  const reachStart = isoDateFromUtcMs(todayMs - BS_WINDOW_REACH_DAYS * DAY_MS);
+
+  // ISO dates are zero-padded and fixed-width, so a plain string compare is a
+  // correct chronological compare — same reasoning as the week sort.
+  // A week qualifies when it is MEASURED, complete, and in reach — and nothing
+  // more. In particular it is NOT filtered on the gap floor: F103 pins four
+  // weeks of ~0.02 AU sub-minute sessions as qualifying (they reach the
+  // baseline floor test and report `baseline_below_floor`), so a week whose
+  // every session is light still counts as a week. F40's "week inside a
+  // detected gap" is therefore the EMPTY week — a week with no training must
+  // not enter the median as a zero — which holds by construction here, because
+  // bucketing never materialises a week that has no sessions.
+  const qualifying = weeks.filter((w) => (
+    // Strictly more than half of the eligible sessions carry a rating.
+    w.measured
+    // ⚠ DECISION BEYOND THE TABLE: COMPLETED weeks only. The week containing
+    // `todayISO` is still being lived — on a Tuesday it holds one session and
+    // would enter the median as a genuine light week, dragging the baseline
+    // down and TIGHTENING every ceiling. SPEC-guardrails.md §6.1 says
+    // "completed measured weeks", which is the textual ground for this; no
+    // fixture row pins it either way.
+    && w.weekStartISO < currentMonday
+    // Within reach: 84 days back from today, measured at the week's own start.
+    && w.weekStartISO >= reachStart
+  ));
+
+  // The most recent 4. Weeks arrive ascending, so the tail is the recent end;
+  // anything older simply does not enter the median (F102).
+  const window = qualifying.slice(-BS_WINDOW_MAX_WEEKS);
+
+  if (window.length < BS_WINDOW_MIN_WEEKS) {
+    // ⚠ DECISION BEYOND THE TABLE: the table names `no_qualifying_weeks` for
+    // ZERO qualifying weeks (F106) and never names a reason for one or two.
+    // Reusing it there would report "no qualifying weeks" about a client who
+    // has two — a small lie, and this module's whole contract is that it does
+    // not tell them. `insufficient_weeks` is new vocabulary, flagged as such.
+    const reason = window.length === 0 ? 'no_qualifying_weeks' : 'insufficient_weeks';
+    return {
+      au: null,
+      rawAu: null,
+      basis: 'none',
+      weeks: window.length,
+      window,
+      reason,
+      malformed,
+    };
+  }
+
+  const au = bsMedian(window.map((w) => w.loadAu));
+
+  // `rawAu` carries the computed figure for telemetry while `au` stays null, so
+  // nothing downstream can divide by a baseline this function has rejected.
+  const unusable = !bsIsUsableBaseline(au);
+  return {
+    au: unusable ? null : au,
+    rawAu: finite(au) ? au : null,
+    basis: unusable ? 'none' : 'measured',
+    weeks: window.length,
+    window,
+    reason: unusable ? 'baseline_below_floor' : null,
+    malformed,
+  };
 }

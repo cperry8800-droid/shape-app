@@ -12,6 +12,8 @@
 //              plus the ordered rating rule F130-F133)
 //   Section 4a week bucketing - client-local Monday weeks (F41, F42, F112,
 //              F119-F128)
+//   Section 4b the baseline - bounded trailing window, median, 500 AU floor
+//              (F35-F41, F99-F104, F106-F109, F113-F116, F129)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,10 +24,16 @@ import {
   bsWeekLoad,
   bsLocalWeek,
   bsBucketWeeks,
+  bsMedian,
+  bsBaseline,
+  bsIsUsableBaseline,
   BS_RAMP_ANCHORS,
   BS_RED_ANCHORS,
   BS_RETURN_ANCHORS,
   BS_SESSION_MINUTES_CEILING,
+  BS_BASELINE_FLOOR_AU,
+  BS_WINDOW_MAX_WEEKS,
+  BS_WINDOW_MIN_WEEKS,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -419,7 +427,9 @@ test('F30-F34 — measured is STRICTLY more than half (the rule lands here)', ()
 
 test('an empty week is not measured, and reads 0 AU without fabricating one', () => {
   const week = bsWeekLoad([]);
-  assert.deepEqual(week, { eligible: 0, rated: 0, loadAu: 0, measured: false, malformed: [] });
+  assert.deepEqual(week, {
+    eligible: 0, rated: 0, loadAu: 0, measured: false, realSessions: 0, malformed: [],
+  });
 });
 
 test('rule C — malformed rows are collected and NEVER throw', () => {
@@ -707,4 +717,314 @@ test('a week with no sessions is ABSENT, not present with zeroes', () => {
   ]);
   assert.deepEqual(weeks.map((w) => w.weekStartISO), ['2026-07-13', '2026-07-27'],
     'the empty week in between does not appear');
+});
+
+// ── §4b. The baseline — the bounded trailing window ──────────────────────────
+//
+// History here is built on bare local dates in UTC: the zone conversion is
+// already pinned by the §4a rows, so these fixtures keep the calendar plain and
+// exercise the WINDOW instead. Every session in a week is dated on that week's
+// Monday — F42 already proved several sessions on one date all count, so
+// spreading them across days would add arithmetic without adding coverage.
+
+const TODAY = '2026-08-05';          // a Wednesday
+const M0 = '2026-08-03';             // the week being lived — never complete
+const M1 = '2026-07-27';
+const M2 = '2026-07-20';
+const M3 = '2026-07-13';
+const M4 = '2026-07-06';
+const M5 = '2026-06-29';
+const M6 = '2026-06-22';
+const M7 = '2026-06-15';
+const M8 = '2026-06-08';
+const M11 = '2026-05-18';            // 79 days back — the last week IN reach
+const M12 = '2026-05-11';            // 86 days back — the first week OUT of reach
+const M14 = '2026-04-27';            // 100 days back
+
+const on = (dateISO, min, rpe, confirmed = false) => ({
+  startedAtISO: `${dateISO}T12:00:00Z`,
+  timezone: 'UTC',
+  durationSec: Math.round(min * 60),
+  sessionRpe: rpe,
+  durationConfirmed: confirmed,
+});
+
+// A week totalling exactly `au`, split over equal sessions at RPE 10 — so
+// minutes are simply AU/10. The split is sized so no session exceeds the
+// 150-minute ceiling (1500 AU at RPE 10): an unconfirmed overrun is EXCLUDED
+// by F22, so a naive two-way split of a heavy week would silently produce an
+// empty week rather than a heavy one.
+const wk = (monday, au, count = Math.max(2, Math.ceil(au / 1500))) =>
+  Array.from({ length: count }, () => on(monday, au / count / 10, 10));
+
+// A week that logs sessions but does NOT qualify: 2 eligible, 1 rated, which
+// fails `rated > eligible / 2` by F33.
+const unmeasuredWeek = (monday) => [on(monday, 60, 7), on(monday, 60, null)];
+
+test('F36-F39 — the baseline is the MEDIAN of the qualifying weeks', () => {
+  const mondays = [M4, M3, M2, M1];
+  const base = (loads) => bsBaseline(
+    loads.flatMap((au, i) => wk(mondays[mondays.length - loads.length + i], au)),
+    TODAY,
+  );
+
+  near(base([1500, 2000, 2500]).au, 2000, 'F36 three weeks 1500/2000/2500');
+  // A median, not a mean: the mean of F37 is ~1533 and the mean of F38 is ~3367.
+  near(base([400, 2000, 2200]).au, 2000, 'F37 one very light week must not drag it down');
+  near(base([2000, 2100, 6000]).au, 2100, 'F38 one huge week must not inflate it');
+  near(base([1000, 2000, 2400, 3000]).au, 2200, 'F39 four weeks -> mean of the middle PAIR');
+});
+
+test('F35 / F108 — three qualifying weeks is the handoff boundary', () => {
+  const two = bsBaseline([...wk(M2, 2000), ...wk(M1, 2000)], TODAY);
+  assert.equal(two.au, null, 'F35 two measured weeks cannot form a baseline');
+  assert.equal(two.basis, 'none');
+  assert.equal(two.weeks, 2, 'the two weeks it DID find are still reported');
+
+  const three = bsBaseline(
+    [...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)],
+    TODAY,
+  );
+  assert.equal(three.basis, 'measured', 'F108 exactly three qualifies');
+  near(three.au, 2000, 'F108 baseline');
+  assert.equal(three.reason, null);
+  assert.equal(BS_WINDOW_MIN_WEEKS, 3, 'the boundary is the exported constant');
+});
+
+test('F40 — a week with no training never enters the median as a zero', () => {
+  // Real weeks at M8, M2 and M1 with a five-week interruption between. If the
+  // absent weeks were materialised as 0 AU weeks the most recent four would be
+  // [0, 0, 2000, 2000] and the median would read 1000.
+  const r = bsBaseline(
+    [...wk(M8, 2000), ...wk(M2, 2000), ...wk(M1, 2000)],
+    TODAY,
+  );
+  assert.equal(r.weeks, 3, 'only the weeks that were actually trained');
+  assert.deepEqual(r.window.map((w) => w.weekStartISO), [M8, M2, M1]);
+  near(r.au, 2000, 'F40 the gap contributes nothing — it is absent, not zero');
+});
+
+test('F41 — the order history arrives in cannot change the baseline', () => {
+  const inOrder = [...wk(M3, 1000), ...wk(M2, 2000), ...wk(M1, 3000)];
+  const shuffled = [inOrder[5], inOrder[0], inOrder[3], inOrder[1], inOrder[4], inOrder[2]];
+  const a = bsBaseline(inOrder, TODAY);
+  const b = bsBaseline(shuffled, TODAY);
+  near(a.au, 2000, 'F41 baseline');
+  assert.deepEqual(
+    b.window.map((w) => w.weekStartISO),
+    a.window.map((w) => w.weekStartISO),
+    'F41 the same weeks, in the same order',
+  );
+  near(b.au, a.au, 'F41 the same baseline');
+});
+
+test('F99 — sparse qualifying weeks: the non-qualifying ones are not zeros', () => {
+  // Weeks 1, 3 and 5 qualify; 2 and 4 log sessions but are not measured.
+  const r = bsBaseline([
+    ...wk(M5, 1000),
+    ...unmeasuredWeek(M4),
+    ...wk(M3, 2000),
+    ...unmeasuredWeek(M2),
+    ...wk(M1, 3000),
+  ], TODAY);
+  assert.equal(r.weeks, 3, 'the window reached back five calendar weeks to find three');
+  assert.deepEqual(r.window.map((w) => w.weekStartISO), [M5, M3, M1]);
+  near(r.au, 2000, 'F99 median of the three qualifying weeks');
+});
+
+test('F100 — a week outside the 84-day reach is NOT pulled in to make three', () => {
+  const r = bsBaseline([
+    ...wk(M14, 2000),   // 100 days back — out of reach
+    ...wk(M2, 2000),
+    ...wk(M1, 2000),
+  ], TODAY);
+  assert.equal(r.au, null, 'F100 two in reach is not a baseline');
+  assert.equal(r.weeks, 2, 'the week-14 data must not join the window');
+  assert.deepEqual(r.window.map((w) => w.weekStartISO), [M2, M1]);
+});
+
+test('the reach boundary is 84 days, measured at the week own start', () => {
+  const inReach = bsBaseline(
+    [...wk(M11, 2000), ...wk(M2, 2000), ...wk(M1, 2000)],
+    TODAY,
+  );
+  assert.equal(inReach.weeks, 3, 'a week starting 79 days back is inside the reach');
+
+  const outOfReach = bsBaseline(
+    [...wk(M12, 2000), ...wk(M2, 2000), ...wk(M1, 2000)],
+    TODAY,
+  );
+  assert.equal(outOfReach.weeks, 2, 'a week starting 86 days back is outside it');
+});
+
+test('F102 — more qualifying weeks than the cap uses the most recent four', () => {
+  const r = bsBaseline([
+    ...wk(M7, 9000, 6),
+    ...wk(M6, 9000, 6),
+    ...wk(M5, 9000, 6),
+    ...wk(M4, 4000, 4),
+    ...wk(M3, 3000),
+    ...wk(M2, 2000),
+    ...wk(M1, 1000),
+  ], TODAY);
+  assert.equal(r.weeks, BS_WINDOW_MAX_WEEKS, 'F102 capped at four');
+  assert.deepEqual(r.window.map((w) => w.weekStartISO), [M4, M3, M2, M1],
+    'the four most recent, not the four largest');
+  // Median of the recent four is 2500; the median of all seven would be 4000.
+  near(r.au, 2500, 'F102 weeks five to seven do not enter the median');
+});
+
+test('F103 — a sub-floor baseline yields no ratio, no Infinity, no NaN', () => {
+  // One-second sessions at RPE 1: (1/60) x 1 = ~0.0167 AU. Each week is measured
+  // (one eligible, one rated) and therefore QUALIFIES — reaching the floor test
+  // is the point of the row.
+  const tiny = (monday) => [{
+    startedAtISO: `${monday}T12:00:00Z`,
+    timezone: 'UTC',
+    durationSec: 1,
+    sessionRpe: 1,
+    durationConfirmed: false,
+  }];
+  const r = bsBaseline(
+    [...tiny(M4), ...tiny(M3), ...tiny(M2), ...tiny(M1)],
+    TODAY,
+  );
+  assert.equal(r.weeks, 4, 'F103 four qualifying weeks — not filtered out early');
+  assert.equal(r.basis, 'none');
+  assert.equal(r.reason, 'baseline_below_floor');
+  assert.equal(r.au, null, 'no percentage is ever computed against it');
+  assert.ok(Number.isFinite(r.rawAu), 'the computed figure survives for telemetry');
+  assert.ok(r.rawAu > 0 && r.rawAu < 1, `expected a tiny positive, got ${r.rawAu}`);
+});
+
+test('F113 / F114 — the floor is BELOW 500, not at or below it', () => {
+  const at = (au) => bsBaseline(
+    [...wk(M3, au), ...wk(M2, au), ...wk(M1, au)],
+    TODAY,
+  );
+  const under = at(499);
+  assert.equal(under.basis, 'none', 'F113 baseline 499 has no usable baseline');
+  assert.equal(under.reason, 'baseline_below_floor');
+  near(under.rawAu, 499, 'F113 the figure is still reported');
+
+  const exact = at(500);
+  assert.equal(exact.basis, 'measured', 'F114 baseline 500 exactly IS measured');
+  near(exact.au, 500, 'F114 baseline');
+  assert.equal(exact.reason, null);
+  assert.equal(BS_BASELINE_FLOOR_AU, 500, 'the floor is the ramp curve own lowest anchor');
+});
+
+test('F104 / F116 — rule B1 is asserted independently of the floor', () => {
+  // Unreachable through real sessions (a rated session has positive AU), so the
+  // guard is pinned directly. The NaN case is the one that matters: `NaN < 500`
+  // is FALSE, so a bare floor check would let it through as a usable baseline.
+  assert.equal(bsIsUsableBaseline(0), false, 'F104 exactly zero');
+  assert.equal(bsIsUsableBaseline(-1), false, 'F116 negative');
+  assert.equal(bsIsUsableBaseline(NaN), false, 'NaN must not pass the floor check');
+  assert.equal(bsIsUsableBaseline(Infinity), false, 'not finite');
+  assert.equal(bsIsUsableBaseline(null), false);
+  assert.equal(bsIsUsableBaseline('2000'), false, 'a numeric string is not a number here');
+  assert.equal(bsIsUsableBaseline(499.999), false);
+  assert.equal(bsIsUsableBaseline(500), true);
+  assert.equal(bsIsUsableBaseline(5000), true);
+});
+
+test('F106 / F107 — "nothing logged" and "logged but unusable" differ', () => {
+  const empty = bsBaseline([], TODAY);
+  assert.equal(empty.reason, 'no_history', 'F107 no history at all');
+  assert.equal(empty.weeks, 0);
+
+  const unusable = bsBaseline(
+    [...unmeasuredWeek(M3), ...unmeasuredWeek(M2), ...unmeasuredWeek(M1)],
+    TODAY,
+  );
+  assert.equal(unusable.reason, 'no_qualifying_weeks', 'F106 logged, none qualifying');
+  assert.equal(unusable.weeks, 0);
+});
+
+test('one or two qualifying weeks reports its own reason, not "none found"', () => {
+  // DECISION BEYOND THE TABLE: the table names `no_qualifying_weeks` for ZERO
+  // (F106) and never names a reason for one or two. Reporting "no qualifying
+  // weeks" about a client who has two would be a small lie.
+  const one = bsBaseline(wk(M1, 2000), TODAY);
+  assert.equal(one.reason, 'insufficient_weeks');
+  assert.equal(one.weeks, 1);
+});
+
+test('F109 / F129 — a deload pulls the median down by its LENGTH', () => {
+  const twoWeek = bsBaseline([
+    ...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 1200), ...wk(M1, 1200),
+  ], TODAY);
+  near(twoWeek.au, 1600, 'F109 window [1200,1200,2000,2000] -> mean of the middle pair');
+
+  const threeWeek = bsBaseline([
+    ...wk(M4, 2000), ...wk(M3, 1200), ...wk(M2, 1200), ...wk(M1, 1200),
+  ], TODAY);
+  near(threeWeek.au, 1200, 'F129 a third deload week drops the baseline to 1200');
+});
+
+test('a single-session week still qualifies for the window', () => {
+  // No minimum session count gates membership of the median — F34 makes a
+  // one-session week measured, and nothing downgrades it here.
+  const r = bsBaseline([
+    on(M3, 150, 10), on(M2, 150, 10), on(M1, 150, 10),
+  ], TODAY);
+  assert.equal(r.weeks, 3);
+  near(r.au, 1500, 'baseline from three single-session weeks');
+});
+
+test('the week being lived is not complete, and does not enter the median', () => {
+  // DECISION BEYOND THE TABLE, grounded in SPEC-guardrails.md 6.1 ("completed
+  // measured weeks"). A partial current week enters as a genuine light week and
+  // TIGHTENS every ceiling — the false-positive direction, but still wrong.
+  const withCurrent = bsBaseline([
+    ...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000), ...wk(M0, 200),
+  ], TODAY);
+  assert.equal(withCurrent.weeks, 3, 'the current week is excluded');
+  assert.deepEqual(withCurrent.window.map((w) => w.weekStartISO), [M3, M2, M1]);
+  near(withCurrent.au, 2000, 'a partial week cannot drag the baseline down');
+});
+
+test('a malformed todayISO is reported, never guessed at', () => {
+  // DECISION BEYOND THE TABLE: no fixture supplies one. The whole window is
+  // measured from this date, so defaulting it would produce a confidently wrong
+  // baseline instead of an honest "could not check".
+  const history = [...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)];
+  for (const bad of ['not-a-date', '', null, undefined, 42, '2026-8-5', '2026-02-31']) {
+    const r = bsBaseline(history, bad);
+    assert.equal(r.reason, 'malformed_history', `todayISO ${String(bad)} must be reported`);
+    assert.equal(r.au, null);
+    assert.ok(
+      r.malformed.some((m) => m.field === 'todayISO'),
+      `todayISO ${String(bad)} must be named in the report`,
+    );
+  }
+  assert.equal(bsBaseline(history, TODAY).basis, 'measured', 'a real date still works');
+});
+
+test('malformed history rides through the baseline rather than being swallowed', () => {
+  const r = bsBaseline([
+    ...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000),
+    { startedAtISO: `${M1}T12:00:00Z`, timezone: 'UTC', durationSec: -30, sessionRpe: 7 },
+  ], TODAY);
+  assert.equal(r.malformed.length, 1, 'the offending row is named');
+  assert.equal(r.malformed[0].field, 'durationSec');
+  // The good weeks still derive; the regime layer decides what `unknown` does.
+  near(r.au, 2000, 'one broken row does not discard the history around it');
+});
+
+test('bsMedian — odd takes the middle, even takes the mean of the middle pair', () => {
+  near(bsMedian([3, 1, 2]), 2, 'unsorted input is sorted first');
+  near(bsMedian([1, 2, 3, 4]), 2.5, 'mean of the middle pair');
+  near(bsMedian([5]), 5);
+  assert.equal(bsMedian([]), null, 'no values is null, never 0');
+  assert.equal(bsMedian('nope'), null);
+  near(bsMedian([1, NaN, 3, null, 'x']), 2, 'non-finite entries are dropped, not coerced');
+});
+
+test('deriving a baseline does not mutate the history it was given', () => {
+  const history = [...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)];
+  const before = JSON.parse(JSON.stringify(history));
+  bsBaseline(history, TODAY);
+  assert.deepEqual(history, before, 'history rows must survive derivation untouched');
 });
