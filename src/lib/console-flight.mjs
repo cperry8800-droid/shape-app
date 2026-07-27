@@ -89,7 +89,8 @@ export function gateFromRuns(runs) {
  *   its own state, because the response differs: findings get addressed, a cap
  *   gets waited out or raised. The same WORKLOG entry records a merge made on
  *   a cap notice mistaken for a pass; treating it as any flavour of reviewed
- *   is how that happens.
+ *   is how that happens. It is head-pinned like everything else here — a cap
+ *   that has since cleared must not strand later pushes at CAPPED.
  * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string}>,
  *          comments?: Array<{user?: {login?: string}, body?: string}>,
  *          headSha?: string}} args
@@ -112,15 +113,19 @@ export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
   let limited = false;
   for (const c of summaries) {
     const body = String(c?.body || '');
-    // Checked first and allowed to dominate: "couldn't start this review" is
-    // an unambiguous statement about THIS head, and reading a cap as a pass is
-    // the failure direction that actually costs something.
+    // Head-pinned exactly like the clean markers: a cap notice is a statement
+    // about the head it names. CodeRabbit keeps its commit-range current while
+    // capped, so a live cap still matches; an OLD notice left behind by a
+    // cleared cap says nothing about this head and must not strand the chip.
+    const onThisHead = !!sha && (body.includes(sha) || (short.length === 7 && body.includes(short)));
+    // Checked first and allowed to dominate a zero-marker in the same body:
+    // reading a cap as a pass is the failure direction that costs something.
     if (CR_LIMIT_RE.test(body)) {
-      limited = true;
+      if (onThisHead) limited = true;
       continue;
     }
     if (!CR_CLEAN_RE.test(body)) continue;
-    if (sha && (body.includes(sha) || (short.length === 7 && body.includes(short)))) return 'clean';
+    if (onThisHead) return 'clean';
   }
   if (limited) return 'limited';
   if (revs.length || summaries.length) return 'commented';

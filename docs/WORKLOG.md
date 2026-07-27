@@ -1101,7 +1101,7 @@ changelog whenever something ships.
   decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
   data to put in them, so they render as labelled dormant slots — **never
   zeroed panels** (a fabricated 0 would read as measured activity).
-- **Review rounds (14 findings across 6 rounds, all real, all fixed).**
+- **Review rounds (15 findings across 7 rounds, all real, all fixed).**
   **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
   all-required-checks became the tested `console-flight.mjs`; exact-login bot
   identity (substring matching was spoofable, CWE-290); shared
@@ -1185,7 +1185,13 @@ changelog whenever something ships.
   CodeRabbit on the final head) stands on every other PR.** The cost lesson is
   the durable one: **a push is a purchase.** Batch fixes into ONE push; audit
   the whole class locally first (this entry's round-4/5/6 audits each found
-  siblings the reviewer had not yet reached).
+  siblings the reviewer had not yet reached). **Round 7** (1 Codex P2, fixed
+  without re-triggering a review — a plain push does not summon Codex): the new
+  `limited` state was the one thing in the module NOT head-pinned, so a cap
+  notice left behind by a cleared cap would have stranded every later push at
+  `CR LIMIT REACHED`. Now head-pinned like the clean markers — CodeRabbit keeps
+  its commit-range current while capped, so a live cap still matches while an
+  old one correctly says nothing about the current head.
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

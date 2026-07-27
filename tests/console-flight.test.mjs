@@ -125,6 +125,25 @@ test('coderabbitVerdict — a rate-limit notice is NOT a review (round-6 P1)', (
   assert.equal(prAllGreen({ ci: 'green', codex: 'present', draft: false, coderabbit: 'limited' }), false);
 });
 
+test('coderabbitVerdict — a cap that has since cleared does not strand later pushes (round-7 P2)', () => {
+  const OLD = 'deadbeef' + SHA.slice(8);
+  const staleCap = {
+    user: { login: 'coderabbitai[bot]' },
+    body: `<!-- rate limited by coderabbit.ai -->\nReview limit reached.\n\nbetween base and ${OLD}.`,
+  };
+  // The notice names an older head, so it says nothing about this one: no
+  // verdict yet, not "still capped".
+  assert.equal(coderabbitVerdict({ comments: [staleCap], headSha: SHA }), 'commented');
+  // A live cap keeps its commit-range current, so it still reads limited.
+  assert.equal(
+    coderabbitVerdict({
+      comments: [{ ...staleCap, body: staleCap.body.replace(OLD, SHA) }],
+      headSha: SHA,
+    }),
+    'limited'
+  );
+});
+
 test('coderabbitVerdict — the cap detector reads the STAMP, not prose about caps', () => {
   // This repo's own docs and tests now contain "Review limit reached" and
   // "usage spending cap". A walkthrough quoting them must not jam the gate at
