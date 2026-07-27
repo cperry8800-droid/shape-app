@@ -1,7 +1,10 @@
 # The per-day menu contract — what C1a writes, and who reads it
 
-**Status:** contract, build-ready. Unblocks **C1a** in the nutrition week-block
-spec (`2026-07-25-nutrition-week-block-programs.md`).
+**Status: IMPLEMENTED.** `main` satisfies this contract as of #1840 (delivery)
+and #1843 (authoring); C1a is complete. This document is the standing description
+of the shape and its rules — read it before touching `detail.days`, not as work
+to be done. The build ordering it records (§5.3) is history, kept because the
+reasoning outlived the sequence.
 
 ⚠ **Cross-references in this document are deliberately NAMED, not linked.** Both
 the parent spec and the entitlement-layer spec are *created by* PR #1834 and are
@@ -82,10 +85,12 @@ this contract is about the shape.
 **Nest the days** — `detail.days = [{ dow, blocks: [...] }, …]`, drop `blocks`:
 
 `bsPlanPreview` does `Array.isArray(detail.blocks) ? … : []`, and an empty
-`texts` returns the `empty` model with `kind: null`. **Every already-published
-paid meal plan's preview renders nothing** the moment that reader ships, and
-every new per-day plan previews as nothing. Silent, total, and on the surface
-where the purchase decision is made.
+`texts` returns the `empty` model with `kind: null`. So **every plan written by
+the new builder would preview as nothing** — silent, total, and on the surface
+where the purchase decision is made. (Already-published rows keep their own
+`detail.blocks` and would still preview, since nothing backfills them; the
+failure is scoped to newly authored plans, which is bad enough — it is the ones a
+coach is actively trying to sell.)
 
 **Flatten with day prefixes** — `blocks = ["Mon — Breakfast · Oats · 500 kcal", …]`:
 
