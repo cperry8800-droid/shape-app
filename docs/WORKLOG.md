@@ -241,7 +241,16 @@ changelog whenever something ships.
 > nothing else, so a 12-week program and a single session are the same row shape); and
 > **training programs are already replayable forever** (`startPurchasedPlan` re-runs with
 > no bound — live today). Build order **C0 → (C1 ∥ E) → C2 → C3**; C0 is independent and
-> ships first. **Nothing is built yet.** Handoff:
+> ships first. ⚠ **Status since this entry was written:** **C0 has SHIPPED** (#1836 — a
+> nutrition week block now assigns as an arc, never fabricated meals); **C1a's contract is
+> in review** (#1839) with its delivery half merged (#1840) and its authoring half open
+> (#1843); **E is NOT build-ready** — four named conditions remain, including the
+> coach-assigned path (no immutable assign-time record exists) and whether "one active
+> run" is per-discipline or global. Two rules the E review rounds forced into the spec and
+> that generalize past it: **one run, one clock** (everything keyed to a paid run reads the
+> frozen `activation_tz`, never the mutable `shape_user_tz`) and **entitlement is never
+> inferred from mutable data** — not from dates alone, and not from a `coach_plans` row
+> that can change after the sale. Handoff:
 > **[`docs/HANDOFF-2026-07-26.md`](HANDOFF-2026-07-26.md)**. Also merged this window:
 > #1830 chicken doneness is a temperature not clear juices (6 sites) · #1831 untracked
 > 159 MB of stale Android artifacts · #1832 a week label is a phase not an exercise (the
