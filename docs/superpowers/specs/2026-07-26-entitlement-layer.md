@@ -271,6 +271,31 @@ land before C2's end-of-program rule.
   then has no authority to choose content at all, which is the property that
   makes the guarantee hold: **the buyer is charged for and delivered the same
   bytes.**
+
+  ⚠ **But session creation is still not the moment the buyer decided — bind an
+  immutable VERSION at the moment the listing is rendered.** Moving the snapshot
+  earlier narrows the gap and does not close it: the buyer reads the plan on its
+  page, and the checkout POST happens whenever they get around to pressing the
+  button. A coach editing in between is snapshotted at *session* time, so the
+  buyer is again charged for something other than what they read. The current
+  route makes the mismatch concrete rather than theoretical — it reads only
+  `price, published` from `coach_plans` and passes the **client-supplied item
+  name** to Stripe, so the payment screen can keep showing the label the buyer
+  saw while a session-time content snapshot already holds the coach's new bytes.
+  The receipt and the delivery would disagree, and the receipt would be the one
+  that looks right.
+
+  So the version must be minted where the buyer's decision is formed: the
+  catalogue view resolves a plan **version id**, the checkout POST carries that
+  id, and session creation **validates it against the current row** rather than
+  re-reading. If it no longer matches, that is not an error to swallow — the
+  honest outcomes are to refuse and re-present the changed plan, or to charge
+  the version the buyer actually saw. Which of the two is a product ruling and
+  belongs on the condition list; what is NOT open is deriving the sold content
+  from any read the buyer never saw. And nothing here works while Stripe is told
+  the item's name by the client — an authoritative server-read of the label
+  belongs with the version, or the receipt keeps asserting a title the snapshot
+  does not contain.
 - ⚠ **Carry the PURCHASE id, not just the plan id — the per-purchase invariant
   is unrepresentable without it.** Ruling 2 makes a program a *repeatable* sale,
   so a client can buy the same catalog program twice; today nothing downstream

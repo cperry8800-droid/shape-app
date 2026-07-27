@@ -23,12 +23,15 @@ signal, not this paragraph.
 | Track | State |
 | --- | --- |
 | **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
-| **C1a** — per-DAY menus (the builder authors a different day) | ✅ **UNBLOCKED** — the per-day storage contract is written (`2026-07-26-per-day-menu-contract.md`, rides PR #1839; not on `main` until it lands, so it is named here rather than linked) |
+| **C1a** — per-DAY menus (the builder authors a different day) | 🔄 **IN FLIGHT, not clear to build against yet.** Delivery has MERGED (#1840 — `bsPlanWeek` resolves `detail.days` for Assign and the paid preview); the storage contract is still in review (#1839) and the authoring half is open (#1843). Until #1839 lands, `2026-07-26-per-day-menu-contract.md` is not on `main` and nothing can be validated against it — so treat C1a as owned, not as available to depend on |
 | **C1b** — make the ✦ AI DRAFT real | ⛔ **blocked on the AI contract** (below) |
 | **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
-**C0 has shipped and C1a is now unblocked** — its contract is written AND
+**C0 has shipped** (#1836, on `main`: a nutrition week block assigns as an arc
+and never fabricates meals). **C1a is owned and in flight, not finished** — the
+paragraph below states the test it passes, and that test is about
+*independence*, not about readiness. Its contract is written AND
 settled. The remaining blocks are not all the same kind, and naming them
 precisely matters because the fix for each is different: **C1b** is blocked on
 a contract that genuinely does not exist yet (its *requirements* are specified
