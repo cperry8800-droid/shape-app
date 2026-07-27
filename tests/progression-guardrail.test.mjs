@@ -10,6 +10,8 @@
 //   Section 2  bsInterpolateAnchors + the three anchor tables  (F1-F16)
 //   Section 3  load derivation - eligible / rated / session AU (F17-F29,
 //              plus the ordered rating rule F130-F133)
+//   Section 4a week bucketing - client-local Monday weeks (F41, F42, F112,
+//              F119-F128)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,6 +20,8 @@ import {
   bsInterpolateAnchors,
   bsClassifySession,
   bsWeekLoad,
+  bsLocalWeek,
+  bsBucketWeeks,
   BS_RAMP_ANCHORS,
   BS_RED_ANCHORS,
   BS_RETURN_ANCHORS,
@@ -194,11 +198,25 @@ test('a single anchor reads flat everywhere', () => {
 // ── Section 3. Load derivation ───────────────────────────────────────────────
 
 // The fixture table's notation: S(min, rpe) is a session, S(min, rpe, C) is
-// duration-confirmed.
+// duration-confirmed. Section 3's rows are written as S(min, rpe), but a real
+// history row always carries the instant it happened at — Section 4a validates
+// that — so the helpers supply a valid one.
+const AT = '2026-07-29T17:00:00Z'; // Wednesday afternoon in New York
+const TZ = 'America/New_York';
 const S = (min, rpe, confirmed = false) => ({
+  startedAtISO: AT,
+  timezone: TZ,
   durationSec: min * 60,
   sessionRpe: rpe,
   durationConfirmed: confirmed,
+});
+/** A complete valid row with one field overridden, so each test has one defect. */
+const row = (over = {}) => ({
+  startedAtISO: AT,
+  timezone: TZ,
+  durationSec: 3600,
+  sessionRpe: 7,
+  ...over,
 });
 
 test('F17 — an ordinary session contributes rpe x minutes', () => {
@@ -292,7 +310,7 @@ test('F27 — an excluded overrun is NOT an "unrated" session', () => {
 
 test('F28 — a negative or non-finite duration is MALFORMED, not absent', () => {
   for (const bad of [-1800, NaN, null, undefined, '3600', {}, Infinity]) {
-    const c = bsClassifySession({ durationSec: bad, sessionRpe: 7 }, 3);
+    const c = bsClassifySession(row({ durationSec: bad }), 3);
     assert.equal(c.malformed, true, `F28 durationSec = ${String(bad)} must be malformed`);
     assert.equal(c.eligible, false);
     assert.equal(c.au, null);
@@ -309,7 +327,7 @@ test('F29 — an out-of-range RPE is MALFORMED: never clamped, never dropped', (
   // caught one step earlier by the integer test. A numeric STRING is NOT in
   // this list: since F133 it parses, so `'7'` is a valid rating.
   for (const bad of [11, -2, 100, NaN, Infinity, '11', '-2']) {
-    const c = bsClassifySession({ durationSec: 3600, sessionRpe: bad }, 5);
+    const c = bsClassifySession(row({ sessionRpe: bad }), 5);
     assert.equal(c.malformed, true, `F29 sessionRpe = ${String(bad)} must be malformed`);
     assert.equal(c.au, null, 'F29 never clamped into a usable value');
     assert.deepEqual(
@@ -339,7 +357,7 @@ test('the rating rule runs in order: step 1 (absent) before step 2 (integer)', (
   // Exactly 0 is ABSENT in any wire form, and must never reach the integer
   // test. Every whole number 1-10 rates.
   for (const zero of [0, -0, '0', '0.0', '0.00']) {
-    const c = bsClassifySession({ durationSec: 3600, sessionRpe: zero });
+    const c = bsClassifySession(row({ sessionRpe: zero }));
     assert.equal(c.malformed, false, `rpe ${String(zero)} is absent, not a defect`);
     assert.equal(c.rated, false);
     assert.equal(c.au, null, 'and never 0 AU');
@@ -371,13 +389,13 @@ test('F133 — the three coercions that fabricate a rating are all malformed', (
   // Under a naive Number(): '' -> 0 (would read as "absent"), true -> 1 (a
   // perfectly valid-looking rating), Symbol() -> THROWS. None may pass.
   for (const bad of ['', '   ', true, false, 'seven', [], {}, [7]]) {
-    const c = bsClassifySession({ durationSec: 3600, sessionRpe: bad });
+    const c = bsClassifySession(row({ sessionRpe: bad }));
     assert.equal(c.malformed, true, `rpe ${JSON.stringify(bad)} must be malformed`);
     assert.equal(c.au, null);
   }
-  assert.doesNotThrow(() => bsClassifySession({ durationSec: 3600, sessionRpe: Symbol('r') }));
+  assert.doesNotThrow(() => bsClassifySession(row({ sessionRpe: Symbol('r') })));
   assert.equal(
-    bsClassifySession({ durationSec: 3600, sessionRpe: Symbol('r') }).malformed,
+    bsClassifySession(row({ sessionRpe: Symbol('r') })).malformed,
     true,
     'a Symbol rating is malformed, and does not throw on the way there',
   );
@@ -407,8 +425,8 @@ test('an empty week is not measured, and reads 0 AU without fabricating one', ()
 test('rule C — malformed rows are collected and NEVER throw', () => {
   const week = bsWeekLoad([
     S(60, 7),
-    { durationSec: -30, sessionRpe: 7 },
-    { durationSec: 3600, sessionRpe: 11 },
+    row({ durationSec: -30 }),
+    row({ sessionRpe: 11 }),
     S(45, 8),
   ]);
   // The good sessions still derive — the report names what is broken rather
@@ -433,9 +451,10 @@ test('rule C — garbage rows are malformed, and a Symbol does not crash the rep
     const c = bsClassifySession(junk, 0);
     assert.equal(c.malformed, true, `garbage row ${String(junk)} must be malformed`);
   }
-  assert.doesNotThrow(() => bsWeekLoad([{ durationSec: Symbol('x'), sessionRpe: 7 }]));
-  const week = bsWeekLoad([{ durationSec: 3600, sessionRpe: Symbol('rpe') }]);
+  assert.doesNotThrow(() => bsWeekLoad([row({ durationSec: Symbol('x') })]));
+  const week = bsWeekLoad([row({ sessionRpe: Symbol('rpe') })]);
   assert.equal(week.malformed.length, 1);
+  assert.equal(week.malformed[0].field, 'sessionRpe');
   assert.equal(typeof week.malformed[0].value, 'string', 'the value is described, never interpolated');
 });
 
@@ -452,13 +471,13 @@ test('rule C — a non-array session collection is reported, not thrown', () => 
 test('a missing durationConfirmed reads as UNCONFIRMED, not as a defect', () => {
   // Excluding is the safe direction: it can only understate a baseline, and an
   // understated baseline tightens future ceilings rather than loosening them.
-  const c = bsClassifySession({ durationSec: 175 * 60, sessionRpe: 7 });
+  const c = bsClassifySession(row({ durationSec: 175 * 60 }));
   assert.equal(c.malformed, false, 'an absent flag is not a caller bug');
   assert.equal(c.eligible, false, 'and it does not count as confirmed');
 });
 
 test('input is not mutated by derivation', () => {
-  const sessions = [S(60, 7), S(0, 7), { durationSec: -30, sessionRpe: 7 }];
+  const sessions = [S(60, 7), S(0, 7), row({ durationSec: -30 })];
   const before = JSON.parse(JSON.stringify(sessions));
   bsWeekLoad(sessions);
   assert.deepEqual(sessions, before, 'history rows must survive derivation untouched');
@@ -481,4 +500,211 @@ test('duplicate anchors at one x do not divide by zero', () => {
       `duplicate anchors must read finite at ${x}`,
     );
   }
+});
+
+// ── Section 4a. Week bucketing — the client's own calendar ───────────────────
+
+const weekOf = (at, tz) => (bsLocalWeek(at, tz) || {}).weekStartISO ?? null;
+const localOf = (at, tz) => (bsLocalWeek(at, tz) || {}).localDateISO ?? null;
+
+test('F119-F120 — the SAME instant buckets to different weeks in different zones', () => {
+  // The whole reason the conversion lives in the core. Read in New York this is
+  // Sunday evening and belongs to the week the client trained it in; read as
+  // UTC it is Monday and lands in the next week, shifting load between two
+  // baselines.
+  const instant = '2026-08-03T02:40:00Z';
+  assert.equal(localOf(instant, 'America/New_York'), '2026-08-02', 'F119 local Sun 22:40 EDT');
+  assert.equal(weekOf(instant, 'America/New_York'), '2026-07-27', 'F119 week of Mon 07-27');
+  assert.equal(localOf(instant, 'UTC'), '2026-08-03', 'F120 the same instant is Monday in UTC');
+  assert.equal(weekOf(instant, 'UTC'), '2026-08-03', 'F120 week of Mon 08-03');
+  assert.notEqual(
+    weekOf(instant, 'America/New_York'),
+    weekOf(instant, 'UTC'),
+    'F119 and F120 must differ — that is the whole point',
+  );
+});
+
+test('F121-F122 — the local Monday boundary is exact', () => {
+  // Monday 00:00 EDT is 04:00Z; Sunday 23:59 EDT is 03:59Z the next day.
+  assert.equal(weekOf('2026-08-03T04:00:00Z', 'America/New_York'), '2026-08-03',
+    'F121 local Monday 00:00 starts its own week');
+  assert.equal(weekOf('2026-08-03T03:59:00Z', 'America/New_York'), '2026-07-27',
+    'F122 local Sunday 23:59 is the last day of the PREVIOUS week');
+});
+
+test('F123 — a spring-forward week still contains exactly 7 local days', () => {
+  // US DST begins 02:00 local on 2026-03-08, making that local day 23 hours.
+  // The week Mon 03-02 .. Sun 03-08 must still hold 7 days, with no session
+  // lost, double-counted, or shifted across a boundary. Doing the day
+  // arithmetic on the instant instead of on the local calendar date is what
+  // breaks here.
+  const noon = [
+    '2026-03-02T17:00:00Z', '2026-03-03T17:00:00Z', '2026-03-04T17:00:00Z',
+    '2026-03-05T17:00:00Z', '2026-03-06T17:00:00Z', '2026-03-07T17:00:00Z', // EST
+    '2026-03-08T16:00:00Z',                                                 // EDT
+  ];
+  const weeks = new Set(noon.map((t) => weekOf(t, 'America/New_York')));
+  const days = new Set(noon.map((t) => localOf(t, 'America/New_York')));
+  assert.deepEqual([...weeks], ['2026-03-02'], 'F123 all seven days share one week');
+  assert.equal(days.size, 7, 'F123 exactly 7 distinct local days');
+  assert.equal(weekOf('2026-03-09T16:00:00Z', 'America/New_York'), '2026-03-09',
+    'F123 the next Monday opens the next week');
+});
+
+test('F126 — a fall-back week is 25 hours long and still holds exactly 7 days', () => {
+  // US DST ends 02:00 local on 2026-11-01, so local 01:30 happens TWICE. Going
+  // instant -> local is unambiguous in that direction, so both readings resolve
+  // deterministically to the same local date and the same bucket.
+  const firstOneThirty = '2026-11-01T05:30:00Z';  // 01:30 EDT
+  const secondOneThirty = '2026-11-01T06:30:00Z'; // 01:30 EST, the repeat
+  for (const t of [firstOneThirty, secondOneThirty]) {
+    assert.equal(localOf(t, 'America/New_York'), '2026-11-01', 'F126 both readings are 11-01');
+    assert.equal(weekOf(t, 'America/New_York'), '2026-10-26', 'F126 both bucket to Mon 10-26');
+  }
+  const noon = [
+    '2026-10-26T16:00:00Z', '2026-10-27T16:00:00Z', '2026-10-28T16:00:00Z',
+    '2026-10-29T16:00:00Z', '2026-10-30T16:00:00Z', '2026-10-31T16:00:00Z', // EDT
+    '2026-11-01T17:00:00Z',                                                 // EST
+  ];
+  assert.deepEqual([...new Set(noon.map((t) => weekOf(t, 'America/New_York')))], ['2026-10-26']);
+  assert.equal(new Set(noon.map((t) => localOf(t, 'America/New_York'))).size, 7,
+    'F126 neither repeated hour creates an eighth day nor drops one');
+});
+
+test('F124 — a positive offset advances the date rather than retreating it', () => {
+  assert.equal(localOf('2026-08-03T21:00:00Z', 'Asia/Tokyo'), '2026-08-04', 'F124 local Tue 06:00');
+  assert.equal(weekOf('2026-08-03T21:00:00Z', 'Asia/Tokyo'), '2026-08-03', 'F124 week of Mon 08-03');
+});
+
+test('F127 — a half-hour offset is honoured, not truncated to whole hours', () => {
+  // The instant sits inside (18:30Z, 19:00Z) precisely so the two readings
+  // diverge. At +05:30 it is Monday; truncated to +05:00 it is Sunday, a week
+  // earlier. Asia/Karachi is a real +05:00 zone, so this compares like for like.
+  const instant = '2026-08-02T18:45:00Z';
+  assert.equal(localOf(instant, 'Asia/Kolkata'), '2026-08-03', 'F127 +05:30 -> Mon 00:15');
+  assert.equal(weekOf(instant, 'Asia/Kolkata'), '2026-08-03', 'F127 week of Mon 08-03');
+  assert.equal(localOf(instant, 'Asia/Karachi'), '2026-08-02', 'F127 +05:00 -> Sun 23:45');
+  assert.equal(weekOf(instant, 'Asia/Karachi'), '2026-07-27',
+    'F127 a whole-hour read lands a week earlier');
+});
+
+test('F125 — an unknown or unusable zone is MALFORMED, never bucketed in UTC', () => {
+  // Silently falling back to UTC would fabricate a week boundary the client
+  // never experienced. Falling back to the RUNTIME zone would be worse still —
+  // the answer would depend on which machine evaluated it.
+  for (const tz of ['Mars/Olympus', 'Not/AZone', '', '   ', null, undefined, 123, {}, true]) {
+    assert.equal(bsLocalWeek('2026-08-03T02:40:00Z', tz), null,
+      `F125 zone ${String(tz)} is unusable`);
+    const c = bsClassifySession(row({ timezone: tz }), 2);
+    assert.equal(c.malformed, true, `F125 zone ${String(tz)} makes the row malformed`);
+    assert.equal(c.weekStartISO, null);
+    assert.ok(c.issues.some((i) => i.field === 'timezone'), 'F125 the timezone field is named');
+  }
+  assert.doesNotThrow(() => bsLocalWeek('2026-08-03T02:40:00Z', Symbol('tz')));
+});
+
+test('F112 — a missing or unparseable instant is MALFORMED', () => {
+  for (const at of [undefined, null, '', 'yesterday', 42, {}, '2026-13-45T00:00:00Z']) {
+    const c = bsClassifySession(row({ startedAtISO: at }), 4);
+    assert.equal(c.malformed, true, `F112 startedAtISO ${String(at)} is malformed`);
+    assert.equal(c.weekStartISO, null);
+    assert.ok(c.issues.some((i) => i.field === 'startedAtISO'), 'F112 the field is named');
+  }
+  assert.doesNotThrow(() => bsClassifySession(row({ startedAtISO: Symbol('t') })));
+});
+
+test('an instant with NO offset is rejected, because it is machine-dependent', () => {
+  // `Date.parse('2026-08-03T02:40:00')` is interpreted in the RUNTIME's zone by
+  // spec, so the same history would bucket differently on two machines — which
+  // would break the determinism the whole module rests on. `timestamptz` always
+  // serialises with an offset, so nothing legitimate is refused.
+  assert.equal(bsLocalWeek('2026-08-03T02:40:00', 'UTC'), null, 'no designator');
+  assert.equal(bsLocalWeek('2026-08-03', 'UTC'), null, 'a bare date is not an instant');
+  for (const at of ['2026-08-03T02:40:00Z', '2026-08-03T02:40:00+00:00', '2026-08-02T22:40:00-04:00']) {
+    assert.equal(weekOf(at, 'America/New_York'), '2026-07-27', `${at} is accepted`);
+  }
+});
+
+test('F42 — two sessions on the same date both count; a date is not a key', () => {
+  const { weeks, malformed } = bsBucketWeeks([S(60, 7), S(45, 8)]);
+  assert.deepEqual(malformed, []);
+  assert.equal(weeks.length, 1, 'F42 one week');
+  assert.equal(weeks[0].sessions, 2, 'F42 both sessions are kept');
+  assert.equal(weeks[0].eligible, 2);
+  assert.equal(weeks[0].rated, 2);
+  near(weeks[0].loadAu, 420 + 360, 'F42 both loads sum');
+});
+
+test('F41 — the order sessions arrive in cannot change the answer', () => {
+  const at = (iso) => ({ ...S(60, 7), startedAtISO: iso });
+  const inOrder = [
+    at('2026-07-15T17:00:00Z'), at('2026-07-22T17:00:00Z'), at('2026-07-29T17:00:00Z'),
+  ];
+  const shuffled = [inOrder[2], inOrder[0], inOrder[1]];
+  assert.deepEqual(bsBucketWeeks(shuffled).weeks, bsBucketWeeks(inOrder).weeks,
+    'F41 identical result');
+  assert.deepEqual(
+    bsBucketWeeks(shuffled).weeks.map((w) => w.weekStartISO),
+    ['2026-07-13', '2026-07-20', '2026-07-27'],
+    'F41 weeks come back in chronological order regardless of input order',
+  );
+});
+
+test('F128 — changing the client zone re-buckets ALL history, retroactively', () => {
+  // Accepted known property, not a bug: there is no per-session stored zone, so
+  // a client who moves country sees old weeks re-bucket and a baseline can move
+  // without any new training. Recorded so it is not later "fixed".
+  const instants = ['2026-08-03T02:40:00Z', '2026-07-30T17:00:00Z'];
+  const under = (tz) =>
+    bsBucketWeeks(instants.map((i) => ({ ...S(60, 7), startedAtISO: i, timezone: tz })));
+  const ny = under('America/New_York');
+  const utc = under('UTC');
+  assert.deepEqual(ny.weeks.map((w) => w.weekStartISO), ['2026-07-27'],
+    'F128 in New York both sessions share one week');
+  assert.deepEqual(utc.weeks.map((w) => w.weekStartISO), ['2026-07-27', '2026-08-03'],
+    'F128 under UTC the same two sessions split across two weeks');
+  assert.notDeepEqual(ny.weeks, utc.weeks, 'F128 weekly totals shift with the current zone');
+});
+
+test('bucketing keeps rule C: malformed rows are named, the rest still bucket', () => {
+  const { weeks, malformed } = bsBucketWeeks([
+    S(60, 7),
+    row({ timezone: 'Mars/Olympus' }),
+    row({ startedAtISO: 'nope' }),
+    S(45, 8),
+  ]);
+  assert.equal(weeks.length, 1, 'the good rows still form a week');
+  assert.equal(weeks[0].sessions, 2);
+  assert.deepEqual(
+    malformed.map((m) => ({ index: m.index, field: m.field })),
+    [{ index: 1, field: 'timezone' }, { index: 2, field: 'startedAtISO' }],
+    'each offending row is named by index and field',
+  );
+  assert.equal(bsBucketWeeks(null).weeks.length, 0, 'a non-array collection is reported, not thrown');
+  assert.equal(bsBucketWeeks(null).malformed[0].field, 'sessions');
+});
+
+test('a row with several defects reports ALL of them, not just the first', () => {
+  const c = bsClassifySession(
+    { startedAtISO: 'nope', timezone: 'Mars/Olympus', durationSec: -30, sessionRpe: 11 },
+    7,
+  );
+  assert.equal(c.malformed, true);
+  assert.deepEqual(
+    c.issues.map((i) => i.field),
+    ['startedAtISO', 'timezone', 'durationSec', 'sessionRpe'],
+    'one fix at a time would otherwise reveal one defect per round',
+  );
+  assert.ok(c.issues.every((i) => i.index === 7), 'every issue names the same row');
+});
+
+test('a week with no sessions is ABSENT, not present with zeroes', () => {
+  // An absent week is not a week of zero training. Section 4b must not read a
+  // holiday as a real, very light week and drag the baseline down with it.
+  const { weeks } = bsBucketWeeks([
+    { ...S(60, 7), startedAtISO: '2026-07-15T17:00:00Z' },
+    { ...S(60, 7), startedAtISO: '2026-07-29T17:00:00Z' }, // the week between is empty
+  ]);
+  assert.deepEqual(weeks.map((w) => w.weekStartISO), ['2026-07-13', '2026-07-27'],
+    'the empty week in between does not appear');
 });
