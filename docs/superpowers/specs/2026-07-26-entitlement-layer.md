@@ -320,12 +320,15 @@ land before C2's end-of-program rule.
   `one_time_purchases.plan_id` is `references coach_plans(id) **on delete set
   null**` (`2026-06-08-coach-plans-sale.sql:12`) and `get_my_purchased_plans()`
   **inner-joins** the current `coach_plans` row with `plan_id is not null`
-  (`:45-46`). So right now: a coach **editing** a plan silently changes what an
-  un-started buyer paid for, and a coach **deleting** it makes the purchase
-  **disappear from that client's Library entirely** — money taken, nothing
-  owned, no trace on the client's side. Ruling 3 makes this worse by design,
-  because it stretches the dormant window from "until they open it" to
-  "indefinitely, until they start it."
+  (`:45-46`) **before #1837**. What remains after it: a coach **editing** a plan
+  still silently changes what an un-started buyer paid for, because content is
+  resolved live rather than from the snapshot. The **deleting** half is closed —
+  `get_my_purchased_plans()` is now a LEFT JOIN with a stored-snapshot fallback,
+  so the purchase no longer vanishes from the Library (see the shipped note
+  above; what survives are pre-migration rows and a deletion racing the webhook).
+  Ruling 3 still makes the editing exposure worse by design, because it stretches
+  the dormant window from "until they open it" to "indefinitely, until they start
+  it." **E's remaining work here is mutable CONTENT, not the disappearing row.**
 
   The build must **snapshot the sold plan's identity, label, and materializable
   content onto the purchase (and onto the run at activation)**, and resolve paid
@@ -386,7 +389,12 @@ land before C2's end-of-program rule.
   id, and session creation **validates it against the current row** rather than
   re-reading. If it no longer matches, that is not an error to swallow — the
   honest outcomes are to refuse and re-present the changed plan, or to charge
-  the version the buyer actually saw. Which of the two is a product ruling and
+  the version the buyer actually saw. Note this is also why
+  `coach_plans.updated_at <= session.created` cannot stand in for a version: a
+  plan edited **after the buyer read the listing but before they pressed Buy**
+  satisfies that comparison while being exactly the change it was meant to
+  detect. Without a version captured when the listing was rendered, the row stays
+  unresolved. Which of the two is a product ruling and
   belongs on the condition list; what is NOT open is deriving the sold content
   from any read the buyer never saw. And nothing here works while Stripe is told
   the item's name by the client — an authoritative server-read of the label
@@ -527,8 +535,8 @@ happens to them rather than leave it to the reader:
   only requirement — the value also has to have been **authoritative when it was
   written**. Absent versioned metadata, the row stays unresolved.
 
-  ⚠ **And "unmodified since the purchase" must be measured from CHECKOUT-SESSION
-  CREATION, not from the purchase row.** An earlier revision offered
+  ⚠ **A timestamp comparison is NOT evidence at all — not from the purchase row,
+  and not from the session either.** An earlier revision offered
   `coach_plans.updated_at <= purchase.created_at` as a third form of evidence.
   It is not evidence: the purchase row is written by the **webhook**, so it is
   stamped when payment completes, and this document has already established that
@@ -536,9 +544,13 @@ happens to them rather than leave it to the reader:
   the payment landing. An edit made inside that window satisfies the comparison
   while being exactly the change the rule was meant to catch — the same
   checkout/payment gap the snapshot rule exists for, re-entered from the other
-  end. If the comparison is used at all it must run against the **Checkout
-  Session's** creation time, which is the moment the buyer saw what they were
-  buying. Absent that, the row is **unresolved** — the same
+  end. Moving it to the **session's** creation time does not rescue it either:
+  the buyer reads the listing and presses Buy whenever they get around to it, so
+  a plan edited in between satisfies `updated_at <= session.created` while being
+  precisely the change the comparison was meant to detect. No timestamp available
+  after the fact marks the moment the buyer decided — only a version captured
+  when the listing was **rendered** does, which is why the rule above requires
+  one. Absent versioned metadata, the row is **unresolved** — the same
   third outcome the NULL case takes below, for the same reason: the failure
   direction has to favour the person who paid, and an unresolved row is a
   question asked of support rather than an answer invented by a migration.

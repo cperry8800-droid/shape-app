@@ -626,9 +626,18 @@ Postgres requires an index predicate to be IMMUTABLE, so
 creation** — `now()` is STABLE. And indexing on `started_at is not null` alone
 is worse than useless: a naturally-expired run would hold the unique slot
 **forever**, permanently refusing the client's next program. So the run row
-carries an explicit **`status`** (`active` | `ended`) — or an `ended_at`
-timestamp with the index on `where ended_at is null` — and the unique index is
-over `(client, discipline) where status = 'active'`, which is immutable.
+carries an explicit **`status`** and the unique index is over
+`(client, discipline) where status = 'active'`, which is immutable.
+
+⚠ **One vocabulary, shared with E, and it is NOT `active | ended`.** E's refund
+and dispute lifecycle needs `disputed` as a **reversible** state — suspended,
+freeing the slot, and able to return to `active` when a dispute is won — while a
+refund is terminal. A two-value vocabulary would force `disputed` into `ended`
+and lose exactly the reversibility that makes a won dispute restorable, or make
+E's webhook writes fail against this constraint. So the set is
+`active | disputed | refunded | ended`, and only `active` participates in the
+partial-unique predicate — which is what lets a suspended run free the slot
+without being destroyed. C2 and E must not define this twice.
 
 The build must then say **who flips it**, because a row cannot expire itself:
 activation sets `active` inside the activation transaction; an explicit
