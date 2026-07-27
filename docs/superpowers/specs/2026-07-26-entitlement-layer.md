@@ -86,9 +86,20 @@ baseline as "durability of the ROW is solved, durability of the CONTENT is not."
 1. **The run lifecycle is fully specified**, including every transition and who
    performs it: activation, explicit end-and-replace, natural expiry, **refund
    and dispute**, failed materialization, and a coach deleting or editing the
-   `coach_plans` row a live run points at. The **partial-refund** case is a
-   product ruling, not a derivable one: whether it ends the run, shortens the
-   term, or does nothing.
+   `coach_plans` row a live run points at. Two cases inside it are **product
+   rulings, not derivable ones**, and both are open:
+   - **Partial refund** — whether it ends the run, shortens the term, or does
+     nothing.
+   - **Restoring a won dispute onto a reused slot.** Suspending frees the
+     single-active-run slot, which is deliberate — a member in dispute should not
+     be blocked from buying something else. But if they start a replacement in
+     the same discipline and then WIN, restoring the suspended run unconditionally
+     either violates the `(client, discipline)` partial-unique constraint or
+     leaves two live candidates with no precedence. The options are: the
+     replacement stands and the restored run is credited some other way; the
+     restore ends the replacement **with the member's consent**; or restoration
+     stops being automatic and becomes a support action. This needs an owner
+     ruling — it decides what a member loses when they were right.
 2. **Paid AND assigned content is durable** — the snapshot rule below is settled
    and the Library no longer resolves paid content from mutable catalogue rows.
    This must cover **coach-assigned runs, not only purchased ones**: they have
@@ -244,8 +255,18 @@ land before C2's end-of-program rule.
   - **`charge.dispute.created` → `disputed`.** **Suspended, and reversible.** It
     stops delivering and frees the slot like a refund, but it is a hold, not an
     ending.
-  - **`charge.dispute.closed` restores the run** whenever it restores the
-    purchase.
+  - **`charge.dispute.closed` is decided by the dispute's OUTCOME, not by the
+    event.** Both records read `dispute.status`: won → the purchase returns to
+    `paid` and the run returns to `active`; lost → the purchase stays non-paid
+    and the run becomes `refunded`, terminally.
+
+  ⚠ **The existing handler is wrong for this, and the fix is not on the run
+  side.** `webhook/route.ts` marks the purchase `paid` on *every*
+  `charge.dispute.closed`, without inspecting whether the buyer won — so a run
+  restored "whenever the purchase is restored" would re-enable paid access after
+  a dispute the buyer **lost**. Deriving both records from the outcome is
+  therefore a change to the purchase path too, not just an addition to the run
+  lifecycle.
 
   ⚠ **Why dispute cannot be modelled as a refund:** the system already treats it
   as reversible. `webhook/route.ts` handles `charge.dispute.closed` by setting
