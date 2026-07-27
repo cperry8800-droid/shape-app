@@ -20,6 +20,8 @@
 //              (F52-F57)
 //   Section 7  the return regime + regime resolution - the gap, the return
 //              cap, the 84-day handoff (F58-F67, F82, F101, F117)
+//   Section 8  the concentration axis finished - the hard day against the
+//              client's own hardest logged session (F72-F75)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,6 +58,8 @@ import {
   bsReturnVolumeAxis,
   bsReturnAxes,
   bsResolveRegime,
+  bsConcentrationAxis,
+  bsJumpBounds,
   BS_GAP_SESSION_FLOOR_AU,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
@@ -451,7 +455,8 @@ test('F30-F34 — measured is STRICTLY more than half (the rule lands here)', ()
 test('an empty week is not measured, and reads 0 AU without fabricating one', () => {
   const week = bsWeekLoad([]);
   assert.deepEqual(week, {
-    eligible: 0, rated: 0, loadAu: 0, measured: false, realSessions: 0, malformed: [],
+    eligible: 0, rated: 0, loadAu: 0, measured: false, realSessions: 0, hardestAu: 0,
+    malformed: [],
   });
 });
 
@@ -1398,7 +1403,7 @@ test('a real history flows through to the measured ceilings', () => {
 
 test('the measured concentration axis still falls back to the absolute peak', () => {
   // F75: with no measured hardest session there is nothing else to compare
-  // against. F72's jump_vs_history comparison arrives through `bounds`.
+  // against. F72's jump_vs_history comparison arrives through `bounds` (§8).
   //
   // The week is BALANCED (four equal 800 AU sessions, share 25%) so the peak
   // bound is the only check in play. A lopsided week would keep the axis amber
@@ -1413,7 +1418,8 @@ test('the measured concentration axis still falls back to the absolute peak', ()
   near(checkOf(fallback, 'share_of_week').value, 25, 'share is not what is firing');
   assert.equal(fallback.state, 'amber', '800 AU is over the 700 absolute bound');
 
-  const measured = bsMeasuredAxes(balanced, 5000, { peakAmber: 1200, peakRed: 1600 })
+  // 900 AU is a session this client has actually done, so 800 is unremarkable.
+  const measured = bsMeasuredAxes(balanced, 5000, { hardestLoggedAu: 900 })
     .find((a) => a.axis === 'concentration');
   assert.equal(measured.state, 'green',
     'against this client own measured hardest, 800 AU is unremarkable');
@@ -1690,4 +1696,159 @@ test('the gap never runs backwards, and malformed history is reported once', () 
   const bad = bsHistoryGap([on(D40, 60, 8)], '2026-02-31');
   assert.equal(bad.gapDays, null);
   assert.equal(bad.malformed[0].field, 'todayISO');
+});
+
+// ── §8. The concentration axis, finished — the jump against history ──────────
+
+// A week of `n` equal sessions of `au` each — balanced, so share_of_week is
+// 100/n and cannot be what fires. RPE 10 keeps minutes at au/10.
+const evenWeek = (n, au) => bsProposedWeek(
+  { weekStartISO: M0, sessions: Array.from({ length: n }, () => P(au / 10, 10)) },
+);
+const concentration = (proposed, hardestLoggedAu) =>
+  bsConcentrationAxis(proposed, hardestLoggedAu === undefined ? {} : { hardestLoggedAu });
+
+test('F72 — the jump fires while share_of_week stays clean', () => {
+  // Four equal 800 AU sessions: share is 25%, so nothing on that check is
+  // firing. Against a client whose hardest logged session is 500 AU, the ramp
+  // at 500 is its first anchor — 40% — so 700 is the line and 800 clears it.
+  const week = evenWeek(4, 800);
+  const axis = concentration(week, 500);
+
+  const jump = checkOf(axis, 'jump_vs_history');
+  near(jump.value, 800, 'the hardest proposed session');
+  near(jump.ceiling, 700, 'F72 500 AU x (1 + its own 40% ramp)');
+  near(jump.redCeiling, 875, 'and the red curve read at the same session value');
+  assert.equal(jump.state, 'amber');
+
+  near(checkOf(axis, 'share_of_week').value, 25, 'share is clean at four equal sessions');
+  assert.equal(checkOf(axis, 'share_of_week').tripped, false);
+  assert.equal(axis.state, 'amber', 'F72 the axis is amber on the jump alone');
+});
+
+test('F73 — share fires while the jump stays clean', () => {
+  // 500/300/200: share is 50%, over the 45% line. The 500 AU hardest is well
+  // under this client's own 829.2 jump ceiling, so only one check is firing.
+  const week = bsProposedWeek(propose(P(50, 10), P(30, 10), P(20, 10)));
+  const axis = concentration(week, 600);
+
+  near(checkOf(axis, 'share_of_week').value, 50, 'F73 share is 50%');
+  assert.equal(checkOf(axis, 'share_of_week').state, 'amber');
+  near(checkOf(axis, 'jump_vs_history').ceiling, 829.2, '600 AU x (1 + its 38.2% ramp)');
+  assert.equal(checkOf(axis, 'jump_vs_history').state, 'green', 'F73 the jump is clean');
+  assert.equal(axis.state, 'amber');
+});
+
+test('F74 — both checks firing is still ONE axis', () => {
+  // The same lopsided week against a client whose hardest is only 300 AU: the
+  // jump ceiling falls to 420 and both checks fire. That is one problem
+  // described twice, and §9 counts distinct AXES so it can never become a
+  // compound red on its own.
+  const week = bsProposedWeek(propose(P(50, 10), P(30, 10), P(20, 10)));
+  const axis = concentration(week, 300);
+
+  assert.equal(checkOf(axis, 'jump_vs_history').tripped, true);
+  assert.equal(checkOf(axis, 'share_of_week').tripped, true);
+  assert.equal(axis.checks.length, 2, 'F74 two checks');
+  assert.equal(axis.axis, 'concentration', 'F74 on ONE axis');
+
+  const axes = bsMeasuredAxes(week, 2000, { hardestLoggedAu: 300 });
+  assert.equal(axes.filter((a) => a.axis === 'concentration').length, 1,
+    'F74 and it appears once in the axis list');
+});
+
+test('F75 — with no measured hardest session, the ABSOLUTE bound is the honest fallback', () => {
+  const week = evenWeek(4, 800);
+  const fallback = concentration(week);
+
+  assert.equal(checkOf(fallback, 'jump_vs_history'), undefined,
+    'F75 nothing to compare against, so nothing claims to');
+  near(checkOf(fallback, 'peak').ceiling, BS_PEAK_AMBER_AU);
+  near(checkOf(fallback, 'peak').redCeiling, BS_PEAK_RED_AU);
+  assert.equal(fallback.state, 'amber', '800 AU is over the 700 absolute bound');
+
+  // The check's NAME carries which comparison was made. They are different
+  // sentences to a coach: "hard by any standard" is not "a big jump for them".
+  assert.equal(concentration(week, 500).checks[0].check, 'jump_vs_history');
+  assert.equal(concentration(week).checks[0].check, 'peak');
+});
+
+test('the client own hardest REPLACES the absolute bound, it does not add to it', () => {
+  // A single 1100 AU session. Against the absolute bound that is red — the
+  // bound stands in for a capacity we have not measured. This client HAS
+  // logged 900 AU, so 1100 is inside their own 1195.2 ramp and is green.
+  const week = bsProposedWeek(propose(P(110, 10)));
+  assert.equal(concentration(week).state, 'red', 'unknown client: over the 1000 absolute red');
+
+  const known = concentration(week, 900);
+  near(checkOf(known, 'jump_vs_history').ceiling, 1195.2, '900 AU x (1 + its 32.8% ramp)');
+  assert.equal(known.state, 'green', 'measured client: 1100 is inside what they already do');
+});
+
+test('the jump has a RED bound, and both boundaries are strict', () => {
+  // DECISION BEYOND THE TABLE: the table states the amber rule only. Without a
+  // red, a client with any history could never reach red on this axis — a
+  // session at three times their hardest ever would be a mild amber.
+  const at = (au) => concentration(bsProposedWeek(propose(P(au / 10, 10))), 500);
+
+  assert.equal(at(700).state, 'green', '700 exactly — the boundary is OVER, not at');
+  assert.equal(at(700.0001).state, 'amber');
+  assert.equal(at(875).state, 'amber', '875 exactly — red is OVER 875');
+  assert.equal(at(875.0001).state, 'red');
+  assert.equal(at(1500).state, 'red', 'three times their hardest is unambiguously red');
+});
+
+test('the hardest logged session comes from the SAME window as the median', () => {
+  // Four qualifying weeks of 3 x 500 AU, with one 700 AU session in M2. Two
+  // heavier sessions sit outside the window and must not be the hardest: one
+  // in a fifth qualifying week (dropped by the 4-week cap) and one 100 days
+  // back (out of the 84-day reach).
+  const history = [
+    on(M14, 140, 10),                                  // 1400 AU, out of reach
+    on(M5, 140, 10),                                   // 1400 AU, the 5th week back
+    ...wk(M4, 1500, 3), ...wk(M3, 1500, 3),
+    ...wk(M2, 1500, 3), on(M2, 70, 10),                // 700 AU, inside the window
+    ...wk(M1, 1500, 3),
+  ];
+  const base = bsBaseline(history, TODAY);
+
+  assert.equal(base.weeks, BS_WINDOW_MAX_WEEKS, 'the window is the most recent four');
+  near(base.au, 1500, 'the median is unmoved by one heavier session');
+  near(base.hardestLoggedAu, 700,
+    'and the hardest is the heaviest session INSIDE that window, not in all history');
+
+  // End to end: the window feeds the axis.
+  const axis = concentration(evenWeek(4, 800), base.hardestLoggedAu);
+  near(checkOf(axis, 'jump_vs_history').ceiling, 954.8, '700 AU x (1 + its 36.4% ramp)');
+  assert.equal(axis.state, 'green', '800 AU is inside what this client already does');
+});
+
+test('no hardest logged session is ABSENCE, not a hardest of zero', () => {
+  // A zero would make every proposed session an infinite jump and flag every
+  // week ever authored. Unreachable through real sessions — a qualifying week
+  // needs a rated one — so the guard can only be pinned by calling it directly.
+  assert.equal(bsJumpBounds(0), null);
+  assert.equal(bsJumpBounds(-100), null);
+  assert.equal(bsJumpBounds(NaN), null);
+  assert.equal(bsJumpBounds(null), null);
+  assert.equal(bsJumpBounds('700'), null, 'a string is not a measurement');
+
+  assert.equal(bsBaseline([], TODAY).hardestLoggedAu, null);
+  assert.equal(concentration(evenWeek(2, 400), null).checks[0].check, 'peak',
+    'and the axis falls back rather than dividing by it');
+});
+
+test('a returning client is still measured against their PRE-BREAK hardest', () => {
+  // Deliberate: the interruption is priced into the volume axis. Pricing it on
+  // the concentration axis too would flag the same fact twice, which is the
+  // thing F82 exists to prevent.
+  // 4 x 400 AU: a light week by this client's standards, but against the 1100
+  // return cap the TOTAL still reads as an increase.
+  const week = evenWeek(4, 400);
+  const axes = bsReturnAxes(week, 2000, 28, { hardestLoggedAu: 900 });
+  const conc = axes.find((a) => a.axis === 'concentration');
+
+  near(checkOf(conc, 'jump_vs_history').ceiling, 1195.2, 'the same ceiling as an unbroken client');
+  assert.equal(conc.state, 'green');
+  assert.equal(axes[0].state, 'amber', 'while the volume axis carries the interruption');
 });

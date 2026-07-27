@@ -33,6 +33,8 @@
 //       (F52–F57)
 //   §7  the return regime + regime resolution — the gap, the return cap, and
 //       the 84-day handoff to cold start (F58–F67, F82, F101, F117)
+//   §8  the concentration axis finished — the hard day measured against the
+//       client's own hardest logged session (F72–F75)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -525,7 +527,8 @@ export function bsClassifySession(session, index = 0) {
  * half-guesses is not a measurement.
  *
  * @param {*} sessions
- * @returns {{eligible:number, rated:number, loadAu:number, measured:boolean, malformed:Array}}
+ * @returns {{eligible:number, rated:number, loadAu:number, measured:boolean,
+ *            realSessions:number, hardestAu:number, malformed:Array}}
  */
 export function bsWeekLoad(sessions) {
   if (!Array.isArray(sessions)) {
@@ -535,6 +538,8 @@ export function bsWeekLoad(sessions) {
       rated: 0,
       loadAu: 0,
       measured: false,
+      realSessions: 0,
+      hardestAu: 0,
       malformed: [issue(-1, 'sessions', sessions)],
     };
   }
@@ -560,15 +565,17 @@ function tally(classified) {
   let rated = 0;
   let loadAu = 0;
   let realSessions = 0;
+  let hardestAu = 0;
   for (const c of classified) {
     if (c.eligible) eligible += 1;
     if (c.rated) {
       rated += 1;
       loadAu += c.au;
       if (c.au > BS_GAP_SESSION_FLOOR_AU) realSessions += 1;
+      if (c.au > hardestAu) hardestAu = c.au;
     }
   }
-  return { eligible, rated, loadAu, measured: rated > eligible / 2, realSessions };
+  return { eligible, rated, loadAu, measured: rated > eligible / 2, realSessions, hardestAu };
 }
 
 /**
@@ -583,7 +590,7 @@ function tally(classified) {
  * @param {*} sessions
  * @returns {{weeks:Array<{weekStartISO:string, eligible:number, rated:number,
  *            loadAu:number, measured:boolean, realSessions:number,
- *            sessions:number}>, malformed:Array}}
+ *            hardestAu:number, sessions:number}>, malformed:Array}}
  */
 export function bsBucketWeeks(sessions) {
   if (!Array.isArray(sessions)) {
@@ -714,8 +721,9 @@ export function bsIsUsableBaseline(au) {
  *
  * @param {*} sessions raw history rows
  * @param {*} todayISO 'YYYY-MM-DD', the client's local today
- * @returns {{au:number|null, rawAu:number|null, basis:'measured'|'none',
- *            weeks:number, window:Array, reason:string|null, malformed:Array}}
+ * @returns {{au:number|null, rawAu:number|null, hardestLoggedAu:number|null,
+ *            basis:'measured'|'none', weeks:number, window:Array,
+ *            reason:string|null, malformed:Array}}
  */
 export function bsBaseline(sessions, todayISO) {
   const { weeks, malformed } = bsBucketWeeks(sessions);
@@ -723,6 +731,7 @@ export function bsBaseline(sessions, todayISO) {
   const none = (reason, extraIssues = []) => ({
     au: null,
     rawAu: null,
+    hardestLoggedAu: null,
     basis: 'none',
     weeks: 0,
     window: [],
@@ -789,6 +798,7 @@ export function bsBaseline(sessions, todayISO) {
     return {
       au: null,
       rawAu: null,
+      hardestLoggedAu: null,
       basis: 'none',
       weeks: window.length,
       window,
@@ -799,12 +809,20 @@ export function bsBaseline(sessions, todayISO) {
 
   const au = bsMedian(window.map((w) => w.loadAu));
 
+  // The hardest single session anywhere in the window — what §8 compares a
+  // proposed hard day against. Taken from the SAME window as the median so the
+  // two can never describe different stretches of training. Zero means the
+  // window holds no rated session at all, which is absence rather than a
+  // hardest session of nothing.
+  const hardest = window.reduce((max, w) => (w.hardestAu > max ? w.hardestAu : max), 0);
+
   // `rawAu` carries the computed figure for telemetry while `au` stays null, so
   // nothing downstream can divide by a baseline this function has rejected.
   const unusable = !bsIsUsableBaseline(au);
   return {
     au: unusable ? null : au,
     rawAu: finite(au) ? au : null,
+    hardestLoggedAu: hardest > 0 ? hardest : null,
     basis: unusable ? 'none' : 'measured',
     weeks: window.length,
     window,
@@ -1024,18 +1042,20 @@ export function bsColdStartVolumeAxis(proposed) {
  * must not satisfy the compound-red rule: they are two readings of the same
  * property, not two independent findings.
  *
- * `peak` compares against the absolute bounds. Once a measured hardest session
- * exists it is compared against that instead (F72); with no measured history it
- * falls back to these bounds (F75), which is exactly the cold-start case.
+ * The hard-day check compares against the ABSOLUTE bounds when nothing better
+ * is known (F75, the cold-start case) and against the client's own hardest
+ * logged session once one exists (F72, §8). The bound source decides the
+ * check's NAME, because they are different sentences to a coach: "this is a
+ * hard day by any standard" is not "this is a big jump for this person".
  *
  * @param {*} proposed the derived proposed week
- * @param {{peakAmber?:number, peakRed?:number}} [bounds]
+ * @param {{hardestLoggedAu?:number}} [bounds]
  */
 export function bsConcentrationAxis(proposed, bounds = {}) {
-  const peakAmber = finite(bounds.peakAmber) ? bounds.peakAmber : BS_PEAK_AMBER_AU;
-  const peakRed = finite(bounds.peakRed) ? bounds.peakRed : BS_PEAK_RED_AU;
-
-  const checks = [bsCheck('peak', proposed.hardestAu, peakAmber, peakRed)];
+  const jump = bsJumpBounds(bounds.hardestLoggedAu);
+  const checks = [jump
+    ? bsCheck('jump_vs_history', proposed.hardestAu, jump.amberAu, jump.redAu)
+    : bsCheck('peak', proposed.hardestAu, BS_PEAK_AMBER_AU, BS_PEAK_RED_AU)];
 
   // Below three sessions the share says nothing, and dividing by a zero total
   // would say something worse than nothing.
@@ -1127,12 +1147,10 @@ export function bsMeasuredVolumeAxis(proposed, baselineAu) {
 /**
  * Both measured-regime axes.
  *
- * ⚠ The concentration axis still falls back to the ABSOLUTE peak bounds here
- * (F75). Once a client has history, the peak check compares against their own
- * hardest logged session instead (F72) — that comparison is §8's, and passing
- * the bounds in is how it arrives. Until then this is the honest behaviour, not
- * a placeholder: with no measured hardest session there is nothing else to
- * compare against.
+ * `bounds.hardestLoggedAu` is the client's own hardest logged session (§8). It
+ * is optional here rather than required, because the two are independent facts:
+ * a usable weekly baseline does not guarantee a hardest session worth comparing
+ * against, and without one the axis falls back to the absolute bounds (F75).
  */
 export function bsMeasuredAxes(proposed, baselineAu, bounds = {}) {
   const volume = bsMeasuredVolumeAxis(proposed, baselineAu);
@@ -1332,7 +1350,13 @@ export function bsReturnVolumeAxis(proposed, baselineAu, gapDays) {
  * The concentration axis is UNCHANGED by the return rule — the gap says nothing
  * about how a week distributes its load, and inventing a reduced peak bound
  * here would be a second, unruled cap. `bounds` threads through exactly as it
- * does under the measured regime (F72's comparison arrives in §8).
+ * does under the measured regime.
+ *
+ * ⚠ A returning client is therefore still compared against the hardest session
+ * they logged BEFORE the break, which is the most generous reading available.
+ * Deliberate: the volume axis is where the interruption is priced in, and
+ * pricing it twice would flag the same fact on two axes — the thing F82 exists
+ * to prevent.
  */
 export function bsReturnAxes(proposed, baselineAu, gapDays, bounds = {}) {
   const volume = bsReturnVolumeAxis(proposed, baselineAu, gapDays);
@@ -1404,4 +1428,65 @@ export function bsResolveRegime(sessions, todayISO) {
   }
 
   return at('measured', null, baseline.au);
+}
+
+/* ── §8. The concentration axis, finished — the jump against history ───────
+ *
+ * A hard day is only alarming relative to what the person already does. 900 AU
+ * is unremarkable for a client whose regular hardest session is 850 and a real
+ * jump for one whose ceiling has been 500 — so once a measured hardest session
+ * exists, the absolute bound gives way to a comparison against THEIRS (F72).
+ * With no measured hardest session there is nothing else to compare against,
+ * and the absolute bound is the honest fallback (F75), which is exactly the
+ * cold-start case.
+ *
+ * The allowance over the client's hardest is the ORDINARY RAMP CURVE read at
+ * that session's own value (SPEC-guardrails.md §7.1: "hardest logged session
+ * ... x (1 + its own anchor ramp)"). One curve, read at whatever it is
+ * measuring — the same mechanism the weekly ceiling uses, applied to a session
+ * instead of a week. A client whose hardest is 700 AU may go to 954.8 before it
+ * reads as a jump.
+ *
+ * ⚠ THE COMPARISON REPLACES THE ABSOLUTE BOUND, IT DOES NOT ADD TO IT. The
+ * spec's word is "else". A client who has genuinely logged a 900 AU session is
+ * not flagged for proposing 1100 just because 1100 clears a cap written for
+ * clients of unknown capacity — the whole point of the absolute bound is that
+ * it stands in for a measurement we do not have. Once we have one, it goes.
+ *
+ * ⚠ AND IT IS STILL ONE CHECK ON ONE AXIS. `share_of_week` and the hard-day
+ * check frequently fire together on the same session (F49, F74) — that is one
+ * problem described twice, and §9 counts distinct AXES precisely so it cannot
+ * become a compound red.
+ */
+
+/**
+ * The jump allowance over a client's own hardest logged session.
+ *
+ * ⚠ DECISION BEYOND THE TABLE: the RED bound. The table (F72) and the spec both
+ * state the amber rule only. Leaving red undefined would mean a client with any
+ * history could never reach red on this axis — a proposed session at three
+ * times their hardest ever would be a mild amber, which is precisely the case
+ * that should demand an acknowledgment. So red mirrors amber: the red curve
+ * read at the same session value, exactly as the weekly ceilings pair up.
+ *
+ * @param {*} hardestLoggedAu the client's hardest RATED session in the window
+ * @returns {{hardestLoggedAu:number, rampPct:number, redPct:number,
+ *            amberAu:number, redAu:number}|null} null when there is none
+ */
+export function bsJumpBounds(hardestLoggedAu) {
+  // Absence, not a hardest session of zero. A zero here would make every
+  // proposed session an infinite jump and flag every week ever authored.
+  if (!finite(hardestLoggedAu) || hardestLoggedAu <= 0) return null;
+
+  const rampPct = bsInterpolateAnchors(BS_RAMP_ANCHORS, hardestLoggedAu);
+  const redPct = bsInterpolateAnchors(BS_RED_ANCHORS, hardestLoggedAu);
+  if (!finite(rampPct) || !finite(redPct)) return null;
+
+  return {
+    hardestLoggedAu,
+    rampPct,
+    redPct,
+    amberAu: hardestLoggedAu * (1 + rampPct / 100),
+    redAu: hardestLoggedAu * (1 + redPct / 100),
+  };
 }
