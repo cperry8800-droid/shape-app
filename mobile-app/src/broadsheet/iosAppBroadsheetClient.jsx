@@ -10,6 +10,10 @@ import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
+// The ONE ceiling. The prompt must ask at exactly the load the core refuses to
+// admit unconsidered — a local copy of 150 that drifted would leave the screen
+// asking at one threshold while the guardrail excluded at another, silently.
+import { BS_SESSION_MINUTES_CEILING } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
@@ -24309,6 +24313,16 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // field is a far worse failure than an unrated session, which the core
   // already handles honestly by excluding it. There is deliberately no
   // "Skip rating" affordance: skipping is allowed, never invited.
+  // ⚠ THIS MEANS "ATTEMPTED", AND IT MUST NOT BE RESET ON FAILURE.
+  // Review suggested clearing it when the save throws so the unmount net could
+  // retry. That would corrupt the very data this feature feeds:
+  // `saveStructuredWorkoutSession` is `.catch()`-ed inside `saveWorkoutSessionLog`
+  // and never throws — it even falls back to a local record when there is no
+  // backend. What CAN throw is the community post, which runs AFTER the session
+  // row is written. So a throw reaching us means the log is already saved, and
+  // a retry would insert a SECOND `workout_sessions` row: one workout counted
+  // twice in every load figure the guardrail reads. The failure is surfaced to
+  // the member as a toast instead.
   const savedRef = React.useRef(false);      // the save runs AT MOST once
   const completingRef = React.useRef(false); // read by the unmount cleanup
   completingRef.current = completing;
@@ -24480,7 +24494,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   //     the dangerous direction for a guardrail — and can spuriously trip the
   //     hardest-session bound along the way.
   //
-  // 150 minutes because the cold-start peak red bound is 1000 AU: 150 min at
+  // The ceiling is imported, never re-stated: the prompt has to ask at exactly
+  // the load the core refuses to admit unconfirmed. It is 150 minutes because
+  // the cold-start peak red bound is 1000 AU: 150 min at
   // RPE 7 is already 1,050, so anything past it would trip red on its own and is
   // therefore worth a question. It also clears a genuinely long tracked-set
   // session (two hours is generous) so real work is never nagged.
@@ -24488,9 +24504,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // Neither end is silently accepted OR silently discarded: we ask, and the
   // member's answer wins. Untouched, the timer's value still stands — no worse
   // than before this prompt existed.
-  const SESSION_MINUTES_CEILING = 150;
   const timerRan = Number.isFinite(elapsedSec) && elapsedSec >= 60;
-  const timerImplausible = Number.isFinite(elapsedSec) && elapsedSec > SESSION_MINUTES_CEILING * 60;
+  const timerImplausible = Number.isFinite(elapsedSec) && elapsedSec > BS_SESSION_MINUTES_CEILING * 60;
   const askDuration = !timerRan || timerImplausible;
   const timerMinutes = Math.max(0, Math.round(elapsedSec / 60));
   // Pre-filled with the timer's figure ONLY at the top end, where confirming is

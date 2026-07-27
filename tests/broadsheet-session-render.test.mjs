@@ -430,6 +430,23 @@ test('drive: nothing is pre-selected — a skipped rating must stay skipped', as
 // `Number('')` is 0, not NaN, so a cleared field slips through a naive `> 0`.
 const MIN = 'Session length in minutes';
 
+test('drive: the prompt asks at exactly the ceiling the core excludes at', async () => {
+  // The screen must ask at the SAME load the core refuses to admit unconfirmed.
+  // A local copy of 150 that drifted from the core's would leave the prompt
+  // asking at one threshold while the guardrail excluded at another — silently,
+  // because neither side would error. The constant is imported for this reason;
+  // these two cases pin the behaviour either side of it.
+  const under = harness({ elapsedMinutes: 149 });
+  await under.completeAllSets();
+  await under.click('Finish workout ✓');
+  assert.equal(under.hasAria(MIN), false, 'just under the ceiling: the timer stands');
+
+  const over = harness({ elapsedMinutes: 151 });
+  await over.completeAllSets();
+  await over.click('Finish workout ✓');
+  assert.equal(over.hasAria(MIN), true, 'just over it: the member is asked');
+});
+
 test('drive: clearing an overrun field does NOT confirm the wall-clock figure', async () => {
   const h = harness({ elapsedMinutes: 175 });
   await h.completeAllSets();

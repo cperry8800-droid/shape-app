@@ -98,6 +98,12 @@ export const BS_RED_ANCHORS = [
  * Between 56 and 83 days the clamp holds it flat at 40% — defined, not
  * undefined (F117). SPEC-guardrails.md §5.3.
  */
+export const BS_RETURN_ANCHORS = [
+  { at: 14, pct: 70 },
+  { at: 28, pct: 55 },
+  { at: 56, pct: 40 },
+];
+
 /**
  * The lowest load either curve is DEFINED at — the anchor tables' first x.
  *
@@ -115,11 +121,16 @@ export const BS_RED_ANCHORS = [
  */
 export const BS_CURVE_DOMAIN_FLOOR_AU = Math.min(...BS_RAMP_ANCHORS.map((a) => a.at));
 
-export const BS_RETURN_ANCHORS = [
-  { at: 14, pct: 70 },
-  { at: 28, pct: 55 },
-  { at: 56, pct: 40 },
-];
+// The calibration is CONFIGURATION, not state. These tables are exported and
+// read on every evaluation by three consumers, so a stray write would silently
+// recalibrate the guardrail for the life of the process. The interpolator
+// already sorts a filtered COPY rather than the original — freezing closes the
+// other half. §13.4 promises a retune of exactly these numbers: that is a
+// source edit, never a runtime one.
+[BS_RAMP_ANCHORS, BS_RED_ANCHORS, BS_RETURN_ANCHORS].forEach((table) => {
+  table.forEach((anchor) => Object.freeze(anchor));
+  Object.freeze(table);
+});
 
 /**
  * A finite JS number, and nothing that merely looks like one.
@@ -1635,6 +1646,12 @@ export const BS_AXIS_REGISTRY = [
   { axis: 'concentration', enabled: true },
   { axis: 'distribution', enabled: false },
 ];
+// `distribution.enabled` is the one flag nobody may flip at runtime: turning it
+// on without its resolver would let an axis with no rules cast a vote, which is
+// the failure the honest-absence rules above exist to prevent. Frozen so that
+// enabling it stays a source edit, reviewed, with its resolver.
+BS_AXIS_REGISTRY.forEach((row) => Object.freeze(row));
+Object.freeze(BS_AXIS_REGISTRY);
 
 /**
  * Does this axis participate in state resolution?

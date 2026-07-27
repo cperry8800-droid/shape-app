@@ -676,8 +676,16 @@ test('the zone cache is bounded, and eviction never changes an answer', () => {
   // identically. Push well past the cap with real zones, then re-read the first.
   const ZONES = ['America/New_York', 'Europe/London', 'Asia/Tokyo', 'Australia/Sydney',
     'America/Sao_Paulo', 'Africa/Lagos', 'Asia/Kolkata', 'Europe/Berlin'];
-  const one = (tz) => bsLocalWeek({ startedAtISO: '2026-07-29T02:30:00Z', timezone: tz });
+  // ⚠ POSITIONAL, NOT AN OPTIONS OBJECT. Passing `{startedAtISO, timezone}` as
+  // one argument makes `typeof startedAtISO !== 'string'` return null on the
+  // first line — so every call below yielded null, the cache was never touched,
+  // and `deepEqual(null, null)` passed while proving nothing. That is exactly
+  // how this test read before review caught it.
+  const one = (tz) => bsLocalWeek('2026-07-29T02:30:00Z', tz);
   const first = one('Pacific/Auckland');
+  // Pin that the call produced a real answer, so this can never silently
+  // degrade back to comparing two nulls.
+  assert.equal(typeof first?.weekStartISO, 'string', 'the fixture must actually resolve a week');
 
   // 80+ distinct zone strings through the cache — more than the cap holds.
   for (let i = 0; i < 12; i += 1) {
@@ -689,6 +697,24 @@ test('the zone cache is bounded, and eviction never changes an answer', () => {
   assert.deepEqual(one('Pacific/Auckland'), first,
     'a zone that was evicted and rebuilt buckets identically');
   assert.equal(one('Not/AZone0'), null, 'and an invalid zone is still rejected after eviction');
+});
+
+test('the calibration tables are configuration, not mutable state', () => {
+  // These are exported and read on every evaluation by three consumers, so a
+  // stray write would silently recalibrate the guardrail for the life of the
+  // process — and `distribution.enabled` is the one flag that must never flip
+  // at runtime: an axis with no resolver would gain a vote. §13.4 promises a
+  // retune of exactly these numbers; that is a source edit, never a live one.
+  for (const [name, table] of [['ramp', BS_RAMP_ANCHORS], ['red', BS_RED_ANCHORS],
+    ['return', BS_RETURN_ANCHORS], ['axes', BS_AXIS_REGISTRY]]) {
+    assert.equal(Object.isFrozen(table), true, `${name} table is frozen`);
+    for (const row of table) assert.equal(Object.isFrozen(row), true, `${name} rows are frozen`);
+  }
+  // Frozen deeply enough that the write actually fails rather than being a
+  // no-op on a shallow freeze.
+  const distribution = BS_AXIS_REGISTRY.find((a) => a.axis === 'distribution');
+  assert.throws(() => { 'use strict'; distribution.enabled = true; });
+  assert.equal(bsAxisEnabled('distribution'), false, 'and it stays disabled');
 });
 
 test('F112 — a missing or unparseable instant is MALFORMED', () => {

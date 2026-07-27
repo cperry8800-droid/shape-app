@@ -40,7 +40,12 @@ rules execute in SQL, which is the one place they are not fixture-testable, and
 history = {
   todayISO: 'YYYY-MM-DD',
   sessions: [{
-    dateISO:           'YYYY-MM-DD',   // client-local date; the caller resolves the timezone
+    // AMENDED by Rule E below, which was RULED IN: the core takes the instant
+    // plus the zone and derives the client-local week itself. §0 was never
+    // updated to match, so it still advertised the pre-Rule-E `dateISO` — the
+    // shape the shipped core and its tests reject.
+    startedAtISO:      'ISO-8601 instant', // when the session started, with offset
+    timezone:          'IANA zone',        // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,  // null AND 0 both mean ABSENT
     durationConfirmed: boolean         // the member confirmed or typed the minutes
@@ -58,8 +63,8 @@ The RPC in 2b then returns rows and makes no judgement — which is what
 testable module rather than less.
 
 **Cost, stated plainly:** the core now does date bucketing, so it owns
-Monday-start week maths. `todayISO` and `dateISO` stay inputs, so it remains
-pure and deterministic — no clock is ever read.
+Monday-start week maths. `todayISO`, `startedAtISO` and `timezone` stay inputs,
+so it remains pure and deterministic — no clock is ever read.
 
 Everything below assumes this contract. **If you'd rather keep pre-aggregated
 weeks, say so and I'll rewrite the table — the two new rules then move to 2b and
@@ -354,7 +359,8 @@ recalibrated to do.
 
 Absent and malformed are different. `sessionRpe: null` is **absent** — honest,
 expected, handled by exclusion. `sessionRpe: 11`, `durationSec: -30` or a
-missing `dateISO` are **malformed** — a caller bug. Silently dropping them lets
+missing `startedAtISO` or an unknown `timezone` are **malformed** — a caller
+bug. Silently dropping them lets
 a client-side defect quietly produce a wrong baseline forever.
 
 > **Malformed history rows return `state: 'unknown'`, `reason:

@@ -283,9 +283,15 @@ GuardrailResult = {
   state:   'green' | 'amber' | 'red' | 'unknown',
   regime:  'cold_start' | 'measured' | 'return',
   redPath: 'curve' | 'compound' | null,     // null unless state === 'red'
+  // ⚠ THE COMPLETE SET. Deploy 2b keys copy AND telemetry off `reason`, so a
+  // consumer written against a partial list hits unmapped values in
+  // production. Every one of these is emitted by the shipped core; adding a
+  // tenth means adding it to `BS_UNKNOWN_DETAIL` in the same commit.
   reason:  string | null,                   // 'incomplete_week' | 'malformed_history'
                                             // | 'no_history' | 'no_qualifying_weeks'
+                                            // | 'insufficient_weeks' | 'stale_baseline'
                                             // | 'baseline_below_floor'
+                                            // | 'baseline_unreadable' | 'unscoreable'
   baseline: { au: number | null, basis: 'measured' | 'none', weeks: number },
   proposed: { totalAu: number, hardestAu: number, sessions: number },
   axes: [{
@@ -487,7 +493,8 @@ false positive.
 
 **Malformed input is reported, never coerced.** `sessionRpe: null` is *absent* —
 expected, handled by exclusion. `sessionRpe: 11`, a negative `durationSec`, or a
-missing `dateISO` are *malformed*, a caller bug; silently dropping them lets a
+missing `startedAtISO` or an unknown `timezone` are *malformed*, a caller bug;
+silently dropping them lets a
 client-side defect quietly produce a wrong baseline forever. They return
 `state: 'unknown'`, `reason: 'malformed_history'`, naming the offending rows —
 never clamped, never dropped, and (per the `varianceBand` precedent) never thrown.
