@@ -30,10 +30,17 @@ comment on column public.workout_sessions.session_rpe is
 -- added in only one of the two places writes nothing and reports no error. The
 -- other place is ANALYTICS_EVENTS in src/lib/funnel.mjs — KEEP THE TWO IN SYNC.
 --
--- Adding: session_rpe_prompted { rated: boolean }. Skip rate is a property of
--- the completion PROMPT, not of any downstream consumer, so it ships here with
--- the prompt rather than later — the number is only meaningful if it has been
--- collecting since the first rated session.
+-- Adding TWO events:
+--   session_rpe_prompted { rated }  — skip rate. A property of the completion
+--     PROMPT, not of any downstream consumer, so it ships here with the prompt:
+--     the number only means something if it has been collecting since the first
+--     rated session.
+--   session_rpe_dropped { reason }  — the rating was given but could not be
+--     stored, i.e. this migration had not been applied yet and the client's
+--     retry path stripped the column. Its mere PRESENCE is the alarm. Without
+--     it, session_rpe_prompted keeps reporting {rated:true} through the whole
+--     window while session_rpe stays empty, and the loss is only noticed later,
+--     when the data is already unrecoverable. Expected count in steady state: 0.
 --
 -- (guardrail_evaluated is deliberately NOT added here. It belongs to Deploy 2,
 --  and this same two-place trap is set again there.)
@@ -46,7 +53,7 @@ as $$
 begin
   if p_event not in (
     'onboarding_started','app_opened','workout_started','paywall_viewed','checkout_started',
-    'session_rpe_prompted'
+    'session_rpe_prompted','session_rpe_dropped'
   ) then
     return; -- silently ignore non-whitelisted names (defensive)
   end if;

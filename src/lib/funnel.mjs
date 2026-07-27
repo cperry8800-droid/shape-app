@@ -21,6 +21,11 @@ export const ANALYTICS_EVENTS = [
   // from its own list, so adding an event here alone writes nothing and reports
   // no error: mirror every addition into 2026-07-27-session-rpe.sql.
   'session_rpe_prompted',
+  // session_rpe_dropped { reason } — the rating was captured but could not be
+  // stored (the column-missing retry path). Its mere PRESENCE is the alarm:
+  // without it, session_rpe_prompted keeps reporting {rated:true} while the
+  // column stays empty, so skip-rate reads healthy through a broken window.
+  'session_rpe_dropped',
 ];
 
 export function isAnalyticsEvent(name) {

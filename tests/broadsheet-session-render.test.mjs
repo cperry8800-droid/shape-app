@@ -143,6 +143,34 @@ test('the duration fallback renders when the timer has not run', () => {
   assert.match(html, /timer didn’t run/);
 });
 
+test('a wall-clock overrun asks for confirmation, pre-filled with the timer', () => {
+  // The timer is wall-clock from mount, so "finished three hours later" logs
+  // 180 minutes. Left alone that inflates the trailing baseline and loosens
+  // every FUTURE ceiling — the dangerous direction. Simulate by mounting with
+  // Date.now stubbed forward so elapsedStart lands in the past.
+  // BSSession reads Date.now() twice, in order: `now` first, then `elapsedStart`.
+  // Only the SECOND call is pushed into the past, so elapsed = now - start is a
+  // positive 175 minutes. (Staging both backwards yields a NEGATIVE elapsed,
+  // which sails past the ceiling test while proving nothing.)
+  const realNow = Date.now;
+  const OVERRUN_MS = 175 * 60 * 1000; // 175 min — past the 150-minute ceiling
+  let call = 0;
+  let out;
+  try {
+    Date.now = () => (++call === 2 ? realNow() - OVERRUN_MS : realNow());
+    out = render(session({}));
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(call >= 2, true, 'expected BSSession to read Date.now at least twice');
+  assert.equal(out.warnings.length, 0, out.warnings.join('\n'));
+  assert.match(out.html, /How long, really\?/);
+  // Pre-filled with the timer's own figure: confirming is the common answer and
+  // correcting is one edit. An empty field here would invite dismissal.
+  assert.match(out.html, /value="17[0-9]"/);
+  assert.match(out.html, /fix it if you finished earlier/);
+});
+
 test('an open session (no moves handed in) still mounts', () => {
   // openMode seeds a blank move; it exercises a different initial-state path
   // through the same hooks, which is where a hook-order divergence surfaces.

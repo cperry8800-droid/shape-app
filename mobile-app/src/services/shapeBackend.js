@@ -2306,6 +2306,15 @@ async function saveStructuredWorkoutSession({
     .single();
   if (sessionError && isMissingColumnError(sessionError, 'session_rpe')) {
     const { session_rpe: _unsupported, ...payloadWithoutRpe } = sessionPayload;
+    // Make the open window VISIBLE while it is open. Without this the retry is
+    // silent and session_rpe_prompted still reports {rated:true}, so skip-rate
+    // telemetry would read perfectly healthy while the column stayed empty —
+    // discovered weeks later, by which time the missing data is unrecoverable.
+    // Only fires when a rating was actually present: dropping a null costs
+    // nothing and is not worth an alarm.
+    if (sessionPayload.session_rpe != null) {
+      try { window.ShapeAnalytics?.track?.('session_rpe_dropped', { reason: 'column_missing' }); } catch (e) {}
+    }
     ({ data: session, error: sessionError } = await supabase
       .from('workout_sessions')
       .insert(payloadWithoutRpe)

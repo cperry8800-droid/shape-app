@@ -24268,10 +24268,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // precision the member never gave. null = skipped, and skipped stays NULL all
   // the way to the column — never 0, which would read as "effortless".
   const [sessionRpe, setSessionRpe] = useStateBSC(null);
-  // Duration fallback. The live timer supplies elapsedSec on this surface, so
-  // this is only ever shown when the timer plainly did not run (see the render).
-  // sRPE is a PRODUCT — a rating with no duration measures nothing.
-  const [manualMinutes, setManualMinutes] = useStateBSC('');
+  // Duration override. null = the member has not touched the field, so the
+  // timer's own value stands; '' = they cleared it deliberately. Shown at BOTH
+  // ends of implausibility (see the render) — sRPE is a PRODUCT, so a duration
+  // that is wrong is not a small error.
+  const [manualMinutes, setManualMinutes] = useStateBSC(null);
   const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
   // Seed the share toggle from the member's own share rule (Settings → Share
   // workout data × profile visibility) — auto-share is the DEFAULT for a
@@ -24437,17 +24438,37 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
   const elapsedSec = Math.floor((now - elapsedStart) / 1000);
-  // Session RPE load is RPE x MINUTES — a product, so a missing duration is not
-  // a small error, it is no measurement (SPEC-guardrails.md §3.1). The live
-  // timer owns duration whenever it ran; a "session" that finished in under a
-  // minute means it did not, and the member's typed minutes stand in. If
-  // neither is usable we keep the honest elapsed value: a zero-duration session
-  // is EXCLUDED downstream rather than scored, which beats inventing a number.
+  // Session RPE load is RPE x MINUTES — a product, so a wrong duration is not a
+  // small error (SPEC-guardrails.md §3.1). This timer is WALL-CLOCK: elapsedStart
+  // is stamped at mount and never pauses, so it measures "how long the screen was
+  // open", not "how long they trained". Both ends of that are dangerous:
+  //
+  //   under a minute → the timer plainly did not run; nothing to score.
+  //   over the ceiling → someone finished hours after they actually stopped. A
+  //     180-minute session at RPE 7 is 1,260 AU from ONE workout, which inflates
+  //     the trailing baseline and makes every FUTURE ceiling more permissive —
+  //     the dangerous direction for a guardrail — and can spuriously trip the
+  //     hardest-session bound along the way.
+  //
+  // 150 minutes because the cold-start peak red bound is 1000 AU: 150 min at
+  // RPE 7 is already 1,050, so anything past it would trip red on its own and is
+  // therefore worth a question. It also clears a genuinely long tracked-set
+  // session (two hours is generous) so real work is never nagged.
+  //
+  // Neither end is silently accepted OR silently discarded: we ask, and the
+  // member's answer wins. Untouched, the timer's value still stands — no worse
+  // than before this prompt existed.
+  const SESSION_MINUTES_CEILING = 150;
   const timerRan = Number.isFinite(elapsedSec) && elapsedSec >= 60;
-  const manualSec = Math.round(Number(manualMinutes) * 60);
-  const loggedDurationSec = timerRan
-    ? elapsedSec
-    : (Number.isFinite(manualSec) && manualSec > 0 ? manualSec : elapsedSec);
+  const timerImplausible = Number.isFinite(elapsedSec) && elapsedSec > SESSION_MINUTES_CEILING * 60;
+  const askDuration = !timerRan || timerImplausible;
+  const timerMinutes = Math.max(0, Math.round(elapsedSec / 60));
+  // Pre-filled with the timer's figure ONLY at the top end, where confirming is
+  // the common answer and correcting is an edit. At the bottom end there is no
+  // credible figure to offer, so the field starts empty.
+  const shownMinutes = manualMinutes != null ? manualMinutes : (timerImplausible ? String(timerMinutes) : '');
+  const manualSec = manualMinutes == null ? NaN : Math.round(Number(manualMinutes) * 60);
+  const loggedDurationSec = Number.isFinite(manualSec) && manualSec > 0 ? manualSec : elapsedSec;
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24925,18 +24946,21 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           })}
         </div>
 
-        {/* Duration only appears when the timer plainly did not run. sRPE needs
-            both factors, so a rating with no minutes would measure nothing. */}
-        {!timerRan && (
+        {/* Duration is asked for at BOTH ends of implausibility — the timer is
+            wall-clock, so it can be far too short (never ran) or far too long
+            (finished hours after they stopped). Never silently accepted. */}
+        {askDuration && (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 6 }}>How long?</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 6 }}>
+              {timerImplausible ? 'How long, really?' : 'How long?'}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="number"
                 inputMode="numeric"
                 min="1"
                 max="600"
-                value={manualMinutes}
+                value={shownMinutes}
                 onChange={(e) => setManualMinutes(e.target.value)}
                 aria-label="Session length in minutes"
                 placeholder="—"
@@ -24944,7 +24968,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               />
               <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>minutes</span>
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>The timer didn’t run for this one.</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>
+              {timerImplausible
+                ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
+                : 'The timer didn’t run for this one.'}
+            </div>
           </div>
         )}
 
