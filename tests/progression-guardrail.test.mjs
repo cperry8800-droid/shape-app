@@ -75,6 +75,7 @@ import {
   bsProgressionGuardrail,
   bsGuardrailCopy,
   BS_AXIS_LABELS,
+  BS_CURVE_DOMAIN_FLOOR_AU,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -1832,19 +1833,24 @@ test('F73 — share fires while the jump stays clean', () => {
 });
 
 test('F74 — both checks firing is still ONE axis', () => {
-  // The same lopsided week against a client whose hardest is only 300 AU: the
-  // jump ceiling falls to 420 and both checks fire. That is one problem
-  // described twice, and §9 counts distinct AXES so it can never become a
-  // compound red on its own.
-  const week = bsProposedWeek(propose(P(50, 10), P(30, 10), P(20, 10)));
-  const axis = concentration(week, 300);
+  // A lopsided 800/500/400 week against a client whose hardest is 500 AU: the
+  // jump ceiling is 700 and the share is 47%, so BOTH checks fire. That is one
+  // problem described twice, and §9 counts distinct AXES so it can never become
+  // a compound red on its own.
+  //
+  // ⚠ 500 is the LOWEST a client's hardest may be and still reach the curve
+  // (F143). This row used to sit at 300 — which F139-F143 moved outside the
+  // curves' domain, so the jump check no longer applies there and only the
+  // share would fire. Re-anchored rather than loosened.
+  const week = bsProposedWeek(propose(P(80, 10), P(50, 10), P(40, 10)));
+  const axis = concentration(week, 500);
 
   assert.equal(checkOf(axis, 'jump_vs_history').tripped, true);
   assert.equal(checkOf(axis, 'share_of_week').tripped, true);
   assert.equal(axis.checks.length, 2, 'F74 two checks');
   assert.equal(axis.axis, 'concentration', 'F74 on ONE axis');
 
-  const axes = bsMeasuredAxes(week, 2000, { hardestLoggedAu: 300 });
+  const axes = bsMeasuredAxes(week, 2000, { hardestLoggedAu: 500 });
   assert.equal(axes.filter((a) => a.axis === 'concentration').length, 1,
     'F74 and it appears once in the axis list');
 });
@@ -1863,6 +1869,120 @@ test('F75 — with no measured hardest session, the ABSOLUTE bound is the honest
   // sentences to a coach: "hard by any standard" is not "a big jump for them".
   assert.equal(concentration(week, 500).checks[0].check, 'jump_vs_history');
   assert.equal(concentration(week).checks[0].check, 'peak');
+});
+
+// A client whose sessions are all SMALL: five 40-minute RPE-5 sessions a week.
+// 200 AU each, 1000 AU a week — an entirely ordinary daily-movement client, and
+// the exact shape the un-floored curve punished hardest.
+const smallWeek = (monday) => Array.from({ length: 5 }, () => on(monday, 40, 5));
+const SMALL_HISTORY = () => [...smallWeek(M3), ...smallWeek(M2), ...smallWeek(M1)];
+
+test('F143 — the curves apply at exactly 500, and fall back below it', () => {
+  const week = evenWeek(4, 800);
+  assert.equal(concentration(week, 500).checks[0].check, 'jump_vs_history',
+    'F143 exactly at the domain floor the curve applies');
+  assert.equal(concentration(week, 499).checks[0].check, 'peak',
+    'F143 one unit below it falls back to the absolute bound');
+  assert.notEqual(bsJumpBounds(500), null, 'the bounds exist at 500');
+  assert.equal(bsJumpBounds(499), null, 'but not at 499');
+
+  // ⚠ THE SAME 500, IN THREE PLACES, PINNED. The curves' own domain, the
+  // measured-baseline floor, and the general "a percentage of a small number is
+  // meaningless" rule all sit on this boundary; retuning the lowest ramp anchor
+  // must move all of them together. And if the two curves ever started at
+  // different loads, one of them would be read outside its own domain — so that
+  // fails here rather than silently.
+  assert.equal(BS_CURVE_DOMAIN_FLOOR_AU, 500);
+  assert.equal(BS_BASELINE_FLOOR_AU, BS_CURVE_DOMAIN_FLOOR_AU,
+    'the baseline floor and the curve domain are ONE constant');
+  assert.equal(Math.min(...BS_RAMP_ANCHORS.map((a) => a.at)), BS_CURVE_DOMAIN_FLOOR_AU);
+  assert.equal(Math.min(...BS_RED_ANCHORS.map((a) => a.at)), BS_CURVE_DOMAIN_FLOOR_AU,
+    'both curves must start at the same load');
+});
+
+test('F139 — an identical-load restructure below the domain is NOT blocked', () => {
+  const history = SMALL_HISTORY();
+  const base = bsBaseline(history, TODAY);
+  near(base.au, 1000, 'baseline 1000 AU');
+  near(base.hardestLoggedAu, 200, 'hardest logged 200 AU — below the curves domain');
+
+  // The SAME 1000 AU week, restructured from five sessions into three.
+  const week = propose(P(40, 10), P(30, 10), P(30, 10));
+  const r = bsProgressionGuardrail(hist(history), week);
+  assert.equal(r.proposed.totalAu, 1000, 'the weekly load did not change');
+  assert.equal(r.regime, 'measured');
+  assert.equal(r.state, 'green', 'F139 — not red, not blocked');
+
+  // ⚠ WHAT THIS ROW EXISTS TO PREVENT. The un-floored curve clamped to 40% /
+  // 75% at a 200 AU hardest, putting red at 350 — so the 400 AU session above
+  // resolved RED and blocked publish for a week whose load never moved. The
+  // absolute bound that judges it now is 700 / 1000, and 400 clears both.
+  assert.equal(bsJumpBounds(200), null, 'no curve applies below the domain');
+  const peak = checkOf(concentration(bsProposedWeek(week), 200), 'peak');
+  near(peak.ceiling, BS_PEAK_AMBER_AU, 'judged against the absolute peak bound');
+  near(peak.redCeiling, BS_PEAK_RED_AU);
+  assert.equal(peak.state, 'green', '400 AU is not a hard day by any standard');
+
+  // ...and the identical week from a client with NO history reads the same. That
+  // agreement is the point: more data must not make the guardrail louder.
+  assert.equal(bsProgressionGuardrail(hist([]), week).state, 'green',
+    'no history reads green too — the two agree now');
+});
+
+test('F140 — the fallback did not disable the axis', () => {
+  // The same client, but a session that genuinely IS a hard day by any standard:
+  // 750 AU, over the 700 absolute bound. The fillers are deliberately small so
+  // the VOLUME axis stays green and the concentration axis is what speaks.
+  const r = bsProgressionGuardrail(
+    hist(SMALL_HISTORY()), propose(P(75, 10), P(20, 10), P(20, 10)),
+  );
+  assert.equal(r.proposed.totalAu, 1150);
+  const volume = r.axes.find((a) => a.axis === 'volume');
+  const conc = r.axes.find((a) => a.axis === 'concentration');
+  assert.equal(volume.state, 'green', '1150 is under the 1310 ramp ceiling');
+  assert.equal(conc.state, 'amber', 'F140 the concentration axis still flags');
+  assert.equal(checkOf(conc, 'peak').state, 'amber', '750 is over the 700 absolute bound');
+  assert.equal(r.state, 'amber');
+  assert.deepEqual(r.contributingAxes, ['concentration']);
+});
+
+test('F141 — share_of_week catches restructure scale-free, with no curve', () => {
+  // 500 / 250 / 250 for the same small client. The hard day is well under the
+  // absolute bound, so the peak check says nothing — and the share still fires,
+  // because a proportion needs no curve to mean something at any magnitude.
+  const r = bsProgressionGuardrail(
+    hist(SMALL_HISTORY()), propose(P(50, 10), P(25, 10), P(25, 10)),
+  );
+  const conc = r.axes.find((a) => a.axis === 'concentration');
+  assert.equal(checkOf(conc, 'peak').state, 'green', '500 AU is not a hard day by any standard');
+  assert.equal(checkOf(conc, 'share_of_week').state, 'amber', 'F141 the share fires — 50% > 45%');
+  assert.equal(conc.state, 'amber');
+  assert.equal(r.axes.find((a) => a.axis === 'volume').state, 'green', 'the load did not change');
+  assert.equal(r.state, 'amber', 'the restructure IS noticed, by the check that works here');
+});
+
+test('F142 — at two sessions the absolute bound is the only concentration check', () => {
+  const history = SMALL_HISTORY();
+  const twoUp = (au) => bsProgressionGuardrail(
+    hist(history), propose(P(au / 10, 10), P((1000 - au) / 10, 10)),
+  );
+
+  // Under the bound: the share is suppressed by the 3-session floor (F69) and
+  // the jump does not apply below the domain, so ONE check remains — and it
+  // passes.
+  const under = twoUp(500);
+  const uc = under.axes.find((a) => a.axis === 'concentration');
+  assert.equal(uc.checks.length, 1, 'F142 exactly one concentration check at two sessions');
+  assert.equal(uc.checks[0].check, 'peak');
+  assert.equal(uc.state, 'green');
+  assert.equal(under.state, 'green');
+
+  // Over the bound: that same single check flags, so nothing is unguarded here.
+  const over = twoUp(750);
+  const oc = over.axes.find((a) => a.axis === 'concentration');
+  assert.equal(oc.checks.length, 1);
+  assert.equal(oc.state, 'amber', 'F142 750 is over the 700 absolute bound');
+  assert.equal(over.state, 'amber');
 });
 
 test('the client own hardest REPLACES the absolute bound, it does not add to it', () => {

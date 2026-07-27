@@ -232,6 +232,11 @@ Weekly amber `sessions × 600`, red `sessions × 850`. Peak amber 700, red 1000.
 | F73 | share fires, jump clean | concentration amber |
 | F74 | **both fire together** | **ONE axis**, not two — must not satisfy compound red |
 | F75 | no measured hardest session | falls back to the cold-start absolute peak bound |
+| F139 | hardest logged **200 AU** (below the curves' domain), identical-load restructure — 5 × 200 becomes 400/300/300, weekly load unchanged at 1000 | **green.** `jump_vs_history` does not apply; the hard day is judged against the **absolute peak bound**. ⚠ Under the un-floored curve this was **red and publish-blocking** (red sat at 350), while the same week from a client with NO history was green |
+| F140 | same client, a session genuinely over the absolute peak bound (750 in a 1150 AU week) | **amber** on concentration — the fallback did not disable the axis |
+| F141 | same client, a 3-session restructure at small magnitude (500/250/250) | `share_of_week` **fires** — restructure is caught scale-free, with no curve involved |
+| F142 | same client, a **2-session** week at small magnitude | `share_of_week` is suppressed by the 3-session floor (F69), so the absolute peak bound is the ONLY concentration check — and it behaves (green under it, amber over it) |
+| F143 | hardest logged **exactly 500** | the curve applies (`jump_vs_history`), not the fallback. 499 falls back |
 
 ---
 

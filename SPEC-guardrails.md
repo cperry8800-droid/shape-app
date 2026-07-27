@@ -944,7 +944,7 @@ behaves exactly as the rest of §12 specifies.
 
 ### 13.4 Derived values, resolved on the record
 
-Four values were derived rather than owner-supplied during drafting. All four are
+Five values were derived rather than owner-supplied during drafting. All five are
 now settled; the reasoning is kept because a future reader will otherwise assume
 every number here was chosen deliberately from evidence, and one of them was not.
 
@@ -964,10 +964,36 @@ every number here was chosen deliberately from evidence, and one of them was not
    session count because it is the only statement the proposed week makes about
    the client without history or intake. Verification table and the accepted cost
    to the true-beginner case are in §6.1.
-2. **Gap-breaking session minimum — 100 AU** (roughly 20 minutes at RPE 5).
+2. **The 500 AU boundary is shared by THREE rules, and they must stay one
+   constant.** The ramp and red anchor tables both begin at 500; that is (a) the
+   curves' own domain, (b) the measured-baseline floor (rule B2), and (c) the
+   general rule that a *percentage of a small number is meaningless*, which is
+   why (a) and (b) exist at all. **Retuning the lowest ramp anchor moves all
+   three.** In code this is `BS_CURVE_DOMAIN_FLOOR_AU`, **derived** from the
+   ramp table rather than written as a literal so it cannot drift away from it,
+   with the red table's first anchor and `BS_BASELINE_FLOOR_AU` both asserted
+   equal to it in the suite — a divergence fails loudly instead of silently
+   reading one curve outside its own domain.
+
+   Ruled after a defect found in review: `bsJumpBounds` read the curves at ANY
+   positive session value with no domain floor, so a client whose sessions are
+   small got the tightest possible jump bound (at a 200 AU hardest, red sat at
+   350). Restructuring an unchanged 1000 AU week into 400/300/300 resolved RED
+   and blocked publish, while the same week from a client with no history at all
+   was green — more data made the guardrail louder in the wrong direction, on
+   the only state with teeth. Below the floor the axis now falls back to the
+   absolute peak bound, which is what F75 already specifies for "no measured
+   hardest session": an unusable measurement and an absent one are the same
+   thing here. No signal is lost — `share_of_week` catches restructure
+   scale-free, needing no curve (F141). The alternative considered and rejected
+   was flooring only the RED bound at an invented 1000: it keeps computing an
+   out-of-domain percentage and surfaces it anyway, which is the same failure as
+   "estimated" and as imputing a skipped rating, and 1000 is anchored to
+   nothing. Rows F139-F143.
+3. **Gap-breaking session minimum — 100 AU** (roughly 20 minutes at RPE 5).
    Owner specified that a threshold must exist and that a short walk must not
    reset protection, but not the value. **Accepted.**
-3. **Baseline = median of qualifying trailing weeks — accepted as a substitution,
+4. **Baseline = median of qualifying trailing weeks — accepted as a substitution,
    not a translation.** The request was for an *asymmetric floor*: a single light
    or interrupted week must not depress the baseline. Median is **symmetric** — it
    also resists upward movement, so it lags a legitimate ramp and ceilings run
@@ -976,7 +1002,7 @@ every number here was chosen deliberately from evidence, and one of them was not
    improving clients being flagged too often, this is the first thing to revisit,
    and an asymmetric floor (`max(median, previous baseline)`) is the alternative
    that was passed over.
-4. **Session RPE — the derived-from-set-RPEs proposal was rejected.** A flat mean
+5. **Session RPE — the derived-from-set-RPEs proposal was rejected.** A flat mean
    of set RPEs is a different construct with a systematic downward bias, and it is
    perverse: identical working sets score lower when more warm-up sets are logged.
    Sparse set-RPE logging is not a random sample either, since hard sets get rated

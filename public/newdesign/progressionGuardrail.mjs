@@ -98,6 +98,23 @@ export const BS_RED_ANCHORS = [
  * Between 56 and 83 days the clamp holds it flat at 40% — defined, not
  * undefined (F117). SPEC-guardrails.md §5.3.
  */
+/**
+ * The lowest load either curve is DEFINED at — the anchor tables' first x.
+ *
+ * ⚠ THIS IS THE SAME 500 AS `BS_BASELINE_FLOOR_AU`, AND THAT IS NOT A
+ * COINCIDENCE. Three rules share this boundary and must move together:
+ *   1. the ramp/red curves' own domain (this constant — the tables start here),
+ *   2. the measured-baseline floor (§4b rule B2), and
+ *   3. the general rule that a PERCENTAGE OF A SMALL NUMBER IS MEANINGLESS,
+ *      which is why 1 and 2 exist at all.
+ * Retuning the lowest ramp anchor moves all three. DERIVED from the table
+ * rather than written as a literal so it cannot drift away from it, with the
+ * red table's first anchor and the baseline floor both asserted equal in the
+ * suite — if they ever diverge that fails loudly instead of silently reading a
+ * curve outside its own domain.
+ */
+export const BS_CURVE_DOMAIN_FLOOR_AU = Math.min(...BS_RAMP_ANCHORS.map((a) => a.at));
+
 export const BS_RETURN_ANCHORS = [
   { at: 14, pct: 70 },
   { at: 28, pct: 55 },
@@ -1519,14 +1536,37 @@ export function bsResolveRegime(sessions, todayISO) {
  * that should demand an acknowledgment. So red mirrors amber: the red curve
  * read at the same session value, exactly as the weekly ceilings pair up.
  *
+ * ⚠ AND IT IS FLOORED AT THE CURVE'S OWN DOMAIN (F139-F143). Below
+ * `BS_CURVE_DOMAIN_FLOOR_AU` the ramp and red curves clamp to 40% / 75% —
+ * percentages of a number too small for a percentage to mean anything, the
+ * identical reason rule B2 refuses to read them for a sub-500 weekly baseline.
+ * Without the floor a client whose sessions are SMALL got the TIGHTEST possible
+ * jump bound: at a 200 AU hardest, red sat at 350, so restructuring an
+ * unchanged 1000 AU week from five sessions into 400/300/300 resolved RED and
+ * blocked publish — while the same week from a client with no history at all
+ * was green. More data made the guardrail louder in the wrong direction, on the
+ * only state with teeth.
+ *
+ * Below the floor this returns null and §8 falls back to the absolute peak
+ * bound — exactly what F75 already specifies for "no measured hardest session",
+ * because an unusable measurement and an absent one are the same thing here.
+ * NO SIGNAL IS LOST: `share_of_week` already catches restructure, and it does so
+ * SCALE-FREE (it is a proportion, so it needs no curve). The fallback stops a
+ * check that is broken at this magnitude from duplicating one that works.
+ *
  * @param {*} hardestLoggedAu the client's hardest RATED session in the window
  * @returns {{hardestLoggedAu:number, rampPct:number, redPct:number,
- *            amberAu:number, redAu:number}|null} null when there is none
+ *            amberAu:number, redAu:number}|null} null when there is none, or
+ *   when the one there is sits outside the curves' domain
  */
 export function bsJumpBounds(hardestLoggedAu) {
   // Absence, not a hardest session of zero. A zero here would make every
   // proposed session an infinite jump and flag every week ever authored.
   if (!finite(hardestLoggedAu) || hardestLoggedAu <= 0) return null;
+
+  // Outside the curves' domain — see the note above. The absolute peak bound
+  // takes over, which is a real limit rather than an extrapolated one.
+  if (hardestLoggedAu < BS_CURVE_DOMAIN_FLOOR_AU) return null;
 
   const rampPct = bsInterpolateAnchors(BS_RAMP_ANCHORS, hardestLoggedAu);
   const redPct = bsInterpolateAnchors(BS_RED_ANCHORS, hardestLoggedAu);
