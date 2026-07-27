@@ -200,6 +200,16 @@ export function bsPlanWeek(detail) // → { perDay: boolean, days: [{ dow, block
     with the same semantics as the thing it claims about, or the two diverge
     exactly at the inputs a real editor produces — and trailing spaces and
     empty rows are the most ordinary editor noise there is.
+  - **The comparison is BOUNDED at the preview's own limit, even though delivery
+    is not.** `perDay` feeds exactly one thing — the listing's "menus vary by
+    day" claim — so it is computed over at most the first 40 delivered texts per
+    day. Two reasons, and the second is the important one: `bsPlanPreview` calls
+    the normalizer *before* applying its own cap, so an unbounded comparison
+    would let a crafted public-read row make the public listing normalize every
+    attacker-supplied block; and a difference that appears only past the bound is
+    one **no buyer can see before paying**, so counting it would advertise
+    variation they cannot verify. Delivery is unaffected — it reads `days`, not
+    `perDay`.
   - **Order matters.** The surviving sequence is the menu's course order
     (breakfast before dinner); a reordered day is a different day.
   - **Object identity never matters.** An editing UI produces fresh objects
@@ -249,21 +259,21 @@ always has; that cap never touches what Assign *delivers*.)
 | `blocks: []` (authored empty) | **stays empty** | clearing Sunday is a real choice and must survive; this is the one case where empty ≠ inherit |
 | `days` not an array / junk entries | skipped, never thrown | a crafted row must not be able to break a coach's assign |
 
-⚠ **The 40/day bound is enforced at AUTHORING, with visible feedback — the
-normalizer's cap is a backstop for rows our editor never produced, and it must
-never be the thing that bites legitimate content.** The gap, stated: the
-editor's add-block action has no limit and `/api/coach/plans` stores `detail`
-unvalidated (up to the request-size cap), so without an authoring bound a
-coach *could* publish a 41-meal day and the normalizer would silently deliver
-40 — published-but-never-delivered paid content, the exact failure class the
-legacy exemption above exists to prevent. So: the per-day editor **refuses to
-add a block past 40 for that day and says so** ("Day menus hold up to 40
-meals"), publish validates the same bound, and the normalizer's slice then
-exists only for `detail` written by something other than our editor — a
-crafted row or an external writer — where truncation is hardening, not loss.
-The same rule that governed the legacy exemption governs here: **a display
-bound may truncate; a delivery bound may only ever truncate data that could
-not have been authored in good faith.**
+⚠ **There is no authoring cap, because there is no delivery cap.** An earlier
+revision put a 40/day bound in the editor, reasoning that a coach must not be
+able to publish a 41st meal the normalizer would then silently drop. That reason
+disappeared once delivery stopped truncating (below): with nothing dropping the
+41st meal, there is nothing for an authoring bound to protect the coach from, and
+the bound itself became the hazard — it refused content the editor had produced
+one step earlier. The rule it was derived from still stands and is what removed
+it: **a display bound may truncate; a delivery bound may only ever truncate data
+that could not have been authored in good faith.**
+
+`/api/coach/plans` stores `detail` unvalidated, so a large `days` can reach the
+row from an external writer as easily as from the editor — which is precisely why
+the bound cannot live on the write path: `bsPlanWeek` cannot tell the two apart,
+so any cap it applies is applied to both. The bound therefore lives where the
+exposure is, in the preview, and is stated once below.
 
 ⚠ **Delivery does not truncate an authored day. Two revisions got this wrong,
 and the second one looked like the fix.**
