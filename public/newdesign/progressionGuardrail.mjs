@@ -39,6 +39,8 @@
 //       and the sub-3-session suppression (F48–F50, F76–F84)
 //   §10 bsProgressionGuardrail — the one entry point, and honest absence
 //       (F85–F92, F110–F112, F118)
+//   §11 bsGuardrailCopy — the only source of guardrail wording, and the one
+//       place display rounding happens (F51, F68, F93–F98)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -1775,4 +1777,225 @@ function bsRegimeAxes(resolved, proposed) {
   // Cold start: no baseline, so no history to compare a hard day against
   // either — the absolute bounds are the honest fallback (F75).
   return bsColdStartAxes(proposed);
+}
+
+/* ── §11. The copy — one voice, so two surfaces cannot disagree ────────────
+ *
+ * `bsGuardrailCopy(result)` is the ONLY source of guardrail wording (§8),
+ * following the `bsVarianceCopy` precedent. The mobile builder, the two web
+ * builders and the publish-rejection response all read from here, so the same
+ * flag reads identically wherever it appears — there is one set of strings
+ * rather than three that drift apart over a year.
+ *
+ * DISPLAY ROUNDING HAPPENS HERE AND NOWHERE ELSE (F98). Every ceiling, every
+ * comparison and every state upstream runs unrounded; a figure is rounded only
+ * at the moment it becomes a word. One consequence is deliberate: a week 0.4 AU
+ * over its ceiling is amber and prints as equal to it. Nudging the printed
+ * figures apart so the sentence agreed with itself would mean showing a coach a
+ * number that is not the number we judged. The verdict is the honest thing.
+ *
+ * TWO PHRASINGS ARE DOCTRINE, NOT FORMATTING.
+ *
+ *   "no baseline yet", never "estimated" (F51, F93). Under cold start there is
+ *   no measurement and a fixed limit is being applied. Calling that an estimate
+ *   would claim a number we do not have — the same failure the 500 AU floor and
+ *   the never-impute rule exist to prevent.
+ *
+ *   "no sessions logged in N days", never "you took N days off" (F68, F94).
+ *   Logging is self-report. Unlogged training and no training are
+ *   indistinguishable from here, and the copy must not claim to tell them
+ *   apart — least of all to a coach who will repeat it to the client.
+ *
+ * Both required phrases are emitted verbatim and LOWER CASE mid-sentence, so a
+ * surface (or a test) matching the exact string always finds it.
+ *
+ * ⚠ INTERPRETATION, FLAGGED. F95 requires a red-via-curve week to say "exceeds
+ * the red threshold for this baseline". A COLD-START red has no baseline, so
+ * that sentence cannot be said honestly there — it would contradict F93's "no
+ * baseline yet" in the same breath. F95 is therefore read as scoped to the
+ * regimes that have a baseline; a cold-start red says it is past the fixed red
+ * limit instead. No row is worked around: F93 governs cold start, F95 governs
+ * the regimes it can describe.
+ */
+
+/** Coach-facing names for the axes — the internal keys are never printed. */
+export const BS_AXIS_LABELS = {
+  volume: 'weekly volume',
+  concentration: 'hardest session',
+  distribution: 'day-to-day spread',
+};
+
+const axisLabel = (axis) => BS_AXIS_LABELS[axis] || axis;
+
+/** The one rounding point in the module. Non-finite never becomes a word. */
+const show = (n) => (finite(n) ? String(Math.round(n)) : null);
+
+const sentenceCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** "a, b and c" — the axis names F96 requires alongside the compound phrase. */
+function nameList(labels) {
+  if (labels.length === 0) return '';
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * One tripped check as a clause. Each check reports against ITS OWN threshold —
+ * a red check quotes the red ceiling, an amber one the amber ceiling — so a
+ * concentration axis that is red on the peak and amber on the share does not
+ * print two numbers pretending to be the same limit.
+ */
+function checkClause(check) {
+  const value = show(check.value);
+  if (value === null) return null;
+  const ceiling = show(check.state === 'red' ? check.redCeiling : check.ceiling);
+
+  if (check.check === 'share_of_week') {
+    // The share has no red ceiling by design (it is Infinity), so `ceiling`
+    // can legitimately be null here — the clause simply drops the comparison
+    // rather than printing a limit that does not exist.
+    const head = `${value}% of the week in its single hardest session`;
+    return ceiling === null ? head : `${head} against a ${ceiling}% limit`;
+  }
+
+  const head = check.check === 'weekly_total'
+    ? `${value} AU this week`
+    : `a ${value} AU hardest session`;
+  return ceiling === null ? head : `${head} against a ${ceiling} AU limit`;
+}
+
+/**
+ * The clauses for the axes that actually decided the state.
+ *
+ * Driven by `contributingAxes` rather than by every axis, because an amber axis
+ * sitting beside a red one did not contribute to the verdict and naming it
+ * would read as though it had. That list is derived in exactly one place —
+ * `bsResolveState` — which is why the copy layer reads it instead of
+ * re-deriving it and eventually disagreeing.
+ */
+function trippedClauses(result) {
+  const axes = Array.isArray(result.axes) ? result.axes : [];
+  const contributing = Array.isArray(result.contributingAxes) ? result.contributingAxes : [];
+  const clauses = [];
+  for (const axis of axes) {
+    if (!axis || !contributing.includes(axis.axis)) continue;
+    for (const check of (Array.isArray(axis.checks) ? axis.checks : [])) {
+      if (!check || !check.tripped) continue;
+      const clause = checkClause(check);
+      if (clause) clauses.push(clause);
+    }
+  }
+  return clauses;
+}
+
+/**
+ * What the regime itself adds — and the home of both doctrine phrases.
+ *
+ * This rides on EVERY flag, including a compound red, which is how a cold-start
+ * compound red still carries "no baseline yet" (F51: *any* cold-start flag).
+ */
+function regimeNote(result) {
+  if (result.regime === 'cold_start') {
+    return 'Fixed limits — no baseline yet, so nothing here is drawn from this '
+      + "client's own weeks.";
+  }
+  if (result.regime === 'return') {
+    const days = show(result.gapDays);
+    // No gap figure is a cannot-say, not a zero: the sentence drops the number
+    // rather than printing "no sessions logged in 0 days", which would be a
+    // claim about the client's history that this result does not make.
+    return days === null
+      ? 'Reduced limits — this client is returning after an interruption.'
+      : `Reduced limits — no sessions logged in ${days} days.`;
+  }
+  const baseline = show(result.baseline && result.baseline.au);
+  return baseline === null
+    ? null
+    : `Measured against this client's own ${baseline} AU baseline.`;
+}
+
+/** What each `unknown` reason means to the person reading it. */
+const BS_UNKNOWN_DETAIL = {
+  malformed_history: "Some of this client's logged sessions could not be read, so "
+    + 'there is no history to compare against. That is a data problem to fix, not a '
+    + 'problem with the week.',
+  incomplete_week: 'Some sessions in this week have no duration or no effort target '
+    + 'yet, so there is nothing to measure.',
+  unscoreable: 'The comparison could not be completed.',
+};
+
+/**
+ * The words for a guardrail result — the only place guardrail wording lives.
+ *
+ * @param {*} result a `bsProgressionGuardrail` result
+ * @returns {{chip:string, line:string, detail:string|null, axes:string[]}|null}
+ *   null for green (F97) and for no result at all — nothing to say either way
+ */
+export function bsGuardrailCopy(result) {
+  // No result object is a CALLER-side condition — a fetch that failed, a value
+  // never assigned. This function cannot diagnose it and does not pretend to.
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+
+  // F97 — green says nothing. A guardrail that speaks when there is no finding
+  // trains a coach to stop reading it.
+  if (result.state === 'green') return null;
+
+  const axes = Array.isArray(result.contributingAxes) ? [...result.contributingAxes] : [];
+
+  // ⚠ ANYTHING UNRECOGNISED LANDS HERE, NOT IN GREEN'S null. A state this
+  // function does not know is exactly the case where rendering nothing would be
+  // read as a pass — the failure §10 exists to prevent, repeated at the copy
+  // layer. Rule D also requires an unknown to be VISIBLE and to carry its
+  // reason, which is why this returns copy at all rather than null.
+  if (result.state !== 'amber' && result.state !== 'red') {
+    return {
+      chip: 'NOT CHECKED',
+      line: 'This week could not be checked.',
+      detail: BS_UNKNOWN_DETAIL[result.reason] || BS_UNKNOWN_DETAIL.unscoreable,
+      axes: [],
+    };
+  }
+
+  const clauses = trippedClauses(result);
+  const body = clauses.join('; ');
+  const compound = result.state === 'red' && result.redPath === 'compound';
+
+  let line;
+  if (compound) {
+    // F96 — the phrase AND the axis names. The names come first because a coach
+    // needs to know what to change before being told how it added up.
+    const named = nameList(axes.map(axisLabel)) || 'more than one limit';
+    line = `${sentenceCase(named)} are over their limits together — multiple `
+      + 'limits reached at once.';
+  } else if (result.state === 'red' && result.regime !== 'cold_start') {
+    // F95 — verbatim, and only where a baseline exists to be exceeded. The
+    // figures lead and the verdict follows, in every state, so a coach reads
+    // the same shape of sentence whatever tripped.
+    line = body
+      ? `${sentenceCase(body)} — this exceeds the red threshold for this baseline.`
+      : 'This week exceeds the red threshold for this baseline.';
+  } else if (result.state === 'red') {
+    line = body
+      ? `${sentenceCase(body)} — past the red limit.`
+      : 'This week is past the red limit.';
+  } else {
+    line = body ? `${sentenceCase(body)}.` : 'This week is over its amber limit.';
+  }
+
+  const detail = [
+    // On a compound red the numbers move to the detail, because the headline is
+    // about the combination rather than any single figure.
+    compound && body
+      ? `${sentenceCase(body)}. Each is inside its own red limit; the combination `
+        + 'is what reads red.'
+      : null,
+    regimeNote(result),
+  ].filter(Boolean).join(' ');
+
+  return {
+    chip: result.state === 'red' ? 'RED' : 'AMBER',
+    line,
+    detail: detail || null,
+    axes,
+  };
 }

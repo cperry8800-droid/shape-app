@@ -26,6 +26,8 @@
 //              paths, the sub-3-session suppression (F48-F50, F76-F84)
 //   Section 10 bsProgressionGuardrail - the one entry point, honest absence,
 //              determinism, purity, non-mutation (F85-F92, F110-F112, F118)
+//   Section 11 bsGuardrailCopy - the only source of guardrail wording, the two
+//              doctrine phrasings, and display rounding (F51, F68, F93-F98)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,6 +73,8 @@ import {
   BS_COMPOUND_MIN_SESSIONS,
   BS_GAP_SESSION_FLOOR_AU,
   bsProgressionGuardrail,
+  bsGuardrailCopy,
+  BS_AXIS_LABELS,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -2272,4 +2276,203 @@ test('a scored result never carries issues, and an unknown never carries a state
   assert.ok(both.issues.malformedHistory.length > 0);
   assert.ok(both.issues.incompleteWeek.length > 0,
     'and the other class is still reported, so telemetry loses nothing');
+});
+
+// ── §11. The copy — one voice, so two surfaces cannot disagree ───────────────
+
+// Every string anywhere in a copy object. The doctrine bans ("estimated",
+// "days off") have to be checked over the WHOLE payload: a banned word that
+// drifted into `detail` while the test only read `line` would ship silently.
+function copyStrings(copy, found = []) {
+  if (typeof copy === 'string') found.push(copy);
+  else if (Array.isArray(copy)) copy.forEach((v) => copyStrings(v, found));
+  else if (copy && typeof copy === 'object') {
+    Object.values(copy).forEach((v) => copyStrings(v, found));
+  }
+  return found;
+}
+
+// The scenarios the section is specified against, built once and reused so the
+// doctrine sweep at the end sees exactly what the individual rows saw.
+const COLD_AMBER = () => bsProgressionGuardrail(hist([]), proposeTotal(2100, 3));
+const COLD_RED = () => bsProgressionGuardrail(hist([]), proposeTotal(3600, 4));
+const RETURN_AMBER = () => bsProgressionGuardrail(
+  hist([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)]), proposeTotal(1800),
+);
+const MEASURED_RED = () => bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2900));
+// Volume amber (2500 over 2380) AND concentration amber (a 1400 AU hardest
+// session over the 1310 AU jump bound), three sessions, nothing red on its own.
+const COMPOUND_RED = () => bsProgressionGuardrail(
+  hist(GOOD_HISTORY()), propose(P(140, 10), P(55, 10), P(55, 10)),
+);
+
+test('F97 — green returns null; there is nothing to say', () => {
+  const green = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2000));
+  assert.equal(green.state, 'green');
+  // A guardrail that speaks when it has no finding trains a coach to stop
+  // reading it. Silence here is the whole point.
+  assert.equal(bsGuardrailCopy(green), null);
+});
+
+test('F93 / F51 — a cold-start flag says "no baseline yet", never "estimated"', () => {
+  const r = COLD_AMBER();
+  assert.equal(r.regime, 'cold_start');
+  assert.equal(r.state, 'amber');
+
+  const copy = bsGuardrailCopy(r);
+  assert.equal(copy.chip, 'AMBER');
+  // The required phrase, verbatim and lower case, so an exact-string match
+  // finds it wherever a surface looks.
+  assert.ok(copyStrings(copy).join(' ').includes('no baseline yet'));
+  // The claim is that we have NO measurement and are applying a fixed limit.
+  // "Estimated" would assert a number we do not have.
+  assert.doesNotMatch(copyStrings(copy).join(' '), /estimat/i);
+  // 3 sessions x 600 = 1800; the week is 2100.
+  assert.match(copy.line, /2100 AU this week against a 1800 AU limit/);
+});
+
+test('a cold-start RED does not claim a baseline it does not have', () => {
+  // ⚠ The flagged interpretation. F95's phrase names "this baseline"; cold
+  // start has none, and saying it would contradict F93 in the same breath.
+  const r = COLD_RED();
+  assert.equal(r.regime, 'cold_start');
+  assert.equal(r.state, 'red');
+
+  const copy = bsGuardrailCopy(r);
+  assert.equal(copy.chip, 'RED');
+  assert.doesNotMatch(copyStrings(copy).join(' '), /for this baseline/);
+  assert.ok(copyStrings(copy).join(' ').includes('no baseline yet'));
+  // 4 sessions x 850 = 3400; the week is 3600.
+  assert.match(copy.line, /3600 AU this week against a 3400 AU limit — past the red limit/);
+});
+
+test('F94 / F68 — the return flag says "no sessions logged in N days"', () => {
+  const r = RETURN_AMBER();
+  assert.equal(r.regime, 'return');
+  assert.equal(r.gapDays, 16);
+  assert.equal(r.state, 'amber');
+
+  const copy = bsGuardrailCopy(r);
+  const all = copyStrings(copy).join(' ');
+  assert.ok(all.includes('no sessions logged in 16 days'));
+  // Logging is self-report. Unlogged training and no training are
+  // indistinguishable from here, and the copy must not claim to tell them
+  // apart — least of all to a coach who will repeat it to the client.
+  assert.doesNotMatch(all, /days off/i);
+  assert.doesNotMatch(all, /you took/i);
+});
+
+test('F95 — red via the curve names the baseline it exceeded', () => {
+  const r = MEASURED_RED();
+  assert.equal(r.regime, 'measured');
+  assert.equal(r.state, 'red');
+  assert.equal(r.redPath, 'curve');
+
+  const copy = bsGuardrailCopy(r);
+  assert.ok(copy.line.includes('exceeds the red threshold for this baseline'));
+  // Red quotes the RED ceiling, not the amber one it also cleared.
+  assert.match(copy.line, /2900 AU this week against a 2800 AU limit/);
+  assert.match(copy.detail, /2000 AU baseline/);
+});
+
+test('F96 — red via compound says so, and names the axes', () => {
+  const r = COMPOUND_RED();
+  assert.equal(r.state, 'red');
+  assert.equal(r.redPath, 'compound');
+  assert.deepEqual(r.contributingAxes, ['volume', 'concentration']);
+
+  const copy = bsGuardrailCopy(r);
+  assert.ok(copy.line.includes('multiple limits reached at once'));
+  // The axis NAMES, in coach language — the internal keys are never printed.
+  assert.match(copy.line, /Weekly volume and hardest session/);
+  assert.doesNotMatch(copy.line, /concentration/);
+  // ...and the raw keys ride on the object, so a surface can render chips
+  // without re-deriving which axes contributed.
+  assert.deepEqual(copy.axes, ['volume', 'concentration']);
+  // The compound rule's whole content: neither is red alone.
+  assert.match(copy.detail, /Each is inside its own red limit/);
+});
+
+test('F98 — display rounds here, and rounding never changes the verdict', () => {
+  // (a) Nothing long-decimal reaches a coach. The return ceiling is
+  // 1691.09... AU, which is exactly the kind of number that leaks.
+  const returning = bsGuardrailCopy(RETURN_AMBER());
+  for (const s of copyStrings(returning)) {
+    assert.doesNotMatch(s, /\d\.\d/, `un-rounded figure in copy: ${s}`);
+  }
+  assert.match(returning.line, /1800 AU this week against a 1691 AU limit/);
+
+  // (b) The comparison upstream stayed unrounded. A week 0.4 AU over its
+  // ceiling IS amber, and prints as equal to it — the documented artifact. The
+  // alternative, nudging the printed figures apart so the sentence agreed with
+  // itself, would show a coach a number that is not the number we judged.
+  const hair = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2380.4));
+  assert.equal(hair.state, 'amber', 'the verdict is made on the unrounded number');
+  const copy = bsGuardrailCopy(hair);
+  assert.match(copy.line, /2380 AU this week against a 2380 AU limit/);
+});
+
+test('unknown gets words, not silence — and cannot be read as a pass', () => {
+  // Rule D: an unknown must be VISIBLE and carry its reason. Rendering nothing
+  // would be indistinguishable from green, which is the failure §10 exists to
+  // prevent — repeated here at the copy layer.
+  const bad = bsProgressionGuardrail(
+    hist([{ ...on(M1, 60, 7), sessionRpe: 11 }]), proposeTotal(2000),
+  );
+  assert.equal(bad.state, 'unknown');
+
+  const copy = bsGuardrailCopy(bad);
+  assert.notEqual(copy, null);
+  assert.equal(copy.chip, 'NOT CHECKED');
+  assert.match(copy.line, /could not be checked/);
+  assert.match(copy.detail, /could not be read/);
+  // Not a flag: no axes, and no threshold vocabulary a coach could read as one.
+  assert.deepEqual(copy.axes, []);
+  assert.doesNotMatch(copyStrings(copy).join(' '), /limit|threshold/i);
+
+  const incomplete = bsGuardrailCopy(bsProgressionGuardrail(
+    hist(GOOD_HISTORY()), propose({ id: 'x', plannedMinutes: 60 }),
+  ));
+  assert.equal(incomplete.chip, 'NOT CHECKED');
+  assert.match(incomplete.detail, /no duration or no effort target/);
+});
+
+test('the copy never throws, and an unrecognised state is never silence', () => {
+  for (const junk of [null, undefined, 'green', 0, NaN, [], () => {}]) {
+    assert.equal(bsGuardrailCopy(junk), null, `no result object: ${String(junk)}`);
+  }
+  // ⚠ A state this function does not know must NOT fall into green's null —
+  // that is precisely where silence would be read as a pass.
+  const alien = bsGuardrailCopy({ state: 'chartreuse', regime: 'measured' });
+  assert.equal(alien.chip, 'NOT CHECKED');
+  // Hostile shapes: every field the copy reads is guarded, none of them throw.
+  const shapes = [{}, { state: 'red' }, { state: 'amber', axes: 'no' },
+    { state: 'red', redPath: 'compound', contributingAxes: null },
+    { state: 'amber', regime: 'return', gapDays: NaN, axes: [{ axis: 'volume' }] }];
+  for (const shape of shapes) {
+    const copy = bsGuardrailCopy(shape);
+    assert.equal(typeof copy.line, 'string');
+    assert.ok(copy.line.length > 0, 'a flag always says something');
+  }
+});
+
+test('every registered axis has a label — no raw key can reach a coach', () => {
+  for (const row of BS_AXIS_REGISTRY) {
+    assert.equal(typeof BS_AXIS_LABELS[row.axis], 'string',
+      `axis "${row.axis}" would print its internal key`);
+  }
+});
+
+test('the doctrine holds across every flag this section produces', () => {
+  const every = [COLD_AMBER, COLD_RED, RETURN_AMBER, MEASURED_RED, COMPOUND_RED]
+    .map((f) => bsGuardrailCopy(f()));
+  for (const copy of every) {
+    const all = copyStrings(copy).join(' ');
+    assert.doesNotMatch(all, /estimat/i, 'never "estimated" (F51)');
+    assert.doesNotMatch(all, /days off|you took/i, 'never "you took N days off" (F68)');
+    assert.doesNotMatch(all, /\d\.\d/, 'display rounds (F98)');
+    // A flag always carries a chip a surface can render and a line to read.
+    assert.ok(copy.chip === 'AMBER' || copy.chip === 'RED');
+    assert.ok(copy.line.trim().length > 0);
+  }
 });
