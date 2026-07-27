@@ -22,11 +22,11 @@ signal, not this paragraph.
 
 | Track | State |
 | --- | --- |
-| **C0** — stop the fabrication | ✅ **SHIPPED** (#1836) |
-| **C1a** — per-DAY menus (the builder authors a different day) | 🔄 **IN FLIGHT, not clear to build against yet.** Delivery has MERGED (#1840 — `bsPlanWeek` resolves `detail.days` for Assign and the paid preview); the storage contract is still in review (#1839) and the authoring half is open (#1843). Until #1839 lands, `2026-07-26-per-day-menu-contract.md` is not on `main` and nothing can be validated against it — so treat C1a as owned, not as available to depend on |
-| **C1b** — make the ✦ AI DRAFT real | ⛔ **blocked on the AI contract** (below) |
-| **C2 / C3** — multi-week rows, precedence, labelling | ⛔ **blocked on E** (C2's end-of-program rule needs a term to end) |
-| **E** — the entitlement layer | ⛔ **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
+| **C0** — stop the fabrication | ✓ **SHIPPED** (#1836) |
+| **C1a** — per-DAY menus (the builder authors a different day) | → **IN FLIGHT, not clear to build against yet.** Delivery has MERGED (#1840 — `bsPlanWeek` resolves `detail.days` for Assign and the paid preview); the storage contract is still in review (#1839) and the authoring half is open (#1843). Until #1839 lands, `2026-07-26-per-day-menu-contract.md` is not on `main` and nothing can be validated against it — so treat C1a as owned, not as available to depend on |
+| **C1b** — make the ✦ AI DRAFT real | × **blocked on the AI contract** (below) |
+| **C2 / C3** — multi-week rows, precedence, labelling | × **blocked on E** (C2's end-of-program rule needs a term to end) |
+| **E** — the entitlement layer | × **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
 **C0 has shipped** (#1836, on `main`: a nutrition week block assigns as an arc
 and never fabricates meals). **C1a is owned and in flight, not finished** — the
@@ -213,8 +213,8 @@ section, not over it.
 Detect a week-block nutrition outline at Assign and block: *"This program
 describes weeks, not meals — assign a Diet or Meal plan for the menu."*
 
-- ✅ Zero fabrication; tiny change; no storage work.
-- ❌ Leaves a first-class builder output with **no delivery path at all**. The
+- ✓ Zero fabrication; tiny change; no storage work.
+- × Leaves a first-class builder output with **no delivery path at all**. The
   coach authors a program the app then refuses to deliver.
 
 ### B — Phases ride the nutrition rail *(recommended)*
@@ -225,10 +225,10 @@ Assign writes the arc to `client_programs.detail.nutrition.phases` +
 *"Week 2 of 4 · Build routine."* The **menu** continues to come from a separate
 Diet / Meal-plan assignment.
 
-- ✅ Uses storage and a render surface that already exist — no migration.
-- ✅ Delivers exactly what the coach authored, and no food they didn't write.
-- ✅ Composes: a real menu and a phase arc can be live at once.
-- ❌ The program and the menu become two assignments. Arguably correct — they are
+- ✓ Uses storage and a render surface that already exist — no migration.
+- ✓ Delivers exactly what the coach authored, and no food they didn't write.
+- ✓ Composes: a real menu and a phase arc can be live at once.
+- × The program and the menu become two assignments. Arguably correct — they are
   two different products — but it is a workflow change worth naming.
 
 **B is only viable with all five of the following.** Each is a real blocker found
@@ -276,7 +276,7 @@ data the client never sees, or fails to fix the bug at all.
    on the same day.
 
    **This is the build contract: both surfaces, no ambiguity at build time.**
-   ✅ **RATIFIED 2026-07-26 (ruling 8) — not overruled.** The owner was offered
+   ✓ **RATIFIED 2026-07-26 (ruling 8) — not overruled.** The owner was offered
    the mobile-only amendment before any build started and kept both surfaces.
    Settled: build both, and do not re-raise it mid-build.
 4. **A stated start date.** "Which week are we in" derives from a real
@@ -290,16 +290,16 @@ data the client never sees, or fails to fix the bug at all.
 Materialize N `client_meal_plans` rows keyed by `week_start`, and select by the
 current week.
 
-- ✅ A genuine multi-week menu capability.
-- ❌ **The WRITER contract has to change too, not just the read.** `POST
+- ✓ A genuine multi-week menu capability.
+- × **The WRITER contract has to change too, not just the read.** `POST
   /api/nutritionist/meal-plan` archives *every* `status='published'` row for the
   (nutritionist, client) pair before inserting, so materializing N rows would
   archive each earlier week as the next one lands. This option requires a
   status/retention redesign (which rows stay published, how a future week is
   distinguished from a stale one), a migration, and read/write back-compat for
   plans already in flight — before it is even comparable to A or B.
-- ❌ Changes the read contract for **every** client — the highest-risk option here.
-- ❌ **Solves the wrong problem:** a week-block outline contains no meals, so this
+- × Changes the read contract for **every** client — the highest-risk option here.
+- × **Solves the wrong problem:** a week-block outline contains no meals, so this
   installs N *empty* menus. It would only pay off for a builder that emits
   per-week menus, which this one does not.
 

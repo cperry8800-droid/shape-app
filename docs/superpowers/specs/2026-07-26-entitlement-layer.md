@@ -66,7 +66,20 @@ for, and a coach **deleting** it makes that purchase **disappear from the
 client's Library entirely** — money taken, nothing owned, no trace on the
 client's side. This wave makes the exposure worse (ruling 3 stretches the
 dormant window from "until they open it" to "indefinitely"), but it does not
-cause it. **It has its own PR and must not wait on E.**
+cause it.
+
+⚠ **Partly FIXED already — #1837 shipped, so do not re-do it.**
+`2026-07-26-purchase-plan-snapshot.sql` is on `main` and applied: it adds
+`one_time_purchases.plan_snapshot`, a trigger that preserves it, and rewrites
+`get_my_purchased_plans()` to a LEFT JOIN falling back to the stored snapshot.
+So the *disappearing* half is closed — deleting a plan after its snapshot exists
+no longer removes the purchase from the buyer's Library. What remains, and what
+this document still needs, is the **mutable** half (a coach editing a plan still
+changes what an un-started buyer owns, because content is resolved live rather
+than from the snapshot) plus two exceptional gaps: rows purchased **before** that
+migration, and deletions racing the webhook that writes the snapshot. Treat the
+baseline as "durability of the ROW is solved, durability of the CONTENT is not."
+
 
 ## What must be true before this is build-ready
 
@@ -447,8 +460,20 @@ happens to them rather than leave it to the reader:
   there is no immutable record of what shape was bought.
 
   So the live catalogue is **corroborating evidence, not authority**. A row
-  classifies as a program only on **immutable sale-time evidence** — sale-time
-  metadata or the charge's own line items.
+  classifies as a program only on **immutable, versioned sale-time metadata** —
+  and on nothing else.
+
+  ⚠ **Explicitly NOT the charge's line items.** An earlier revision offered them
+  as a second acceptable source; they are not one. `checkout-session/route.ts`
+  builds the line item's product name from the **client-supplied** `body.item.name`,
+  and neither the line item nor today's metadata records a sale-time `buildType` —
+  so the charge preserves a label the buyer's browser chose, not the shape the
+  coach sold. Classifying from it could turn a historical booking into a program
+  or the reverse, silently, during a one-shot backfill. That is the same
+  client-trusted-label problem this document already raises against the receipt,
+  and it disqualifies line items for the same reason: immutability is not the
+  only requirement — the value also has to have been **authoritative when it was
+  written**. Absent versioned metadata, the row stays unresolved.
 
   ⚠ **And "unmodified since the purchase" must be measured from CHECKOUT-SESSION
   CREATION, not from the purchase row.** An earlier revision offered
