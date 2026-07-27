@@ -461,8 +461,11 @@ the floor, the plan would reload as the legacy repeated menu, and nothing
 would error. The `onPublish` payload and BOTH `publishDraft` constructions
 (trainer and nutritionist paths both destructure it) must carry the
 **canonicalized `days` array** (per the canonicalization rule below) through
-to `detail`, and the round-trip — author a day, publish, reload, the day tab
-shows it — is acceptance item 12.
+to `detail`. Acceptance item 12 asserts that round-trip **at the storage
+boundary** — publish, then `bsPlanWeek` reads `days` back and Assign delivers it
+— deliberately, and not "reload and the day tab shows it": no reopen path
+exists (`openDraft` ignores the row it was invoked from and publishing always
+creates a new plan), which is §8's item, not this one's.
 
 ⚠ **The day selector is CAPABILITY-GATED — meal-plan/diet drafts only, via an
 explicit prop.** `BSCoachDraftEditor` is one shared component: the trainer
@@ -521,8 +524,10 @@ that disagreed, which is exactly how a menu ends up on the wrong day.
    `perDay === false`, and the preview shows the AUTHORED (delivered) menu, not
    `detail.blocks` — including when `detail.blocks` is empty, which must not
    read as an empty plan.
-6. **A legacy plan with more than 40 blocks delivers ALL of them** — the
-   fallback is uncapped; only `days` entries are bounded.
+6. **A legacy plan with more than 40 blocks delivers ALL of them** — and so
+   does an authored day of that size. Neither the fallback nor a `days` entry is
+   truncated in delivery; only the paid preview re-caps each resolved day (item
+   15).
 7. A crafted `days` (200 entries, `dow: 99`, `dow: "1"`, duplicate dows, a
    40k-char block) neither throws nor moves a menu to the wrong day.
 8. `dow` 0 lands on **Monday** in the assigned week, verified against
