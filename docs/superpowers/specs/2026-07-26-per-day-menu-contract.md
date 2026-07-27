@@ -304,20 +304,19 @@ two share ONE constant rather than two `40`s free to drift, and the editor
 imposes no per-day cap at all — with delivery lossless, there is nothing left for
 it to protect the coach from.
 
-⚠ **This section describes the contract, and `main` does not implement it yet —
-the delivery half lands in the authoring PR (#1843), not after it.** As merged in
-#1840, `bsPlanWeek` still slices each override at 40, still coerces block values
-with `String(raw)` rather than `String(raw || '')`, and still compares day menus
-unbounded. Every one of those contradicts a rule above, and every one is fixed in
-#1843 — because they are only reachable through authoring, and nothing writes
-`days` until that PR ships. **The correct merge order is therefore #1843 before
-this document**, so that no window exists in which the contract is authoritative
-and the code disagrees with it.
+✓ **`main` implements this section as of #1843.** For most of this document's
+life it did not, and the gap was real rather than pedantic: `bsPlanWeek` sliced
+each override at 40, coerced block values with `String(raw)` instead of
+`String(raw || '')`, and compared day menus unbounded — three rules above, all
+contradicted by the shipped code. They were only ever reachable through
+authoring, and nothing wrote `days` until the editor existed, so the ordering was
+the fix: **#1843 landed before this document.**
 
-Stated once so it does not have to be rediscovered per rule: a contract that
+Recorded because the general form outlives this instance: **a contract that
 documents delivery behaviour the delivery code does not implement is worse than
-one that documents nothing — it reads as authority. That is why the ordering is
-part of the contract rather than a note on the pull request.
+one that documents nothing — it reads as authority.** When the two must diverge
+for a while, the merge order belongs *in the contract*, not in a note on a pull
+request that nobody reads afterwards.
 
 `BSProAssignPage.apply()` then becomes, in place of the shared-array line:
 
