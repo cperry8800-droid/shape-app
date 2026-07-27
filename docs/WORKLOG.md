@@ -1066,6 +1066,58 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-27 — Progression guardrails: session-RPE capture + the pure advisory core (#1846, open)
+
+- **Advisory load flags for coach-authored weeks.** The guardrail tells a coach when the
+  week they just wrote is an unusually large jump for **that** client. It never blocks,
+  never rewrites a week, never proposes an alternative. Three phases on one branch: the
+  spec (`SPEC-guardrails.md` + `SPEC-guardrails-2a-fixtures.md`), **Deploy 1** (capture a
+  real post-session RPE), **Deploy 2a** (the pure core). No route change; nothing consumes
+  the core yet — 2b wires it into the builders and the publish path.
+- ⚠ **MIGRATION `2026-07-27-session-rpe.sql` — APPLIED + VERIFIED LIVE** (re-verified
+  against production while opening the PR): `workout_sessions.session_rpe` present
+  (nullable, 0–10 CHECK); `track_event`'s whitelist carries **`session_rpe_prompted`** and
+  **`session_rpe_dropped`**; EXECUTE granted to `anon` + `authenticated` (deliberate — the
+  function binds `auth.uid()` itself and rejects unknown names). **`session_rpe_dropped`
+  count: 0** — that event exists so a rating given but not storable raises an alarm by its
+  mere presence, so zero means nothing was lost while the column landed.
+- **A skipped rating stores NULL, never 0**, and is excluded from load maths rather than
+  imputed. The specified derived estimator (averaging set RPEs) was **CUT**: it measures a
+  different construct with a systematic downward bias — the same working sets score lower
+  when a client logs more warm-up sets — and it would have converted unrated sessions into
+  pseudo-rated ones, letting a week that ought to degrade to cold start qualify as
+  *measured* on a contaminated baseline.
+- **The completion step.** The rating first shipped inline BELOW the finish button, so a
+  member following the primary CTA saved and left without seeing it — nearly every session
+  would have stored NULL, and since a week only counts as `measured` when more than half
+  its sessions are rated, **no client would ever have left `cold_start`**. `Finish workout`
+  and `End workout early` now open a dedicated completion screen (effort 1–10, the duration
+  question only when the timer is not credible, the vibe, the share toggle). **Backing out
+  still saves the workout, with a null rating** — the rating is optional, the log is not —
+  and there is deliberately no "Skip rating" affordance. The save is idempotent across every
+  exit path; `session_rpe_prompted` fires exactly once on both, or the skip-rate denominator
+  is wrong.
+- **`durationConfirmed` rides in the existing `summary` jsonb, NOT a new column** — jsonb
+  accepts an unknown key on any deployment, so it needs no migration and cannot reproduce
+  the `session_rpe` schema-cache window, where an unapplied column rejects the whole insert
+  and costs a member their entire session log over one optional field. It is set only by an
+  affirmative answer: a valid in-range figure, or the over-ceiling prefill accepted as
+  offered. A cleared field, an out-of-range number, or the under-a-minute case (where no
+  credible figure is ever offered) all record `false`, and the core then excludes the
+  session rather than let a screen left open inflate a baseline.
+- **The 150-minute ceiling is imported from the core, never restated** — the prompt has to
+  ask at exactly the load the core refuses to admit unconfirmed; two copies could drift and
+  neither side would error.
+- ⚠ **Two lessons worth carrying.** (1) A test can pass forever and prove nothing: the
+  zone-cache test called the positional `bsLocalWeek` with an options object, so it returned
+  null on line 1, never touched the cache, and compared two nulls. (2) A `[]`-dep cleanup
+  captures the FIRST render's closure — the unmount save would have written a junk
+  zero-duration session with no sets. Both caught by review, not by the suite.
+- Verified: **1072 tests**, tsc clean, mobile build clean, CI green. Perturbation sweeps:
+  50 mutations on the core (46 killed, 3 documented equivalents) + 14 on the completion step
+  (all killed). Open: OWNER on-device pass (reach the completion screen, hardware-back out,
+  confirm the saved session carries its real sets and duration) · Deploy 2b.
+
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 
 - **Dependabot alert #12 cleared** — `sharp` <0.35.0, HIGH, runtime scope (four
