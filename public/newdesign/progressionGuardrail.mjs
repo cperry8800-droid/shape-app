@@ -31,6 +31,8 @@
 //       (F43–F50, F69–F71, F87, F105, F115)
 //   §6  the measured regime — the ramp curve read at the client's baseline
 //       (F52–F57)
+//   §7  the return regime + regime resolution — the gap, the return cap, and
+//       the 84-day handoff to cold start (F58–F67, F82, F101, F117)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -1136,4 +1138,270 @@ export function bsMeasuredAxes(proposed, baselineAu, bounds = {}) {
   const volume = bsMeasuredVolumeAxis(proposed, baselineAu);
   if (!volume) return null;
   return [volume, bsConcentrationAxis(proposed, bounds)];
+}
+
+/* ── §7. The return regime — coming back from an interruption ──────────────
+ *
+ * After a break, the client's pre-break baseline is still the best measurement
+ * of who they were — and a bad description of who they are today. So the
+ * baseline is REDUCED to a fraction of itself, and the ordinary ramp curve is
+ * then read at that reduced number (SPEC-guardrails.md §6.3). Subsequent weeks
+ * re-ramp from there by the ordinary rules — no special case, no third curve.
+ *
+ * Worked, at the reference baseline of 2000 AU:
+ *   gap 14d -> 70% -> the week is measured against 1400 (F59)
+ *   gap 28d -> 55% -> measured against 1100, whose own ramp is 29.2%, so amber
+ *                     lands at 1421.2 (F60) — the cap and the ramp compose
+ *   gap 56d -> 40% -> measured against 800 (F61), and 40% is the last anchor:
+ *                     56 through 83 days are all 40% (F62, F117)
+ *   gap 84d -> the baseline is STALE. A regime handoff to cold start, NOT a
+ *              fifth fraction and NOT floored at 40% (F63)
+ *
+ * ⚠ THE CAP MODIFIES THE VOLUME AXIS — IT IS NOT A SECOND AXIS (F82). A return
+ * week whose total also clears the ramp has ONE finding, not two, and must
+ * never satisfy the compound-red rule in §9. That is why this section returns
+ * the same single-check `volume` axis the measured regime does, with different
+ * numbers in it, rather than adding a `return` axis alongside.
+ *
+ * WHAT COUNTS AS A GAP: consecutive days with no logged session over 100 AU.
+ * A 15-minute walk must not reset three weeks of protection (F64), a real
+ * session does (F65). Two consequences worth stating out loud:
+ *
+ *   - An UNRATED session cannot reset a gap. It has no AU at all, so it cannot
+ *     exceed a floor expressed in AU. A client who trains without rating reads
+ *     as absent, and their return week is held to a tighter ceiling than it
+ *     needs to be. That is the safe direction of the error and it is the same
+ *     honest-absence rule §3 applies everywhere else: we do not know what we
+ *     were not told.
+ *   - The floor is on the SESSION, not the week. A week of six 90 AU sessions
+ *     is 540 AU of real training that resets no gap.
+ */
+
+/** Below this many days there is no return rule at all — the ordinary ramp applies. */
+export const BS_RETURN_MIN_GAP_DAYS = 14;
+
+/**
+ * At or beyond this many days the baseline is stale and the regime hands off to
+ * cold start. The SAME 84 days as the window's reach (§4b) — one staleness
+ * concept expressed once, deliberately.
+ */
+export const BS_STALE_GAP_DAYS = 84;
+
+/**
+ * How long since the client last logged a session that counts as real training.
+ *
+ * Measured from that session's local date to `todayISO`, in whole days. Null
+ * when there has never been one — see the note in `bsResolveRegime` for why
+ * that is a "cannot say", not a gap of infinity.
+ *
+ * @param {*} sessions raw history rows
+ * @param {*} todayISO 'YYYY-MM-DD', the client's local today
+ * @returns {{gapDays:number|null, lastRealISO:string|null, malformed:Array}}
+ */
+export function bsHistoryGap(sessions, todayISO) {
+  const todayMs = utcMsFromIsoDate(todayISO);
+  if (!Number.isFinite(todayMs)) {
+    return { gapDays: null, lastRealISO: null, malformed: [issue(-1, 'todayISO', todayISO)] };
+  }
+  if (!Array.isArray(sessions)) {
+    return { gapDays: null, lastRealISO: null, malformed: [issue(-1, 'sessions', sessions)] };
+  }
+
+  const malformed = [];
+  let lastRealISO = null;
+
+  sessions.forEach((s, i) => {
+    const c = bsClassifySession(s, i);
+    if (c.malformed) {
+      malformed.push(...c.issues);
+      return;
+    }
+    // Strictly OVER the floor: 100 AU exactly does not reset a gap, matching
+    // the week tally's own test so the two can never disagree about which
+    // sessions are real.
+    if (!c.rated || !(c.au > BS_GAP_SESSION_FLOOR_AU)) return;
+    // ISO dates are fixed-width, so a plain string compare finds the latest.
+    if (lastRealISO === null || c.localDateISO > lastRealISO) lastRealISO = c.localDateISO;
+  });
+
+  if (lastRealISO === null) return { gapDays: null, lastRealISO: null, malformed };
+
+  const lastMs = utcMsFromIsoDate(lastRealISO);
+  // Calendar-to-calendar, both anchored in UTC, so no DST-length day can shift
+  // the count — the same arithmetic the window reach uses.
+  const days = (todayMs - lastMs) / DAY_MS;
+
+  // A session dated after today is the only way this goes negative, and a
+  // negative gap cannot mean anything. Read it as "trained today", which is the
+  // tighter regime (no return relaxation) rather than the looser one.
+  return { gapDays: Math.max(0, days), lastRealISO, malformed };
+}
+
+/**
+ * The return-week fraction for a gap, or null when no return rule applies.
+ *
+ * Null is returned for BOTH ends, and they are different decisions wearing the
+ * same shape: under 14 days there is no interruption to return from (F58), and
+ * at 84 days the baseline is stale and the regime changes (F63). Neither is a
+ * curve value, which is why they are guards here rather than anchors in the
+ * table — the clamp would otherwise happily report 70% for a 3-day gap and 40%
+ * for a 300-day one.
+ *
+ * @param {number} gapDays
+ * @returns {number|null}
+ */
+export function bsReturnFraction(gapDays) {
+  if (!finite(gapDays)) return null;
+  if (gapDays < BS_RETURN_MIN_GAP_DAYS) return null;   // F58 — no return rule
+  if (gapDays >= BS_STALE_GAP_DAYS) return null;       // F63 — a regime handoff
+  // Flat at 40% from 56 days to the horizon (F62, F117) — defined, not
+  // undefined, exactly as the ramp curve is held flat below 500 AU.
+  return bsInterpolateAnchors(BS_RETURN_ANCHORS, gapDays);
+}
+
+/**
+ * The return week's ceilings: cap the baseline, then read the ordinary curves
+ * at the capped number.
+ *
+ * ⚠ DECISION BEYOND THE TABLE: the 500 AU floor (rule B2) gates the MEASURED
+ * baseline, not the capped one. A 1000 AU client returning after eight weeks is
+ * held to 400 AU, which is under the floor — and the honest ceiling for them is
+ * the one the return rule computes, not the cold-start caps. Routing to cold
+ * start there would hand a returning client `sessions x 600`, which is far
+ * LOOSER than the cap that exists to protect them: the guardrail would go quiet
+ * for exactly the person it was written for. The curve's own clamp covers the
+ * arithmetic below its first anchor, which is what a clamp is for. B1
+ * (positive and finite) is still asserted on the capped number, because a NaN
+ * ceiling compares false against everything and silently passes every week.
+ *
+ * @param {number} baselineAu the client's pre-break baseline
+ * @param {number} gapDays
+ * @returns {{gapDays:number, returnPct:number, cappedAu:number, rampPct:number,
+ *            redPct:number, amberAu:number, redAu:number}|null}
+ */
+export function bsReturnCeilings(baselineAu, gapDays) {
+  if (!bsIsUsableBaseline(baselineAu)) return null;
+
+  const returnPct = bsReturnFraction(gapDays);
+  if (!finite(returnPct)) return null;
+
+  const cappedAu = baselineAu * (returnPct / 100);
+  if (!finite(cappedAu) || cappedAu <= 0) return null;   // B1, on the capped number
+
+  const rampPct = bsInterpolateAnchors(BS_RAMP_ANCHORS, cappedAu);
+  const redPct = bsInterpolateAnchors(BS_RED_ANCHORS, cappedAu);
+  if (!finite(rampPct) || !finite(redPct)) return null;
+
+  return {
+    gapDays,
+    returnPct,
+    cappedAu,
+    rampPct,
+    redPct,
+    amberAu: cappedAu * (1 + rampPct / 100),
+    redAu: cappedAu * (1 + redPct / 100),
+  };
+}
+
+/**
+ * The volume axis under the return regime.
+ *
+ * ONE axis with ONE check, identical in shape to the measured regime's (F82).
+ * The whole of the return rule lives in the numbers inside it.
+ *
+ * ⚠ `ceilingPct` is the percentage over the RETURN CAP, not over the client's
+ * pre-break baseline — the cap is the number this axis measured against, and
+ * `ceilingPct` is always the percentage over whatever that number was. A return
+ * week is usually a DECREASE from the pre-break baseline, so reading this
+ * percentage as growth over it would invert the story. The check's `ceiling`
+ * carries the absolute AU, which cannot be misread.
+ *
+ * @returns {object|null} null when there is no usable baseline or no return rule
+ */
+export function bsReturnVolumeAxis(proposed, baselineAu, gapDays) {
+  const ceilings = bsReturnCeilings(baselineAu, gapDays);
+  if (!ceilings) return null;
+
+  const total = bsCheck('weekly_total', proposed.totalAu, ceilings.amberAu, ceilings.redAu);
+  return bsAxis('volume', [total], total.state === 'red' ? ceilings.redPct : ceilings.rampPct);
+}
+
+/**
+ * Both return-regime axes.
+ *
+ * The concentration axis is UNCHANGED by the return rule — the gap says nothing
+ * about how a week distributes its load, and inventing a reduced peak bound
+ * here would be a second, unruled cap. `bounds` threads through exactly as it
+ * does under the measured regime (F72's comparison arrives in §8).
+ */
+export function bsReturnAxes(proposed, baselineAu, gapDays, bounds = {}) {
+  const volume = bsReturnVolumeAxis(proposed, baselineAu, gapDays);
+  if (!volume) return null;
+  return [volume, bsConcentrationAxis(proposed, bounds)];
+}
+
+/**
+ * Which regime applies — the one decision that routes everything else.
+ *
+ * Exactly one regime applies to any evaluation. The order below is the ruling,
+ * not a convenience:
+ *
+ *   1. NO USABLE BASELINE -> cold start, carrying the baseline's own reason.
+ *      First, because "your baseline is stale" implies there is one; when there
+ *      is not, `no_history` / `no_qualifying_weeks` / `baseline_below_floor` is
+ *      the truer sentence.
+ *   2. GAP >= 84 DAYS -> cold start, `stale_baseline`. THE STALE RULE BEATS THE
+ *      WINDOW (F101): old qualifying weeks can still sit inside the 84-day
+ *      reach while no real session has been logged for 90 days, and a baseline
+ *      you cannot trust is worse than no baseline at all.
+ *   3. GAP >= 14 DAYS -> return.
+ *   4. otherwise -> measured. This is also what the week AFTER a return week
+ *      resolves to (F66): the return week itself closed the gap, so the
+ *      ordinary rules re-ramp from the new baseline with no special case.
+ *
+ * ⚠ DECISION BEYOND THE TABLE: a client with NO real session anywhere in their
+ * history has `gapDays: null`, and null is not a gap of infinity. They do not
+ * route to stale — they keep whatever baseline their weeks produced. The table
+ * has no row for it (F101's premise names a last qualifying session 90 days
+ * back), and the alternative is worse: a client training six genuine 90 AU
+ * sessions a week would be declared stale and handed the far looser cold-start
+ * caps, which is the dangerous direction.
+ *
+ * ⚠ MALFORMED IS CARRIED, NOT ACTED ON. Rule C says one malformed row turns the
+ * whole evaluation `unknown`, and that decision belongs to the top level (§10),
+ * which MUST check `malformed` before reading `regime`. The list comes from
+ * `bsBaseline` alone: the gap pass classifies the same rows through the same
+ * classifier, so merging both would report every defect twice.
+ *
+ * @param {*} sessions raw history rows
+ * @param {*} todayISO 'YYYY-MM-DD', the client's local today
+ * @returns {{regime:'cold_start'|'measured'|'return', reason:string|null,
+ *            baselineAu:number|null, gapDays:number|null, baseline:object,
+ *            malformed:Array}}
+ */
+export function bsResolveRegime(sessions, todayISO) {
+  const baseline = bsBaseline(sessions, todayISO);
+  const { gapDays } = bsHistoryGap(sessions, todayISO);
+  const malformed = baseline.malformed;
+
+  const at = (regime, reason, baselineAu) => ({
+    regime, reason, baselineAu, gapDays, baseline, malformed,
+  });
+
+  if (baseline.basis !== 'measured') return at('cold_start', baseline.reason, null);
+
+  // ⚠ DECISION BEYOND THE TABLE: `stale_baseline` is new vocabulary. The
+  // documented reason list covers the no-baseline cases and never names this
+  // one, and reusing `no_qualifying_weeks` would report "no qualifying weeks"
+  // about a client who has three — a small lie, and this module's contract is
+  // that it does not tell them.
+  if (finite(gapDays) && gapDays >= BS_STALE_GAP_DAYS) {
+    return at('cold_start', 'stale_baseline', null);
+  }
+
+  if (finite(gapDays) && gapDays >= BS_RETURN_MIN_GAP_DAYS) {
+    return at('return', null, baseline.au);
+  }
+
+  return at('measured', null, baseline.au);
 }

@@ -18,6 +18,8 @@
 //              (F43-F50, F69-F71, F85-F87, F89, F105, F115)
 //   Section 6  the measured regime - the ramp curve at the client's baseline
 //              (F52-F57)
+//   Section 7  the return regime + regime resolution - the gap, the return
+//              cap, the 84-day handoff (F58-F67, F82, F101, F117)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,6 +50,13 @@ import {
   bsMeasuredCeilings,
   bsMeasuredVolumeAxis,
   bsMeasuredAxes,
+  bsHistoryGap,
+  bsReturnFraction,
+  bsReturnCeilings,
+  bsReturnVolumeAxis,
+  bsReturnAxes,
+  bsResolveRegime,
+  BS_GAP_SESSION_FLOOR_AU,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -1408,4 +1417,277 @@ test('the measured concentration axis still falls back to the absolute peak', ()
     .find((a) => a.axis === 'concentration');
   assert.equal(measured.state, 'green',
     'against this client own measured hardest, 800 AU is unremarkable');
+});
+
+// ── §7. The return regime — coming back from an interruption ─────────────────
+//
+// Gap days are a direct INPUT to the cap functions, so the arithmetic rows
+// (F59-F63, F117) need no history at all. Only gap DETECTION (F64, F65) and
+// regime resolution (F66, F101) build a history, and those use the same TODAY
+// and `on()` helper as §4b.
+
+// Dates by their distance back from TODAY (2026-08-05, a Wednesday).
+const D10 = '2026-07-26';
+const D21 = '2026-07-15';            // a Wednesday — a gap ending mid-week (F67)
+const D40 = '2026-06-26';
+const D90 = '2026-05-07';
+
+test('F59-F61 — the return cap reduces the baseline, then the ramp reads the cap', () => {
+  // The two compose: the cap is not the ceiling, it is the number the ordinary
+  // ramp curve is then read at. F60 is the row that pins that composition.
+  const g14 = bsReturnCeilings(2000, 14);
+  near(g14.returnPct, 70, 'F59 14 days -> 70%');
+  near(g14.cappedAu, 1400, 'F59 70% of 2000');
+
+  const g28 = bsReturnCeilings(2000, 28);
+  near(g28.returnPct, 55, 'F60 28 days -> 55%');
+  near(g28.cappedAu, 1100, 'F60 55% of 2000');
+  near(g28.rampPct, 29.2, 'F60 the ramp read AT 1100, not at 2000');
+  near(g28.amberAu, 1421.2, 'F60 amber over 1421.2');
+  near(g28.redPct, 57, 'the red curve reads the cap too');
+  near(g28.redAu, 1727);
+
+  const g56 = bsReturnCeilings(2000, 56);
+  near(g56.returnPct, 40, 'F61 56 days -> 40%');
+  near(g56.cappedAu, 800, 'F61 40% of 2000');
+});
+
+test('F62 / F117 — the band is FLAT from 56 days to the horizon', () => {
+  // 40% at 56, 70 and 83 days. Defined, not undefined — the same clamp
+  // convention that holds the ramp curve flat below 500 AU.
+  for (const gap of [56, 70, 83]) {
+    near(bsReturnFraction(gap), 40, `F117 ${gap} days is 40%`);
+  }
+  near(bsReturnFraction(83.999), 40, 'still 40% a hair under the horizon');
+});
+
+test('F63 — 84 days is a REGIME HANDOFF, not a fifth fraction', () => {
+  // The distinction that matters: the fraction is not "floored at 40% forever".
+  // At the horizon there is no fraction at all, because the baseline being
+  // reduced is no longer a baseline worth reducing.
+  assert.equal(bsReturnFraction(84), null, 'F63 no fraction at 84 days');
+  assert.equal(bsReturnFraction(365), null, 'nor at a year');
+  assert.equal(bsReturnCeilings(2000, 84), null, 'F63 and therefore no ceilings');
+  near(bsReturnFraction(83), 40, 'the boundary is AT 84, strictly');
+});
+
+test('F58 — under 14 days there is no return rule at all', () => {
+  assert.equal(bsReturnFraction(13), null, 'F58 13 days -> the ordinary ramp');
+  assert.equal(bsReturnFraction(13.999), null, 'a hair under is still no rule');
+  assert.equal(bsReturnFraction(0), null, 'trained today');
+  near(bsReturnFraction(14), 70, 'the boundary is AT 14, strictly');
+  near(bsReturnFraction(21), 62.5, 'and interpolates between anchors');
+
+  // The guard is not the clamp: without it, the curve would happily report 70%
+  // for a 3-day gap and 40% for a 300-day one. Both are curve values; neither
+  // is a return rule.
+  near(bsInterpolateAnchors(BS_RETURN_ANCHORS, 3), 70, 'the clamp alone would say 70');
+  assert.equal(bsReturnFraction(3), null, 'the guard says there is no rule');
+});
+
+test('F82 — the cap MODIFIES the volume axis, it is not a second axis', () => {
+  // A return week that also clears the ramp is ONE finding. If the cap were a
+  // second axis it would satisfy compound red in §9 all by itself.
+  const week = bsProposedWeek(proposeTotal(1600));
+  const axes = bsReturnAxes(week, 2000, 28);
+
+  assert.deepEqual(axes.map((a) => a.axis), ['volume', 'concentration'],
+    'F82 two axes, and neither of them is a return axis');
+  const volume = axes[0];
+  assert.equal(volume.checks.length, 1, 'F82 one check — the cap is inside it');
+  assert.equal(volume.checks[0].check, 'weekly_total');
+  assert.equal(volume.state, 'amber', '1600 over the 1421.2 return ceiling, under 1727');
+
+  // The same week against the same baseline with NO gap is comfortably green —
+  // so the cap is what is doing the work here, not the week.
+  assert.equal(bsMeasuredVolumeAxis(week, 2000).state, 'green',
+    'unbroken, a 1600 AU week against a 2000 baseline is a decrease');
+});
+
+test('the return axis reports the percentage over the CAP', () => {
+  // Stated because it can be misread: a return week is usually a DECREASE from
+  // the pre-break baseline, so reading 29.2% as growth over 2000 would invert
+  // the story. The check carries the absolute AU, which cannot be misread.
+  const green = bsReturnVolumeAxis(bsProposedWeek(proposeTotal(1200)), 2000, 28);
+  assert.equal(green.state, 'green');
+  near(green.ceilingPct, 29.2, 'the ramp over the 1100 cap');
+  near(green.checks[0].ceiling, 1421.2, 'and the ceiling itself is absolute AU');
+
+  const red = bsReturnVolumeAxis(bsProposedWeek(proposeTotal(1800)), 2000, 28);
+  assert.equal(red.state, 'red', '1800 is over the 1727 red ceiling');
+  near(red.ceilingPct, 57, 'red reports the RED threshold');
+});
+
+test('a capped baseline under the 500 AU floor still produces a real ceiling', () => {
+  // DECISION BEYOND THE TABLE. Rule B2 gates the MEASURED baseline; the cap is
+  // not a measurement. Routing this to cold start would hand a returning client
+  // `sessions x 600` — far looser than the cap that exists to protect them.
+  const c = bsReturnCeilings(1000, 56);
+  near(c.cappedAu, 400, '40% of 1000 is under the floor');
+  near(c.rampPct, 40, 'the curve clamps at its first anchor, which is what a clamp is for');
+  near(c.amberAu, 560);
+
+  const coldStartWouldAllow = 3 * BS_COLD_START_WEEKLY_AMBER_PER_SESSION;
+  assert.ok(c.amberAu < coldStartWouldAllow,
+    'and the return ceiling is TIGHTER than cold start would be — the safe direction');
+
+  // B1 is still asserted on the capped number: a NaN ceiling compares false
+  // against everything and would silently pass every week.
+  assert.equal(bsReturnCeilings(NaN, 28), null);
+  assert.equal(bsReturnCeilings(0, 28), null);
+  assert.equal(bsReturnCeilings(499, 28), null, 'the measured baseline still has to clear the floor');
+});
+
+test('F64 / F65 — a light session does not reset a gap, a real one does', () => {
+  // 480 AU in 60 minutes. AU is rpe x minutes, so a real session has to earn
+  // its load through EFFORT — 480 minutes at RPE 1 would be an unconfirmed
+  // overrun and excluded entirely (F22).
+  const anchor = on(D40, 60, 8);             // 480 AU, 40 days ago
+
+  const walk = bsHistoryGap([anchor, on(D10, 60, 1)], TODAY);
+  assert.equal(walk.gapDays, 40, 'F64 a 60 AU walk does not reset three weeks of protection');
+  assert.equal(walk.lastRealISO, D40);
+
+  const real = bsHistoryGap([anchor, on(D10, 140, 1)], TODAY);
+  assert.equal(real.gapDays, 10, 'F65 a 140 AU session does');
+  assert.equal(real.lastRealISO, D10);
+
+  // Strictly OVER the floor, matching the week tally's own test so the two can
+  // never disagree about which sessions are real.
+  const exact = bsHistoryGap([anchor, on(D10, BS_GAP_SESSION_FLOOR_AU, 1)], TODAY);
+  assert.equal(exact.gapDays, 40, '100 AU exactly does not reset it');
+});
+
+test('an UNRATED session cannot reset a gap — and that error runs safe', () => {
+  // It has no AU at all, so it cannot exceed a floor expressed in AU. A client
+  // who trains without rating reads as absent and is held to a TIGHTER return
+  // ceiling than they need — the safe direction, and the same honest-absence
+  // rule §3 applies everywhere else.
+  const gap = bsHistoryGap([on(D40, 60, 8), on(D10, 90, null)], TODAY);
+  assert.equal(gap.gapDays, 40, 'the unrated session is absent, not light');
+});
+
+test('F67 — a gap ending mid-week makes the WHOLE week the return week', () => {
+  // The gap is measured to a session's own DATE, not to a week boundary, and
+  // the cap then applies to the week's TOTAL. Nothing is prorated by how much
+  // of the week fell inside the gap.
+  const gap = bsHistoryGap([on(D21, 60, 8)], TODAY);
+  assert.equal(gap.gapDays, 21, 'measured from the Wednesday itself');
+  assert.equal(new Date(`${D21}T00:00:00Z`).getUTCDay(), 3, 'and that Wednesday is mid-week');
+
+  const full = bsReturnCeilings(2000, 21);
+  near(full.returnPct, 62.5, '21 days interpolates to 62.5%');
+  near(full.cappedAu, 1250, 'the WHOLE cap — not a fraction of it for a partial week');
+
+  // The proposed week's own start date changes nothing.
+  const week = bsProposedWeek(proposeTotal(1500));
+  const a = bsReturnVolumeAxis(week, 2000, 21);
+  const b = bsReturnVolumeAxis(
+    bsProposedWeek({ weekStartISO: M1, sessions: proposeTotal(1500).sessions }), 2000, 21,
+  );
+  near(a.checks[0].ceiling, b.checks[0].ceiling, 'the same cap wherever the week starts');
+});
+
+test('F101 — the stale rule BEATS the window', () => {
+  // Three qualifying weeks sit inside the 84-day reach, but every session in
+  // them is under the gap floor: six 90 AU sessions is 540 AU of real training
+  // that resets no gap. The last session that DID clear the floor was 90 days
+  // ago, so the baseline is stale even though the window found one.
+  const lightWeek = (monday) => Array.from({ length: 6 }, () => on(monday, 90, 1));
+  const history = [
+    on(D90, 60, 8),
+    ...lightWeek(M3), ...lightWeek(M2), ...lightWeek(M1),
+  ];
+
+  // The window really did produce a usable baseline — this row is about the
+  // stale rule beating it, not about the window failing.
+  const base = bsBaseline(history, TODAY);
+  assert.equal(base.basis, 'measured', 'the window found three qualifying weeks');
+  near(base.au, 540, 'and their median clears the 500 AU floor');
+
+  const resolved = bsResolveRegime(history, TODAY);
+  assert.equal(resolved.gapDays, 90, 'no session over the floor for 90 days');
+  assert.equal(resolved.regime, 'cold_start', 'F101 not measured, and not return');
+  assert.equal(resolved.reason, 'stale_baseline');
+  assert.equal(resolved.baselineAu, null, 'a baseline you cannot trust is not offered');
+});
+
+test('F66 — the week after the return week re-ramps by the ordinary rules', () => {
+  // The return week itself closed the gap, so there is no special case to
+  // unwind: the next week resolves `measured`, and the return week is now
+  // inside the window it re-ramps from.
+  const history = [
+    ...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000),
+    ...wk(M1, 1400),                                  // the return week, now logged
+  ];
+  const resolved = bsResolveRegime(history, TODAY);
+
+  assert.equal(resolved.gapDays, 9, 'the return week is 9 days back');
+  assert.equal(bsReturnFraction(resolved.gapDays), null, 'so no return rule applies');
+  assert.equal(resolved.regime, 'measured', 'F66 ordinary rules, no special case');
+  assert.equal(resolved.baseline.weeks, BS_WINDOW_MAX_WEEKS);
+  near(resolved.baseline.window[resolved.baseline.window.length - 1].loadAu, 1400,
+    'and the return week is inside the window it re-ramps from');
+});
+
+test('the regimes resolve in the ruled order', () => {
+  const threeWeeks = [...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)];
+
+  // Trained 9 days ago -> measured.
+  const measured = bsResolveRegime(threeWeeks, TODAY);
+  assert.equal(measured.regime, 'measured');
+  near(measured.baselineAu, 2000);
+  assert.equal(measured.reason, null);
+
+  // The same weeks with the recent one dropped: last real session 23 days back.
+  const returning = bsResolveRegime([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)], TODAY);
+  assert.equal(returning.gapDays, 16, 'the M2 week is 16 days back');
+  assert.equal(returning.regime, 'return');
+  near(returning.baselineAu, 2000, 'the pre-break baseline is what gets capped');
+
+  // No usable baseline reports the BASELINE's reason, not staleness — saying
+  // "your baseline is stale" implies there is one.
+  const nothing = bsResolveRegime([], TODAY);
+  assert.equal(nothing.regime, 'cold_start');
+  assert.equal(nothing.reason, 'no_history', 'the truer sentence');
+
+  const stranded = bsResolveRegime([on(D90, 60, 8)], TODAY);
+  assert.equal(stranded.regime, 'cold_start');
+  assert.equal(stranded.reason, 'no_qualifying_weeks',
+    'one ancient session is not a stale baseline — it is no baseline');
+});
+
+test('no real session anywhere is a "cannot say", not a gap of infinity', () => {
+  // DECISION BEYOND THE TABLE. A client training six genuine 90 AU sessions a
+  // week would otherwise be declared stale and handed the far LOOSER cold-start
+  // caps — the dangerous direction.
+  const lightWeek = (monday) => Array.from({ length: 6 }, () => on(monday, 90, 1));
+  const history = [...lightWeek(M3), ...lightWeek(M2), ...lightWeek(M1)];
+
+  const gap = bsHistoryGap(history, TODAY);
+  assert.equal(gap.gapDays, null, 'there is no last real session to measure from');
+  assert.equal(gap.lastRealISO, null);
+
+  const resolved = bsResolveRegime(history, TODAY);
+  assert.equal(resolved.regime, 'measured', 'they keep the baseline their weeks produced');
+  near(resolved.baselineAu, 540);
+});
+
+test('the gap never runs backwards, and malformed history is reported once', () => {
+  // A session dated after today is the only way the count goes negative, and a
+  // negative gap cannot mean anything. Reading it as "trained today" is the
+  // tighter regime, not the looser one.
+  const ahead = bsHistoryGap([on('2026-08-09', 60, 8)], TODAY);
+  assert.equal(ahead.gapDays, 0, 'clamped, never negative');
+
+  // Both passes classify the same rows through the same classifier, so the
+  // resolver takes one list rather than reporting every defect twice.
+  const resolved = bsResolveRegime([on(M1, 60, 11), ...wk(M2, 2000)], TODAY);
+  assert.equal(resolved.malformed.length, 1, 'named once');
+  assert.equal(resolved.malformed[0].field, 'sessionRpe');
+
+  // A malformed todayISO is a caller bug the gap pass reports too.
+  const bad = bsHistoryGap([on(D40, 60, 8)], '2026-02-31');
+  assert.equal(bad.gapDays, null);
+  assert.equal(bad.malformed[0].field, 'todayISO');
 });
