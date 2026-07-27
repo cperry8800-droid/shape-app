@@ -15,8 +15,14 @@
 const EXT_RE =
   /apple|apns|ios build|app store|xcode|testflight|garmin|spotify|stripe connect|radio\.co|counsel|attorney|photograph|translation review|human review/i;
 
-// A `pending` item that names an owner act is still YOURS, not engineering's.
-const YOU_RE = /\bOWNER\b|owner call|owner ruling|owner's word|on-device/i;
+// A `pending` item that names an OUTSTANDING owner act is still YOURS.
+// Deliberately action-shaped: the records are full of CLOSED owner decisions
+// ("the owner ruled C", "owner pick K", "(owner call)"), and matching those
+// would drag engineering work into the YOU lane and corrupt the counts —
+// which is the whole point of the lane. When in doubt the item stays ENG:
+// engineering triage is the safe default, a false YOU is not.
+const YOU_RE =
+  /\bOWNER\s*(?:ACTION|MIGRATION|RUNS|PASS|APPLIES|SETS|CONFIRMS|\(optional\)|:)|\bowner\s+(?:runs|applies|must|needs|to run|sign-?off)|needs? the owner|awaiting (?:the )?owner|pending (?:the )?owner|still owed by the owner|owner['’]s (?:go|word) (?:is )?(?:still )?(?:needed|pending|outstanding)|\bunruled\b|on-device pass|needs? a house (?:call|ruling)|brand-voice call/i;
 
 /**
  * @param {{label?: string, status?: string}} item

@@ -1118,7 +1118,20 @@ changelog whenever something ships.
   `CHECKLIST n/m CLOSED` from the triage counts (the same set the open count
   comes from) and config gets its own labelled line. **The rule that
   generalizes: a progress bar must share its denominator with the number it
-  sits next to.**
+  sits next to.** **Round 3** (2 Codex P2, both real): ⚠ the **owner regex
+  matched CLOSED decisions** — the records are full of "the owner ruled C" /
+  "(owner call)" / "owner pick", so engineering work was dragged into the YOU
+  lane and the counts the board LEADS with were wrong; `YOU_RE` is now
+  action-shaped (OWNER MIGRATION/ACTION/runs · needs the owner · on-device
+  pass · needs a house call · unruled) with ENG as the safe default, and was
+  **validated against the real 513-item checklist** — Codex's cited vector
+  (spec #1834, whose rulings are closed but whose blockers are the AI contract
+  + entitlement layer) now correctly reads ENG. And ⚠ an **unknown CI feed
+  rendered as a global green**: with no `GITHUB_TOKEN` the strip read "✓ ALL
+  SYSTEMS NOMINAL … CI MAIN — NO FEED"; it now reads "◦ NO ALARMS — STATUS
+  PARTIAL" in neutral until every segment is known. **An unread gate is not a
+  passed gate — the rule the PR chips already obeyed, now applied to the strip
+  above them.**
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

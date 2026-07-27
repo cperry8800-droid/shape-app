@@ -223,13 +223,15 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
     if (g.required && !g.ready) alarms.push({ sev: 'warn', text: `CONFIG — ${g.label.toUpperCase()} NOT READY` });
   }
   const servicesOk = snap.services.filter((s) => s.status === 'ok').length;
-  const ciSeg = !flight
-    ? flight === undefined
-      ? 'CI MAIN …'
-      : 'CI MAIN — NO FEED'
-    : flight.ok
-      ? `CI MAIN ${GATE_GLYPH[flight.ciMain].glyph}`
-      : 'CI MAIN — NO FEED';
+  // The CI segment is only KNOWN when the feed answered and returned a real
+  // verdict. Unknown must never be folded into a global green claim (round-3
+  // P2) — an unread gate is not a passed gate, the same rule the PR chips obey.
+  const ciKnown = !!flight?.ok && flight.ciMain !== 'none';
+  const ciSeg = ciKnown
+    ? `CI MAIN ${GATE_GLYPH[flight!.ciMain].glyph}`
+    : flight === undefined
+      ? 'CI MAIN — CHECKING …'
+      : 'CI MAIN — UNKNOWN (NO FLIGHT FEED)';
 
   const gateTag = (p: FlightPr) => {
     if (p.allGreen)
@@ -312,19 +314,21 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
         {alarms.length === 0 ? (
           <div
             style={{
-              border: `1px solid rgba(68,201,143,0.35)`,
-              background: 'rgba(68,201,143,0.06)',
+              border: `1px solid ${ciKnown ? 'rgba(68,201,143,0.35)' : 'rgba(107,123,141,0.4)'}`,
+              background: ciKnown ? 'rgba(68,201,143,0.06)' : 'rgba(107,123,141,0.05)',
               borderRadius: 8,
               padding: '10px 16px',
               fontFamily: MONO,
               fontSize: 11.5,
-              color: N.green,
+              color: ciKnown ? N.green : N.dim,
               display: 'flex',
               gap: 10,
               alignItems: 'center',
+              flexWrap: 'wrap',
             }}
           >
-            <b>✓ ALL SYSTEMS NOMINAL</b>
+            {/* Green ✓ only when every segment is actually known. */}
+            <b>{ciKnown ? '✓ ALL SYSTEMS NOMINAL' : '◦ NO ALARMS — STATUS PARTIAL'}</b>
             <span style={{ color: N.dim }}>
               — SERVICES {servicesOk}/{snap.services.length} · CONFIG READY · {ciSeg}
             </span>

@@ -19,9 +19,26 @@ test('classifyWho — named outsiders read EXT regardless of status', () => {
   assert.equal(classifyWho({ status: 'pending', label: 'Standing human review of the LLM output' }), 'ext');
 });
 
-test('classifyWho — a pending item naming an owner act is YOURS', () => {
-  assert.equal(classifyWho({ status: 'pending', label: '⚠ Unruled decision still owed — OWNER picks the gate' }), 'you');
+test('classifyWho — a pending item naming an OUTSTANDING owner act is YOURS', () => {
+  assert.equal(classifyWho({ status: 'pending', label: '⚠ Unruled decision still owed by the owner' }), 'you');
   assert.equal(classifyWho({ status: 'pending', label: 'Blocked on the on-device pass across papers' }), 'you');
+  assert.equal(classifyWho({ status: 'pending', label: '⚠ OWNER MIGRATION — run 2026-07-26-purchase-plan-snapshot.sql' }), 'you');
+  assert.equal(classifyWho({ status: 'pending', label: 'Indonesian register is SPLIT and needs a house call' }), 'you');
+});
+
+test('classifyWho — a CLOSED owner decision is history, not an owner action (round-3 P2)', () => {
+  // The real vector Codex cited: warroom.ts:842 — the rulings are closed; the
+  // live blockers are the AI contract + entitlement layer, i.e. engineering.
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label:
+        '⚠ Spec #1834 (OPEN) — NOTHING IN THIS WAVE IS CURRENTLY BUILD-READY. The owner ruled C (multi-week menus) and all 8 rulings are closed, but a closed ruling is not a build signal',
+    }),
+    'eng'
+  );
+  assert.equal(classifyWho({ status: 'pending', label: 'Voice is OPT-IN, default OFF (owner ruling)' }), 'eng');
+  assert.equal(classifyWho({ status: 'pending', label: 'Home rail B shipped — owner pick off the concept board' }), 'eng');
 });
 
 test('classifyWho — "legal" alone is not counsel (ENG items mention legal pages)', () => {
