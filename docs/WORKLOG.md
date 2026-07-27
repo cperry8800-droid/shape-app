@@ -1101,7 +1101,7 @@ changelog whenever something ships.
   decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
   data to put in them, so they render as labelled dormant slots — **never
   zeroed panels** (a fabricated 0 would read as measured activity).
-- **Review rounds (13 findings across 5 rounds, all real, all fixed).**
+- **Review rounds (14 findings across 6 rounds, all real, all fixed).**
   **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
   all-required-checks became the tested `console-flight.mjs`; exact-login bot
   identity (substring matching was spoofable, CWE-290); shared
@@ -1156,6 +1156,27 @@ changelog whenever something ships.
   owner tasks → YOU, BPM → ENG), everything else unchanged, and `OWNER /
   COUNSEL` correctly stays EXT — its blocker really is counsel. **A name that
   appears in your task is not automatically who you're waiting on.**
+  **Round 6** (1 Codex **P1**, and the sharpest of the six): the clean-pass
+  reader accepted only the literal `Actionable comments posted: 0`, but
+  CodeRabbit also closes clean with **`No actionable comments were
+  generated`** — so a genuinely clean PR would sit at `commented` forever and
+  the gate could never open. `docs/HANDOFF-2026-06-22.md` names both markers
+  and the 2026-06-24 WORKLOG entry explicitly warns against polling for the
+  one literal string; **this build was written against the exact string the
+  house had already learned not to trust.** Fixing it surfaced a second,
+  worse case live on this PR: CodeRabbit was **rate-limited by the org
+  spending cap** and had posted `Review limit reached … we couldn't start this
+  review` — a notice that **carries the head SHA in its commit-range block**,
+  so anything keying on "the summary mentions the head" reads a cap as a
+  completed pass. That is the same mistake the WORKLOG records from #1484/#1485.
+  CodeRabbit now has its own **`limited`** verdict (checked first, allowed to
+  dominate a stale zero-marker), `Gate` gains **`blocked`** (⚠ — could not run,
+  which is none of failed/pending/absent), and the PR tag reads **`CR LIMIT
+  REACHED`** instead of the false `IN REVIEW`. Verified by running the real
+  gate code against this PR's live GitHub payload: CI `green` · CodeRabbit
+  `limited` · Codex `present` · **`allGreen: false`**. **A gate that could not
+  run is not a gate that passed — and the wording a vendor uses for "clean" is
+  not a contract.**
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

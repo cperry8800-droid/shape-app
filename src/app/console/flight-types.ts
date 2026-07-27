@@ -3,9 +3,13 @@
 // importing the server route (review round 1: duplication invites drift, and
 // some bundling paths follow type-only edges).
 
-export type Gate = 'green' | 'red' | 'running' | 'none';
+// 'blocked' = the gate could not run at all (distinct from failed, pending and
+// absent). It must never read as any of those three.
+export type Gate = 'green' | 'red' | 'running' | 'blocked' | 'none';
 
-export type CoderabbitVerdict = 'approved' | 'clean' | 'changes' | 'commented' | 'none';
+// 'limited' = CodeRabbit was capped and never started; not a verdict, and not
+// the same as having commented.
+export type CoderabbitVerdict = 'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none';
 
 export type FlightPr = {
   number: number;

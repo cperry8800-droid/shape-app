@@ -19,6 +19,16 @@ export const REQUIRED_CHECKS = [
 
 // Exact, case-normalized bot identities (as they post on this repo).
 export const CODERABBIT_BOTS = ['coderabbitai[bot]'];
+
+// CodeRabbit's two ways of saying "nothing to report" — both are in use, and
+// the house records (docs/HANDOFF-2026-06-22.md) name the pair.
+const CR_CLEAN_RE = /actionable comments posted:\s*0\b|no actionable comments were generated/i;
+
+// ...and its ways of saying it never ran. The HTML marker is the reliable one
+// (CodeRabbit stamps it into the summary it edits in place); the prose forms
+// are belt-and-braces for wording changes.
+const CR_LIMIT_RE =
+  /rate limited by coderabbit\.ai|review limit reached|reached your PR review limit|usage spending cap/i;
 export const CODEX_BOTS = ['chatgpt-codex-connector[bot]'];
 
 // Conclusions that mean the check did not pass. `startup_failure` / `stale`
@@ -60,13 +70,22 @@ export function gateFromRuns(runs) {
  *   commit_id IS the head SHA — stale approvals from an earlier push demote
  *   to 'commented'.
  * - A clean pass leaves no review record: CodeRabbit edits its summary
- *   comment in place. We accept 'clean' only when that summary reports zero
- *   actionable comments AND provably references the current head SHA;
- *   otherwise the honest read is 'commented', which never satisfies a gate.
+ *   comment in place. We accept 'clean' only when that summary carries a zero
+ *   marker AND provably references the current head SHA; otherwise the honest
+ *   read is 'commented', which never satisfies a gate. BOTH of CodeRabbit's
+ *   zero markers count — `docs/HANDOFF-2026-06-22.md` records the pair, and
+ *   `docs/WORKLOG.md` (2026-06-24) warns that polling for one literal string
+ *   misses in-place edits and clean 0-issue reviews.
+ * - A rate-limit / spending-cap notice is NOT a review — CodeRabbit says in so
+ *   many words that it "couldn't start this review". That reads 'limited',
+ *   its own state, because the response differs: findings get addressed, a cap
+ *   gets waited out or raised. The same WORKLOG entry records a merge made on
+ *   a cap notice mistaken for a pass; treating it as any flavour of reviewed
+ *   is how that happens.
  * @param {{reviews?: Array<{user?: {login?: string}, state?: string, commit_id?: string}>,
  *          comments?: Array<{user?: {login?: string}, body?: string}>,
  *          headSha?: string}} args
- * @returns {'approved' | 'clean' | 'changes' | 'commented' | 'none'}
+ * @returns {'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none'}
  */
 export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
   const sha = String(headSha || '');
@@ -82,11 +101,20 @@ export function coderabbitVerdict({ reviews, comments, headSha } = {}) {
     isTrusted(c?.user?.login, CODERABBIT_BOTS)
   );
   const short = sha.slice(0, 7);
+  let limited = false;
   for (const c of summaries) {
     const body = String(c?.body || '');
-    if (!/actionable comments posted:\s*0\b/i.test(body)) continue;
+    // Checked first and allowed to dominate: "couldn't start this review" is
+    // an unambiguous statement about THIS head, and reading a cap as a pass is
+    // the failure direction that actually costs something.
+    if (CR_LIMIT_RE.test(body)) {
+      limited = true;
+      continue;
+    }
+    if (!CR_CLEAN_RE.test(body)) continue;
     if (sha && (body.includes(sha) || (short.length === 7 && body.includes(short)))) return 'clean';
   }
+  if (limited) return 'limited';
   if (revs.length || summaries.length) return 'commented';
   return 'none';
 }

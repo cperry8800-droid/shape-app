@@ -89,6 +89,52 @@ test('coderabbitVerdict — the clean pass is the edited summary, head-pinned', 
   );
 });
 
+test('coderabbitVerdict — BOTH clean markers count (round-6 P1)', () => {
+  const clean = (body) => ({ user: { login: 'coderabbitai[bot]' }, body });
+  // The second marker is the one the house records name alongside the first;
+  // requiring only "Actionable comments posted:" left genuinely-clean PRs
+  // stuck at 'commented' forever, so the gate could never open.
+  assert.equal(
+    coderabbitVerdict({
+      comments: [clean(`**No actionable comments were generated**\n\nreviewed up to ${SHA}`)],
+      headSha: SHA,
+    }),
+    'clean'
+  );
+  // Still head-pinned: a zero marker with no head reference cannot be trusted.
+  assert.equal(
+    coderabbitVerdict({ comments: [clean('No actionable comments were generated')], headSha: SHA }),
+    'commented'
+  );
+});
+
+test('coderabbitVerdict — a rate-limit notice is NOT a review (round-6 P1)', () => {
+  // Verbatim shape of the notice this very PR received. It carries the head
+  // SHA in its commit-range block, so anything keying on "mentions the head"
+  // would have read it as a completed pass.
+  const capped = {
+    user: { login: 'coderabbitai[bot]' },
+    body:
+      '<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\n\n' +
+      "> ## Review limit reached\n> `@owner`, you've reached your PR review limit, so we couldn't start this review.\n" +
+      `> **Next review available in:** **56 minutes**\n> Your organization has reached its usage spending cap.\n\n` +
+      `Reviewing files that changed from the base of the PR and between deadbeef and ${SHA}.`,
+  };
+  assert.equal(coderabbitVerdict({ comments: [capped], headSha: SHA }), 'limited');
+  // And it never satisfies the gate.
+  assert.equal(prAllGreen({ ci: 'green', codex: 'present', draft: false, coderabbit: 'limited' }), false);
+});
+
+test('coderabbitVerdict — a cap notice outranks a stale clean marker', () => {
+  const capped = {
+    user: { login: 'coderabbitai[bot]' },
+    body: `Actionable comments posted: 0 — ${SHA}\n<!-- rate limited by coderabbit.ai -->\nReview limit reached`,
+  };
+  // "We couldn't start this review" is a statement about THIS head; reading a
+  // cap as a pass is the direction that costs something.
+  assert.equal(coderabbitVerdict({ comments: [capped], headSha: SHA }), 'limited');
+});
+
 test('trusted bots are exact logins — substrings never pass (CWE-290)', () => {
   const spoofRev = { user: { login: 'codex-fan' }, state: 'APPROVED', commit_id: SHA };
   const spoofCmt = { user: { login: 'my-coderabbit-imitator' }, body: 'Actionable comments posted: 0 ' + SHA };

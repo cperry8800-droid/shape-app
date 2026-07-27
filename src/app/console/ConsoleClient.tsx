@@ -92,6 +92,7 @@ const GATE_GLYPH: Record<Gate, { glyph: string; color: string }> = {
   green: { glyph: '✓', color: N.green },
   red: { glyph: '✗', color: N.red },
   running: { glyph: '…', color: N.gold },
+  blocked: { glyph: '⚠', color: N.gold },
   none: { glyph: '—', color: N.dimmer },
 };
 
@@ -238,6 +239,10 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
     if (p.ci === 'red' || p.coderabbit === 'changes') return { text: 'BLOCKED', color: N.red, bg: 'transparent', border: N.red };
     if (p.draft) return { text: 'DRAFT', color: N.dim, bg: 'transparent', border: N.dimmer };
+    // Not "IN REVIEW" — nothing is reviewing it, and nothing will until the cap
+    // clears. Saying otherwise is how a cap notice gets mistaken for a pass.
+    if (p.coderabbit === 'limited')
+      return { text: 'CR LIMIT REACHED', color: N.gold, bg: 'transparent', border: N.gold };
     return { text: 'IN REVIEW', color: N.gold, bg: 'transparent', border: N.gold };
   };
 
@@ -568,9 +573,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                                 ? 'green'
                                 : p.coderabbit === 'changes'
                                   ? 'red'
-                                  : p.coderabbit === 'commented'
-                                    ? 'running'
-                                    : 'none'
+                                  : p.coderabbit === 'limited'
+                                    ? 'blocked'
+                                    : p.coderabbit === 'commented'
+                                      ? 'running'
+                                      : 'none'
                             }
                           />
                           <GateChip label="CDX" gate={p.codex === 'present' ? 'green' : 'none'} />
@@ -580,8 +587,9 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                   );
                 })}
                 <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, lineHeight: 1.7 }}>
-                  CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · NO RECORD — (verdicts count on the current
-                  head only; a clean pass is read from the edited summary — dash is never a verdict)
+                  CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · CAPPED, NEVER RAN ⚠ · NO RECORD —
+                  (verdicts count on the current head only; a clean pass is read from the edited summary — neither a
+                  dash nor a cap notice is a verdict)
                 </div>
               </div>
             )}
