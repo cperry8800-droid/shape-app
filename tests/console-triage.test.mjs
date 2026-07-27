@@ -19,6 +19,68 @@ test('classifyWho — named outsiders read EXT regardless of status', () => {
   assert.equal(classifyWho({ status: 'pending', label: 'Standing human review of the LLM output' }), 'ext');
 });
 
+test('classifyWho — your own task keeps its lane when it names a supplier (round-5 P2)', () => {
+  // warroom.ts:1312 — the owner runs this; Radio.co just supplies the URL.
+  assert.equal(
+    classifyWho({
+      status: 'manual',
+      label:
+        "OWNER — apply migration + set station row: UPDATE public.radio_station SET provider='http', stream_url='<Radio.co stream URL>' WHERE id=1",
+    }),
+    'you'
+  );
+  assert.equal(
+    classifyWho({ status: 'manual', label: 'OWNER — Radio.co account signup + station creation' }),
+    'you'
+  );
+  assert.equal(
+    classifyWho({
+      status: 'manual',
+      label: 'OWNER — native build required for background audio: npx cap sync + Xcode/Android Studio build',
+    }),
+    'you'
+  );
+  // The marker is the records' own prefix, case-sensitive: "OWNER / COUNSEL"
+  // is shared work whose blocker really is counsel, and lowercase prose about
+  // an owner item is not a task assigned to the owner.
+  assert.equal(
+    classifyWho({ status: 'manual', label: 'OWNER / COUNSEL before launch: attorney review of all public docs' }),
+    'ext'
+  );
+  assert.equal(
+    classifyWho({ status: 'pending', label: 'THE FRONTISPIECE — blocked on the product-photography owner item' }),
+    'ext'
+  );
+});
+
+test('classifyWho — an outsider named only in an aside is not the dependency (round-5 P2)', () => {
+  // The mention is a dead end we are not waiting on; the stated blocker is ours.
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label:
+        'Real song BPM on Shape Radio: blocked until radio streams real audio — compute BPM at ingest then (Spotify tempo API deprecated for new apps)',
+    }),
+    'eng'
+  );
+  // A queue we ARE sitting in names itself in the subject — still EXT.
+  assert.equal(
+    classifyWho({
+      status: 'manual',
+      label: 'Garmin Health/Activity API access (request form down — apply via Developer Contact Us)',
+    }),
+    'ext'
+  );
+  // Subject-named native-speaker work survives the paren strip.
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label: 'OPEN (human review, low): word choices the translators flagged for a native pass',
+    }),
+    'ext'
+  );
+});
+
 test('classifyWho — a pending item naming an OUTSTANDING owner act is YOURS', () => {
   assert.equal(classifyWho({ status: 'pending', label: '⚠ Unruled decision still owed by the owner' }), 'you');
   assert.equal(classifyWho({ status: 'pending', label: 'Blocked on the on-device pass across papers' }), 'you');

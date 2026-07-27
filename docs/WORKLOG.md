@@ -1101,7 +1101,7 @@ changelog whenever something ships.
   decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
   data to put in them, so they render as labelled dormant slots — **never
   zeroed panels** (a fabricated 0 would read as measured activity).
-- **Review rounds (12 findings across 4 rounds, all real, all fixed).**
+- **Review rounds (13 findings across 5 rounds, all real, all fixed).**
   **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
   all-required-checks became the tested `console-flight.mjs`; exact-login bot
   identity (substring matching was spoofable, CWE-290); shared
@@ -1141,7 +1141,21 @@ changelog whenever something ships.
   three documented classes — **owner-named · hands-on · privileged** — and the
   audit re-run confirms exactly those 4 moved (ENG 11 → 7) with the other 7
   correctly engineering. **Owner work is not one phrase; it's whatever only the
-  owner can do.**
+  owner can do.** **Round 5** (1 Codex P2): EXT was matched before everything
+  else, so **naming a supplier inside your own task handed it to the supplier**
+  — `OWNER — apply migration + set station row` (`warroom.ts:1312`) read EXT
+  because the SQL contains a Radio.co URL, and the same precedence overrode the
+  `manual` fallback. Two changes, both from the same audit run over the real
+  EXT lane: **owner precedence** (an `OWNER —`/`OWNER:` marker — case-sensitive
+  and anchored, so lowercase prose like "the product-photography owner item"
+  stays put — wins over EXT), and **EXT now matches the item's SUBJECT with
+  parenthetical asides stripped**, because in these records parentheses carry
+  explanation, not dependency: `(Spotify tempo API deprecated for new apps)` is
+  a dead end we are not waiting on. `native(-speaker) pass` joined EXT so the
+  translator item keeps its lane on its own subject. Audit: EXT 21 → 17 (3
+  owner tasks → YOU, BPM → ENG), everything else unchanged, and `OWNER /
+  COUNSEL` correctly stays EXT — its blocker really is counsel. **A name that
+  appears in your task is not automatically who you're waiting on.**
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

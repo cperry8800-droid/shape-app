@@ -9,11 +9,19 @@
 // Shared by the /console page (server), ConsoleClient (browser re-poll), and
 // the Node test runner — the funnel.mjs + funnel.d.ts pattern.
 
-// Named outsiders: an item that waits on one of these is EXT regardless of
-// status. Deliberately specific (counsel/attorney, not the broad "legal" —
-// plenty of ENG items mention legal pages).
+// Named outsiders: an item whose SUBJECT is one of these is EXT. Deliberately
+// specific (counsel/attorney, not the broad "legal" — plenty of ENG items
+// mention legal pages).
 const EXT_RE =
-  /apple|apns|ios build|app store|xcode|testflight|garmin|spotify|stripe connect|radio\.co|counsel|attorney|photograph|translation review|human review/i;
+  /apple|apns|ios build|app store|xcode|testflight|garmin|spotify|stripe connect|radio\.co|counsel|attorney|photograph|translation review|human review|native(?:-speaker)? pass/i;
+
+// EXT is matched against the subject, with parenthetical asides removed. In
+// these records parentheses carry explanation, not the dependency: "compute
+// BPM at ingest then (Spotify tempo API deprecated for new apps)" names a dead
+// end we are NOT waiting on. A queue we are actually sitting in gets named in
+// the item's own subject ("Garmin Health/Activity API access", "Spotify
+// Extended Quota Mode approved").
+const subjectOf = (label) => label.replace(/\([^)]*\)/g, ' ');
 
 // A `pending` item that names an OUTSTANDING owner act is still YOURS, in one
 // of three shapes. Deliberately action-shaped: the records are full of CLOSED
@@ -39,6 +47,13 @@ const HANDS_ON = String.raw`\bon[-\s]?device\b[^.·]{0,30}?\b(?:pass(?:es)?|veri
 const PRIVILEGED = String.raw`\bnative build\b|\brepo(?:sitory)? settings\b`;
 
 const YOU_RE = new RegExp([OWNER_NAMED, HANDS_ON, PRIVILEGED].join('|'), 'i');
+const OWNER_NAMED_RE = new RegExp(OWNER_NAMED, 'i');
+
+// The records' own prefix marker for an owner task: "OWNER — apply migration",
+// "OWNER: confirm the key". Case-SENSITIVE and anchored to the label (or a
+// bullet) on purpose — lowercase "owner-paid" / "product-photography owner
+// item" are prose about the owner, not a task assigned to them.
+const OWNER_MARKER = /(?:^|[·|]\s*)OWNER\s*[—–:-]/;
 
 /**
  * @param {{label?: string, status?: string}} item
@@ -48,7 +63,12 @@ export function classifyWho(item) {
   const status = item?.status;
   if (status !== 'pending' && status !== 'manual') return null; // done → not open
   const label = String(item?.label || '');
-  if (EXT_RE.test(label)) return 'ext';
+  // An item that names YOU as the actor is yours even when it also names an
+  // outsider — "OWNER — apply migration + set station row (<Radio.co URL>)"
+  // waits on you, not on Radio.co. Owner precedence runs before EXT so a
+  // supplier mentioned inside your own task can't capture the lane.
+  if (OWNER_MARKER.test(label) || OWNER_NAMED_RE.test(label)) return 'you';
+  if (EXT_RE.test(subjectOf(label))) return 'ext';
   if (status === 'manual') return 'you';
   return YOU_RE.test(label) ? 'you' : 'eng';
 }
