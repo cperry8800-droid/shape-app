@@ -138,7 +138,24 @@ land before C2's end-of-program rule.
   entitled      = the run's SOURCE still authorizes it     # see below
   live          = the run's own status is 'active'         # its lifecycle
   active        = live AND in_term AND entitled            # ALL THREE, always
+
+  # ...except that a GRANDFATHERED purchase has no term to be inside:
+  termless      = started_on IS NULL OR term_days IS NULL
+  in_term       = termless OR (started_on <= today AND today <= term_ends_on)
   ```
+
+  ⚠ **A null term means "no expiry", not "expired".** The migration section
+  below promises pre-migration buyers keep what they bought — own-forever and
+  replayable — and those rows carry no `started_on` and no `term_days`. In SQL
+  the comparisons are then NULL, `active` can never be true, and the predicate
+  that was written to protect paid access would have **silently revoked it from
+  every legacy buyer**: the one group whose access this document explicitly
+  refuses to touch. `in_term` therefore short-circuits on a termless purchase.
+
+  Note this is a null-SEMANTICS trap, not a missing case — nothing errors and no
+  branch is obviously absent; the rows simply stop matching. Any later reader
+  that re-derives this predicate inline must carry the `termless` clause with
+  it, which is the argument for the predicate being stated once, here.
 
   ⚠ **All three, and the run's own lifecycle is the one that is easiest to
   forget.** `in_term` and `entitled` describe the *window* and the *right* — but

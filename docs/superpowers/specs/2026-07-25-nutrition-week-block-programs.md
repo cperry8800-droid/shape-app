@@ -423,7 +423,8 @@ weeks a coach actually filled and still forbids fabricating "Reset & habits"
 into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
 of the rule C2 generalizes.
 
-**C1a — Per-DAY menus (the prerequisite). UNBLOCKED — the storage contract
+**C1a — Per-DAY menus (the prerequisite). IN FLIGHT, not available to build
+against — the storage contract
 described below is now written** (`2026-07-26-per-day-menu-contract.md`, riding
 PR #1839; named rather than linked until it lands on `main`). The requirements
 in this section are what that document had to satisfy, and they are kept here as
@@ -744,7 +745,11 @@ authored week while the entitlement clock still stands in the previous one —
 a wrong menu, or a premature final-week clamp, on paid content. Everything
 keyed to a run (week ordinal · final-week clamp · the expiry predicate) reads
 ONE clock, `activation_tz`; the run's week is
-`floor((today_in_activation_tz − started_on) / 7)`. The member-local
+`1 + floor((today_in_activation_tz − started_on) / 7)` — **one-based, to match the
+authored rows**. `bsAssignWeekLine` parses "Week 1" as `week: 1` and `bsWeekUnits`
+preserves that value, so a zero-based ordinal would return 0 for the whole of a
+run's first paid week and find no Week 0 row — falling through to the standing
+menu, or to nothing, for seven days the member paid for. The member-local
 `shape_user_tz` week in **Week-time semantics** above governs surfaces NOT
 tied to a paid run — the standing menu's week and the API's general week key,
 which must still move off the server-local `Date`. This is the same class as
@@ -802,7 +807,9 @@ rest of this wave stops waiting on it.
 
 - **C0, C1a and C1b do not depend on E at all** — but independence from E is not
   readiness (see the warning at the top of this spec). C0 is shipped (#1836);
-  **C1a is UNBLOCKED — its storage contract is written**
+  **C1a is IN FLIGHT, not available to build against — its storage contract is
+  written but not yet on `main` (#1839); delivery has merged (#1840), authoring is
+  open (#1843)**
   (`2026-07-26-per-day-menu-contract.md`, riding PR #1839) — and **C1b remains
   blocked on the AI contract**, defined in "What C actually requires" above.
   The build-ready table at the top of this document is the authority; this
