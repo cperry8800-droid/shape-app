@@ -178,7 +178,49 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
+> **Latest (2026-07-26): PER-DAY MENUS (C1a) — COMPLETE end to end (#1839 contract,
+> #1840 delivery, #1843 authoring).** The week-block wave's prerequisite is closed: a
+> coach can author a **different menu each DAY**, and the client eats what was authored.
+> The editor gained a DEFAULT/MON…SUN strip above the block list, capability-gated to the
+> nutritionist `mealplan` and `diet` types — never `program` (those blocks are week ARCS
+> and must never carry meals), never the trainer paths that share the component, both
+> verified byte-identical to before by rendering and diffing the markup. The storage contract
+> is deliberately **additive** — `detail.days: [{dow, blocks}]` is optional, `detail.blocks`
+> stays the default menu that any unauthored day inherits, so every plan already sold keeps
+> delivering exactly what it delivered before (`dow` 0 = MONDAY). One shared normalizer,
+> **`bsPlanWeek(detail)`** in `mobile-app/src/services/planOutline.mjs`, resolves the week
+> for BOTH readers — the coach Assign flow (delivery) and the paid-listing preview — because
+> a second implementation is how a preview starts promising something the delivery doesn't
+> build. **No migration, no route change, no client read change:** `client_meal_plans.payload.days`
+> was *already* per-day; only the authoring shape was flat. ⚠ **Two rules came out of review
+> and now govern the file.** (1) **A display bound may truncate; a delivery bound may only
+> ever truncate data that could not have been authored in good faith** — so the preview
+> re-caps each resolved day at 40 blocks (display economy, and it fans a public-read row out
+> 7×) while delivery of the legacy `detail.blocks` stays **uncapped**, because capping it
+> would silently drop *sold* content. (2) **A claim must be computed with the same semantics
+> as the thing it claims about** — the `perDay` flag ("Menus vary by day") compares
+> *delivered* text (trimmed, empties dropped) over the *resolved* week, so neither editor
+> whitespace nor seven identically-authored days can advertise variation that isn't served.
+> Suite 892. The `2026-07-26-purchase-plan-snapshot.sql` migration (#1837) is **APPLIED and
+> verified live** — snapshot column, preserve trigger, and `get_my_purchased_plans()` as
+> SECURITY DEFINER with `search_path` pinned, executable by `authenticated` and not `anon`.
+> ⚠ **Three things #1843 established that outlive it.** (1) The publish callback is where a
+> feature like this dies quietly — the editor can track seven authored days perfectly and
+> hand them to a callback that drops the key, with nothing erroring; `onPublish` and BOTH
+> `publishDraft` receivers carry `days`. (2) **Authorship is explicit, never inferred from
+> non-emptiness** — `blocks: []` is a real override (a day that serves nothing), so
+> inferring it would revert every deliberately-cleared day on the next publish. (3) A day
+> tab edits the entry whose **`dow` matches**: `days` is sparse, so indexing by position
+> writes Tuesday's edits onto Wednesday. **New in the repo:** `tests/broadsheet-render.test.mjs`,
+> the broadsheet's first MOUNT harness — it compiles the module in memory with its real
+> imports, renders through ReactDOMServer, and now DRIVES the component (press a tab, fork a
+> day, retype a meal, publish). An adversarial pass proved this was needed: dropping `days`
+> from the payload, or indexing by position, passed all 884 tests, because neither changes
+> the first paint. **Open next in the wave:** no published plan can be reopened for editing
+> (per-day or not) — `openDraft` ignores the row and `publishDraft` only ever creates, so
+> stored day menus are write-once in practice; registered in the contract's §8.
+>
+> **Prior (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
 > next session (#1834, OPEN).** The owner ruled **C** (multi-week menus) and answered
 > every open question, and scoping it turned up the blocker underneath: **the builder
 > cannot author a different menu each DAY** (`iosAppBroadsheetPros.jsx:3362` assigns the
