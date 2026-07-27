@@ -1177,6 +1177,15 @@ changelog whenever something ships.
   `limited` · Codex `present` · **`allGreen: false`**. **A gate that could not
   run is not a gate that passed — and the wording a vendor uses for "clean" is
   not a contract.**
+- **⚠ Merge-gate deviation, owner-ruled 2026-07-27: the CodeRabbit gate was
+  WAIVED on this PR.** CodeRabbit's last review here was of the ORIGINAL head
+  (`bff3a3fa`); it never saw any of the six fix commits, because six fix-by-fix
+  pushes in ~90 minutes exhausted the org review cap. The owner's call was
+  "forget CodeRabbit on this PR now". **PR-scoped — the default (wait for
+  CodeRabbit on the final head) stands on every other PR.** The cost lesson is
+  the durable one: **a push is a purchase.** Batch fixes into ONE push; audit
+  the whole class locally first (this entry's round-4/5/6 audits each found
+  siblings the reviewer had not yet reached).
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 
