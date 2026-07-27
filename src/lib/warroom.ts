@@ -356,7 +356,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
-  if (p === '/api/health' || p === '/api/warroom') return 'System';
+  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console')) return 'System';
   // Remaining provider/marketplace plumbing.
   return 'Marketplace & providers';
 }

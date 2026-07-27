@@ -36,28 +36,7 @@ const N = {
 };
 const MONO = 'ui-monospace, "Cascadia Code", Consolas, "JetBrains Mono", monospace';
 
-// ── Flight types (mirrors /api/console/flight — not imported: that module is
-// server-only and must never enter the client bundle) ───────────────────────
-type Gate = 'green' | 'red' | 'running' | 'none';
-type FlightPr = {
-  number: number;
-  title: string;
-  url: string;
-  branch: string;
-  createdAt: string;
-  draft: boolean;
-  ci: Gate;
-  coderabbit: 'approved' | 'changes' | 'commented' | 'none';
-  codex: 'present' | 'none';
-  allGreen: boolean;
-};
-type Flight = {
-  ok: boolean;
-  reason?: 'no_token' | 'github_error';
-  generatedAt: string;
-  ciMain: Gate;
-  prs: FlightPr[];
-};
+import type { Flight, FlightPr, Gate } from './flight-types';
 
 // Deterministic UTC date words — identical on server and client, so the
 // masthead can server-render without a hydration mismatch.
@@ -572,7 +551,15 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                           <GateChip label="CI" gate={p.ci} />
                           <GateChip
                             label="CR"
-                            gate={p.coderabbit === 'approved' ? 'green' : p.coderabbit === 'changes' ? 'red' : p.coderabbit === 'commented' ? 'running' : 'none'}
+                            gate={
+                              p.coderabbit === 'approved' || p.coderabbit === 'clean'
+                                ? 'green'
+                                : p.coderabbit === 'changes'
+                                  ? 'red'
+                                  : p.coderabbit === 'commented'
+                                    ? 'running'
+                                    : 'none'
+                            }
                           />
                           <GateChip label="CDX" gate={p.codex === 'present' ? 'green' : 'none'} />
                         </span>
@@ -581,8 +568,8 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                   );
                 })}
                 <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, lineHeight: 1.7 }}>
-                  CR ◇ APPROVED ✓ · CHANGES ✗ · COMMENTED … · NO RECORD — (a clean review can leave no record — dash is
-                  never a verdict)
+                  CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · NO RECORD — (verdicts count on the current
+                  head only; a clean pass is read from the edited summary — dash is never a verdict)
                 </div>
               </div>
             )}

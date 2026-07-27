@@ -1083,16 +1083,30 @@ changelog whenever something ships.
   `pending` naming an OWNER act→YOU), deterministic first-clause summaries;
   a row expands to the full item text VERBATIM. Filters + readiness bar.
 - **IN FLIGHT** — new **`GET /api/console/flight`** (admin-gated, 60s cache,
-  registered in `RAW_ROUTES`): open PRs with the three merge gates (CI on
-  head · CodeRabbit verdict via reviews API · Codex presence) +
-  `AWAITING YOUR WORD` only when ALL gates are genuinely green; `main` CI
-  feeds the alarm strip. **Honesty contract:** no record renders `—` (never
+  registered in `RAW_ROUTES` under System): open PRs with the three merge
+  gates + `AWAITING YOUR WORD` only when ALL gates are genuinely green;
+  `main` CI feeds the alarm strip. The gate DECISIONS are pure tested logic
+  (**`src/lib/console-flight.mjs`** + `tests/console-flight.test.mjs`):
+  CI green requires **every** required check present by name (a subset can
+  never read green); CodeRabbit verdicts count **on the current head only**,
+  with the **clean pass read from the edited summary comment** (a clean
+  review submits no APPROVED record — the house rule, now encoded); trusted
+  bots matched by **exact login** (substring matching was spoofable on a
+  public repo, CWE-290). **Honesty contract:** no record renders `—` (never
   ✓/✗), loading is a skeleton, GitHub-down reads unavailable, the alarm strip
   only claims segments it knows. ⚠ **OWNER (optional): set `GITHUB_TOKEN`**
   (repo read) in Vercel — without it the panel says exactly that and the rest
   of the board runs fine. No migration.
 - **Dormant BUSINESS / MEMBER ACTIVITY slots** — the unified-dashboard
-  decomposition's pieces 1–2, wired at launch (pre-launch they'd render zeros).
+  decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
+  data to put in them, so they render as labelled dormant slots — **never
+  zeroed panels** (a fabricated 0 would read as measured activity).
+- **Review round (2 Codex P1 + 5 CodeRabbit, all real, all fixed in one
+  batch):** the two P1s above (clean-pass recognition + all-required-checks)
+  became the tested `console-flight.mjs`; exact-login bot identity; shared
+  `flight-types.ts` (client never imports the server route); `groupOf()`
+  learns `/api/console` → System; the WORKLOG zeros phrasing tightened; a
+  `human review` EXT test vector added.
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

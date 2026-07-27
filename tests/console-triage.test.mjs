@@ -16,6 +16,7 @@ test('classifyWho — named outsiders read EXT regardless of status', () => {
   assert.equal(classifyWho({ status: 'manual', label: 'Legal counsel review of the DRAFT compliance set' }), 'ext');
   assert.equal(classifyWho({ status: 'pending', label: 'Spotify Extended Quota approval' }), 'ext');
   assert.equal(classifyWho({ status: 'pending', label: 'Stripe Connect activation' }), 'ext');
+  assert.equal(classifyWho({ status: 'pending', label: 'Standing human review of the LLM output' }), 'ext');
 });
 
 test('classifyWho — a pending item naming an owner act is YOURS', () => {
