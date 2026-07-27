@@ -140,8 +140,9 @@ land before C2's end-of-program rule.
   active        = live AND in_term AND entitled            # ALL THREE, always
 
   # ...except that a GRANDFATHERED purchase has no term to be inside:
-  termless      = started_on IS NULL OR term_days IS NULL
-  in_term       = termless OR (started_on <= today AND today <= term_ends_on)
+  legacy        = the purchase is STAMPED grandfathered by the migration
+  in_term       = legacy OR (started_on IS NOT NULL AND term_days IS NOT NULL
+                             AND started_on <= today AND today <= term_ends_on)
   ```
 
   ⚠ **A null term means "no expiry", not "expired".** The migration section
@@ -154,8 +155,21 @@ land before C2's end-of-program rule.
 
   Note this is a null-SEMANTICS trap, not a missing case — nothing errors and no
   branch is obviously absent; the rows simply stop matching. Any later reader
-  that re-derives this predicate inline must carry the `termless` clause with
-  it, which is the argument for the predicate being stated once, here.
+  that re-derives this predicate inline must carry the legacy clause with it,
+  which is the argument for the predicate being stated once, here.
+
+  ⚠ **Grandfathering keys on the STAMP, never on null-ness — the two are not the
+  same set, and the difference is a free-access hole.** An earlier revision wrote
+  `termless = started_on IS NULL OR term_days IS NULL`, which is true of a
+  grandfathered row *and* of any current-shaped row that simply lacks the fields:
+  a partial migration, a bug on the write path, or the coach-assigned path, whose
+  term source this document still lists as **unresolved**. Those rows would have
+  been handed permanent access by the same clause that protects legacy buyers —
+  and they are precisely the rows the migration section says to **quarantine as
+  unclassifiable**. So the migration STAMPS what it grandfathered, and only that
+  stamp opens this branch; a post-migration run must carry both fields, and one
+  that does not is unresolved, not free. Absence of data is not evidence of a
+  promise.
 
   ⚠ **All three, and the run's own lifecycle is the one that is easiest to
   forget.** `in_term` and `entitled` describe the *window* and the *right* — but

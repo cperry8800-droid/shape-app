@@ -745,11 +745,19 @@ authored week while the entitlement clock still stands in the previous one —
 a wrong menu, or a premature final-week clamp, on paid content. Everything
 keyed to a run (week ordinal · final-week clamp · the expiry predicate) reads
 ONE clock, `activation_tz`; the run's week is
-`1 + floor((today_in_activation_tz − started_on) / 7)` — **one-based, to match the
-authored rows**. `bsAssignWeekLine` parses "Week 1" as `week: 1` and `bsWeekUnits`
+`1 + floor((monday_of(today_in_activation_tz) − monday_of(started_on)) / 7)` —
+**one-based, and measured between MONDAYS**. `bsAssignWeekLine` parses "Week 1" as `week: 1` and `bsWeekUnits`
 preserves that value, so a zero-based ordinal would return 0 for the whole of a
 run's first paid week and find no Week 0 row — falling through to the standing
-menu, or to nothing, for seven days the member paid for. The member-local
+menu, or to nothing, for seven days the member paid for. And the interval is
+measured between the **Mondays** on either side, not as raw seven-day multiples
+of the start date, because the rest of this wave defines a week as Monday-based
+(`dow` 0 = MONDAY) and C2 selects rows by `week_start`. The client's start-date
+input accepts any weekday, so a Tuesday start would otherwise roll the ordinal
+over on Tuesdays while the row lookup rolls over on Mondays — and for the six
+days between, the two rules name different weeks and can serve the wrong paid
+menu. Anchoring both ends to Monday makes the ordinal and the row key agree by
+construction rather than by the buyer happening to start on the right day. The member-local
 `shape_user_tz` week in **Week-time semantics** above governs surfaces NOT
 tied to a paid run — the standing menu's week and the API's general week key,
 which must still move off the server-local `Date`. This is the same class as
