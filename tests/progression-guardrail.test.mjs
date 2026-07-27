@@ -22,6 +22,8 @@
 //              cap, the 84-day handoff (F58-F67, F82, F101, F117)
 //   Section 8  the concentration axis finished - the hard day against the
 //              client's own hardest logged session (F72-F75)
+//   Section 9  state resolution - green / amber / red, the curve and compound
+//              paths, the sub-3-session suppression (F48-F50, F76-F84)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,6 +62,10 @@ import {
   bsResolveRegime,
   bsConcentrationAxis,
   bsJumpBounds,
+  bsResolveState,
+  bsAxisEnabled,
+  BS_AXIS_REGISTRY,
+  BS_COMPOUND_MIN_SESSIONS,
   BS_GAP_SESSION_FLOOR_AU,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
@@ -1851,4 +1857,175 @@ test('a returning client is still measured against their PRE-BREAK hardest', () 
   near(checkOf(conc, 'jump_vs_history').ceiling, 1195.2, 'the same ceiling as an unbroken client');
   assert.equal(conc.state, 'green');
   assert.equal(axes[0].state, 'amber', 'while the volume axis carries the interruption');
+});
+
+// ── §9. State resolution — what the coach actually sees ──────────────────────
+
+// Resolve a proposed week end to end under each regime, so the session count
+// the suppression rule reads is the week's own rather than a number restated
+// beside it.
+const coldState = (week) => {
+  const p = bsProposedWeek(week);
+  return bsResolveState(bsColdStartAxes(p), p.sessions);
+};
+const measuredState = (week, baselineAu, hardestLoggedAu) => {
+  const p = bsProposedWeek(week);
+  return bsResolveState(bsMeasuredAxes(p, baselineAu, { hardestLoggedAu }), p.sessions);
+};
+
+test('F76 / F77 — nothing over a ceiling is green; one axis amber is amber', () => {
+  const green = coldState(proposeN(3, 40, 10));          // 3 x 400 = 1200, cap 1800
+  assert.equal(green.state, 'green', 'F76');
+  assert.equal(green.redPath, null);
+  assert.deepEqual(green.contributingAxes, []);
+
+  // F49's week: 200 + 200 + 750. Volume is green under the 1800 cap; both
+  // concentration checks fire, and they are one axis.
+  const amber = coldState(propose(P(20, 10), P(20, 10), P(75, 10)));
+  assert.equal(amber.state, 'amber', 'F77');
+  assert.equal(amber.redPath, null, 'amber never carries a red path');
+  assert.deepEqual(amber.contributingAxes, ['concentration'],
+    'F49 two checks firing on one axis is ONE contributor');
+});
+
+test('F78 — one axis over its red ceiling is red by the CURVE path', () => {
+  // F47: 4 x 900 = 3600 against a 3400 red cap. The concentration axis is
+  // amber alongside (900 is over the 700 peak bound) and is deliberately NOT
+  // listed — it did not cause the red.
+  const red = coldState(proposeN(4, 90, 10));
+  assert.equal(red.state, 'red', 'F47 / F78');
+  assert.equal(red.redPath, 'curve');
+  assert.deepEqual(red.contributingAxes, ['volume'], 'F83 the axis that caused it, named');
+
+  const axes = bsColdStartAxes(bsProposedWeek(proposeN(4, 90, 10)));
+  assert.equal(axes.find((a) => a.axis === 'concentration').state, 'amber',
+    'the amber axis is still reported in `axes` — it is just not what caused the red');
+});
+
+test('F79 / F80 — the compound path needs THREE sessions', () => {
+  // Two 800 AU sessions: 1600 against a 1200 cap (volume amber), hardest 800
+  // against the 700 bound (concentration amber). Neither is near red — 1600 is
+  // under the 1700 weekly red, 800 under the 1000 peak red.
+  const two = coldState(propose(P(80, 10), P(80, 10)));
+  assert.equal(two.state, 'amber', 'F79 two hard-but-real sessions are amber, not red');
+  assert.equal(two.redPath, null);
+
+  // The same load spread over three: now the two axes can fail independently.
+  const three = coldState(proposeN(3, 80, 10));
+  assert.equal(three.state, 'red', 'F80');
+  assert.equal(three.redPath, 'compound');
+  assert.deepEqual(three.contributingAxes, ['volume', 'concentration'],
+    'F83 every contributing axis, named');
+});
+
+test('F81 — suppression touches the COMPOUND path only', () => {
+  // 1100 + 200 on two sessions: volume amber (1300 over the 1200 cap), and the
+  // hardest session is over the 1000 peak RED bound. Rule 1 runs first, so a
+  // genuinely dangerous two-session week is still caught.
+  const red = coldState(propose(P(110, 10), P(20, 10)));
+  assert.equal(red.state, 'red', 'F81');
+  assert.equal(red.redPath, 'curve', 'by the curve, not by compounding');
+  assert.deepEqual(red.contributingAxes, ['concentration']);
+});
+
+test('F48 — 1680 AU in an even two-way split is amber, not red', () => {
+  // ⚠ BOUNDARY-SENSITIVE (margin 1.2%): 1680 is 20 AU under the 1700
+  // two-session red cap. And the split is load-bearing — an uneven 1100/580
+  // puts the hardest session over the 1000 peak red and turns the row red.
+  const even = coldState(propose(P(84, 10), P(84, 10)));
+  assert.equal(even.state, 'amber', 'F48 both axes amber, compound suppressed at 2 sessions');
+  assert.deepEqual(even.contributingAxes, ['volume', 'concentration'],
+    'both are named even though they did not compound');
+
+  const uneven = coldState(propose(P(110, 10), P(58, 10)));
+  assert.equal(uneven.state, 'red', 'F48 the uneven split is a different row entirely');
+  assert.equal(uneven.redPath, 'curve');
+});
+
+test('F50 — a lone 120-minute RPE 9 session: both axes red, both named', () => {
+  // 1080 AU on one session. The weekly cap of 850 is exceeded AND the 1000
+  // peak bound is — the copy layer picks which to lead with, but the payload
+  // lists every contributing axis (F83).
+  const red = coldState(propose(P(120, 9)));
+  assert.equal(red.state, 'red', 'F50');
+  assert.equal(red.redPath, 'curve');
+  assert.deepEqual(red.contributingAxes, ['volume', 'concentration']);
+});
+
+test('the 3-session suppression holds in EVERY regime, not just cold start', () => {
+  // Measured, baseline 2000 (amber over 2380, red over 2800), against a client
+  // whose hardest logged session is 950 AU (jump amber over 1253.05, red over
+  // 1534.25).
+  const two = measuredState(propose(P(130, 10), P(130, 10)), 2000, 950);
+  assert.equal(two.state, 'amber', '2600 AU and a 1300 hardest: both amber, suppressed');
+
+  const three = measuredState(propose(P(130, 10), P(70, 10), P(70, 10)), 2000, 950);
+  assert.equal(three.state, 'red', 'the same shape over three sessions compounds');
+  assert.equal(three.redPath, 'compound');
+});
+
+test('F82 — a return week amber on volume alone never compounds', () => {
+  // The cap modifies the volume axis; it is not a second axis. Three sessions,
+  // so the suppression rule is NOT what is holding this at amber.
+  const p = bsProposedWeek(proposeN(3, 50, 10));              // 3 x 500 = 1500
+  const axes = bsReturnAxes(p, 2000, 28, { hardestLoggedAu: 900 });
+  const state = bsResolveState(axes, p.sessions);
+
+  assert.equal(axes[0].state, 'amber', '1500 over the 1421.2 return ceiling');
+  assert.equal(axes[1].state, 'green', 'and the concentration axis is clean');
+  assert.equal(state.state, 'amber', 'F82 one axis, one amber');
+  assert.deepEqual(state.contributingAxes, ['volume']);
+  assert.equal(p.sessions, 3, 'at three sessions — suppression is not what saved it');
+});
+
+test('F84 — `distribution` is registered, disabled, and votes on nothing', () => {
+  const row = BS_AXIS_REGISTRY.find((a) => a.axis === 'distribution');
+  assert.ok(row, 'F84 present in the registry');
+  assert.equal(row.enabled, false, 'F84 and disabled');
+  assert.equal(bsAxisEnabled('distribution'), false);
+  assert.equal(bsAxisEnabled('volume'), true);
+  assert.equal(bsAxisEnabled('vloume'), false, 'an unregistered axis does not get a vote');
+
+  const volumeAmber = { axis: 'volume', state: 'amber', checks: [], ceilingPct: null };
+  const distAmber = { axis: 'distribution', state: 'amber', checks: [], ceilingPct: null };
+  const distRed = { axis: 'distribution', state: 'red', checks: [], ceilingPct: null };
+
+  const compound = bsResolveState([volumeAmber, distAmber], 5);
+  assert.equal(compound.state, 'amber', 'F84 a disabled axis cannot compound');
+  assert.deepEqual(compound.contributingAxes, ['volume']);
+
+  // DECISION BEYOND THE TABLE: excluded from red too. A flag raised by a
+  // measurement we have declared not honestly computable is worse than a
+  // missing flag.
+  assert.equal(bsResolveState([distRed], 5).state, 'green',
+    'and cannot turn a week red on its own');
+});
+
+test('the same axis twice is ONE contributor, not a compound', () => {
+  // Guards the mechanism the concentration axis depends on: two checks on one
+  // axis (F49, F74) must never become two votes. Asserted against the resolver
+  // directly, because no regime can currently emit a duplicate axis — which is
+  // exactly the assumption worth pinning before one can.
+  const a = { axis: 'concentration', state: 'amber', checks: [], ceilingPct: null };
+  const b = { axis: 'concentration', state: 'amber', checks: [], ceilingPct: null };
+  const state = bsResolveState([a, b], 5);
+
+  assert.equal(state.state, 'amber');
+  assert.deepEqual(state.contributingAxes, ['concentration'], 'deduplicated by axis name');
+});
+
+test('the resolver survives junk and never invents a state', () => {
+  assert.equal(bsResolveState(null, 3).state, 'green');
+  assert.equal(bsResolveState([], 3).state, 'green');
+  assert.equal(bsResolveState([null, undefined], 3).state, 'green');
+
+  // A missing session count cannot satisfy the compound condition — the
+  // suppression fails CLOSED, toward amber, never toward an unearned red.
+  const ambers = [
+    { axis: 'volume', state: 'amber', checks: [], ceilingPct: null },
+    { axis: 'concentration', state: 'amber', checks: [], ceilingPct: null },
+  ];
+  assert.equal(bsResolveState(ambers, undefined).state, 'amber');
+  assert.equal(bsResolveState(ambers, NaN).state, 'amber');
+  assert.equal(bsResolveState(ambers, BS_COMPOUND_MIN_SESSIONS).state, 'red');
 });

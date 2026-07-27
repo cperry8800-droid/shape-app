@@ -35,6 +35,8 @@
 //       the 84-day handoff to cold start (F58–F67, F82, F101, F117)
 //   §8  the concentration axis finished — the hard day measured against the
 //       client's own hardest logged session (F72–F75)
+//   §9  state resolution — green / amber / red, the curve and compound paths,
+//       and the sub-3-session suppression (F48–F50, F76–F84)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -1489,4 +1491,122 @@ export function bsJumpBounds(hardestLoggedAu) {
     amberAu: hardestLoggedAu * (1 + rampPct / 100),
     redAu: hardestLoggedAu * (1 + redPct / 100),
   };
+}
+
+/* ── §9. State resolution — what the coach actually sees ───────────────────
+ *
+ * Four rules, in this order (SPEC-guardrails.md §7.2):
+ *
+ *   1. any axis over its red ceiling      -> red, redPath 'curve'
+ *   2. two or more DISTINCT axes at amber
+ *      AND the week has 3+ sessions       -> red, redPath 'compound'
+ *   3. any axis at amber                  -> amber
+ *   4. otherwise                          -> green
+ *
+ * Rule 1 runs first so a single catastrophic jump produces red — and therefore
+ * an acknowledgment and an audit entry — rather than sitting at amber behind a
+ * compound rule that happens not to apply.
+ *
+ * ⚠ THE 3-SESSION CONDITION ON RULE 2 IS LOAD-BEARING, IN EVERY REGIME. Below
+ * three sessions the concentration axis is very nearly DETERMINED by the volume
+ * axis: a week of two equal sessions has a hardest session of exactly half the
+ * weekly total by construction, so the two cannot fail independently and
+ * compounding them double-counts one fact. Two 800 AU sessions is 1600 AU
+ * against a 1200 two-session cap (volume amber) with a hardest of 800 against
+ * the 700 bound (concentration amber) — neither anywhere near red, yet the
+ * compound rule would call it red for two hard-but-real 100-minute sessions
+ * (F79). Amber is the correct answer there.
+ *
+ * Suppression touches THE COMPOUND PATH ONLY. Either axis can still reach red
+ * on its own at any session count, so a genuinely dangerous two-session week is
+ * caught by rule 1 (F81).
+ *
+ * ⚠ NOT BUILT HERE: the red kill switch (spec §7.4). This function always
+ * reports the TRUE state — that is precisely what lets 2b downgrade red to
+ * amber for the coach while telemetry keeps recording what red would have
+ * fired on. A core that downgraded would leave us blind exactly when the caps
+ * most need retuning from real data.
+ */
+
+/**
+ * The axis registry — which axes exist, and which participate in resolution.
+ *
+ * `distribution` (hard sets per muscle group) is REGISTERED AND DISABLED (F84).
+ * It is not computable honestly in v1: authored moves carry only a free-text
+ * name with no reference to `exercise_library`, and `primary_muscles` is a
+ * coach-owned free-text array defaulting to empty — so name-matching would
+ * produce muscle-group counts that are silently wrong for most coaches, which
+ * is the failure class the honest-absence rules exist to prevent.
+ *
+ * Enabling it later is a flag flip here plus a resolver, not a rewrite of the
+ * rules below — which is the whole reason `axes` is a LIST rather than a pair
+ * of named fields.
+ */
+export const BS_AXIS_REGISTRY = [
+  { axis: 'volume', enabled: true },
+  { axis: 'concentration', enabled: true },
+  { axis: 'distribution', enabled: false },
+];
+
+/**
+ * Does this axis participate in state resolution?
+ *
+ * An axis nobody registered is treated as DISABLED rather than allowed through:
+ * a typo'd axis name must not silently gain a vote.
+ */
+export function bsAxisEnabled(axis) {
+  const row = BS_AXIS_REGISTRY.find((a) => a.axis === axis);
+  return !!(row && row.enabled);
+}
+
+/** The compound path needs at least this many sessions to be independent. */
+export const BS_COMPOUND_MIN_SESSIONS = 3;
+
+/**
+ * Resolve the axes into one state, and name what caused it.
+ *
+ * `contributingAxes` is derived HERE and only here. The alternative — letting
+ * the copy layer re-derive which axes caused the state from their individual
+ * states — is a second implementation of the same rule, and the two would
+ * eventually disagree about whether an amber axis alongside a red one is
+ * "contributing" (it is not: it did not cause the red).
+ *
+ * ⚠ DECISION BEYOND THE TABLE: a DISABLED axis is excluded from resolution
+ * ENTIRELY, not just from the compound count. F84 and the spec both name the
+ * compound path specifically, and excluding it only there would leave a
+ * disabled axis able to turn a week red on its own — a flag raised by a
+ * measurement we have declared not honestly computable. The narrower reading
+ * fails in the more damaging direction, so this takes the stronger one.
+ *
+ * @param {Array} axes the axes for this regime
+ * @param {number} proposedSessions the AUTHORED session count of the week
+ * @returns {{state:'green'|'amber'|'red', redPath:'curve'|'compound'|null,
+ *            contributingAxes:Array<string>}}
+ */
+export function bsResolveState(axes, proposedSessions) {
+  const live = (Array.isArray(axes) ? axes : []).filter(
+    (a) => a && bsAxisEnabled(a.axis),
+  );
+
+  const reds = live.filter((a) => a.state === 'red');
+  if (reds.length > 0) {
+    return { state: 'red', redPath: 'curve', contributingAxes: reds.map((a) => a.axis) };
+  }
+
+  const ambers = live.filter((a) => a.state === 'amber');
+  // DISTINCT axes: the same axis appearing twice is one finding, not two. The
+  // concentration axis carries two checks that frequently fire together (F49,
+  // F74) — that is one problem described twice, and it must not compound.
+  const distinct = [...new Set(ambers.map((a) => a.axis))];
+
+  if (distinct.length >= 2 && finite(proposedSessions)
+      && proposedSessions >= BS_COMPOUND_MIN_SESSIONS) {
+    return { state: 'red', redPath: 'compound', contributingAxes: distinct };
+  }
+
+  if (distinct.length > 0) {
+    return { state: 'amber', redPath: null, contributingAxes: distinct };
+  }
+
+  return { state: 'green', redPath: null, contributingAxes: [] };
 }
