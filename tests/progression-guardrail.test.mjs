@@ -8,7 +8,8 @@
 //
 // Landed so far:
 //   Section 2  bsInterpolateAnchors + the three anchor tables  (F1-F16)
-//   Section 3  load derivation - eligible / rated / session AU (F17-F29)
+//   Section 3  load derivation - eligible / rated / session AU (F17-F29,
+//              plus the ordered rating rule F130-F133)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -304,7 +305,10 @@ test('F28 — a negative or non-finite duration is MALFORMED, not absent', () =>
 });
 
 test('F29 — an out-of-range RPE is MALFORMED: never clamped, never dropped', () => {
-  for (const bad of [11, -2, 100, NaN, '7', Infinity]) {
+  // Integers outside [1, 10] — step 3 of the rating rule. NaN and Infinity are
+  // caught one step earlier by the integer test. A numeric STRING is NOT in
+  // this list: since F133 it parses, so `'7'` is a valid rating.
+  for (const bad of [11, -2, 100, NaN, Infinity, '11', '-2']) {
     const c = bsClassifySession({ durationSec: 3600, sessionRpe: bad }, 5);
     assert.equal(c.malformed, true, `F29 sessionRpe = ${String(bad)} must be malformed`);
     assert.equal(c.au, null, 'F29 never clamped into a usable value');
@@ -316,15 +320,67 @@ test('F29 — an out-of-range RPE is MALFORMED: never clamped, never dropped', (
   }
 });
 
-test('F29 — an in-range fractional RPE is rated; a sub-1 one is malformed', () => {
-  // Resolving a gap the table leaves open between F20 (0 -> absent) and F29
-  // (11 / -2 -> malformed). 7.5 is storable AND producible, so it rates. 0.5 is
-  // storable but the prompt cannot produce it, so it can only come from a
-  // client-side defect and rule C says report it. Documented in the module.
-  near(bsClassifySession(S(60, 7.5)).au, 450, 'F29 RPE 7.5 rates');
-  assert.equal(bsClassifySession(S(60, 0.5)).malformed, true, 'F29 RPE 0.5 is a defect');
-  assert.equal(bsClassifySession(S(60, 1)).rated, true, 'F29 RPE 1 is the floor of the scale');
-  assert.equal(bsClassifySession(S(60, 10)).rated, true, 'F29 RPE 10 is the ceiling');
+test('F130-F132 — a NON-INTEGER rating is malformed across the whole range', () => {
+  // Storable is not producible. numeric(3,1) holds one decimal place across the
+  // entire range, so 7.5 is exactly as impossible from a whole-number 1-10
+  // prompt as 0.5 is. Ruling a mid-range fraction valid while a sub-1 fraction
+  // is malformed would be worse than either reading alone: it would compute a
+  // load from a value we know the app never wrote.
+  for (const bad of [0.5, 7.5, 10.5, 6.5, 1.1, 9.99, -0.5]) {
+    const c = bsClassifySession(S(60, bad));
+    assert.equal(c.malformed, true, `rpe ${bad} must be malformed`);
+    assert.equal(c.rated, false);
+    assert.equal(c.au, null, `rpe ${bad} must not compute a load`);
+    assert.equal(c.issues[0].field, 'sessionRpe');
+  }
+});
+
+test('the rating rule runs in order: step 1 (absent) before step 2 (integer)', () => {
+  // Exactly 0 is ABSENT in any wire form, and must never reach the integer
+  // test. Every whole number 1-10 rates.
+  for (const zero of [0, -0, '0', '0.0', '0.00']) {
+    const c = bsClassifySession({ durationSec: 3600, sessionRpe: zero });
+    assert.equal(c.malformed, false, `rpe ${String(zero)} is absent, not a defect`);
+    assert.equal(c.rated, false);
+    assert.equal(c.au, null, 'and never 0 AU');
+  }
+  for (let n = 1; n <= 10; n += 1) {
+    const c = bsClassifySession(S(60, n));
+    assert.equal(c.rated, true, `rpe ${n} rates`);
+    near(c.au, n * 60, `rpe ${n} load`);
+  }
+});
+
+test('F133 — a valid rating arriving as a STRING parses before the integer test', () => {
+  // session_rpe is `numeric`, and PostgREST returns numeric as TEXT to preserve
+  // precision, so a stored 7 crosses the wire as "7.0". Testing the integer
+  // rule before parsing would mark every valid rating in production malformed.
+  const c = bsClassifySession(S(60, '7.0'));
+  assert.equal(c.malformed, false, 'F133 "7.0" is a valid rating');
+  assert.equal(c.rated, true);
+  near(c.au, 420, 'F133 S(60, "7.0") -> 420 AU');
+  // Other real wire forms of the same value.
+  for (const s of ['7', ' 7 ', '7.00', '07']) {
+    near(bsClassifySession(S(60, s)).au, 420, `F133 ${JSON.stringify(s)} -> 420 AU`);
+  }
+  // A string fraction is still malformed — parsing does not relax the rule.
+  assert.equal(bsClassifySession(S(60, '7.5')).malformed, true, 'F133 "7.5" is still a defect');
+});
+
+test('F133 — the three coercions that fabricate a rating are all malformed', () => {
+  // Under a naive Number(): '' -> 0 (would read as "absent"), true -> 1 (a
+  // perfectly valid-looking rating), Symbol() -> THROWS. None may pass.
+  for (const bad of ['', '   ', true, false, 'seven', [], {}, [7]]) {
+    const c = bsClassifySession({ durationSec: 3600, sessionRpe: bad });
+    assert.equal(c.malformed, true, `rpe ${JSON.stringify(bad)} must be malformed`);
+    assert.equal(c.au, null);
+  }
+  assert.doesNotThrow(() => bsClassifySession({ durationSec: 3600, sessionRpe: Symbol('r') }));
+  assert.equal(
+    bsClassifySession({ durationSec: 3600, sessionRpe: Symbol('r') }).malformed,
+    true,
+    'a Symbol rating is malformed, and does not throw on the way there',
+  );
 });
 
 test('F30-F34 — measured is STRICTLY more than half (the rule lands here)', () => {

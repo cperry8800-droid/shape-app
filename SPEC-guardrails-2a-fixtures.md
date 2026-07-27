@@ -73,7 +73,8 @@ become untestable in isolation.**
 |---|---|
 | **eligible** session | `durationSec > 0` **and** not an inferred overrun |
 | **inferred overrun** | `durationSec > 150 min` **and** `durationConfirmed === false` |
-| **rated** session | eligible **and** `sessionRpe` is a number in **1–10** (0 and null are both absent) |
+| **rated** session | eligible **and** `sessionRpe` passes the ordered rating rule below |
+| **the rating rule** | Applied in this order: **(1)** `null` or exactly **0** → *absent*, not rated. **(2)** not an **integer** → *malformed*. **(3)** an integer outside **[1, 10]** → *malformed*. **(4)** otherwise → *rated*. So `0.5`, `7.5`, `10.5`, `11` and `-2` are all malformed; `0` is absent. **Storable ≠ producible:** `numeric(3,1)` holds one decimal across the whole range, so a fraction anywhere in it is exactly as impossible from a whole-number prompt as `0.5` is, and treating them differently would be worse than either reading alone. ⚠ **Step 2 is the one line to reverse** if half-point RPE (6.5 / 7.5 / 8.5 — a real strength-training convention) is added to the prompt later; the column type is deliberately kept wide enough for it and must **not** be narrowed |
 | **session AU** | `sessionRpe × (durationSec / 60)`, rated sessions only |
 | **week loadAu** | sum of session AU over that week's rated sessions |
 | **measured week** | `rated > eligible / 2` — strictly more than half; exactly half fails |
@@ -144,6 +145,10 @@ Two things the tag deliberately does **not** cover:
 | F27 | an inferred overrun is not "unrated" | 2 sessions: `S(175, 7)` unconfirmed + `S(60, 7)` | eligible 1, rated 1 → measured; loadAu 420 |
 | F28 | negative / non-finite duration | `S(-30, 7)`, `S(NaN, 7)` | **malformed, not absent** — see §12 rule C. Reported, never silently dropped |
 | F29 | RPE out of range | `S(60, 11)`, `S(60, -2)` | **malformed, not absent** — see §12 rule C. Never clamped, never dropped |
+| F130 | **a fraction below the scale** | `S(60, 0.5)` | **malformed.** `numeric(3,1)` accepts it; a whole-number 1–10 prompt cannot produce it, so it can only come from a client-side defect |
+| F131 | **a fraction INSIDE the scale — the same defect class** | `S(60, 7.5)` | **malformed.** Exactly as impossible from the prompt as F130. Ruling a mid-range fraction *valid* while a sub-1 fraction is *malformed* would be worse than either reading alone — it would compute a load from a value we know the app never wrote |
+| F132 | **a fraction that is also out of range** | `S(60, 10.5)` | **malformed** — caught by the integer test (step 2) before the range test (step 3). Same outcome either way; the order keeps the reported reason honest |
+| F133 | **a valid rating arriving as a STRING** | `S(60, '7.0')` | **rated · 420 AU.** `session_rpe` is `numeric`, and PostgREST returns `numeric` as **text** to preserve precision — so a stored `7` crosses the wire as `"7.0"`. **Parse before the integer test** or every valid rating in production reads as malformed. `''`, `true` and `Symbol()` must NOT coerce (they are `0`, `1` and a *throw* respectively under naive `Number()`) — all three are malformed |
 
 ---
 
@@ -486,7 +491,7 @@ review, with the baseline floor raised from 100 AU to **500 AU** — the ramp
 curve's own lowest anchor — after the 200 AU beginner case (F115) showed the old
 floor left ordinary progression resolving red.
 
-**129 fixtures — all ruled. Nothing blocks implementation.** Rule E was ruled in
+**133 fixtures — all ruled. Nothing blocks implementation.** Rule E was ruled in
 (the core takes an instant plus an IANA zone and derives client-local weeks
 itself), which brought F119–F128 into 2a; F129 was added on the arithmetic
 verification sweep below.

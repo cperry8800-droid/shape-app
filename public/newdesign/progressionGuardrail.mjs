@@ -22,7 +22,7 @@
 //
 // Built section by section against the table. Landed so far:
 //   §2  bsInterpolateAnchors + the three anchor tables   (F1–F16)
-//   §3  load derivation — eligible / rated / session AU  (F17–F29, F110, F111)
+//   §3  load derivation — eligible / rated / session AU  (F17–F29, F130–F133)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -202,6 +202,33 @@ function issue(index, field, value) {
 }
 
 /**
+ * Coerce a wire value to a number WITHOUT any of the coercions that fabricate.
+ *
+ * `session_rpe` is `numeric(3,1)`, and PostgREST returns `numeric` as TEXT to
+ * preserve precision — so a stored 7 arrives as the string `"7.0"`, not the
+ * number 7. Parsing has to happen before any integer test or every valid rating
+ * in production would read as malformed. (This repo has already paid for the
+ * same lesson once: see the `varianceBand.mjs` note about numeric-as-string.)
+ *
+ * What is deliberately NOT coerced:
+ *   - `''` -> `Number('')` is a finite 0, which would turn junk into "absent".
+ *   - `true` -> `Number(true)` is 1, a perfectly valid-looking rating.
+ *   - `Symbol()` -> `Number()` THROWS on it rather than returning NaN.
+ * Each returns NaN here, and NaN fails the integer test, so all three land as
+ * malformed rather than as a fabricated rating.
+ */
+function toNumber(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (s === '') return NaN;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  return NaN;
+}
+
+/**
  * Classify one logged session.
  *
  * @param {*} session a raw history row — assume nothing about it
@@ -218,37 +245,52 @@ export function bsClassifySession(session, index = 0) {
   const { durationSec, sessionRpe, durationConfirmed } = session;
 
   // ── Duration. Required, and the load is meaningless without it.
+  //
+  // Deliberately strict where the rating below is tolerant: `duration_seconds`
+  // is `integer`, and PostgREST returns int4 as a JSON NUMBER, so a string here
+  // means something upstream is wrong. `session_rpe` is `numeric`, which
+  // crosses the wire as text — hence the parse there and not here. If that ever
+  // stops being true the whole history reads malformed, which surfaces loudly
+  // as "could not check" plus telemetry rather than failing silently.
   if (!finite(durationSec) || durationSec < 0) {
     return bad([issue(index, 'durationSec', durationSec)]);
   }
 
-  // ── RPE. Three-way, and the split is deliberate:
-  //   null / undefined / exactly 0  -> ABSENT. The DB column is nullable and
-  //     its CHECK permits 0, but the prompt only ever writes 1-10, so a stored
-  //     0 means "not rated" — never "zero effort" (F20).
-  //   1..10                         -> RATED.
-  //   anything else                 -> MALFORMED (F29). That includes a value
-  //     the CHECK would have rejected (11, -2) AND one it would have accepted
-  //     but the prompt cannot produce (0.5). Reporting the second is the point
-  //     of rule C: it can only come from a client-side defect, and the cost of
-  //     surfacing it is an `unknown` that does not block publish.
+  // ── RPE. Ruled order, applied exactly as written:
+  //   1. null / undefined / exactly 0  -> ABSENT (not rated). The column is
+  //      nullable and its CHECK permits 0, but the prompt only ever writes
+  //      whole numbers 1-10, so a stored 0 means "not rated" — never "zero
+  //      effort" (F20).
+  //   2. not an integer                -> MALFORMED (F130, F131, F132)
+  //   3. integer outside [1, 10]       -> MALFORMED (F29)
+  //   4. otherwise                     -> RATED
   //
-  //     ⚠ ASSUMPTION, flagged for the owner, not a ruled fixture. The table
-  //     covers 0 (F20, absent) and 11 / -2 (F29, malformed) but says nothing
-  //     about 0 < rpe < 1. The reading taken here is the tighter one: rated
-  //     means a value the prompt can actually produce. The looser alternative
-  //     — treat anything the DB CHECK permits (0..10) as absent — would
-  //     silently swallow a defect instead of reporting it, which is the
-  //     failure mode rule C exists to prevent. Reversing it is a one-line
-  //     change to the comparison below.
-  const rpeAbsent = sessionRpe === null || sessionRpe === undefined || sessionRpe === 0;
-  let rated = false;
-  if (!rpeAbsent) {
-    if (!finite(sessionRpe) || sessionRpe < BS_RPE_MIN || sessionRpe > BS_RPE_MAX) {
-      return bad([issue(index, 'sessionRpe', sessionRpe)]);
+  // Steps 2 and 3 exist because a value can be STORABLE without being
+  // PRODUCIBLE. `numeric(3,1)` holds one decimal place across the whole range,
+  // so 0.5 and 7.5 are equally impossible from a whole-number prompt and are
+  // equally a defect. Reporting them is the point of rule C — the cost is an
+  // `unknown` that does not block publish; the cost of swallowing them is a
+  // wrong baseline forever.
+  //
+  // ⚠ STEP 2 IS THE SINGLE LINE TO REVERSE if half-point RPE (6.5 / 7.5 / 8.5,
+  // a real strength-training convention) is ever added to the prompt. The
+  // column type already supports it — `numeric(3,1)` is kept for exactly that
+  // reason and must NOT be narrowed to an integer type. Relax the integer test
+  // to a half-step test and steps 1, 3 and 4 stand unchanged.
+  let rpe = null;
+  if (sessionRpe !== null && sessionRpe !== undefined) {
+    const n = toNumber(sessionRpe);           // "7.0" -> 7, '' / true / Symbol -> NaN
+    if (n !== 0) {                            // step 1: 0 (in any wire form) is absent
+      if (!Number.isInteger(n)) {             // step 2: NaN and every fraction
+        return bad([issue(index, 'sessionRpe', sessionRpe)]);
+      }
+      if (n < BS_RPE_MIN || n > BS_RPE_MAX) { // step 3
+        return bad([issue(index, 'sessionRpe', sessionRpe)]);
+      }
+      rpe = n;                                // step 4
     }
-    rated = true;
   }
+  const rated = rpe !== null;
 
   // ── Eligibility. A session with no duration measures nothing (F18), and an
   // unconfirmed wall-clock overrun is the TIMER's word, not the member's — the
@@ -272,7 +314,9 @@ export function bsClassifySession(session, index = 0) {
     issues: [],
     eligible,
     rated: isRated,
-    au: isRated ? sessionRpe * (durationSec / 60) : null,
+    // The PARSED rating, never the raw wire value — "7.0" x 60 would be a
+    // string-times-number coercion waiting to surprise someone.
+    au: isRated ? rpe * (durationSec / 60) : null,
   };
 }
 
