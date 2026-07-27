@@ -14,6 +14,8 @@
 //              F119-F128)
 //   Section 4b the baseline - bounded trailing window, median, 500 AU floor
 //              (F35-F41, F99-F104, F106-F109, F113-F116, F129)
+//   Section 5  the proposed week + the cold-start ceilings and axes
+//              (F43-F50, F69-F71, F85-F87, F89, F105, F115)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,6 +36,13 @@ import {
   BS_BASELINE_FLOOR_AU,
   BS_WINDOW_MAX_WEEKS,
   BS_WINDOW_MIN_WEEKS,
+  bsProposedWeek,
+  bsColdStartAxes,
+  BS_COLD_START_WEEKLY_AMBER_PER_SESSION,
+  BS_COLD_START_WEEKLY_RED_PER_SESSION,
+  BS_PEAK_AMBER_AU,
+  BS_PEAK_RED_AU,
+  BS_SHARE_OF_WEEK_AMBER_PCT,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -1027,4 +1036,243 @@ test('deriving a baseline does not mutate the history it was given', () => {
   const before = JSON.parse(JSON.stringify(history));
   bsBaseline(history, TODAY);
   assert.deepEqual(history, before, 'history rows must survive derivation untouched');
+});
+
+// ── §5. The proposed week and the cold-start ceilings ────────────────────────
+
+// A proposed session: `P(minutes, rpe)`. Ids are stable so an incomplete row
+// can be named in the report.
+let pid = 0;
+const P = (min, rpe) => ({ id: `p${(pid += 1)}`, plannedMinutes: min, plannedRpe: rpe });
+const proposeN = (n, min, rpe) => ({
+  weekStartISO: M0,
+  sessions: Array.from({ length: n }, () => P(min, rpe)),
+});
+const propose = (...rows) => ({ weekStartISO: M0, sessions: rows });
+
+// The axes as a lookup, so a test reads by name rather than by position.
+const axesOf = (week) => {
+  const list = bsColdStartAxes(bsProposedWeek(week));
+  return Object.fromEntries(list.map((a) => [a.axis, a]));
+};
+const checkOf = (axis, name) => axis.checks.find((c) => c.check === name);
+
+test('the cold-start ceilings are the numbers the table states', () => {
+  // The fixture table opens section 5 with these four figures. Pinning them
+  // means the scheduled retune has to change the table and the code together,
+  // rather than one drifting silently away from the other.
+  assert.equal(BS_COLD_START_WEEKLY_AMBER_PER_SESSION, 600, 'weekly amber per session');
+  assert.equal(BS_COLD_START_WEEKLY_RED_PER_SESSION, 850, 'weekly red per session');
+  assert.equal(BS_PEAK_AMBER_AU, 700, 'peak amber');
+  assert.equal(BS_PEAK_RED_AU, 1000, 'peak red');
+  assert.equal(BS_SHARE_OF_WEEK_AMBER_PCT, 45, 'share_of_week amber');
+});
+
+test('F43-F45 — the three reference athletes are all green under cold start', () => {
+  // The calibration that matters: caps loose enough that a normal intermediate
+  // and a normal advanced week are NOT flagged for a client we know nothing
+  // about. The original 900/1400 caps made F44 red.
+  const beginner = bsProposedWeek(proposeN(3, 40, 5));
+  near(beginner.totalAu, 600, 'F43 3 x 40min @ RPE 5');
+  assert.equal(axesOf(proposeN(3, 40, 5)).volume.state, 'green', 'F43 cap 1800/2550');
+  assert.equal(axesOf(proposeN(3, 40, 5)).concentration.state, 'green');
+
+  const inter = bsProposedWeek(proposeN(4, 60, 7));
+  near(inter.totalAu, 1680, 'F44 4 x 60min @ RPE 7');
+  assert.equal(axesOf(proposeN(4, 60, 7)).volume.state, 'green', 'F44 cap 2400/3400');
+  assert.equal(axesOf(proposeN(4, 60, 7)).concentration.state, 'green');
+
+  // RPE 7.5 — a coach may plan a half point even though a LOGGED 7.5 is a
+  // defect. If this ever reads as incomplete, the two rating rules have been
+  // wrongly merged.
+  const adv = bsProposedWeek(proposeN(6, 75, 7.5));
+  assert.deepEqual(adv.incomplete, [], 'F45 a planned half-point RPE is valid');
+  near(adv.totalAu, 3375, 'F45 6 x 75min @ RPE 7.5');
+  assert.equal(axesOf(proposeN(6, 75, 7.5)).volume.state, 'green', 'F45 cap 3600/5100');
+});
+
+test('F46 — an over-prescribed unknown client reaches amber, not red', () => {
+  const week = proposeN(3, 100, 7);            // 700 AU x 3 = 2100
+  const { volume, concentration } = axesOf(week);
+  near(bsProposedWeek(week).totalAu, 2100, 'F46 total');
+  assert.equal(volume.state, 'amber', 'F46 2100 over the 1800 cap, under the 2550 red');
+  near(checkOf(volume, 'weekly_total').ceiling, 1800);
+  near(checkOf(volume, 'weekly_total').redCeiling, 2550);
+  // Each session sits EXACTLY on the 700 peak bound: the rule is over, not at.
+  assert.equal(concentration.state, 'green', 'F46 700 AU is not OVER the 700 bound');
+});
+
+test('F47 — 4 x 90min at RPE 10 is red on the weekly cap', () => {
+  const week = proposeN(4, 90, 10);            // 900 AU x 4 = 3600
+  const { volume, concentration } = axesOf(week);
+  near(bsProposedWeek(week).totalAu, 3600, 'F47 total');
+  assert.equal(volume.state, 'red', 'F47 3600 over the 3400 red cap');
+  assert.equal(concentration.state, 'amber', 'the hardest session is also over 700');
+});
+
+test('F48 — 1680 AU compressed into an even two-way split trips BOTH axes', () => {
+  const week = propose(P(120, 7), P(120, 7)); // 840 + 840 = 1680
+  const p = bsProposedWeek(week);
+  near(p.totalAu, 1680, 'F48 total');
+  near(p.hardestAu, 840, 'F48 an EVEN split — the row states it for a reason');
+  const { volume, concentration } = axesOf(week);
+  assert.equal(volume.state, 'amber', 'F48 1680 over the 1200 two-session cap');
+  near(checkOf(volume, 'weekly_total').redCeiling, 1700);
+  assert.equal(concentration.state, 'amber', 'F48 840 over the 700 peak bound');
+  assert.equal(checkOf(concentration, 'share_of_week'), undefined,
+    'F69 share does not apply at two sessions');
+
+  // The row's warning, pinned: an uneven split puts the hardest session over
+  // the 1000 peak RED bound and the whole row changes colour.
+  const uneven = axesOf(propose(P(110, 10), P(58, 10))); // 1100 + 580
+  assert.equal(uneven.concentration.state, 'red', 'F48 an uneven 1100/580 goes red');
+});
+
+test('F49 — both concentration checks fire, and it is still ONE axis', () => {
+  const week = propose(P(40, 5), P(40, 5), P(75, 10)); // 200 + 200 + 750 = 1150
+  const p = bsProposedWeek(week);
+  near(p.totalAu, 1150, 'F49 total');
+  near(p.hardestAu, 750);
+  const { volume, concentration } = axesOf(week);
+  assert.equal(volume.state, 'green', 'F49 1150 well under the 1800 cap');
+
+  const peak = checkOf(concentration, 'peak');
+  const share = checkOf(concentration, 'share_of_week');
+  assert.equal(peak.tripped, true, 'F49 750 > 700');
+  assert.equal(share.tripped, true, 'F49 65.2% > 45%');
+  near(share.value, (750 / 1150) * 100, 'F49 share_of_week');
+  assert.equal(concentration.state, 'amber', 'F74 two checks, one axis, one amber');
+  assert.equal(
+    bsColdStartAxes(p).filter((a) => a.state !== 'green').length,
+    1,
+    'F74 it must not register as two amber axes',
+  );
+});
+
+test('F50 — a lone 120-minute RPE 9 session is red on the peak bound', () => {
+  const week = propose(P(120, 9));             // 1080 AU in one session
+  const { volume, concentration } = axesOf(week);
+  near(bsProposedWeek(week).totalAu, 1080, 'F50 total');
+  assert.equal(concentration.state, 'red', 'F50 1080 over the 1000 peak red bound');
+  // The weekly cap is exceeded too (850 for one session) — the row says so.
+  assert.equal(volume.state, 'red', 'F50 the one-session weekly cap is also crossed');
+  assert.equal(checkOf(concentration, 'share_of_week'), undefined,
+    'a single session has no meaningful share');
+});
+
+test('F105 — a single-session week: share is 100% by arithmetic and must NOT flag', () => {
+  const week = propose(P(60, 8));              // 480 AU
+  const { volume, concentration } = axesOf(week);
+  assert.equal(volume.state, 'green', 'F105 480 under the 600 one-session cap');
+  assert.equal(concentration.state, 'green', 'F105 only the peak bound applies');
+  assert.equal(checkOf(concentration, 'share_of_week'), undefined,
+    'F105 below the three-session floor the check is OMITTED, not passed');
+});
+
+test('F115 — the beginner who adds a second session is green, not red', () => {
+  // Baseline 200 AU is under the 500 floor, so this routes to cold start and
+  // the absolute caps govern. Under a percentage curve it was a 100% increase
+  // against a 40%/75% clamp — red, and at its loudest for the person least able
+  // to read it.
+  const history = [...wk(M3, 200), ...wk(M2, 200), ...wk(M1, 200)];
+  const base = bsBaseline(history, TODAY);
+  assert.equal(base.basis, 'none', 'F115 a 200 AU baseline is below the floor');
+  assert.equal(base.reason, 'baseline_below_floor');
+
+  const week = propose(P(40, 5), P(40, 5));    // 200 + 200 = 400 across 2 sessions
+  const { volume, concentration } = axesOf(week);
+  near(bsProposedWeek(week).totalAu, 400, 'F115 proposed');
+  assert.equal(volume.state, 'green', 'F115 400 under the 1200 two-session cap');
+  assert.equal(concentration.state, 'green', 'F115 200 AU is nowhere near the peak bound');
+});
+
+test('F69-F71 — share_of_week needs three sessions, and the rule is OVER 45%', () => {
+  // Two sessions at 50/50: perfectly balanced, and it must never flag.
+  const balanced = axesOf(propose(P(100, 5), P(100, 5)));
+  assert.equal(checkOf(balanced.concentration, 'share_of_week'), undefined,
+    'F69 the check does not apply at two sessions');
+
+  // 50 / 30 / 20 of a 1000 AU week.
+  const over = axesOf(propose(P(100, 5), P(60, 5), P(40, 5)));
+  near(checkOf(over.concentration, 'share_of_week').value, 50, 'F70 share is 50%');
+  assert.equal(over.concentration.state, 'amber', 'F70 50% is over 45%');
+
+  // 45 / 30 / 25 of a 1000 AU week — exactly at the line.
+  const exact = axesOf(propose(P(90, 5), P(60, 5), P(50, 5)));
+  near(checkOf(exact.concentration, 'share_of_week').value, 45, 'F71 share is exactly 45%');
+  assert.equal(exact.concentration.state, 'green', 'F71 exactly 45% is green — the rule is OVER');
+});
+
+test('F87 — a proposed week with zero sessions is INCOMPLETE, never green', () => {
+  // Every cold-start cap is `sessions x k`, which is 0 at zero sessions. A path
+  // that scored this as an ordinary week would find every total over every
+  // ceiling and flag a week that does not exist.
+  const p = bsProposedWeek({ weekStartISO: M0, sessions: [] });
+  assert.equal(p.sessions, 0);
+  assert.ok(p.incomplete.length > 0, 'F87 it must be reported, not scored');
+  for (const axis of bsColdStartAxes(p)) {
+    for (const c of axis.checks) {
+      assert.ok(Number.isFinite(c.value), `${c.check} value must be finite, got ${c.value}`);
+      assert.ok(!Number.isNaN(c.ceiling), `${c.check} ceiling must not be NaN`);
+    }
+  }
+});
+
+test('F85 / F86 — an unreadable proposed session is named, never silently dropped', () => {
+  const p = bsProposedWeek(propose(
+    P(60, 7),
+    { id: 'no-rpe', plannedMinutes: 60 },
+    { id: 'no-min', plannedRpe: 7 },
+  ));
+  assert.equal(p.incomplete.length, 2, 'both offending sessions are reported');
+  assert.deepEqual(
+    p.incomplete.map((i) => ({ field: i.field, id: i.id })),
+    [{ field: 'plannedRpe', id: '"no-rpe"' }, { field: 'plannedMinutes', id: '"no-min"' }],
+    'F85/F86 each names the session it came from',
+  );
+  // The session COUNT is what the coach authored, so the cap does not shrink in
+  // exactly the weeks we cannot fully read.
+  assert.equal(p.sessions, 3, 'the authored count drives the cap');
+  near(p.totalAu, 420, 'only the readable session contributes load');
+});
+
+test('an out-of-range or junk plannedRpe is reported like a missing one', () => {
+  // DECISION BEYOND THE TABLE: F85 covers absence only. `incomplete_week` is
+  // the one reason in the vocabulary that describes a proposal we cannot read.
+  for (const rpe of [0, 11, -2, null, '7', true, NaN]) {
+    const p = bsProposedWeek(propose({ id: 'x', plannedMinutes: 60, plannedRpe: rpe }));
+    assert.equal(p.incomplete.length, 1, `plannedRpe ${String(rpe)} must be reported`);
+    assert.equal(p.incomplete[0].field, 'plannedRpe');
+  }
+  for (const min of [0, -30, null, '60', NaN, Infinity]) {
+    const p = bsProposedWeek(propose({ id: 'x', plannedMinutes: min, plannedRpe: 7 }));
+    assert.equal(p.incomplete.length, 1, `plannedMinutes ${String(min)} must be reported`);
+    assert.equal(p.incomplete[0].field, 'plannedMinutes');
+  }
+});
+
+test('F89 — a null or garbage proposedWeek is reported and never throws', () => {
+  for (const junk of [null, undefined, 'week', 42, [], true, { sessions: 'nope' }]) {
+    const p = bsProposedWeek(junk);
+    assert.equal(p.sessions, 0);
+    assert.equal(p.totalAu, 0);
+    assert.ok(p.incomplete.length > 0, `garbage proposedWeek ${String(junk)} must be reported`);
+  }
+});
+
+test('a planned session may run long — the 150-minute ceiling is a TIMER rule', () => {
+  // It exists because a wall-clock timer's word is not a measurement. A coach
+  // deliberately authoring a 180-minute session is not the timer, so the
+  // proposal is read at face value (and flags on load, as it should).
+  const p = bsProposedWeek(propose(P(180, 8)));
+  assert.deepEqual(p.incomplete, [], 'a long planned session is not a defect');
+  near(p.totalAu, 1440, '180 min at RPE 8');
+  assert.equal(axesOf(propose(P(180, 8))).concentration.state, 'red', 'it flags on load instead');
+});
+
+test('deriving the proposed week does not mutate it', () => {
+  const week = propose(P(60, 7), P(75, 8));
+  const before = JSON.parse(JSON.stringify(week));
+  bsColdStartAxes(bsProposedWeek(week));
+  assert.deepEqual(week, before, 'the authored week must survive derivation untouched');
 });

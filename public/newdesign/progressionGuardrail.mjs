@@ -27,6 +27,8 @@
 //       F112, F119–F128)
 //   §4b the baseline — bounded trailing window, median, 500 AU floor
 //       (F35–F40, F99–F108, F113–F116)
+//   §5  the proposed week + the cold-start ceilings and axes
+//       (F43–F50, F69–F71, F87, F105, F115)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -201,8 +203,13 @@ function describe(v) {
   return t;
 }
 
-function issue(index, field, value) {
-  return { index, field, value: describe(value) };
+function issue(index, field, value, id) {
+  const report = { index, field, value: describe(value) };
+  // A proposed session carries a coach-authored id; a history row has only its
+  // position. Naming the id is what lets the builder highlight the offending
+  // row rather than the whole week (F85, F86).
+  if (id !== undefined) report.id = describe(id);
+  return report;
 }
 
 /**
@@ -800,4 +807,246 @@ export function bsBaseline(sessions, todayISO) {
     reason: unusable ? 'baseline_below_floor' : null,
     malformed,
   };
+}
+
+/* ── §5. The proposed week, and the cold-start ceilings ────────────────────
+ *
+ * `cold_start` is the LAUNCH regime, not a rare fallback: `workout_sessions`
+ * held zero rows at design time, so every client begins here and stays until
+ * three rated weeks have accumulated. The caps are calibrated for that job — a
+ * limit for a client of UNKNOWN training status — not for a worst-case
+ * deconditioned beginner.
+ *
+ * Absolute caps, not percentages, because there is nothing to take a percentage
+ * OF. The weekly cap scales with the proposed week's own session count, which
+ * is the one thing the week declares about the client with no history and no
+ * intake: a coach writing six sessions is asserting something a two-session
+ * week is not.
+ *
+ * The cost, stated plainly: caps loose enough to leave a normal intermediate
+ * week green are necessarily loose for a genuinely deconditioned beginner, who
+ * reaches only amber at 3 x 600 AU. Nothing closes that gap without knowing who
+ * the client is, and the free-text intake columns cannot supply it. Amber is a
+ * visible flag, not silence, so the trade is the right one.
+ */
+
+/** Weekly total: `sessions x k`. 600 AU ~ 75 min at RPE 8, as a weekly AVERAGE. */
+export const BS_COLD_START_WEEKLY_AMBER_PER_SESSION = 600;
+export const BS_COLD_START_WEEKLY_RED_PER_SESSION = 850;
+
+/**
+ * The hardest single session, in absolute AU.
+ *
+ * Deliberately higher than the weekly average allowance: one hard day among
+ * several is normal, every day being that hard is not. 700 AU ~ 90 min at
+ * RPE 8; 1000 AU ~ 120 min at RPE 8.5. Applies INDEPENDENTLY of the weekly
+ * total — a week that is comfortably green overall still flags when one day is
+ * disproportionate (F50).
+ */
+export const BS_PEAK_AMBER_AU = 700;
+export const BS_PEAK_RED_AU = 1000;
+
+/**
+ * `share_of_week` — how much of the week lands in its single hardest session.
+ *
+ * Needs at least three sessions to mean anything: at two sessions a perfectly
+ * balanced 50/50 week would read 50% and flag (F69), and at one session the
+ * share is 100% by arithmetic and says nothing at all (F105). Below the floor
+ * the check does not apply — it is omitted, not passed.
+ */
+export const BS_SHARE_OF_WEEK_AMBER_PCT = 45;
+export const BS_SHARE_MIN_SESSIONS = 3;
+
+/**
+ * The scale a COACH plans on.
+ *
+ * Same 1-10 range as a logged rating, but deliberately NOT the same rule: a
+ * logged `session_rpe` must be a whole number because the completion prompt
+ * only ever writes whole numbers, so a fraction there can only be a defect
+ * (§3). A coach authoring a week has no such constraint and half-points are a
+ * real convention — F45's reference athlete is planned at RPE 7.5 and must
+ * compute a load, not report a defect.
+ */
+export const BS_PLANNED_RPE_MIN = 1;
+export const BS_PLANNED_RPE_MAX = 10;
+
+/**
+ * Derive the proposed week: its total, its hardest session, its session count.
+ *
+ * Every unusable session is REPORTED rather than skipped. A week is a claim
+ * about a whole seven days; quietly dropping one of its sessions would compare
+ * a week the coach did not write against the client's history, and it would
+ * flag lower than the real week — the dangerous direction.
+ *
+ * @param {*} proposedWeek `{ weekStartISO, sessions: [{id, plannedMinutes, plannedRpe}] }`
+ * @returns {{sessions:number, totalAu:number, hardestAu:number,
+ *            hardestId:*, perSession:Array, incomplete:Array}}
+ */
+export function bsProposedWeek(proposedWeek) {
+  const bad = (issues) => ({
+    sessions: 0,
+    totalAu: 0,
+    hardestAu: 0,
+    hardestId: null,
+    perSession: [],
+    incomplete: issues,
+  });
+
+  if (!proposedWeek || typeof proposedWeek !== 'object' || Array.isArray(proposedWeek)) {
+    return bad([issue(-1, 'proposedWeek', proposedWeek)]);
+  }
+  const rows = proposedWeek.sessions;
+  if (!Array.isArray(rows)) return bad([issue(-1, 'sessions', rows)]);
+
+  // A week with no sessions is INCOMPLETE, never green (F87). Every cold-start
+  // cap is `sessions x k`, which is 0 at zero sessions — so a path that treated
+  // this as an ordinary week would find every possible total over every ceiling
+  // and flag a week that does not exist.
+  if (rows.length === 0) return bad([issue(-1, 'sessions', rows)]);
+
+  const incomplete = [];
+  const perSession = [];
+
+  rows.forEach((row, index) => {
+    const id = row && typeof row === 'object' ? row.id : undefined;
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      incomplete.push(issue(index, 'session', row));
+      return;
+    }
+
+    // Minutes: a real positive duration. No upper ceiling — the 150-minute rule
+    // exists because a wall-clock TIMER's word is not a measurement, and a
+    // coach deliberately authoring a long session is not the timer.
+    const minutes = row.plannedMinutes;
+    const minutesOk = finite(minutes) && minutes > 0;
+    if (!minutesOk) incomplete.push(issue(index, 'plannedMinutes', minutes, id));
+
+    // ⚠ DECISION BEYOND THE TABLE: an out-of-range or non-numeric plannedRpe is
+    // reported the same way a MISSING one is (F85). The table covers absence
+    // only, and `incomplete_week` is the one reason in the vocabulary that
+    // describes a proposal we cannot read. Either way the week is not scored.
+    const rpe = row.plannedRpe;
+    const rpeOk = finite(rpe) && rpe >= BS_PLANNED_RPE_MIN && rpe <= BS_PLANNED_RPE_MAX;
+    if (!rpeOk) incomplete.push(issue(index, 'plannedRpe', rpe, id));
+
+    if (minutesOk && rpeOk) perSession.push({ id: id ?? null, index, au: rpe * minutes });
+  });
+
+  let totalAu = 0;
+  let hardestAu = 0;
+  let hardestId = null;
+  for (const s of perSession) {
+    totalAu += s.au;
+    if (s.au > hardestAu) {
+      hardestAu = s.au;
+      hardestId = s.id;
+    }
+  }
+
+  return {
+    // The session COUNT is the authored count, not the readable count: the caps
+    // scale with what the coach wrote. Counting only the readable sessions would
+    // shrink the cap in exactly the weeks we already cannot read.
+    sessions: rows.length,
+    totalAu,
+    hardestAu,
+    hardestId,
+    perSession,
+    incomplete,
+  };
+}
+
+/**
+ * One check: its value against an amber and a red ceiling.
+ *
+ * `ceiling` is the amber ceiling — the first line crossed — matching the
+ * documented result shape; `redCeiling` rides alongside so telemetry and copy
+ * never have to recompute it. Both comparisons are strictly OVER: a value
+ * exactly at a ceiling is green (F53, F71, and the peak bound at F46's 700).
+ */
+function bsCheck(name, value, amberCeiling, redCeiling) {
+  const state = value > redCeiling ? 'red' : value > amberCeiling ? 'amber' : 'green';
+  return {
+    check: name,
+    value,
+    ceiling: amberCeiling,
+    redCeiling,
+    state,
+    tripped: state !== 'green',
+  };
+}
+
+/** The worst state among a set of checks — green unless something says otherwise. */
+function bsWorstState(checks) {
+  if (checks.some((c) => c.state === 'red')) return 'red';
+  if (checks.some((c) => c.state === 'amber')) return 'amber';
+  return 'green';
+}
+
+function bsAxis(axis, checks) {
+  const tripped = checks.filter((c) => c.tripped);
+  return {
+    axis,
+    state: bsWorstState(checks),
+    checks,
+    // The percentage of the ceiling actually reached, for copy. Null when
+    // nothing tripped — there is no ceiling to report against.
+    ceilingPct: tripped.length && tripped[0].ceiling > 0
+      ? (tripped[0].value / tripped[0].ceiling) * 100
+      : null,
+  };
+}
+
+/**
+ * The volume axis under cold start — the weekly total against `sessions x k`.
+ */
+export function bsColdStartVolumeAxis(proposed) {
+  return bsAxis('volume', [bsCheck(
+    'weekly_total',
+    proposed.totalAu,
+    proposed.sessions * BS_COLD_START_WEEKLY_AMBER_PER_SESSION,
+    proposed.sessions * BS_COLD_START_WEEKLY_RED_PER_SESSION,
+  )]);
+}
+
+/**
+ * The concentration axis — is the week's load piled into one day?
+ *
+ * Two checks, ONE axis (F74). Both firing together is still a single amber and
+ * must not satisfy the compound-red rule: they are two readings of the same
+ * property, not two independent findings.
+ *
+ * `peak` compares against the absolute bounds. Once a measured hardest session
+ * exists it is compared against that instead (F72); with no measured history it
+ * falls back to these bounds (F75), which is exactly the cold-start case.
+ *
+ * @param {*} proposed the derived proposed week
+ * @param {{peakAmber?:number, peakRed?:number}} [bounds]
+ */
+export function bsConcentrationAxis(proposed, bounds = {}) {
+  const peakAmber = finite(bounds.peakAmber) ? bounds.peakAmber : BS_PEAK_AMBER_AU;
+  const peakRed = finite(bounds.peakRed) ? bounds.peakRed : BS_PEAK_RED_AU;
+
+  const checks = [bsCheck('peak', proposed.hardestAu, peakAmber, peakRed)];
+
+  // Below three sessions the share says nothing, and dividing by a zero total
+  // would say something worse than nothing.
+  if (proposed.sessions >= BS_SHARE_MIN_SESSIONS && proposed.totalAu > 0) {
+    checks.push(bsCheck(
+      'share_of_week',
+      (proposed.hardestAu / proposed.totalAu) * 100,
+      BS_SHARE_OF_WEEK_AMBER_PCT,
+      // The share has no red bound of its own — a concentrated week is a
+      // coaching question, not an emergency. Red on this axis comes from the
+      // peak bound, which measures absolute load rather than proportion.
+      Infinity,
+    ));
+  }
+
+  return bsAxis('concentration', checks);
+}
+
+/** Both cold-start axes, in the documented order. */
+export function bsColdStartAxes(proposed) {
+  return [bsColdStartVolumeAxis(proposed), bsConcentrationAxis(proposed)];
 }
