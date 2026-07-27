@@ -29,6 +29,8 @@
 //       (F35–F40, F99–F108, F113–F116)
 //   §5  the proposed week + the cold-start ceilings and axes
 //       (F43–F50, F69–F71, F87, F105, F115)
+//   §6  the measured regime — the ramp curve read at the client's baseline
+//       (F52–F57)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -983,17 +985,21 @@ function bsWorstState(checks) {
   return 'green';
 }
 
-function bsAxis(axis, checks) {
-  const tripped = checks.filter((c) => c.tripped);
+/**
+ * An axis: its checks, the worst state among them, and the ceiling as a PERCENT.
+ *
+ * `ceilingPct` is the ceiling expressed as a percentage over baseline — 19% for
+ * a client at 2000 AU. It is genuinely NULL under cold start, where the caps are
+ * absolute AU and no percentage exists to report; that is why the documented
+ * shape allows null, and why reporting some derived ratio there instead would
+ * be inventing a number the regime does not have.
+ */
+function bsAxis(axis, checks, ceilingPct = null) {
   return {
     axis,
     state: bsWorstState(checks),
     checks,
-    // The percentage of the ceiling actually reached, for copy. Null when
-    // nothing tripped — there is no ceiling to report against.
-    ceilingPct: tripped.length && tripped[0].ceiling > 0
-      ? (tripped[0].value / tripped[0].ceiling) * 100
-      : null,
+    ceilingPct: finite(ceilingPct) ? ceilingPct : null,
   };
 }
 
@@ -1049,4 +1055,85 @@ export function bsConcentrationAxis(proposed, bounds = {}) {
 /** Both cold-start axes, in the documented order. */
 export function bsColdStartAxes(proposed) {
   return [bsColdStartVolumeAxis(proposed), bsConcentrationAxis(proposed)];
+}
+
+/* ── §6. The measured regime — the ramp curve ──────────────────────────────
+ *
+ * A real baseline exists, so the flat caps give way to a percentage of what
+ * this client actually does. Both ceilings are read off the anchor curves at
+ * the client's own baseline and scale INVERSELY with it: a client at 500 AU may
+ * add 40% without it meaning much, a client at 5000 AU may not.
+ *
+ * At the reference baseline of 2000 AU that is a 19% ramp (amber over 2380) and
+ * a 40% red curve (red over 2800).
+ *
+ * ⚠ THE GUARDRAIL NEVER FLAGS GOING DOWN (F57). Both ceilings are `baseline x
+ * (1 + pct)`, so a decrease is under them by construction — a deliberate deload
+ * is green, and this must stay true by arithmetic rather than by a special
+ * case, because a special case can be removed by someone who does not know why
+ * it was there. The cost is real and is accepted knowingly: a deload lowers the
+ * median, so the return-to-normal week afterwards reads as an increase from the
+ * reduced baseline (F109, F129, and SPEC-guardrails.md §13.7).
+ */
+
+/**
+ * Read both ceilings off the curves at a client's own baseline.
+ *
+ * Returns null when the baseline is not usable — this is the measured regime,
+ * and without a measurement there is nothing to be measured against. Callers
+ * route to cold start rather than receiving a fabricated ceiling.
+ *
+ * @param {number} baselineAu
+ * @returns {{rampPct:number, redPct:number, amberAu:number, redAu:number}|null}
+ */
+export function bsMeasuredCeilings(baselineAu) {
+  if (!bsIsUsableBaseline(baselineAu)) return null;
+
+  const rampPct = bsInterpolateAnchors(BS_RAMP_ANCHORS, baselineAu);
+  const redPct = bsInterpolateAnchors(BS_RED_ANCHORS, baselineAu);
+  // The curves only return null on input this function has already rejected,
+  // so this cannot fire today. It is kept because "cannot fire" is exactly the
+  // claim that stops being true, and the failure would be a NaN ceiling that
+  // compares false against everything and silently passes every week.
+  if (!finite(rampPct) || !finite(redPct)) return null;
+
+  return {
+    rampPct,
+    redPct,
+    amberAu: baselineAu * (1 + rampPct / 100),
+    redAu: baselineAu * (1 + redPct / 100),
+  };
+}
+
+/**
+ * The volume axis under the measured regime — the week's total against the ramp.
+ *
+ * @param {*} proposed the derived proposed week
+ * @param {number} baselineAu
+ * @returns {object|null} null when there is no usable baseline
+ */
+export function bsMeasuredVolumeAxis(proposed, baselineAu) {
+  const ceilings = bsMeasuredCeilings(baselineAu);
+  if (!ceilings) return null;
+
+  const total = bsCheck('weekly_total', proposed.totalAu, ceilings.amberAu, ceilings.redAu);
+  // Report the percentage of the ceiling actually in play, so the copy can name
+  // the threshold that was crossed rather than always naming the amber one.
+  return bsAxis('volume', [total], total.state === 'red' ? ceilings.redPct : ceilings.rampPct);
+}
+
+/**
+ * Both measured-regime axes.
+ *
+ * ⚠ The concentration axis still falls back to the ABSOLUTE peak bounds here
+ * (F75). Once a client has history, the peak check compares against their own
+ * hardest logged session instead (F72) — that comparison is §8's, and passing
+ * the bounds in is how it arrives. Until then this is the honest behaviour, not
+ * a placeholder: with no measured hardest session there is nothing else to
+ * compare against.
+ */
+export function bsMeasuredAxes(proposed, baselineAu, bounds = {}) {
+  const volume = bsMeasuredVolumeAxis(proposed, baselineAu);
+  if (!volume) return null;
+  return [volume, bsConcentrationAxis(proposed, bounds)];
 }

@@ -16,6 +16,8 @@
 //              (F35-F41, F99-F104, F106-F109, F113-F116, F129)
 //   Section 5  the proposed week + the cold-start ceilings and axes
 //              (F43-F50, F69-F71, F85-F87, F89, F105, F115)
+//   Section 6  the measured regime - the ramp curve at the client's baseline
+//              (F52-F57)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,6 +45,9 @@ import {
   BS_PEAK_AMBER_AU,
   BS_PEAK_RED_AU,
   BS_SHARE_OF_WEEK_AMBER_PCT,
+  bsMeasuredCeilings,
+  bsMeasuredVolumeAxis,
+  bsMeasuredAxes,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -1275,4 +1280,132 @@ test('deriving the proposed week does not mutate it', () => {
   const before = JSON.parse(JSON.stringify(week));
   bsColdStartAxes(bsProposedWeek(week));
   assert.deepEqual(week, before, 'the authored week must survive derivation untouched');
+});
+
+test('under cold start there is no percentage to report', () => {
+  // The absolute caps are AU, not a percentage of anything — so `ceilingPct` is
+  // genuinely null, which is why the documented shape allows it.
+  for (const axis of bsColdStartAxes(bsProposedWeek(proposeN(3, 100, 7)))) {
+    assert.equal(axis.ceilingPct, null, `${axis.axis} has no percentage in cold start`);
+  }
+});
+
+// ── §6. The measured regime — the ramp curve ─────────────────────────────────
+
+// A proposed week totalling exactly `au`, spread over five equal sessions at
+// RPE 10. Five keeps every session under the 700 peak bound and the share at
+// 20%, so the CONCENTRATION axis stays green throughout and the volume axis is
+// the only thing moving — which is what these rows are about.
+const proposeTotal = (au, n = 5) =>
+  propose(...Array.from({ length: n }, () => P(au / n / 10, 10)));
+
+const volumeAt = (au, baselineAu = 2000) =>
+  bsMeasuredVolumeAxis(bsProposedWeek(proposeTotal(au)), baselineAu);
+
+test('the curves read 19% and 40% at a 2000 AU baseline', () => {
+  const c = bsMeasuredCeilings(2000);
+  near(c.rampPct, 19, 'ramp at 2000 — one third of the way from 1500 to 3000');
+  near(c.redPct, 40, 'red at 2000');
+  near(c.amberAu, 2380, 'amber ceiling');
+  near(c.redAu, 2800, 'red ceiling');
+});
+
+test('F52-F56 — the measured ladder at a 2000 AU baseline', () => {
+  assert.equal(volumeAt(2300).state, 'green', 'F52 2300 under the 2380 ceiling');
+  assert.equal(volumeAt(2380).state, 'green', 'F53 2380 exactly — the boundary is OVER, not at');
+  assert.equal(volumeAt(2500).state, 'amber', 'F54 2500 over the ceiling');
+  assert.equal(volumeAt(2800).state, 'amber', 'F55 2800 exactly — red is OVER 2800');
+  assert.equal(volumeAt(3000).state, 'red', 'F56 3000 is red');
+});
+
+test('F52-F56 — the boundaries are strict on both ceilings', () => {
+  // The rows above sit on the lines; these pin that a hair either side moves.
+  assert.equal(volumeAt(2380.0001).state, 'amber', 'a hair over amber is amber');
+  assert.equal(volumeAt(2379.9999).state, 'green', 'a hair under amber is green');
+  assert.equal(volumeAt(2800.0001).state, 'red', 'a hair over red is red');
+  assert.equal(volumeAt(2799.9999).state, 'amber', 'a hair under red is amber');
+});
+
+test('F57 — the guardrail never flags going down', () => {
+  // A deliberate deload is green, and it must be green by ARITHMETIC: both
+  // ceilings are baseline x (1 + pct), so nothing below the baseline can reach
+  // either. A special case would be removable by someone who did not know why.
+  assert.equal(volumeAt(1200).state, 'green', 'F57 a 1200 AU deload against a 2000 baseline');
+  for (const total of [1, 100, 500, 1000, 1999, 2000]) {
+    assert.equal(volumeAt(total).state, 'green', `${total} AU is at or below baseline`);
+  }
+});
+
+test('the reported percentage names the ceiling actually in play', () => {
+  near(volumeAt(2300).ceilingPct, 19, 'green reports the ramp');
+  near(volumeAt(2500).ceilingPct, 19, 'amber reports the ramp it crossed');
+  near(volumeAt(3000).ceilingPct, 40, 'red reports the RED threshold, not the ramp');
+});
+
+test('the ceilings scale inversely with the baseline, and clamp at both ends', () => {
+  // The same proposed increase means different things at different baselines —
+  // that is the entire reason the ceiling is a curve and not a constant.
+  const low = bsMeasuredCeilings(500);
+  near(low.rampPct, 40, 'at 500 AU a 40% ramp');
+  near(low.amberAu, 700);
+  near(low.redAu, 875);
+
+  const high = bsMeasuredCeilings(5000);
+  near(high.rampPct, 9, 'at 5000 AU only 9%');
+  near(high.amberAu, 5450);
+  near(high.redAu, 6100);
+
+  // Below the first anchor and above the last the curve is CLAMPED, never
+  // extrapolated — an extrapolated ramp eventually returns a negative ceiling.
+  const clampedHigh = bsMeasuredCeilings(9000);
+  near(clampedHigh.rampPct, 9, 'above the last anchor the ramp holds flat');
+  near(clampedHigh.redPct, 22);
+});
+
+test('a baseline the floor rejected never reaches the curve', () => {
+  // The sub-floor case routes to cold start; if it reached the curve it would
+  // clamp to 40%/75% and resolve a beginner's second session as red (F115).
+  for (const bad of [null, undefined, NaN, 0, -1, 499.999, '2000']) {
+    assert.equal(bsMeasuredCeilings(bad), null, `baseline ${String(bad)} has no curve`);
+    assert.equal(
+      bsMeasuredVolumeAxis(bsProposedWeek(proposeTotal(1000)), bad),
+      null,
+      `baseline ${String(bad)} yields no volume axis`,
+    );
+  }
+  assert.ok(bsMeasuredCeilings(500), 'exactly 500 does reach the curve');
+});
+
+test('a real history flows through to the measured ceilings', () => {
+  // End to end rather than by hand: three logged 2000 AU weeks produce the
+  // baseline, and the baseline produces the ceilings.
+  const base = bsBaseline([...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)], TODAY);
+  assert.equal(base.basis, 'measured');
+  const axes = bsMeasuredAxes(bsProposedWeek(proposeTotal(2500)), base.au);
+  const volume = axes.find((a) => a.axis === 'volume');
+  assert.equal(volume.state, 'amber', '2500 against a derived 2000 baseline');
+  near(volume.checks[0].ceiling, 2380, 'the ceiling came from the logged weeks');
+});
+
+test('the measured concentration axis still falls back to the absolute peak', () => {
+  // F75: with no measured hardest session there is nothing else to compare
+  // against. F72's jump_vs_history comparison arrives through `bounds`.
+  //
+  // The week is BALANCED (four equal 800 AU sessions, share 25%) so the peak
+  // bound is the only check in play. A lopsided week would keep the axis amber
+  // on share_of_week no matter what the peak bound was — which is the axis
+  // working, but it would prove nothing about the fallback.
+  const balanced = bsProposedWeek(propose(P(100, 8), P(100, 8), P(100, 8), P(100, 8)));
+  near(balanced.totalAu, 3200);
+  near(balanced.hardestAu, 800);
+
+  const fallback = bsMeasuredAxes(balanced, 5000).find((a) => a.axis === 'concentration');
+  near(checkOf(fallback, 'peak').ceiling, BS_PEAK_AMBER_AU, 'falls back to the absolute bound');
+  near(checkOf(fallback, 'share_of_week').value, 25, 'share is not what is firing');
+  assert.equal(fallback.state, 'amber', '800 AU is over the 700 absolute bound');
+
+  const measured = bsMeasuredAxes(balanced, 5000, { peakAmber: 1200, peakRed: 1600 })
+    .find((a) => a.axis === 'concentration');
+  assert.equal(measured.state, 'green',
+    'against this client own measured hardest, 800 AU is unremarkable');
 });
