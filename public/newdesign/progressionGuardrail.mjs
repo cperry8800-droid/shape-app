@@ -37,6 +37,8 @@
 //       client's own hardest logged session (F72–F75)
 //   §9  state resolution — green / amber / red, the curve and compound paths,
 //       and the sub-3-session suppression (F48–F50, F76–F84)
+//   §10 bsProgressionGuardrail — the one entry point, and honest absence
+//       (F85–F92, F110–F112, F118)
 
 /* ── §2. The interpolation utility ─────────────────────────────────────────
  *
@@ -788,35 +790,40 @@ export function bsBaseline(sessions, todayISO) {
 
   // The most recent 4. Weeks arrive ascending, so the tail is the recent end;
   // anything older simply does not enter the median (F102).
-  const window = qualifying.slice(-BS_WINDOW_MAX_WEEKS);
+  //
+  // NOT named `window`: shadowing the browser global inside a module that must
+  // never touch it is a hazard — a later `window.foo` meant as the global would
+  // silently read this array — and it makes every purity grep noisy. The
+  // RETURNED field keeps the domain name.
+  const windowWeeks = qualifying.slice(-BS_WINDOW_MAX_WEEKS);
 
-  if (window.length < BS_WINDOW_MIN_WEEKS) {
+  if (windowWeeks.length < BS_WINDOW_MIN_WEEKS) {
     // ⚠ DECISION BEYOND THE TABLE: the table names `no_qualifying_weeks` for
     // ZERO qualifying weeks (F106) and never names a reason for one or two.
     // Reusing it there would report "no qualifying weeks" about a client who
     // has two — a small lie, and this module's whole contract is that it does
     // not tell them. `insufficient_weeks` is new vocabulary, flagged as such.
-    const reason = window.length === 0 ? 'no_qualifying_weeks' : 'insufficient_weeks';
+    const reason = windowWeeks.length === 0 ? 'no_qualifying_weeks' : 'insufficient_weeks';
     return {
       au: null,
       rawAu: null,
       hardestLoggedAu: null,
       basis: 'none',
-      weeks: window.length,
-      window,
+      weeks: windowWeeks.length,
+      window: windowWeeks,
       reason,
       malformed,
     };
   }
 
-  const au = bsMedian(window.map((w) => w.loadAu));
+  const au = bsMedian(windowWeeks.map((w) => w.loadAu));
 
   // The hardest single session anywhere in the window — what §8 compares a
   // proposed hard day against. Taken from the SAME window as the median so the
   // two can never describe different stretches of training. Zero means the
   // window holds no rated session at all, which is absence rather than a
   // hardest session of nothing.
-  const hardest = window.reduce((max, w) => (w.hardestAu > max ? w.hardestAu : max), 0);
+  const hardest = windowWeeks.reduce((max, w) => (w.hardestAu > max ? w.hardestAu : max), 0);
 
   // `rawAu` carries the computed figure for telemetry while `au` stays null, so
   // nothing downstream can divide by a baseline this function has rejected.
@@ -826,8 +833,8 @@ export function bsBaseline(sessions, todayISO) {
     rawAu: finite(au) ? au : null,
     hardestLoggedAu: hardest > 0 ? hardest : null,
     basis: unusable ? 'none' : 'measured',
-    weeks: window.length,
-    window,
+    weeks: windowWeeks.length,
+    window: windowWeeks,
     reason: unusable ? 'baseline_below_floor' : null,
     malformed,
   };
@@ -1609,4 +1616,163 @@ export function bsResolveState(axes, proposedSessions) {
   }
 
   return { state: 'green', redPath: null, contributingAxes: [] };
+}
+
+/* ── §10. The whole thing — one function, and honest absence ───────────────
+ *
+ * `bsProgressionGuardrail(history, proposedWeek)` is the only entry point.
+ * Everything above is a part; this assembles them: history -> regime -> axes ->
+ * state -> one result.
+ *
+ * THE STATE THAT MATTERS MOST HERE IS `unknown`. It means *we could not measure
+ * this*, which is not a finding about the training and is never the coach's
+ * fault. Rule D governs it:
+ *
+ *   - It must NOT block publish. A coach cannot be gated on data quality they
+ *     did not cause. (Enforced in 2b; the core simply never calls it red.)
+ *   - It must be VISIBLE, stated plainly with its reason. Rendering nothing
+ *     would be indistinguishable from green, and a coach would reasonably infer
+ *     the week had been checked and passed.
+ *   - It must be RECORDED with its reason, so a logging defect gets noticed
+ *     and fixed instead of sitting silent behind a UI that looks fine.
+ *
+ * ⚠ AN UNKNOWN RESULT CARRIES NO AXES, NO RED PATH, AND NO BASELINE (F118). It
+ * must be impossible to read as green *or* as a flag. The baseline is withheld
+ * deliberately even when the history looks computable: rule C exists because
+ * quietly dropping malformed rows "lets a client-side defect produce a wrong
+ * baseline forever", and a number derived by ignoring the rows we just refused
+ * to ignore is exactly that number. An unknown result asserts nothing about the
+ * client.
+ *
+ * NEVER THROWS. Every input is treated as hostile — the `varianceBand`
+ * precedent. A guardrail that crashes the publish path is worse than one that
+ * says nothing.
+ */
+
+/**
+ * Evaluate a coach-authored week against a client's logged history.
+ *
+ * @param {*} history `{ todayISO, sessions }` — `todayISO` is the only "now"
+ * @param {*} proposedWeek `{ weekStartISO, sessions: [{id, plannedMinutes, plannedRpe}] }`
+ * @returns {{state:'green'|'amber'|'red'|'unknown',
+ *            regime:'cold_start'|'measured'|'return',
+ *            redPath:'curve'|'compound'|null, reason:string|null,
+ *            baseline:{au:number|null, basis:string, weeks:number},
+ *            proposed:{totalAu:number, hardestAu:number, sessions:number},
+ *            axes:Array, contributingAxes:Array<string>, gapDays:number|null,
+ *            issues:{malformedHistory:Array, incompleteWeek:Array}}}
+ */
+export function bsProgressionGuardrail(history, proposedWeek) {
+  // The proposed week is derived first and unconditionally: its problems are
+  // reported even when the history is the thing that failed, so telemetry sees
+  // every defect rather than one defect per fix.
+  const proposed = bsProposedWeek(proposedWeek);
+
+  const unknown = (reason, malformedHistory, regime = 'cold_start') => ({
+    state: 'unknown',
+    regime,
+    redPath: null,
+    reason,
+    // No baseline on an unknown result — see the section note.
+    baseline: { au: null, basis: 'none', weeks: 0 },
+    proposed: {
+      totalAu: proposed.totalAu,
+      hardestAu: proposed.hardestAu,
+      sessions: proposed.sessions,
+    },
+    axes: [],
+    contributingAxes: [],
+    gapDays: null,
+    issues: { malformedHistory, incompleteWeek: proposed.incomplete },
+  });
+
+  // A history that is not an object at all is named as such rather than being
+  // taken apart into a cascade of missing-field reports (F88).
+  if (!history || typeof history !== 'object' || Array.isArray(history)) {
+    return unknown('malformed_history', [issue(-1, 'history', history)]);
+  }
+
+  const resolved = bsResolveRegime(history.sessions, history.todayISO);
+
+  // ⚠ ORDER: malformed history leads when BOTH classes are present, and no
+  // fixture rules it. The reason a coach reads should be the one that actually
+  // explains their situation: a single bad logged row makes EVERY week they
+  // author read unknown until it is fixed, so leading with `incomplete_week`
+  // would point them at a blank field whose repair changes nothing, and would
+  // mask the persistent cause intermittently. Both lists are reported either
+  // way, so nothing is lost to telemetry.
+  if (resolved.malformed.length > 0) {
+    return unknown('malformed_history', resolved.malformed);
+  }
+
+  // An unscoreable week is not a safe week — it is an unmeasured one, and this
+  // says so rather than passing it green (F85, F86, F87). Zero sessions lands
+  // here too: every cold-start cap is `sessions x k`, which is 0 at zero
+  // sessions, so a path that scored it would find every total over every
+  // ceiling and flag a week that does not exist.
+  //
+  // The regime and baseline ARE known here — the history was readable — but
+  // they stay withheld for one rule rather than two: an unknown result asserts
+  // nothing about the client, whatever made it unknown.
+  if (proposed.incomplete.length > 0) {
+    return unknown('incomplete_week', [], resolved.regime);
+  }
+
+  const axes = bsRegimeAxes(resolved, proposed);
+  if (!axes) {
+    // ⚠ Cannot fire: `bsResolveRegime` returns a usable baseline for exactly
+    // the regimes that need one, and a return regime by definition sits inside
+    // the 14-to-83-day band its fraction is defined over. Kept because "cannot
+    // fire" is the claim that stops being true, and the alternative is worse —
+    // a null axis list resolves GREEN, which is a fabricated pass. `unscoreable`
+    // is new vocabulary on purpose: seeing it in telemetry means an invariant
+    // this module is built on has broken.
+    return unknown('unscoreable', [], resolved.regime);
+  }
+
+  const { state, redPath, contributingAxes } = bsResolveState(axes, proposed.sessions);
+
+  return {
+    state,
+    regime: resolved.regime,
+    redPath,
+    // ⚠ A SCORED WEEK CAN STILL CARRY A REASON. Under cold start it says WHY
+    // there is no baseline — `no_history`, `no_qualifying_weeks`,
+    // `baseline_below_floor`, `stale_baseline` — which is what the copy layer
+    // keys "no baseline yet" off (F51). It is null under measured and return,
+    // where the baseline speaks for itself.
+    reason: resolved.reason,
+    baseline: {
+      au: resolved.baseline.au,
+      basis: resolved.baseline.basis,
+      weeks: resolved.baseline.weeks,
+    },
+    proposed: {
+      totalAu: proposed.totalAu,
+      hardestAu: proposed.hardestAu,
+      sessions: proposed.sessions,
+    },
+    axes,
+    contributingAxes,
+    gapDays: resolved.gapDays,
+    issues: { malformedHistory: [], incompleteWeek: [] },
+  };
+}
+
+/**
+ * The axes for a resolved regime — the one place the three builders are chosen
+ * between, so a regime cannot be scored against another regime's ceilings.
+ */
+function bsRegimeAxes(resolved, proposed) {
+  const bounds = { hardestLoggedAu: resolved.baseline.hardestLoggedAu };
+
+  if (resolved.regime === 'measured') {
+    return bsMeasuredAxes(proposed, resolved.baselineAu, bounds);
+  }
+  if (resolved.regime === 'return') {
+    return bsReturnAxes(proposed, resolved.baselineAu, resolved.gapDays, bounds);
+  }
+  // Cold start: no baseline, so no history to compare a hard day against
+  // either — the absolute bounds are the honest fallback (F75).
+  return bsColdStartAxes(proposed);
 }

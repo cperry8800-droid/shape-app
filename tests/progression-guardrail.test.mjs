@@ -24,9 +24,12 @@
 //              client's own hardest logged session (F72-F75)
 //   Section 9  state resolution - green / amber / red, the curve and compound
 //              paths, the sub-3-session suppression (F48-F50, F76-F84)
+//   Section 10 bsProgressionGuardrail - the one entry point, honest absence,
+//              determinism, purity, non-mutation (F85-F92, F110-F112, F118)
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   bsInterpolateAnchors,
@@ -67,6 +70,7 @@ import {
   BS_AXIS_REGISTRY,
   BS_COMPOUND_MIN_SESSIONS,
   BS_GAP_SESSION_FLOOR_AU,
+  bsProgressionGuardrail,
 } from '../public/newdesign/progressionGuardrail.mjs';
 
 // The core NEVER rounds — display rounds, comparisons stay unrounded (F98) — so
@@ -2028,4 +2032,244 @@ test('the resolver survives junk and never invents a state', () => {
   assert.equal(bsResolveState(ambers, undefined).state, 'amber');
   assert.equal(bsResolveState(ambers, NaN).state, 'amber');
   assert.equal(bsResolveState(ambers, BS_COMPOUND_MIN_SESSIONS).state, 'red');
+});
+
+// ── §10. The whole thing — one function, and honest absence ──────────────────
+
+const hist = (sessions, todayISO = TODAY) => ({ todayISO, sessions });
+
+// Three logged 2000 AU weeks: a real measured client, used wherever the row
+// under test is about the PROPOSED week rather than the history.
+const GOOD_HISTORY = () => [...wk(M3, 2000), ...wk(M2, 2000), ...wk(M1, 2000)];
+
+// Walk a result and collect every non-finite number. F87's "no NaN or division
+// anywhere" has to be checked over the whole payload, not one field.
+function nonFinite(value, path = '$', found = []) {
+  if (typeof value === 'number' && !Number.isFinite(value)) found.push(`${path} = ${value}`);
+  else if (Array.isArray(value)) value.forEach((v, i) => nonFinite(v, `${path}[${i}]`, found));
+  else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) nonFinite(v, `${path}.${k}`, found);
+  }
+  return found;
+}
+
+// Every key named anywhere in a result — F118 asserts the ABSENCE of the
+// scoring vocabulary, which a field-by-field check would miss.
+function keysOf(value, found = new Set()) {
+  if (Array.isArray(value)) value.forEach((v) => keysOf(v, found));
+  else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) { found.add(k); keysOf(v, found); }
+  }
+  return found;
+}
+
+test('F85 / F86 — an unreadable proposed session makes the WEEK unknown', () => {
+  const bad = {
+    weekStartISO: M0,
+    sessions: [
+      { id: 'a', plannedMinutes: 60, plannedRpe: 7 },
+      { id: 'b', plannedMinutes: 60 },                    // F85 no plannedRpe
+      { id: 'c', plannedRpe: 7 },                         // F86 no plannedMinutes
+    ],
+  };
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), bad);
+
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.reason, 'incomplete_week');
+  assert.deepEqual(r.issues.incompleteWeek.map((i) => [i.id, i.field]),
+    [['"b"', 'plannedRpe'], ['"c"', 'plannedMinutes']],
+    'F85 / F86 the offending sessions are NAMED, by id and field');
+  assert.deepEqual(r.issues.malformedHistory, [], 'the history was fine');
+});
+
+test('F87 — a proposed week with zero sessions is unknown, with no NaN anywhere', () => {
+  // Every cold-start cap is `sessions x k`, which is 0 at zero sessions — so a
+  // path that scored this would find every total over every ceiling and flag a
+  // week that does not exist.
+  const r = bsProgressionGuardrail(hist([]), { weekStartISO: M0, sessions: [] });
+
+  assert.equal(r.state, 'unknown', 'F87 not green');
+  assert.equal(r.reason, 'incomplete_week');
+  assert.deepEqual(r.axes, [], 'F87 no flag is raised');
+  assert.deepEqual(nonFinite(r), [], 'F87 no NaN or Infinity anywhere in the result');
+});
+
+test('F88 / F89 — hostile input is unknown, and never throws', () => {
+  const week = proposeN(3, 60, 7);
+  const cases = [
+    [null, 'malformed_history', 'F88 history null'],
+    ['nope', 'malformed_history', 'F88 history not an object'],
+    [[], 'malformed_history', 'F88 history is an array'],
+    [hist(null), 'malformed_history', 'F88 sessions not an array'],
+    [hist('garbage'), 'malformed_history', 'F88 sessions is a string'],
+    [hist([{ nonsense: true }, 42, null]), 'malformed_history', 'F88 garbage rows'],
+    [hist(GOOD_HISTORY(), null), 'malformed_history', 'F88 no todayISO'],
+  ];
+  for (const [h, reason, label] of cases) {
+    const r = bsProgressionGuardrail(h, week);
+    assert.equal(r.state, 'unknown', label);
+    assert.equal(r.reason, reason, label);
+    assert.ok(r.issues.malformedHistory.length > 0, `${label} — and names what failed`);
+  }
+
+  // F89: the proposal, not the history, is what is missing here.
+  for (const bad of [null, undefined, 'nope', [], { weekStartISO: M0 }]) {
+    const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), bad);
+    assert.equal(r.state, 'unknown', 'F89');
+    assert.equal(r.reason, 'incomplete_week');
+    assert.ok(r.issues.incompleteWeek.length > 0, 'F89 and names it');
+  }
+
+  // A Symbol is the row that would CRASH the reporting path built to survive
+  // malformed rows: `${Symbol()}` throws, and so does Number(Symbol()).
+  const sym = bsProgressionGuardrail(
+    hist([{ startedAtISO: Symbol('x'), timezone: 'UTC', durationSec: 3600, sessionRpe: Symbol('y') }]),
+    week,
+  );
+  assert.equal(sym.state, 'unknown', 'a Symbol is reported, not thrown');
+});
+
+test('F110 / F111 / F112 — one malformed logged row turns the whole week unknown', () => {
+  const week = proposeN(3, 60, 7);
+  const rows = [
+    [{ ...on(M1, 60, 7), durationSec: -30 }, 'durationSec', 'F110'],
+    [{ ...on(M1, 60, 7), sessionRpe: 11 }, 'sessionRpe', 'F111'],
+    [{ ...on(M1, 60, 7), startedAtISO: undefined }, 'startedAtISO', 'F112'],
+  ];
+  for (const [row, field, label] of rows) {
+    const r = bsProgressionGuardrail(hist([...GOOD_HISTORY(), row]), week);
+    assert.equal(r.state, 'unknown', `${label} rule C — never silently dropped`);
+    assert.equal(r.reason, 'malformed_history');
+    assert.ok(r.issues.malformedHistory.some((i) => i.field === field),
+      `${label} names the offending field`);
+    assert.deepEqual(r.axes, [], 'and scores nothing off the rows that were readable');
+  }
+});
+
+test('F118 — `unknown` is not a flag state, and not a pass', () => {
+  const unknowns = [
+    bsProgressionGuardrail(null, proposeN(3, 60, 7)),
+    bsProgressionGuardrail(hist(GOOD_HISTORY()), null),
+    bsProgressionGuardrail(hist([{ ...on(M1, 60, 7), sessionRpe: 11 }]), proposeN(3, 60, 7)),
+  ];
+
+  for (const r of unknowns) {
+    assert.equal(r.state, 'unknown');
+    assert.deepEqual(r.axes, [], 'F118 no axes');
+    assert.equal(r.redPath, null, 'F118 no red path');
+    assert.deepEqual(r.contributingAxes, []);
+    assert.equal(r.baseline.au, null, 'F118 no baseline — it asserts nothing about the client');
+    assert.equal(r.baseline.basis, 'none');
+    assert.ok(r.reason, 'F118 but it always says WHY');
+
+    const keys = keysOf(r);
+    assert.equal(keys.has('ceiling'), false, 'F118 no ceilings anywhere in the payload');
+    assert.equal(keys.has('redCeiling'), false);
+    assert.equal(keys.has('ceilingPct'), false);
+  }
+});
+
+test('F90 / F92 — deterministic, and the inputs come back untouched', () => {
+  const history = hist([...GOOD_HISTORY(), on(M2, 45, 6)]);
+  const week = propose(P(75, 8), P(60, 7), P(90, 9));
+  const historyBefore = structuredClone(history);
+  const weekBefore = structuredClone(week);
+
+  const a = bsProgressionGuardrail(history, week);
+  const b = bsProgressionGuardrail(history, week);
+  const c = bsProgressionGuardrail(structuredClone(history), structuredClone(week));
+
+  assert.deepEqual(a, b, 'F90 the same inputs return a deeply-equal result');
+  assert.deepEqual(a, c, 'F90 and cloned inputs return the same result again');
+
+  assert.deepEqual(history, historyBefore, 'F92 history is not mutated');
+  assert.deepEqual(week, weekBefore, 'F92 proposedWeek is not mutated');
+
+  // The exported anchor tables are shared module state — a sort in place would
+  // silently retune every later evaluation.
+  assert.deepEqual(BS_RAMP_ANCHORS.map((x) => x.at), [500, 1500, 3000, 5000]);
+});
+
+test('F91 — purity: the source contains no clock, no randomness, no I/O', () => {
+  // Asserted against the SOURCE rather than by observing behaviour: a clock
+  // read only misbehaves when the clock moves, which a test run rarely sees.
+  const src = readFileSync(
+    new URL('../public/newdesign/progressionGuardrail.mjs', import.meta.url), 'utf8',
+  );
+  // Comments explain these hazards by name, so the scan reads code only.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const banned = [
+    [/\bDate\.now\b/, 'Date.now'],
+    [/\bMath\.random\b/, 'Math.random'],
+    [/\bnew Date\s*\(\s*\)/, 'new Date() with no argument'],
+    [/\bperformance\.now\b/, 'performance.now'],
+    [/\bfetch\s*\(/, 'fetch'],
+    [/\brequire\s*\(/, 'require'],
+    [/\bimport\s*\(/, 'dynamic import'],
+    [/\bprocess\./, 'process'],
+    [/\bwindow\./, 'window'],
+    [/\bdocument\./, 'document'],
+    [/\blocalStorage\b/, 'localStorage'],
+  ];
+  for (const [re, name] of banned) {
+    assert.equal(re.test(code), false, `F91 the core must not use ${name}`);
+  }
+
+  // `new Date(ms)`, `Date.UTC` and `Date.parse` ARE pure — they convert a value
+  // that was passed in. The ban is on reading the ambient clock.
+  assert.ok(/new Date\(ms\)/.test(code), 'and the pure Date conversions are still here');
+});
+
+test('the three regimes each produce a complete scored result', () => {
+  const light = proposeTotal(1500);
+
+  const cold = bsProgressionGuardrail(hist([]), light);
+  assert.equal(cold.regime, 'cold_start');
+  assert.equal(cold.state, 'green', '1500 AU over 5 sessions is well under a 3000 cap');
+  assert.equal(cold.reason, 'no_history', 'a scored cold-start week still says why');
+  assert.equal(cold.baseline.au, null);
+  assert.deepEqual(cold.axes.map((a) => a.axis), ['volume', 'concentration']);
+
+  const measured = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2500));
+  assert.equal(measured.regime, 'measured');
+  assert.equal(measured.state, 'amber', '2500 over the 2380 ceiling');
+  assert.equal(measured.reason, null, 'the baseline speaks for itself');
+  near(measured.baseline.au, 2000);
+  assert.equal(measured.baseline.weeks, 3);
+  assert.deepEqual(measured.contributingAxes, ['volume']);
+  assert.equal(measured.gapDays, 9);
+
+  // The M2 week is 16 days back — an interruption.
+  const returning = bsProgressionGuardrail(
+    hist([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)]), proposeTotal(1800),
+  );
+  assert.equal(returning.regime, 'return');
+  assert.equal(returning.gapDays, 16, 'and the copy layer can say how many days');
+  assert.equal(returning.state, 'amber', '1800 over the 1690.6 return ceiling');
+  near(returning.baseline.au, 2000, 'the PRE-BREAK baseline is still reported');
+
+  // A stale history routes to cold start with the baseline withheld.
+  const stale = bsProgressionGuardrail(hist([on(D90, 60, 8)]), light);
+  assert.equal(stale.regime, 'cold_start');
+  assert.equal(stale.baseline.au, null);
+  assert.equal(stale.state, 'green');
+});
+
+test('a scored result never carries issues, and an unknown never carries a state', () => {
+  const scored = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2000));
+  assert.deepEqual(scored.issues, { malformedHistory: [], incompleteWeek: [] });
+  assert.notEqual(scored.state, 'unknown');
+
+  // Both classes at once: the history defect leads, because a single bad
+  // logged row makes EVERY week the coach authors read unknown until it is
+  // fixed — pointing them at a blank field first would mask the real cause.
+  const both = bsProgressionGuardrail(
+    hist([{ ...on(M1, 60, 7), sessionRpe: 11 }]),
+    { weekStartISO: M0, sessions: [{ id: 'x', plannedMinutes: 60 }] },
+  );
+  assert.equal(both.reason, 'malformed_history', 'the persistent cause leads');
+  assert.ok(both.issues.malformedHistory.length > 0);
+  assert.ok(both.issues.incompleteWeek.length > 0,
+    'and the other class is still reported, so telemetry loses nothing');
 });
