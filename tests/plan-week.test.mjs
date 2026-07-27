@@ -447,3 +447,22 @@ test('canonical: the writer scans exactly what the reader scans', () => {
   assert.deepEqual(b.days.map((d) => texts(d.blocks)), a.days.map((d) => texts(d.blocks)));
   assert.deepEqual(texts(b.days[3].blocks), MENU, 'Thursday still inherits — consistently, in both');
 });
+
+test('perDay: the CLAIM is bounded even though delivery is not', () => {
+  // bsPlanPreview calls bsPlanWeek before applying its own 40/day cap, so an
+  // unbounded comparison let a crafted public-read row make the PUBLIC listing
+  // normalize every attacker-supplied block.
+  const base = Array.from({ length: 60 }, (_, i) => `Meal ${i}`);
+  const tail = [...base.slice(0, 45), 'DIFFERENT AT 46'];
+  const w = bsPlanWeek({ blocks: base, days: [{ dow: 0, blocks: tail }] });
+  // Identical within the first 40 delivered meals — which is all the preview
+  // can show — so the listing does not claim variation a buyer cannot see.
+  assert.equal(w.perDay, false);
+  // ...and delivery is untouched: the authored day still serves all 46.
+  assert.equal(w.days[0].blocks.length, 46);
+  assert.equal(w.days[1].blocks.length, 60);
+
+  // A difference INSIDE the bound still registers.
+  const early = ['CHANGED', ...base.slice(1)];
+  assert.equal(bsPlanWeek({ blocks: base, days: [{ dow: 0, blocks: early }] }).perDay, true);
+});

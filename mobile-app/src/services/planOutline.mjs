@@ -175,19 +175,33 @@ function validDow(v) {
 // inflating the weekly count. Same rule as ever, one level deeper: the claim
 // must be computed with the same semantics as the thing it claims about,
 // including the coercion.
-function deliveredTexts(list) {
+function deliveredTexts(list, cap) {
   const out = [];
-  for (const b of (Array.isArray(list) ? list : [])) {
+  for (const b of (Array.isArray(list) ? list.slice(0, cap) : [])) {
     const raw = (b && b.text != null) ? b.text : b;
     const t = String(raw || '').trim();
     if (t) out.push(t);
   }
   return out;
 }
+// ⚠ The COMPARISON is bounded even though delivery is not, and the two are not
+// in tension: `perDay` is consumed by exactly one thing — the marketplace
+// preview's "Menus vary by day" claim — while delivery reads `days`. Leaving
+// this unbounded meant a crafted public-read row could make the PUBLIC listing
+// normalize every attacker-supplied block, because bsPlanPreview calls this
+// function before applying its own 40/day cap; the cap then only governed the
+// later rendering pass.
+//
+// Bounding at BS_DAY_BLOCK_MAX keeps the claim honest rather than approximate:
+// the preview shows at most that many meals per day, so a difference that
+// appears only past the bound is one no buyer could see before paying, and
+// counting it would advertise variation they cannot verify. Same rule as the
+// rest of this file — the claim is computed with the same semantics as the
+// thing it claims about, and here that thing is the preview.
 function sameBlocks(a, b) {
   if (a === b) return true;
-  const ta = deliveredTexts(a);
-  const tb = deliveredTexts(b);
+  const ta = deliveredTexts(a, BS_DAY_BLOCK_MAX);
+  const tb = deliveredTexts(b, BS_DAY_BLOCK_MAX);
   if (ta.length !== tb.length) return false;
   for (let i = 0; i < ta.length; i += 1) if (ta[i] !== tb[i]) return false;
   return true;
