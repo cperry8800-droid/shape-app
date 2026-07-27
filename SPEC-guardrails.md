@@ -171,6 +171,17 @@ prompt UX, not a silent estimator that hides the signal.
 - A session with no session RPE is **excluded** from the week's load sum.
 - Its load is **not imputed or estimated by any means** — not from set RPEs, not
   from duration, not from a per-client average.
+- **`session_rpe = 0` is ABSENT, not zero effort.** The column's CHECK permits
+  0–10 while the prompt only ever emits 1–10, so a 0 can only arrive from a bug.
+  Treating it as a rating would compute `0 × minutes = 0 AU` and enter a real
+  week into the sum at zero, silently deflating the baseline and tightening every
+  future ceiling. A 0 is excluded exactly as a null is, and does not count toward
+  the more-than-half measured share.
+- **An unconfirmed overrun is excluded.** The completion timer is wall-clock, so
+  a session over 150 minutes that the member never confirmed is the screen having
+  been left open, not a measurement. Confirmed, it counts in full. Without this
+  the 150-minute prompt would only protect members who engage with it, and an
+  ignored prompt would still inflate the baseline — the dangerous direction.
 - **Exclusion biases the weekly total downward.** A depressed weekly total
   depresses the median baseline, which tightens future ramp ceilings. This is a
   **known and deliberately accepted property, not an oversight**: the error runs
@@ -239,12 +250,18 @@ bsInterpolateAnchors(anchors, x)              -> number
 ```
 
 ```
+// AMENDED — the core takes RAW SESSIONS and derives the weeks itself. Load
+// derivation carries real rules (RPE 0 is absent; an unconfirmed overrun is
+// excluded), and pre-aggregating in SQL would put them in the one place they
+// are not fixture-testable. See SPEC-guardrails-2a-fixtures.md §0.
 history = {
-  weeks:    [{ weekStart: 'YYYY-MM-DD', loadAu: number, sessions: number,
-               measured: boolean }],        // §3.1: MORE than half rated.
-                                            // trailing closed weeks, any order
-  sessions: [{ dateISO: 'YYYY-MM-DD', loadAu: number }],  // for gap detection
-  todayISO: 'YYYY-MM-DD'                    // an INPUT — never read from a clock
+  todayISO: 'YYYY-MM-DD',                   // an INPUT — never read from a clock
+  sessions: [{
+    dateISO:           'YYYY-MM-DD',        // CLIENT-LOCAL date; the caller resolves the zone
+    durationSec:       number,
+    sessionRpe:        number | null,       // null AND 0 both mean ABSENT
+    durationConfirmed: boolean              // the member confirmed or typed the minutes
+  }]
 }
 
 proposedWeek = {
@@ -258,7 +275,9 @@ GuardrailResult = {
   state:   'green' | 'amber' | 'red' | 'unknown',
   regime:  'cold_start' | 'measured' | 'return',
   redPath: 'curve' | 'compound' | null,     // null unless state === 'red'
-  reason:  string | null,                   // set only when state === 'unknown'
+  reason:  string | null,                   // 'incomplete_week' | 'malformed_history'
+                                            // | 'no_history' | 'no_qualifying_weeks'
+                                            // | 'baseline_below_floor'
   baseline: { au: number | null, basis: 'measured' | 'none', weeks: number },
   proposed: { totalAu: number, hardestAu: number, sessions: number },
   axes: [{
@@ -322,11 +341,11 @@ a small absolute change.
 | < 14 | *no return rule* |
 | 14 | 70% of pre-break baseline |
 | 28 | 55% |
-| ≥ 56 | 40% |
+| ≥ 56 | 40% — the last fraction |
 | ≥ 84 | **Not floored** — baseline is stale; route to the cold-start regime |
 
-The 84-day rule is a **regime handoff, not a fourth fraction**. There is no
-third regime.
+The 84-day rule is a **regime handoff, not a fifth fraction**. There is no third
+regime, and 56 days is where the anchor table ends.
 
 ---
 
@@ -403,9 +422,47 @@ become structured enums.
 
 ### 6.2 `measured` — the normal ramp
 
-Baseline = median of qualifying trailing measured weeks. Amber ceiling from
-`BS_RAMP_ANCHORS`, red curve from `BS_RED_ANCHORS`, both evaluated against that
-baseline.
+**The trailing window is bounded on both axes.** "Last N calendar weeks" starves
+a sparse logger; "last N qualifying weeks" reaches back indefinitely into stale
+data. So:
+
+> The baseline is the **median of the most recent qualifying weeks — at most 4,
+> at least 3 — found by searching back at most 12 calendar weeks (84 days) from
+> `todayISO`.** Fewer than 3 qualifying weeks within that reach → `cold_start`.
+
+At most 4 because a training block is four weeks (this repo's own
+`starterTemplates` cutback lands every 4th), so one block of memory adapts at the
+rate training actually changes. The 12-week reach deliberately **equals** the
+84-day stale horizon of §6.3 — one staleness concept, expressed once, because
+two horizons are how they come to disagree.
+
+Where the window and the gap rule disagree — qualifying weeks still in reach, but
+no qualifying session for 84+ days — **the stale rule wins and routes to
+`cold_start`.** A baseline you cannot trust is worse than no baseline.
+
+**The baseline floor.** A baseline of exactly 0 is unreachable by construction (a
+measured week forces at least one rated session, and a rated session has RPE 1–10
+over a positive duration). That is precisely the kind of reasoning that turns out
+to be wrong, and the failure is severe: a 0 baseline makes every ceiling 0, so
+every week goes red and the ratio divides by zero. A guard holds regardless —
+**`baseline <= 0` or `baseline < 100 AU` → `cold_start`, reason
+`baseline_below_floor`, and no percentage is ever computed against it.** 100 AU
+is the existing gap-breaking minimum reused, not a new number.
+
+Amber ceiling from `BS_RAMP_ANCHORS`, red curve from `BS_RED_ANCHORS`, both
+against that baseline.
+
+**The guardrail never flags a decrease.** A deliberate deload is always green. It
+follows that returning to normal load *after* a deload block will flag, because
+the baseline fell during the deload — intended, and the most likely real-world
+false positive.
+
+**Malformed input is reported, never coerced.** `sessionRpe: null` is *absent* —
+expected, handled by exclusion. `sessionRpe: 11`, a negative `durationSec`, or a
+missing `dateISO` are *malformed*, a caller bug; silently dropping them lets a
+client-side defect quietly produce a wrong baseline forever. They return
+`state: 'unknown'`, `reason: 'malformed_history'`, naming the offending rows —
+never clamped, never dropped, and (per the `varianceBand` precedent) never thrown.
 
 ### 6.3 `return` — after an interruption
 

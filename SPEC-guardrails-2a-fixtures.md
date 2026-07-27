@@ -1,0 +1,361 @@
+# Deploy 2a — the pure core: fixture table
+
+**For review before implementation.** Nothing here is built yet.
+
+Scope is `public/newdesign/progressionGuardrail.mjs` and its tests, and nothing
+else: no RPC, no kill switch, no publish gate, no builder call sites, no UI.
+
+**Parity is structural, not a checklist item.** Owner requirement: the app and
+the website behave identically. That is why the core is ONE module in
+`public/newdesign/` — the web builders load it as a native ES module, mobile
+imports the same file by relative path (the `varianceBand.mjs` precedent), Node
+tests import it directly, and `bsGuardrailCopy` is the single source of every
+word. Two surfaces cannot disagree because there is only one implementation and
+one set of strings. Server-side, both surfaces POST to the same publish route,
+so enforcement is identical by construction.
+
+The fixtures below therefore test parity once, at the module. There is no
+per-surface fixture and there should not be — a second copy of these rules is
+exactly what this structure exists to prevent.
+
+---
+
+## 0. A contract change I need ruled on first
+
+`SPEC-guardrails.md §4.1` currently hands the core **pre-aggregated weeks**:
+
+```
+history.weeks = [{ weekStart, loadAu, sessions, measured }]
+```
+
+The two items just carried in cannot live there. "Exclude an unconfirmed
+overrun" and "treat `session_rpe = 0` as absent" are **load-derivation** rules —
+they decide what a week's `loadAu` even is. If weeks arrive pre-summed, both
+rules execute in SQL, which is the one place they are not fixture-testable, and
+2a would ship unable to test its own two newest requirements.
+
+**Proposed: the core takes raw sessions and derives the weeks itself.**
+
+```
+history = {
+  todayISO: 'YYYY-MM-DD',
+  sessions: [{
+    dateISO:           'YYYY-MM-DD',   // client-local date; the caller resolves the timezone
+    durationSec:       number,
+    sessionRpe:        number | null,  // null AND 0 both mean ABSENT
+    durationConfirmed: boolean         // the member confirmed or typed the minutes
+  }]
+}
+
+proposedWeek = {
+  weekStartISO: 'YYYY-MM-DD',
+  sessions: [{ id, plannedMinutes, plannedRpe }]
+}
+```
+
+The RPC in 2b then returns rows and makes no judgement — which is what
+`get_roster_weekly_adherence` already does, and it moves *more* logic into the
+testable module rather than less.
+
+**Cost, stated plainly:** the core now does date bucketing, so it owns
+Monday-start week maths. `todayISO` and `dateISO` stay inputs, so it remains
+pure and deterministic — no clock is ever read.
+
+Everything below assumes this contract. **If you'd rather keep pre-aggregated
+weeks, say so and I'll rewrite the table — the two new rules then move to 2b and
+become untestable in isolation.**
+
+---
+
+## 1. Derived quantities (the vocabulary the table uses)
+
+| Term | Definition |
+|---|---|
+| **eligible** session | `durationSec > 0` **and** not an inferred overrun |
+| **inferred overrun** | `durationSec > 150 min` **and** `durationConfirmed === false` |
+| **rated** session | eligible **and** `sessionRpe` is a number in **1–10** (0 and null are both absent) |
+| **session AU** | `sessionRpe × (durationSec / 60)`, rated sessions only |
+| **week loadAu** | sum of session AU over that week's rated sessions |
+| **measured week** | `rated > eligible / 2` — strictly more than half; exactly half fails |
+| **baseline** | median of qualifying measured weeks; needs **3** |
+| **gap** | consecutive days with no session over **100 AU** |
+
+Notation below: `S(min, rpe)` is a session; `S(min, rpe, C)` is duration-confirmed.
+
+---
+
+## 2. Interpolation utility — `bsInterpolateAnchors`
+
+| # | Input | Expected |
+|---|---|---|
+| F1 | ramp @ 500 | 40% |
+| F2 | ramp @ 1500 | 22% |
+| F3 | ramp @ 3000 | 13% |
+| F4 | ramp @ 5000 | 9% |
+| F5 | ramp @ 1000 (midpoint) | 31% |
+| F6 | ramp @ 2250 (midpoint) | 17.5% |
+| F7 | ramp @ 4000 (midpoint) | 11% |
+| F8 | ramp @ 400 (below first anchor) | 40% — clamped, never extrapolated |
+| F9 | ramp @ 6000 (above last) | 9% — clamped |
+| F10 | ramp @ 600 · 1680 · 3375 (the reference athletes) | 38.2% · ~20.92% · 12.25% |
+| F11 | red @ 500 / 1500 / 3000 / 5000 | 75 / 45 / 30 / 22% |
+| F12 | red @ 1000 / 2250 / 4000 | 60 / 37.5 / 26% |
+| F13 | return @ 14 / 28 / 56 days | 70 / 55 / 40% |
+| F14 | return @ 21 / 42 days | 62.5 / 47.5% |
+| F15 | anchors given out of order | same result as sorted — order must not matter |
+| F16 | non-finite input (`NaN`, `null`, `'x'`) | returns null; never throws |
+
+---
+
+## 3. Load derivation — the two newly carried rules live here
+
+| # | Scenario | Input | Expected |
+|---|---|---|---|
+| F17 | ordinary session | `S(60, 7)` | 420 AU |
+| F18 | zero duration | `S(0, 7)` | **not eligible** — excluded, never 0 AU |
+| F19 | unrated | `S(60, null)` | eligible but **not rated** — contributes no AU |
+| F20 | **RPE 0 is ABSENT, not zero effort** | `S(60, 0)` | **not rated** — contributes no AU. It must NOT compute 0 × 60 = 0 AU, which would enter the sum as a real week and deflate the baseline |
+| F21 | RPE 0 does not count toward the measured share | 4 sessions, 3 rated 1–10, 1 at RPE 0 | eligible 4, rated 3 → measured |
+| F22 | **inferred overrun excluded** | `S(175, 7)` unconfirmed | **not eligible** — the wall-clock timer's word alone is not a measurement |
+| F23 | **confirmed overrun included** | `S(175, 7, C)` | 1225 AU — the member asserted it, so it counts |
+| F24 | boundary, exactly at the ceiling | `S(150, 7)` unconfirmed | eligible → 1050 AU. Strictly greater than 150 excludes |
+| F25 | boundary, one minute over | `S(151, 7)` unconfirmed | not eligible |
+| F26 | confirmation is irrelevant below the ceiling | `S(60, 7)` unconfirmed vs confirmed | identical, 420 AU both |
+| F27 | an inferred overrun is not "unrated" | 2 sessions: `S(175, 7)` unconfirmed + `S(60, 7)` | eligible 1, rated 1 → measured; loadAu 420 |
+| F28 | negative / non-finite duration | `S(-30, 7)`, `S(NaN, 7)` | **malformed, not absent** — see §12 rule C. Reported, never silently dropped |
+| F29 | RPE out of range | `S(60, 11)`, `S(60, -2)` | **malformed, not absent** — see §12 rule C. Never clamped, never dropped |
+
+---
+
+## 4. Week qualification and baseline
+
+| # | Scenario | Expected |
+|---|---|---|
+| F30 | 4 eligible, 3 rated | measured |
+| F31 | **4 eligible, exactly 2 rated** | **NOT measured** — the boundary is strict |
+| F32 | 3 eligible, 2 rated | measured |
+| F33 | 2 eligible, 1 rated | NOT measured (1 is not more than 1) |
+| F34 | 1 eligible, 1 rated | measured |
+| F35 | 2 measured weeks only | regime `cold_start` — 3 are required |
+| F36 | 3 measured weeks: 1500 / 2000 / 2500 | baseline **2000** (median) |
+| F37 | 3 measured weeks: 400 / 2000 / 2200 | baseline **2000** — one abnormally light week must not drag it down |
+| F38 | 3 measured weeks: 2000 / 2100 / 6000 | baseline **2100** — nor may one huge week inflate it |
+| F39 | 4 measured weeks: 1000 / 2000 / 2400 / 3000 | baseline **2200** (mean of the middle pair) |
+| F40 | a week inside a detected gap | does not qualify; excluded from the median |
+| F41 | weeks supplied out of order | identical result — ordering must not matter |
+| F42 | two sessions on the same date | both count; a date is not a key |
+
+---
+
+## 5. Cold-start regime (caps scale with proposed session count)
+
+Weekly amber `sessions × 600`, red `sessions × 850`. Peak amber 700, red 1000.
+
+| # | Proposed week | Caps | Expected |
+|---|---|---|---|
+| F43 | beginner 3 × `S(40, 5)` = 600 AU | 1800 / 2550 | green |
+| F44 | intermediate 4 × `S(60, 7)` = 1680 AU | 2400 / 3400 | **green** — the case the original 900/1400 caps made red |
+| F45 | advanced 6 × `S(75, 7.5)` = 3375 AU | 3600 / 5100 | **green** |
+| F46 | 3 × 700 AU = 2100 | 1800 / 2550 | amber — an over-prescribed unknown client |
+| F47 | 4 × `S(90, 10)` = 3600 | 2400 / 3400 | red (curve) |
+| F48 | the same 1680 AU compressed into 2 sessions | 1200 / 1700 | amber on volume |
+| F49 | peak bound alone | 3 sessions, 200 + 200 + 750 = 1150 | volume green (cap 1800), **concentration amber** (750 > 700) |
+| F50 | peak red alone | 1 × `S(120, 9)` = 1080 | red — the weekly cap of 850 is also exceeded, but the peak bound is what names it |
+| F51 | flags are labelled | any cold-start flag | copy says **"no baseline yet"**, never "estimated" |
+
+---
+
+## 6. Measured regime — baseline 2000, ramp 19%, red 40%
+
+| # | Proposed | Expected |
+|---|---|---|
+| F52 | 2300 AU | green (ceiling 2380) |
+| F53 | 2380 AU exactly | green — the boundary is *over*, not *at* |
+| F54 | 2500 AU | amber |
+| F55 | 2800 AU exactly | amber — red is *over* 2800 |
+| F56 | 3000 AU | red, `redPath: 'curve'` |
+| F57 | 1200 AU (a deliberate deload) | green — the guardrail never flags going down |
+
+---
+
+## 7. Return regime — baseline 2000
+
+| # | Scenario | Expected |
+|---|---|---|
+| F58 | last qualifying session 13 days ago | no return rule; ordinary ramp |
+| F59 | 14 days | return cap 70% → 1400 |
+| F60 | 28 days | return cap 55% → 1100; ramp then 29.2% → amber over 1421 |
+| F61 | 56 days | return cap 40% → 800 |
+| F62 | 70 days | 40% — clamped, still `return` |
+| F63 | **84 days** | regime becomes **`cold_start`** — baseline stale. NOT floored at 40% |
+| F64 | a 60 AU session mid-gap | does **not** reset the gap (under the 100 AU floor) |
+| F65 | a 140 AU session mid-gap | **does** reset it |
+| F66 | week after the return week | re-ramps from the reduced baseline by ordinary rules |
+| F67 | gap ends mid-week | the week containing the gap's end is the return week |
+| F68 | return copy | says **"no sessions logged in N days"**, never "you took N days off" |
+
+---
+
+## 8. Concentration axis
+
+| # | Scenario | Expected |
+|---|---|---|
+| F69 | **2 sessions at 50/50** | `share_of_week` **does not apply** — a balanced twice-weekly week must never flag |
+| F70 | 3 sessions at 50/30/20 | share applies; 50% > 45% → amber |
+| F71 | 3 sessions at 45/30/25 | share exactly 45% → green (the rule is *over*) |
+| F72 | `jump_vs_history` fires, share clean | 4 balanced sessions, hardest well above `hardest_logged × (1 + ramp)` → concentration amber |
+| F73 | share fires, jump clean | concentration amber |
+| F74 | **both fire together** | **ONE axis**, not two — must not satisfy compound red |
+| F75 | no measured hardest session | falls back to the cold-start absolute peak bound |
+
+---
+
+## 9. State resolution
+
+| # | Scenario | Expected |
+|---|---|---|
+| F76 | nothing over any ceiling | green |
+| F77 | one axis amber | amber |
+| F78 | one axis over the red curve | red, `redPath: 'curve'` |
+| F79 | **cold start, 2 × 800 AU** — weekly 1600 (amber, cap 1200/1700), hardest 800 (amber, 700/1000) | **amber** — compound suppressed below 3 sessions |
+| F80 | **the same at 3 × 800 AU** — weekly 2400 (amber, 1800/2550), hardest 800 (amber) | **red, `redPath: 'compound'`** |
+| F81 | **2 sessions, 1100 + 200** — weekly 1300 (amber), hardest 1100 (**red**) | **red, `redPath: 'curve'`** — suppression touches the compound path only |
+| F82 | return-week cap + volume ramp both implicated | **ONE axis** (volume) — the cap modifies the axis, it is not a second one |
+| F83 | red payload completeness | names `redPath` and lists every contributing axis |
+| F84 | `distribution` axis | present in the registry, **disabled**, never contributes to compound in v1 |
+
+---
+
+## 10. Honest absence and malformed input
+
+| # | Scenario | Expected |
+|---|---|---|
+| F85 | proposed session missing `plannedRpe` | `state: 'unknown'`, `reason: 'incomplete_week'`, names the session |
+| F86 | proposed session missing `plannedMinutes` | same |
+| F87 | proposed week with zero sessions | `unknown` / `incomplete_week` — **not green**, no flag raised, and no `NaN` or division anywhere in the result (every cold-start cap is `sessions × k`, which is 0 at zero sessions, so a naive path would flag everything) |
+| F88 | `history` null / not an array / garbage rows | `unknown`; never throws |
+| F89 | `proposedWeek` null | `unknown`; never throws |
+| F90 | determinism | the same inputs return a deeply-equal result across repeated calls |
+| F91 | purity | no `Date.now`, no `Math.random`, no I/O — `todayISO` is the only "now" |
+| F92 | input is not mutated | `history` and `proposedWeek` are deep-equal to their originals afterward |
+
+---
+
+## 11. Copy — `bsGuardrailCopy`
+
+| # | Scenario | Expected |
+|---|---|---|
+| F93 | cold start | contains "no baseline yet" |
+| F94 | return | contains "no sessions logged in N days" |
+| F95 | red via curve | "exceeds the red threshold for this baseline" |
+| F96 | red via compound | "multiple limits reached at once" **plus the axis names** |
+| F97 | green | returns null — nothing to say |
+| F98 | rounding | display rounds here only; every comparison upstream stays unrounded |
+
+---
+
+---
+
+## 12. Rulings added on review — Gaps A and B, and the eight requested rows
+
+### Rule A — the trailing window, defined
+
+Neither "last N calendar weeks" nor "last N qualifying weeks" alone is right:
+the first starves a sparse logger, the second reaches back indefinitely into
+stale data. The window is therefore **bounded on both axes**:
+
+> **The baseline is the median of the most recent qualifying weeks — at most 4,
+> at least 3 — found by searching back at most 12 calendar weeks (84 days) from
+> `todayISO`. Fewer than 3 qualifying weeks within that reach → `cold_start`.**
+
+- **At most 4** because a training block is four weeks (the repo's own
+  `starterTemplates` cutback lands every 4th week). One block of memory adapts
+  at the rate training actually changes, and it keeps F39's 4-week median
+  meaningful.
+- **At least 3** — unchanged from the spec.
+- **12 weeks of reach** deliberately equals the 84-day stale-baseline horizon.
+  **One staleness concept, expressed once.** Two different horizons is how they
+  come to disagree.
+
+**Interaction with the 84-day rule, stated explicitly.** They are independent
+tests measuring different things — the window bounds *how old a qualifying week
+may be*, the gap rule measures *how long since any real session*. Both must
+pass. Where they disagree — old qualifying weeks still inside reach, but a gap
+of 84+ days — **the stale rule wins and routes to `cold_start`**, because a
+baseline you cannot trust is worse than no baseline at all. Consequently the
+return anchors top out at 56 days (F61–F62); the ≥84-day case is a regime
+handoff, never a fifth return fraction.
+
+### Rule B — a zero or implausibly small baseline
+
+A baseline of exactly 0 is **unreachable by construction**: a week is measured
+only when `rated > eligible / 2`, which forces `rated ≥ 1`, and a rated session
+has RPE 1–10 and duration > 0, so its AU is positive.
+
+That reasoning is exactly the kind that turns out to be wrong, and the failure
+mode is severe — a 0 baseline makes every percentage ceiling 0, so *every*
+proposed week goes red, and the ratio divides by zero. A guard holds regardless:
+
+> **`baseline <= 0` or `baseline < 100 AU` → `cold_start`, reason
+> `baseline_below_floor`. No percentage is ever computed against it.**
+
+100 AU is the existing gap-breaking session minimum, reused rather than
+invented: below one minimum session's worth of weekly work there is nothing to
+ramp from. This also catches the realistic version of the bug — not exactly 0,
+but a baseline of 0.02 AU built from sub-minute sessions.
+
+### Rule C — malformed input is reported, never coerced
+
+Absent and malformed are different. `sessionRpe: null` is **absent** — honest,
+expected, handled by exclusion. `sessionRpe: 11`, `durationSec: -30` or a
+missing `dateISO` are **malformed** — a caller bug. Silently dropping them lets
+a client-side defect quietly produce a wrong baseline forever.
+
+> **Malformed history rows return `state: 'unknown'`, `reason:
+> 'malformed_history'`, naming the offending rows. Never clamped, never dropped,
+> and — per the `varianceBand` precedent — never thrown.**
+
+### The rows
+
+| # | Scenario | Expected |
+|---|---|---|
+| F99 | **sparse qualifying** — weeks 1/3/5 qualify, 2/4 do not | window takes the 3 qualifying weeks, reaching back 5 calendar weeks. Baseline is their median; the non-qualifying weeks are not zeros in the set |
+| F100 | **window hits its reach limit** — only 2 qualifying weeks within 12 calendar weeks, a 3rd at week 14 | `cold_start`. The week-14 data is out of reach and must NOT be pulled in to make three |
+| F101 | **stale rule beats the window** — 3 qualifying weeks inside reach, but no qualifying session for 90 days | `cold_start`, not `measured` and not `return` |
+| F102 | **more qualifying weeks than the cap** — 7 qualifying weeks in reach | uses the **most recent 4**; weeks 5–7 do not enter the median |
+| F103 | **sub-floor baseline** — 4 qualifying weeks, each ~0.02 AU from sub-minute sessions | `cold_start`, `reason: 'baseline_below_floor'`. No ratio computed, no `Infinity`, no `NaN` |
+| F104 | **baseline exactly 0** | same route as F103. Asserted even though unreachable by construction — the guard is the point |
+| F105 | **single-session week** — 1 × `S(60, 8)` | share-of-week is 100% by arithmetic and **must not flag** (below the 3-session floor). Only the peak bound applies |
+| F106 | **history but zero qualifying weeks** — sessions logged, none forming a qualifying week | `cold_start`, `reason: 'no_qualifying_weeks'` |
+| F107 | **no history at all** — `sessions: []` | `cold_start`, `reason: 'no_history'`. Distinct from F106: same regime, different reason, because one is "not enough logged" and the other is "logged but unusable" |
+| F108 | **exactly 3 qualifying weeks** | `measured` — the handoff boundary, paired with F35's 2 weeks → `cold_start` |
+| F109 | **deload then return to normal** — 3 weeks at 2000, a deload block at 1200, then a proposed 2000 | **flags** — the baseline fell during the deload, so returning to normal reads as a jump. **Intended**, and the direct consequence of F57 never flagging the decrease that caused it. The most likely real-world false positive; a coach dismisses one amber |
+| F110 | malformed — `durationSec: -30` | `unknown` / `malformed_history`, names the row |
+| F111 | malformed — `sessionRpe: 11` | `unknown` / `malformed_history` |
+| F112 | malformed — missing `dateISO` | `unknown` / `malformed_history` |
+
+### One correction to your list
+
+You asked for the cold-start compound-suppression row using **450 AU × 2**.
+Under the original 900/1400 caps that tripped both axes; under the recalibrated
+caps it is comfortably **green** (900 weekly against a 1200 two-session amber
+cap; 450 hardest against a 700 peak amber). The equivalent case under the
+current numbers is **F79 — 800 AU × 2**, which trips both axes and must resolve
+amber. F79 already exists and is unchanged; I have not added a 450 × 2 row,
+because a fixture asserting green would not test suppression at all.
+
+---
+
+## Status
+
+Items 1–4 (the raw-session contract with client-timezone dates, the strictly-over
+150-minute overrun boundary, the 4-week median taking the mean of the middle
+pair, and the never-flag-a-decrease property) are **ruled and incorporated**.
+
+Gaps A and B are **ruled in §12** and introduce three new rules — the bounded
+trailing window, the baseline floor, and malformed-vs-absent — each with
+fixtures. Rule A tightened the return anchors: 56 days is the last fraction, and
+≥84 days is a regime handoff rather than a fifth anchor.
+
+**112 fixtures. This table is the definition of done for 2a — a rule with no row
+here will not get built.**
