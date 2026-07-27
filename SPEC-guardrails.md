@@ -1036,6 +1036,43 @@ Every day it ships earlier is a day of rated sessions banked toward the first
 measured baselines, and therefore toward the ramp curve becoming reachable at
 all.
 
+### 13.7 A planned deload can make the return week publish-blocking
+
+**Known, accepted, and quantified.** §6.2 never flags a decrease (fixture F57),
+so a deload block lowers the trailing median; returning to normal load then reads
+as an increase against that lowered baseline. The escalation scales with the
+deload's *length*, because the window is the median of at most 4 qualifying
+weeks:
+
+| Deload weeks | Trailing window | Baseline | Amber over | Red over | Proposed 2000 |
+|---|---|---|---|---|---|
+| 1 | 1200, 2000, 2000, 2000 | 2000 | 2380 | 2800 | green |
+| 2 | 1200, 1200, 2000, 2000 | 1600 | 1942 | 2304 | **amber** |
+| 3 | 1200, 1200, 1200, 2000 | 1200 | 1529 | 1848 | **red** |
+
+**The three-week row is the one that matters:** red is publish-blocking (§7.2,
+§9.2), so **a legitimate, textbook coaching pattern — a planned three-week
+deload followed by a return to normal load — requires an explicit acknowledgment
+with a written reason before the week can be published.** That is a real cost
+paid by real coaches, not a hypothetical.
+
+It is accepted for v1 for one reason: **the alternative requires inferring
+intent from data the guardrail does not have.** Distinguishing "the coach
+deliberately deloaded and is now returning to plan" from "this client's capacity
+genuinely dropped and the coach is over-prescribing" needs either an explicit
+authored deload marker on the week or a baseline that tracks the *pre-deload*
+level. Both are real designs; neither can be calibrated against zero production
+rows (§13.5).
+
+**Out of scope for v1: deload-aware baselines.** Revisit with telemetry —
+`guardrail_evaluated` (§10.2) carries the state and the axis, so the flag rate
+for return-from-deload weeks is measurable once real weeks exist. If it is a
+meaningful share of reds, the asymmetric floor already registered in §13.4 item 3
+(`max(median, previous baseline)`) is the first candidate, because it fixes this
+case directly: the baseline would not fall during the deload at all. Fixtures
+F109 (two-week → amber) and F129 (three-week → red) pin the current behaviour so
+a future change to it is deliberate and visible.
+
 ---
 
 ## 14. End-to-end verification

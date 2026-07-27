@@ -82,6 +82,26 @@ become untestable in isolation.**
 
 Notation below: `S(min, rpe)` is a session; `S(min, rpe, C)` is duration-confirmed.
 
+### Marker convention — ⚠ BOUNDARY-SENSITIVE
+
+A row tagged **⚠ BOUNDARY-SENSITIVE (margin N%)** sits within ~5% of the
+threshold that decides its state. **The thresholds are scheduled for a retune
+after 4–6 weeks of telemetry** (`SPEC-guardrails.md §13`, "Retuning the
+thresholds"), and when that happens these rows flip state *correctly* — the
+failure is the retune working, not a regression. The tag exists so that failure
+is never read as an unexplained bug.
+
+Two things the tag deliberately does **not** cover:
+
+- **Explicit boundary tests** — F24, F30–F34, F53, F55, F71, F108, F114, F117.
+  These assert a threshold's exact edge (`over`, not `at`); being retune-coupled
+  is their entire purpose and each already says so in its own row.
+- **The 5–7% band**, which is close but outside the convention: F47 (5.9% over
+  the cold-start weekly red), F79 and F80 (both 5.9% under their two-session and
+  three-session red caps), F45 (6.3% under the six-session amber cap), F49 (7.1%
+  over the peak amber bound). Named here so a retune reader can check them
+  without re-deriving every margin.
+
 ---
 
 ## 2. Interpolation utility — `bsInterpolateAnchors`
@@ -158,8 +178,8 @@ Weekly amber `sessions × 600`, red `sessions × 850`. Peak amber 700, red 1000.
 | F45 | advanced 6 × `S(75, 7.5)` = 3375 AU | 3600 / 5100 | **green** |
 | F46 | 3 × 700 AU = 2100 | 1800 / 2550 | amber — an over-prescribed unknown client |
 | F47 | 4 × `S(90, 10)` = 3600 | 2400 / 3400 | red (curve) |
-| F48 | the same 1680 AU compressed into 2 sessions | 1200 / 1700 | amber on volume |
-| F49 | peak bound alone | 3 sessions, 200 + 200 + 750 = 1150 | volume green (cap 1800), **concentration amber** (750 > 700) |
+| F48 | the same 1680 AU compressed into 2 sessions — **an even 840 / 840 split** | 1200 / 1700 | **amber.** Volume is amber (1680 > 1200) and concentration is *also* amber (840 > the 700 peak bound) — but with **2 sessions the compound path is suppressed** by the sub-3-session rule (F79), so two amber axes resolve to amber rather than compounding to red. ⚠ BOUNDARY-SENSITIVE (margin 1.2%) — 1680 is 20 AU under the 1700 two-session red cap. **The split must be stated:** an uneven 1100 / 580 would put the hardest session over the 1000 peak red bound and turn the whole row red |
+| F49 | peak bound alone | 3 sessions, 200 + 200 + 750 = 1150 | volume green (cap 1800), **concentration amber** — **both** concentration checks fire: the peak bound (750 > 700) *and* `share_of_week` (750/1150 = 65.2% > 45%). Same axis, so still one amber (F74) |
 | F50 | peak red alone | 1 × `S(120, 9)` = 1080 | red — the weekly cap of 850 is also exceeded, but the peak bound is what names it |
 | F51 | flags are labelled | any cold-start flag | copy says **"no baseline yet"**, never "estimated" |
 
@@ -169,9 +189,9 @@ Weekly amber `sessions × 600`, red `sessions × 850`. Peak amber 700, red 1000.
 
 | # | Proposed | Expected |
 |---|---|---|
-| F52 | 2300 AU | green (ceiling 2380) |
+| F52 | 2300 AU | green (ceiling 2380). ⚠ BOUNDARY-SENSITIVE (margin 3.4%) — a ramp-anchor retune that lowers the ceiling below 2300 turns this amber |
 | F53 | 2380 AU exactly | green — the boundary is *over*, not *at* |
-| F54 | 2500 AU | amber |
+| F54 | 2500 AU | amber. ⚠ BOUNDARY-SENSITIVE (margin 5.0%) — sits exactly at the convention's edge, 120 AU over the 2380 amber ceiling; a ramp-anchor retune that raises the ceiling turns this green |
 | F55 | 2800 AU exactly | amber — red is *over* 2800 |
 | F56 | 3000 AU | red, `redPath: 'curve'` |
 | F57 | 1200 AU (a deliberate deload) | green — the guardrail never flags going down |
@@ -340,7 +360,8 @@ a client-side defect quietly produce a wrong baseline forever.
 | F106 | **history but zero qualifying weeks** — sessions logged, none forming a qualifying week | `cold_start`, `reason: 'no_qualifying_weeks'` |
 | F107 | **no history at all** — `sessions: []` | `cold_start`, `reason: 'no_history'`. Distinct from F106: same regime, different reason, because one is "not enough logged" and the other is "logged but unusable" |
 | F108 | **exactly 3 qualifying weeks** | `measured` — the handoff boundary, paired with F35's 2 weeks → `cold_start` |
-| F109 | **deload then return to normal** — 3 weeks at 2000, a deload block at 1200, then a proposed 2000 | **flags** — the baseline fell during the deload, so returning to normal reads as a jump. **Intended**, and the direct consequence of F57 never flagging the decrease that caused it. The most likely real-world false positive; a coach dismisses one amber |
+| F109 | **deload then return to normal — a TWO-week deload.** 2 weeks at 2000, then 2 deload weeks at 1200, then a proposed 2000. (The deload's *length* is load-bearing and an earlier draft left it unstated — see F129) | **amber.** The window is the most recent 4 qualifying weeks `[1200, 1200, 2000, 2000]` → median = the mean of the middle pair = **baseline 1600**. Ramp at 1600 = 21.4% → amber over **1942.4**; red at 1600 = 44.0% → red over 2304. Proposed 2000 clears the first, not the second. **Intended**, and the direct consequence of F57 never flagging the decrease that caused it. The most likely real-world false positive; a coach dismisses one amber |
+| F129 | **the same pattern with a THREE-week deload.** 1 week at 2000, then 3 deload weeks at 1200, then a proposed 2000. (Numbered out of sequence deliberately — it belongs beside F109, and renumbering F110–F128 would invalidate every existing reference) | **red.** Window `[1200, 1200, 1200, 2000]` → **baseline 1200**. Ramp at 1200 = 27.4% → amber over 1528.8; red at 1200 = 54.0% → **red over 1848**. Proposed 2000 clears both. **This is NOT a defect** — it is the F57 deload property, now quantified: a longer deload pulls the median further down, so the same return-to-normal week escalates from amber to red. ⚠ It is also **publish-blocking for a legitimate coaching pattern** (planned deload → return to normal). Recorded in `SPEC-guardrails.md §13.7`; deload-aware baselines are explicitly out of scope for v1 pending telemetry |
 | F110 | malformed — `durationSec: -30` | `unknown` / `malformed_history`, names the row |
 | F111 | malformed — `sessionRpe: 11` | `unknown` / `malformed_history` |
 | F112 | malformed — missing `dateISO` | `unknown` / `malformed_history` |
@@ -403,17 +424,39 @@ which is available in Node, the browser and the Vite build alike.
 
 | # | Scenario | Expected |
 |---|---|---|
-| F119 | **Sunday late evening, negative UTC offset** — `2026-08-02T23:40:00Z` in `America/New_York` (local Sun 19:40) | buckets to the week starting **Mon 2026-07-27** — the local week it was actually trained in |
-| F120 | **the same instant read as UTC** | buckets to the week starting **Mon 2026-08-03** — the next week. F119 and F120 must differ, which is the whole point |
+| F119 | **Sunday late evening, negative UTC offset** — `2026-08-03T02:40:00Z` in `America/New_York` (EDT, UTC−4 → local **Sun 2026-08-02 22:40**) | buckets to the week starting **Mon 2026-07-27** — the local week it was actually trained in |
+| F120 | **the same instant read as UTC** — `2026-08-03T02:40:00Z` is **Mon 2026-08-03** in UTC | buckets to the week starting **Mon 2026-08-03** — the next week. F119 and F120 must differ, which is the whole point. ⚠ The instant must straddle the local Monday boundary: an earlier draft used `2026-08-02T23:40:00Z`, which is Sunday in **both** readings, so the pair could not diverge and F120 would have failed against a correct implementation |
 | F121 | **local Monday 00:00 exactly** — `2026-08-03T04:00:00Z` in `America/New_York` | starts the week of **2026-08-03**, not the tail of the previous one |
 | F122 | **local Sunday 23:59** | last day of the *previous* Monday-start week |
 | F123 | **a week spanning a DST transition** — US spring-forward, 2026-03-08 | the week still contains exactly 7 local days; no session is lost or double-counted, and the 23-hour day does not shift a boundary |
 | F124 | **positive UTC offset** — `2026-08-03T21:00:00Z` in `Asia/Tokyo` (local Tue 06:00 the 4th) | buckets to the week starting **2026-08-03**; the date advances rather than retreats |
 | F125 | **unknown or invalid zone** | `unknown` / `malformed_history` — never silently bucketed in UTC, matching `shape_user_tz` returning NULL rather than guessing |
+| F126 | **DST fall-back, the 25-hour week** — US 2026-11-01, where local 01:30 occurs **twice** | the ambiguous local time resolves **deterministically** (the same input always yields the same bucket), and the week still contains exactly 7 local days. Neither repeated hour creates an eighth day nor drops one |
+| F127 | **half-hour offset** — `Asia/Kolkata` (+05:30), instant `2026-08-02T18:45:00Z` → local **Mon 2026-08-03 00:15** | week of **2026-08-03**. ⚠ The instant must fall in the open interval `(18:30Z, 19:00Z)` or the fixture tests nothing: an earlier draft used `19:00:00Z`, which is Mon 08-03 at **both** +05:30 (00:30) and a truncated +05:00 (00:00) — same bucket, so a half-hour-truncating implementation passed. At `18:45Z` the readings diverge: +05:30 → Mon 08-03 (week of 08-03), truncated +05:00 → **Sun 08-02 23:45** (week of 07-27). That divergence is the whole point of the row |
+| F128 | **the client's timezone changes mid-window** (travel) | **ALL** history re-buckets under the client's **current** zone — including weeks recorded before the change. Weekly totals therefore shift retroactively; see the property note below |
 
-**If you'd rather keep the conversion in SQL**, say so and F119–F125 move to 2b
-as integration fixtures — but then the five cases you named are tested against a
-database rather than as pure units, and 2a ships without them.
+**Ruled in.** The core takes the instant plus an IANA zone and derives
+client-local weeks itself. `dateISO` as pre-localised was the same mistake as
+pre-aggregated `loadAu`: it put untestable conversion in SQL.
+
+#### Known property — history re-buckets when a client's timezone changes
+
+**All history is bucketed under the client's CURRENT timezone. There is no
+per-session stored zone.** A client who moves from `America/New_York` to
+`Asia/Tokyo` will see weeks recorded before the move re-bucket under Tokyo, and
+a session near a week boundary can therefore move between weeks. **Weekly totals
+shift retroactively, and a baseline can change without any new training.**
+
+This is **accepted and deliberate, not a bug** — recorded here so it is not
+"fixed" later by someone who finds it surprising. Storing a per-session zone
+would freeze each week under the zone it was trained in, at the cost of a column,
+a migration, and a second source of truth for something `shape_user_tz` already
+answers. The tradeoff was taken knowingly: travel is rare, the shift is at most a
+session or two near a boundary, and the guardrail is advisory.
+
+Note the interaction with the baseline: because bucketing changes, a re-bucketed
+week can cross the more-than-half-rated line in either direction and so enter or
+leave the qualifying set. That is the same accepted property, one layer down.
 
 ### One correction to your list
 
@@ -443,10 +486,30 @@ review, with the baseline floor raised from 100 AU to **500 AU** — the ramp
 curve's own lowest anchor — after the 200 AU beginner case (F115) showed the old
 floor left ordinary progression resolving red.
 
-**125 fixtures — 118 ruled, and F119–F125 pending the Rule E timezone ruling.
-This table is the definition of done for 2a: a rule with no row here will not get
-built.**
+**129 fixtures — all ruled. Nothing blocks implementation.** Rule E was ruled in
+(the core takes an instant plus an IANA zone and derives client-local weeks
+itself), which brought F119–F128 into 2a; F129 was added on the arithmetic
+verification sweep below.
 
-⚠ **One item blocks implementation: Rule E.** The five timezone scenarios do not
-exist yet under the current contract, because §0 puts the conversion in the
-caller. Ruling that in moves them here; ruling it out sends them to 2b.
+**This table is the definition of done for 2a: a rule with no row here will not
+get built.**
+
+### Corrections from the arithmetic verification sweep
+
+Every fixture whose expected value is a *derived number* rather than a state
+label was recomputed by hand from its inputs. All of §2, §3, §4, §6, §7, §8, §9
+and the calendar checks verified clean. Four rows were corrected:
+
+| Row | Defect | Correction |
+|---|---|---|
+| F120 | `2026-08-02T23:40:00Z` is Sunday in **both** New York and UTC, so the pair could not diverge | instant → `2026-08-03T02:40:00Z` |
+| F109 | outcome was reasoned, not computed: with a **one**-week deload the 4-week median is unchanged at 2000, so a proposed 2000 is a 0% increase → **green**, contradicting F37 | deload length stated explicitly as **two weeks** (baseline 1600 → amber) |
+| F127 | `19:00:00Z` buckets to Mon 08-03 at **both** +05:30 and a truncated +05:00 — a half-hour truncation bug passes | instant → `2026-08-02T18:45:00Z` |
+| F48 | outcome depended on an unstated split: 840/840 → amber, but 1100/580 → red | split stated as **even 840 / 840**, with the suppression reason |
+
+F49 was checked and is **not** a defect — its stated reason was partial (the peak
+bound fires, and so does `share_of_week`); both are named now.
+
+**The lesson the sweep exists to enforce:** an expected value that is *reasoned*
+rather than *computed* can be confidently wrong and invisible to review. Three of
+the four defects above were of exactly that shape.
