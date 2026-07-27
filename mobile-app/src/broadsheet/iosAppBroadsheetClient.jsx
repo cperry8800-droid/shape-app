@@ -24497,8 +24497,32 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // the common answer and correcting is an edit. At the bottom end there is no
   // credible figure to offer, so the field starts empty.
   const shownMinutes = manualMinutes != null ? manualMinutes : (timerImplausible ? String(timerMinutes) : '');
-  const manualSec = manualMinutes == null ? NaN : Math.round(Number(manualMinutes) * 60);
-  const loggedDurationSec = Number.isFinite(manualSec) && manualSec > 0 ? manualSec : elapsedSec;
+  // ⚠ THE INPUT'S OWN BOUNDS ARE NOT ENFORCED ON SUBMIT. `min`/`max` are advice
+  // to the browser, so a typed 9999 would otherwise be logged as 166 HOURS —
+  // and `Number('')` is 0, not NaN, so a CLEARED field would fall through the
+  // old `> 0` test and silently re-adopt the very wall-clock figure the member
+  // just deleted. Both must be rejected here, in one predicate.
+  const SESSION_MINUTES_MIN = 1;
+  const SESSION_MINUTES_MAX = 600;
+  const manualNum = manualMinutes == null ? NaN : Number(String(manualMinutes).trim());
+  const manualValid = Number.isFinite(manualNum)
+    && manualNum >= SESSION_MINUTES_MIN
+    && manualNum <= SESSION_MINUTES_MAX;
+  const loggedDurationSec = manualValid ? Math.round(manualNum * 60) : elapsedSec;
+  // Did the member actually ANSWER the duration question? Only an answer may be
+  // recorded as `durationConfirmed`, because that flag is what lets the core
+  // admit an overrun into a baseline — asserting it on a blank or nonsense
+  // field would vouch, in the member's name, for a screen left open.
+  //
+  //   not asked                → the timer is credible on its own; nothing to vouch for
+  //   a valid typed answer     → they answered
+  //   overrun prefill untouched→ accepting the offered figure IS the answer (it is
+  //                              pre-filled there precisely because confirming is
+  //                              the common case and correcting is the edit)
+  //
+  // An emptied field, an out-of-range number, and the under-a-minute case where
+  // no credible figure was ever offered are all NOT answers.
+  const durationAnswered = !askDuration || manualValid || (timerImplausible && manualMinutes == null);
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24814,6 +24838,14 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
                   ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
                   : 'The timer didn’t run for this one.'}
               </div>
+              {/* Honest about the consequence rather than silently dropping the
+                  session from the maths. Only for the over-ceiling case: that is
+                  the one the core actually excludes without a confirmation. */}
+              {timerImplausible && !durationAnswered && (
+                <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: '#e8a33c' }}>
+                  Left blank, this one is logged but won’t count toward your limits.
+                </div>
+              )}
             </div>
           )}
 
@@ -24854,7 +24886,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
           <div style={{ marginTop: 30 }}>
             <button
-              onClick={() => finishAndExit({ confirmed: true })}
+              onClick={() => finishAndExit({ confirmed: durationAnswered })}
               style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
             >Save &amp; finish ✓</button>
           </div>

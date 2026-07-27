@@ -255,6 +255,20 @@ function harness({ elapsedMinutes = 0 } = {}) {
       return api;
     },
     hasAria: (label) => nodes().some((n) => n.props && n.props['aria-label'] === label),
+    // Type into the duration field (matched by its accessible label, not an
+    // index — the completion screen holds exactly one input, but an index would
+    // silently follow any future one).
+    type(label, value) {
+      const el = nodes().find((n) => n.type === 'input' && n.props['aria-label'] === label);
+      if (!el) throw new Error(`no input with aria-label ${JSON.stringify(label)}`);
+      el.props.onChange({ target: { value } });
+      renderOnce();
+      return api;
+    },
+    valueOf(label) {
+      const el = nodes().find((n) => n.type === 'input' && n.props['aria-label'] === label);
+      return el ? el.props.value : undefined;
+    },
     // Walk the real session to its end: the primary CTA cycles
     // Start set → Log set per set, and only becomes `Finish workout ✓` once the
     // last set of the last move is logged. Driving it this way (rather than
@@ -407,6 +421,80 @@ test('drive: nothing is pre-selected — a skipped rating must stay skipped', as
 // is the `finishRef` indirection in the component, commented there. Verify on
 // device: start a session, reach the completion screen, then hardware-back out
 // and confirm the saved session carries its real sets and duration.
+
+// ── The duration answer must be a real answer ───────────────────────────────
+//
+// `durationConfirmed` is what lets the core admit an OVERRUN into a baseline,
+// so asserting it is vouching in the member's name. The input advertises
+// min 1 / max 600, but HTML bounds are not enforced on submit — and
+// `Number('')` is 0, not NaN, so a cleared field slips through a naive `> 0`.
+const MIN = 'Session length in minutes';
+
+test('drive: clearing an overrun field does NOT confirm the wall-clock figure', async () => {
+  const h = harness({ elapsedMinutes: 175 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  assert.equal(h.valueOf(MIN), '175', 'pre-filled with the timer’s own figure');
+  h.type(MIN, ''); // the member deletes it — the opposite of confirming
+  assert.match(h.html, /won’t count toward your limits/);
+  await h.click('Save & finish ✓');
+
+  // The workout still persists in full...
+  assert.equal(h.saved.length, 1);
+  assert.equal(h.saved[0].durationSeconds, 175 * 60);
+  // ...but nobody vouched for that number, so the core will exclude it rather
+  // than let a screen left open inflate the baseline.
+  assert.equal(h.saved[0].durationConfirmed, false);
+});
+
+test('drive: an out-of-range duration is neither logged nor confirmed', async () => {
+  const h = harness({ elapsedMinutes: 175 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  h.type(MIN, '9999'); // past the input's own max — 166 hours
+  await h.click('Save & finish ✓');
+
+  assert.equal(h.saved.length, 1);
+  assert.notEqual(h.saved[0].durationSeconds, 9999 * 60, 'a nonsense figure must never be logged');
+  assert.equal(h.saved[0].durationSeconds, 175 * 60, 'falls back to the timer');
+  assert.equal(h.saved[0].durationConfirmed, false);
+});
+
+test('drive: a valid typed duration IS used and IS confirmed', async () => {
+  const h = harness({ elapsedMinutes: 175 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  h.type(MIN, '95'); // "I actually finished after 95 minutes"
+  await h.click('Save & finish ✓');
+
+  assert.equal(h.saved[0].durationSeconds, 95 * 60, 'the member’s answer wins');
+  assert.equal(h.saved[0].durationConfirmed, true);
+});
+
+test('drive: accepting the pre-filled overrun untouched counts as the answer', async () => {
+  const h = harness({ elapsedMinutes: 175 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  await h.click('Save & finish ✓'); // never touched the field
+
+  // The field is pre-filled at this end precisely because confirming is the
+  // common case and correcting is the edit, so saving as-offered IS a decision.
+  assert.equal(h.saved[0].durationSeconds, 175 * 60);
+  assert.equal(h.saved[0].durationConfirmed, true);
+  assert.doesNotMatch(h.html, /won’t count toward your limits/);
+});
+
+test('drive: an under-a-minute timer is never recorded as confirmed', async () => {
+  const h = harness({ elapsedMinutes: 0 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  assert.equal(h.valueOf(MIN), '', 'no credible figure is offered at this end');
+  await h.click('Save & finish ✓');
+
+  assert.equal(h.saved.length, 1);
+  // Nothing was offered and nothing was typed, so nothing was confirmed.
+  assert.equal(h.saved[0].durationConfirmed, false);
+});
 
 test('drive: ending early routes to the same completion step', async () => {
   const h = harness({ elapsedMinutes: 20 });
