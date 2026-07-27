@@ -271,11 +271,16 @@ Weekly amber `sessions × 600`, red `sessions × 850`. Peak amber 700, red 1000.
 | # | Scenario | Expected |
 |---|---|---|
 | F93 | cold start | contains "no baseline yet" |
-| F94 | return | contains "no sessions logged in N days" |
-| F95 | red via curve | "exceeds the red threshold for this baseline" |
+| F94 | return | contains "no sessions logged in N days" — and **no copy surface** matches `/took .* off\|days off\|time off/i`. A positive assertion does not stop the banned phrasing appearing somewhere else in the payload |
+| F95 | red via curve, **measured or return only** | "exceeds the red threshold for this baseline". ⚠ SCOPED: this row applies **only to the regimes that HAVE a baseline**. Cold start has none, so the phrase would claim a measurement we do not hold and would contradict F93 in the same breath. See F134 / F135 |
 | F96 | red via compound | "multiple limits reached at once" **plus the axis names** |
 | F97 | green | returns null — nothing to say |
-| F98 | rounding | display rounds here only; every comparison upstream stays unrounded |
+| F98 | rounding | display rounds here only; every comparison upstream stays unrounded. Precision is **adaptive**: see F136–F138 |
+| F134 | red under **cold start** | the fixed-limit phrasing — the week is past the red limit, and F93's "no baseline yet" still rides on it |
+| F135 | cold start, negative | `/for this baseline/i` appears **nowhere** in any cold-start output, at any state |
+| F136 | rounding collapses the distinction | proposed 2380.4 against a 2380 ceiling: **one decimal is shown** and the two printed figures **differ** — "2380.4 … 2380.0". Not nudged: this is the resolution the comparison happened at |
+| F137 | rounding does not collapse | an ordinary amber (2500 against 2380): whole numbers already differ, so **no decimal is shown** |
+| F138 | the boundary | proposed 2380.6 against a 2380 ceiling — the rounded figures differ by exactly 1, so **no decimal is shown**. Escalation fires only when the distinction is actually lost |
 
 ---
 

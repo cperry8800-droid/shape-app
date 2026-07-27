@@ -2331,19 +2331,32 @@ test('F93 / F51 — a cold-start flag says "no baseline yet", never "estimated"'
   assert.match(copy.line, /2100 AU this week against a 1800 AU limit/);
 });
 
-test('a cold-start RED does not claim a baseline it does not have', () => {
-  // ⚠ The flagged interpretation. F95's phrase names "this baseline"; cold
-  // start has none, and saying it would contradict F93 in the same breath.
+test('F134 / F135 — a cold-start RED does not claim a baseline it does not have', () => {
+  // F95 is SCOPED by ruling: its phrase names "this baseline", and cold start
+  // has none. Saying it would contradict F93 in the same breath.
   const r = COLD_RED();
   assert.equal(r.regime, 'cold_start');
   assert.equal(r.state, 'red');
 
   const copy = bsGuardrailCopy(r);
   assert.equal(copy.chip, 'RED');
-  assert.doesNotMatch(copyStrings(copy).join(' '), /for this baseline/);
-  assert.ok(copyStrings(copy).join(' ').includes('no baseline yet'));
+  // F134 — the fixed-limit phrasing, with F93's phrase still riding on it.
   // 4 sessions x 850 = 3400; the week is 3600.
   assert.match(copy.line, /3600 AU this week against a 3400 AU limit — past the red limit/);
+  assert.ok(copyStrings(copy).join(' ').includes('no baseline yet'));
+
+  // F135 — the negative, over EVERY cold-start output at every state, not just
+  // this one. A scoping rule that only holds for the case under test is not a
+  // rule; the next regime-shaped sentence added here would quietly break it.
+  const coldOutputs = [COLD_AMBER(), COLD_RED(),
+    // cold start amber on concentration alone, and a cold-start compound red
+    bsProgressionGuardrail(hist([]), propose(P(75, 10), P(20, 10), P(20, 10))),
+    bsProgressionGuardrail(hist([]), propose(P(90, 9), P(60, 8), P(60, 8)))];
+  for (const out of coldOutputs) {
+    assert.equal(out.regime, 'cold_start');
+    assert.notEqual(out.state, 'green', 'a green produces no copy and proves nothing');
+    assert.doesNotMatch(copyStrings(bsGuardrailCopy(out)).join(' '), /for this baseline/i);
+  }
 });
 
 test('F94 / F68 — the return flag says "no sessions logged in N days"', () => {
@@ -2353,13 +2366,24 @@ test('F94 / F68 — the return flag says "no sessions logged in N days"', () => 
   assert.equal(r.state, 'amber');
 
   const copy = bsGuardrailCopy(r);
-  const all = copyStrings(copy).join(' ');
-  assert.ok(all.includes('no sessions logged in 16 days'));
-  // Logging is self-report. Unlogged training and no training are
-  // indistinguishable from here, and the copy must not claim to tell them
-  // apart — least of all to a coach who will repeat it to the client.
-  assert.doesNotMatch(all, /days off/i);
-  assert.doesNotMatch(all, /you took/i);
+  assert.ok(copyStrings(copy).join(' ').includes('no sessions logged in 16 days'));
+
+  // The NEGATIVE, and it is the half that does the work. A positive assertion
+  // proves the right phrase appears somewhere; it does nothing to stop the
+  // banned one appearing elsewhere in the payload. Logging is self-report:
+  // unlogged training and no training are indistinguishable from here, and the
+  // copy must not claim to tell them apart — least of all to a coach who will
+  // repeat it to the client. Swept over every return-regime state, not one.
+  const returns = [r,
+    bsProgressionGuardrail(hist([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)]),
+      proposeTotal(2600)),                                        // return, red
+    bsProgressionGuardrail(hist([...wk(M4, 2000), ...wk(M3, 2000), ...wk(M2, 2000)]),
+      propose(P(120, 10), P(20, 10), P(20, 10)))];                // return, compound
+  for (const out of returns) {
+    assert.equal(out.regime, 'return');
+    assert.doesNotMatch(copyStrings(bsGuardrailCopy(out)).join(' '),
+      /took .* off|days off|time off/i, 'never "you took N days off" (F94)');
+  }
 });
 
 test('F95 — red via the curve names the baseline it exceeded', () => {
@@ -2393,23 +2417,73 @@ test('F96 — red via compound says so, and names the axes', () => {
   assert.match(copy.detail, /Each is inside its own red limit/);
 });
 
-test('F98 — display rounds here, and rounding never changes the verdict', () => {
-  // (a) Nothing long-decimal reaches a coach. The return ceiling is
-  // 1691.09... AU, which is exactly the kind of number that leaks.
+test('F98 — display rounds here, and the comparison upstream stays unrounded', () => {
+  // Nothing long-decimal leaks. The return ceiling is 1691.09... AU, which is
+  // exactly the kind of number that reaches a coach if the layer is missing.
   const returning = bsGuardrailCopy(RETURN_AMBER());
   for (const s of copyStrings(returning)) {
     assert.doesNotMatch(s, /\d\.\d/, `un-rounded figure in copy: ${s}`);
   }
   assert.match(returning.line, /1800 AU this week against a 1691 AU limit/);
 
-  // (b) The comparison upstream stayed unrounded. A week 0.4 AU over its
-  // ceiling IS amber, and prints as equal to it — the documented artifact. The
-  // alternative, nudging the printed figures apart so the sentence agreed with
-  // itself, would show a coach a number that is not the number we judged.
+  // The verdict is made on the unrounded number, whatever the display does.
   const hair = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(2380.4));
-  assert.equal(hair.state, 'amber', 'the verdict is made on the unrounded number');
-  const copy = bsGuardrailCopy(hair);
-  assert.match(copy.line, /2380 AU this week against a 2380 AU limit/);
+  assert.equal(hair.state, 'amber');
+  // ...and the axis it came from still carries the raw figure, unrounded.
+  const volume = hair.axes.find((a) => a.axis === 'volume');
+  near(volume.checks[0].value, 2380.4, 'the axis value is untouched by display');
+  near(volume.checks[0].ceiling, 2380, 'and so is the ceiling');
+});
+
+test('F136 / F137 / F138 — precision escalates only when rounding collapses it', () => {
+  const lineFor = (au) => bsGuardrailCopy(
+    bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeTotal(au)),
+  ).line;
+
+  // F136 — 2380.4 over a 2380 ceiling. Whole numbers would print as equal,
+  // which reads to a coach as a broken system. One decimal is shown, and the
+  // two printed figures DIFFER. Not nudged: 2380.4 is the number we judged on,
+  // shown at the resolution the comparison happened at.
+  const collapsed = lineFor(2380.4);
+  assert.match(collapsed, /2380\.4 AU this week against a 2380\.0 AU limit/);
+  const shown = collapsed.match(/[\d.]+(?= AU)/g);
+  // Pin the COUNT first: with one match, `notEqual(x, undefined)` would pass
+  // while proving nothing.
+  assert.equal(shown.length, 2, `expected two AU figures, got ${JSON.stringify(shown)}`);
+  assert.notEqual(shown[0], shown[1], 'the printed figures must differ');
+
+  // F137 — an ordinary amber. The whole numbers already differ, so escalating
+  // would be noise: no decimal is shown anywhere in the line.
+  const ordinary = lineFor(2500);
+  assert.match(ordinary, /2500 AU this week against a 2380 AU limit/);
+  assert.doesNotMatch(ordinary, /\d\.\d/);
+
+  // F138 — the boundary. 2380.6 rounds to 2381 against a 2380 ceiling: the
+  // figures differ by exactly 1 with no decimal, so escalation must NOT fire.
+  const boundary = lineFor(2380.6);
+  assert.match(boundary, /2381 AU this week against a 2380 AU limit/);
+  assert.doesNotMatch(boundary, /\d\.\d/);
+});
+
+test('two figures indistinguishable at full precision say so, never print equal', () => {
+  // ⚠ ANY finite precision cap leaves a residual band, and it is REACHABLE
+  // with ordinary integer input: a ceiling of 2379.97 against a whole 2380 AU
+  // week is amber, and collapses at zero, one, two and three decimals alike.
+  // The clause states the relationship instead of quoting a limit it cannot
+  // distinguish from the value — the one thing it must never do is print two
+  // identical numbers beside an "over the limit" verdict.
+  const check = {
+    check: 'weekly_total', value: 2380, ceiling: 2379.9999, redCeiling: Infinity,
+    state: 'amber', tripped: true,
+  };
+  const copy = bsGuardrailCopy({
+    state: 'amber', regime: 'measured', redPath: null, baseline: { au: 2000 },
+    contributingAxes: ['volume'],
+    axes: [{ axis: 'volume', state: 'amber', checks: [check] }],
+  });
+  assert.match(copy.line, /2380 AU this week, just over its limit/);
+  // No pair of identical figures around a comparison word.
+  assert.doesNotMatch(copy.line, /(\d+) AU this week against a \1 AU limit/);
 });
 
 test('unknown gets words, not silence — and cannot be read as a pass', () => {
@@ -2469,7 +2543,8 @@ test('the doctrine holds across every flag this section produces', () => {
   for (const copy of every) {
     const all = copyStrings(copy).join(' ');
     assert.doesNotMatch(all, /estimat/i, 'never "estimated" (F51)');
-    assert.doesNotMatch(all, /days off|you took/i, 'never "you took N days off" (F68)');
+    assert.doesNotMatch(all, /took .* off|days off|time off/i,
+      'never "you took N days off" (F68 / F94)');
     assert.doesNotMatch(all, /\d\.\d/, 'display rounds (F98)');
     // A flag always carries a chip a surface can render and a line to read.
     assert.ok(copy.chip === 'AMBER' || copy.chip === 'RED');

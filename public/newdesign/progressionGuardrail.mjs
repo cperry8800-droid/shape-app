@@ -1789,10 +1789,16 @@ function bsRegimeAxes(resolved, proposed) {
  *
  * DISPLAY ROUNDING HAPPENS HERE AND NOWHERE ELSE (F98). Every ceiling, every
  * comparison and every state upstream runs unrounded; a figure is rounded only
- * at the moment it becomes a word. One consequence is deliberate: a week 0.4 AU
- * over its ceiling is amber and prints as equal to it. Nudging the printed
- * figures apart so the sentence agreed with itself would mean showing a coach a
- * number that is not the number we judged. The verdict is the honest thing.
+ * at the moment it becomes a word.
+ *
+ * AND THE PRECISION IS ADAPTIVE (F136-F138). Whole-number rounding can collapse
+ * a real difference — a 2380.4 AU week over a 2380 AU ceiling is amber, and
+ * "2380 AU against a 2380 AU limit" reads to a coach as a broken system, which
+ * is the one impression this design exists to avoid. So when rounding would
+ * collapse the distinction, both figures print at the smallest precision that
+ * keeps them apart. That is NOT nudging: 2380.4 is exactly the number the
+ * comparison was made on, shown at the resolution the comparison happened at.
+ * A week whose whole numbers already differ still prints whole numbers.
  *
  * TWO PHRASINGS ARE DOCTRINE, NOT FORMATTING.
  *
@@ -1809,13 +1815,12 @@ function bsRegimeAxes(resolved, proposed) {
  * Both required phrases are emitted verbatim and LOWER CASE mid-sentence, so a
  * surface (or a test) matching the exact string always finds it.
  *
- * ⚠ INTERPRETATION, FLAGGED. F95 requires a red-via-curve week to say "exceeds
- * the red threshold for this baseline". A COLD-START red has no baseline, so
- * that sentence cannot be said honestly there — it would contradict F93's "no
- * baseline yet" in the same breath. F95 is therefore read as scoped to the
- * regimes that have a baseline; a cold-start red says it is past the fixed red
- * limit instead. No row is worked around: F93 governs cold start, F95 governs
- * the regimes it can describe.
+ * F95 IS SCOPED, BY RULING. "Exceeds the red threshold for this baseline" is
+ * said only in the regimes that HAVE a baseline — measured and return. A
+ * cold-start red has none, so the phrase would claim a measurement we do not
+ * hold and would contradict F93's "no baseline yet" in the same breath; that
+ * case says it is past the fixed red limit instead (F134). F135 pins the
+ * negative: "for this baseline" appears nowhere in any cold-start output.
  */
 
 /** Coach-facing names for the axes — the internal keys are never printed. */
@@ -1829,6 +1834,42 @@ const axisLabel = (axis) => BS_AXIS_LABELS[axis] || axis;
 
 /** The one rounding point in the module. Non-finite never becomes a word. */
 const show = (n) => (finite(n) ? String(Math.round(n)) : null);
+
+/**
+ * How far precision may escalate before a figure stops being readable.
+ *
+ * ⚠ ANY finite cap leaves a residual band — two numbers can always differ by
+ * less than the last digit printed. `pairAt` returns null there rather than
+ * printing a false equality, and the clause says "just over its limit" instead
+ * of quoting a limit it cannot distinguish.
+ */
+export const BS_MAX_DISPLAY_DECIMALS = 3;
+
+/**
+ * A value and the ceiling it was judged against, printed at the SMALLEST
+ * precision that keeps them distinct.
+ *
+ * WHY THIS EXISTS: whole-number rounding can collapse a real difference —
+ * a 2380.4 AU week over a 2380 AU ceiling is amber, and printing "2380 AU
+ * against a 2380 AU limit" reads as a bug to the coach, which is the one
+ * impression this whole design exists to avoid. Escalating the DISPLAY is not
+ * nudging the figures: 2380.4 is exactly the number the comparison was made on,
+ * shown at the resolution the comparison happened at. Nothing upstream changes.
+ *
+ * Escalation fires ONLY when the distinction is actually lost (F136-F138): a
+ * week whose whole numbers already differ prints whole numbers.
+ *
+ * @returns {{value:string, ceiling:string}|null} null when the two are
+ *   indistinguishable at every precision this module will print
+ */
+function pairAt(value, ceiling) {
+  for (let dp = 0; dp <= BS_MAX_DISPLAY_DECIMALS; dp += 1) {
+    const v = value.toFixed(dp);
+    const c = ceiling.toFixed(dp);
+    if (v !== c) return { value: v, ceiling: c };
+  }
+  return null;
+}
 
 const sentenceCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -1846,22 +1887,27 @@ function nameList(labels) {
  * print two numbers pretending to be the same limit.
  */
 function checkClause(check) {
-  const value = show(check.value);
-  if (value === null) return null;
-  const ceiling = show(check.state === 'red' ? check.redCeiling : check.ceiling);
+  if (!finite(check.value)) return null;
+  const ceiling = check.state === 'red' ? check.redCeiling : check.ceiling;
+  // The share has no red ceiling by design (it is Infinity), so a red
+  // concentration axis legitimately reaches here with nothing to compare
+  // against — the clause drops the comparison rather than printing a limit
+  // that does not exist.
+  const pair = finite(ceiling) ? pairAt(check.value, ceiling) : null;
 
-  if (check.check === 'share_of_week') {
-    // The share has no red ceiling by design (it is Infinity), so `ceiling`
-    // can legitimately be null here — the clause simply drops the comparison
-    // rather than printing a limit that does not exist.
-    const head = `${value}% of the week in its single hardest session`;
-    return ceiling === null ? head : `${head} against a ${ceiling}% limit`;
-  }
+  const share = check.check === 'share_of_week';
+  const unit = share ? '%' : ' AU';
+  const head = (v) => {
+    if (share) return `${v}% of the week in its single hardest session`;
+    return check.check === 'weekly_total' ? `${v} AU this week` : `a ${v} AU hardest session`;
+  };
 
-  const head = check.check === 'weekly_total'
-    ? `${value} AU this week`
-    : `a ${value} AU hardest session`;
-  return ceiling === null ? head : `${head} against a ${ceiling} AU limit`;
+  if (!finite(ceiling)) return head(show(check.value));
+  // Indistinguishable even at full display precision. Every clause here is a
+  // TRIPPED check, so the value is strictly over its ceiling — "just over" is
+  // the honest reading, and quoting two identical figures is not.
+  if (!pair) return `${head(show(check.value))}, just over its limit`;
+  return `${head(pair.value)} against a ${pair.ceiling}${unit} limit`;
 }
 
 /**
