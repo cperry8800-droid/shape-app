@@ -1066,6 +1066,133 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)
+
+- **New admin-only `/console`** (spec
+  `docs/superpowers/specs/2026-07-27-mission-control-console-design.md`) — one
+  screen answering: what's left before launch · what's in flight · is anything
+  broken. Reads the EXISTING `/api/warroom` snapshot (zero duplicated
+  computation — `/warroom` stays the deep archive, linked from the footer).
+  Owner-directed **N.O.R.A. look** (their renamed Obsidian ops dashboard):
+  near-navy `#0a0a1a`, cyan `#00d4ff` glow HUD — a self-contained admin
+  palette, the `WarRoomClient` `C`-object precedent (NOT member theme tokens).
+- **THE COUNTDOWN** — the open checklist items as scannable rows via new pure
+  **`src/lib/console-triage.mjs`** (+`.d.ts`, the funnel pattern;
+  `tests/console-triage.test.mjs`): WHO chips (YOU / EXT / ENG — named
+  outsiders like Apple/counsel/Stripe Connect beat status; `manual`→YOU;
+  `pending` naming an OWNER act→YOU), deterministic first-clause summaries;
+  a row expands to the full item text VERBATIM. Filters + readiness bar.
+- **IN FLIGHT** — new **`GET /api/console/flight`** (admin-gated, 60s cache,
+  registered in `RAW_ROUTES` under System): open PRs with the three merge
+  gates + `AWAITING YOUR WORD` only when ALL gates are genuinely green;
+  `main` CI feeds the alarm strip. The gate DECISIONS are pure tested logic
+  (**`src/lib/console-flight.mjs`** + `tests/console-flight.test.mjs`):
+  CI green requires **every** required check present by name (a subset can
+  never read green); CodeRabbit verdicts count **on the current head only**,
+  with the **clean pass read from the edited summary comment** (a clean
+  review submits no APPROVED record — the house rule, now encoded); trusted
+  bots matched by **exact login** (substring matching was spoofable on a
+  public repo, CWE-290). **Honesty contract:** no record renders `—` (never
+  ✓/✗), loading is a skeleton, GitHub-down reads unavailable, the alarm strip
+  only claims segments it knows. ⚠ **OWNER (optional): set `GITHUB_TOKEN`**
+  (repo read) in Vercel — without it the panel says exactly that and the rest
+  of the board runs fine. No migration.
+- **Dormant BUSINESS / MEMBER ACTIVITY slots** — the unified-dashboard
+  decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
+  data to put in them, so they render as labelled dormant slots — **never
+  zeroed panels** (a fabricated 0 would read as measured activity).
+- **Review rounds (15 findings across 7 rounds, all real, all fixed).**
+  **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
+  all-required-checks became the tested `console-flight.mjs`; exact-login bot
+  identity (substring matching was spoofable, CWE-290); shared
+  `flight-types.ts`; `groupOf()` learns `/api/console` → System; a
+  `human review` EXT test vector. **Round 2** (2 Codex, both in the round-1
+  fix — the fix commit is not exempt from review): ⚠ **`completed` ≠
+  `success`** — GitHub marks `startup_failure` / `stale` as completed, so a
+  presence-only gate read them GREEN; green now requires every required check
+  present AND `conclusion === 'success'`, with ambiguous conclusions
+  (`neutral`/`skipped`/null) reading `none`. And ⚠ **the readiness bar was
+  measuring the wrong thing** — `snap.readiness` is required-CONFIG-group
+  readiness, not checklist progress, so a config-complete install would have
+  shown a full bar beside dozens of open items; the bar now reads
+  `CHECKLIST n/m CLOSED` from the triage counts (the same set the open count
+  comes from) and config gets its own labelled line. **The rule that
+  generalizes: a progress bar must share its denominator with the number it
+  sits next to.** **Round 3** (2 Codex P2, both real): ⚠ the **owner regex
+  matched CLOSED decisions** — the records are full of "the owner ruled C" /
+  "(owner call)" / "owner pick", so engineering work was dragged into the YOU
+  lane and the counts the board LEADS with were wrong; `YOU_RE` is now
+  action-shaped (OWNER MIGRATION/ACTION/runs · needs the owner · on-device
+  pass · needs a house call · unruled) with ENG as the safe default, and was
+  **validated against the real 513-item checklist** — Codex's cited vector
+  (spec #1834, whose rulings are closed but whose blockers are the AI contract
+  + entitlement layer) now correctly reads ENG. And ⚠ an **unknown CI feed
+  rendered as a global green**: with no `GITHUB_TOKEN` the strip read "✓ ALL
+  SYSTEMS NOMINAL … CI MAIN — NO FEED"; it now reads "◦ NO ALARMS — STATUS
+  PARTIAL" in neutral until every segment is known. **An unread gate is not a
+  passed gate — the rule the PR chips already obeyed, now applied to the strip
+  above them.** **Round 4** (1 Codex P2): the round-3 owner regex matched only
+  the literal phrase `on-device pass`, so **`On-device WebGL verification`
+  landed in ENG**. Rather than patch the one cited vector, the whole ENG lane
+  was re-run against the real checklist — the same class was wrong in **two
+  more** places (`a manual browser/device pass`, `Live HRM on device: native
+  build`) plus repo-admin work (`enable security updates in repo settings`)
+  that reads like engineering but no engineering can close. `YOU_RE` is now
+  three documented classes — **owner-named · hands-on · privileged** — and the
+  audit re-run confirms exactly those 4 moved (ENG 11 → 7) with the other 7
+  correctly engineering. **Owner work is not one phrase; it's whatever only the
+  owner can do.** **Round 5** (1 Codex P2): EXT was matched before everything
+  else, so **naming a supplier inside your own task handed it to the supplier**
+  — `OWNER — apply migration + set station row` (`warroom.ts:1312`) read EXT
+  because the SQL contains a Radio.co URL, and the same precedence overrode the
+  `manual` fallback. Two changes, both from the same audit run over the real
+  EXT lane: **owner precedence** (an `OWNER —`/`OWNER:` marker — case-sensitive
+  and anchored, so lowercase prose like "the product-photography owner item"
+  stays put — wins over EXT), and **EXT now matches the item's SUBJECT with
+  parenthetical asides stripped**, because in these records parentheses carry
+  explanation, not dependency: `(Spotify tempo API deprecated for new apps)` is
+  a dead end we are not waiting on. `native(-speaker) pass` joined EXT so the
+  translator item keeps its lane on its own subject. Audit: EXT 21 → 17 (3
+  owner tasks → YOU, BPM → ENG), everything else unchanged, and `OWNER /
+  COUNSEL` correctly stays EXT — its blocker really is counsel. **A name that
+  appears in your task is not automatically who you're waiting on.**
+  **Round 6** (1 Codex **P1**, and the sharpest of the six): the clean-pass
+  reader accepted only the literal `Actionable comments posted: 0`, but
+  CodeRabbit also closes clean with **`No actionable comments were
+  generated`** — so a genuinely clean PR would sit at `commented` forever and
+  the gate could never open. `docs/HANDOFF-2026-06-22.md` names both markers
+  and the 2026-06-24 WORKLOG entry explicitly warns against polling for the
+  one literal string; **this build was written against the exact string the
+  house had already learned not to trust.** Fixing it surfaced a second,
+  worse case live on this PR: CodeRabbit was **rate-limited by the org
+  spending cap** and had posted `Review limit reached … we couldn't start this
+  review` — a notice that **carries the head SHA in its commit-range block**,
+  so anything keying on "the summary mentions the head" reads a cap as a
+  completed pass. That is the same mistake the WORKLOG records from #1484/#1485.
+  CodeRabbit now has its own **`limited`** verdict (checked first, allowed to
+  dominate a stale zero-marker), `Gate` gains **`blocked`** (⚠ — could not run,
+  which is none of failed/pending/absent), and the PR tag reads **`CR LIMIT
+  REACHED`** instead of the false `IN REVIEW`. Verified by running the real
+  gate code against this PR's live GitHub payload: CI `green` · CodeRabbit
+  `limited` · Codex `present` · **`allGreen: false`**. **A gate that could not
+  run is not a gate that passed — and the wording a vendor uses for "clean" is
+  not a contract.**
+- **⚠ Merge-gate deviation, owner-ruled 2026-07-27: the CodeRabbit gate was
+  WAIVED on this PR.** CodeRabbit's last review here was of the ORIGINAL head
+  (`bff3a3fa`); it never saw any of the six fix commits, because six fix-by-fix
+  pushes in ~90 minutes exhausted the org review cap. The owner's call was
+  "forget CodeRabbit on this PR now". **PR-scoped — the default (wait for
+  CodeRabbit on the final head) stands on every other PR.** The cost lesson is
+  the durable one: **a push is a purchase.** Batch fixes into ONE push; audit
+  the whole class locally first (this entry's round-4/5/6 audits each found
+  siblings the reviewer had not yet reached). **Round 7** (1 Codex P2, fixed
+  without re-triggering a review — a plain push does not summon Codex): the new
+  `limited` state was the one thing in the module NOT head-pinned, so a cap
+  notice left behind by a cleared cap would have stranded every later push at
+  `CR LIMIT REACHED`. Now head-pinned like the clean markers — CodeRabbit keeps
+  its commit-range current while capped, so a live cap still matches while an
+  old one correctly says nothing about the current head.
+
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 
 - **Dependabot alert #12 cleared** — `sharp` <0.35.0, HIGH, runtime scope (four
