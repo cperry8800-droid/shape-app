@@ -114,7 +114,32 @@ export function bsAssignMeal(text) {
 // `detail` comes off a PUBLIC-READ provider row, so a crafted plan can carry a
 // huge array. Bound the scan the way planPreview.mjs already does.
 const DAYS_SCAN = 7;
-const DAY_BLOCK_SCAN = 40;
+// The EDITOR enforces this same number at authoring time, with visible
+// feedback. The reader's slice below is a backstop against data written by
+// something other than our editor — it must never be the thing that decides a
+// coach's 41st meal disappears, because silent truncation on the write path is
+// how published-but-never-delivered paid content happens.
+export const BS_DAY_BLOCK_MAX = 40;
+
+// ⚠ DELIVERY DOES NOT TRUNCATE AN OVERRIDE — deliberately, and by this
+// contract's own rule: *a display bound may truncate; a delivery bound may only
+// ever truncate data that could not have been authored in good faith.*
+//
+// A 41st meal on a day CAN be authored in good faith — the editor produces one
+// the moment a coach varies a legacy plan whose uncapped default already holds
+// more than 40. An earlier revision capped each override at 40 here, which made
+// that content vanish on assign; raising the cap to a floor of the default's
+// length only moved the trap (trim the default afterwards and the day becomes
+// unpublishable). Both were the same mistake the legacy `blocks` exemption
+// above already rules out, so `days` now gets the same treatment as `blocks`:
+// **delivery serves what was stored.**
+//
+// The economy bound lives where the exposure is — planPreview re-caps every
+// resolved day at BS_DAY_BLOCK_MAX before scanning, and the preview is the only
+// surface a crafted public-read row reaches unauthenticated. Assign is an
+// authenticated coach acting on their own plan, and it has always delivered an
+// unbounded `detail.blocks`.
+
 
 // A dow is valid only as a real integer 0..6 (0 = MONDAY, matching
 // BS_ASSIGN_DOW and bsRepeatSpec — NOT the reminders table's 0 = Sunday).
@@ -140,19 +165,43 @@ function validDow(v) {
 // normalization delivery uses, or the claim and the product diverge.
 // (Identity never matters either way: a per-day authoring UI naturally
 // produces fresh objects for an unmodified day.)
-function deliveredTexts(list) {
+// ⚠ The coercion is `raw || ''`, NOT `String(raw)`. Assign's mealsFrom reduces
+// each block with `String(((b && b.text != null) ? b.text : b) || '').trim()`
+// and skips the empties, so a `false`, a `0` or a `NaN` in a blocks array
+// delivers NOTHING. Coercing with plain String() turns those into the non-empty
+// texts "false" and "0", and a default ['Breakfast'] against an override
+// ['Breakfast', false] would then compare as DIFFERENT while delivering the
+// identical menu — "menus vary by day" on a paid listing, with a phantom meal
+// inflating the weekly count. Same rule as ever, one level deeper: the claim
+// must be computed with the same semantics as the thing it claims about,
+// including the coercion.
+function deliveredTexts(list, cap) {
   const out = [];
-  for (const b of (Array.isArray(list) ? list : [])) {
+  for (const b of (Array.isArray(list) ? list.slice(0, cap) : [])) {
     const raw = (b && b.text != null) ? b.text : b;
-    const t = String(raw == null ? '' : raw).trim();
+    const t = String(raw || '').trim();
     if (t) out.push(t);
   }
   return out;
 }
+// ⚠ The COMPARISON is bounded even though delivery is not, and the two are not
+// in tension: `perDay` is consumed by exactly one thing — the marketplace
+// preview's "Menus vary by day" claim — while delivery reads `days`. Leaving
+// this unbounded meant a crafted public-read row could make the PUBLIC listing
+// normalize every attacker-supplied block, because bsPlanPreview calls this
+// function before applying its own 40/day cap; the cap then only governed the
+// later rendering pass.
+//
+// Bounding at BS_DAY_BLOCK_MAX keeps the claim honest rather than approximate:
+// the preview shows at most that many meals per day, so a difference that
+// appears only past the bound is one no buyer could see before paying, and
+// counting it would advertise variation they cannot verify. Same rule as the
+// rest of this file — the claim is computed with the same semantics as the
+// thing it claims about, and here that thing is the preview.
 function sameBlocks(a, b) {
   if (a === b) return true;
-  const ta = deliveredTexts(a);
-  const tb = deliveredTexts(b);
+  const ta = deliveredTexts(a, BS_DAY_BLOCK_MAX);
+  const tb = deliveredTexts(b, BS_DAY_BLOCK_MAX);
   if (ta.length !== tb.length) return false;
   for (let i = 0; i < ta.length; i += 1) if (ta[i] !== tb[i]) return false;
   return true;
@@ -183,7 +232,7 @@ export function bsPlanWeek(detail) {
       if (!validDow(entry.dow)) continue;
       if (byDow.has(entry.dow)) continue;          // first authored entry wins
       if (!Array.isArray(entry.blocks)) continue;  // a day with no list inherits
-      byDow.set(entry.dow, entry.blocks.slice(0, DAY_BLOCK_SCAN));
+      byDow.set(entry.dow, entry.blocks);
     }
   }
 
@@ -201,6 +250,42 @@ export function bsPlanWeek(detail) {
     if (!sameBlocks(days[i].blocks, days[0].blocks)) perDay = true;
   }
   return { perDay, days };
+}
+
+// The WRITER's half of the same contract, deliberately in this file: whatever
+// canonicalizes `days` on publish has to agree with bsPlanWeek above, and two
+// modules is how they stop agreeing. The editor calls this; bsPlanWeek reads
+// what it produces.
+//
+// Order of operations matters and is not interchangeable: **dedupe FIRST, in
+// the caller's original order (first entry wins), THEN sort by dow.** The reader
+// resolves duplicates first-wins over the stored order, so deduping last-wins —
+// or sorting before deduping, which lets a stable sort reorder equal dows —
+// could store a different winner than every read of it resolves. The stored data
+// would then disagree with the only function that interprets it.
+//
+// Invalid entries are DROPPED, not repaired, matching the reader: a day we can't
+// place is a day that inherits the default menu, which is the honest degrade.
+// Nothing here truncates — the block bound is enforced at authoring where the
+// coach can see it happen.
+export function bsCanonicalDays(days) {
+  const seen = new Set();
+  const out = [];
+  // ⚠ The SAME raw slice the reader applies. bsPlanWeek takes the first
+  // DAYS_SCAN entries and validates them afterwards, so a scan over the whole
+  // array here would disagree with it: for 7 junk entries followed by a real
+  // Thursday, canonicalizing would PROMOTE Thursday into the first seven and
+  // change the menu that day serves. Writer and reader must consider the same
+  // entries, or canonicalization stops being lossless.
+  for (const entry of (Array.isArray(days) ? days : []).slice(0, DAYS_SCAN)) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    if (!validDow(entry.dow)) continue;
+    if (!Array.isArray(entry.blocks)) continue;
+    if (seen.has(entry.dow)) continue;
+    seen.add(entry.dow);
+    out.push({ dow: entry.dow, blocks: entry.blocks });
+  }
+  return out.sort((a, b) => a.dow - b.dow);
 }
 
 export function bsAssignIso(d) {
