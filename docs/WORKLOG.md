@@ -218,7 +218,8 @@ changelog whenever something ships.
 > from the payload, or indexing by position, passed all 884 tests, because neither changes
 > the first paint. **Open next in the wave:** no published plan can be reopened for editing
 > (per-day or not) — `openDraft` ignores the row and `publishDraft` only ever creates, so
-> stored day menus are write-once in practice; registered in the contract's §8.
+> stored day menus are write-once in practice; registered in the contract's §8. Handoff:
+> **[`docs/HANDOFF-2026-07-27.md`](HANDOFF-2026-07-27.md)**.
 >
 > **Prior (2026-07-26): NUTRITION WEEK-BLOCK PROGRAMS — RULED + SPEC'D, build starts
 > next session (#1834, OPEN).** The owner ruled **C** (multi-week menus) and answered
