@@ -286,23 +286,34 @@ baseline you cannot trust is worse than no baseline at all. Consequently the
 return anchors top out at 56 days (F61–F62); the ≥84-day case is a regime
 handoff, never a fifth return fraction.
 
-### Rule B — a zero or implausibly small baseline
+### Rule B — a baseline below the curve's own domain
 
-A baseline of exactly 0 is **unreachable by construction**: a week is measured
-only when `rated > eligible / 2`, which forces `rated ≥ 1`, and a rated session
-has RPE 1–10 and duration > 0, so its AU is positive.
+Two separate assertions, kept separate on purpose.
 
-That reasoning is exactly the kind that turns out to be wrong, and the failure
-mode is severe — a 0 baseline makes every percentage ceiling 0, so *every*
-proposed week goes red, and the ratio divides by zero. A guard holds regardless:
+**B1 — a baseline of exactly 0 is unreachable by construction**: a week is
+measured only when `rated > eligible / 2`, which forces `rated ≥ 1`, and a rated
+session has RPE 1–10 over a positive duration, so its AU is positive. That is
+exactly the class of reasoning that turns out to be wrong, and the failure is
+severe — every ceiling becomes 0, every week goes red, the ratio divides by zero.
+`baseline <= 0` is therefore asserted independently and routes to `cold_start`.
 
-> **`baseline <= 0` or `baseline < 100 AU` → `cold_start`, reason
-> `baseline_below_floor`. No percentage is ever computed against it.**
+**B2 — the floor is 500 AU, the ramp curve's own lowest anchor.**
 
-100 AU is the existing gap-breaking session minimum, reused rather than
-invented: below one minimum session's worth of weekly work there is nothing to
-ramp from. This also catches the realistic version of the bug — not exactly 0,
-but a baseline of 0.02 AU built from sub-minute sessions.
+> **`baseline < 500 AU` → `cold_start`, reason `baseline_below_floor`. No
+> percentage is ever computed against it.**
+
+An earlier draft put this at 100 AU, which caught the degenerate 0.02 AU case and
+left a real one open: **percentages of a tiny baseline are meaningless.** A
+client at 200 AU who adds a second session reaches 400 AU — a 100% increase.
+The ramp curve clamps to 40% below its first anchor and the red curve to 75%, so
+that week resolves **red** for ordinary beginner progression. The guardrail would
+have been at its loudest for the people least able to interpret it.
+
+500 is not a new number: below its lowest anchor the curve is outside its own
+domain, so applying it there is extrapolation dressed as measurement. Same
+principle as the staleness horizon — **one threshold, expressed once.** Under 500
+AU the absolute session-count caps of §6.1 govern, which is what they were
+recalibrated to do.
 
 ### Rule C — malformed input is reported, never coerced
 
@@ -333,6 +344,76 @@ a client-side defect quietly produce a wrong baseline forever.
 | F110 | malformed — `durationSec: -30` | `unknown` / `malformed_history`, names the row |
 | F111 | malformed — `sessionRpe: 11` | `unknown` / `malformed_history` |
 | F112 | malformed — missing `dateISO` | `unknown` / `malformed_history` |
+| F113 | **baseline 499 AU** | `cold_start`, `reason: 'baseline_below_floor'` — the absolute session-count caps govern |
+| F114 | **baseline 500 AU exactly** | `measured` — the floor is *below*, not *at or below*, matching the curve's own first anchor |
+| F115 | **the beginner who adds a second session** — baseline 200 AU, proposed 400 AU across 2 sessions | **NOT red.** Under the old 100 AU floor this was a 100% increase against a curve clamped to 40%/75% and resolved red. It now routes to the absolute caps (2 × 600 = 1200 amber) and is **green** |
+| F116 | `baseline <= 0` | `cold_start` — asserted separately from F113, per rule B1 |
+| F117 | **return band is FLAT between anchors and beyond the last** — 56 / 70 / 83 days | 40% at all three. Same clamp convention as the ramp curve below 500 AU; the band is defined, not undefined (F62 covers 70 days; these pin the whole band) |
+| F118 | **`unknown` is not a flag state** | a malformed or incomplete result carries `state: 'unknown'` and **no axes, no ceilings, no red path** — it must be impossible to read it as green *or* as a flag |
+
+### Rule D — what `unknown` does downstream
+
+`unknown` means *we could not measure this*, which is not a finding about the
+training. It is also never the coach's fault: malformed history comes from a
+logging defect, not from the week they just authored.
+
+> **`unknown` must NOT block publish.** It is not a red, and a coach cannot be
+> gated on data quality they did not cause.
+>
+> **It must be visible to the coach** — stated plainly as "this week could not be
+> checked", with the reason, never dressed as a pass.
+>
+> **It must be recorded in telemetry** with its `reason`, so malformed history
+> gets noticed and fixed instead of sitting silent behind a UI that looks fine.
+
+The middle requirement is the load-bearing one. Silently rendering nothing would
+be indistinguishable from green, and a coach would reasonably infer the week had
+been checked and passed.
+
+Fixture split, because the core cannot test I/O:
+- **2a (here):** F118 — the core returns `unknown` with a reason and **no** axes,
+  ceilings or red path.
+- **2b:** publish succeeds with `state: 'unknown'` and no acknowledgment; a
+  `guardrail_evaluated` row is written carrying `state: 'unknown'` and its
+  `reason`; the builder shows the could-not-check line.
+
+### Rule E — timezone, and where the conversion belongs ⚠ NEEDS YOUR RULING
+
+**These fixtures do not exist yet, and the current §0 contract cannot host them.**
+
+§0 defines `dateISO` as *already client-local*, with the caller resolving the
+zone. Under that contract every timezone scenario executes in SQL — the one place
+it is not fixture-testable. That is exactly the objection that moved load
+derivation into the core, and I applied it inconsistently.
+
+**Proposed:** the core takes the instant and the zone, and does the conversion.
+
+```
+sessions: [{
+  startedAtISO: '2026-07-26T23:40:00Z',   // the instant, as stored
+  timezone:     'America/New_York',        // IANA, from shape_user_tz
+  durationSec, sessionRpe, durationConfirmed
+}]
+```
+
+`dateISO` is then derived, not supplied, and every scenario below becomes a 2a
+fixture. The core stays pure — an instant and a zone are inputs, no clock is
+read. The cost is that it now depends on `Intl.DateTimeFormat` for zone maths,
+which is available in Node, the browser and the Vite build alike.
+
+| # | Scenario | Expected |
+|---|---|---|
+| F119 | **Sunday late evening, negative UTC offset** — `2026-08-02T23:40:00Z` in `America/New_York` (local Sun 19:40) | buckets to the week starting **Mon 2026-07-27** — the local week it was actually trained in |
+| F120 | **the same instant read as UTC** | buckets to the week starting **Mon 2026-08-03** — the next week. F119 and F120 must differ, which is the whole point |
+| F121 | **local Monday 00:00 exactly** — `2026-08-03T04:00:00Z` in `America/New_York` | starts the week of **2026-08-03**, not the tail of the previous one |
+| F122 | **local Sunday 23:59** | last day of the *previous* Monday-start week |
+| F123 | **a week spanning a DST transition** — US spring-forward, 2026-03-08 | the week still contains exactly 7 local days; no session is lost or double-counted, and the 23-hour day does not shift a boundary |
+| F124 | **positive UTC offset** — `2026-08-03T21:00:00Z` in `Asia/Tokyo` (local Tue 06:00 the 4th) | buckets to the week starting **2026-08-03**; the date advances rather than retreats |
+| F125 | **unknown or invalid zone** | `unknown` / `malformed_history` — never silently bucketed in UTC, matching `shape_user_tz` returning NULL rather than guessing |
+
+**If you'd rather keep the conversion in SQL**, say so and F119–F125 move to 2b
+as integration fixtures — but then the five cases you named are tested against a
+database rather than as pure units, and 2a ships without them.
 
 ### One correction to your list
 
@@ -357,5 +438,15 @@ trailing window, the baseline floor, and malformed-vs-absent — each with
 fixtures. Rule A tightened the return anchors: 56 days is the last fraction, and
 ≥84 days is a regime handoff rather than a fifth anchor.
 
-**112 fixtures. This table is the definition of done for 2a — a rule with no row
-here will not get built.**
+Rules D (`unknown` downstream) and E (timezone) were added on the following
+review, with the baseline floor raised from 100 AU to **500 AU** — the ramp
+curve's own lowest anchor — after the 200 AU beginner case (F115) showed the old
+floor left ordinary progression resolving red.
+
+**125 fixtures — 118 ruled, and F119–F125 pending the Rule E timezone ruling.
+This table is the definition of done for 2a: a rule with no row here will not get
+built.**
+
+⚠ **One item blocks implementation: Rule E.** The five timezone scenarios do not
+exist yet under the current contract, because §0 puts the conversion in the
+caller. Ruling that in moves them here; ruling it out sends them to 2b.

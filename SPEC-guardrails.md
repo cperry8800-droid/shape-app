@@ -341,7 +341,7 @@ a small absolute change.
 | < 14 | *no return rule* |
 | 14 | 70% of pre-break baseline |
 | 28 | 55% |
-| ≥ 56 | 40% — the last fraction |
+| 56 – 83 | **40%, flat** — the last anchor, held flat to the horizon, exactly as the ramp curve is held flat below 500 AU. Defined, not undefined |
 | ≥ 84 | **Not floored** — baseline is stale; route to the cold-start regime |
 
 The 84-day rule is a **regime handoff, not a fifth fraction**. There is no third
@@ -440,14 +440,34 @@ Where the window and the gap rule disagree — qualifying weeks still in reach, 
 no qualifying session for 84+ days — **the stale rule wins and routes to
 `cold_start`.** A baseline you cannot trust is worse than no baseline.
 
-**The baseline floor.** A baseline of exactly 0 is unreachable by construction (a
-measured week forces at least one rated session, and a rated session has RPE 1–10
-over a positive duration). That is precisely the kind of reasoning that turns out
-to be wrong, and the failure is severe: a 0 baseline makes every ceiling 0, so
-every week goes red and the ratio divides by zero. A guard holds regardless —
-**`baseline <= 0` or `baseline < 100 AU` → `cold_start`, reason
-`baseline_below_floor`, and no percentage is ever computed against it.** 100 AU
-is the existing gap-breaking minimum reused, not a new number.
+**The baseline floor is 500 AU — the ramp curve's own lowest anchor.** Below its
+first anchor the curve is outside its domain, so applying it there is
+extrapolation dressed as measurement. **`baseline < 500 AU` → `cold_start`,
+reason `baseline_below_floor`, and no percentage is ever computed against it.**
+The absolute session-count caps of §6.1 govern instead, which is what they were
+recalibrated to do.
+
+An earlier draft put this at 100 AU and left a real failure open: percentages of
+a tiny baseline are meaningless. A client at 200 AU who adds a second session
+reaches 400 AU — a 100% increase — and with the ramp clamped to 40% and the red
+curve to 75% below their first anchors, that resolved **red for ordinary beginner
+progression**. The guardrail would have been loudest for the people least able to
+interpret it.
+
+Separately, **`baseline <= 0` is asserted in its own right.** It is unreachable by
+construction (a measured week forces at least one rated session, and a rated
+session has RPE 1–10 over a positive duration) — which is precisely the class of
+reasoning that turns out to be wrong, and the failure is severe: every ceiling
+becomes 0, every week goes red, the ratio divides by zero.
+
+**`unknown` never blocks publish.** It means *we could not measure this*, which is
+not a finding about the training and never the coach's fault — malformed history
+comes from a logging defect, not from the week they authored. It must be **shown
+to the coach** as "this week could not be checked", with the reason, never
+rendered as silence: silence is indistinguishable from green, and a coach would
+reasonably infer the week passed. It must be **recorded in telemetry** with its
+reason, so malformed history gets fixed instead of sitting behind a UI that looks
+fine.
 
 Amber ceiling from `BS_RAMP_ANCHORS`, red curve from `BS_RED_ANCHORS`, both
 against that baseline.
