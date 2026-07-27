@@ -589,6 +589,8 @@ function tally(classified) {
     if (c.rated) {
       rated += 1;
       loadAu += c.au;
+      // `>` vs `>=` here is an EQUIVALENT mutation — both leave the max. Noted
+      // so a future sweep does not chase it as an unguarded fact.
       if (c.au > hardestAu) hardestAu = c.au;
     }
   }
@@ -836,6 +838,13 @@ export function bsBaseline(sessions, todayISO) {
   // two can never describe different stretches of training. Zero means the
   // window holds no rated session at all, which is absence rather than a
   // hardest session of nothing.
+  //
+  // ⚠ THE ZERO BRANCH CANNOT FIRE FROM HERE, and a perturbation sweep proved
+  // it: a week only qualifies when `rated > eligible / 2`, and a zero-AU
+  // session is not even ELIGIBLE — so every window that reaches this line holds
+  // a rated session with real load. Kept because the field is genuinely
+  // nullable to its callers (§8 falls back to the absolute peak bound when it
+  // is null) and because "cannot fire" is the claim that stops being true.
   const hardest = windowWeeks.reduce((max, w) => (w.hardestAu > max ? w.hardestAu : max), 0);
 
   // `rawAu` carries the computed figure for telemetry while `au` stays null, so

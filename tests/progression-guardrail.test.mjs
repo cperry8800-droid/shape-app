@@ -667,6 +667,29 @@ test('F125 — an unknown or unusable zone is MALFORMED, never bucketed in UTC',
   assert.doesNotThrow(() => bsLocalWeek('2026-08-03T02:40:00Z', Symbol('tz')));
 });
 
+test('the zone cache is bounded, and eviction never changes an answer', () => {
+  // The formatter cache is capped so a long-lived server process cannot grow it
+  // without limit on caller-supplied zone strings. The CAP is a resource bound,
+  // not a rule — no behavioural test can observe it. What a test CAN observe is
+  // the risk the cap introduces: a zone evicted and rebuilt must bucket
+  // identically. Push well past the cap with real zones, then re-read the first.
+  const ZONES = ['America/New_York', 'Europe/London', 'Asia/Tokyo', 'Australia/Sydney',
+    'America/Sao_Paulo', 'Africa/Lagos', 'Asia/Kolkata', 'Europe/Berlin'];
+  const one = (tz) => bsLocalWeek({ startedAtISO: '2026-07-29T02:30:00Z', timezone: tz });
+  const first = one('Pacific/Auckland');
+
+  // 80+ distinct zone strings through the cache — more than the cap holds.
+  for (let i = 0; i < 12; i += 1) {
+    for (const tz of ZONES) one(tz);
+    // ...including ones that will never resolve, which are cached as misses.
+    one(`Not/AZone${i}`);
+  }
+
+  assert.deepEqual(one('Pacific/Auckland'), first,
+    'a zone that was evicted and rebuilt buckets identically');
+  assert.equal(one('Not/AZone0'), null, 'and an invalid zone is still rejected after eviction');
+});
+
 test('F112 — a missing or unparseable instant is MALFORMED', () => {
   for (const at of [undefined, null, '', 'yesterday', 42, {}, '2026-13-45T00:00:00Z']) {
     const c = bsClassifySession(row({ startedAtISO: at }), 4);
@@ -1617,10 +1640,20 @@ test('F64 / F65 — a light session does not reset a gap, a real one does', () =
   assert.equal(real.gapDays, 10, 'F65 a 140 AU session does');
   assert.equal(real.lastRealISO, D10);
 
-  // Strictly OVER the floor, matching the week tally's own test so the two can
-  // never disagree about which sessions are real.
-  const exact = bsHistoryGap([anchor, on(D10, BS_GAP_SESSION_FLOOR_AU, 1)], TODAY);
-  assert.equal(exact.gapDays, 40, '100 AU exactly does not reset it');
+  // ⚠ THE FLOOR IS PINNED WITH LITERALS ON BOTH SIDES, and that matters more
+  // than it looks. A test written in terms of the constant moves WITH the
+  // constant: `on(D10, BS_GAP_SESSION_FLOOR_AU, 1)` builds a session at
+  // whatever the floor happens to be, so it passes at 90 and at 110 alike. A
+  // perturbation sweep found exactly that — the floor could drift either way
+  // with the whole suite green, and 60/140 sit too far out to notice.
+  //
+  // 100 does not reset (so the rule is strictly OVER) and 101 does. Together
+  // those two literals admit exactly one floor.
+  assert.equal(BS_GAP_SESSION_FLOOR_AU, 100, 'the floor is 100 AU — retuning it is a fixture change');
+  assert.equal(bsHistoryGap([anchor, on(D10, 100, 1)], TODAY).gapDays, 40,
+    '100 AU exactly does not reset it');
+  assert.equal(bsHistoryGap([anchor, on(D10, 101, 1)], TODAY).gapDays, 10,
+    '101 AU does');
 });
 
 test('an UNRATED session cannot reset a gap — and that error runs safe', () => {
