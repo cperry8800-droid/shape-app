@@ -1101,7 +1101,7 @@ changelog whenever something ships.
   decomposition's pieces 1–2, wired at launch. Pre-launch there is no real
   data to put in them, so they render as labelled dormant slots — **never
   zeroed panels** (a fabricated 0 would read as measured activity).
-- **Review rounds (9 findings across 2 rounds, all real, all fixed).**
+- **Review rounds (12 findings across 4 rounds, all real, all fixed).**
   **Round 1** (2 Codex P1 + 5 CodeRabbit): clean-pass recognition +
   all-required-checks became the tested `console-flight.mjs`; exact-login bot
   identity (substring matching was spoofable, CWE-290); shared
@@ -1131,7 +1131,17 @@ changelog whenever something ships.
   SYSTEMS NOMINAL … CI MAIN — NO FEED"; it now reads "◦ NO ALARMS — STATUS
   PARTIAL" in neutral until every segment is known. **An unread gate is not a
   passed gate — the rule the PR chips already obeyed, now applied to the strip
-  above them.**
+  above them.** **Round 4** (1 Codex P2): the round-3 owner regex matched only
+  the literal phrase `on-device pass`, so **`On-device WebGL verification`
+  landed in ENG**. Rather than patch the one cited vector, the whole ENG lane
+  was re-run against the real checklist — the same class was wrong in **two
+  more** places (`a manual browser/device pass`, `Live HRM on device: native
+  build`) plus repo-admin work (`enable security updates in repo settings`)
+  that reads like engineering but no engineering can close. `YOU_RE` is now
+  three documented classes — **owner-named · hands-on · privileged** — and the
+  audit re-run confirms exactly those 4 moved (ENG 11 → 7) with the other 7
+  correctly engineering. **Owner work is not one phrase; it's whatever only the
+  owner can do.**
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 

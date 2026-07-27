@@ -41,6 +41,45 @@ test('classifyWho — a CLOSED owner decision is history, not an owner action (r
   assert.equal(classifyWho({ status: 'pending', label: 'Home rail B shipped — owner pick off the concept board' }), 'eng');
 });
 
+test('classifyWho — hands-on verification is owner work however it is phrased (round-4 P2)', () => {
+  // Codex's vector (warroom.ts:1318) plus the two siblings the same audit found
+  // — one fixed phrase would have caught only the first of the three.
+  assert.equal(
+    classifyWho({ status: 'pending', label: 'On-device WebGL verification (iOS/Android native build)' }),
+    'you'
+  );
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label: 'Deferred: useUserGoals hook + newdesign shared-includes (need a manual browser/device pass)',
+    }),
+    'you'
+  );
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label:
+        'Live HRM on device: native build w/ @capacitor-community/bluetooth-le (npx cap sync); works today in Chrome via Web Bluetooth',
+    }),
+    'you'
+  );
+  // Repo admin: reads like engineering, but no engineering can close it.
+  assert.equal(
+    classifyWho({
+      status: 'pending',
+      label:
+        'Dependabot: monthly grouped minor/patch (root npm, mobile npm, actions); enable security updates in repo settings',
+    }),
+    'you'
+  );
+});
+
+test('classifyWho — a device that merely appears near "pass" is not a pass', () => {
+  // `\bpass\b` must not fire on "password"; broadening (b) must not leak.
+  assert.equal(classifyWho({ status: 'pending', label: 'Device password reset flow' }), 'eng');
+  assert.equal(classifyWho({ status: 'pending', label: 'Rebuild the device-linking browser handoff' }), 'eng');
+});
+
 test('classifyWho — "legal" alone is not counsel (ENG items mention legal pages)', () => {
   assert.equal(classifyWho({ status: 'pending', label: 'Rework the legal pages footer nav' }), 'eng');
 });

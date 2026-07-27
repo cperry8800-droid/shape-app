@@ -15,14 +15,30 @@
 const EXT_RE =
   /apple|apns|ios build|app store|xcode|testflight|garmin|spotify|stripe connect|radio\.co|counsel|attorney|photograph|translation review|human review/i;
 
-// A `pending` item that names an OUTSTANDING owner act is still YOURS.
-// Deliberately action-shaped: the records are full of CLOSED owner decisions
-// ("the owner ruled C", "owner pick K", "(owner call)"), and matching those
-// would drag engineering work into the YOU lane and corrupt the counts —
-// which is the whole point of the lane. When in doubt the item stays ENG:
-// engineering triage is the safe default, a false YOU is not.
-const YOU_RE =
-  /\bOWNER\s*(?:ACTION|MIGRATION|RUNS|PASS|APPLIES|SETS|CONFIRMS|\(optional\)|:)|\bowner\s+(?:runs|applies|must|needs|to run|sign-?off)|needs? the owner|awaiting (?:the )?owner|pending (?:the )?owner|still owed by the owner|owner['’]s (?:go|word) (?:is )?(?:still )?(?:needed|pending|outstanding)|\bunruled\b|on-device pass|needs? a house (?:call|ruling)|brand-voice call/i;
+// A `pending` item that names an OUTSTANDING owner act is still YOURS, in one
+// of three shapes. Deliberately action-shaped: the records are full of CLOSED
+// owner decisions ("the owner ruled C", "owner pick K", "(owner call)"), and
+// matching those would drag engineering work into the YOU lane and corrupt the
+// counts — which is the whole point of the lane. When in doubt the item stays
+// ENG: engineering triage is the safe default, a false YOU is not.
+
+// (a) The item names the owner as the actor on something still outstanding.
+const OWNER_NAMED = String.raw`\bOWNER\s*(?:ACTION|MIGRATION|RUNS|PASS|APPLIES|SETS|CONFIRMS|\(optional\)|:)|\bowner\s+(?:runs|applies|must|needs|to run|sign-?off)|needs? the owner|awaiting (?:the )?owner|pending (?:the )?owner|still owed by the owner|owner['’]s (?:go|word) (?:is )?(?:still )?(?:needed|pending|outstanding)|\bunruled\b|needs? a house (?:call|ruling)|brand-voice call`;
+
+// (b) A verification act on real hardware — someone has to hold the phone and
+// look at the screen. Phrased many ways in the records ("on-device pass",
+// "On-device WebGL verification", "a manual browser/device pass"), so this
+// matches the on-device/device subject with its verification verb, not one
+// fixed phrase. "Device password reset" is not a match: `\bpass\b` needs the
+// word boundary.
+const HANDS_ON = String.raw`\bon[-\s]?device\b[^.·]{0,30}?\b(?:pass(?:es)?|verification|check)\b|\b(?:browser|device)[\w/ -]{0,12}\bpass\b`;
+
+// (c) Acts outside the agent's reach whoever writes the code: a native
+// toolchain build (Xcode/Android Studio on the owner's machine) and repo admin
+// settings. These read as engineering work but no engineering can close them.
+const PRIVILEGED = String.raw`\bnative build\b|\brepo(?:sitory)? settings\b`;
+
+const YOU_RE = new RegExp([OWNER_NAMED, HANDS_ON, PRIVILEGED].join('|'), 'i');
 
 /**
  * @param {{label?: string, status?: string}} item
