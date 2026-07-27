@@ -36,10 +36,18 @@ test('zero signups -> all zero, no biggest drop, never divides by zero', () => {
   assert.equal(rows.some(r => r.isBiggestDrop), false);
 });
 
-test('event whitelist is exactly the 5 names', () => {
+// This assertion is deliberately exact rather than a `.includes()` check: it is
+// half of the guard on the two-place whitelist. track_event SILENTLY RETURNS on
+// a name it does not know, so an event added here but not to the SQL function
+// writes nothing and reports no error. Failing this test is the reminder to go
+// and edit the migration too — do not relax it to make an addition pass.
+test('event whitelist is exactly the 6 names', () => {
   assert.deepEqual([...ANALYTICS_EVENTS].sort(),
-    ['app_opened', 'checkout_started', 'onboarding_started', 'paywall_viewed', 'workout_started']);
+    ['app_opened', 'checkout_started', 'onboarding_started', 'paywall_viewed',
+     'session_rpe_prompted', 'workout_started']);
   assert.equal(isAnalyticsEvent('app_opened'), true);
+  // Added by 2026-07-27-session-rpe.sql, which extends track_event's own list.
+  assert.equal(isAnalyticsEvent('session_rpe_prompted'), true);
   assert.equal(isAnalyticsEvent('drop_table'), false);
   assert.equal(isAnalyticsEvent(''), false);
   assert.equal(isAnalyticsEvent(null), false);

@@ -16,6 +16,11 @@ export const FUNNEL_STEPS = [
 
 export const ANALYTICS_EVENTS = [
   'onboarding_started', 'app_opened', 'workout_started', 'paywall_viewed', 'checkout_started',
+  // session_rpe_prompted { rated } — skip rate for the post-session RPE prompt
+  // (SPEC-guardrails.md §10.2). track_event SILENTLY RETURNS on a name missing
+  // from its own list, so adding an event here alone writes nothing and reports
+  // no error: mirror every addition into 2026-07-27-session-rpe.sql.
+  'session_rpe_prompted',
 ];
 
 export function isAnalyticsEvent(name) {

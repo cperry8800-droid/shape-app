@@ -24261,7 +24261,17 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
   const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
   const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
-  const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
+  // Session RPE 1-10 — a GENUINE post-session rating, the primary input to
+  // session RPE load (SPEC-guardrails.md §3.1). This replaced a three-way
+  // easy/moderate/hard control: three qualitative buckets are a different
+  // construct from a 1-10 rating, and mapping one onto the other would fabricate
+  // precision the member never gave. null = skipped, and skipped stays NULL all
+  // the way to the column — never 0, which would read as "effortless".
+  const [sessionRpe, setSessionRpe] = useStateBSC(null);
+  // Duration fallback. The live timer supplies elapsedSec on this surface, so
+  // this is only ever shown when the timer plainly did not run (see the render).
+  // sRPE is a PRODUCT — a rating with no duration measures nothing.
+  const [manualMinutes, setManualMinutes] = useStateBSC('');
   const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
   // Seed the share toggle from the member's own share rule (Settings → Share
   // workout data × profile visibility) — auto-share is the DEFAULT for a
@@ -24427,6 +24437,17 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
   const elapsedSec = Math.floor((now - elapsedStart) / 1000);
+  // Session RPE load is RPE x MINUTES — a product, so a missing duration is not
+  // a small error, it is no measurement (SPEC-guardrails.md §3.1). The live
+  // timer owns duration whenever it ran; a "session" that finished in under a
+  // minute means it did not, and the member's typed minutes stand in. If
+  // neither is usable we keep the honest elapsed value: a zero-duration session
+  // is EXCLUDED downstream rather than scored, which beats inventing a number.
+  const timerRan = Number.isFinite(elapsedSec) && elapsedSec >= 60;
+  const manualSec = Math.round(Number(manualMinutes) * 60);
+  const loggedDurationSec = timerRan
+    ? elapsedSec
+    : (Number.isFinite(manualSec) && manualSec > 0 ? manualSec : elapsedSec);
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24594,13 +24615,20 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       const hr = hrSamples.length
         ? { avg: Math.round(hrSamples.reduce((s, x) => s + x.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length }
         : null;
+      // Skip rate is the ONLY read we have on whether the prompt is working —
+      // the derived estimator that would have papered over a high skip rate was
+      // deliberately cut (SPEC-guardrails.md §3.1), so this must fire on EVERY
+      // completion, rated or not, or the denominator is meaningless. Fired
+      // before the save so a save failure cannot silently drop the sample.
+      try { window.ShapeAnalytics?.track?.('session_rpe_prompted', { rated: sessionRpe != null }); } catch (e) {}
       await window.ShapeWorkoutLogs?.saveSessionLog?.({
         title: `${moves[0]?.m || 'Workout'} session`,
         workout: moves[0]?.m || 'workout',
-        durationSeconds: elapsedSec,
+        durationSeconds: loggedDurationSec,
+        sessionRpe,
         setLogs,
         hr,
-        review: { feel: reviewFeel, effort: reviewEffort },
+        review: { feel: reviewFeel, rpe: sessionRpe },
         // Checked → null = the member's share rule decides the audience
         // (public / followers / private-if-Off). Unchecked → force private.
         privacy: shareToFeed ? null : 'private',
@@ -24873,18 +24901,54 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           })}
         </div>
       </div>
+      {/* The effort — a real 1-10 session RPE. One tap, skippable: a skipped
+          rating is NULL, not a guess, and the session simply drops out of load
+          maths rather than being scored as easy (SPEC-guardrails.md §3.1). */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The effort</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']].map(([key, label], i) => {
-            const on = reviewEffort === key;
-            const c = i === 0 ? t.GREEN : i === 1 ? t.AMBER : t.RUST;
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>The effort</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>1 easy · 10 all-out</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+            const on = sessionRpe === n;
+            const c = n <= 4 ? t.GREEN : n <= 7 ? t.AMBER : t.RUST;
             return (
-              <button key={key} onClick={() => setReviewEffort(on ? null : key)} style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '11px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>
+              <button
+                key={n}
+                onClick={() => setSessionRpe(on ? null : n)}
+                aria-label={`Effort ${n} of 10`}
+                aria-pressed={on}
+                style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderBottom: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '13px 0', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}
+              >{n}</button>
             );
           })}
         </div>
-        {(reviewFeel || reviewEffort) && (
+
+        {/* Duration only appears when the timer plainly did not run. sRPE needs
+            both factors, so a rating with no minutes would measure nothing. */}
+        {!timerRan && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 6 }}>How long?</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="600"
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value)}
+                aria-label="Session length in minutes"
+                placeholder="—"
+                style={{ width: 96, borderRadius: 5, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 10px', fontFamily: t.MONO, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+              />
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>minutes</span>
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>The timer didn’t run for this one.</div>
+          </div>
+        )}
+
+        {(reviewFeel || sessionRpe != null) && (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>✓ Saved with your log — Jordan will see it</div>
         )}
       </div>

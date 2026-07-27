@@ -2217,10 +2217,35 @@ function normalizeWorkoutSensorSample(sample = {}) {
   };
 }
 
+// Post-session RPE → the workout_sessions.session_rpe column (SPEC-guardrails.md
+// §3.1). A SKIPPED rating is null, never 0: a session with no rating is excluded
+// from load maths, not recorded as effortless. Anything unparseable or outside
+// the column's 0-10 check also drops to null rather than clamping — a clamped
+// value would read downstream as a real rating, and a value that violated the
+// constraint would fail the whole session insert, losing the log over a rating.
+// True only for "this exact column does not exist yet" — PostgREST's schema-cache
+// miss (PGRST204) or Postgres undefined_column (42703), AND the column named in
+// the error text. The name check matters: a broad match would silently swallow a
+// DIFFERENT schema problem and retry an insert that should have failed loudly.
+function isMissingColumnError(error, column) {
+  const code = String((error && error.code) || '');
+  if (code !== 'PGRST204' && code !== '42703') return false;
+  const text = `${(error && error.message) || ''} ${(error && error.details) || ''}`;
+  return text.includes(column);
+}
+
+function normalizeSessionRpe(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 10) return null;
+  return Math.round(n * 10) / 10; // numeric(3,1)
+}
+
 async function saveStructuredWorkoutSession({
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
+  sessionRpe = null,
   setLogs = [],
   sensorSamples = [],
   privacy = 'private',
@@ -2250,6 +2275,7 @@ async function saveStructuredWorkoutSession({
     started_at: sessionStartedAt,
     ended_at: sessionEndedAt,
     duration_seconds: Math.max(0, Number(durationSeconds || 0)),
+    session_rpe: normalizeSessionRpe(sessionRpe),
     summary: {
       ...summary,
       completedSets,
@@ -2267,11 +2293,25 @@ async function saveStructuredWorkoutSession({
     return { stored: 'local', data: local };
   }
 
-  const { data: session, error: sessionError } = await supabase
+  // session_rpe arrives with 2026-07-27-session-rpe.sql. Until that migration is
+  // applied PostgREST rejects the WHOLE insert on the unknown column, which
+  // would cost the member their entire session log over an optional rating.
+  // Retry once without the field: the log is irreplaceable, the rating is not.
+  // Deliberately narrow — the retry fires only for this column, and every other
+  // error still throws untouched.
+  let { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
     .insert(sessionPayload)
     .select()
     .single();
+  if (sessionError && isMissingColumnError(sessionError, 'session_rpe')) {
+    const { session_rpe: _unsupported, ...payloadWithoutRpe } = sessionPayload;
+    ({ data: session, error: sessionError } = await supabase
+      .from('workout_sessions')
+      .insert(payloadWithoutRpe)
+      .select()
+      .single());
+  }
   if (sessionError) throw sessionError;
 
   const setRows = normalizedSetLogs.map((entry) => ({
@@ -2390,6 +2430,7 @@ async function saveWorkoutSessionLog({
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
+  sessionRpe = null, // post-session rating; null = skipped (SPEC-guardrails.md §3.1)
   setLogs = [],
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
@@ -2416,6 +2457,7 @@ async function saveWorkoutSessionLog({
     title,
     workout,
     durationSeconds,
+    sessionRpe,
     setLogs,
     sensorSamples,
     privacy,
