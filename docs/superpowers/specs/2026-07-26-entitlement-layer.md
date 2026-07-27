@@ -237,16 +237,47 @@ land before C2's end-of-program rule.
   missed.
 
   **Refund and dispute are therefore lifecycle transitions, and they must be
-  written down:** on `charge.refunded` / `charge.dispute.created` for a purchase
-  with a live run, the run moves to `refunded` — it stops delivering, it frees
-  the single-active-run slot, and it is **not** restartable. Two things this
-  transition must NOT do, both learned from the expiry rule above: it must not
-  delete the member's logged history (they ate those meals and did those
-  sessions; a refund reverses a sale, not a life), and it must not retro-remove
-  awards already granted for completed work. What ends is future access. A
-  partial refund is **not** a self-evident case — whether it ends the run, shortens
-  the term, or does nothing is a product ruling, and it belongs on the condition
-  list rather than in a default the build picks silently.
+  written down — but they are NOT the same transition.**
+
+  - **`charge.refunded` → `refunded`.** Terminal: the run stops delivering, frees
+    the single-active-run slot, and is not restartable.
+  - **`charge.dispute.created` → `disputed`.** **Suspended, and reversible.** It
+    stops delivering and frees the slot like a refund, but it is a hold, not an
+    ending.
+  - **`charge.dispute.closed` restores the run** whenever it restores the
+    purchase.
+
+  ⚠ **Why dispute cannot be modelled as a refund:** the system already treats it
+  as reversible. `webhook/route.ts` handles `charge.dispute.closed` by setting
+  `one_time_purchases.status` back to `paid` when the buyer prevails. If the run
+  had been marked `refunded`, that restoration would give the buyer back a
+  purchase whose program stays dead — `active` requires `live`, and nothing would
+  ever set it live again. A member who **won** their dispute would be left worse
+  off than before they raised it, and the failure is invisible: the Library shows
+  the plan, the purchase reads `paid`, and only the content is missing.
+
+  Two things neither transition may do, both learned from the expiry rule above:
+  it must not delete the member's logged history (they ate those meals and did
+  those sessions; a refund reverses a sale, not a life), and it must not
+  retro-remove awards already granted for completed work. What ends is future
+  access. A partial refund is **not** a self-evident case — whether it ends the
+  run, shortens the term, or does nothing is a product ruling, and it belongs on
+  the condition list rather than in a default the build picks silently.
+
+  ⚠ **The purchase and its run must change ATOMICALLY, and reconciliation is
+  mandatory rather than a nicety.** Today the webhook updates
+  `one_time_purchases` directly and its handler catches failures and still
+  answers **HTTP 200** — which tells Stripe the event was processed, so the retry
+  that would repair a half-applied change never comes. A failure between the two
+  writes therefore leaves a **non-paid purchase with a still-`active` run**, and
+  that state is worse than either endpoint: `entitled` is false so the member
+  gets nothing, while the run still occupies the partial-unique active-run slot,
+  so they cannot start a replacement either. Paid for nothing, and blocked from
+  fixing it. So both records change in one transaction — a single RPC — and
+  because a webhook can also simply never arrive, a reconciliation pass must
+  detect and repair drift in both directions. Freeing the slot is the part that
+  must never be left to a retry, since it is what the member needs to recover on
+  their own.
 
   ⚠ **For a COACH-ASSIGNED run the source is unresolved, not "the assignment."**
   An earlier draft said the term came "from the assignment," but the parent spec
