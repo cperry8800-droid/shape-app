@@ -230,6 +230,79 @@ returns `state: 'unknown'` with `reason: 'incomplete_week'`, names the offending
 sessions, and publish is **not** gated. An unscoreable week is not a safe week —
 it is an unmeasured one, and the spec says so rather than passing it green.
 
+### 3.2a Where the two fields are captured — anchors verified 2026-07-28
+
+§3.2 rules the contract and the storage. This section is the capture design, with
+every anchor read rather than assumed, because every build in this wave so far
+has found an error in its own plan.
+
+**A plan's blocks are not always its sessions, and that is the whole difficulty.**
+The same `blocks: [{ id, text }]` array means three different things depending on
+the outline's shape, and `planOutline.mjs` already classifies which:
+
+| Outline shape | A block is | Sessions written |
+|---|---|---|
+| split (`bsAssignDayLine`, ≥3 day lines) | one session | one per day line per week |
+| week block (`bsAssignWeekLine`, ≥2 week lines) | one session | one per authored week |
+| anything else | one **exercise** | one session per week, all blocks inside it |
+
+So per-block capture is right for two shapes and meaningless for the third,
+where it would attach a duration to a bench press rather than to a session.
+
+**RECOMMENDED v1 — plan-level pair, one capture site.** The coach states
+`plannedMinutes` and `plannedRpe` once for the plan; every session materialized
+from it carries that pair. This is what §3.2 already points at ("the AI-draft
+builder already carries a session-length concept… so the duration half has a
+natural home" — the LENGTH chip is plan-level, `iosAppBroadsheetPros.jsx:5444`,
+state at `:5251`), it is shape-independent, and it is identical across all three
+writers.
+
+⚠ **The LENGTH chip's value is the string `'45 min'`, not a number**, and it is
+currently kept only to build the plan's `meta` line and to feed the discarded AI
+draft. `plannedMinutes` is an integer, so this is a parse, not a rename — and a
+parse that fails must yield **absent**, never 0. A zero-minute session scores as
+zero load and would read as a rest day the coach never wrote.
+
+*What it costs:* a split whose leg day is 90 minutes and whose recovery day is 30
+reports as uniform. The week's total load is right; the hardest-session check
+(§3.1) sees a flat week. Recorded as a known limitation rather than hidden — the
+same treatment §13.13 gives understated capacity.
+
+*The upgrade path, if the owner wants it now instead:* a per-session override on
+the two shapes where a block IS a session, authored the way method steps already
+are (`stepAuthoring`, `iosAppBroadsheetPros.jsx:4919`) — a third opt-in flag on
+the shared editor, with the same publish-time derivation and the same warning
+that the new key must cross `onPublish` **and** every receiver
+(`iosAppBroadsheetPros.jsx:5347-5351`).
+
+**Capture and threading, per writer:**
+
+| Writer | Capture site | Threading |
+|---|---|---|
+| mobile coach app | draft editor / plan `detail` | `BSProAssignPage`'s three branches each build `payload: { exercises, ...basePayload }` — writes at `:3432` split, `:3443` week block, `:3451` single |
+| web builders | `dashBuilder.jsx` day rows | already posts `payload: row.payload` (`:207`) |
+| Adjust regeneration | — | see the open ruling below |
+
+**A blank pair is left blank.** No default, no estimate from sets × reps, no
+carry-over from a previous plan. The week evaluates `unknown` /
+`incomplete_week` and publish proceeds. This is the same refusal as
+`workout_set_logs.rpe` staying NULL and `bsCookable` emitting `steps:[]`.
+
+⚠ **OPEN — owner ruling needed: what happens to `plannedRpe` when Adjust
+regenerates.** Adjust rescales a week at `deload` / `maintain` / `progress`
+(`iosAppBroadsheetPros.jsx:2973`), and §9.4 calls it the highest-risk path
+because it is automated. Three candidates, none of which I should pick alone:
+
+1. **Carry the authored pair through unchanged.** The guardrail then scores a
+   rescaled week using pre-rescale effort — a stale number presented as current.
+2. **Drop both fields on regeneration.** Honest (we genuinely do not know the new
+   planned load) but it makes the highest-risk path permanently `unknown`, and
+   `unknown` never blocks.
+3. **Derive from the intensity the coach chose,** whose semantics are already
+   stated in the UI — progress explicitly says "keep RPE ≤ 8". This is applying
+   the coach's own stated rule rather than inventing one, but it is a load-model
+   decision and it belongs to the owner.
+
 ---
 
 ## 4. The pure core
