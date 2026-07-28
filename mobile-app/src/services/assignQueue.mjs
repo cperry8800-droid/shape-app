@@ -65,6 +65,14 @@ const NETWORK_MESSAGE = new RegExp([
 ].join('|'), 'i');
 
 /**
+ * Transport failures Node/undici report on `error.code` rather than in the
+ * message. In the WebView these never appear — but the blanket
+ * "any code means the server answered" rule below is wrong for them, and a
+ * misfiled connectivity failure is the harmful direction.
+ */
+const NETWORK_CODE = /^(econnrefused|econnreset|enotfound|etimedout|eai_again|econnaborted|epipe|ehostunreach|enetunreach|und_err_(connect_timeout|socket|headers_timeout))$/i;
+
+/**
  * Decide whether a failed write was the network or the server.
  *
  * @param {unknown} error   the error/`{error}` a write returned or threw
@@ -72,23 +80,43 @@ const NETWORK_MESSAGE = new RegExp([
  * @returns {'network'|'rejected'}
  */
 export function bsClassifyWriteFailure(error, opts = {}) {
-  // The device itself says it has no connection. Nothing else to weigh.
-  if (opts && opts.online === false) return 'network';
-
   // No error object at all tells us nothing — and "nothing" is not evidence of
   // connectivity loss, so it takes the safe default.
-  if (!error || typeof error !== 'object') return 'rejected';
+  if (!error || typeof error !== 'object') {
+    return opts && opts.online === false ? 'network' : 'rejected';
+  }
+
+  // ⚠ EVIDENCE THE SERVER ANSWERED OUTRANKS `navigator.onLine`, and the order
+  // here is the whole point. `online` is a notoriously unreliable signal — it
+  // reports adapter link state, not reachability, so captive portals, VPN
+  // transitions and OS network switches all produce false negatives. A
+  // PostgREST code or an HTTP status is PROOF a server replied, and no link
+  // state can retract that.
+  //
+  // The sequence this protects against is mundane, not exotic: the request
+  // goes out online, the server replies 409, and the device drops its
+  // connection before the promise settles. Checking `online` first would file
+  // the guardrail's own rejection as a network blip — writing a local record
+  // and telling the coach "HELD, you're offline" about a week the gate
+  // refused. That is the exact asymmetry this module exists to prevent.
 
   // A PostgREST/Postgres code means the DATABASE answered. Whatever it said —
   // 42501 (RLS denied), 23505 (unique violation), PGRST204 (unknown column) —
   // it is a rejection, and the coach must see it.
+  //
+  // Except when the "code" is a TRANSPORT code: Node/undici report
+  // ECONNREFUSED and friends on `error.code`, where a blanket rejection would
+  // misfile a genuine connectivity failure. Those are matched first.
   const code = error.code == null ? '' : String(error.code).trim();
-  if (code) return 'rejected';
+  if (code) return NETWORK_CODE.test(code) ? 'network' : 'rejected';
 
   // An HTTP status means a server answered. 409 (the guardrail gate), any 4xx,
   // and 5xx alike: the request reached something that replied.
   const status = Number(error.status);
   if (Number.isFinite(status) && status > 0) return 'rejected';
+
+  // Nothing answered. NOW the device's own claim is the best evidence there is.
+  if (opts && opts.online === false) return 'network';
 
   const text = `${error.name || ''} ${error.message || ''}`;
   return NETWORK_MESSAGE.test(text) ? 'network' : 'rejected';
@@ -127,6 +155,40 @@ export function bsQueueAssignment(items, payload, opts = {}) {
   );
   const entry = { id: `q-${now}-${key}`, queuedAt: now, payload };
   return bsPruneQueue([...rest, entry], opts);
+}
+
+/**
+ * What the queue should contain after a replay pass.
+ *
+ * ⚠ A DRAIN MUST MERGE, NEVER REPLACE. The pass snapshots the queue, then
+ * awaits a series of network writes — and `assignClientWorkout` keeps writing
+ * to the same storage throughout that window. Writing back only what the pass
+ * held would erase every assignment queued meanwhile.
+ *
+ * That window is not narrow: assigning a week is a loop of awaited inserts, and
+ * any fetch-shaped failure with no code and no status classifies as `network` —
+ * which is exactly when the drain is slowest. Silently dropping an assignment
+ * is the outcome this module ranks worst (see `bsAssignmentKey`), so the write
+ * back is computed from live storage, not the stale snapshot.
+ *
+ * An arrival is anything in `current` whose identity was NOT in the snapshot.
+ * An arrival matching a HELD item is dropped in favour of the held one — the
+ * same-identity collapse `bsQueueAssignment` already documents. The assignment
+ * is never lost; only the newer payload for that one slot.
+ *
+ * @param {Array} started  the queue as the pass snapshotted it
+ * @param {Array} held     items the pass could not send, in authored order
+ * @param {Array} current  the queue as it stands NOW
+ * @returns {Array} held items first, then anything that arrived mid-pass
+ */
+export function bsMergeAfterDrain(started, held, current) {
+  const startedKeys = new Set(
+    (Array.isArray(started) ? started : []).map((it) => bsAssignmentKey(it && it.payload)),
+  );
+  const arrivals = (Array.isArray(current) ? current : []).filter(
+    (it) => it && !startedKeys.has(bsAssignmentKey(it.payload)),
+  );
+  return [...(Array.isArray(held) ? held : []), ...arrivals];
 }
 
 /**
@@ -189,7 +251,20 @@ export async function bsReplayQueue(items, effects = {}) {
       await write(item.payload);
       sent += 1;
     } catch (err) {
-      if (err && err.rejected) {
+      // ⚠ HOLDING REQUIRES POSITIVE EVIDENCE OF A NETWORK FAILURE, and the
+      // polarity is the point. `classifyAssignError` stamps `offline` on
+      // exactly the errors it classified as `network`; anything else — an
+      // unclassified throw, a validation guard, a bug in the writer — takes
+      // the classifier's own documented default of `rejected`.
+      //
+      // Branching on `!err.rejected` instead (the obvious way round) makes the
+      // UNSAFE outcome the default for every error that never passed through
+      // the classifier. A DETERMINISTIC unclassified throw is the bad case: it
+      // is held, retried forever, and because a hold stops the pass, ONE
+      // poison item at the head blocks every assignment queued behind it,
+      // permanently. Requiring the positive marker makes such an item drop
+      // loudly on the first replay instead.
+      if (!(err && err.offline === true)) {
         rejections.push({
           payload: item.payload,
           reason: String((err && err.message) || 'rejected'),

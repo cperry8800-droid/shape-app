@@ -12,6 +12,7 @@ import { bsAdjustRegen } from './adjustRegen.mjs';
 // place and can never drift toward absorbing a rejection as a local save.
 import {
   BS_ASSIGN_QUEUE_KEY, bsClassifyWriteFailure, bsQueueAssignment, bsPruneQueue, bsReplayQueue,
+  bsMergeAfterDrain,
 } from './assignQueue.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
@@ -1495,7 +1496,15 @@ async function writeClientWorkoutRow(args) {
     payload = {}, playlistId = null, scheduledDate = null,
   } = args || {};
 
-  if (!clientId || !title) throw new Error('Client and workout title are required.');
+  if (!clientId || !title) {
+    // ⚠ MARKED REJECTED EXPLICITLY. An unmarked throw would be read as a
+    // network failure by the queue and held forever — and because a hold stops
+    // the replay pass, this one poison item would block every assignment
+    // behind it. A malformed assignment can never succeed on retry.
+    const err = new Error('Client and workout title are required.');
+    err.rejected = true;
+    throw err;
+  }
   if (!supabase) {
     // Not connectivity — the client was never constructed, so this build can
     // never reach the server. Reporting "saved" here is the same false
@@ -1572,9 +1581,13 @@ async function assignClientWorkout(args = {}) {
   try {
     return { stored: 'supabase', data: await writeClientWorkoutRow(args) };
   } catch (err) {
-    // A rejection is the coach's to see. It is never written anywhere local,
-    // and it never reports success.
-    if (err && err.rejected) throw err;
+    // ⚠ QUEUEING REQUIRES POSITIVE EVIDENCE OF A NETWORK FAILURE.
+    // `classifyAssignError` stamps `offline` on exactly what it classified as
+    // `network`; every other error — including one that never reached the
+    // classifier — surfaces to the coach. Branching on `!err.rejected` instead
+    // would make "hold it and claim it's saved" the default for any unexpected
+    // throw, which is the false-assurance this whole change exists to remove.
+    if (!(err && err.offline === true)) throw err;
     // Genuinely offline — hold the assignment and replay it on reconnect.
     writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now() }));
     return { stored: 'queued', queued: true, data: null };
@@ -1613,7 +1626,23 @@ async function drainAssignmentQueue() {
     assignDraining = false;
   }
 
-  writeAssignQueue(bsPruneQueue(held, { now: Date.now() }));
+  // ⚠ MERGE, NEVER REPLACE. `queue` was snapshotted before a long await, and
+  // `assignClientWorkout` writes to the same storage key throughout that
+  // window — so writing back only what THIS pass held would erase anything
+  // enqueued meanwhile. That window is not narrow: a trainer assigning a week
+  // is a loop of awaited inserts, and any fetch-shaped failure with no code and
+  // no status classifies as `network`, which is exactly when the drain is
+  // slowest. Silently dropping an assignment is the one outcome this module
+  // ranks worst (see bsAssignmentKey).
+  //
+  // Arrivals are identified by NOT having been in the starting snapshot. An
+  // arrival whose identity matches a held item is dropped in favour of the
+  // held one — the same-identity collapse bsQueueAssignment already documents;
+  // the assignment itself is never lost, only the newer payload for that slot.
+  writeAssignQueue(bsPruneQueue(
+    bsMergeAfterDrain(queue, held, readAssignQueue()),
+    { now: Date.now() },
+  ));
   if (sent || rejections.length) {
     try {
       window.dispatchEvent(new CustomEvent('shape:assignQueue', {

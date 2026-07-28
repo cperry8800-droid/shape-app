@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   BS_ASSIGN_QUEUE_CAP, BS_ASSIGN_QUEUE_MAX_AGE_MS,
   bsClassifyWriteFailure, bsAssignmentKey, bsQueueAssignment, bsPruneQueue, bsReplayQueue,
+  bsMergeAfterDrain,
 } from '../mobile-app/src/services/assignQueue.mjs';
 
 const NOW = 1753142400000; // fixed epoch — injected clock, never Date.now()
@@ -60,11 +61,27 @@ test('bsClassifyWriteFailure: real connectivity failures, every runtime wording'
   assert.equal(bsClassifyWriteFailure({ name: 'TypeError', message: 'Failed to fetch' }), 'network');
 });
 
-test('bsClassifyWriteFailure: navigator.onLine === false is definitive', () => {
-  // The device says there is no connection. Even a rejection-shaped error is a
-  // network failure — it cannot have reached a server.
-  assert.equal(bsClassifyWriteFailure({ code: '42501' }, { online: false }), 'network');
+test('bsClassifyWriteFailure: navigator.onLine is the LAST word, not the first', () => {
+  // ⚠ AMENDED 2026-07-28. This test previously asserted the opposite — that
+  // `online:false` was "definitive" because such an error "cannot have reached
+  // a server". That premise is false: `navigator.onLine` reports adapter link
+  // state AT THE MOMENT WE ASK, not reachability at the moment the request went
+  // out. The realistic sequence is mundane — request goes out online, server
+  // replies 409, device drops its connection before the promise settles — and
+  // the old ordering filed the guardrail's OWN rejection as a network blip,
+  // writing a local record and telling the coach "held, you're offline" about
+  // a week the gate refused. Exactly the asymmetry this module exists to stop.
+  //
+  // A PostgREST code or an HTTP status is PROOF a server answered; no link
+  // state can retract it.
+  assert.equal(bsClassifyWriteFailure({ code: '42501' }, { online: false }), 'rejected');
+  assert.equal(bsClassifyWriteFailure({ status: 409 }, { online: false }), 'rejected');
+  assert.equal(bsClassifyWriteFailure({ code: '23505' }, { online: false }), 'rejected');
+
+  // With NOTHING answering, the device's own claim IS the best evidence there
+  // is — so it still decides, it just no longer pre-empts the evidence.
   assert.equal(bsClassifyWriteFailure(null, { online: false }), 'network');
+  assert.equal(bsClassifyWriteFailure({ message: 'something went wrong' }, { online: false }), 'network');
 });
 
 test('bsClassifyWriteFailure: an unreadable error takes the SAFE default', () => {
@@ -156,9 +173,15 @@ test('bsPruneQueue: junk from localStorage is discarded, never thrown on', () =>
  * classifier — so these fixtures cannot pass on a hand-set flag the production
  * path would never have set.
  */
+// Mirrors shapeBackend's `classifyAssignError` — the ONE real producer of the
+// errors the replay loop reads. It stamps `rejected` on rejections and
+// `offline` on network failures, and the loop now requires that POSITIVE
+// `offline` marker to hold an item. A helper that only stamped `rejected`
+// would let a hold-on-anything-unmarked regression pass unnoticed.
 const thrown = (raw) => {
   const err = new Error(raw.message || 'write failed');
   if (bsClassifyWriteFailure(raw, { online: true }) === 'rejected') err.rejected = true;
+  else err.offline = true;
   if (raw.guardrail) err.guardrail = raw.guardrail;
   return err;
 };
@@ -251,4 +274,82 @@ test('bsPruneQueue: a device clock that jumped FORWARD does not expire the queue
   // now - queuedAt is negative; that is a clock change, not an age.
   const future = { id: 'f', queuedAt: NOW + 5 * DAY, payload: payload() };
   assert.equal(bsPruneQueue([future], { now: NOW }).length, 1);
+});
+
+// ─── Round-2 regressions (CodeRabbit, 2026-07-28) ───────────────────────────
+
+test('classifier: a TRANSPORT code is a network failure, not a server answer', () => {
+  // Node/undici report these on `error.code`, where the blanket
+  // "any code means the server answered" rule misfiled them as rejections.
+  for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN', 'ECONNRESET']) {
+    assert.equal(bsClassifyWriteFailure({ code, message: 'fetch failed' }), 'network', code);
+  }
+  // A Postgres SQLSTATE still reads as the server answering.
+  assert.equal(bsClassifyWriteFailure({ code: '42501' }), 'rejected');
+});
+
+test('replay: an UNCLASSIFIED throw is dropped and reported, never held forever', async () => {
+  // A deterministic unclassified throw held at the head of the queue blocks
+  // every assignment behind it, permanently — the replay stops on a hold.
+  const poison = new Error('Client and workout title are required.');  // no .offline
+  const items = [
+    { id: 'a', queuedAt: 1, payload: { clientId: '', title: '' } },
+    { id: 'b', queuedAt: 2, payload: { clientId: 'c1', scheduledDate: '2026-08-03', title: 'Real week' } },
+  ];
+  const written = [];
+  const res = await bsReplayQueue(items, {
+    write: async (p) => { if (!p.title) throw poison; written.push(p.title); },
+  });
+  assert.equal(res.held.length, 0, 'a poison item must not wedge the queue');
+  assert.equal(res.rejections.length, 1);
+  assert.deepEqual(written, ['Real week'], 'the valid item behind it still goes');
+  assert.equal(res.sent, 1);
+});
+
+test('replay: a genuine network failure still holds, in order', async () => {
+  // The polarity flip must not cost the behaviour the queue exists for.
+  const offline = new Error('Load failed');
+  offline.offline = true;
+  const items = [
+    { id: 'a', queuedAt: 1, payload: { clientId: 'c1', scheduledDate: '2026-08-03', title: 'Mon' } },
+    { id: 'b', queuedAt: 2, payload: { clientId: 'c1', scheduledDate: '2026-08-04', title: 'Tue' } },
+  ];
+  const res = await bsReplayQueue(items, { write: async () => { throw offline; } });
+  assert.equal(res.sent, 0);
+  assert.equal(res.rejections.length, 0);
+  assert.deepEqual(res.held.map((i) => i.payload.title), ['Mon', 'Tue']);
+});
+
+test('drain: an assignment queued DURING the pass is not erased by the write-back', () => {
+  // CodeRabbit's reproduction, as a fixture. The pass snapshots [W1, W2];
+  // mid-drain the coach queues W3; the pass holds both originals. Writing back
+  // only `held` erased W3 silently — the outcome this module ranks worst.
+  const item = (t) => ({ id: `q-${t}`, queuedAt: NOW, payload: payload({ title: t }) });
+  const started = [item('W1'), item('W2')];
+  const current = [item('W1'), item('W2'), item('W3-NEW')];
+
+  const merged = bsMergeAfterDrain(started, started, current);
+  assert.deepEqual(merged.map((i) => i.payload.title), ['W1', 'W2', 'W3-NEW']);
+});
+
+test('drain: a SENT item does not come back, and arrivals survive alongside', () => {
+  const item = (t) => ({ id: `q-${t}`, queuedAt: NOW, payload: payload({ title: t }) });
+  const started = [item('W1'), item('W2')];
+  // W1 sent, W2 held; W3 arrived mid-pass.
+  const merged = bsMergeAfterDrain(started, [item('W2')], [item('W2'), item('W3')]);
+  assert.deepEqual(merged.map((i) => i.payload.title), ['W2', 'W3'], 'W1 must not resurrect');
+});
+
+test('drain: an arrival matching a HELD item never duplicates the assignment', () => {
+  const item = (t) => ({ id: `q-${t}`, queuedAt: NOW, payload: payload({ title: t }) });
+  const started = [item('W1')];
+  const merged = bsMergeAfterDrain(started, [item('W1')], [item('W1')]);
+  assert.equal(merged.length, 1, 'same identity collapses, as bsQueueAssignment documents');
+});
+
+test('drain: junk from localStorage cannot break the merge', () => {
+  assert.deepEqual(bsMergeAfterDrain(null, null, null), []);
+  assert.deepEqual(bsMergeAfterDrain(undefined, [], 'nope'), []);
+  const good = { id: 'a', queuedAt: NOW, payload: payload() };
+  assert.deepEqual(bsMergeAfterDrain([], [], [null, good]), [good]);
 });
