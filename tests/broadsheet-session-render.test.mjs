@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 // The SAME constant the component imports — asserting against a literal here
 // would let the two drift apart while both sides stayed green.
-import { BS_SESSION_MINUTES_CEILING } from '../public/newdesign/progressionGuardrail.mjs';
+import { BS_SESSION_MINUTES_CEILING, bsClassifySession, bsDurationFacts } from '../public/newdesign/progressionGuardrail.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -321,7 +321,7 @@ test('drive: saving persists BOTH the rating and the duration confirmation', asy
   // ⚠ THE FLAG THE CORE ACTUALLY READS. An overrun is excluded unless a human
   // vouched for it, so without this a genuinely long, genuinely confirmed
   // session is discarded forever — indistinguishable from a screen left open.
-  assert.equal(h.saved[0].durationConfirmed, true);
+  assert.equal(h.saved[0].durationAnswer, 'confirmed');
   assert.equal(h.backs.length, 1, 'saving also leaves the player');
 });
 
@@ -337,7 +337,7 @@ test('drive: backing out STILL saves the workout, with a null rating', async () 
   assert.equal(h.saved.length, 1, 'the workout must persist even when dismissed');
   assert.equal(h.saved[0].sessionRpe, null);
   // Backing out is the OPPOSITE of confirming a duration.
-  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.saved[0].durationAnswer, 'declined');
   assert.equal(h.backs.length, 1);
 });
 
@@ -411,6 +411,15 @@ test('drive: nothing is pre-selected — a skipped rating must stay skipped', as
   assert.equal(pressed.length, 0);
 });
 
+// ⚠ ALSO NOT COVERED: the LATCHED completion clock. `elapsedSec` is frozen when
+// the completion screen opens, so the question cannot change under a member
+// mid-answer — a 40-second timer that crosses 60s while they type would
+// otherwise hide the field and store their typed figure as one nobody was asked
+// for. Time cannot pass in this harness (effects are no-ops, so `now` never
+// ticks), which means a perturbation removing the latch survives here. Verify on
+// device: start a session, finish under a minute, type a duration, wait past the
+// minute mark, save — the field must not vanish and the answer must be recorded.
+//
 // ⚠ NOT COVERED HERE: the unmount cleanup — the guarantee that a session
 // survives an exit we do not control (hardware back, a route change, the shell
 // tearing the player down). Driving it needs the real mount effects to run,
@@ -469,7 +478,7 @@ test('drive: a runaway timer offers no figure to tap through', async () => {
   assert.equal(h.saved.length, 1, 'the workout still persists in full');
   assert.equal(h.saved[0].durationSeconds, 700 * 60, 'with the timer’s own reading');
   // ...but nobody vouched for it, so the core excludes it from the baseline.
-  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.saved[0].durationAnswer, 'declined');
 });
 
 test('drive: clearing an overrun field does NOT confirm the wall-clock figure', async () => {
@@ -486,7 +495,7 @@ test('drive: clearing an overrun field does NOT confirm the wall-clock figure', 
   assert.equal(h.saved[0].durationSeconds, 175 * 60);
   // ...but nobody vouched for that number, so the core will exclude it rather
   // than let a screen left open inflate the baseline.
-  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.saved[0].durationAnswer, 'declined');
 });
 
 test('drive: an out-of-range duration is neither logged nor confirmed', async () => {
@@ -499,7 +508,34 @@ test('drive: an out-of-range duration is neither logged nor confirmed', async ()
   assert.equal(h.saved.length, 1);
   assert.notEqual(h.saved[0].durationSeconds, 9999 * 60, 'a nonsense figure must never be logged');
   assert.equal(h.saved[0].durationSeconds, 175 * 60, 'falls back to the timer');
-  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.saved[0].durationAnswer, 'declined');
+});
+
+test('drive: the prefill gate and the log read the SAME quantity', async () => {
+  // ⚠ FRACTIONAL ON PURPOSE. Whole-minute fixtures cannot tell a rounded
+  // comparison from an unrounded one, so a gate testing `Math.round(minutes)`
+  // while the save stores raw seconds passes every other test here. At 600.3 min
+  // the rounded view says 600 (offer the prefill) and the true view says 36018s
+  // (past the maximum) — the band where one tap would confirm a figure the core
+  // will not admit.
+  const past = harness({ elapsedMinutes: 600.3 });
+  await past.completeAllSets();
+  await past.click('Finish workout ✓');
+  assert.equal(past.valueOf(MIN), '', 'nothing offered past the maximum');
+  await past.click('Save & finish ✓');
+  assert.equal(past.saved[0].durationAnswer, 'declined', 'and tapping through confirms nothing');
+
+  // And where a prefill IS offered, the figure stored must be the figure SHOWN —
+  // not one that merely rounds to it. "A human affirmed this" has to mean the
+  // number they actually saw.
+  const inside = harness({ elapsedMinutes: 200.4 });
+  await inside.completeAllSets();
+  await inside.click('Finish workout ✓');
+  assert.equal(inside.valueOf(MIN), '200', 'offered whole minutes');
+  await inside.click('Save & finish ✓');
+  assert.equal(inside.saved[0].durationAnswer, 'confirmed');
+  assert.equal(inside.saved[0].durationSeconds, 200 * 60,
+    'stores the affirmed figure, not the 24 extra seconds behind it');
 });
 
 test('drive: a valid typed duration IS used and IS confirmed', async () => {
@@ -510,7 +546,7 @@ test('drive: a valid typed duration IS used and IS confirmed', async () => {
   await h.click('Save & finish ✓');
 
   assert.equal(h.saved[0].durationSeconds, 95 * 60, 'the member’s answer wins');
-  assert.equal(h.saved[0].durationConfirmed, true);
+  assert.equal(h.saved[0].durationAnswer, 'confirmed');
 });
 
 test('drive: accepting the pre-filled overrun untouched counts as the answer', async () => {
@@ -522,7 +558,7 @@ test('drive: accepting the pre-filled overrun untouched counts as the answer', a
   // The field is pre-filled at this end precisely because confirming is the
   // common case and correcting is the edit, so saving as-offered IS a decision.
   assert.equal(h.saved[0].durationSeconds, 175 * 60);
-  assert.equal(h.saved[0].durationConfirmed, true);
+  assert.equal(h.saved[0].durationAnswer, 'confirmed');
   assert.doesNotMatch(h.html, /won’t count toward your limits/);
 });
 
@@ -535,7 +571,54 @@ test('drive: an under-a-minute timer is never recorded as confirmed', async () =
 
   assert.equal(h.saved.length, 1);
   // Nothing was offered and nothing was typed, so nothing was confirmed.
-  assert.equal(h.saved[0].durationConfirmed, false);
+  assert.equal(h.saved[0].durationAnswer, 'declined');
+});
+
+test('drive: what the writer SAVES is a valid input to the reader', async () => {
+  // ⚠ THE SEAM. This file drives the writer and progression-guardrail.test.mjs
+  // drives the reader, so each can be green while the pair they exchange is
+  // incoherent — a perturbation that made the client always report
+  // `durationPrompted: true` survived every other test here, and would only have
+  // surfaced in production as a whole history reading `malformed`.
+  //
+  // Feed the ACTUAL saved payload through the ACTUAL classifier instead.
+  const scenarios = [
+    ['not asked at all', 45, 'not_prompted'],
+    ['asked and answered', 175, 'confirmed'],
+    ['asked and declined', 175, 'declined'],
+    // ⚠ 700, NOT 500. The seam defect this test exists to catch only appears
+    // past the core's maximum — a fixture that stops short of it cannot fail on
+    // the very bug the test is named for.
+    ['a runaway timer, tapped through', 700, 'declined'],
+    ['just past the maximum, by rounding', 601, 'declined'],
+  ];
+  for (const [label, minutes, expected] of scenarios) {
+    const h = harness({ elapsedMinutes: minutes });
+    await h.completeAllSets();
+    await h.click('Finish workout ✓');
+    if (expected === 'declined') h.type(MIN, '');
+    await h.click('Save & finish ✓');
+
+    const saved = h.saved[0];
+    assert.ok(saved, `${label}: saved`);
+    const c = bsClassifySession({
+      // The two fields the RPC supplies; everything else is the writer's own.
+      startedAtISO: '2026-07-29T02:30:00Z',
+      timezone: 'America/New_York',
+      durationSec: saved.durationSeconds,
+      sessionRpe: saved.sessionRpe,
+      // The writer emits ONE fact; `bsDurationFacts` derives the coherent pair,
+      // exactly as `saveStructuredWorkoutSession` does before it persists. The
+      // chain is client → backend → core, so the test walks all three links
+      // rather than handing the core something no layer actually writes.
+      ...bsDurationFacts(saved.durationAnswer),
+    }, 0);
+    assert.equal(c.malformed, false,
+      `${label}: the writer must never emit a row the reader calls malformed — ${JSON.stringify(c.issues)}`);
+    assert.equal(saved.durationAnswer, expected, label);
+    // And the pair the writer emits must agree with itself.
+    assert.equal(bsDurationFacts(saved.durationAnswer).durationPrompted, saved.durationAnswer !== 'not_prompted', `${label}: coherent pair`);
+  }
 });
 
 test('drive: ending early routes to the same completion step', async () => {

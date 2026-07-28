@@ -46,6 +46,9 @@ import {
   BS_RED_ANCHORS,
   BS_RETURN_ANCHORS,
   BS_SESSION_MINUTES_CEILING,
+  BS_SESSION_MINUTES_MAX,
+  BS_DURATION_ANSWERS,
+  bsDurationFacts,
   BS_BASELINE_FLOOR_AU,
   BS_WINDOW_MAX_WEEKS,
   BS_WINDOW_MIN_WEEKS,
@@ -265,12 +268,17 @@ test('a single anchor reads flat everywhere', () => {
 // that — so the helpers supply a valid one.
 const AT = '2026-07-29T17:00:00Z'; // Wednesday afternoon in New York
 const TZ = 'America/New_York';
+// `confirmed` stays a convenience arg, but it now expands into the TWO FACTS
+// the row actually carries. A confirmation implies the member was prompted;
+// anything else means nobody was asked, which is NOT a confirmation and must
+// not read as one after a ceiling retune.
 const S = (min, rpe, confirmed = false) => ({
   startedAtISO: AT,
   timezone: TZ,
   durationSec: min * 60,
   sessionRpe: rpe,
-  durationConfirmed: confirmed,
+  durationPrompted: !!confirmed,
+  durationAnswer: confirmed ? 'confirmed' : 'not_prompted',
 });
 /** A complete valid row with one field overridden, so each test has one defect. */
 const row = (over = {}) => ({
@@ -346,6 +354,10 @@ test('F23 — a CONFIRMED overrun counts: the member asserted it', () => {
 
 test('F24-F25 — the overrun boundary is strictly greater than the ceiling', () => {
   assert.equal(BS_SESSION_MINUTES_CEILING, 150, 'the ceiling is 150 minutes');
+  // Pinned to the literal the fixtures state, like its sibling above — tests
+  // written only in terms of the constant stay green through any retune while
+  // the spec keeps claiming 600.
+  assert.equal(BS_SESSION_MINUTES_MAX, 600, 'the absolute maximum is 600 minutes');
   const at = bsClassifySession(S(150, 7));
   assert.equal(at.eligible, true, 'F24 exactly 150 minutes is still eligible');
   near(at.au, 1050, 'F24 S(150, 7)');
@@ -533,12 +545,105 @@ test('rule C — a non-array session collection is reported, not thrown', () => 
   }
 });
 
-test('a missing durationConfirmed reads as UNCONFIRMED, not as a defect', () => {
-  // Excluding is the safe direction: it can only understate a baseline, and an
-  // understated baseline tightens future ceilings rather than loosening them.
-  const c = bsClassifySession(row({ durationSec: 175 * 60 }));
-  assert.equal(c.malformed, false, 'an absent flag is not a caller bug');
+test('an unprompted overrun is NOT a confirmation — the retune case', () => {
+  // ⚠ THE REASON THE STORED VERDICT WAS REPLACED BY FACTS. A session logged
+  // while the ceiling sat ABOVE its duration was never asked about, so it
+  // carries `not_prompted`. Lower the ceiling beneath it — which §13.4 promises
+  // — and it becomes an overrun. It must then read as UNCONFIRMED and drop out,
+  // not inherit a "confirmed" verdict nobody ever gave.
+  const c = bsClassifySession(row({
+    durationSec: 175 * 60, durationPrompted: false, durationAnswer: 'not_prompted',
+  }));
+  assert.equal(c.malformed, false, 'never having been asked is not a caller bug');
   assert.equal(c.eligible, false, 'and it does not count as confirmed');
+
+  // Asked and refused is likewise not an affirmation.
+  const declined = bsClassifySession(row({
+    durationSec: 175 * 60, durationPrompted: true, durationAnswer: 'declined',
+  }));
+  assert.equal(declined.malformed, false);
+  assert.equal(declined.eligible, false);
+
+  // Only an affirmative answer about THIS figure admits it.
+  const ok = bsClassifySession(row({
+    durationSec: 175 * 60, durationPrompted: true, durationAnswer: 'confirmed',
+  }));
+  assert.equal(ok.eligible, true, 'a human vouched for it');
+});
+
+test('bsDurationFacts makes an incoherent pair unrepresentable', () => {
+  // The writer's single normalisation point. Deriving one field from the other
+  // here is what stops a caller persisting `{prompted: true, answer:
+  // 'not_prompted'}` — the pair the reader calls a caller bug, written silently
+  // and unattributable later.
+  assert.deepEqual(bsDurationFacts('confirmed'), { durationPrompted: true, durationAnswer: 'confirmed' });
+  assert.deepEqual(bsDurationFacts('declined'), { durationPrompted: true, durationAnswer: 'declined' });
+  assert.deepEqual(bsDurationFacts('not_prompted'), { durationPrompted: false, durationAnswer: 'not_prompted' });
+  // Anything unrecognised falls to the safe end — never to a confirmation.
+  for (const junk of [undefined, null, '', 'confirmd', 'CONFIRMED', 0, 1, true, {}, []]) {
+    assert.deepEqual(bsDurationFacts(junk), { durationPrompted: false, durationAnswer: 'not_prompted' },
+      `junk ${String(junk)} normalises to not_prompted`);
+  }
+  // Whatever it emits must be something the READER accepts — the two sides of
+  // the seam, checked against each other rather than each against a fixture.
+  for (const raw of [...BS_DURATION_ANSWERS, undefined, 'nonsense']) {
+    const c = bsClassifySession(row({ durationSec: 3600, ...bsDurationFacts(raw) }));
+    assert.equal(c.malformed, false, `bsDurationFacts(${String(raw)}) is readable`);
+  }
+});
+
+test('the two duration facts must AGREE, or the row is malformed', () => {
+  // Guessing which half to believe is how a caller bug becomes a silent
+  // baseline error, so an incoherent pair is reported by name instead.
+  for (const bad of [
+    { durationPrompted: false, durationAnswer: 'confirmed' },
+    { durationPrompted: false, durationAnswer: 'declined' },
+    { durationPrompted: true, durationAnswer: 'not_prompted' },
+    { durationPrompted: 'yes', durationAnswer: 'confirmed' },
+    { durationPrompted: true, durationAnswer: 'maybe' },
+    { durationPrompted: true, durationAnswer: undefined },
+  ]) {
+    const c = bsClassifySession(row(bad), 3);
+    assert.equal(c.malformed, true, `incoherent pair ${JSON.stringify(bad)} is malformed`);
+    assert.ok(c.issues.some((i) => i.field === 'durationAnswer'), 'the field is named');
+  }
+});
+
+test('a duration beyond any real session is EXCLUDED, never malformed', () => {
+  // ⚠ THE DISTINCTION IS LOAD-BEARING. Ten hours is a phone left on the
+  // completion screen, which OUR OWN writer produces. Calling that a caller bug
+  // would point the wrong way: one malformed row turns the whole evaluation
+  // `unknown`, and `unknown` never blocks publish — so a forgotten timer would
+  // switch the guardrail OFF for that client, which is the abuse F22 exists to
+  // prevent arriving through the guard meant to stop it.
+  const over = bsClassifySession(row({
+    durationSec: (BS_SESSION_MINUTES_MAX + 1) * 60,
+    durationPrompted: true,
+    durationAnswer: 'confirmed',
+  }), 5);
+  assert.equal(over.malformed, false, 'not a caller bug — our own timer emits it');
+  assert.equal(over.eligible, false, 'but never admitted, even WITH a confirmation');
+  assert.equal(over.rated, false, 'and it cannot be rated either');
+
+  // ...and the rest of the history still scores. This is the whole point.
+  const r = bsProgressionGuardrail(
+    { todayISO: TODAY, sessions: [...GOOD_HISTORY(), row({
+      durationSec: (BS_SESSION_MINUTES_MAX + 1) * 60,
+      durationPrompted: true,
+      durationAnswer: 'confirmed',
+    })] },
+    proposeTotal(2900),
+  );
+  assert.notEqual(r.state, 'unknown', 'one runaway row must NOT disable the guardrail');
+
+  // Exactly at the maximum is still a real session.
+  const edge = bsClassifySession(row({
+    durationSec: BS_SESSION_MINUTES_MAX * 60,
+    durationPrompted: true,
+    durationAnswer: 'confirmed',
+  }));
+  assert.equal(edge.malformed, false, 'the bound is inclusive of the maximum');
+  assert.equal(edge.eligible, true);
 });
 
 test('input is not mutated by derivation', () => {
@@ -731,6 +836,31 @@ test('F112 — a missing or unparseable instant is MALFORMED', () => {
   assert.doesNotThrow(() => bsClassifySession(row({ startedAtISO: Symbol('t') })));
 });
 
+test('a PRE-LOCALISED date is rejected at the entry point, not just in bsLocalWeek', () => {
+  // Rule E replaced the pre-localised `dateISO` with an instant plus a zone.
+  // The rejection was only ever proven at `bsLocalWeek`; a caller built from the
+  // OLD contract hands its date to `bsClassifySession`, which is where it has to
+  // be refused — and refused BY NAME, so the bug is findable.
+  for (const at of [
+    '2026-07-29',              // a bare date: no time, no offset — the old shape
+    '2026-07-29T10:00:00',     // local wall time, no designator
+    '2026-07-29 10:00:00+00',  // space separator, Postgres text style
+  ]) {
+    const c = bsClassifySession(row({ startedAtISO: at }), 6);
+    assert.equal(c.malformed, true, `pre-localised ${at} is malformed`);
+    assert.equal(c.weekStartISO, null, 'and buckets nowhere');
+    assert.ok(c.issues.some((i) => i.field === 'startedAtISO'), 'the field is named');
+  }
+  // The whole evaluation degrades to `unknown` rather than scoring a week from a
+  // date whose zone nobody knows.
+  const r = bsProgressionGuardrail(
+    { todayISO: TODAY, sessions: [{ ...S(60, 7), startedAtISO: '2026-07-29' }] },
+    { weekStartISO: TODAY, sessions: [{ id: 'a', plannedMinutes: 60, plannedRpe: 7 }] },
+  );
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.reason, 'malformed_history');
+});
+
 test('an instant with NO offset is rejected, because it is machine-dependent', () => {
   // `Date.parse('2026-08-03T02:40:00')` is interpreted in the RUNTIME's zone by
   // spec, so the same history would bucket differently on two machines — which
@@ -854,7 +984,8 @@ const on = (dateISO, min, rpe, confirmed = false) => ({
   timezone: 'UTC',
   durationSec: Math.round(min * 60),
   sessionRpe: rpe,
-  durationConfirmed: confirmed,
+  durationPrompted: !!confirmed,
+  durationAnswer: confirmed ? 'confirmed' : 'not_prompted',
 });
 
 // A week totalling exactly `au`, split over equal sessions at RPE 10 — so
@@ -991,7 +1122,8 @@ test('F103 — a sub-floor baseline yields no ratio, no Infinity, no NaN', () =>
     timezone: 'UTC',
     durationSec: 1,
     sessionRpe: 1,
-    durationConfirmed: false,
+    durationPrompted: false,
+    durationAnswer: 'not_prompted',
   }];
   const r = bsBaseline(
     [...tiny(M4), ...tiny(M3), ...tiny(M2), ...tiny(M1)],

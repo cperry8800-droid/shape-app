@@ -13,7 +13,7 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
 // asking at one threshold while the guardrail excluded at another, silently.
-import { BS_SESSION_MINUTES_CEILING } from '../../../public/newdesign/progressionGuardrail.mjs';
+import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
@@ -24307,6 +24307,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // A scroll-to was rejected: if the scroll lands badly the member never sees
   // the row, nothing errors, and data quality degrades invisibly.
   const [completing, setCompleting] = useStateBSC(false);
+  // Latch the clock, THEN show the screen — so every derivation on it reads the
+  // same instant no matter how long the member stands there.
+  const openCompletion = () => {
+    if (completedAtRef.current == null) completedAtRef.current = Math.floor((Date.now() - elapsedStart) / 1000);
+    setCompleting(true);
+  };
   // ⚠ THE RATING IS OPTIONAL. THE WORKOUT LOG IS NOT.
   // Backing out of the completion screen still saves the session, with a NULL
   // rating — losing a member's irreplaceable workout log over one optional
@@ -24323,6 +24329,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // a retry would insert a SECOND `workout_sessions` row: one workout counted
   // twice in every load figure the guardrail reads. The failure is surfaced to
   // the member as a toast instead.
+  // The elapsed reading frozen when the completion screen opened — see the note
+  // on `elapsedSec`. Null until then.
+  const completedAtRef = React.useRef(null);
   const savedRef = React.useRef(false);      // the save runs AT MOST once
   const completingRef = React.useRef(false); // read by the unmount cleanup
   completingRef.current = completing;
@@ -24481,7 +24490,20 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   };
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
-  const elapsedSec = Math.floor((now - elapsedStart) / 1000);
+  // ⚠ THE COMPLETION SCREEN'S CLOCK IS LATCHED. `now` ticks every second and
+  // `elapsedStart` never pauses, so deriving the prompt from a LIVE clock lets
+  // the question change under the member mid-answer: a 40-second timer asks
+  // "the timer didn't run", they type 200, the timer crosses 60s, `askDuration`
+  // flips false, the field DISAPPEARS — and their typed answer is stored as the
+  // duration while the facts say nobody was asked. The mirror case is worse: a
+  // 149-minute session sitting on the screen for 31 seconds crosses the ceiling
+  // and records `confirmed` with no member action at all.
+  //
+  // Freezing at the moment the screen opens makes the question, the figure
+  // offered, and the answer all describe one instant.
+  const elapsedSec = completing && completedAtRef.current != null
+    ? completedAtRef.current
+    : Math.floor((now - elapsedStart) / 1000);
   // Session RPE load is RPE x MINUTES — a product, so a wrong duration is not a
   // small error (SPEC-guardrails.md §3.1). This timer is WALL-CLOCK: elapsedStart
   // is stamped at mount and never pauses, so it measures "how long the screen was
@@ -24513,8 +24535,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // and `Number('')` is 0, not NaN, so a CLEARED field would fall through the
   // old `> 0` test and silently re-adopt the very wall-clock figure the member
   // just deleted. Both must be rejected here, in one predicate.
+  // The maximum is the CORE's, imported — the field must not accept a figure
+  // the core reports as malformed.
   const SESSION_MINUTES_MIN = 1;
-  const SESSION_MINUTES_MAX = 600;
+  const SESSION_MINUTES_MAX = BS_SESSION_MINUTES_MAX;
   // Pre-filled with the timer's figure ONLY at the top end, where confirming is
   // the common answer and correcting is an edit.
   //
@@ -24526,13 +24550,23 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // unconditional `confirmed: true`. Past the field's own maximum there is no
   // credible figure to offer, so — as at the bottom end — we offer none and the
   // member has to say what they actually did.
-  const prefillOffered = timerImplausible && timerMinutes <= SESSION_MINUTES_MAX;
+  // ⚠ THE GATE AND THE LOG MUST READ THE SAME QUANTITY. Testing the ROUNDED
+  // minutes while storing the raw seconds opens a band at 600.01–600.49 min
+  // where the prefill is offered for a figure the core will not admit.
+  const prefillOffered = timerImplausible && elapsedSec <= SESSION_MINUTES_MAX * 60;
   const shownMinutes = manualMinutes != null ? manualMinutes : (prefillOffered ? String(timerMinutes) : '');
   const manualNum = manualMinutes == null ? NaN : Number(String(manualMinutes).trim());
   const manualValid = Number.isFinite(manualNum)
     && manualNum >= SESSION_MINUTES_MIN
     && manualNum <= SESSION_MINUTES_MAX;
-  const loggedDurationSec = manualValid ? Math.round(manualNum * 60) : elapsedSec;
+  // ⚠ STORE THE FIGURE THEY AFFIRMED, not one that merely rounds to it. The
+  // prefill DISPLAYS whole minutes; recording the raw seconds instead would mean
+  // "a human affirmed this" applied to a number up to 30 seconds from the one
+  // they were shown. Typed answers win; an accepted prefill logs exactly what it
+  // offered; otherwise the timer's own reading stands, unaffirmed.
+  const loggedDurationSec = manualValid
+    ? Math.round(manualNum * 60)
+    : (prefillOffered && manualMinutes == null ? timerMinutes * 60 : elapsedSec);
   // Did the member actually ANSWER the duration question? Only an answer may be
   // recorded as `durationConfirmed`, because that flag is what lets the core
   // admit an overrun into a baseline — asserting it on a blank or nonsense
@@ -24548,7 +24582,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // runaway timer past the field's own maximum are all cases where no credible
   // figure was ever offered — so none of them is an answer, and none may be
   // recorded as one.
-  const durationAnswered = !askDuration || manualValid || (prefillOffered && manualMinutes == null);
+  //
+  // ⚠ NOTE WHAT IS *NOT* HERE: a session we never asked about. It used to be
+  // folded in as "answered", which recorded a confirmation nobody gave. We now
+  // store the two FACTS — whether we asked, and what they said — and let the
+  // core decide credibility against whatever the ceiling is when it reads.
+  const durationAnswered = askDuration && (manualValid || (prefillOffered && manualMinutes == null));
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24716,7 +24755,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // completing the save on the screen that shows it. Backing out is the
   // opposite of confirming, so it stays false and the core excludes an
   // unconfirmed overrun — the safe direction (SPEC-guardrails.md §3.1).
-  const finishSession = async ({ confirmed = false } = {}) => {
+  const finishSession = async ({ answered = false } = {}) => {
     if (savedRef.current) return;
     savedRef.current = true;
     try {
@@ -24738,7 +24777,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         workout: moves[0]?.m || 'workout',
         durationSeconds: loggedDurationSec,
         sessionRpe,
-        durationConfirmed: confirmed,
+        // ONE input; `bsDurationFacts` derives the coherent pair from it, so the
+        // writer cannot emit a self-contradiction. A FACT, never a verdict —
+        // whether the figure is credible is the core's to decide against
+        // whatever the ceiling is when it reads, so a retune re-judges this row
+        // instead of inheriting a judgement made today.
+        durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
         setLogs,
         hr,
         review: { feel: reviewFeel, rpe: sessionRpe },
@@ -24761,7 +24805,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // `✕ End` discards on purpose. No navigation here: the component is already
   // going away.
   React.useEffect(() => () => {
-    if (completingRef.current && !savedRef.current) finishRef.current?.({ confirmed: false });
+    if (completingRef.current && !savedRef.current) finishRef.current?.({ answered: false });
   }, []);
 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -24800,7 +24844,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <div style={{ minHeight: '100%', background: BAND.bg, padding: `46px ${t.padX}px 40px` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <button
-              onClick={() => finishAndExit({ confirmed: false })}
+              onClick={() => finishAndExit({ answered: false })}
               style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}
             >← Back</button>
             <span style={{ ...bandEyebrow, color: BAND.dim35 }}>Session · Complete</span>
@@ -24849,8 +24893,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
                 <input
                   type="number"
                   inputMode="numeric"
-                  min="1"
-                  max="600"
+                  min={SESSION_MINUTES_MIN}
+                  max={SESSION_MINUTES_MAX}
                   value={shownMinutes}
                   onChange={(e) => setManualMinutes(e.target.value)}
                   aria-label="Session length in minutes"
@@ -24914,7 +24958,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
           <div style={{ marginTop: 30 }}>
             <button
-              onClick={() => finishAndExit({ confirmed: durationAnswered })}
+              onClick={() => finishAndExit({ answered: durationAnswered })}
               style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
             >Save &amp; finish ✓</button>
           </div>
@@ -25103,7 +25147,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
           </button>
         ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else setCompleting(true); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
           </button>
         )}
@@ -25148,7 +25192,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       {/* End workout early — routes to the SAME completion step, so finishing
           early is still asked for an effort rating rather than saving blind. */}
       <div style={{ padding: `18px ${t.padX}px 90px` }}>
-        <button onClick={() => setCompleting(true)} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
+        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
 
       {/* Trainer form-clip player — a dark portal sheet over the session (the

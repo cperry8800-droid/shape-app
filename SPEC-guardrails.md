@@ -274,7 +274,10 @@ history = {
     timezone:          'IANA zone',         // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,       // null AND 0 both mean ABSENT
-    durationConfirmed: boolean              // the member confirmed or typed the minutes
+    // AMENDED — two FACTS, not a verdict; credibility is derived at READ time
+    // against the CURRENT ceiling (§13.8).
+    durationPrompted:  boolean,             // was the member ASKED about the duration
+    durationAnswer:    'confirmed' | 'declined' | 'not_prompted'
   }]
 }
 
@@ -1121,6 +1124,54 @@ F109 (two-week → amber) and F129 (three-week → red) pin the current behaviou
 a future change to it is deliberate and visible.
 
 ---
+
+### 13.8 Duration credibility is DERIVED, not stored (amends §0, F22)
+
+`durationConfirmed` was a single boolean, and it conflated two different things:
+*asked, and affirmed* with *never asked, deemed credible at write time*. The
+second is a **judgement persisted as a measurement**, and it only holds while the
+ceiling never moves — which §13.4 promises it will. Lowering the ceiling would
+have silently reclassified every previously-unasked session into a "confirmed"
+overrun nobody confirmed.
+
+The row now carries only what happened — `durationPrompted` and `durationAnswer`
+(`confirmed` / `declined` / `not_prompted`) — and the core derives credibility at
+read time against the **current** ceiling. A retune re-judges stored rows
+correctly instead of inheriting a stale verdict.
+
+Absent **both** fields still reads as `not_prompted`, preserving F22's ruling
+that a missing flag is not a caller bug and excludes rather than admits. A
+**half-filled or self-contradicting** pair is malformed: guessing which half to
+believe is how a caller bug becomes a silent baseline error.
+
+Also added: **`BS_SESSION_MINUTES_MAX` (600)**. Past the ceiling we ask; past the
+maximum we refuse, and a row claiming more is malformed **even with a
+confirmation**. It is exported and imported by the completion prompt, so the
+field cannot accept a figure the core rejects.
+
+### 13.9 Never-throws is kept — the throw instruction is REVERSED
+
+An instruction to make a missing IANA zone **throw** was issued and then
+withdrawn. `malformed_history` stands.
+
+**Reasoning, recorded so it is not relitigated:** never-throws is the more
+valuable invariant, and it is the same reasoning behind Rule C — throwing inside
+the coach's builder breaks the UI on data the coach did not cause. F88, F89 and
+F91 stay unamended. The intent behind the instruction is already met: a missing
+or unrecognised zone is **never** defaulted to UTC, the offending field is named,
+and the whole evaluation degrades to `unknown` rather than scoring a week from a
+zone nobody knows.
+
+### 13.10 F112's wording is amended to match its own test
+
+F112 read *"malformed — missing `dateISO`"*. Rule E — ruled in, in the same
+document — replaced the pre-localised `dateISO` with `startedAtISO` + `timezone`,
+and F112's own test already pins `startedAtISO`. The row's **assertion** was
+correct and unchanged; only the field name was pre-Rule-E, so the row contradicted
+the test implementing it. Amended to *"malformed — missing or unparseable
+`startedAtISO`"*; the companion unknown-`timezone` case is F125. Recorded here
+alongside F109 / F120 / F127 / F95 as a flagged-and-ruled amendment, not a silent
+edit.
 
 ## 14. End-to-end verification
 

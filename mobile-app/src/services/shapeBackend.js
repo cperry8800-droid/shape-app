@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+// The reader's own vocabulary — never re-typed here, so the writer cannot drift
+// into emitting an answer the core does not recognise.
+import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
@@ -2246,7 +2249,7 @@ async function saveStructuredWorkoutSession({
   workout = 'workout',
   durationSeconds = 0,
   sessionRpe = null,
-  durationConfirmed = false,
+  durationAnswer = 'not_prompted',   // the ONE input; the pair derives from it
   setLogs = [],
   sensorSamples = [],
   privacy = 'private',
@@ -2282,24 +2285,32 @@ async function saveStructuredWorkoutSession({
       completedSets,
       captureMethod: 'in_app_session_timer',
       sensorAuthored: true,
-      // Did the member AFFIRMATIVELY accept this duration? The timer is
-      // wall-clock, so an overrun is only evidence if a human vouched for it —
-      // the guardrail core excludes `overrun && !durationConfirmed` so a
-      // forgotten screen cannot inflate a baseline and loosen every future
-      // ceiling (SPEC-guardrails.md §3.1).
+      // ⚠ TWO FACTS, NOT A VERDICT. Was the member asked about this duration,
+      // and what did they say. Whether the figure is CREDIBLE is derived by the
+      // core at read time against the current ceiling — never decided here and
+      // frozen, because §13.4 promises that ceiling will be retuned and a
+      // stored judgement would silently outlive the rule that produced it.
       //
-      // ⚠ IN `summary`, NOT ITS OWN COLUMN, ON PURPOSE. jsonb accepts an
-      // unknown key on any deployment, so this needs no migration and cannot
-      // reproduce the `session_rpe` schema-cache window below — where an
-      // unapplied column rejects the WHOLE insert and costs the member their
-      // entire session log over one optional field. `summary` is already this
-      // row's capture-metadata home (`captureMethod` sits right above).
-      // The history reader in Deploy 2b reads it from here.
+      // ⚠ IN `summary`, NOT ITS OWN COLUMN, ON PURPOSE. jsonb accepts unknown
+      // keys on any deployment, so this needs no migration and cannot reproduce
+      // the `session_rpe` schema-cache window below — where an unapplied column
+      // rejects the WHOLE insert and costs the member their entire session log
+      // over one optional field. `summary` is already this row's
+      // capture-metadata home (`captureMethod` sits right above).
       //
-      // Only ever true on the completion screen's own save action. Backing out
-      // of that screen is the OPPOSITE of confirming, so it stays false and the
-      // core excludes the session — the safe direction.
-      durationConfirmed: durationConfirmed === true,
+      // ⚠ The DURATION itself is NOT read from here. `duration_seconds` (the
+      // column) is the single authority; `summary.durationSeconds` below is a
+      // display convenience and the core never looks at it.
+      // ⚠ ONE FIELD DERIVES THE OTHER. Coercing the two halves INDEPENDENTLY is
+      // the one thing the reader refuses: a caller passing `prompted: true` with
+      // no answer would persist `{prompted: true, answer: 'not_prompted'}` — the
+      // exact self-contradiction the core reports as a caller bug, written
+      // silently here and unattributable there. Normalise the answer, then let
+      // it decide the flag, so an incoherent pair is unrepresentable.
+      //
+      // The vocabulary is imported, never re-typed: a second copy of it is the
+      // drift this whole change exists to remove.
+      ...bsDurationFacts(durationAnswer),
     },
   };
 
@@ -2459,7 +2470,7 @@ async function saveWorkoutSessionLog({
   workout = 'workout',
   durationSeconds = 0,
   sessionRpe = null, // post-session rating; null = skipped (SPEC-guardrails.md §3.1)
-  durationConfirmed = false, // the member accepted/typed the minutes on the completion screen
+  durationAnswer = 'not_prompted',   // 'confirmed' | 'declined' | 'not_prompted'
   setLogs = [],
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
@@ -2487,7 +2498,7 @@ async function saveWorkoutSessionLog({
     workout,
     durationSeconds,
     sessionRpe,
-    durationConfirmed,
+    durationAnswer,
     setLogs,
     sensorSamples,
     privacy,

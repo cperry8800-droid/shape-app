@@ -1248,7 +1248,7 @@ changelog whenever something ships.
   and there is deliberately no "Skip rating" affordance. The save is idempotent across every
   exit path; `session_rpe_prompted` fires exactly once on both, or the skip-rate denominator
   is wrong.
-- **`durationConfirmed` rides in the existing `summary` jsonb, NOT a new column** — jsonb
+- **The duration FACTS ride in the existing `summary` jsonb, NOT a new column** — jsonb
   accepts an unknown key on any deployment, so it needs no migration and cannot reproduce
   the `session_rpe` schema-cache window, where an unapplied column rejects the whole insert
   and costs a member their entire session log over one optional field. It is set only by an

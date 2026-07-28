@@ -55,7 +55,15 @@ history = {
     timezone:          'IANA zone',        // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,  // null AND 0 both mean ABSENT
-    durationConfirmed: boolean         // the member confirmed or typed the minutes
+    // AMENDED — two FACTS, not a verdict. `durationConfirmed` conflated
+    // "asked and affirmed" with "never asked, deemed credible at write time";
+    // the second only held while the ceiling never moved, which §13.4 promises
+    // it will. Credibility is now derived at READ time against the CURRENT
+    // ceiling, so a retune re-judges stored rows instead of inheriting a stale
+    // verdict. Absent BOTH reads as `not_prompted` (F22's safe direction); a
+    // half-filled or self-contradicting pair is malformed.
+    durationPrompted:  boolean,        // was the member ASKED about the duration
+    durationAnswer:    'confirmed' | 'declined' | 'not_prompted'
   }]
 }
 
@@ -84,7 +92,8 @@ become untestable in isolation.**
 | Term | Definition |
 |---|---|
 | **eligible** session | `durationSec > 0` **and** not an inferred overrun |
-| **inferred overrun** | `durationSec > 150 min` **and** `durationConfirmed === false` |
+| **inferred overrun** | `durationSec > 150 min` **and** `durationAnswer !== 'confirmed'` — derived at READ time against the CURRENT ceiling. `not_prompted` is not a confirmation: a session logged while the ceiling sat above it was never asked about, and a retune downward must not convert it into an affirmation nobody gave |
+| **absolute maximum** | `durationSec > 600 min` is **malformed**, even WITH a confirmation — past the ceiling we ask, past this we refuse |
 | **rated** session | eligible **and** `sessionRpe` passes the ordered rating rule below |
 | **the rating rule** | Applied in this order: **(1)** `null` or exactly **0** → *absent*, not rated. **(2)** not an **integer** → *malformed*. **(3)** an integer outside **[1, 10]** → *malformed*. **(4)** otherwise → *rated*. So `0.5`, `7.5`, `10.5`, `11` and `-2` are all malformed; `0` is absent. **Storable ≠ producible:** `numeric(3,1)` holds one decimal across the whole range, so a fraction anywhere in it is exactly as impossible from a whole-number prompt as `0.5` is, and treating them differently would be worse than either reading alone. ⚠ **Step 2 is the one line to reverse** if half-point RPE (6.5 / 7.5 / 8.5 — a real strength-training convention) is added to the prompt later; the column type is deliberately kept wide enough for it and must **not** be narrowed |
 | **session AU** | `sessionRpe × (durationSec / 60)`, rated sessions only |
@@ -392,7 +401,7 @@ a client-side defect quietly produce a wrong baseline forever.
 | F129 | **the same pattern with a THREE-week deload.** 1 week at 2000, then 3 deload weeks at 1200, then a proposed 2000. (Numbered out of sequence deliberately — it belongs beside F109, and renumbering F110–F128 would invalidate every existing reference) | **red.** Window `[1200, 1200, 1200, 2000]` → **baseline 1200**. Ramp at 1200 = 27.4% → amber over 1528.8; red at 1200 = 54.0% → **red over 1848**. Proposed 2000 clears both. **This is NOT a defect** — it is the F57 deload property, now quantified: a longer deload pulls the median further down, so the same return-to-normal week escalates from amber to red. ⚠ It is also **publish-blocking for a legitimate coaching pattern** (planned deload → return to normal). Recorded in `SPEC-guardrails.md §13.7`; deload-aware baselines are explicitly out of scope for v1 pending telemetry |
 | F110 | malformed — `durationSec: -30` | `unknown` / `malformed_history`, names the row |
 | F111 | malformed — `sessionRpe: 11` | `unknown` / `malformed_history` |
-| F112 | malformed — missing `dateISO` | `unknown` / `malformed_history` |
+| F112 | malformed — missing or unparseable `startedAtISO` | `unknown` / `malformed_history` |
 | F113 | **baseline 499 AU** | `cold_start`, `reason: 'baseline_below_floor'` — the absolute session-count caps govern |
 | F114 | **baseline 500 AU exactly** | `measured` — the floor is *below*, not *at or below*, matching the curve's own first anchor |
 | F115 | **the beginner who adds a second session** — baseline 200 AU, proposed 400 AU across 2 sessions | **NOT red.** Under the old 100 AU floor this was a 100% increase against a curve clamped to 40%/75% and resolved red. It now routes to the absolute caps (2 × 600 = 1200 amber) and is **green** |
@@ -441,7 +450,7 @@ derivation into the core, and I applied it inconsistently.
 sessions: [{
   startedAtISO: '2026-07-26T23:40:00Z',   // the instant, as stored
   timezone:     'America/New_York',        // IANA, from shape_user_tz
-  durationSec, sessionRpe, durationConfirmed
+  durationSec, sessionRpe, durationPrompted, durationAnswer
 }]
 ```
 

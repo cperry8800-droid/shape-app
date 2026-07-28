@@ -221,6 +221,53 @@ export function bsInterpolateAnchors(anchors, x) {
 /** Wall-clock minutes past which an UNCONFIRMED duration stops being evidence. */
 export const BS_SESSION_MINUTES_CEILING = 150;
 
+/**
+ * The longest a single session may claim to be, at all.
+ *
+ * Distinct from the ceiling above: past THAT we ask, past THIS we refuse. Ten
+ * hours is not a session, it is a screen someone left open — so a row claiming
+ * it is a caller bug in the same class as `sessionRpe: 11`, and is reported by
+ * name rather than quietly excluded.
+ *
+ * ⚠ ONE CONSTANT, IMPORTED BY THE PROMPT. The completion screen bounds what a
+ * member may type against this exact value; a second copy in the client would
+ * let the field accept what the core refuses, silently.
+ */
+export const BS_SESSION_MINUTES_MAX = 600;
+
+/**
+ * What the member was asked about this session's duration, and what they said.
+ *
+ * ⚠ FACTS, NOT A VERDICT. The predecessor stored a single `durationConfirmed`
+ * boolean, which conflated two different things: "asked, and affirmed" with
+ * "never asked, deemed credible at write time". That is a JUDGEMENT persisted
+ * as a measurement, and it only holds while the ceiling never moves — which
+ * §13.4 promises it will. Lowering the ceiling would have silently reclassified
+ * every previously-unasked session into a "confirmed" overrun nobody confirmed.
+ *
+ * Storing what actually happened lets the ceiling move: `credible` is re-derived
+ * at READ time against the CURRENT ceiling, so a retune re-judges old rows
+ * correctly instead of inheriting a stale verdict.
+ */
+export const BS_DURATION_ANSWERS = ['confirmed', 'declined', 'not_prompted'];
+
+/**
+ * Normalise a writer's answer into the coherent PAIR the reader accepts.
+ *
+ * ⚠ ONE FIELD DERIVES THE OTHER, HERE, ONCE. Coercing the two halves
+ * independently at the write site is how a caller emits
+ * `{prompted: true, answer: 'not_prompted'}` — the exact self-contradiction this
+ * module reports as a caller bug, written silently and unattributable later.
+ * Deriving makes that pair unrepresentable rather than merely discouraged.
+ *
+ * Lives beside the vocabulary it validates so the writer cannot hold a second
+ * copy of the list, which is the drift this whole contract exists to remove.
+ */
+export function bsDurationFacts(rawAnswer) {
+  const durationAnswer = BS_DURATION_ANSWERS.includes(rawAnswer) ? rawAnswer : 'not_prompted';
+  return { durationPrompted: durationAnswer !== 'not_prompted', durationAnswer };
+}
+
 /** The rating scale the completion prompt actually offers. */
 export const BS_RPE_MIN = 1;
 export const BS_RPE_MAX = 10;
@@ -466,7 +513,7 @@ export function bsClassifySession(session, index = 0) {
     return bad([issue(index, 'session', session)]);
   }
 
-  const { startedAtISO, timezone, durationSec, sessionRpe, durationConfirmed } = session;
+  const { startedAtISO, timezone, durationSec, sessionRpe, durationPrompted, durationAnswer } = session;
   const issues = [];
 
   // ── When it happened, in the client's own calendar.
@@ -493,8 +540,29 @@ export function bsClassifySession(session, index = 0) {
   // crosses the wire as text — hence the parse there and not here. If that ever
   // stops being true the whole history reads malformed, which surfaces loudly
   // as "could not check" plus telemetry rather than failing silently.
+  // Only shapes no legitimate writer can produce are MALFORMED. An absurdly
+  // LARGE duration is not one of them — see the exclusion below.
   if (!finite(durationSec) || durationSec < 0) {
     issues.push(issue(index, 'durationSec', durationSec));
+  }
+
+  // ── What the member was ASKED, and what they SAID.
+  //
+  // ABSENT BOTH is legal and means `not_prompted` — no record of a prompt is
+  // not a caller bug, and it excludes rather than admits, which is the safe
+  // direction (the rule F22 already ruled for the flag this replaced).
+  //
+  // A HALF-FILLED or INCOHERENT pair is a different thing entirely:
+  // `prompted: false` beside an answer of `confirmed` is not a stricter or
+  // looser reading, it is a row that contradicts itself. Guessing which half to
+  // believe is how a caller bug becomes a silent baseline error, so it is
+  // reported by name.
+  const answerAbsent = durationPrompted === undefined && durationAnswer === undefined;
+  if (!answerAbsent
+      && (typeof durationPrompted !== 'boolean'
+        || !BS_DURATION_ANSWERS.includes(durationAnswer)
+        || durationPrompted !== (durationAnswer !== 'not_prompted'))) {
+    issues.push(issue(index, 'durationAnswer', durationAnswer));
   }
 
   // ── RPE. Ruled order, applied exactly as written:
@@ -541,12 +609,40 @@ export function bsClassifySession(session, index = 0) {
   // clock runs whether or not anyone is training, so a forgotten timer would
   // inflate the baseline and loosen every future ceiling (F22).
   //
-  // `durationConfirmed` is treated as a boolean flag: only a truthy value is a
-  // confirmation. A missing flag therefore reads as unconfirmed, which excludes
-  // rather than includes — the safe direction, and not a malformed row.
+  // ⚠ THE VERDICT IS DERIVED HERE, AGAINST THE CURRENT CEILING — never read
+  // from the row. The row carries only what happened: whether we asked, and
+  // what they said. So when §13.4's retune moves the ceiling, every stored
+  // session is re-judged under the new number:
+  //
+  //   under the ceiling      → credible on the timer alone; nothing was needed
+  //   over it, `confirmed`   → a human affirmed THIS figure; counts in full
+  //   over it, `declined`    → they were asked and would not stand behind it
+  //   over it, `not_prompted`→ nobody was ever asked, because it was under the
+  //                            ceiling WE USED TO USE. That is not a
+  //                            confirmation, and after a retune down it must
+  //                            not become one.
+  //
+  // The last line is the whole reason the flag was replaced by facts: a stored
+  // `confirmed: true` would have converted those rows into affirmations nobody
+  // gave, the moment the ceiling dropped below them.
   const overrun = durationSec > BS_SESSION_MINUTES_CEILING * 60;
-  const inferredOverrun = overrun && !durationConfirmed;
-  const eligible = durationSec > 0 && !inferredOverrun;
+  const affirmed = durationAnswer === 'confirmed';
+  const inferredOverrun = overrun && !affirmed;
+
+  // ⚠ EXCLUDED, NOT MALFORMED — and the distinction is load-bearing.
+  //
+  // Ten hours is a phone left on the completion screen overnight, which OUR OWN
+  // writer produces: the wall-clock fallback is what it stores when nobody
+  // answers. Calling that a caller bug would be a catastrophe pointing the wrong
+  // way — one malformed row turns the WHOLE evaluation `unknown`, and §7.5 rules
+  // that `unknown` never blocks publish. A forgotten timer would therefore
+  // switch the guardrail OFF for that client, which is exactly the abuse F22
+  // exists to prevent, arriving through the guard meant to stop it.
+  //
+  // Excluding drops the row and scores the rest. Malformed is reserved for
+  // shapes no legitimate writer can emit (negative, non-finite).
+  const beyondMax = durationSec > BS_SESSION_MINUTES_MAX * 60;
+  const eligible = durationSec > 0 && !inferredOverrun && !beyondMax;
 
   // Ineligible sessions are not rated either. An excluded overrun must not
   // linger in the denominator as an "unrated" session — it is not a session we
