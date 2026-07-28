@@ -733,10 +733,14 @@ export function bsClassifySession(session, index = 0) {
  * dedupe pass — the sync copy simply never enters.
  *
  * ⚠ AN ALLOWLIST, NOT A BLOCKLIST, and that choice is load-bearing.
- * `workout_sessions.source` carries a CHECK constraint that already admits six
- * device values. A blocklist would silently admit the SEVENTH the day someone
- * widens that constraint; the allowlist puts a new source OUT until it is
- * ruled in. Out is the safe direction — see the §13 property below.
+ * `workout_sessions.source` carries a CHECK constraint that already admits
+ * SEVEN values outside this list. A blocklist would silently admit the eighth
+ * the day someone widens that constraint; the allowlist puts a new source OUT
+ * until it is ruled in. Out is the safe direction — see the §13 property below.
+ *
+ * ⚠ WHAT THE ALLOWLIST DOES NOT PROTECT AGAINST: a source that LIES. It stops a
+ * new source VALUE entering unruled; it cannot stop a future device-sync writer
+ * stamping `shape_app`. See §9.5's registered regression vector.
  *
  * ⚠ `manual` IS DEFERRED OUT, and that is a decision, not an oversight. A
  * hand-entered past workout was not prompted at the time either, so it fails
@@ -829,6 +833,14 @@ export function bsWeekLoad(sessions) {
   const malformed = [];
   const classified = [];
   sessions.forEach((s, i) => {
+    // ⚠ §9.5 SCOPE APPLIES HERE TOO, and it is easy to miss why. This function
+    // is a PARALLEL implementation of the week tally — `bsBucketWeeks` does not
+    // call it, it runs the same classify+tally inline — so it inherits nothing
+    // from the scoping applied there. Without this line the two disagree on
+    // identical input (measured: 1080 AU here vs 480 from bucketing), and this
+    // is the one a 2b implementer reaches for, because its docstring says
+    // exactly what they want.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) malformed.push(...c.issues);
     else classified.push(c);

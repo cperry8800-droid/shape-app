@@ -881,14 +881,25 @@ writers the guardrail must not silently absorb.
 The RPC therefore **returns `source` and `status` on every row**, closing the
 contract gap the original §9.5 named.
 
-⚠ **`reviewed` is in scope — a deliberate widening of the ruling's word
-"completed"**, serving that ruling's own stated reason ("a baseline is a record
-of what happened"). `reviewed` is a *completed* session a coach has since
-opened. Reading `= 'completed'` literally would mean **a coach reviewing a
-session removes it from that client's baseline** — the same silent
-baseline-shrink class as the `started_at is not null` drop, and worse than a
-direction error, because it makes the verdict depend on an unrelated act by a
-different person.
+⚠ **`reviewed` is in scope.** It reads like a widening of the ruling's word
+"completed", and it was written as one — but it is not. **Three already-shipped
+migrations read exactly `status in ('completed','reviewed')` against this same
+table**: `2026-06-13-client-lifts.sql`, `2026-06-13-client-profile-stats.sql`
+(twice), and `2026-06-25-client-lifts-e1rm.sql`. So this is the **house
+definition of "work that happened" on `workout_sessions`**, and a literal
+`= 'completed'` would have made the guardrail the odd one out — quietly
+disagreeing with the key-lift and profile-stat reads about which sessions the
+same client performed.
+
+The independent reason still holds and is the sharper one: `reviewed` is a
+*completed* session a coach has since opened, so reading `= 'completed'`
+literally would mean **a coach reviewing a session removes it from that client's
+baseline** — the same silent baseline-shrink class as the `started_at is not
+null` drop, and worse than a direction error, because it makes the verdict
+depend on an unrelated act by a different person.
+
+`abandoned` is correctly out: nothing writes it, and "End workout early" routes
+through the same completion step and saves `completed`.
 
 ⚠ **An ALLOWLIST, not a blocklist.** A blocklist silently admits the seventh
 device value the day someone widens the CHECK. `manual` therefore falls **out**
@@ -897,11 +908,34 @@ decision, not an oversight: if a manual-entry form ever ships *with* an RPE
 field, that row becomes promptable and the list should be revisited.
 
 ⚠ **An ABSENT discriminator is IN scope** — the opposite call from malformed,
-and deliberately so. Both columns are `not null default`, so the database cannot
-emit a null one; an absent field can only mean an RPC predating this contract,
-under which every row is in-app anyway. Reading absence as out-of-scope would
-vanish an entire history on a contract regression. The emission is pinned by
+and deliberately so. Both columns are `not null default`, so the **database**
+cannot emit a null one; an absent field can only mean an RPC predating this
+contract. Reading absence as out-of-scope would vanish an entire history on a
+contract regression. The emission is pinned by
 `tests/guardrail-load-history-wire.test.mjs`.
+
+⚠ **Precision on "one writer exists": that is an APP-CODE invariant, not a
+schema one**, and the distinction matters because the sentence above leans on
+it. The `clients update own active workout sessions` policy carries **no status
+predicate** — its body is `using (client_id = auth.uid()) with check (client_id
+= auth.uid())` — so despite the name a client may update any of their own rows,
+including `source` and `status`. The absent-is-in-scope call does *not* rest on
+the writer count (it rests on `NOT NULL`, which is genuinely enforced), so the
+conclusion stands; but the policy name overpromises relative to its body. That
+is pre-existing and outside this guardrail's threat model — **registered, not
+fixed here.**
+
+⚠ **REGISTERED REGRESSION VECTOR — a source that LIES, which no fixture can
+catch.** The allowlist stops a new source *value* entering unruled. It cannot
+stop a future device-sync writer stamping `shape_app`. The day one starts
+writing `workout_sessions`, the likely implementation path is copy-paste from
+`saveStructuredWorkoutSession`, which hardcodes `source: 'shape_app'` — and
+that **fails OPEN**: device rows enter the baseline wearing the in-app label,
+while every §9.5 fixture stays green, because they all construct `source` by
+hand. The guard is a code-review one, recorded here because the test suite
+cannot be it. A real fix, if a device writer ever lands, is to make the sync
+path set `source` from the integration that produced the row and assert that in
+that writer's own tests.
 
 Fixtures: `tests/guardrail-scope.test.mjs` — every one asserts both the scoped
 verdict *and* the verdict the same rows produce with the out-of-scope ones

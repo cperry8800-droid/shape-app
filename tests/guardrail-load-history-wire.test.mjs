@@ -19,7 +19,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { bsClassifySession } from '../public/newdesign/progressionGuardrail.mjs';
+import {
+  bsClassifySession,
+  BS_SESSION_STATUSES_IN_SCOPE,
+} from '../public/newdesign/progressionGuardrail.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CORE = readFileSync(join(ROOT, 'public', 'newdesign', 'progressionGuardrail.mjs'), 'utf8');
@@ -142,11 +145,22 @@ test('migration: the RPC EMITS source and status, so the core can scope on them'
 });
 
 test('migration: only PERFORMED work crosses the wire, and `reviewed` still counts', () => {
-  // Filtered in SQL rather than the core specifically so the `limit 500` cannot
-  // be consumed by rows that were never going to count.
-  assert.match(SQL_CODE, /ws\.status in \('completed', 'reviewed'\)/);
+  // ⚠ THE PATTERN IS BUILT FROM THE CORE'S OWN LIST, NOT A COPY OF IT.
+  // `['completed','reviewed']` is maintained in two languages — here in SQL and
+  // in progressionGuardrail.mjs — and a test pinning a LITERAL would let either
+  // side change alone with both staying green. That is the whitelist trap §10.2
+  // already documents for `track_event`/`ANALYTICS_EVENTS`, arriving a third
+  // time; pinning the SQL to the core's array is what actually closes it.
+  const statuses = BS_SESSION_STATUSES_IN_SCOPE.map((s) => `'${s}'`).join(`,\\s*`);
+  assert.match(SQL_CODE, new RegExp(`ws\\.status in \\(\\s*${statuses}\\s*\\)`),
+    `the SQL filter must list exactly ${BS_SESSION_STATUSES_IN_SCOPE.join(' + ')}`);
+
   // The literal-'completed' reading is the trap: it would let a coach REVIEWING
-  // a session silently remove it from that client's baseline.
+  // a session silently remove it from that client's baseline. It is also the
+  // ODD ONE OUT — three shipped migrations on this same table already read
+  // `status in ('completed','reviewed')` (2026-06-13-client-lifts,
+  // 2026-06-13-client-profile-stats, 2026-06-25-client-lifts-e1rm), so this is
+  // the house definition of "work that happened", not a local widening.
   assert.doesNotMatch(SQL_CODE, /ws\.status\s*=\s*'completed'/, 'reviewed must not be dropped');
 });
 

@@ -16,6 +16,7 @@ import {
   bsSessionInScope,
   bsScopeSessions,
   bsBucketWeeks,
+  bsWeekLoad,
   bsBaseline,
   bsHistoryGap,
   bsResolveRegime,
@@ -220,4 +221,21 @@ test('FIXTURE: a device sync does NOT reset the return-regime clock', () => {
   );
   assert.equal(withoutRule.lastRealISO, '2026-09-10', 'without the rule the sync closes the gap');
   assert.ok(gap.gapDays > withoutRule.gapDays, 'the sync would have hidden a real layoff');
+});
+
+test('scope: bsWeekLoad agrees with bsBucketWeeks — the PARALLEL tally is scoped too', () => {
+  // bsBucketWeeks does NOT call bsWeekLoad; it runs the same classify+tally
+  // inline. So bsWeekLoad inherits nothing from the scoping applied there, and
+  // before this was fixed the two disagreed on identical input (1080 AU vs
+  // 480). Not a live defect — nothing outside tests calls it — but it is the
+  // one a 2b implementer reaches for, because its docstring reads "derive one
+  // week's load from its logged sessions".
+  const day = dayIn(WEEKS[0], 1);
+  const rows = [inApp(day, 9), synced(day, 18)];
+  const w = bsWeekLoad(rows);
+  const b = bsBucketWeeks(rows).weeks[0];
+  assert.equal(w.loadAu, b.loadAu, 'the two tallies must never disagree');
+  assert.equal(w.eligible, b.eligible);
+  assert.equal(w.hardestAu, b.hardestAu, 'a device row must not become the hardest session');
+  assert.equal(w.loadAu, 200);
 });
