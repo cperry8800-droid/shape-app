@@ -709,6 +709,99 @@ export function bsClassifySession(session, index = 0) {
   };
 }
 
+/* ── §9.5. THE UNIVERSE — which rows are the client's training at all ──────
+ *
+ * Owner ruling 2026-07-28. This is a SCOPE question, and it sits UPSTREAM of
+ * malformed/excluded: an out-of-scope row is not a bad session and not an
+ * unusable one, it is **not a session in this guardrail's universe**. Not in
+ * the numerator, not in the denominator, not scored, and — because the gap
+ * read runs over the same array — NOT GAP-BREAKING.
+ *
+ * ⚠ WHY SOURCE DECIDES IT, and why the distinction is not pedantic.
+ * An unrated IN-APP session was ASKED and not answered — a behavioural signal,
+ * and §3.1 is right to count it in the measured-week denominator. A DEVICE
+ * IMPORT was never promptable: there is no completion step on a watch sync, so
+ * no rating could ever have been given. It is STRUCTURALLY unratable, not
+ * ELECTIVELY unrated. Treating them alike is the same conflation this module
+ * has now rejected twice — absent-vs-malformed (§13.8) and "no baseline
+ * yet"-vs-"estimated" (§3.2).
+ *
+ * One rule resolves both hazards §9.5 raised: a watch-wearing client can no
+ * longer be pinned in `cold_start` by their own sync diluting the rated share,
+ * and a workout that is BOTH logged in-app and synced from Strava cannot
+ * double-count, because only the in-app row was ever in scope. There is no
+ * dedupe pass — the sync copy simply never enters.
+ *
+ * ⚠ AN ALLOWLIST, NOT A BLOCKLIST, and that choice is load-bearing.
+ * `workout_sessions.source` carries a CHECK constraint that already admits six
+ * device values. A blocklist would silently admit the SEVENTH the day someone
+ * widens that constraint; the allowlist puts a new source OUT until it is
+ * ruled in. Out is the safe direction — see the §13 property below.
+ *
+ * ⚠ `manual` IS DEFERRED OUT, and that is a decision, not an oversight. A
+ * hand-entered past workout was not prompted at the time either, so it fails
+ * the same test. Nothing writes it today. If a manual-entry form ever ships
+ * WITH an RPE field, that row becomes promptable and this list should be
+ * revisited — registered rather than guessed at.
+ *
+ * ⚠ STATUS: only work that HAPPENED. `planned` and `active` are prescribed or
+ * in-flight, not performed; admitting them would inflate demonstrated capacity
+ * and loosen every future ceiling, which is the expensive direction.
+ * `abandoned` is started-not-finished and is not a record of a session done.
+ *
+ * ⚠ `reviewed` IS IN SCOPE — a deliberate widening of the owner's word
+ * "completed", serving that ruling's own stated reason ("baseline is a record
+ * of what happened"). A reviewed session is a COMPLETED one a coach has since
+ * looked at. Reading `= 'completed'` literally would mean a coach opening a
+ * session REMOVES it from that client's baseline — the same silent
+ * baseline-shrink class as the `started_at is not null` drop, and worse than a
+ * direction error because it makes the verdict depend on an unrelated act.
+ *
+ * ⚠ AN ABSENT FIELD IS IN SCOPE, and this is the opposite call from malformed.
+ * Both columns are `NOT NULL DEFAULT`, so the DATABASE cannot emit a null one;
+ * an absent field can only mean an RPC that predates this contract — and under
+ * such an RPC every row is in-app anyway, because one writer exists. Reading
+ * absence as out-of-scope would vanish an entire history on a contract
+ * regression. The RPC's emission is pinned by tests/guardrail-load-history-wire.
+ */
+
+/** Sources whose sessions the member could actually have been asked to rate. */
+export const BS_SESSION_SOURCES_IN_SCOPE = ['shape_app', 'shape_session'];
+
+/** Statuses that record work PERFORMED (not prescribed, not in flight). */
+export const BS_SESSION_STATUSES_IN_SCOPE = ['completed', 'reviewed'];
+
+/**
+ * Is this row part of the client's training, at all?
+ *
+ * Deliberately tolerant of a non-object: scope is not the place to report a
+ * caller bug. A junk row stays IN so `bsClassifySession` can name it malformed
+ * — otherwise scope would silently swallow the very rows the malformed report
+ * exists to surface.
+ *
+ * @param {*} session
+ * @returns {boolean}
+ */
+export function bsSessionInScope(session) {
+  if (!session || typeof session !== 'object' || Array.isArray(session)) return true;
+  const { source, status } = session;
+  if (source !== undefined && source !== null && !BS_SESSION_SOURCES_IN_SCOPE.includes(source)) return false;
+  if (status !== undefined && status !== null && !BS_SESSION_STATUSES_IN_SCOPE.includes(status)) return false;
+  return true;
+}
+
+/**
+ * Narrow a history to the guardrail's universe. Idempotent, so every entry
+ * point can apply it without the composite paths double-filtering.
+ *
+ * @param {*} sessions
+ * @returns {*} the filtered array, or the input untouched when it is not one
+ */
+export function bsScopeSessions(sessions) {
+  if (!Array.isArray(sessions)) return sessions;
+  return sessions.filter(bsSessionInScope);
+}
+
 /**
  * Derive one week's load from its logged sessions.
  *
@@ -791,6 +884,10 @@ export function bsBucketWeeks(sessions) {
   const byWeek = new Map();
 
   sessions.forEach((s, i) => {
+    // §9.5 scope runs FIRST and skips in place rather than pre-filtering the
+    // array, so `i` stays the row's WIRE index — a malformed report that
+    // renumbered its rows would point a reader at the wrong session.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) {
       malformed.push(...c.issues);
@@ -945,7 +1042,14 @@ export function bsBaseline(sessions, todayISO) {
   // No history at all is a DIFFERENT answer from history we cannot use (F107
   // vs F106): one is "not enough logged", the other is "logged but unusable",
   // and a coach reads them differently.
-  if (sessions.length === 0) return none('no_history');
+  //
+  // ⚠ Measured against the SCOPED history (§9.5). A client whose every row is
+  // a device import has no history IN THIS GUARDRAIL'S UNIVERSE, and that is
+  // `no_history` — not `no_qualifying_weeks`, which would tell a coach we
+  // looked at weeks that never entered. Only this emptiness test needs the
+  // filtered array; bucketing and the gap read skip in place to keep their
+  // row indices honest.
+  if (bsScopeSessions(sessions).length === 0) return none('no_history');
 
   const currentMonday = mondayIsoFromUtcMs(todayMs);
   const reachStart = isoDateFromUtcMs(todayMs - BS_WINDOW_REACH_DAYS * DAY_MS);
@@ -1450,6 +1554,11 @@ export function bsHistoryGap(sessions, todayISO) {
   let lastRealISO = null;
 
   sessions.forEach((s, i) => {
+    // §9.5: an out-of-scope row is NOT GAP-BREAKING. A watch sync must not
+    // reset the return-regime clock — it is not evidence the client trained
+    // in the sense this guardrail measures. Skipped in place to keep `i` the
+    // wire index, as in bsBucketWeeks.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) {
       malformed.push(...c.issues);

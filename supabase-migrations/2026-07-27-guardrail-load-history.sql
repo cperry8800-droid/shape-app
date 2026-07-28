@@ -176,7 +176,23 @@ begin
         -- would compute 0 x minutes = 0 AU, enter a real week at zero, deflate
         -- the baseline and tighten every future ceiling (§13.4). Verified: the
         -- core reads a null sessionRpe and an absent one identically.
-        'sessionRpe',   to_jsonb(ws.session_rpe)
+        'sessionRpe',   to_jsonb(ws.session_rpe),
+        -- ⚠ THE SCOPE DISCRIMINATORS (§9.5, owner ruling 2026-07-28). Both are
+        -- `not null default` columns, so these can never be JSON null.
+        --
+        -- `source` is carried but NOT filtered on here, deliberately. WHICH
+        -- sources count as the client's training is the RULING — the
+        -- contestable part, with `manual` explicitly registered for revisit —
+        -- and under the §4.1 standing rule a judgement belongs in
+        -- progressionGuardrail.mjs where §12's fixtures can reach it. Filtering
+        -- it here would move the one decision most likely to change into the
+        -- one place it cannot be fixture-tested.
+        --
+        -- `status` IS filtered below, because it is not a judgement about whose
+        -- training counts: a `planned` row is not a past session under any
+        -- reading, so it belongs with the ownership and date-window bounds.
+        'source',       to_jsonb(ws.source),
+        'status',       to_jsonb(ws.status)
       )
       -- The two FACTS, read straight out of the summary jsonb the completion
       -- step writes. NOT a verdict: credibility is derived at READ time against
@@ -192,6 +208,24 @@ begin
     from public.workout_sessions ws
     where ws.client_id = p_client_id
       and coalesce(ws.started_at, ws.created_at) >= now() - make_interval(days => v_days)
+      -- ⚠ WORK THAT HAPPENED, not work that was written down (§9.5).
+      -- `planned` and `active` are prescribed or in-flight; admitting them
+      -- would inflate demonstrated capacity and loosen every future ceiling,
+      -- which is the expensive direction. `abandoned` is started-not-finished.
+      --
+      -- ⚠ `reviewed` IS INCLUDED — a deliberate widening of the ruling's word
+      -- "completed", serving that ruling's own reason (a baseline is a record
+      -- of what happened). `reviewed` is a COMPLETED session a coach has since
+      -- opened. Reading `= 'completed'` literally would mean a coach reviewing
+      -- a session REMOVES it from that client's baseline: a silent
+      -- baseline-shrink, and worse than a direction error because it makes the
+      -- verdict depend on an unrelated act by a different person.
+      --
+      -- ⚠ FILTERED HERE RATHER THAN AFTER THE CAP, on purpose: the `limit 500`
+      -- below is applied by the same query, so a client with many non-performed
+      -- rows could otherwise have real history evicted by rows that were never
+      -- going to count.
+      and ws.status in ('completed', 'reviewed')
     -- Newest first, bounded. At the default 180-day window 500 sessions is
     -- beyond any human schedule and the core only reaches 84 days back, so the
     -- cap can only trim ancient tail rows that could not have entered a

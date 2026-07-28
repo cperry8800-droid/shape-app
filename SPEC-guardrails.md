@@ -832,30 +832,81 @@ call that runs *before* the insert, the offline case never even reached the
 fallback. Fixed as its own change, with the replay draining through the same
 writer so it cannot become a side door around this gate.
 
-### §9.5 OPEN — needs a ruling before the gate scores anything
+### §9.5 RULED 2026-07-28 — the guardrail's universe is IN-APP, PERFORMED work
 
-**Which `workout_sessions` rows are the client's training?** The RPC currently
-returns every row in the window, filtering on neither `status`
-(`planned` / `abandoned` / `reviewed` are all valid) nor `source`
-(`whoop` / `garmin` / `strava` / `apple_health` / `manual`).
+**Which `workout_sessions` rows are the client's training?** Ruled on both
+discriminators. Device-imported sessions are **outside the guardrail entirely** —
+not in the numerator, not in the denominator, not scored, **not gap-breaking** —
+and the history reads **completed work only**.
 
-That is *correct* for the RPC under the §4.1 standing rule — it hands over raw
-rows and makes no judgement. But it pushes a real question onto the core, and
-the core cannot currently answer it, because **the RPC does not return `status`
-or `source` at all**. So this is a contract question, not just a core one.
+**The reasoning, which is the part that generalises.** An unrated *in-app*
+session was **asked and not answered**: a behavioural signal, correctly counted
+in §3.1's measured-week denominator. A device import was **never promptable** —
+there is no completion step on a watch sync — so it is **structurally
+unratable, not electively unrated**. Treating them alike is the same conflation
+this spec has now rejected twice: absent-vs-malformed (§13.8) and
+"no baseline yet"-vs-"estimated" (§3.2).
 
-Why it matters: a device-imported session carries no `session_rpe` and no
-duration facts, but *does* carry a non-zero `duration_seconds`. It is therefore
-**non-excluded and unrated**, which puts it in the denominator of §3.1's
-"a week counts as `measured` only if more than half of its non-excluded sessions
-carry a session RPE". A client who wears a watch could be pinned in `cold_start`
-indefinitely **by their own sync** — and a workout both logged in-app *and*
-synced from Strava double-counts into the weekly total.
+One rule resolves both hazards §9.5 originally raised: **no cold-start pinning**
+(syncs stop diluting the rated share) and **no double-count** (only the in-app
+row was ever in scope — there is no dedupe pass, and none is needed).
 
-Neither direction is obviously right (excluding device rows discards real
-training; including them corrupts the measured-week test), so it is recorded
-here for a ruling rather than decided in the migration. Whatever is ruled, the
-RPC must start returning the field the decision keys on.
+⚠ **THE PREMISE OF THE ORIGINAL §9.5 WAS WRONG, and the correction is recorded
+rather than quietly dropped.** It asserted that device imports reach the
+denominator today. They do not. Verified read-only against production
+2026-07-28:
+
+- The RPC reads `public.workout_sessions` directly — no view.
+- **Exactly one writer reaches that table**: `saveStructuredWorkoutSession`
+  (two inserts, the second being the no-RPE retry). No `update`, `upsert` or
+  `delete` anywhere in the repo, and no database function or trigger writes it.
+- **All five device syncs** (Apple Health, Garmin, Oura, Strava, Whoop) write
+  `activities` and `daily_health_snapshot`. Round 4's finding #5 was correct.
+- Scheduled work is not in this table at all — it lives in `client_workouts`.
+- The single writer hardcodes `source: 'shape_app'` and `status: 'completed'`,
+  and production held **zero rows**.
+
+So the rule is **anticipatory, not remedial** — which is precisely why it is
+worth having: `workout_sessions.source` already carries a CHECK constraint
+admitting six device values and `status` five states, so the schema anticipates
+writers the guardrail must not silently absorb.
+
+**Where each half lives, and why they are split.**
+
+| Half | Enforced in | Why there |
+|---|---|---|
+| `status in ('completed','reviewed')` | **the RPC** | Not a judgement about whose training counts — a `planned` row is not a past session under any reading, so it belongs with the ownership and date-window bounds. Filtering it in SQL also stops non-performed rows consuming the `limit 500`. |
+| `source in ('shape_app','shape_session')` | **the core** (`bsSessionInScope`) | This *is* the ruling — the contestable half, with `manual` registered for revisit. Under the §4.1 standing rule a judgement belongs where §12's fixtures reach it. |
+
+The RPC therefore **returns `source` and `status` on every row**, closing the
+contract gap the original §9.5 named.
+
+⚠ **`reviewed` is in scope — a deliberate widening of the ruling's word
+"completed"**, serving that ruling's own stated reason ("a baseline is a record
+of what happened"). `reviewed` is a *completed* session a coach has since
+opened. Reading `= 'completed'` literally would mean **a coach reviewing a
+session removes it from that client's baseline** — the same silent
+baseline-shrink class as the `started_at is not null` drop, and worse than a
+direction error, because it makes the verdict depend on an unrelated act by a
+different person.
+
+⚠ **An ALLOWLIST, not a blocklist.** A blocklist silently admits the seventh
+device value the day someone widens the CHECK. `manual` therefore falls **out**
+— a hand-entered past workout was not prompted at the time either — which is a
+decision, not an oversight: if a manual-entry form ever ships *with* an RPE
+field, that row becomes promptable and the list should be revisited.
+
+⚠ **An ABSENT discriminator is IN scope** — the opposite call from malformed,
+and deliberately so. Both columns are `not null default`, so the database cannot
+emit a null one; an absent field can only mean an RPC predating this contract,
+under which every row is in-app anyway. Reading absence as out-of-scope would
+vanish an entire history on a contract regression. The emission is pinned by
+`tests/guardrail-load-history-wire.test.mjs`.
+
+Fixtures: `tests/guardrail-scope.test.mjs` — every one asserts both the scoped
+verdict *and* the verdict the same rows produce with the out-of-scope ones
+restamped in-app, so a fixture that would pass either way cannot hide there.
+The accepted cost is recorded in §13.13.
 
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
 `SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,
@@ -1505,3 +1556,43 @@ majority, amber is occasional and actionable, and red is rare enough that every
 instance is worth the coach's attention. If step 4 returns zero, none of that is
 measurable and the launch is flying blind — fix the whitelist before drawing any
 conclusion from flag rates.
+
+---
+
+### 13.13 Training outside the app understates capacity (§9.5's accepted cost)
+
+**Known, accepted, and deliberately chosen.** §9.5 puts device-imported
+sessions outside the guardrail's universe. The direct consequence: **a client
+who trains heavily outside the app has their capacity understated**, so their
+ceilings run tighter than their true fitness warrants and they will see more
+amber and red than a client doing identical work entirely in-app.
+
+This is the same shape as §13.7 (deload) and the unrated-session rule in §3.1 —
+a real cost paid by real coaches, accepted because the alternative is worse:
+
+- Counting device rows in the denominator **pins a watch-wearing client in
+  `cold_start` indefinitely by their own sync**, which is not a tighter ceiling
+  but a *wrong regime* — and cold start's per-session bounds stand in for a
+  measurement we do not have, so applying them to someone we *could* have
+  measured is strictly less honest.
+- Counting a device row's *duration* toward load without a rating means
+  imputing an RPE, which §3.2 already ruled against for exactly this reason.
+
+**It fails toward the safe direction.** Understated capacity over-flags: the
+coach is asked to acknowledge a week that was probably fine. Overstated capacity
+under-flags: the guardrail stays quiet on a week that was not. The first is
+friction; the second is the failure the guardrail exists to prevent.
+
+⚠ **The residual risk is alarm fatigue, not silence** — and it is loud rather
+than quiet, which is why it is acceptable. A client whose entire history is
+device syncs reads `no_history` and lands in `cold_start`, where a genuinely
+strong week may flag every time. That is visible in `guardrail_evaluated`
+(§10.2) from day one.
+
+**Revisit in v2 if telemetry shows it biting.** The measurable signal is the
+flag rate for clients with a connected integration versus those without; the
+state and axis already ride on `guardrail_evaluated`, so no new instrumentation
+is needed. If it is a meaningful share of reds, the first candidate is *not*
+admitting device rows to the denominator but **making them promptable** — a
+post-sync rating prompt would convert them into genuine in-app rated sessions
+and dissolve the problem at its source rather than trading one bias for another.
