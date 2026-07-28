@@ -20,24 +20,17 @@
 // half, so no fixture claims to pin one discriminator while actually riding on
 // the other.
 //
-// ⚠ TWO WAYS A SCOPE FIXTURE GOES VACUOUS, and they are different traps. Both
-// were live here and both were found by mutation, not by reading:
+// TWO fixtures here once passed with the rule switched off, for two DIFFERENT
+// reasons: a counterfactual that varied two things at once, and — the subtler
+// one — an assertion that compared two implementations to each other, which is
+// scope-invariant because removing the rule moves both identically. Both are
+// written out in §9.5 of SPEC-guardrails.md.
 //
-//   1. A COUNTERFACTUAL THAT VARIES TWO THINGS. The return-clock fixture
-//      restamped `source` AND filled in a rating in one map, so it demonstrated
-//      "a rated in-app session closes the gap" — true with or without the rule,
-//      and it hides which half did the work. Fixed by rating the device row up
-//      front so `source` is the only variable.
-//
-//   2. AN ASSERTION THAT COMPARES TWO IMPLEMENTATIONS. The bsWeekLoad fixture
-//      had no counterfactual at all: it used an unrated device row (0 AU, never
-//      the hardest — so scope-invariant by itself) and then asserted
-//      bsWeekLoad === bsBucketWeeks. Removing scope moves both IDENTICALLY, so
-//      that assertion holds in either world. ⚠ This is the subtler trap: an
-//      implementation-vs-implementation check READS more rigorous than a
-//      literal and proves strictly less about the rule. Fixed by rating the row
-//      and asserting literals; the agreement check survives as a separate,
-//      explicitly single-week claim.
+// ⚠ THAT PARAGRAPH LIVES IN ONE PLACE ON PURPOSE. This comment used to carry a
+// second copy of it, and the pair then had to be corrected in lockstep three
+// review rounds running — both copies wrong simultaneously, twice. Duplicating
+// one claim across a spec and a header is the exact hazard this branch exists
+// to close; do not paste it back.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -165,12 +158,14 @@ test('scope: the two halves are independent — a row can fail either, or both',
   //   4 · in on both    — cannot be killed by any mutation of the predicate
   //
   // So rows 2 and 3 are what put this test in both mutant sets, by duplicating
-  // two tests above; row 1 — the combination that motivated writing this at
+  // two tests above. Row 1 — the combination that motivated writing this at
   // all, and the plausible shape the day a device writer lands (a SCHEDULED
-  // watch import) — adds no kill coverage, because row 2 catches even an
-  // `if (sourceBad && statusBad)` mutation first. All four stay: a 2x2's worth
-  // is exhaustiveness and documenting that the predicate is an AND, and that
-  // is worth four lines even where the mutants are indifferent.
+  // watch import) — adds no kill coverage. Not even against the mutation it
+  // looks built for: under `if (sourceBad && statusBad) return false`, row 1
+  // PASSES while rows 2 and 3 both fail (measured; that mutant is coarse
+  // enough that all 14 tests catch it). All four rows stay anyway — a 2x2's
+  // worth is exhaustiveness and documenting that the predicate is an AND, and
+  // that is worth four lines even where the mutants are indifferent.
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'planned' })), false, 'out on both');
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'completed' })), false, 'out on source alone');
   assert.equal(bsSessionInScope(inApp('2026-07-06', 9, { status: 'planned' })), false, 'out on status alone');

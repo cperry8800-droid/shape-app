@@ -966,7 +966,10 @@ exhaustiveness and to document that the predicate is an AND, not because the
 mutants reach them.
 
 ⚠ **TWO WAYS A SCOPE FIXTURE GOES VACUOUS.** Both were live in the first cut and
-both were found by mutation, not by reading. **(1) A counterfactual that varies
+both were found by mutation, not by reading. **This is the only copy of this
+paragraph** — the test file's header carried a second one, and the pair had to
+be corrected in lockstep three review rounds running, both wrong at the same
+time twice. The header now points here instead. **(1) A counterfactual that varies
 two things** — the return-clock fixture restamped `source` *and* filled in a
 rating together, so it proved "a rated in-app session closes the gap", which is
 true either way. **(2) An assertion that compares two implementations** — the
