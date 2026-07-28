@@ -178,7 +178,31 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-26): PER-DAY MENUS (C1a) — COMPLETE end to end (#1839 contract,
+> **Latest (2026-07-27→28): PROGRESSION GUARDRAILS — session-RPE capture + the pure
+> advisory core (#1846).** Advisory load flags on a coach-authored training week: the
+> guardrail says when the week just written is an unusually large jump **for that
+> client**, and never blocks, rewrites, or proposes an alternative. Three phases on one
+> branch — the spec, **Deploy 1** (capture a real post-session RPE), **Deploy 2a** (the
+> pure core, `public/newdesign/progressionGuardrail.mjs`). No route change and nothing
+> consumes the core yet; **2b** wires it into the builders and the publish path.
+> ⚠ **MIGRATION `2026-07-27-session-rpe.sql` is APPLIED + VERIFIED LIVE** (column, both
+> whitelisted analytics events, deliberate anon/authenticated grants, and a **zero**
+> `session_rpe_dropped` count — the evidence nothing was lost while the column landed).
+> **The doctrine, in one line: a skipped rating is NULL, never 0, and is EXCLUDED from
+> load maths rather than imputed** — the specified derived estimator (averaging set RPEs)
+> was CUT because it measures a different construct with a systematic downward bias and
+> would have let unrated weeks qualify as *measured* on a contaminated baseline. Review
+> then caught the defect that mattered most: the rating first shipped **below** the finish
+> button, so a member following the primary CTA never saw it — nearly every session would
+> have stored NULL, and since a week counts as `measured` only when **more than half** its
+> sessions are rated, **no client would ever have left `cold_start`**. It is now a
+> dedicated completion step, and **backing out still saves the workout** (the rating is
+> optional; the log is not). Suite **1099**; perturbation sweeps 50 on the core + 14 on the
+> completion step. Handoff:
+> **[`docs/HANDOFF-2026-07-28.md`](HANDOFF-2026-07-28.md)**. Open: OWNER on-device pass ·
+> Deploy 2b.
+>
+> **Prior (2026-07-26): PER-DAY MENUS (C1a) — COMPLETE end to end (#1839 contract,
 > #1840 delivery, #1843 authoring).** The week-block wave's prerequisite is closed: a
 > coach can author a **different menu each DAY**, and the client eats what was authored.
 > The editor gained a DEFAULT/MON…SUN strip above the block list, capability-gated to the
