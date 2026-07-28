@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Demo client · assigns once linked to a live member",
   "assign.eyebrow": "ASSIGN",
   "assign.footer": "Assign",
+  "assign.heldPartial": "Already delivered: {n}.",
   "assign.linkedMember": "Linked member",
   "assign.loadingCatalogue": "Loading your catalogue…",
   "assign.loadingClients": "Loading your clients…",

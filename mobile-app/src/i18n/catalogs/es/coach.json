@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Cliente de demostración · se asigna al vincularse con un miembro real",
   "assign.eyebrow": "ASIGNAR",
   "assign.footer": "Asignar",
+  "assign.heldPartial": "Ya entregado: {n}.",
   "assign.linkedMember": "Miembro vinculado",
   "assign.loadingCatalogue": "Cargando tu catálogo…",
   "assign.loadingClients": "Cargando tus clientes…",

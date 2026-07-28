@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Demo danışan · gerçek bir üyeye bağlanınca atanır",
   "assign.eyebrow": "ATA",
   "assign.footer": "Ata",
+  "assign.heldPartial": "Zaten iletildi: {n}.",
   "assign.linkedMember": "Bağlı üye",
   "assign.loadingCatalogue": "Kataloğun yükleniyor…",
   "assign.loadingClients": "Danışanların yükleniyor…",

@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Klien demo · ditetapkan setelah ditautkan ke anggota asli",
   "assign.eyebrow": "TETAPKAN",
   "assign.footer": "Tetapkan",
+  "assign.heldPartial": "Sudah terkirim: {n}.",
   "assign.linkedMember": "Anggota tertaut",
   "assign.loadingCatalogue": "Memuat katalogmu…",
   "assign.loadingClients": "Memuat klienmu…",

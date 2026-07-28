@@ -1454,8 +1454,23 @@ function readAssignQueue() {
   } catch (e) { return []; }
 }
 
+/**
+ * Persist the queue. Returns whether it actually landed.
+ *
+ * ⚠ THE RETURN VALUE IS LOAD-BEARING on the queueing path. Storage can be
+ * unavailable (disabled entirely) or full (a week of exercise payloads is not
+ * small), and a swallowed failure means `assignClientWorkout` reports
+ * `stored:'queued'` — the coach reads "HELD · sends on reconnect" — over a
+ * record that does not exist. That is the same false assurance this module
+ * exists to remove, so the caller has to be able to see it.
+ */
 function writeAssignQueue(items) {
-  try { window.localStorage?.setItem(BS_ASSIGN_QUEUE_KEY, JSON.stringify(items)); } catch (e) {}
+  try {
+    const ls = window.localStorage;
+    if (!ls) return false; // optional-chaining away the write would read as success
+    ls.setItem(BS_ASSIGN_QUEUE_KEY, JSON.stringify(items));
+    return true;
+  } catch (e) { return false; }
 }
 
 function assignErrorMessage(error) {
@@ -1465,6 +1480,16 @@ function assignErrorMessage(error) {
   // policy this path actually trips, so name it rather than echoing "permission
   // denied for table client_workouts" at a coach.
   if (code === '42501') return "The server refused this assignment — you aren't this client's coach.";
+  // ⚠ The same reasoning as 42501, applied to the other codes this path
+  // realistically trips: a raw Postgres/PostgREST string ("null value in column
+  // … violates not-null constraint", "PGRST204 … column does not exist") leaks
+  // schema detail and reads to a coach as a bug report rather than something
+  // they can act on. `raw` stays only as the last resort, for codes we have not
+  // characterised — dropping it entirely would leave a bare "refused".
+  if (code === '23505') return 'That assignment is already on this client — nothing was added.';
+  if (code === '23503') return "This assignment points at something that no longer exists — reload and try again.";
+  if (code === '23502' || code === '23514') return 'This assignment is missing something the server requires.';
+  if (code.startsWith('PGRST')) return 'Shape could not save this assignment — try again in a moment.';
   return raw || 'The server refused this assignment.';
 }
 
@@ -1607,7 +1632,14 @@ async function assignClientWorkout(args = {}) {
       err.offline = false;
       throw err;
     }
-    writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now(), owner }));
+    const persisted = writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now(), owner }));
+    if (!persisted) {
+      // Storage refused it, so there is nothing to replay. Claiming HELD here
+      // would be a promise no code can keep.
+      const e = new Error('This device could not hold the assignment — nothing was saved.');
+      e.rejected = true;
+      throw e;
+    }
     return { stored: 'queued', queued: true, data: null };
   }
 }
@@ -1644,30 +1676,44 @@ async function drainAssignmentQueue() {
     // effects. `write` is the SAME writer assignClientWorkout uses — repointing
     // it at the gated route (§9.4) gates the queue too, automatically.
     ({ sent, sentItems, rejections, held } = await bsReplayQueue(queue, {
-      write: writeClientWorkoutRow,
+      // ⚠ THE ACCOUNT CAN CHANGE MID-PASS. Partitioning the queue pinned WHICH
+      // entries we replay, but each write still resolves its trainer from the
+      // LIVE session (getOwnedTrainerId reads state.user) — so if this coach
+      // signs out between awaits and another signs in, the remaining entries
+      // would be written as them. Re-checking per item closes that: the
+      // mismatch is marked `offline`, so the rest are HELD in order for the
+      // account that owns them rather than dropped.
+      write: async (p) => {
+        if (state.user?.id !== uid) {
+          const e = new Error('The signed-in account changed during replay.');
+          e.offline = true;
+          throw e;
+        }
+        return writeClientWorkoutRow(p);
+      },
       exists: assignmentAlreadyWritten,
     }));
+    // ⚠ WRITTEN BACK INSIDE THE GUARD. Releasing `assignDraining` before this
+    // leaves a window where an `online` event (or the session-resolve drain)
+    // starts a second pass, reads the UNTOUCHED snapshot — nothing is removed
+    // from storage during a pass — and re-sends everything pass A just sent.
+    // `client_workouts` has no unique key and `assignmentAlreadyWritten` fails
+    // open on a read error, so that lands as duplicate sessions on the client's
+    // calendar. A flaky reconnect is exactly when `online` fires.
+    //
+    // ⚠ AND IT MERGES, NEVER REPLACES. `queue` was snapshotted before a long
+    // await and `assignClientWorkout` writes the same key throughout, so
+    // writing back only what THIS pass held would erase anything enqueued
+    // meanwhile. Arrivals are whatever is in storage now that was not in the
+    // snapshot — which is also how another account's entries survive.
+    writeAssignQueue(bsPruneQueue(
+      bsMergeAfterDrain(queue, held, readAssignQueue()),
+      { now: Date.now() },
+    ));
   } finally {
     assignDraining = false;
   }
 
-  // ⚠ MERGE, NEVER REPLACE. `queue` was snapshotted before a long await, and
-  // `assignClientWorkout` writes to the same storage key throughout that
-  // window — so writing back only what THIS pass held would erase anything
-  // enqueued meanwhile. That window is not narrow: a trainer assigning a week
-  // is a loop of awaited inserts, and any fetch-shaped failure with no code and
-  // no status classifies as `network`, which is exactly when the drain is
-  // slowest. Silently dropping an assignment is the one outcome this module
-  // ranks worst (see bsAssignmentKey).
-  //
-  // Arrivals are identified by NOT having been in the starting snapshot. An
-  // arrival whose identity matches a held item is dropped in favour of the
-  // held one — the same-identity collapse bsQueueAssignment already documents;
-  // the assignment itself is never lost, only the newer payload for that slot.
-  writeAssignQueue(bsPruneQueue(
-    bsMergeAfterDrain(queue, held, readAssignQueue()),
-    { now: Date.now() },
-  ));
   // ⚠ A REJECTION MUST OUTLIVE THIS PASS. `bsReplayQueue` deliberately drops a
   // rejected assignment from the queue (retrying forever would never succeed),
   // so the event below is its ONLY trace — and the drain runs on reconnect and
@@ -1680,7 +1726,9 @@ async function drainAssignmentQueue() {
   // the held path could not (it returns before the notify block). Best-effort
   // and AFTER the queue write-back, so a failed message can never cost the
   // durable record of a delivered assignment.
-  await notifyReplayedAssignments(sentItems);
+  // Only if this is still the account that owns the work — a mid-pass account
+  // change would otherwise send coach A's message from coach B's thread.
+  if (state.user?.id === uid) await notifyReplayedAssignments(sentItems);
   if (sent || rejections.length) {
     try {
       window.dispatchEvent(new CustomEvent('shape:assignQueue', {
@@ -1738,11 +1786,16 @@ function clearAssignRejections() {
 /**
  * Send the "your plan is live" note for assignments that landed on replay.
  *
- * ONE message per client per pass, not per row: a week is a loop of inserts,
- * and seven identical notes would be worse than none. The body is authored at
- * assign time (in the coach's own locale, with the plan's real name) and rides
- * on the queued payload — `writeClientWorkoutRow` destructures the row fields
- * it needs, so the extra key never reaches the insert.
+ * One message per client PER DISTINCT PLAN, not per row: a week is a loop of
+ * inserts and seven identical notes would be worse than none — but deduping on
+ * the client alone silently swallowed the second plan when a coach assigned two
+ * different plans to the same client in one offline stretch. The body names the
+ * plan, so it is the identity that separates them.
+ *
+ * The body is authored at assign time (in the coach's own locale, with the
+ * plan's real name) and rides on the queued payload — `writeClientWorkoutRow`
+ * destructures the row fields it needs, so the extra key never reaches the
+ * insert.
  */
 async function notifyReplayedAssignments(items) {
   const seen = new Set();
@@ -1750,8 +1803,10 @@ async function notifyReplayedAssignments(items) {
     const p = it && it.payload;
     const body = p && p.notify && typeof p.notify.body === 'string' ? p.notify.body : '';
     const clientId = p && p.clientId;
-    if (!body || !clientId || seen.has(clientId)) continue;
-    seen.add(clientId);
+    if (!body || !clientId) continue;
+    const key = `${clientId} ${body}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     try {
       const conv = await getOrCreateMemberConversation({ otherUserId: clientId });
       const cid = conv && conv.data;

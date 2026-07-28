@@ -529,3 +529,41 @@ test('rejection notice: a store that throws cannot take the shell down', () => {
   assert.equal(warnings.length, 0, warnings.join('\n'));
   assert.equal(html, '');
 });
+
+// ─── The mixed week (CodeRabbit round, 2026-07-28) ──────────────────────────
+// The all-queued and all-rejected paths were covered; the branch where SOME
+// sessions land and a later one fails was not — and that is exactly where the
+// "already sent" mislabel hid. A split plan produces several rows per week, so
+// the tally can genuinely be mixed.
+const SPLIT_PLAN = {
+  id: 'p2', name: 'Split Block', meta: '',
+  detail: { blocks: ['Mon — Upper (push)', 'Wed — Lower (pull)', 'Fri — Full body'], note: '' },
+};
+
+test('assign: a mixed week never reports locally-held sessions as "already sent"', async () => {
+  let calls = 0;
+  globalThis.ShapeAssign = {
+    workout: async () => {
+      calls += 1;
+      if (calls === 1) return { stored: 'queued', queued: true };
+      const e = new Error('guardrail red'); e.rejected = true; throw e;
+    },
+    clients: async () => [],
+  };
+  globalThis.ShapeMessages = {
+    getOrCreateMemberConversation: async () => ({ data: 'c1' }),
+    sendMessage: async () => {},
+  };
+
+  const d = driveAssign(assignProps({ plan: SPLIT_PLAN }));
+  await d.button(/Assign & notify/).props.onClick();
+  d.render();
+
+  const txt = d.text();
+  assert.ok(calls >= 2, 'the split really produced a multi-row week');
+  // The queued row never left the device, so nothing may call it sent.
+  assert.doesNotMatch(txt, /already sent/i, 'held work is not "sent"');
+  // ...and the held count is still visible even though `status` now holds the
+  // error string — the banner keys on the count, not on status === 'held'.
+  assert.match(txt, /HELD · 1/, 'the coach can still see what is held');
+});

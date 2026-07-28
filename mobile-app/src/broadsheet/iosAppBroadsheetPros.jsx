@@ -3368,6 +3368,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // "Assigned ✓" — a held week has not reached the client, and a coach who is
   // told it has will not come back to check.
   const [held, setHeld] = useStateBSP(0);
+  // Sessions of THIS week that genuinely reached the server, so a retry can
+  // skip them (see assignOne) and the coach can be told part of it landed.
+  const [sentN, setSentN] = useStateBSP(0);
+  const sentKeysRef = React.useRef(new Set());
   const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
@@ -3468,8 +3472,19 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name })
       : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name });
     const assignOne = async (args) => {
+      // ⚠ A RETRY MUST NOT RE-INSERT WHAT ALREADY LANDED. "Held — try again"
+      // re-runs the whole week from the top, and `client_workouts` carries no
+      // unique key — so without this, every retry of a partially-delivered week
+      // adds duplicate sessions to the client's calendar. Keyed by plan +
+      // client + date + title, so a different plan or client can never collide
+      // and the set needs no lifecycle reset. Queued rows are deliberately NOT
+      // recorded: they were never delivered, and the offline queue already
+      // collapses them by identity.
+      const k = `${plan.id} ${uid} ${args.scheduledDate} ${args.title}`;
+      if (sentKeysRef.current.has(k)) return;
       const res = await window.ShapeAssign.workout({ ...args, notify: { body: notifyBody } });
-      if (res && res.stored === 'queued') tally.queued += 1; else tally.sent += 1;
+      if (res && res.stored === 'queued') tally.queued += 1;
+      else { tally.sent += 1; sentKeysRef.current.add(k); }
     };
     try {
       const start = dayCells[dayIdx];
@@ -3540,6 +3555,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       // writer, so it still passes the gate); until then this is HELD.
       if (tally.queued) {
         setHeld(tally.queued);
+        // ⚠ A MIXED WEEK IS NOT A CLEAN HOLD. Connectivity can fail partway, so
+        // `tally.sent` may already be positive — reporting only "HELD" hides
+        // from the coach that part of the week is already on the client's
+        // calendar, which is the fact that decides whether they re-assign the
+        // whole thing or just the rest.
+        setSentN(tally.sent);
         setStatus('held');
         return;
       }
@@ -3561,8 +3582,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       // of the week actually landed, so the coach knows whether to re-assign
       // the whole thing or only the rest.
       const msg = String((e && e.message) || 'error');
-      const done = tally.sent + tally.queued;
-      setStatus(done ? tr('coach:assign.errPartial', { defaultValue: '{msg} · {n} already sent', msg, n: done }) : msg);
+      // ⚠ ONLY `tally.sent` HAS BEEN SENT. Counting `tally.queued` here called
+      // locally-held work "already sent" — the exact false report this path was
+      // rewritten to prevent, reintroduced in the mixed-failure branch. Held
+      // work is reported separately, by the banner below.
+      setStatus(tally.sent ? tr('coach:assign.errPartial', { defaultValue: '{msg} · {n} already sent', msg, n: tally.sent }) : msg);
+      setSentN(tally.sent);
       if (tally.queued) setHeld(tally.queued);
     }
   };
@@ -3686,7 +3711,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             ) : (
               <>
                 <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
-                {status === 'held' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em', lineHeight: 1.6 }}><span style={{ fontWeight: 800 }}>{`HELD · ${held}`}</span>{' — '}{tr('coach:assign.heldOffline', { defaultValue: "you're offline. These send when you reconnect; {name} can't see them yet.", name: first })}</div>}
+                {/* ⚠ Gated on the COUNT, not on `status === 'held'`. In the
+                    mixed-failure branch `status` holds the error string, so the
+                    literal check hid the held count exactly when the coach most
+                    needed it — a generic error and no sign of the held work. */}
+                {held > 0 && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em', lineHeight: 1.6 }}><span style={{ fontWeight: 800 }}>{`HELD · ${held}`}</span>{' — '}{tr('coach:assign.heldOffline', { defaultValue: "you're offline. These send when you reconnect; {name} can't see them yet.", name: first })}{sentN > 0 ? ` ${tr('coach:assign.heldPartial', { defaultValue: 'Already delivered: {n}.', n: sentN })}` : ''}</div>}
                 {status && status !== 'working' && status !== 'done' && status !== 'held' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em', lineHeight: 1.6 }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
                 <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
                   {uid

@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Демо-клієнт · призначиться після прив'язки до реального учасника",
   "assign.eyebrow": "ПРИЗНАЧИТИ",
   "assign.footer": "Призначити",
+  "assign.heldPartial": "Уже доставлено: {n}.",
   "assign.linkedMember": "Прив'язаний учасник",
   "assign.loadingCatalogue": "Завантаження каталогу…",
   "assign.loadingClients": "Завантаження клієнтів…",

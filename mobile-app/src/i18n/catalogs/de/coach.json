@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Demo-Klient · wird zugewiesen, sobald mit einem echten Mitglied verknüpft",
   "assign.eyebrow": "ZUWEISEN",
   "assign.footer": "Zuweisen",
+  "assign.heldPartial": "Bereits zugestellt: {n}.",
   "assign.linkedMember": "Verknüpftes Mitglied",
   "assign.loadingCatalogue": "Dein Katalog wird geladen…",
   "assign.loadingClients": "Deine Klienten werden geladen…",

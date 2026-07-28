@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Khách hàng demo · giao khi được liên kết với thành viên thật",
   "assign.eyebrow": "GIAO",
   "assign.footer": "Giao",
+  "assign.heldPartial": "Đã gửi: {n}.",
   "assign.linkedMember": "Thành viên đã liên kết",
   "assign.loadingCatalogue": "Đang tải danh mục của bạn…",
   "assign.loadingClients": "Đang tải khách hàng của bạn…",

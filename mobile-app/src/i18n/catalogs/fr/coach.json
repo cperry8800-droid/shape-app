@@ -122,6 +122,7 @@
   "assign.demoAssigns": "Client démo · s'attribue une fois lié à un membre réel",
   "assign.eyebrow": "ATTRIBUER",
   "assign.footer": "Attribuer",
+  "assign.heldPartial": "Déjà transmis : {n}.",
   "assign.linkedMember": "Membre lié",
   "assign.loadingCatalogue": "Chargement de votre catalogue…",
   "assign.loadingClients": "Chargement de vos clients…",

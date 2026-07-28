@@ -53,7 +53,7 @@ test('bsClassifyWriteFailure: real connectivity failures, every runtime wording'
     'The Internet connection appears to be offline.',   // iOS URLSession
     'net::ERR_INTERNET_DISCONNECTED',
     'connect ECONNREFUSED 127.0.0.1:443',
-    'getaddrinfo ENOTFOUND zznufekgjngecelwxndw.supabase.co',
+    'getaddrinfo ENOTFOUND db.example.invalid',
   ]) {
     assert.equal(bsClassifyWriteFailure({ message }, online), 'network', message);
   }
@@ -439,4 +439,33 @@ test('replay: a REJECTED item never appears in sentItems', async () => {
   );
   assert.equal(res.sent, 0);
   assert.deepEqual(res.sentItems, [], 'a refused assignment must never trigger a "it is live" note');
+});
+
+// ─── Round-4 regressions (CodeRabbit, 2026-07-28) ───────────────────────────
+// The effects boundary was neither guarded nor tested. Both gaps land on the
+// same outcome: an unmarked throw takes the classifier's `rejected` default,
+// which DROPS the assignment permanently — the worst outcome in this module.
+
+test('replay: a MISSING writer holds the queue, it never drops it', async () => {
+  const items = [
+    { id: 'a', queuedAt: NOW, owner: 'c', payload: payload({ scheduledDate: '2026-08-03' }) },
+    { id: 'b', queuedAt: NOW, owner: 'c', payload: payload({ scheduledDate: '2026-08-04' }) },
+  ];
+  const res = await bsReplayQueue(items, {});
+  assert.equal(res.sent, 0);
+  assert.deepEqual(res.rejections, [], 'nothing was attempted, so nothing was refused');
+  assert.deepEqual(res.held.map((i) => i.id), ['a', 'b'], 'the week waits for a working writer');
+});
+
+test('replay: a THROWING exists falls back to attempting the write', async () => {
+  // `exists` is a best-effort duplicate check. A read failure means "unknown",
+  // and a possible duplicate is recoverable where a dropped week is not.
+  const written = [];
+  const res = await bsReplayQueue(
+    [{ id: 'a', queuedAt: NOW, owner: 'c', payload: payload() }],
+    { exists: async () => { throw new Error('offline read'); }, write: async (p) => { written.push(p.title); } },
+  );
+  assert.equal(res.sent, 1);
+  assert.deepEqual(written, ['Upper Pull']);
+  assert.deepEqual(res.rejections, []);
 });

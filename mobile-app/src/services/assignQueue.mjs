@@ -296,9 +296,26 @@ export function bsPruneQueue(items, opts = {}) {
  * @returns {Promise<{sent:number, sentItems:Array, rejections:Array, held:Array}>}
  */
 export async function bsReplayQueue(items, effects = {}) {
-  const write = effects.write;
-  const exists = effects.exists || (async () => false);
   const queue = Array.isArray(items) ? items : [];
+  const writeFn = effects.write;
+  // ⚠ A MISSING WRITER IS NOT A REJECTION. Calling a non-function throws a bare
+  // TypeError, which carries no `offline` marker and so takes the classifier's
+  // documented `rejected` default — permanently dropping EVERY queued
+  // assignment, the outcome this module ranks worst. Nothing was attempted, so
+  // holding is the only honest answer.
+  if (typeof writeFn !== 'function') {
+    return { sent: 0, sentItems: [], rejections: [], held: queue.filter(Boolean) };
+  }
+  // ⚠ AND A FAILED EXISTENCE READ IS NOT A REJECTION EITHER. `exists` is a
+  // best-effort duplicate check; a throw from it must fall back to "unknown, so
+  // attempt the write" — matching assignmentAlreadyWritten's own documented
+  // fail-open — rather than sinking the item.
+  const existsFn = typeof effects.exists === 'function' ? effects.exists : null;
+  const exists = async (p) => {
+    if (!existsFn) return false;
+    try { return await existsFn(p); } catch (e) { return false; }
+  };
+  const write = writeFn;
 
   let sent = 0;
   const sentItems = [];
