@@ -961,9 +961,11 @@ every other test is sensitive to exactly one half, so no fixture pins one
 discriminator while riding on the other. ⚠ That test is in both mutant sets
 because two of its four rows **restate** the `ALLOWLIST` and `only work that
 HAPPENED` tests. The row it was written for — out on *both* halves — adds no
-kill coverage, and the both-in row cannot be killed at all; they are kept for
-exhaustiveness and to document that the predicate is an AND, not because the
-mutants reach them.
+kill coverage, and is kept because a 2×2's fourth cell is what makes this a
+truth table rather than three assertions. ⚠ The both-in row is **not** dead
+weight, though an earlier version of this paragraph said it could not be killed
+at all: it is the only row that catches a flipped default (`return true` →
+`return false`), an over-broad exclusion the three exclusion rows are blind to.
 
 ⚠ **TWO WAYS A SCOPE FIXTURE GOES VACUOUS.** Both were live in the first cut and
 both were found by mutation, not by reading. **This is the only copy of this

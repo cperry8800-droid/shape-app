@@ -155,7 +155,13 @@ test('scope: the two halves are independent — a row can fail either, or both',
   //   1 · out on both   — dies only under the WHOLE-predicate mutant
   //   2 · out on source — dies under source-off  (restates `ALLOWLIST`)
   //   3 · out on status — dies under status-off  (restates `only work that HAPPENED`)
-  //   4 · in on both    — cannot be killed by any mutation of the predicate
+  //   4 · in on both    — survives all three of those, and yet is the ONLY row
+  //                      here that catches a flipped default (`return true` ->
+  //                      `return false` at the tail). Rows 1-3 all assert
+  //                      EXCLUSION and are blind to a predicate that excludes
+  //                      everything; this row is the truth table's only
+  //                      sentinel in that direction. Measured, after an earlier
+  //                      version of this line called it unkillable.
   //
   // So rows 2 and 3 are what put this test in both mutant sets, by duplicating
   // two tests above. Row 1 — the combination that motivated writing this at
@@ -163,9 +169,11 @@ test('scope: the two halves are independent — a row can fail either, or both',
   // watch import) — adds no kill coverage. Not even against the mutation it
   // looks built for: under `if (sourceBad && statusBad) return false`, row 1
   // PASSES while rows 2 and 3 both fail (measured; that mutant is coarse
-  // enough that all 14 tests catch it). All four rows stay anyway — a 2x2's
-  // worth is exhaustiveness and documenting that the predicate is an AND, and
-  // that is worth four lines even where the mutants are indifferent.
+  // enough that all 14 tests catch it). So of the four, row 1 is the one with
+  // no mutant of its own — rows 2, 3 and 4 each catch something no other row
+  // here does. It stays regardless: a 2x2's fourth cell is what makes this a
+  // truth table rather than three assertions, and that documents the predicate
+  // is an AND.
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'planned' })), false, 'out on both');
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'completed' })), false, 'out on source alone');
   assert.equal(bsSessionInScope(inApp('2026-07-06', 9, { status: 'planned' })), false, 'out on status alone');
