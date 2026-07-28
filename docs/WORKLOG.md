@@ -197,8 +197,15 @@ changelog whenever something ships.
 > have stored NULL, and since a week counts as `measured` only when **more than half** its
 > sessions are rated, **no client would ever have left `cold_start`**. It is now a
 > dedicated completion step, and **backing out still saves the workout** (the rating is
-> optional; the log is not). Suite **1109** (the count at merge); perturbation sweeps 50 on the core + 14 on the
-> completion step. Handoff:
+> optional; the log is not). ⚠ **The rule the wave cost four review rounds to learn, and the
+> one 2b inherits: `malformed` is reserved for shapes NO LEGITIMATE WRITER CAN EMIT** —
+> because one malformed row turns the whole evaluation `unknown`, and `unknown` never blocks
+> publish, so mis-filing a row as malformed switches the guardrail OFF. **A value our own
+> code produces is never a caller bug** (an over-max duration is EXCLUDED; a fractional
+> duration and a calendar-impossible date are malformed). Also found: **`Date.parse` does
+> not reject `2026-02-30` — it silently moves it to March 2**, bucketing a session into a
+> week it was never in. Suite **1109**; perturbation sweeps 50 core + 14 completion + 4 late
+> guards. Handoff:
 > **[`docs/HANDOFF-2026-07-28.md`](HANDOFF-2026-07-28.md)**. Open: OWNER on-device pass ·
 > Deploy 2b.
 >
@@ -1217,7 +1224,7 @@ changelog whenever something ships.
   its commit-range current while capped, so a live cap still matches while an
   old one correctly says nothing about the current head.
 
-### 2026-07-27 — Progression guardrails: session-RPE capture + the pure advisory core (#1846, open)
+### 2026-07-27→28 — Progression guardrails: session-RPE capture + the pure advisory core (#1846, MERGED `0f7806c6`)
 
 - **Advisory load flags for coach-authored weeks.** The guardrail tells a coach when the
   week they just wrote is an unusually large jump for **that** client. It never blocks,
@@ -1259,16 +1266,51 @@ changelog whenever something ships.
 - **The 150-minute ceiling is imported from the core, never restated** — the prompt has to
   ask at exactly the load the core refuses to admit unconfirmed; two copies could drift and
   neither side would error.
-- ⚠ **Two lessons worth carrying.** (1) A test can pass forever and prove nothing: the
+- ⚠ **MALFORMED vs EXCLUDED — the rule this PR cost four review rounds to learn, and the
+  one to carry into 2b.** `malformed` is reserved for shapes **no legitimate writer can
+  emit**; everything else is EXCLUDED from load and the rest of the week still scores.
+  The distinction is load-bearing because **one malformed row turns the WHOLE evaluation
+  `unknown`, and §7.5 rules that `unknown` never blocks publish** — so mis-filing a row as
+  malformed switches the guardrail OFF, the dangerous direction. This shipped wrong once
+  mid-PR: an over-max duration was reported malformed, but our own wall-clock fallback
+  produces exactly that row when a phone is left on the completion screen, so **a forgotten
+  timer would have disabled the guardrail for that client**. Now excluded. **A value our
+  own code produces is never a caller bug.** The converse also got applied: a **fractional**
+  duration (integer column, both writers round) and a **calendar-impossible date** ARE
+  caller bugs, and are malformed.
+- ⚠ **`Date.parse` does not reject `2026-02-30` — it silently MOVES it.** V8 falls back to
+  its legacy parser and normalises the day to **March 2**, so the session bucketed into a
+  real ISO week it was never in and fed the wrong baseline, with nothing to say so. Month
+  13 and hour 25 *do* parse to NaN; **day overflow is the only case that slips through**,
+  which is why a finite-check looks sufficient and isn't. Rejected explicitly by calendar
+  arithmetic (leap years included, no table to keep in sync).
+- ⚠ **Three lessons worth carrying.** (1) A test can pass forever and prove nothing: the
   zone-cache test called the positional `bsLocalWeek` with an options object, so it returned
   null on line 1, never touched the cache, and compared two nulls. (2) A `[]`-dep cleanup
   captures the FIRST render's closure — the unmount save would have written a junk
-  zero-duration session with no sets. Both caught by review, not by the suite.
-- Verified: **1109 tests** (the count at merge), tsc clean, mobile build clean, CI green. Perturbation sweeps:
-  50 attempted on the core (46 killed, 3 documented equivalents, 1 unusable — a stale
-  mutation string whose fact a killed sibling already guards) + 14 on the completion step
-  (all killed). Open: OWNER on-device pass (reach the completion screen, hardware-back out,
-  confirm the saved session carries its real sets and duration) · Deploy 2b.
+  zero-duration session with no sets. (3) **Don't assert a test's own premise.** A guard
+  test pinned `Date.parse('2026-02-30…')` as finite "so it fails loudly if V8 changes its
+  mind" — but that fails in exactly the case where nothing is wrong (an engine returning
+  NaN is *more* correct, and the guard still rejects the date), turning a runtime
+  improvement into a red build. Assert the behaviour you own, not the runtime's bug.
+  All three caught by review, not by the suite.
+- ⚠ **The records drifted from the code twice, in the same PR that was about records.**
+  A correction landed in the implementation while three documented contract sites still
+  described the old behaviour; then a heading was flipped to RULED while the sentence
+  under it still read "these fixtures do not exist yet". **Fix the claim, not just the
+  marker** — and a spec a future consumer builds against is as load-bearing as the code.
+- Verified: **1109 tests**, tsc clean, mobile build clean, CI green (Web · Mobile ·
+  gitleaks). Perturbation sweeps: **50 attempted on the core** (46 killed, 3 documented
+  equivalents, 1 unusable — a stale mutation string whose fact a killed sibling already
+  guards) + **14 on the completion step** + **4 on the late guards** (incl. a mutation
+  swapping the leap-year arithmetic for a flat 31), all killed. Reviews: Codex clean on the
+  final substantive head; **4 CodeRabbit rounds, every finding real** — ⚠ the org **review
+  spending cap** was hit at 3 pushes, and its cap notice **edits the same summary comment
+  and carries the head SHA**, so it reads like a completed pass (the exact trap encoded in
+  the #1845 `/console` gate logic). **A gate that could not run is not a gate that passed.**
+  Open: OWNER on-device pass (reach the completion screen, hardware-back out, confirm the
+  saved session carries its real sets and duration; and the latched clock — finish under a
+  minute, type a duration, wait past the minute mark) · Deploy 2b.
 
 ### 2026-07-26 — deps: sharp HIGH (Dependabot #12) + next 16.2.12 + postcss override refresh (#1841)
 
