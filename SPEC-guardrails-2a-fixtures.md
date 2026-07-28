@@ -437,14 +437,18 @@ Fixture split, because the core cannot test I/O:
 
 ### Rule E — timezone, and where the conversion belongs ✓ RULED
 
-**These fixtures do not exist yet, and the current §0 contract cannot host them.**
+**The problem this section raised (historical).** §0 originally defined `dateISO`
+as *already client-local*, with the caller resolving the zone. Under that contract
+every timezone scenario executed in SQL — the one place it is not fixture-testable.
+That is exactly the objection that moved load derivation into the core, and it had
+been applied inconsistently.
 
-§0 defines `dateISO` as *already client-local*, with the caller resolving the
-zone. Under that contract every timezone scenario executes in SQL — the one place
-it is not fixture-testable. That is exactly the objection that moved load
-derivation into the core, and I applied it inconsistently.
+**Resolved.** The contract was changed as proposed below, and the fixtures it
+blocked now exist: **F119–F128 have landed**, covering DST both directions, the
+zone-change-mid-window case, and the rejection paths.
 
-**Proposed:** the core takes the instant and the zone, and does the conversion.
+**What was proposed, and is now the contract:** the core takes the instant and the
+zone, and does the conversion.
 
 ```
 sessions: [{

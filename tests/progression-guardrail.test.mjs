@@ -2955,11 +2955,12 @@ test('a FRACTIONAL duration is malformed — `duration_seconds` is an integer co
 });
 
 test('a day that overflows its month is REJECTED, never normalised into another week', () => {
-  // ⚠ The regression this pins: Date.parse does NOT return NaN here. V8's
-  // legacy fallback moves Feb 30 to March 2 — a different ISO week.
-  assert.equal(Number.isFinite(Date.parse('2026-02-30T10:00:00+00:00')), true,
-    'guard premise: the runtime really does parse this rather than rejecting it');
-
+  // ⚠ Why the guard exists: on V8, `Date.parse('2026-02-30T10:00:00+00:00')`
+  // does NOT return NaN — the legacy fallback moves it to March 2, a different
+  // ISO week. Deliberately NOT asserted: an engine that returns NaN here is
+  // MORE correct, and pinning the quirk would turn that improvement into a red
+  // build while `bsLocalWeek` still behaves correctly (the calendar check runs
+  // before `Date.parse`). Assert the behaviour we own, not the runtime's bug.
   for (const bad of [
     '2026-02-30T10:00:00+00:00',
     '2026-02-29T10:00:00+00:00', // 2026 is not a leap year
