@@ -265,6 +265,12 @@ history = {
     // one-field shape omits BOTH of these, so every row reports malformed and
     // every evaluation returns `unknown`.
     startedAtISO:      'ISO-8601 instant',  // when the session started, with offset
+    // ⚠ THE CLIENT'S *CURRENT* ZONE, THE SAME VALUE ON EVERY ROW. A caller
+    // obligation the core does not enforce — it is carried per row only because
+    // rows are classified one at a time, NOT so each session can report the zone
+    // it was recorded in. Mixed zones shift week membership row by row and yield
+    // a baseline no client ever lived. Doing it right is what produces the
+    // documented property: after travel, history re-buckets retroactively.
     timezone:          'IANA zone',         // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,       // null AND 0 both mean ABSENT

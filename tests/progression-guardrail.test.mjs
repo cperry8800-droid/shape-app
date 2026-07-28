@@ -713,6 +713,10 @@ test('the calibration tables are configuration, not mutable state', () => {
   // Frozen deeply enough that the write actually fails rather than being a
   // no-op on a shallow freeze.
   const distribution = BS_AXIS_REGISTRY.find((a) => a.axis === 'distribution');
+  // Without this, a registry that lost the row entirely would still pass: the
+  // assignment throws on `undefined` for the wrong reason, and the
+  // still-disabled assertion holds vacuously.
+  assert.ok(distribution, 'the distribution axis is registered');
   assert.throws(() => { 'use strict'; distribution.enabled = true; });
   assert.equal(bsAxisEnabled('distribution'), false, 'and it stays disabled');
 });

@@ -16,6 +16,9 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+// The SAME constant the component imports — asserting against a literal here
+// would let the two drift apart while both sides stayed green.
+import { BS_SESSION_MINUTES_CEILING } from '../public/newdesign/progressionGuardrail.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -436,15 +439,37 @@ test('drive: the prompt asks at exactly the ceiling the core excludes at', async
   // asking at one threshold while the guardrail excluded at another — silently,
   // because neither side would error. The constant is imported for this reason;
   // these two cases pin the behaviour either side of it.
-  const under = harness({ elapsedMinutes: 149 });
-  await under.completeAllSets();
-  await under.click('Finish workout ✓');
-  assert.equal(under.hasAria(MIN), false, 'just under the ceiling: the timer stands');
+  // Derived from the imported constant, never a literal — a retune must move
+  // these with it rather than leave two numbers to disagree.
+  const at = async (minutes) => {
+    const h = harness({ elapsedMinutes: minutes });
+    await h.completeAllSets();
+    await h.click('Finish workout ✓');
+    return h.hasAria(MIN);
+  };
+  assert.equal(await at(BS_SESSION_MINUTES_CEILING - 1), false, 'under the ceiling: the timer stands');
+  // The boundary is EXCLUSIVE — `> ceiling`, not `>=`. Without this case a `>=`
+  // implementation passes both neighbours while wrongly nagging at exactly 150.
+  assert.equal(await at(BS_SESSION_MINUTES_CEILING), false, 'AT the ceiling is still credible');
+  assert.equal(await at(BS_SESSION_MINUTES_CEILING + 1), true, 'past it: the member is asked');
+});
 
-  const over = harness({ elapsedMinutes: 151 });
-  await over.completeAllSets();
-  await over.click('Finish workout ✓');
-  assert.equal(over.hasAria(MIN), true, 'just over it: the member is asked');
+test('drive: a runaway timer offers no figure to tap through', async () => {
+  // A timer left running overnight. Pre-filling it would let ONE tap confirm a
+  // 700-minute "session" — thousands of AU from a single row, straight into the
+  // baseline. Past the field's own maximum there is no credible figure to offer.
+  const h = harness({ elapsedMinutes: 700 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  assert.equal(h.hasAria(MIN), true, 'still asked');
+  assert.equal(h.valueOf(MIN), '', 'but NOTHING is pre-filled');
+  assert.match(h.html, /longer than a session can be/);
+
+  await h.click('Save & finish ✓'); // tapping straight through
+  assert.equal(h.saved.length, 1, 'the workout still persists in full');
+  assert.equal(h.saved[0].durationSeconds, 700 * 60, 'with the timer’s own reading');
+  // ...but nobody vouched for it, so the core excludes it from the baseline.
+  assert.equal(h.saved[0].durationConfirmed, false);
 });
 
 test('drive: clearing an overrun field does NOT confirm the wall-clock figure', async () => {

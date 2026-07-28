@@ -45,6 +45,13 @@ history = {
     // updated to match, so it still advertised the pre-Rule-E `dateISO` — the
     // shape the shipped core and its tests reject.
     startedAtISO:      'ISO-8601 instant', // when the session started, with offset
+    // ⚠ THE CLIENT'S *CURRENT* ZONE, THE SAME VALUE ON EVERY ROW — a CALLER
+    // obligation the core does not enforce. It is carried per row only because
+    // rows are classified one at a time; it is not an invitation to send the
+    // zone each session was *recorded* in. Mixing zones across the array shifts
+    // week membership row by row and silently produces a baseline no client ever
+    // lived. F128 is the property that follows from doing this correctly:
+    // history re-buckets under the current zone after travel, retroactively.
     timezone:          'IANA zone',        // e.g. 'America/New_York'
     durationSec:       number,
     sessionRpe:        number | null,  // null AND 0 both mean ABSENT

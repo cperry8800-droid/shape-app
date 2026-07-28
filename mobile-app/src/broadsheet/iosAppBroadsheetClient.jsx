@@ -24508,10 +24508,6 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const timerImplausible = Number.isFinite(elapsedSec) && elapsedSec > BS_SESSION_MINUTES_CEILING * 60;
   const askDuration = !timerRan || timerImplausible;
   const timerMinutes = Math.max(0, Math.round(elapsedSec / 60));
-  // Pre-filled with the timer's figure ONLY at the top end, where confirming is
-  // the common answer and correcting is an edit. At the bottom end there is no
-  // credible figure to offer, so the field starts empty.
-  const shownMinutes = manualMinutes != null ? manualMinutes : (timerImplausible ? String(timerMinutes) : '');
   // ⚠ THE INPUT'S OWN BOUNDS ARE NOT ENFORCED ON SUBMIT. `min`/`max` are advice
   // to the browser, so a typed 9999 would otherwise be logged as 166 HOURS —
   // and `Number('')` is 0, not NaN, so a CLEARED field would fall through the
@@ -24519,6 +24515,19 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   // just deleted. Both must be rejected here, in one predicate.
   const SESSION_MINUTES_MIN = 1;
   const SESSION_MINUTES_MAX = 600;
+  // Pre-filled with the timer's figure ONLY at the top end, where confirming is
+  // the common answer and correcting is an edit.
+  //
+  // ⚠ AND ONLY WHILE THAT FIGURE IS ITSELF OFFERABLE. A timer left running
+  // overnight reads in the hundreds of minutes; pre-filling it would let one tap
+  // confirm an 800-minute "session" — thousands of AU from a single row, admitted
+  // straight into the baseline. That is the exact tap-through inflation this gate
+  // exists to stop, just reached through the prefill instead of the old
+  // unconditional `confirmed: true`. Past the field's own maximum there is no
+  // credible figure to offer, so — as at the bottom end — we offer none and the
+  // member has to say what they actually did.
+  const prefillOffered = timerImplausible && timerMinutes <= SESSION_MINUTES_MAX;
+  const shownMinutes = manualMinutes != null ? manualMinutes : (prefillOffered ? String(timerMinutes) : '');
   const manualNum = manualMinutes == null ? NaN : Number(String(manualMinutes).trim());
   const manualValid = Number.isFinite(manualNum)
     && manualNum >= SESSION_MINUTES_MIN
@@ -24531,13 +24540,15 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   //
   //   not asked                → the timer is credible on its own; nothing to vouch for
   //   a valid typed answer     → they answered
-  //   overrun prefill untouched→ accepting the offered figure IS the answer (it is
-  //                              pre-filled there precisely because confirming is
+  //   an OFFERED prefill,      → accepting the offered figure IS the answer (it is
+  //   left untouched             pre-filled there precisely because confirming is
   //                              the common case and correcting is the edit)
   //
-  // An emptied field, an out-of-range number, and the under-a-minute case where
-  // no credible figure was ever offered are all NOT answers.
-  const durationAnswered = !askDuration || manualValid || (timerImplausible && manualMinutes == null);
+  // An emptied field, an out-of-range number, the under-a-minute case, and a
+  // runaway timer past the field's own maximum are all cases where no credible
+  // figure was ever offered — so none of them is an answer, and none may be
+  // recorded as one.
+  const durationAnswered = !askDuration || manualValid || (prefillOffered && manualMinutes == null);
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24849,9 +24860,11 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
                 <span style={{ ...bandEyebrow, fontSize: 9, color: BAND.dim }}>minutes</span>
               </div>
               <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: BAND.dim35 }}>
-                {timerImplausible
-                  ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
-                  : 'The timer didn’t run for this one.'}
+                {!timerImplausible
+                  ? 'The timer didn’t run for this one.'
+                  : prefillOffered
+                    ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
+                    : `The timer ran ${timerMinutes} min, which is longer than a session can be — how long did you actually train?`}
               </div>
               {/* Honest about the consequence rather than silently dropping the
                   session from the maths. Only for the over-ceiling case: that is
