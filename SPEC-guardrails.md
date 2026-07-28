@@ -944,18 +944,34 @@ cannot be it. A real fix, if a device writer ever lands, is to make the sync
 path set `source` from the integration that produced the row and assert that in
 that writer's own tests.
 
-Fixtures: `tests/guardrail-scope.test.mjs`. ⚠ **Stated precisely, because the
-earlier version of this sentence claimed every fixture asserts both sides and
-that was false — an inaccurate claim about test rigor is the one worth
-correcting, since the next auditor trusts it instead of re-running.**
-Mutation-tested by forcing `bsSessionInScope` to `true`: **11 of 13 tests die,
-2 survive by construction** (the two asserting the IN-scope direction of the
-predicate itself, which scope removal cannot change). Where the rule is what
-changes the verdict, the fixture asserts both the scoped answer and the answer
-the same rows produce restamped in-app — and that counterfactual **varies source
-alone**: two fixtures originally restamped source *and* filled in a rating,
-which passed with scope disabled because the rating was doing the work. Both now
-carry a RATED device row. The accepted cost is recorded in §13.13.
+Fixtures: `tests/guardrail-scope.test.mjs`. ⚠ **Stated as measured, because two
+earlier versions of this paragraph were wrong in the same way — a claim about
+test rigor that the next auditor trusts instead of re-running.** (First it said
+every fixture asserts both sides; then, correcting that, it merged two distinct
+vacuity causes into one and kept only the simpler.) Mutation matrix:
+
+| Mutant | Result |
+|---|---|
+| whole predicate forced `true` | **14 of 14 fail** — nothing in the suite is inert |
+| `source` check removed | 11 fail |
+| `status` check removed | 4 fail |
+
+The single overlap is the closing truth-table test, deliberately sensitive to
+both; every other test is sensitive to exactly one half, so no fixture pins one
+discriminator while riding on the other.
+
+⚠ **TWO WAYS A SCOPE FIXTURE GOES VACUOUS.** Both were live in the first cut and
+both were found by mutation, not by reading. **(1) A counterfactual that varies
+two things** — the return-clock fixture restamped `source` *and* filled in a
+rating together, so it proved "a rated in-app session closes the gap", which is
+true either way. **(2) An assertion that compares two implementations** — the
+`bsWeekLoad` fixture had no counterfactual at all; it used an unrated device row
+(0 AU, never the hardest, so scope-invariant on its own) and asserted
+`bsWeekLoad === bsBucketWeeks`, which holds in both worlds because removing
+scope moves the two identically. **The second is the subtler trap: an
+implementation-vs-implementation check reads as more rigorous than a literal and
+proves strictly less.** Fixed respectively by varying `source` alone, and by
+rating the row and asserting literals. The accepted cost is recorded in §13.13.
 
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
 `SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,

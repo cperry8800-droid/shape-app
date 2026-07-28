@@ -8,18 +8,35 @@
 //
 // ⚠ WHAT THIS SUITE IS AND IS NOT, stated precisely because an inflated claim
 // about test rigor is worse than none — the next auditor trusts it instead of
-// re-running. MUTATION-TESTED by forcing `bsSessionInScope` to `true`:
-// **11 of 13 tests die, 2 survive by construction** (the two that assert the
-// IN-scope direction of the predicate itself, which scope removal cannot
-// change). Where the rule is what changes the verdict, the test asserts BOTH
-// sides — the scoped answer and the answer the same rows produce when the
-// out-of-scope ones are restamped in-app.
+// re-running. MUTATION-TESTED three ways, measured not assumed:
 //
-// ⚠ A COUNTERFACTUAL MUST VARY ONE THING. Restamping `source` AND filling in a
-// rating at the same time proves only that a rated in-app session behaves
-// differently — it hides which half did the work. Two fixtures here originally
-// did exactly that and passed with scope disabled; they now carry a RATED
-// device row and vary source alone.
+//   whole predicate forced true  -> 14 of 14 fail   (nothing here is inert)
+//   `source` check removed       -> 11 fail
+//   `status` check removed       ->  4 fail
+//
+// 11 + 4 - 14 = 1 overlap, and that one is the truth-table test at the end,
+// which is deliberately sensitive to both. Every OTHER test is sensitive to
+// exactly one half, so no fixture claims to pin one discriminator while
+// actually riding on the other.
+//
+// ⚠ TWO WAYS A SCOPE FIXTURE GOES VACUOUS, and they are different traps. Both
+// were live here and both were found by mutation, not by reading:
+//
+//   1. A COUNTERFACTUAL THAT VARIES TWO THINGS. The return-clock fixture
+//      restamped `source` AND filled in a rating in one map, so it demonstrated
+//      "a rated in-app session closes the gap" — true with or without the rule,
+//      and it hides which half did the work. Fixed by rating the device row up
+//      front so `source` is the only variable.
+//
+//   2. AN ASSERTION THAT COMPARES TWO IMPLEMENTATIONS. The bsWeekLoad fixture
+//      had no counterfactual at all: it used an unrated device row (0 AU, never
+//      the hardest — so scope-invariant by itself) and then asserted
+//      bsWeekLoad === bsBucketWeeks. Removing scope moves both IDENTICALLY, so
+//      that assertion holds in either world. ⚠ This is the subtler trap: an
+//      implementation-vs-implementation check READS more rigorous than a
+//      literal and proves strictly less about the rule. Fixed by rating the row
+//      and asserting literals; the agreement check survives as a separate,
+//      explicitly single-week claim.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -105,6 +122,12 @@ test('scope: an ABSENT discriminator is IN scope (the opposite call from malform
   const bare = { startedAtISO: '2026-07-06T09:00:00Z', timezone: 'UTC', durationSec: 1500, sessionRpe: 8 };
   assert.equal(bsSessionInScope(bare), true);
   assert.equal(bsSessionInScope({ ...bare, source: null, status: null }), true);
+
+  // ⚠ The two asserts above hold with scope disabled entirely — they pin the
+  // IN direction, which no mutation of the rule can change. This line gives the
+  // test a scope-dependent claim at no cost to what it exists to pin: absence
+  // survives the filter WHILE a real out-of-scope row alongside it does not.
+  assert.equal(bsScopeSessions([bare, synced('2026-07-06', 18, { sessionRpe: 10 })]).length, 1);
 });
 
 test('scope: a JUNK row stays IN, so the malformed report still names it', () => {
@@ -116,6 +139,25 @@ test('scope: a JUNK row stays IN, so the malformed report still names it', () =>
   assert.equal(bsSessionInScope({}), true);
   const { malformed } = bsBucketWeeks([null, inApp('2026-07-06')]);
   assert.ok(malformed.length > 0, 'a junk row must still be reported malformed');
+
+  // Same reasoning as the absent-discriminator test: the asserts above are
+  // scope-invariant. Bucketing junk ALONGSIDE a rated device row pins both
+  // directions at once — the junk row is still named, and the device row
+  // materialises no week (it would carry 600 AU if scope were removed).
+  const mixed = bsBucketWeeks([null, synced('2026-07-06', 18, { sessionRpe: 10 })]);
+  assert.ok(mixed.malformed.length > 0, 'the junk row is still reported');
+  assert.equal(mixed.weeks.length, 0, 'and the device row builds no week');
+});
+
+test('scope: the two halves are independent — a row can fail either, or both', () => {
+  // The one combination the split-mutation matrix leaves unexercised, and a
+  // plausible shape the day a device writer lands: a SCHEDULED watch import.
+  // Deliberately sensitive to BOTH mutations — it is the truth table, not a
+  // fixture about one discriminator.
+  assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'planned' })), false, 'out on both');
+  assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'completed' })), false, 'out on source alone');
+  assert.equal(bsSessionInScope(inApp('2026-07-06', 9, { status: 'planned' })), false, 'out on status alone');
+  assert.equal(bsSessionInScope(inApp('2026-07-06', 9, { status: 'completed' })), true, 'in on both');
 });
 
 test('scope: filtering is idempotent, so every entry point can apply it', () => {
