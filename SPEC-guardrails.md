@@ -230,78 +230,82 @@ returns `state: 'unknown'` with `reason: 'incomplete_week'`, names the offending
 sessions, and publish is **not** gated. An unscoreable week is not a safe week —
 it is an unmeasured one, and the spec says so rather than passing it green.
 
-### 3.2a Where the two fields are captured — anchors verified 2026-07-28
+### 3.2a Capture — RULED 2026-07-28
 
-§3.2 rules the contract and the storage. This section is the capture design, with
-every anchor read rather than assumed, because every build in this wave so far
-has found an error in its own plan.
+⚠ **The reasoning, the evidence and the fixture list live in
+`docs/superpowers/specs/2026-07-28-planned-load-capture-design.md`, and this is
+deliberately the only copy of them.** What follows is the contract alone. This
+branch has already spent three review rounds correcting one paragraph that
+existed in two places and was wrong in both simultaneously (§9.5).
 
-**A plan's blocks are not always its sessions, and that is the whole difficulty.**
-The same `blocks: [{ id, text }]` array means three different things depending on
-the outline's shape, and `planOutline.mjs` already classifies which:
+**Capture is PER SESSION.** A plan-level pair makes share-of-week exactly `1/n`
+for every plan, so the hardest-session bound never fires and `redPath:
+'compound'` becomes unreachable — and a real 90/30/30/30 week would report as
+45/45/45/45, a safe number for a concentrated week.
 
-| Outline shape | A block is | Sessions written |
+⚠ **HARD RULE — never derive per-session values by dividing a plan-level figure
+by session count.** Uniform distribution is an assumption, not a measurement. No
+"temporarily, until the UI lands" exception.
+
+**`plannedMinutes` is an ENUM MAPPING, not a parse.** LENGTH is a four-value chip
+(`iosAppBroadsheetPros.jsx:5444`), not free text. Map exact matches only;
+anything ranged, unrecognised, or from another builder is **absent** — never
+resolved to an end of a range, never 0.
+
+**The stamps.** `payload.loadCapture` is `'per_session'` or `'per_plan'`, written
+by the builder at the moment it collects the pair — never inferred from contents,
+never defaulted. The week object passed to the gate carries the same value as
+`capture`, and **the week object is authoritative**; the row stamp is asserted to
+agree, never read as a second source.
+
+| Shape | Result |
+|---|---|
+| no stamp | `incomplete_week` / `unknown` (§3.2) — the coach skipped the inputs |
+| `per_session` + all sessions carry the pair | evaluate normally |
+| `per_session` + some carry the pair | **malformed** |
+| `per_session` + none carry the pair | **malformed** |
+| `per_plan` + the pair present | volume scores; concentration per §7.4 |
+| `per_plan` + the pair missing | **malformed** |
+| week stamped, rows unstamped (or the reverse) | **malformed** |
+| the stamp itself dropped in transit | `unknown`, never malformed |
+
+⚠ **Stamped-but-empty is malformed on purpose.** A hop stripping the field from
+*every* session is the likelier bug — transforms apply uniformly — and content
+inspection alone cannot tell it from a coach who skipped the step.
+
+**Two structural guards, not one test.** A full-path presence test asserting the
+field at the **far end** rather than inspecting code, and a perturbation check
+that strips the field at one hop **uniformly** and confirms a test fails.
+
+### 3.2b Adjust regeneration — a bound, not a value
+
+**RULED 2026-07-28.** Score against the **maximum load the regeneration could
+produce**: `max(authored, mode ceiling)`.
+
+| Mode | Upward ceiling | Bound |
 |---|---|---|
-| split (`bsAssignDayLine`, ≥3 day lines) | one session | one per day line per week |
-| week block (`bsAssignWeekLine`, ≥2 week lines) | one session | one per authored week |
-| anything else | one **exercise** | one session per week, all blocks inside it |
+| `deload` | none — intensity is capped | authored |
+| `maintain` | none — RPE approximately holds | authored |
+| `progress` | **8**, from the copy's "keep RPE ≤ 8" | `max(authored, 8)` |
 
-So per-block capture is right for two shapes and meaningless for the third,
-where it would attach a duration to a bench press rather than to a session.
+> "keep RPE ≤ 8" is a **constraint, not a value**. Authored 7 satisfies it and so
+> does 8. Deriving a point value from a ceiling invents its position within the
+> bound — fabrication in the shape of the coach's own rule.
 
-**RECOMMENDED v1 — plan-level pair, one capture site.** The coach states
-`plannedMinutes` and `plannedRpe` once for the plan; every session materialized
-from it carries that pair. This is what §3.2 already points at ("the AI-draft
-builder already carries a session-length concept… so the duration half has a
-natural home" — the LENGTH chip is plan-level, `iosAppBroadsheetPros.jsx:5444`,
-state at `:5251`), it is shape-independent, and it is identical across all three
-writers.
+This always over-estimates and never under-estimates. Because it feeds the
+proposed week rather than history, the error direction produces false flags
+rather than missed ones — a dismissal versus an unguarded rescale.
 
-⚠ **The LENGTH chip's value is the string `'45 min'`, not a number**, and it is
-currently kept only to build the plan's `meta` line and to feed the discarded AI
-draft. `plannedMinutes` is an integer, so this is a parse, not a rename — and a
-parse that fails must yield **absent**, never 0. A zero-minute session scores as
-zero load and would read as a rest day the coach never wrote.
+⚠ **Never persist the derived figure into `plannedRpe`.** `payload.adjustMode`
+goes on the row beside `adjustGen`; the bound is derived at read time. Writing it
+repeats the `durationConfirmed` error — a judgment stored as a measurement.
 
-*What it costs:* a split whose leg day is 90 minutes and whose recovery day is 30
-reports as uniform. The week's total load is right; the hardest-session check
-(§3.1) sees a flat week. Recorded as a known limitation rather than hidden — the
-same treatment §13.13 gives understated capacity.
+**Copy must name what it did** — "scored against the maximum load this
+regeneration could produce" — never presented as the coach's authored effort.
 
-*The upgrade path, if the owner wants it now instead:* a per-session override on
-the two shapes where a block IS a session, authored the way method steps already
-are (`stepAuthoring`, `iosAppBroadsheetPros.jsx:4919`) — a third opt-in flag on
-the shared editor, with the same publish-time derivation and the same warning
-that the new key must cross `onPublish` **and** every receiver
-(`iosAppBroadsheetPros.jsx:5347-5351`).
-
-**Capture and threading, per writer:**
-
-| Writer | Capture site | Threading |
-|---|---|---|
-| mobile coach app | draft editor / plan `detail` | `BSProAssignPage`'s three branches each build `payload: { exercises, ...basePayload }` — writes at `:3432` split, `:3443` week block, `:3451` single |
-| web builders | `dashBuilder.jsx` day rows | already posts `payload: row.payload` (`:207`) |
-| Adjust regeneration | — | see the open ruling below |
-
-**A blank pair is left blank.** No default, no estimate from sets × reps, no
-carry-over from a previous plan. The week evaluates `unknown` /
-`incomplete_week` and publish proceeds. This is the same refusal as
-`workout_set_logs.rpe` staying NULL and `bsCookable` emitting `steps:[]`.
-
-⚠ **OPEN — owner ruling needed: what happens to `plannedRpe` when Adjust
-regenerates.** Adjust rescales a week at `deload` / `maintain` / `progress`
-(`iosAppBroadsheetPros.jsx:2973`), and §9.4 calls it the highest-risk path
-because it is automated. Three candidates, none of which I should pick alone:
-
-1. **Carry the authored pair through unchanged.** The guardrail then scores a
-   rescaled week using pre-rescale effort — a stale number presented as current.
-2. **Drop both fields on regeneration.** Honest (we genuinely do not know the new
-   planned load) but it makes the highest-risk path permanently `unknown`, and
-   `unknown` never blocks.
-3. **Derive from the intensity the coach chose,** whose semantics are already
-   stated in the UI — progress explicitly says "keep RPE ≤ 8". This is applying
-   the coach's own stated rule rather than inventing one, but it is a load-model
-   decision and it belongs to the owner.
+**Telemetry:** one field for a `length` value that fails to map, one for an
+authored RPE above the mode ceiling. Both must ship WITH the feature: there is no
+history to back-fill from (§9.2).
 
 ---
 
@@ -807,6 +811,26 @@ acknowledgment** with `409` and the flag payload. A modified client must not be
 able to publish a red week without an audit entry.
 
 `unknown` (§3.2) does not gate publish — it is reported, not enforced.
+
+⚠ **v1 may effectively ship with ONE axis, and that is stated here rather than
+discovered from telemetry.** §3.2a puts capture per session; a plan whose blocks
+are exercises rather than sessions can only state a plan-level figure, and such a
+week reports concentration `not_evaluable`. If plain workouts turn out to
+dominate real coach authoring, concentration is unevaluable for most weeks — the
+hardest-session bound rarely fires and `redPath: 'compound'` is unreachable in
+practice, leaving volume as the only live axis.
+
+**Whether that happens is currently unmeasurable, not unfavourable.** Read
+2026-07-28: `coach_plans` holds **1 row** (carrying no `length` key and no
+`blocks` array), `client_workouts` and `workout_sessions` hold **0**. There is no
+corpus to measure a distribution against, so any figure quoted here would be
+invented. What can be said is structural: of the three build types the mobile
+builder offers, `program` (day lines) and `plan` (week lines) emit per-session
+blocks and `workout` emits exercises — **two of three**. That is a statement
+about the builder, not about coach behaviour, which nothing yet knows.
+
+**Consequence for the telemetry:** it has to ship WITH the feature. There is no
+history to back-fill from, so a field added later measures only the future.
 
 ### 9.4 The week-shaped boundary, and total write coverage
 
@@ -1744,3 +1768,25 @@ is needed. If it is a meaningful share of reds, the first candidate is *not*
 admitting device rows to the denominator but **making them promptable** — a
 post-sync rating prompt would convert them into genuine in-app rated sessions
 and dissolve the problem at its source rather than trading one bias for another.
+
+### 13.14 A planned RPE may carry half-points; a logged one may not
+
+**Deliberate asymmetry, recorded so it is not "harmonised" later.** `plannedRpe`
+(§3.2) accepts half-points; `session_rpe` (§3) must be a whole number. Both sit
+on the same 1–10 scale, so the two rules look like a drift. They are not:
+
+- **A logged rating comes from the completion prompt, which only ever writes
+  whole numbers.** A fraction there can only be a defect, so the integer rule is
+  a real check.
+- **A coach authoring a week has no such constraint**, and half-points are a real
+  coaching convention — F45's reference athlete is planned at **RPE 7.5** and
+  must compute a load, not report a defect.
+
+Making either side match the other breaks something: forcing plans to integers
+rejects a legitimate authored week; allowing fractions on logs discards a check
+that can only ever catch a bug.
+
+⚠ **The consequence, stated so it is not mistaken for one:** `jump_vs_history`
+compares a half-point-capable proposed value against integer-only history. That
+is fine mathematically — both sides reduce to AU before the comparison — and the
+asymmetry lives in the inputs, not in the check.
