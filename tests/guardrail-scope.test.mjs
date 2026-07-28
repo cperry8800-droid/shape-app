@@ -6,10 +6,20 @@
 // right to count it); a device import was never promptable, so it is
 // structurally unratable rather than electively unrated.
 //
-// EVERY FIXTURE HERE IS BUILT TO FAIL WITHOUT THE RULE. Where the rule is what
-// changes the verdict, the test asserts BOTH sides — the scoped answer and the
-// answer the same rows produce when the out-of-scope ones are stamped in-app.
-// A fixture that passes either way would be decoration.
+// ⚠ WHAT THIS SUITE IS AND IS NOT, stated precisely because an inflated claim
+// about test rigor is worse than none — the next auditor trusts it instead of
+// re-running. MUTATION-TESTED by forcing `bsSessionInScope` to `true`:
+// **11 of 13 tests die, 2 survive by construction** (the two that assert the
+// IN-scope direction of the predicate itself, which scope removal cannot
+// change). Where the rule is what changes the verdict, the test asserts BOTH
+// sides — the scoped answer and the answer the same rows produce when the
+// out-of-scope ones are restamped in-app.
+//
+// ⚠ A COUNTERFACTUAL MUST VARY ONE THING. Restamping `source` AND filling in a
+// rating at the same time proves only that a rated in-app session behaves
+// differently — it hides which half did the work. Two fixtures here originally
+// did exactly that and passed with scope disabled; they now carry a RATED
+// device row and vary source alone.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -210,15 +220,21 @@ test('FIXTURE: a device sync does NOT reset the return-regime clock', () => {
   // guardrail measures, so it must not close the gap and quietly deny them it.
   const history = WEEKS.flatMap((wk) => [inApp(dayIn(wk, 0)), inApp(dayIn(wk, 1)), inApp(dayIn(wk, 2))]);
   const lastInApp = dayIn(WEEKS[2], 2);           // 2026-07-22
-  const later = [...history, synced('2026-09-10')]; // a sync well after the layoff
+
+  // ⚠ THE DEVICE ROW IS RATED, DELIBERATELY. An UNRATED sync is already dropped
+  // by the pre-existing real-session floor (`!c.rated` fails it), so an unrated
+  // fixture here would pass with §9.5 removed entirely — it would be pinning
+  // that floor, not this rule. 9 x 60min = 540 AU, well over the 100 AU floor.
+  // A rated device row is also the REALISTIC future: Whoop strain, Garmin, and
+  // Strava perceived exertion all carry an effort figure, so the first sync
+  // writer that lands produces exactly the shape scope alone can stop.
+  const later = [...history, synced('2026-09-10', 18, { sessionRpe: 9 })];
 
   const gap = bsHistoryGap(later, '2026-09-15');
   assert.equal(gap.lastRealISO, lastInApp, 'the gap is measured from the last IN-APP session');
 
-  const withoutRule = bsHistoryGap(
-    later.map((s) => ({ ...s, source: 'shape_app', sessionRpe: s.sessionRpe ?? 8 })),
-    '2026-09-15',
-  );
+  // SOURCE ONLY — the rating is already there, so scope is the one variable.
+  const withoutRule = bsHistoryGap(later.map((s) => ({ ...s, source: 'shape_app' })), '2026-09-15');
   assert.equal(withoutRule.lastRealISO, '2026-09-10', 'without the rule the sync closes the gap');
   assert.ok(gap.gapDays > withoutRule.gapDays, 'the sync would have hidden a real layoff');
 });
@@ -230,12 +246,29 @@ test('scope: bsWeekLoad agrees with bsBucketWeeks — the PARALLEL tally is scop
   // 480). Not a live defect — nothing outside tests calls it — but it is the
   // one a 2b implementer reaches for, because its docstring reads "derive one
   // week's load from its logged sessions".
+  // ⚠ THE DEVICE ROW IS RATED (10 x 60min = 600 AU), and that is what makes
+  // this fixture bite. An unrated row contributes 0 AU and can never be the
+  // hardest session, with or without scope — so the unrated version of this
+  // test passed with `bsSessionInScope` forced to `true`, asserting nothing.
+  // Rated: scope ON -> 1 / 200 / 200. Scope OFF -> 2 / 800 / 600.
   const day = dayIn(WEEKS[0], 1);
-  const rows = [inApp(day, 9), synced(day, 18)];
+  const rows = [inApp(day, 9), synced(day, 18, { sessionRpe: 10 })];
   const w = bsWeekLoad(rows);
   const b = bsBucketWeeks(rows).weeks[0];
-  assert.equal(w.loadAu, b.loadAu, 'the two tallies must never disagree');
-  assert.equal(w.eligible, b.eligible);
-  assert.equal(w.hardestAu, b.hardestAu, 'a device row must not become the hardest session');
-  assert.equal(w.loadAu, 200);
+
+  // LITERALS, not a comparison between the two implementations. Disabling scope
+  // moves both of them identically, so an implementation-vs-implementation
+  // assertion agrees in either world and proves nothing about the rule.
+  assert.equal(w.eligible, 1, 'the device row must not enter the denominator');
+  assert.equal(w.loadAu, 200, 'nor add load');
+  assert.equal(w.hardestAu, 200, 'nor become the hardest session');
+
+  // The agreement check is a SEPARATE claim, and it is only an absolute for
+  // SINGLE-WEEK input: bsWeekLoad folds any span into one tally by contract, so
+  // over a multi-week history the two are supposed to differ.
+  assert.deepEqual(
+    { eligible: w.eligible, loadAu: w.loadAu, hardestAu: w.hardestAu },
+    { eligible: b.eligible, loadAu: b.loadAu, hardestAu: b.hardestAu },
+    'on one week the parallel tally must agree with the bucketing one',
+  );
 });

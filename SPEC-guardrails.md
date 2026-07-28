@@ -867,9 +867,12 @@ denominator today. They do not. Verified read-only against production
   and production held **zero rows**.
 
 So the rule is **anticipatory, not remedial** — which is precisely why it is
-worth having: `workout_sessions.source` already carries a CHECK constraint
-admitting six device values and `status` five states, so the schema anticipates
-writers the guardrail must not silently absorb.
+worth having: `workout_sessions.source` already carries a CHECK constraint of
+**nine** values — so **seven sit outside the allowlist: six device sources plus
+`manual`** — and `status` carries five states, of which two are in scope. The
+schema anticipates writers the guardrail must not silently absorb. (The core's
+§9.5 comment counts it the same way; two sites counting different sets is how a
+reader ends up trusting neither.)
 
 **Where each half lives, and why they are split.**
 
@@ -901,8 +904,8 @@ depend on an unrelated act by a different person.
 `abandoned` is correctly out: nothing writes it, and "End workout early" routes
 through the same completion step and saves `completed`.
 
-⚠ **An ALLOWLIST, not a blocklist.** A blocklist silently admits the seventh
-device value the day someone widens the CHECK. `manual` therefore falls **out**
+⚠ **An ALLOWLIST, not a blocklist.** A blocklist silently admits the **eighth**
+value outside the list the day someone widens the CHECK. `manual` falls **out**
 — a hand-entered past workout was not prompted at the time either — which is a
 decision, not an oversight: if a manual-entry form ever ships *with* an RPE
 field, that row becomes promptable and the list should be revisited.
@@ -923,7 +926,11 @@ including `source` and `status`. The absent-is-in-scope call does *not* rest on
 the writer count (it rests on `NOT NULL`, which is genuinely enforced), so the
 conclusion stands; but the policy name overpromises relative to its body. That
 is pre-existing and outside this guardrail's threat model — **registered, not
-fixed here.**
+fixed here.** The hazard is not the permission; it is that a future reader
+trusts the NAME and assumes a constraint that is not there. So the registered
+fix is a naming one: either rename the policy to what it does, or add the
+`status` predicate its name implies. Changing an auth policy inside a guardrail
+branch is the wrong blast radius.
 
 ⚠ **REGISTERED REGRESSION VECTOR — a source that LIES, which no fixture can
 catch.** The allowlist stops a new source *value* entering unruled. It cannot
@@ -937,10 +944,18 @@ cannot be it. A real fix, if a device writer ever lands, is to make the sync
 path set `source` from the integration that produced the row and assert that in
 that writer's own tests.
 
-Fixtures: `tests/guardrail-scope.test.mjs` — every one asserts both the scoped
-verdict *and* the verdict the same rows produce with the out-of-scope ones
-restamped in-app, so a fixture that would pass either way cannot hide there.
-The accepted cost is recorded in §13.13.
+Fixtures: `tests/guardrail-scope.test.mjs`. ⚠ **Stated precisely, because the
+earlier version of this sentence claimed every fixture asserts both sides and
+that was false — an inaccurate claim about test rigor is the one worth
+correcting, since the next auditor trusts it instead of re-running.**
+Mutation-tested by forcing `bsSessionInScope` to `true`: **11 of 13 tests die,
+2 survive by construction** (the two asserting the IN-scope direction of the
+predicate itself, which scope removal cannot change). Where the rule is what
+changes the verdict, the fixture asserts both the scoped answer and the answer
+the same rows produce restamped in-app — and that counterfactual **varies source
+alone**: two fixtures originally restamped source *and* filled in a rating,
+which passed with scope disabled because the rating was doing the work. Both now
+carry a RATED device row. The accepted cost is recorded in §13.13.
 
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
 `SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,

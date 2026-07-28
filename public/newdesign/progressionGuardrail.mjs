@@ -733,10 +733,12 @@ export function bsClassifySession(session, index = 0) {
  * dedupe pass — the sync copy simply never enters.
  *
  * ⚠ AN ALLOWLIST, NOT A BLOCKLIST, and that choice is load-bearing.
- * `workout_sessions.source` carries a CHECK constraint that already admits
- * SEVEN values outside this list. A blocklist would silently admit the eighth
- * the day someone widens that constraint; the allowlist puts a new source OUT
- * until it is ruled in. Out is the safe direction — see the §13 property below.
+ * `workout_sessions.source` carries a CHECK constraint of nine values, so
+ * SEVEN sit outside this list — six device sources plus `manual`. (Stated the
+ * same way in SPEC-guardrails.md §9.5: two sites counting different sets is how
+ * a reader ends up trusting neither.) A blocklist would silently admit the
+ * eighth the day someone widens that constraint; the allowlist puts a new
+ * source OUT until it is ruled in — the safe direction, see §13 below.
  *
  * ⚠ WHAT THE ALLOWLIST DOES NOT PROTECT AGAINST: a source that LIES. It stops a
  * new source VALUE entering unruled; it cannot stop a future device-sync writer
@@ -883,9 +885,15 @@ function tally(classified) {
  * and Section 4b's qualifying rules must not read it as one.
  *
  * @param {*} sessions
- * @returns {{weeks:Array<{weekStartISO:string, eligible:number, rated:number,
- *            loadAu:number, measured:boolean, realSessions:number,
- *            hardestAu:number, sessions:number}>, malformed:Array}}
+ * ⚠ The returned week keys are EXACTLY those below. This list previously named
+ * a `realSessions` count that nothing has ever produced — a 2b implementer
+ * following the JSDoc would have read `undefined` into a numeric comparison and
+ * failed silently. The gap floor is applied per SESSION inside `bsHistoryGap`,
+ * not per week; see BS_GAP_SESSION_FLOOR_AU.
+ *
+ * @returns {{weeks:Array<{weekStartISO:string, sessions:number, eligible:number,
+ *            rated:number, loadAu:number, measured:boolean, hardestAu:number}>,
+ *            malformed:Array}}
  */
 export function bsBucketWeeks(sessions) {
   if (!Array.isArray(sessions)) {
@@ -970,7 +978,8 @@ export const BS_WINDOW_REACH_DAYS = 84;
  *
  * A gap is a run of consecutive days with no session ABOVE this floor, so a
  * 60 AU walk does not reset an interruption (F64) and a 140 AU session does
- * (F65). Each week carries its own count of such sessions (`realSessions`).
+ * (F65). The floor is applied PER SESSION inside `bsHistoryGap` — weeks carry
+ * no count of real sessions, and this sentence used to claim they did.
  *
  * ⚠ This floor does NOT filter the baseline window. F103 pins four weeks of
  * ~0.02 AU sub-minute sessions as QUALIFYING — they reach the floor test and
