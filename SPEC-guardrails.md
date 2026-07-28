@@ -249,6 +249,35 @@ bsGuardrailCopy(result)                       -> GuardrailCopy | null
 bsInterpolateAnchors(anchors, x)              -> number
 ```
 
+**STANDING RULE — the core reads RAW SESSION ROWS ONLY, never precomputed
+summary aggregates.** Ruled 2026-07-28, generalising the duration-specific
+amendment below, which was one instance of it. Every field in `sessions[]` is a
+fact the writer observed; not one is a figure someone else already reduced. Three
+reasons, each sufficient on its own:
+
+- **An aggregate is a drift hazard by construction.** It is computed under one
+  version of the rules and read under another. The load rules carry real
+  judgement — RPE 0 is absent, an unconfirmed overrun is excluded, credibility is
+  derived against the *current* ceiling (§13.8) — so a stored aggregate is a
+  verdict frozen at write time, and §13.4 promises the thresholds will move.
+- **It moves the rules out of the only place they are fixture-testable.**
+  Pre-aggregating in SQL puts the derivation where §12's fixtures cannot reach
+  it, which is the reasoning already recorded for the week buckets.
+- **It hides its own staleness.** A wrong raw row reports `malformed` **by name**
+  and degrades the evaluation honestly; a wrong aggregate reports a plausible
+  number and is indistinguishable from a right one.
+
+Concretely: `workout_sessions` also carries `completedSets`, `avgSetSeconds` and
+`avgRestSeconds`. **The guardrail reads none of them, and 2b must not begin to.**
+Whether *those* columns drift against their own writers is a real risk but not
+this wave's — it is registered separately for whoever consumes them, deliberately
+not fixed here.
+
+Note the boundary this rule does **not** cross: it governs values that
+*interpret* data. Transactional facts — a price paid, an amount charged — are
+frozen at write time on purpose and are the opposite case. The test that
+separates them is in §13.11.
+
 ```
 // AMENDED — the core takes RAW SESSIONS and derives the weeks itself. Load
 // derivation carries real rules (RPE 0 is absent; an unconfirmed overrun is
@@ -691,6 +720,12 @@ acknowledged, and the acknowledgment plus reason ride along on the save.
 
 ### 9.2 Publish route (authoritative)
 
+⚠ **SUPERSEDED IN SHAPE BY §9.4 (ruled 2026-07-28).** The gate is not a check
+added to the existing one-session-per-call route; it is a **new week-shaped
+publish boundary** that every coach writer moves onto. §9.2's *rule* stands
+verbatim — red without an acknowledgment does not publish — but the boundary it
+attaches to, and the enforcement default at ship, are §9.4's. Read §9.4 first.
+
 **Modify:** `src/app/api/trainer/workout/route.ts`
 
 After the existing auth and on-client scope gate, and before insert: load the
@@ -700,15 +735,123 @@ able to publish a red week without an audit entry.
 
 `unknown` (§3.2) does not gate publish — it is reported, not enforced.
 
+### 9.4 The week-shaped boundary, and total write coverage
+
+Three premises in §9 did not survive contact with the codebase. Recorded before
+the ruling, because each one changes what 2b is:
+
+1. **No week-shaped publish boundary exists.** `dashBuilder` flattens a program
+   and fires **one POST per day** (16 for a 4×4); `BSProAssignPage` loops one
+   insert per session. Nothing anywhere assembles sessions-for-one-week as an
+   object before writing.
+2. **`/api/trainer/workout` is not the chokepoint.** It covers the two web
+   builders and Nora. The **mobile coach app does not use it at all** —
+   `assignClientWorkout` (`shapeBackend.js`) is a **direct client-side
+   `supabase.from('client_workouts').insert(…)`** under RLS. So is Adjust, via
+   the `regenerate_client_workouts` RPC.
+3. **`plannedMinutes` and `plannedRpe` exist nowhere outside this spec and the
+   core.** No builder, no payload, no route carries them. Two of the three mobile
+   Assign branches write `exercises: []`. Capturing them is a **prerequisite** of
+   the gate scoring anything, not parallel work.
+
+**RULING — one boundary, week-shaped, every writer through it.**
+
+A builder submits `{ clientIds[], weekStartISO, sessions: [{ title,
+scheduledDate, plannedMinutes, plannedRpe, payload }] }` in **one call**,
+evaluated once and written **atomically**.
+
+*Why not compose the week server-side from one-session-per-call:* the server
+**cannot know when a week is complete** — POST 8 of 16 is indistinguishable from
+an 8-session week. That breaks evaluation (16 scorings of a growing week, 15 of
+them incomplete), telemetry (16 rows per real week, with no final POST to key
+off — the same denominator problem that moved telemetry out of the builder,
+§10.2), and acknowledgment (a coach cannot acknowledge a red for a week still
+arriving).
+
+**Coverage is total, and this is the architecture, not a nice-to-have.** The
+whole rationale is one boundary every writer passes through; gating one of three
+defeats it rather than partially delivering it.
+
+| Path | Today | After 2b |
+|---|---|---|
+| `/api/trainer/workout` — web builders + Nora | ungated | **gated**, week-shaped |
+| `assignClientWorkout` — **the mobile coach app** | ungated, **direct client-side insert** | **gated**, routed through the boundary |
+| `regenerate_client_workouts` — Adjust | ungated | **gated** |
+
+**No session-shaped coach write path stays live alongside the week-shaped one.**
+Two contracts makes the gate optional in practice. If the migration cannot land
+in one pass, sequence it — **mobile first** (the primary coaching surface and the
+largest share of real writes), then Adjust, then web — but not past the end of
+the wave.
+
+**Adjust regeneration is the HIGHEST-risk path, not a secondary one.** It
+rescales loads — precisely the guardrail's subject — and it is **automated**, so
+no human looked at the result at the moment of change. A coach hand-building a
+hot week at least saw it. Gating the manual path while leaving regeneration open
+inverts the risk ordering. **It evaluates the post-rescale week as a FRESH
+proposal against the client's history, never a delta:** the guardrail's question
+is always *"is this week too big for this client"*, regardless of how the week
+came to be.
+
+**The mobile gap's failure mode is worse than having no feature.** A coach on
+their phone would watch programs publish clean and conclude the guardrail passed
+them. False assurance is worse than absence — the same reasoning that makes
+`unknown` its own state instead of defaulting to green.
+
+**Ships with the kill switch (§7.4) DEFAULTED TO ADVISORY.** Red computes, is
+recorded, and surfaces to the coach with the acknowledgment path live — but does
+**not** 409. Telemetry records the true state throughout. Enforcement flips on by
+config once flag rates come back in the target band (10–15% amber, 1–2% red).
+Advisory is a **runtime state of this architecture**, not an alternative to it:
+shipping "advisory-only" as its own design would mean doing the integration
+twice.
+
+**Fixtures this ruling requires** (beyond §12):
+
+- a full week is accepted atomically;
+- a red week **in advisory mode** is written, with the flag recorded and **not**
+  rejected;
+- a red week with the kill switch **off** is rejected without an acknowledgment
+  and accepted with one;
+- a **partial submission is rejected as malformed**, never scored;
+- **one evaluation and one telemetry row per publish**, regardless of session
+  count;
+- a mobile week-shaped publish is gated **identically** to web;
+- regeneration producing a red week is handled by the same acknowledgment path,
+  and is evaluated as a **fresh week, not a delta**;
+- a **direct client-side insert attempt is rejected**.
+
+⚠ One consequence to handle explicitly in the mobile migration: today
+`assignClientWorkout` **falls back to a local record when the insert errors**. A
+gate that returns a rejection must not be absorbed by that fallback and reported
+to the coach as saved.
+
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
-`SECURITY DEFINER` RPC returning the trailing per-week load buckets and
-qualifying-session dates for one client, gated on `is_coach_on_client`.
+`SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,
+gated on `is_coach_on_client`.
+
+⚠ **AMENDED 2026-07-28 — this paragraph said "per-week load buckets" and was
+STALE.** The bucketing ruling was reversed in `SPEC-guardrails-2a-fixtures.md
+§0` and §4.1 was amended to match; **this site and §11 were not**, so a 2b
+implementer reading §9 in isolation would have built the exact SQL aggregation
+the amendment exists to prevent — the same stale-contract-site failure recorded
+in the Deploy 1 handoff. Corrected here rather than followed. See the §4.1
+**standing rule**: the core reads raw session rows only, never precomputed
+summary aggregates.
+
+**The RPC returns rows, one per session, and makes no judgement of any kind** —
+no weeks, no sums, no load, no qualifying flag. It selects, filters to the
+trailing window, and hands over exactly the six fields §4.1 names
+(`startedAtISO`, `timezone`, `durationSec`, `sessionRpe`, `durationPrompted`,
+`durationAnswer`) plus the kill-switch flag (§7.4). Every derivation — week
+membership in the client's own zone, RPE 0 as absent, an unconfirmed overrun as
+excluded, credibility against the *current* ceiling — happens in the pure core
+where §12's fixtures can reach it.
 
 Follow `get_roster_weekly_adherence` exactly: `search_path` pinned with
 `pg_temp`, every reference schema-qualified, unauthorized ids **absent** from the
 result rather than erroring, `revoke all … from public, anon` before
-`grant execute … to authenticated, service_role`. **It buckets only — it makes
-no judgement.**
+`grant execute … to authenticated, service_role`.
 
 ### 9.3 Visibility — coach-facing only, enforced at the API boundary
 
@@ -856,7 +999,7 @@ on anything below it.
 |---|---|
 | **Create** `public/newdesign/progressionGuardrail.mjs` | The pure core, three anchor tables, the interpolation utility, the copy function |
 | **Create** `tests/progression-guardrail.test.mjs` | Fixtures per §12 |
-| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC (returning the kill-switch flag alongside the buckets, §7.4) · **and** add `guardrail_evaluated` to the `track_event` whitelist |
+| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC — **raw trailing session ROWS**, not buckets (amended 2026-07-28, see §9.2) — returning the kill-switch flag alongside them (§7.4) · **and** add `guardrail_evaluated` to the `track_event` whitelist |
 | **Create** `supabase-migrations/2026-07-27-guardrail-config.sql` | Minimal app-config table holding `guardrail_red_enabled` (§7.4), seeded `true`. Service-role write; read only through the load-history RPC |
 | **Modify** `supabase-migrations/` — the `ai_audit_read_own_or_coach` policy | Close the client-visibility hole in §9.3: a `guardrail_red_ack` row sets `target_user_id` to the client, so the policy's "own entries" arm would expose it to them |
 | **Modify** `src/lib/funnel.mjs` | Add `guardrail_evaluated` to `ANALYTICS_EVENTS` — the whitelist trap, second time (§10.2) |
@@ -1179,6 +1322,75 @@ the test implementing it. Amended to *"malformed — missing or unparseable
 `startedAtISO`"*; the companion unknown-`timezone` case is F125. Recorded here
 alongside F109 / F120 / F127 / F95 as a flagged-and-ruled amendment, not a silent
 edit.
+
+### 13.11 Derived-at-read-time vs frozen-at-write-time — the test
+
+Ruled 2026-07-28, after review correctly flagged `store_catalogue` pricing as a
+persisted derived value and proposed applying §13.8's doctrine to it. **The flag
+was right; the fix would have been wrong.** Recorded here so the same reading
+does not recur and get "corrected" next time.
+
+§13.8 does not say *never persist a derived value*. It says a value that
+**interprets** data must re-derive when the interpretation rule changes —
+otherwise old records inherit a verdict nobody would reach today. That reasoning
+covers verdicts. It does not cover facts.
+
+**The test — if the rule changes, should history change?**
+
+| | Answer | Therefore |
+|---|---|---|
+| Guardrail verdicts, credibility, eligibility, measured-week status | **YES** — a retuned ceiling should re-judge old rows | Store the raw facts; derive at read time |
+| Prices paid, amounts charged, fee rates, anything transactional | **NO** — a reprice must never rewrite what a customer was charged | Freeze at write time |
+
+Both are persisted derived values. They sit on **opposite sides** of this line,
+and the line is not architectural taste — for the transactional half it is
+accounting and consumer-protection law. Re-deriving a completed order under
+today's prices would misstate revenue and misrepresent the contract the customer
+actually entered. This is the same principle already shipped as *"the stored
+`fee_bps` is the billing truth"* in the BYO commission split: every dashboard,
+analytics and refund path computes from the row's own stored rate precisely so a
+future reprice cannot rewrite history.
+
+**Scope, explicitly:** `store_catalogue` is outside the guardrail entirely.
+**Deploy 2b must not read from or write to it.** It is named here only to settle
+the classification.
+
+### 13.12 The latched clock is NOT an untestable path — the survivor is closed
+
+Deploy 1 recorded the latched completion clock as the one perturbation survivor,
+on the stated grounds that *time cannot pass in the harness*. **That was wrong,
+and the claim is withdrawn.** Both directions are now driven and both kill their
+mutation.
+
+The reasoning that produced it: effects are no-ops in
+`tests/broadsheet-session-render.test.mjs` (running them hangs the runner —
+`BSSession` starts wall-clock timers on mount), so the 1s tick never fires and
+`now` looked frozen. But **the tick is only `setNow(Date.now())`** — a state
+write. The harness already owns the state cells, so performing that same write
+directly *is* the tick, with none of the machinery that hangs. `advanceNow()`
+does exactly that, and the two paths the §13.8 note describes are now covered:
+
+| Direction | Unlatched failure | Test |
+|---|---|---|
+| under a minute → crosses 60s mid-answer | `askDuration` flips false, the field is **withdrawn under the member**, their typed figure is stored while the facts say nobody was asked | *the clock crossing a minute does not withdraw the question mid-answer* |
+| 149 min → crosses the 150-min ceiling while the screen sits | `askDuration` flips true and the prefill path **answers itself** — `confirmed`, with no member action at all | *the clock crossing the ceiling does not confirm a figure nobody was shown* |
+
+Three things worth carrying, because each cost a real defect here:
+
+1. **"The harness can't do X" deserves one attempt before it becomes a
+   recorded limitation.** The no-op-effects fact was true; the conclusion drawn
+   from it was not, and it hardened into a documented gap on the strength of
+   sounding right.
+2. **Identify a state cell by value, never by index.** `now` and `elapsedStart`
+   are *consecutive* reads but sit deep in the hook order, not at 0/1 — a
+   first-match scan finds a rest timer instead. The pair is located by the
+   offset the harness itself staged, so a hook inserted between them fails
+   loudly rather than advancing the wrong cell and silently voiding the test.
+3. **A boundary test must land STRICTLY past the boundary.** The ceiling test
+   first advanced exactly 60 s, landing *on* 150 min — and `timerImplausible`
+   is `>`, not `>=`. It crossed nothing and passed with the latch removed. Only
+   the perturbation run exposed it; the assertion looked correct in review.
+   **Run the mutation before believing a green boundary test.**
 
 ## 14. End-to-end verification
 
