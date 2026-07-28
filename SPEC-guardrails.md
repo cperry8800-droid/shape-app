@@ -1145,9 +1145,16 @@ that a missing flag is not a caller bug and excludes rather than admits. A
 believe is how a caller bug becomes a silent baseline error.
 
 Also added: **`BS_SESSION_MINUTES_MAX` (600)**. Past the ceiling we ask; past the
-maximum we refuse, and a row claiming more is malformed **even with a
+maximum we refuse, and a row claiming more is **EXCLUDED from load, even with a
 confirmation**. It is exported and imported by the completion prompt, so the
 field cannot accept a figure the core rejects.
+
+⚠ **Excluded, not malformed** — corrected after review caught the first cut
+reporting it as malformed. Our own wall-clock fallback produces exactly this row
+when a phone is left on the completion screen, so it is not a caller bug; and one
+malformed row turns the WHOLE evaluation `unknown`, which §7.5 rules never blocks
+publish — a forgotten timer would therefore have switched the guardrail OFF for
+that client. Malformed stays reserved for shapes no legitimate writer can emit.
 
 ### 13.9 Never-throws is kept — the throw instruction is REVERSED
 

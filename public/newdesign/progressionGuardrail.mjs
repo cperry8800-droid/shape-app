@@ -225,9 +225,13 @@ export const BS_SESSION_MINUTES_CEILING = 150;
  * The longest a single session may claim to be, at all.
  *
  * Distinct from the ceiling above: past THAT we ask, past THIS we refuse. Ten
- * hours is not a session, it is a screen someone left open — so a row claiming
- * it is a caller bug in the same class as `sessionRpe: 11`, and is reported by
- * name rather than quietly excluded.
+ * hours is not a session, it is a screen someone left open — so the row is
+ * EXCLUDED from load, even WITH a confirmation.
+ *
+ * ⚠ Excluded, NOT malformed, and the distinction is load-bearing: our own
+ * wall-clock fallback produces exactly this row, one malformed row turns the
+ * whole evaluation `unknown`, and §7.5 rules that `unknown` never blocks
+ * publish. See the note at the eligibility derivation for the full reasoning.
  *
  * ⚠ ONE CONSTANT, IMPORTED BY THE PROMPT. The completion screen bounds what a
  * member may type against this exact value; a second copy in the client would

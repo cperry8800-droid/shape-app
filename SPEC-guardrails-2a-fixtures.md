@@ -91,9 +91,9 @@ become untestable in isolation.**
 
 | Term | Definition |
 |---|---|
-| **eligible** session | `durationSec > 0` **and** not an inferred overrun |
+| **eligible** session | `durationSec > 0` **and** not an inferred overrun **and** not past the absolute maximum |
 | **inferred overrun** | `durationSec > 150 min` **and** `durationAnswer !== 'confirmed'` — derived at READ time against the CURRENT ceiling. `not_prompted` is not a confirmation: a session logged while the ceiling sat above it was never asked about, and a retune downward must not convert it into an affirmation nobody gave |
-| **absolute maximum** | `durationSec > 600 min` is **malformed**, even WITH a confirmation — past the ceiling we ask, past this we refuse |
+| **absolute maximum** | `durationSec > 600 min` is **EXCLUDED** from load, even WITH a confirmation — past the ceiling we ask, past this we refuse. ⚠ Excluded, **not** malformed: our own wall-clock fallback produces this row, and one malformed row turns the whole evaluation `unknown`, which never blocks publish |
 | **rated** session | eligible **and** `sessionRpe` passes the ordered rating rule below |
 | **the rating rule** | Applied in this order: **(1)** `null` or exactly **0** → *absent*, not rated. **(2)** not an **integer** → *malformed*. **(3)** an integer outside **[1, 10]** → *malformed*. **(4)** otherwise → *rated*. So `0.5`, `7.5`, `10.5`, `11` and `-2` are all malformed; `0` is absent. **Storable ≠ producible:** `numeric(3,1)` holds one decimal across the whole range, so a fraction anywhere in it is exactly as impossible from a whole-number prompt as `0.5` is, and treating them differently would be worse than either reading alone. ⚠ **Step 2 is the one line to reverse** if half-point RPE (6.5 / 7.5 / 8.5 — a real strength-training convention) is added to the prompt later; the column type is deliberately kept wide enough for it and must **not** be narrowed |
 | **session AU** | `sessionRpe × (durationSec / 60)`, rated sessions only |

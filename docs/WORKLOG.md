@@ -1265,7 +1265,8 @@ changelog whenever something ships.
   captures the FIRST render's closure — the unmount save would have written a junk
   zero-duration session with no sets. Both caught by review, not by the suite.
 - Verified: **1072 tests**, tsc clean, mobile build clean, CI green. Perturbation sweeps:
-  50 mutations on the core (46 killed, 3 documented equivalents) + 14 on the completion step
+  50 attempted on the core (46 killed, 3 documented equivalents, 1 unusable — a stale
+  mutation string whose fact a killed sibling already guards) + 14 on the completion step
   (all killed). Open: OWNER on-device pass (reach the completion screen, hardware-back out,
   confirm the saved session carries its real sets and duration) · Deploy 2b.
 
