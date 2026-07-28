@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Bir öğün planı seç",
   "assign.pickProgram": "Bir program seç",
   "assign.readAck": "Okundu & onaylandı · tamam",
+  "assign.rejectedHead": "İletilemedi",
+  "assign.rejectedNote": "Cihazın bunları beklettikten sonra sunucu reddetti. Hiçbir şey kaydedilmedi — hazır olduğunda yeniden ata.",
   "assign.repeatsSession": "Seansı haftalık tekrarlar",
   "assign.repeatsSplit": "Haftalık bölünmeyi tekrarlar",
   "assign.replaceConfirm": "Planı değiştir",

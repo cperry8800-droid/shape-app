@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Ernährungsplan auswählen",
   "assign.pickProgram": "Programm auswählen",
   "assign.readAck": "Gelesen & bestätigt · fertig",
+  "assign.rejectedHead": "Nicht zugestellt",
+  "assign.rejectedNote": "Dein Gerät hat sie zurückgehalten, dann hat der Server sie abgelehnt. Nichts wurde gespeichert – weise sie erneut zu, wenn du so weit bist.",
   "assign.repeatsSession": "Wiederholt die Einheit wöchentlich",
   "assign.repeatsSplit": "Wiederholt den Wochen-Split",
   "assign.replaceConfirm": "Plan ersetzen",

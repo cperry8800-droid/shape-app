@@ -1360,6 +1360,82 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       <BSRadioPrompt />
       {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
+      <BSProAssignRejects />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// BSProAssignRejects — the record of held assignments the server REFUSED.
+//
+// ⚠ THIS EXISTS BECAUSE A DROP MUST NOT BE SILENT. `bsReplayQueue` deliberately
+// removes a rejected assignment from the queue (retrying forever would never
+// succeed), and the drain runs on reconnect / session resolve — when the assign
+// screen that said "HELD · sends on reconnect" is long unmounted. Without a
+// surface the coach keeps believing the week is pending while it no longer
+// exists anywhere, which is the same false assurance the whole queue was
+// written to remove, just moved one step later.
+//
+// It lives in the SHELL, not on the assign screen, for exactly that reason: it
+// has to be able to appear when the coach is nowhere near where they assigned.
+// Toasts are a no-op app-wide (see the host in iosAppBroadsheet.jsx), so a real
+// rendered element is the only honest option.
+//
+// The record is persisted and account-scoped (window.ShapeAssign.rejections),
+// so it survives the reload the drain often rides in on, and clearing is an
+// explicit act by the coach who saw it.
+// ═══════════════════════════════════════════════════════════
+function bsProReadAssignRejects() {
+  try { return window.ShapeAssign?.rejections?.() || []; } catch (e) { return []; }
+}
+
+function BSProAssignRejects() {
+  const t = useBS();
+  const tr = useShapeTr();
+  // ⚠ SEEDED LAZILY, not in an effect. The drain runs on session resolve, which
+  // routinely lands BEFORE this shell mounts — an effect-only read would paint
+  // nothing on the very open where the coach most needs to see it. The listener
+  // below covers the other order (a drain while they are already looking).
+  const [rows, setRows] = useStateBSP(bsProReadAssignRejects);
+  React.useEffect(() => {
+    const read = () => setRows(bsProReadAssignRejects());
+    // The drain fires on reconnect and on session resolve; both dispatch this.
+    window.addEventListener('shape:assignQueue', read);
+    return () => window.removeEventListener('shape:assignQueue', read);
+  }, []);
+  if (!rows.length) return null;
+  const dismiss = () => {
+    try { window.ShapeAssign?.clearRejections?.(); } catch (e) {}
+    setRows([]);
+  };
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 70,
+      background: t.PAPER, borderBottom: `1px solid ${t.RULE}`,
+      paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+    }}>
+      <div style={{ padding: `0 ${t.padX}px 12px`, borderLeft: `3px solid ${t.RUST}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.RUST, paddingTop: 10 }}>
+          {String(tr('coach:assign.rejectedHead', { defaultValue: 'Not delivered' })).toUpperCase()} · {rows.length}
+        </div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK, marginTop: 5, lineHeight: 1.45 }}>
+          {tr('coach:assign.rejectedNote', { defaultValue: 'Your device held these, then the server refused them. Nothing was saved — assign again when you are ready.' })}
+        </div>
+        {/* The rows are DATA (a title, a date, the server's own reason), never
+            UI copy — so they need no catalog entry and cannot drift. */}
+        {rows.slice(-4).map((r, i) => (
+          <div key={i} style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 6 }}>
+            {r.title || '—'}{r.scheduledDate ? ` · ${r.scheduledDate}` : ''} — {r.reason}
+          </div>
+        ))}
+        <button type="button" onClick={dismiss} style={{
+          marginTop: 10, background: 'none', border: 'none', padding: '6px 0',
+          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK,
+          textDecoration: 'underline', cursor: 'pointer', minHeight: 44, display: 'block',
+        }}>
+          {String(tr('coach:common.close', { defaultValue: 'Close' })).toUpperCase()}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3383,8 +3459,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     // coach must at least be told exactly how far it got — "couldn't assign" on
     // a half-written week is its own false report.
     const tally = { sent: 0, queued: 0 };
+    // Authored ONCE, here, in the coach's own locale with the plan's real name.
+    // It rides on every queued row so a replay can send it on reconnect (the
+    // held path returns before the notify block below, so without this the
+    // client's week appears on their calendar with no word from their coach).
+    // The drain sends it once per client, never once per session.
+    const notifyBody = isNutri
+      ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name })
+      : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name });
     const assignOne = async (args) => {
-      const res = await window.ShapeAssign.workout(args);
+      const res = await window.ShapeAssign.workout({ ...args, notify: { body: notifyBody } });
       if (res && res.stored === 'queued') tally.queued += 1; else tally.sent += 1;
     };
     try {
@@ -3464,7 +3548,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         if (window.ShapeMessages?.getOrCreateMemberConversation) {
           const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
           const cid = conv?.data;
-          if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: isNutri ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name }) : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name }), metadata: { kind: 'plan_assigned' } });
+          if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: notifyBody, metadata: { kind: 'plan_assigned' } });
         }
       } catch (e) {}
       setStatus('done');
@@ -6087,6 +6171,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       <BSRadioPrompt />
       {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
+      <BSProAssignRejects />
     </div>
   );
 }

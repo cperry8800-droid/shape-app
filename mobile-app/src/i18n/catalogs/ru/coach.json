@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Выберите план питания",
   "assign.pickProgram": "Выберите программу",
   "assign.readAck": "Прочитано и подтверждено · готово",
+  "assign.rejectedHead": "Не доставлено",
+  "assign.rejectedNote": "Ваше устройство удержало их, а сервер отклонил. Ничего не сохранено — назначьте заново, когда будете готовы.",
   "assign.repeatsSession": "Повторяет сессию еженедельно",
   "assign.repeatsSplit": "Повторяет недельный сплит",
   "assign.replaceConfirm": "Заменить план",

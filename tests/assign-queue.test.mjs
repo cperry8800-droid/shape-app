@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   BS_ASSIGN_QUEUE_CAP, BS_ASSIGN_QUEUE_MAX_AGE_MS,
   bsClassifyWriteFailure, bsAssignmentKey, bsQueueAssignment, bsPruneQueue, bsReplayQueue,
-  bsMergeAfterDrain,
+  bsMergeAfterDrain, bsPartitionByOwner,
 } from '../mobile-app/src/services/assignQueue.mjs';
 
 const NOW = 1753142400000; // fixed epoch — injected clock, never Date.now()
@@ -264,8 +264,8 @@ test('replay: an already-written session is SKIPPED, not duplicated', async () =
 test('replay: an empty or junk queue is a no-op', async () => {
   let calls = 0;
   const write = async () => { calls += 1; };
-  assert.deepEqual(await bsReplayQueue([], { write }), { sent: 0, rejections: [], held: [] });
-  assert.deepEqual(await bsReplayQueue(null, { write }), { sent: 0, rejections: [], held: [] });
+  assert.deepEqual(await bsReplayQueue([], { write }), { sent: 0, sentItems: [], rejections: [], held: [] });
+  assert.deepEqual(await bsReplayQueue(null, { write }), { sent: 0, sentItems: [], rejections: [], held: [] });
   await bsReplayQueue([null, {}, { payload: null }], { write });
   assert.equal(calls, 0);
 });
@@ -352,4 +352,91 @@ test('drain: junk from localStorage cannot break the merge', () => {
   assert.deepEqual(bsMergeAfterDrain(undefined, [], 'nope'), []);
   const good = { id: 'a', queuedAt: NOW, payload: payload() };
   assert.deepEqual(bsMergeAfterDrain([], [], [null, good]), [good]);
+});
+
+// ─── Round-3 regressions (Codex, 2026-07-28) ────────────────────────────────
+// The queue is ONE device-wide localStorage key that sign-out does not clear,
+// the writer resolves trainer_id from whoever is signed in at write time, and
+// the drain fires on session resolve. Unscoped, coach B signing in replays
+// coach A's held week under B's provider — or loses it to an RLS denial.
+
+test('owner: an entry replays ONLY under the account that queued it', () => {
+  const q = [
+    { id: 'a', queuedAt: NOW, owner: 'coach-A', payload: payload({ title: 'A week' }) },
+    { id: 'b', queuedAt: NOW, owner: 'coach-B', payload: payload({ title: 'B week' }) },
+  ];
+  assert.deepEqual(bsPartitionByOwner(q, 'coach-A').mine.map((i) => i.id), ['a']);
+  assert.deepEqual(bsPartitionByOwner(q, 'coach-A').others.map((i) => i.id), ['b']);
+  // ...and the other coach's work is NOT dropped — it waits for them.
+  assert.deepEqual(bsPartitionByOwner(q, 'coach-B').mine.map((i) => i.id), ['b']);
+});
+
+test('owner: an UNATTRIBUTABLE entry never replays under an arbitrary account', () => {
+  // No stamp = we cannot prove whose it is. Writing it under whoever happens to
+  // be signed in is the exact failure this scoping exists to prevent, so it
+  // stays in `others` (and ages out) rather than replaying.
+  const q = [{ id: 'legacy', queuedAt: NOW, payload: payload() }];
+  assert.deepEqual(bsPartitionByOwner(q, 'coach-A').mine, []);
+  assert.deepEqual(bsPartitionByOwner(q, 'coach-A').others.map((i) => i.id), ['legacy']);
+  // A blank/absent viewer id matches nothing — never a wildcard.
+  assert.deepEqual(bsPartitionByOwner(q, '').mine, []);
+  assert.deepEqual(bsPartitionByOwner(q, null).mine, []);
+  assert.deepEqual(bsPartitionByOwner(null, 'coach-A'), { mine: [], others: [] });
+});
+
+test('owner: one coach queueing does NOT collapse another coach s identical entry', () => {
+  // Same client, same date, same title, different coaches = two assignments.
+  // Keyed on the payload alone, B's queue write silently deleted A's held work.
+  let q = bsQueueAssignment([], payload(), { now: NOW, owner: 'coach-A' });
+  q = bsQueueAssignment(q, payload(), { now: NOW + 1000, owner: 'coach-B' });
+  assert.equal(q.length, 2, "coach B must not erase coach A's held assignment");
+  assert.deepEqual(q.map((it) => it.owner), ['coach-A', 'coach-B']);
+
+  // The same coach re-tapping still collapses to one.
+  q = bsQueueAssignment(q, payload(), { now: NOW + 2000, owner: 'coach-A' });
+  assert.equal(q.length, 2);
+  assert.equal(q.filter((it) => it.owner === 'coach-A').length, 1);
+});
+
+test('drain: the write-back preserves ANOTHER account s queued work', () => {
+  // The drain replays only `mine`, so a foreign entry reaches the merge as an
+  // arrival. Owner is part of the merge key, so this holds structurally — a
+  // foreign entry can never be mistaken for one of ours and dropped.
+  const mine = [{ id: 'a', queuedAt: NOW, owner: 'coach-A', payload: payload({ title: 'W1' }) }];
+  const theirs = { id: 'b', queuedAt: NOW, owner: 'coach-B', payload: payload({ title: 'W1' }) };
+  const merged = bsMergeAfterDrain(mine, [], [...mine, theirs]);
+  assert.deepEqual(merged.map((i) => i.id), ['b'], "A's sent item is gone; B's is untouched");
+});
+
+test('replay: sentItems carries the ENTRIES behind the count', () => {
+  // The count alone cannot tell a caller WHICH assignments landed, and the
+  // delivered set is what the post-replay client notification acts on.
+  const items = [
+    { id: 'a', queuedAt: NOW, owner: 'c', payload: payload({ scheduledDate: '2026-08-03' }) },
+    { id: 'b', queuedAt: NOW, owner: 'c', payload: payload({ scheduledDate: '2026-08-04' }) },
+  ];
+  return bsReplayQueue(items, { write: async () => {} }).then((res) => {
+    assert.equal(res.sent, 2);
+    assert.deepEqual(res.sentItems.map((i) => i.id), ['a', 'b']);
+  });
+});
+
+test('replay: an already-written session still counts as DELIVERED in sentItems', async () => {
+  // It reached the client's calendar; the notification is owed either way.
+  const res = await bsReplayQueue(
+    [{ id: 'a', queuedAt: NOW, owner: 'c', payload: payload() }],
+    { exists: async () => true, write: async () => { throw new Error('must not write'); } },
+  );
+  assert.deepEqual(res.sentItems.map((i) => i.id), ['a']);
+});
+
+test('replay: a REJECTED item never appears in sentItems', async () => {
+  const rejected = new Error('permission denied');
+  rejected.rejected = true;
+  const res = await bsReplayQueue(
+    [{ id: 'a', queuedAt: NOW, owner: 'c', payload: payload() }],
+    { write: async () => { throw rejected; } },
+  );
+  assert.equal(res.sent, 0);
+  assert.deepEqual(res.sentItems, [], 'a refused assignment must never trigger a "it is live" note');
 });

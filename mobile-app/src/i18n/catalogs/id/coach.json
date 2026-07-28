@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Pilih rencana makan",
   "assign.pickProgram": "Pilih program",
   "assign.readAck": "Dibaca & dikonfirmasi · selesai",
+  "assign.rejectedHead": "Tidak terkirim",
+  "assign.rejectedNote": "Perangkatmu menahannya, lalu server menolaknya. Tidak ada yang tersimpan — tugaskan lagi saat kamu siap.",
   "assign.repeatsSession": "Mengulang sesi setiap minggu",
   "assign.repeatsSplit": "Mengulang pembagian mingguan",
   "assign.replaceConfirm": "Ganti rencana",

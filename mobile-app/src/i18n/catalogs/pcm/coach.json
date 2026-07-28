@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Pick one meal plan",
   "assign.pickProgram": "Pick one program",
   "assign.readAck": "Don read & acknowledge · done",
+  "assign.rejectedHead": "E no reach dem",
+  "assign.rejectedNote": "Your phone hold dem, then di server refuse am. Nothing save — assign am again when you ready.",
   "assign.repeatsSession": "E dey repeat the session every week",
   "assign.repeatsSplit": "E dey repeat the weekly split",
   "assign.replaceConfirm": "Replace plan",

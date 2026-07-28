@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Chọn một thực đơn",
   "assign.pickProgram": "Chọn một chương trình",
   "assign.readAck": "Đã đọc & xác nhận · xong",
+  "assign.rejectedHead": "Chưa gửi được",
+  "assign.rejectedNote": "Thiết bị của bạn đã giữ lại, rồi máy chủ từ chối. Không có gì được lưu — hãy giao lại khi bạn sẵn sàng.",
   "assign.repeatsSession": "Lặp lại buổi tập hàng tuần",
   "assign.repeatsSplit": "Lặp lại lịch phân bổ hàng tuần",
   "assign.replaceConfirm": "Thay thế kế hoạch",

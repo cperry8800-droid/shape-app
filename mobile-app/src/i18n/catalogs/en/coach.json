@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Pick a meal plan",
   "assign.pickProgram": "Pick a program",
   "assign.readAck": "Read & acknowledged · done",
+  "assign.rejectedHead": "Not delivered",
+  "assign.rejectedNote": "Your device held these, then the server refused them. Nothing was saved — assign again when you are ready.",
   "assign.repeatsSession": "Repeats the session weekly",
   "assign.repeatsSplit": "Repeats the weekly split",
   "assign.replaceConfirm": "Replace plan",

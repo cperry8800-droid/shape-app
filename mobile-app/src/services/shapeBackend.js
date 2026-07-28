@@ -12,7 +12,7 @@ import { bsAdjustRegen } from './adjustRegen.mjs';
 // place and can never drift toward absorbing a rejection as a local save.
 import {
   BS_ASSIGN_QUEUE_KEY, bsClassifyWriteFailure, bsQueueAssignment, bsPruneQueue, bsReplayQueue,
-  bsMergeAfterDrain,
+  bsMergeAfterDrain, bsPartitionByOwner,
 } from './assignQueue.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
@@ -1589,7 +1589,25 @@ async function assignClientWorkout(args = {}) {
     // throw, which is the false-assurance this whole change exists to remove.
     if (!(err && err.offline === true)) throw err;
     // Genuinely offline — hold the assignment and replay it on reconnect.
-    writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now() }));
+    //
+    // ⚠ STAMPED WITH THE QUEUEING ACCOUNT. The queue is one device-wide key
+    // that sign-out does not clear, and the writer resolves `trainer_id` from
+    // whoever is signed in when the row is finally written — so an unowned
+    // entry replays under the NEXT coach to sign in on this device. The stamp
+    // is the auth uid (available offline from the cached session), never the
+    // provider id: resolving that is the very network call that just failed.
+    const owner = state.user?.id || '';
+    if (!owner) {
+      // ⚠ AN UNATTRIBUTABLE HOLD IS NOT A HOLD. With no account to stamp, this
+      // entry could only ever replay under whoever signs in next — so the queue
+      // refuses it rather than strand it silently behind a "HELD · sends on
+      // reconnect" the queue can never keep. Surfacing costs the coach a retry;
+      // the alternative is the same false assurance one layer down.
+      err.rejected = true;
+      err.offline = false;
+      throw err;
+    }
+    writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now(), owner }));
     return { stored: 'queued', queued: true, data: null };
   }
 }
@@ -1607,18 +1625,25 @@ let assignDraining = false;
  */
 async function drainAssignmentQueue() {
   if (assignDraining || !bsIsOnline() || !state.user?.id) return { sent: 0, rejected: 0, held: 0 };
-  const queue = readAssignQueue();
+  const uid = state.user.id;
+  // ⚠ REPLAY ONLY WHAT THIS ACCOUNT QUEUED. `others` stay in storage untouched
+  // (they belong to a coach who may sign back in on this device) and age out
+  // through bsPruneQueue. They survive the write-back below as "arrivals" —
+  // structurally, since the merge keys on owner + payload, so a foreign entry
+  // can never collide with one of ours.
+  const queue = bsPartitionByOwner(readAssignQueue(), uid).mine;
   if (!queue.length) return { sent: 0, rejected: 0, held: 0 };
 
   assignDraining = true;
   let sent = 0;
+  let sentItems = [];
   let rejections = [];
   let held = [];
   try {
     // The replay loop itself is pure + fixture-tested; this only supplies the
     // effects. `write` is the SAME writer assignClientWorkout uses — repointing
     // it at the gated route (§9.4) gates the queue too, automatically.
-    ({ sent, rejections, held } = await bsReplayQueue(queue, {
+    ({ sent, sentItems, rejections, held } = await bsReplayQueue(queue, {
       write: writeClientWorkoutRow,
       exists: assignmentAlreadyWritten,
     }));
@@ -1643,6 +1668,19 @@ async function drainAssignmentQueue() {
     bsMergeAfterDrain(queue, held, readAssignQueue()),
     { now: Date.now() },
   ));
+  // ⚠ A REJECTION MUST OUTLIVE THIS PASS. `bsReplayQueue` deliberately drops a
+  // rejected assignment from the queue (retrying forever would never succeed),
+  // so the event below is its ONLY trace — and the drain runs on reconnect and
+  // on session resolve, when no assign screen is mounted to hear it. Worse, the
+  // coach was last told "HELD · sends on reconnect", so an unrecorded rejection
+  // reads as still-pending forever. Persisting it is what makes the drop
+  // honest; the coach clears the record once they have seen it.
+  if (rejections.length) recordAssignRejections(uid, rejections);
+  // Tell the client their week landed — the promise the online path keeps and
+  // the held path could not (it returns before the notify block). Best-effort
+  // and AFTER the queue write-back, so a failed message can never cost the
+  // durable record of a delivered assignment.
+  await notifyReplayedAssignments(sentItems);
   if (sent || rejections.length) {
     try {
       window.dispatchEvent(new CustomEvent('shape:assignQueue', {
@@ -1651,6 +1689,75 @@ async function drainAssignmentQueue() {
     } catch (e) {}
   }
   return { sent, rejected: rejections.length, held: held.length };
+}
+
+// ─── Replay outcomes the coach and the client both have to see ───────────────
+
+const BS_ASSIGN_REJECT_KEY = 'shape.assignRejections';
+
+function readAssignRejectRows() {
+  try {
+    const raw = JSON.parse(window.localStorage?.getItem(BS_ASSIGN_REJECT_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((r) => r && typeof r === 'object') : [];
+  } catch (e) { return []; }
+}
+
+function recordAssignRejections(owner, rejections) {
+  try {
+    const rows = (rejections || []).map((r) => ({
+      owner,
+      at: Date.now(),
+      clientId: (r.payload && r.payload.clientId) || null,
+      title: String((r.payload && r.payload.title) || '').slice(0, 120),
+      scheduledDate: (r.payload && r.payload.scheduledDate) || null,
+      reason: String(r.reason || 'rejected').slice(0, 300),
+    }));
+    // Capped like the queue: an unbounded record is its own failure mode.
+    const next = [...readAssignRejectRows(), ...rows].slice(-50);
+    window.localStorage?.setItem(BS_ASSIGN_REJECT_KEY, JSON.stringify(next));
+  } catch (e) {}
+}
+
+/** Rejections this account has not cleared yet (never another coach's). */
+function listAssignRejections() {
+  const uid = state.user?.id;
+  if (!uid) return [];
+  return readAssignRejectRows().filter((r) => r.owner === uid);
+}
+
+/** Clear only MY rows — a shared device may hold another coach's record. */
+function clearAssignRejections() {
+  const uid = state.user?.id;
+  if (!uid) return;
+  try {
+    const kept = readAssignRejectRows().filter((r) => r.owner !== uid);
+    window.localStorage?.setItem(BS_ASSIGN_REJECT_KEY, JSON.stringify(kept));
+  } catch (e) {}
+}
+
+/**
+ * Send the "your plan is live" note for assignments that landed on replay.
+ *
+ * ONE message per client per pass, not per row: a week is a loop of inserts,
+ * and seven identical notes would be worse than none. The body is authored at
+ * assign time (in the coach's own locale, with the plan's real name) and rides
+ * on the queued payload — `writeClientWorkoutRow` destructures the row fields
+ * it needs, so the extra key never reaches the insert.
+ */
+async function notifyReplayedAssignments(items) {
+  const seen = new Set();
+  for (const it of items || []) {
+    const p = it && it.payload;
+    const body = p && p.notify && typeof p.notify.body === 'string' ? p.notify.body : '';
+    const clientId = p && p.clientId;
+    if (!body || !clientId || seen.has(clientId)) continue;
+    seen.add(clientId);
+    try {
+      const conv = await getOrCreateMemberConversation({ otherUserId: clientId });
+      const cid = conv && conv.data;
+      if (cid) await sendMessage({ conversationId: cid, body, metadata: { kind: 'plan_assigned' } });
+    } catch (e) { /* best-effort — the assignment itself already landed */ }
+  }
 }
 
 let assignQueueWired = false;
@@ -4029,6 +4136,10 @@ window.ShapeAssign = {
   // which the client's /api/client/plan reads back.
   workout: (args) => assignClientWorkout({ ...args, kind: 'template' }),
   mealPlan: assignClientMealPlan,
+  // Replay outcomes the coach has to be able to see AFTER the fact — the drain
+  // runs on reconnect and on session resolve, with no assign screen mounted.
+  rejections: listAssignRejections,
+  clearRejections: clearAssignRejections,
 };
 
 // ─── Shape Store (redeem points for real rewards) ────────────────────────────

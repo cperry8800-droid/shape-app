@@ -142,18 +142,74 @@ export function bsAssignmentKey(payload) {
 }
 
 /**
+ * Normalise an owner stamp. An owner is the auth user id of the COACH ACCOUNT
+ * that queued the assignment — never a trainer/provider id, because offline is
+ * exactly when the provider lookup is unavailable (it is a network call).
+ */
+function ownerOf(item) {
+  const v = item && item.owner;
+  return typeof v === 'string' && v.trim() ? v.trim() : '';
+}
+
+/**
+ * Queue-level identity: the payload identity SCOPED TO ITS OWNER.
+ *
+ * ⚠ Owner is part of the identity on purpose. The queue is one device-wide
+ * localStorage key that survives sign-out, so two coaches can hold entries in
+ * it at once. Keyed on the payload alone, coach B assigning the same title to
+ * the same client on the same date would silently collapse coach A's held
+ * work — a dropped assignment, which is the outcome this module ranks worst.
+ * `bsAssignmentKey` (the payload identity a REPLAY dedupes against) is
+ * deliberately unchanged: the server row carries no owner distinction.
+ */
+function bsEntryKey(item) {
+  return `${ownerOf(item)} ${bsAssignmentKey(item && item.payload)}`;
+}
+
+/**
+ * Split a queue into the entries this account may replay and everything else.
+ *
+ * ⚠ THE RULE: an entry replays ONLY under the account that queued it.
+ *
+ * The writer resolves `trainer_id` from the CURRENT session when the payload
+ * carries none (which is every assignment — the provider lookup is a network
+ * call, so it is unavailable at queue time). Combined with a device-wide key
+ * that `signOut()` does not clear and a drain that fires on session resolve,
+ * an unscoped replay writes coach A's held week under coach B's provider the
+ * moment B signs in — or, where B does not coach that client, drops it on an
+ * RLS denial. Both are silent; the first is worse, because the assignment
+ * lands under the wrong coach's name and looks legitimate.
+ *
+ * An entry with NO owner stamp is unattributable, so it goes to `others` and
+ * never replays. Nothing in the wild carries one: this module has not shipped.
+ *
+ * `others` are left in the queue untouched — they belong to another account
+ * that may sign back in — and age out through `bsPruneQueue` like anything else.
+ */
+export function bsPartitionByOwner(items, owner) {
+  const me = typeof owner === 'string' && owner.trim() ? owner.trim() : '';
+  const mine = [];
+  const others = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it) continue;
+    (me && ownerOf(it) === me ? mine : others).push(it);
+  }
+  return { mine, others };
+}
+
+/**
  * Append an assignment to the queue.
  *
  * Same-identity entries collapse (the newest wins) so a coach who taps assign
- * three times offline queues one session, not three.
+ * three times offline queues one session, not three — but only within ONE
+ * owner, per `bsEntryKey`.
  */
 export function bsQueueAssignment(items, payload, opts = {}) {
   const now = Number(opts.now) || 0;
-  const key = bsAssignmentKey(payload);
-  const rest = (Array.isArray(items) ? items : []).filter(
-    (it) => it && bsAssignmentKey(it.payload) !== key,
-  );
-  const entry = { id: `q-${now}-${key}`, queuedAt: now, payload };
+  const owner = typeof opts.owner === 'string' && opts.owner.trim() ? opts.owner.trim() : '';
+  const entry = { id: `q-${now}-${owner}-${bsAssignmentKey(payload)}`, queuedAt: now, owner, payload };
+  const key = bsEntryKey(entry);
+  const rest = (Array.isArray(items) ? items : []).filter((it) => it && bsEntryKey(it) !== key);
   return bsPruneQueue([...rest, entry], opts);
 }
 
@@ -183,10 +239,10 @@ export function bsQueueAssignment(items, payload, opts = {}) {
  */
 export function bsMergeAfterDrain(started, held, current) {
   const startedKeys = new Set(
-    (Array.isArray(started) ? started : []).map((it) => bsAssignmentKey(it && it.payload)),
+    (Array.isArray(started) ? started : []).map((it) => bsEntryKey(it)),
   );
   const arrivals = (Array.isArray(current) ? current : []).filter(
-    (it) => it && !startedKeys.has(bsAssignmentKey(it.payload)),
+    (it) => it && !startedKeys.has(bsEntryKey(it)),
   );
   return [...(Array.isArray(held) ? held : []), ...arrivals];
 }
@@ -230,9 +286,14 @@ export function bsPruneQueue(items, opts = {}) {
  *   network failure  -> this item and every item AFTER it are held, in order,
  *                       and no further writes are attempted this pass.
  *
+ * `sentItems` carries the ENTRIES behind the `sent` count. A caller cannot
+ * reconstruct them from the count, and the delivered set is what a post-replay
+ * side effect has to act on — telling the client their week arrived, in
+ * particular, which the online path promises and the held path could not keep.
+ *
  * @param {Array} items
  * @param {{write:(p:any)=>Promise<any>, exists?:(p:any)=>Promise<boolean>}} effects
- * @returns {Promise<{sent:number, rejections:Array, held:Array}>}
+ * @returns {Promise<{sent:number, sentItems:Array, rejections:Array, held:Array}>}
  */
 export async function bsReplayQueue(items, effects = {}) {
   const write = effects.write;
@@ -240,6 +301,7 @@ export async function bsReplayQueue(items, effects = {}) {
   const queue = Array.isArray(items) ? items : [];
 
   let sent = 0;
+  const sentItems = [];
   const rejections = [];
   let held = [];
 
@@ -247,9 +309,10 @@ export async function bsReplayQueue(items, effects = {}) {
     const item = queue[i];
     if (!item || !item.payload) continue; // pruned shapes shouldn't reach here
     try {
-      if (await exists(item.payload)) { sent += 1; continue; }
+      if (await exists(item.payload)) { sent += 1; sentItems.push(item); continue; }
       await write(item.payload);
       sent += 1;
+      sentItems.push(item);
     } catch (err) {
       // ⚠ HOLDING REQUIRES POSITIVE EVIDENCE OF A NETWORK FAILURE, and the
       // polarity is the point. `classifyAssignError` stamps `offline` on
@@ -279,5 +342,5 @@ export async function bsReplayQueue(items, effects = {}) {
     }
   }
 
-  return { sent, rejections, held };
+  return { sent, sentItems, rejections, held };
 }

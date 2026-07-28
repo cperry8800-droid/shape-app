@@ -138,6 +138,8 @@
   "assign.pickMealPlan": "Escolha um plano alimentar",
   "assign.pickProgram": "Escolha um programa",
   "assign.readAck": "Lido e confirmado · pronto",
+  "assign.rejectedHead": "Não entregue",
+  "assign.rejectedNote": "Seu aparelho as reteve e o servidor as recusou. Nada foi salvo — atribua de novo quando quiser.",
   "assign.repeatsSession": "Repete a sessão toda semana",
   "assign.repeatsSplit": "Repete a divisão semanal",
   "assign.replaceConfirm": "Substituir plano",
