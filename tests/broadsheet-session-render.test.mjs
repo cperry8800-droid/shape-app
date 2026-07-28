@@ -293,14 +293,26 @@ function harness({ elapsedMinutes = 0 } = {}) {
       assert.ok(elapsedMinutes > 0, 'advanceNow needs a staged elapsedMinutes to identify the clock pair');
       const epochish = (v) => typeof v === 'number' && Number.isFinite(v) && v > 1e12;
       const wantMs = elapsedMinutes * 60 * 1000;
-      const i = CTX.cells.findIndex((v, k) => {
+      const hits = CTX.cells.reduce((acc, v, k) => {
         const next = CTX.cells[k + 1];
-        return epochish(v) && epochish(next) && Math.abs((v - next) - wantMs) <= 1000;
-      });
+        if (epochish(v) && epochish(next) && Math.abs((v - next) - wantMs) <= 1000) acc.push(k);
+        return acc;
+      }, []);
       assert.ok(
-        i >= 0,
+        hits.length > 0,
         `no adjacent now/elapsedStart pair ${wantMs}ms apart — have the eager Date.now() reads moved or separated?`,
       );
+      // ⚠ UNIQUENESS IS ASSERTED, not assumed. Taking the first match makes the
+      // identification depend on today's hook layout: if another epoch pair ever
+      // sat the staged offset apart, advanceNow would advance an unrelated cell,
+      // the clock would not move, and BOTH latch tests would pass vacuously with
+      // the latch removed — a green test proving nothing, one level up from the
+      // vacuous-boundary trap §13.12 already records.
+      assert.equal(
+        hits.length, 1,
+        `the now/elapsedStart pair is no longer uniquely identifiable (matched cells ${hits.join(', ')})`,
+      );
+      const i = hits[0];
       CTX.cells[i] += seconds * 1000;
       renderOnce();
       return api;

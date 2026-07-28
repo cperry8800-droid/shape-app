@@ -824,7 +824,38 @@ twice.
 ⚠ One consequence to handle explicitly in the mobile migration: today
 `assignClientWorkout` **falls back to a local record when the insert errors**. A
 gate that returns a rejection must not be absorbed by that fallback and reported
-to the coach as saved.
+to the coach as saved. **CLOSED 2026-07-28** — and it was worse than written: the
+function *returned* rather than threw, so the fallback swallowed every failure;
+nothing ever replayed the local record (`shape.clientWorkouts` was written by
+those lines and read by nothing); and because `getOwnedTrainerId()` is a network
+call that runs *before* the insert, the offline case never even reached the
+fallback. Fixed as its own change, with the replay draining through the same
+writer so it cannot become a side door around this gate.
+
+### §9.5 OPEN — needs a ruling before the gate scores anything
+
+**Which `workout_sessions` rows are the client's training?** The RPC currently
+returns every row in the window, filtering on neither `status`
+(`planned` / `abandoned` / `reviewed` are all valid) nor `source`
+(`whoop` / `garmin` / `strava` / `apple_health` / `manual`).
+
+That is *correct* for the RPC under the §4.1 standing rule — it hands over raw
+rows and makes no judgement. But it pushes a real question onto the core, and
+the core cannot currently answer it, because **the RPC does not return `status`
+or `source` at all**. So this is a contract question, not just a core one.
+
+Why it matters: a device-imported session carries no `session_rpe` and no
+duration facts, but *does* carry a non-zero `duration_seconds`. It is therefore
+**non-excluded and unrated**, which puts it in the denominator of §3.1's
+"a week counts as `measured` only if more than half of its non-excluded sessions
+carry a session RPE". A client who wears a watch could be pinned in `cold_start`
+indefinitely **by their own sync** — and a workout both logged in-app *and*
+synced from Strava double-counts into the weekly total.
+
+Neither direction is obviously right (excluding device rows discards real
+training; including them corrupts the measured-week test), so it is recorded
+here for a ruling rather than decided in the migration. Whatever is ruled, the
+RPC must start returning the field the decision keys on.
 
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
 `SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,
@@ -999,8 +1030,8 @@ on anything below it.
 |---|---|
 | **Create** `public/newdesign/progressionGuardrail.mjs` | The pure core, three anchor tables, the interpolation utility, the copy function |
 | **Create** `tests/progression-guardrail.test.mjs` | Fixtures per §12 |
-| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC — **raw trailing session ROWS**, not buckets (amended 2026-07-28, see §9.2) — returning the kill-switch flag alongside them (§7.4) · **and** add `guardrail_evaluated` to the `track_event` whitelist |
-| **Create** `supabase-migrations/2026-07-27-guardrail-config.sql` | Minimal app-config table holding `guardrail_red_enabled` (§7.4), seeded `true`. Service-role write; read only through the load-history RPC |
+| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC — **raw trailing session ROWS**, not buckets (amended 2026-07-28, see §9.2) — returning the kill-switch flag alongside them (§7.4). ⚠ **It also carries the `app_config` table + the `guardrail_red_enabled` seed** (see the row below). **Still owed by this file:** `guardrail_evaluated` on the `track_event` whitelist — deferred with the telemetry work, NOT delivered by the foundation commit |
+| ~~**Create** `supabase-migrations/2026-07-27-guardrail-config.sql`~~ | ⚠ **SUPERSEDED 2026-07-28 — DO NOT CREATE THIS FILE.** It described a second migration seeding `guardrail_red_enabled` **`true`**, which contradicts §9.4's ruling that 2b **ships advisory**. The table + seed live in the load-history migration above and are seeded **`false`**. This row survived the same stale-contract sweep that corrected §9.2 and §11's bucketing line one row up — an implementer reading §11 as the build manifest would have created a second file with the opposite seed and enforced red on day one |
 | **Modify** `supabase-migrations/` — the `ai_audit_read_own_or_coach` policy | Close the client-visibility hole in §9.3: a `guardrail_red_ack` row sets `target_user_id` to the client, so the policy's "own entries" arm would expose it to them |
 | **Modify** `src/lib/funnel.mjs` | Add `guardrail_evaluated` to `ANALYTICS_EVENTS` — the whitelist trap, second time (§10.2) |
 | **Modify** `src/app/api/trainer/workout/route.ts` | Authoritative evaluation, 409 on unacknowledged red, audit + telemetry writes |

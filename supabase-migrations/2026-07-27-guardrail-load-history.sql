@@ -43,6 +43,26 @@ create table if not exists public.app_config (
 comment on table public.app_config is
   'Minimal server-read config flags. Added for guardrail_red_enabled (SPEC-guardrails.md §7.4) — a switch that must be flippable without a deploy.';
 
+-- ⚠ `updated_at` has to be MAINTAINED, not just defaulted. Without this trigger
+-- it reports the SEED time forever, so after an ops flip the one column that
+-- says "when did this change" would be actively misleading — on a switch whose
+-- entire purpose is being flipped without a deploy.
+create or replace function public.app_config_touch()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists app_config_touch on public.app_config;
+create trigger app_config_touch
+  before update on public.app_config
+  for each row execute function public.app_config_touch();
+
 alter table public.app_config enable row level security;
 
 -- Read path is the SECURITY DEFINER function below, never a direct client
@@ -109,37 +129,76 @@ begin
   -- experienced.
   v_zone := public.shape_user_tz(p_client_id);
 
-  select coalesce(jsonb_agg(row_to_json(s)::jsonb order by s.started_at_iso desc), '[]'::jsonb)
+  -- ⚠ THE ROW IS BUILT KEY-BY-KEY, IN THE CORE'S OWN camelCase VOCABULARY, AND
+  -- THE DURATION PAIR IS OMITTED RATHER THAN NULLED. Both of those are
+  -- load-bearing, and the obvious `row_to_json` version was WRONG on both:
+  --
+  -- 1. JSON CANNOT EXPRESS `undefined`. `row_to_json` emits every selected
+  --    column, so a summary with no duration keys arrived as
+  --    `"durationPrompted": null, "durationAnswer": null` — keys PRESENT.
+  --    The core's absence test is `=== undefined` (progressionGuardrail.mjs),
+  --    so null is not absent: it fails the boolean check and the row is
+  --    reported MALFORMED. Every session written before Deploy 1 — i.e. the
+  --    entire trailing baseline — would have been malformed, one malformed row
+  --    turns the whole evaluation `unknown` (§13.8), and `unknown` never blocks
+  --    publish (§7.5). The guardrail would have been silently OFF for every
+  --    client who had any history. That is precisely the failure the
+  --    malformed-vs-excluded rule exists to prevent, arriving through the wire
+  --    format instead of through a classification mistake.
+  --    Verified empirically against the shipped core, both shapes.
+  --
+  -- 2. `row_to_json` names the columns, so the payload was snake_case while the
+  --    core destructures camelCase — only `timezone` matched, by accident. A
+  --    mapper would have been mandatory, and the mapper is exactly where (1)
+  --    gets missed. Building the object by hand makes the file's claim to hand
+  --    over "exactly the six fields §4.1 names" TRUE rather than aspirational.
+  --
+  -- A HALF-FILLED pair is still passed through intact (one key present, the
+  -- other null) so the core reports it malformed BY NAME — a row that
+  -- contradicts itself IS a caller bug, and that distinction is the ruling.
+  select coalesce(jsonb_agg(s.session order by s.at desc), '[]'::jsonb)
     into v_sessions
   from (
     select
-      -- The INSTANT, with offset. Never a pre-localized date: the core resolves
-      -- the client's own calendar week itself (§4.1, Rule E).
-      to_char(ws.started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as started_at_iso,
-      v_zone                                                                  as timezone,
-      ws.duration_seconds                                                     as duration_sec,
-      -- NULL stays NULL. A skipped rating is absent, never 0 — imputing a 0
-      -- would compute 0 x minutes = 0 AU, enter a real week at zero, deflate
-      -- the baseline and tighten every future ceiling (§13.4).
-      ws.session_rpe                                                          as session_rpe,
+      coalesce(ws.started_at, ws.created_at) as at,
+      jsonb_build_object(
+        -- The INSTANT, with offset. Never a pre-localized date: the core
+        -- resolves the client's own calendar week itself (§4.1, Rule E).
+        -- §4.1 ("started_at when present, else created_at") is why this
+        -- coalesces rather than dropping the row: started_at is nullable, and
+        -- a dropped session shrinks the baseline silently — no malformed
+        -- signal, just a tighter ceiling or a fall back to cold start.
+        'startedAtISO', to_char(coalesce(ws.started_at, ws.created_at) at time zone 'UTC',
+                                'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'timezone',     to_jsonb(v_zone),
+        'durationSec',  to_jsonb(ws.duration_seconds),
+        -- NULL stays NULL. A skipped rating is absent, never 0 — imputing a 0
+        -- would compute 0 x minutes = 0 AU, enter a real week at zero, deflate
+        -- the baseline and tighten every future ceiling (§13.4). Verified: the
+        -- core reads a null sessionRpe and an absent one identically.
+        'sessionRpe',   to_jsonb(ws.session_rpe)
+      )
       -- The two FACTS, read straight out of the summary jsonb the completion
       -- step writes. NOT a verdict: credibility is derived at READ time against
-      -- the CURRENT ceiling (§13.8). Absent BOTH reads as not_prompted at the
-      -- core, which is F22's ruling — a missing flag is not a caller bug and
-      -- excludes rather than admits. Passed through as-is (including a
-      -- half-filled pair, which the core reports as malformed) so this function
-      -- keeps making no judgement.
-      (ws.summary -> 'durationPrompted')                                      as duration_prompted,
-      (ws.summary ->> 'durationAnswer')                                       as duration_answer
+      -- the CURRENT ceiling (§13.8). Included only when the writer actually
+      -- wrote one of them, so "absent" reaches the core as absent.
+      || case
+           when ws.summary ? 'durationPrompted' or ws.summary ? 'durationAnswer'
+             then jsonb_build_object(
+                    'durationPrompted', ws.summary -> 'durationPrompted',
+                    'durationAnswer',   ws.summary -> 'durationAnswer')
+           else '{}'::jsonb
+         end as session
     from public.workout_sessions ws
     where ws.client_id = p_client_id
-      and ws.started_at is not null
-      and ws.started_at >= now() - make_interval(days => v_days)
-    -- Newest first, bounded. 500 sessions inside the window is beyond any human
-    -- schedule (the core reaches 84 days), so this can only ever trim ancient
-    -- tail rows that could not have entered a baseline — it cannot silently
-    -- drop a session the guardrail would have scored.
-    order by ws.started_at desc
+      and coalesce(ws.started_at, ws.created_at) >= now() - make_interval(days => v_days)
+    -- Newest first, bounded. At the default 180-day window 500 sessions is
+    -- beyond any human schedule and the core only reaches 84 days back, so the
+    -- cap can only trim ancient tail rows that could not have entered a
+    -- baseline. ⚠ That is a property of the DEFAULT window, not of the cap: a
+    -- caller passing p_days => 365 against a very dense history could have rows
+    -- trimmed invisibly. Callers use the default.
+    order by coalesce(ws.started_at, ws.created_at) desc
     limit 500
   ) s;
 
