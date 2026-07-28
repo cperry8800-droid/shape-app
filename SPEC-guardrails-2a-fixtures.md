@@ -164,7 +164,7 @@ Two things the tag deliberately does **not** cover:
 | F25 | boundary, one minute over | `S(151, 7)` unconfirmed | not eligible |
 | F26 | confirmation is irrelevant below the ceiling | `S(60, 7)` unconfirmed vs confirmed | identical, 420 AU both |
 | F27 | an inferred overrun is not "unrated" | 2 sessions: `S(175, 7)` unconfirmed + `S(60, 7)` | eligible 1, rated 1 → measured; loadAu 420 |
-| F28 | negative / non-finite duration | `S(-30, 7)`, `S(NaN, 7)` | **malformed, not absent** — see §12 rule C. Reported, never silently dropped |
+| F28 | negative / non-finite / **fractional** duration | `S(-30, 7)`, `S(NaN, 7)`, `S(0.5, 7)` | **malformed, not absent** — see §12 rule C. Reported, never silently dropped. A fraction joins the rule because `duration_seconds` is an `integer` column and both client writers round, so it is unproducible by any path we own — the same class as a fractional `sessionRpe` |
 | F29 | RPE out of range | `S(60, 11)`, `S(60, -2)` | **malformed, not absent** — see §12 rule C. Never clamped, never dropped |
 | F130 | **a fraction below the scale** | `S(60, 0.5)` | **malformed.** `numeric(3,1)` accepts it; a whole-number 1–10 prompt cannot produce it, so it can only come from a client-side defect |
 | F131 | **a fraction INSIDE the scale — the same defect class** | `S(60, 7.5)` | **malformed.** Exactly as impossible from the prompt as F130. Ruling a mid-range fraction *valid* while a sub-1 fraction is *malformed* would be worse than either reading alone — it would compute a load from a value we know the app never wrote |
@@ -401,7 +401,7 @@ a client-side defect quietly produce a wrong baseline forever.
 | F129 | **the same pattern with a THREE-week deload.** 1 week at 2000, then 3 deload weeks at 1200, then a proposed 2000. (Numbered out of sequence deliberately — it belongs beside F109, and renumbering F110–F128 would invalidate every existing reference) | **red.** Window `[1200, 1200, 1200, 2000]` → **baseline 1200**. Ramp at 1200 = 27.4% → amber over 1528.8; red at 1200 = 54.0% → **red over 1848**. Proposed 2000 clears both. **This is NOT a defect** — it is the F57 deload property, now quantified: a longer deload pulls the median further down, so the same return-to-normal week escalates from amber to red. ⚠ It is also **publish-blocking for a legitimate coaching pattern** (planned deload → return to normal). Recorded in `SPEC-guardrails.md §13.7`; deload-aware baselines are explicitly out of scope for v1 pending telemetry |
 | F110 | malformed — `durationSec: -30` | `unknown` / `malformed_history`, names the row |
 | F111 | malformed — `sessionRpe: 11` | `unknown` / `malformed_history` |
-| F112 | malformed — missing or unparseable `startedAtISO` | `unknown` / `malformed_history` |
+| F112 | malformed — missing or unparseable `startedAtISO`, **including a day that overflows its month** (`2026-02-30`, or `2026-02-29` in a non-leap year) | `unknown` / `malformed_history`. ⚠ The overflow case is NOT self-enforcing: `Date.parse` does not reject it — V8 normalises Feb 30 to **March 2**, which would bucket the session into a week it was never in. A `timestamptz` cannot hold that date, so it is a caller bug and is rejected explicitly |
 | F113 | **baseline 499 AU** | `cold_start`, `reason: 'baseline_below_floor'` — the absolute session-count caps govern |
 | F114 | **baseline 500 AU exactly** | `measured` — the floor is *below*, not *at or below*, matching the curve's own first anchor |
 | F115 | **the beginner who adds a second session** — baseline 200 AU, proposed 400 AU across 2 sessions | **NOT red.** Under the old 100 AU floor this was a 100% increase against a curve clamped to 40%/75% and resolved red. It now routes to the absolute caps (2 × 600 = 1200 amber) and is **green** |
@@ -435,7 +435,7 @@ Fixture split, because the core cannot test I/O:
   `guardrail_evaluated` row is written carrying `state: 'unknown'` and its
   `reason`; the builder shows the could-not-check line.
 
-### Rule E — timezone, and where the conversion belongs ⚠ NEEDS YOUR RULING
+### Rule E — timezone, and where the conversion belongs ✓ RULED
 
 **These fixtures do not exist yet, and the current §0 contract cannot host them.**
 

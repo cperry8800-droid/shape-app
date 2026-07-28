@@ -197,7 +197,7 @@ changelog whenever something ships.
 > have stored NULL, and since a week counts as `measured` only when **more than half** its
 > sessions are rated, **no client would ever have left `cold_start`**. It is now a
 > dedicated completion step, and **backing out still saves the workout** (the rating is
-> optional; the log is not). Suite **1099**; perturbation sweeps 50 on the core + 14 on the
+> optional; the log is not). Suite **1109** (the count at merge); perturbation sweeps 50 on the core + 14 on the
 > completion step. Handoff:
 > **[`docs/HANDOFF-2026-07-28.md`](HANDOFF-2026-07-28.md)**. Open: OWNER on-device pass ·
 > Deploy 2b.
@@ -1264,7 +1264,7 @@ changelog whenever something ships.
   null on line 1, never touched the cache, and compared two nulls. (2) A `[]`-dep cleanup
   captures the FIRST render's closure — the unmount save would have written a junk
   zero-duration session with no sets. Both caught by review, not by the suite.
-- Verified: **1072 tests**, tsc clean, mobile build clean, CI green. Perturbation sweeps:
+- Verified: **1109 tests** (the count at merge), tsc clean, mobile build clean, CI green. Perturbation sweeps:
   50 attempted on the core (46 killed, 3 documented equivalents, 1 unusable — a stale
   mutation string whose fact a killed sibling already guards) + 14 on the completion step
   (all killed). Open: OWNER on-device pass (reach the completion screen, hardware-back out,

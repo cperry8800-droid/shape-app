@@ -167,9 +167,26 @@ export function bsInterpolateAnchors(anchors, x) {
   // is what stops the sort mutating a caller's table. The exported constants
   // are shared module state; an in-place sort would reorder them for every
   // later reader.
-  const points = anchors
+  const sorted = anchors
     .filter((a) => a && finite(a.at) && finite(a.pct))
     .sort((a, b) => a.at - b.at);
+
+  // Collapse anchors sharing a position BEFORE anything reads them. Sort is
+  // stable, so an un-collapsed duplicate would let the order the caller listed
+  // its table in decide the answer — and not only in the interior: the
+  // `x <= first.at` boundary below returns before any span is measured, so
+  // deduping at the span was not enough (a test caught exactly that). Keeping
+  // the LOWER percentage is the tighter bound, so a malformed table flags
+  // earlier rather than later.
+  const points = [];
+  for (const p of sorted) {
+    const prev = points[points.length - 1];
+    if (prev && prev.at === p.at) {
+      if (p.pct < prev.pct) points[points.length - 1] = p;
+    } else {
+      points.push(p);
+    }
+  }
 
   if (points.length === 0) return null;
 
@@ -183,9 +200,11 @@ export function bsInterpolateAnchors(anchors, x) {
     const hi = points[i + 1];
     if (x >= lo.at && x <= hi.at) {
       const span = hi.at - lo.at;
-      // Two anchors at the same x carry no slope. Take the lower one rather
-      // than dividing by zero into an Infinity that would read as a ceiling.
-      if (span === 0) return lo.pct;
+      // Unreachable now that positions are collapsed above — adjacent points
+      // always differ. Kept as a division guard: if that dedupe is ever
+      // changed, this returns the tighter bound instead of dividing by zero
+      // into an Infinity that would read as a ceiling.
+      if (span === 0) return Math.min(lo.pct, hi.pct);
       const t = (x - lo.at) / span;
       return lo.pct + t * (hi.pct - lo.pct);
     }
@@ -463,6 +482,24 @@ export function bsLocalWeek(startedAtISO, timeZone) {
   // bucket differently on two machines. Rejecting it keeps the module
   // deterministic, and `timestamptz` always serialises with an offset anyway.
   if (!HAS_OFFSET.test(raw)) return null;
+
+  // ⚠ A DAY THAT OVERFLOWS ITS MONTH IS SILENTLY MOVED, NOT REJECTED.
+  // `Date.parse('2026-02-30T10:00:00+00:00')` does not return NaN — V8 falls
+  // back to its legacy parser and normalises it to MARCH 2, which then buckets
+  // into a real week and contributes to a baseline. Month 13 and hour 25 do
+  // return NaN; day overflow is the one that slips through. A `timestamptz`
+  // can never hold Feb 30, so this is a caller bug and belongs in `malformed`
+  // — never a date we quietly relocate into a week the session was not in.
+  const cal = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (!cal) return null;
+  const cy = Number(cal[1]);
+  const cm = Number(cal[2]);
+  const cd = Number(cal[3]);
+  // Day 0 of month `cm` (1-based, so month INDEX cm) is the last day of month
+  // cm — leap years included, with no table to keep in sync.
+  if (cm < 1 || cm > 12) return null;
+  if (cd < 1 || cd > new Date(Date.UTC(cy, cm, 0)).getUTCDate()) return null;
+
   const ms = Date.parse(raw);
   if (!Number.isFinite(ms)) return null;
 
@@ -546,7 +583,13 @@ export function bsClassifySession(session, index = 0) {
   // as "could not check" plus telemetry rather than failing silently.
   // Only shapes no legitimate writer can produce are MALFORMED. An absurdly
   // LARGE duration is not one of them — see the exclusion below.
-  if (!finite(durationSec) || durationSec < 0) {
+  //
+  // ⚠ A FRACTION is one of them. `duration_seconds` is an `integer` column and
+  // both client writers round (`Math.round(min * 60)`, `Math.floor(ms / 1000)`),
+  // so `0.5` cannot arrive from any path we own — it is the same class as
+  // `sessionRpe: 7.5`, which this function already reports by name. Admitting
+  // it would let a caller bug contribute fractional AU to a baseline silently.
+  if (!Number.isInteger(durationSec) || durationSec < 0) {
     issues.push(issue(index, 'durationSec', durationSec));
   }
 

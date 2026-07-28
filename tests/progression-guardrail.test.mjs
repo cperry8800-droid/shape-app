@@ -2930,3 +2930,62 @@ test('the doctrine holds across every flag this section produces', () => {
     assert.ok(copy.line.trim().length > 0);
   }
 });
+
+/* ── Review round 3 (CodeRabbit, head 02580382f) ───────────────────────────
+ *
+ * Three guards added after review. Each covers a shape NO legitimate writer in
+ * this repo can emit, which is what puts them on the MALFORMED side of the line
+ * rather than the excluded side — see the note on BS_SESSION_MINUTES_MAX for
+ * why that distinction is load-bearing.
+ */
+
+test('a FRACTIONAL duration is malformed — `duration_seconds` is an integer column', () => {
+  for (const bad of [0.5, 3600.5, 1e-9]) {
+    const c = bsClassifySession(row({ durationSec: bad }), 0);
+    assert.equal(c.malformed, true, `durationSec = ${bad} must be malformed`);
+    assert.equal(c.eligible, false, 'and must never contribute fractional AU');
+    assert.equal(c.au, null);
+    assert.equal(c.issues[0].field, 'durationSec');
+  }
+  // The neighbours still behave: a whole number is admitted, 0 is ineligible
+  // (no duration) but NOT a caller bug.
+  assert.equal(bsClassifySession(row({ durationSec: 3600 }), 0).malformed, false);
+  assert.equal(bsClassifySession(row({ durationSec: 0 }), 0).malformed, false);
+  assert.equal(bsClassifySession(row({ durationSec: 0 }), 0).eligible, false);
+});
+
+test('a day that overflows its month is REJECTED, never normalised into another week', () => {
+  // ⚠ The regression this pins: Date.parse does NOT return NaN here. V8's
+  // legacy fallback moves Feb 30 to March 2 — a different ISO week.
+  assert.equal(Number.isFinite(Date.parse('2026-02-30T10:00:00+00:00')), true,
+    'guard premise: the runtime really does parse this rather than rejecting it');
+
+  for (const bad of [
+    '2026-02-30T10:00:00+00:00',
+    '2026-02-29T10:00:00+00:00', // 2026 is not a leap year
+    '2026-04-31T10:00:00+00:00',
+    '2026-00-10T10:00:00+00:00',
+    '2026-13-10T10:00:00+00:00',
+  ]) {
+    assert.equal(bsLocalWeek(bad, 'UTC'), null, `${bad} must not resolve to a week`);
+  }
+
+  // Real dates still resolve, including the leap day in a leap year and the
+  // last day of a 31-day month.
+  assert.equal(localOf('2024-02-29T10:00:00+00:00', 'UTC'), '2024-02-29');
+  assert.equal(localOf('2026-01-31T10:00:00+00:00', 'UTC'), '2026-01-31');
+
+  // And it reaches the caller as MALFORMED, not as a silently-moved session.
+  const c = bsClassifySession(row({ startedAtISO: '2026-02-30T10:00:00+00:00' }), 0);
+  assert.equal(c.malformed, true, 'an impossible date is a caller bug');
+});
+
+test('a curve read does not depend on the ORDER of its anchor table', () => {
+  // Two anchors at the same position carry no slope. Whichever the caller
+  // listed first must not decide the answer.
+  const a = [{ at: 100, pct: 40 }, { at: 100, pct: 10 }, { at: 200, pct: 5 }];
+  const b = [{ at: 100, pct: 10 }, { at: 100, pct: 40 }, { at: 200, pct: 5 }];
+  assert.equal(bsInterpolateAnchors(a, 100), bsInterpolateAnchors(b, 100),
+    'same table, different order, same read');
+  assert.equal(bsInterpolateAnchors(a, 100), 10, 'and it is the tighter bound');
+});
