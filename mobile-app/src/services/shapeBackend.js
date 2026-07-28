@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+// The reader's own vocabulary — never re-typed here, so the writer cannot drift
+// into emitting an answer the core does not recognise.
+import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
@@ -2217,10 +2220,36 @@ function normalizeWorkoutSensorSample(sample = {}) {
   };
 }
 
+// Post-session RPE → the workout_sessions.session_rpe column (SPEC-guardrails.md
+// §3.1). A SKIPPED rating is null, never 0: a session with no rating is excluded
+// from load maths, not recorded as effortless. Anything unparseable or outside
+// the column's 0-10 check also drops to null rather than clamping — a clamped
+// value would read downstream as a real rating, and a value that violated the
+// constraint would fail the whole session insert, losing the log over a rating.
+// True only for "this exact column does not exist yet" — PostgREST's schema-cache
+// miss (PGRST204) or Postgres undefined_column (42703), AND the column named in
+// the error text. The name check matters: a broad match would silently swallow a
+// DIFFERENT schema problem and retry an insert that should have failed loudly.
+function isMissingColumnError(error, column) {
+  const code = String((error && error.code) || '');
+  if (code !== 'PGRST204' && code !== '42703') return false;
+  const text = `${(error && error.message) || ''} ${(error && error.details) || ''}`;
+  return text.includes(column);
+}
+
+function normalizeSessionRpe(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 10) return null;
+  return Math.round(n * 10) / 10; // numeric(3,1)
+}
+
 async function saveStructuredWorkoutSession({
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
+  sessionRpe = null,
+  durationAnswer = 'not_prompted',   // the ONE input; the pair derives from it
   setLogs = [],
   sensorSamples = [],
   privacy = 'private',
@@ -2250,11 +2279,38 @@ async function saveStructuredWorkoutSession({
     started_at: sessionStartedAt,
     ended_at: sessionEndedAt,
     duration_seconds: Math.max(0, Number(durationSeconds || 0)),
+    session_rpe: normalizeSessionRpe(sessionRpe),
     summary: {
       ...summary,
       completedSets,
       captureMethod: 'in_app_session_timer',
       sensorAuthored: true,
+      // ⚠ TWO FACTS, NOT A VERDICT. Was the member asked about this duration,
+      // and what did they say. Whether the figure is CREDIBLE is derived by the
+      // core at read time against the current ceiling — never decided here and
+      // frozen, because §13.4 promises that ceiling will be retuned and a
+      // stored judgement would silently outlive the rule that produced it.
+      //
+      // ⚠ IN `summary`, NOT ITS OWN COLUMN, ON PURPOSE. jsonb accepts unknown
+      // keys on any deployment, so this needs no migration and cannot reproduce
+      // the `session_rpe` schema-cache window below — where an unapplied column
+      // rejects the WHOLE insert and costs the member their entire session log
+      // over one optional field. `summary` is already this row's
+      // capture-metadata home (`captureMethod` sits right above).
+      //
+      // ⚠ The DURATION itself is NOT read from here. `duration_seconds` (the
+      // column) is the single authority; `summary.durationSeconds` below is a
+      // display convenience and the core never looks at it.
+      // ⚠ ONE FIELD DERIVES THE OTHER. Coercing the two halves INDEPENDENTLY is
+      // the one thing the reader refuses: a caller passing `prompted: true` with
+      // no answer would persist `{prompted: true, answer: 'not_prompted'}` — the
+      // exact self-contradiction the core reports as a caller bug, written
+      // silently here and unattributable there. Normalise the answer, then let
+      // it decide the flag, so an incoherent pair is unrepresentable.
+      //
+      // The vocabulary is imported, never re-typed: a second copy of it is the
+      // drift this whole change exists to remove.
+      ...bsDurationFacts(durationAnswer),
     },
   };
 
@@ -2267,11 +2323,34 @@ async function saveStructuredWorkoutSession({
     return { stored: 'local', data: local };
   }
 
-  const { data: session, error: sessionError } = await supabase
+  // session_rpe arrives with 2026-07-27-session-rpe.sql. Until that migration is
+  // applied PostgREST rejects the WHOLE insert on the unknown column, which
+  // would cost the member their entire session log over an optional rating.
+  // Retry once without the field: the log is irreplaceable, the rating is not.
+  // Deliberately narrow — the retry fires only for this column, and every other
+  // error still throws untouched.
+  let { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
     .insert(sessionPayload)
     .select()
     .single();
+  if (sessionError && isMissingColumnError(sessionError, 'session_rpe')) {
+    const { session_rpe: _unsupported, ...payloadWithoutRpe } = sessionPayload;
+    // Make the open window VISIBLE while it is open. Without this the retry is
+    // silent and session_rpe_prompted still reports {rated:true}, so skip-rate
+    // telemetry would read perfectly healthy while the column stayed empty —
+    // discovered weeks later, by which time the missing data is unrecoverable.
+    // Only fires when a rating was actually present: dropping a null costs
+    // nothing and is not worth an alarm.
+    if (sessionPayload.session_rpe != null) {
+      try { window.ShapeAnalytics?.track?.('session_rpe_dropped', { reason: 'column_missing' }); } catch (e) {}
+    }
+    ({ data: session, error: sessionError } = await supabase
+      .from('workout_sessions')
+      .insert(payloadWithoutRpe)
+      .select()
+      .single());
+  }
   if (sessionError) throw sessionError;
 
   const setRows = normalizedSetLogs.map((entry) => ({
@@ -2390,6 +2469,8 @@ async function saveWorkoutSessionLog({
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
+  sessionRpe = null, // post-session rating; null = skipped (SPEC-guardrails.md §3.1)
+  durationAnswer = 'not_prompted',   // 'confirmed' | 'declined' | 'not_prompted'
   setLogs = [],
   sensorSamples = [],
   hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
@@ -2416,6 +2497,8 @@ async function saveWorkoutSessionLog({
     title,
     workout,
     durationSeconds,
+    sessionRpe,
+    durationAnswer,
     setLogs,
     sensorSamples,
     privacy,

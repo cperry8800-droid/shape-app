@@ -10,6 +10,10 @@ import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs
 import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
+// The ONE ceiling. The prompt must ask at exactly the load the core refuses to
+// admit unconsidered — a local copy of 150 that drifted would leave the screen
+// asking at one threshold while the guardrail excluded at another, silently.
+import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
@@ -24261,7 +24265,18 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
   const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
   const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
-  const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
+  // Session RPE 1-10 — a GENUINE post-session rating, the primary input to
+  // session RPE load (SPEC-guardrails.md §3.1). This replaced a three-way
+  // easy/moderate/hard control: three qualitative buckets are a different
+  // construct from a 1-10 rating, and mapping one onto the other would fabricate
+  // precision the member never gave. null = skipped, and skipped stays NULL all
+  // the way to the column — never 0, which would read as "effortless".
+  const [sessionRpe, setSessionRpe] = useStateBSC(null);
+  // Duration override. null = the member has not touched the field, so the
+  // timer's own value stands; '' = they cleared it deliberately. Shown at BOTH
+  // ends of implausibility (see the render) — sRPE is a PRODUCT, so a duration
+  // that is wrong is not a small error.
+  const [manualMinutes, setManualMinutes] = useStateBSC(null);
   const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
   // Seed the share toggle from the member's own share rule (Settings → Share
   // workout data × profile visibility) — auto-share is the DEFAULT for a
@@ -24277,6 +24292,55 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     } catch (e) {}
     return () => { on = false; };
   }, []);
+  // ═══ THE COMPLETION STEP ═══
+  // `Finish workout ✓` opens a dedicated screen instead of saving and leaving.
+  //
+  // ⚠ WHY A SCREEN AND NOT A ROW FURTHER DOWN THE PAGE. The rating shipped
+  // inline BELOW the finish button, so a member who followed the primary CTA
+  // saved and navigated away without ever seeing it. Nearly every session would
+  // have stored a NULL rating — and a week only counts as MEASURED when more
+  // than half its sessions are rated, so no client would ever have left the
+  // cold-start regime and the ramp curve would never have executed. The spec
+  // called for exactly this ("the completion prompt owns the gap", one screen)
+  // and the placement, not the content, was wrong.
+  //
+  // A scroll-to was rejected: if the scroll lands badly the member never sees
+  // the row, nothing errors, and data quality degrades invisibly.
+  const [completing, setCompleting] = useStateBSC(false);
+  // Latch the clock, THEN show the screen — so every derivation on it reads the
+  // same instant no matter how long the member stands there.
+  const openCompletion = () => {
+    if (completedAtRef.current == null) completedAtRef.current = Math.floor((Date.now() - elapsedStart) / 1000);
+    setCompleting(true);
+  };
+  // ⚠ THE RATING IS OPTIONAL. THE WORKOUT LOG IS NOT.
+  // Backing out of the completion screen still saves the session, with a NULL
+  // rating — losing a member's irreplaceable workout log over one optional
+  // field is a far worse failure than an unrated session, which the core
+  // already handles honestly by excluding it. There is deliberately no
+  // "Skip rating" affordance: skipping is allowed, never invited.
+  // ⚠ THIS MEANS "ATTEMPTED", AND IT MUST NOT BE RESET ON FAILURE.
+  // Review suggested clearing it when the save throws so the unmount net could
+  // retry. That would corrupt the very data this feature feeds:
+  // `saveStructuredWorkoutSession` is `.catch()`-ed inside `saveWorkoutSessionLog`
+  // and never throws — it even falls back to a local record when there is no
+  // backend. What CAN throw is the community post, which runs AFTER the session
+  // row is written. So a throw reaching us means the log is already saved, and
+  // a retry would insert a SECOND `workout_sessions` row: one workout counted
+  // twice in every load figure the guardrail reads. The failure is surfaced to
+  // the member as a toast instead.
+  // The elapsed reading frozen when the completion screen opened — see the note
+  // on `elapsedSec`. Null until then.
+  const completedAtRef = React.useRef(null);
+  const savedRef = React.useRef(false);      // the save runs AT MOST once
+  const completingRef = React.useRef(false); // read by the unmount cleanup
+  completingRef.current = completing;
+  // ⚠ The unmount cleanup runs with `[]` deps, so it would capture the FIRST
+  // render's `finishSession` — whose closure holds sessionRpe = null, an empty
+  // setLogs and an elapsed time of ~0. That saves a junk zero-duration session
+  // with no sets instead of the workout that was actually done. Re-pointed
+  // every render so the cleanup always calls the CURRENT one.
+  const finishRef = React.useRef(null);
   // Live heart rate from a worn Bluetooth monitor (window.ShapeHRM). Samples are
   // collected through the whole session → avg + max land on the workout's stats.
   const [hrNow, setHrNow] = useStateBSC(null);             // current bpm (live chip)
@@ -24426,7 +24490,104 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   };
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
-  const elapsedSec = Math.floor((now - elapsedStart) / 1000);
+  // ⚠ THE COMPLETION SCREEN'S CLOCK IS LATCHED. `now` ticks every second and
+  // `elapsedStart` never pauses, so deriving the prompt from a LIVE clock lets
+  // the question change under the member mid-answer: a 40-second timer asks
+  // "the timer didn't run", they type 200, the timer crosses 60s, `askDuration`
+  // flips false, the field DISAPPEARS — and their typed answer is stored as the
+  // duration while the facts say nobody was asked. The mirror case is worse: a
+  // 149-minute session sitting on the screen for 31 seconds crosses the ceiling
+  // and records `confirmed` with no member action at all.
+  //
+  // Freezing at the moment the screen opens makes the question, the figure
+  // offered, and the answer all describe one instant.
+  const elapsedSec = completing && completedAtRef.current != null
+    ? completedAtRef.current
+    : Math.floor((now - elapsedStart) / 1000);
+  // Session RPE load is RPE x MINUTES — a product, so a wrong duration is not a
+  // small error (SPEC-guardrails.md §3.1). This timer is WALL-CLOCK: elapsedStart
+  // is stamped at mount and never pauses, so it measures "how long the screen was
+  // open", not "how long they trained". Both ends of that are dangerous:
+  //
+  //   under a minute → the timer plainly did not run; nothing to score.
+  //   over the ceiling → someone finished hours after they actually stopped. A
+  //     180-minute session at RPE 7 is 1,260 AU from ONE workout, which inflates
+  //     the trailing baseline and makes every FUTURE ceiling more permissive —
+  //     the dangerous direction for a guardrail — and can spuriously trip the
+  //     hardest-session bound along the way.
+  //
+  // The ceiling is imported, never re-stated: the prompt has to ask at exactly
+  // the load the core refuses to admit unconfirmed. It is 150 minutes because
+  // the cold-start peak red bound is 1000 AU: 150 min at
+  // RPE 7 is already 1,050, so anything past it would trip red on its own and is
+  // therefore worth a question. It also clears a genuinely long tracked-set
+  // session (two hours is generous) so real work is never nagged.
+  //
+  // Neither end is silently accepted OR silently discarded: we ask, and the
+  // member's answer wins. Untouched, the timer's value still stands — no worse
+  // than before this prompt existed.
+  const timerRan = Number.isFinite(elapsedSec) && elapsedSec >= 60;
+  const timerImplausible = Number.isFinite(elapsedSec) && elapsedSec > BS_SESSION_MINUTES_CEILING * 60;
+  const askDuration = !timerRan || timerImplausible;
+  const timerMinutes = Math.max(0, Math.round(elapsedSec / 60));
+  // ⚠ THE INPUT'S OWN BOUNDS ARE NOT ENFORCED ON SUBMIT. `min`/`max` are advice
+  // to the browser, so a typed 9999 would otherwise be logged as 166 HOURS —
+  // and `Number('')` is 0, not NaN, so a CLEARED field would fall through the
+  // old `> 0` test and silently re-adopt the very wall-clock figure the member
+  // just deleted. Both must be rejected here, in one predicate.
+  // The maximum is the CORE's, imported — the field must not accept a figure
+  // the core reports as malformed.
+  const SESSION_MINUTES_MIN = 1;
+  const SESSION_MINUTES_MAX = BS_SESSION_MINUTES_MAX;
+  // Pre-filled with the timer's figure ONLY at the top end, where confirming is
+  // the common answer and correcting is an edit.
+  //
+  // ⚠ AND ONLY WHILE THAT FIGURE IS ITSELF OFFERABLE. A timer left running
+  // overnight reads in the hundreds of minutes; pre-filling it would let one tap
+  // confirm an 800-minute "session" — thousands of AU from a single row, admitted
+  // straight into the baseline. That is the exact tap-through inflation this gate
+  // exists to stop, just reached through the prefill instead of the old
+  // unconditional `confirmed: true`. Past the field's own maximum there is no
+  // credible figure to offer, so — as at the bottom end — we offer none and the
+  // member has to say what they actually did.
+  // ⚠ THE GATE AND THE LOG MUST READ THE SAME QUANTITY. Testing the ROUNDED
+  // minutes while storing the raw seconds opens a band at 600.01–600.49 min
+  // where the prefill is offered for a figure the core will not admit.
+  const prefillOffered = timerImplausible && elapsedSec <= SESSION_MINUTES_MAX * 60;
+  const shownMinutes = manualMinutes != null ? manualMinutes : (prefillOffered ? String(timerMinutes) : '');
+  const manualNum = manualMinutes == null ? NaN : Number(String(manualMinutes).trim());
+  const manualValid = Number.isFinite(manualNum)
+    && manualNum >= SESSION_MINUTES_MIN
+    && manualNum <= SESSION_MINUTES_MAX;
+  // ⚠ STORE THE FIGURE THEY AFFIRMED, not one that merely rounds to it. The
+  // prefill DISPLAYS whole minutes; recording the raw seconds instead would mean
+  // "a human affirmed this" applied to a number up to 30 seconds from the one
+  // they were shown. Typed answers win; an accepted prefill logs exactly what it
+  // offered; otherwise the timer's own reading stands, unaffirmed.
+  const loggedDurationSec = manualValid
+    ? Math.round(manualNum * 60)
+    : (prefillOffered && manualMinutes == null ? timerMinutes * 60 : elapsedSec);
+  // Did the member actually ANSWER the duration question? Only an answer may be
+  // recorded as `durationConfirmed`, because that flag is what lets the core
+  // admit an overrun into a baseline — asserting it on a blank or nonsense
+  // field would vouch, in the member's name, for a screen left open.
+  //
+  //   not asked                → the timer is credible on its own; nothing to vouch for
+  //   a valid typed answer     → they answered
+  //   an OFFERED prefill,      → accepting the offered figure IS the answer (it is
+  //   left untouched             pre-filled there precisely because confirming is
+  //                              the common case and correcting is the edit)
+  //
+  // An emptied field, an out-of-range number, the under-a-minute case, and a
+  // runaway timer past the field's own maximum are all cases where no credible
+  // figure was ever offered — so none of them is an answer, and none may be
+  // recorded as one.
+  //
+  // ⚠ NOTE WHAT IS *NOT* HERE: a session we never asked about. It used to be
+  // folded in as "answered", which recorded a confirmation nobody gave. We now
+  // store the two FACTS — whether we asked, and what they said — and let the
+  // core decide credibility against whatever the ceiling is when it reads.
+  const durationAnswered = askDuration && (manualValid || (prefillOffered && manualMinutes == null));
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
 
@@ -24585,7 +24746,18 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     else startSet(setIdx);
   };
 
-  const finishSession = async () => {
+  // Saves and does NOT navigate — every exit path calls this, so it must be
+  // idempotent: `Save & finish`, backing out, and the unmount cleanup can all
+  // fire for one session (a save in flight when the screen unmounts is exactly
+  // the case the flag is set BEFORE the first await for).
+  //
+  // `confirmed` = the member affirmatively accepted the logged duration by
+  // completing the save on the screen that shows it. Backing out is the
+  // opposite of confirming, so it stays false and the core excludes an
+  // unconfirmed overrun — the safe direction (SPEC-guardrails.md §3.1).
+  const finishSession = async ({ answered = false } = {}) => {
+    if (savedRef.current) return;
+    savedRef.current = true;
     try {
       // The structured log + coach review always save privately. When "Share to
       // community" is on, the feed post goes public — carrying the real set logs,
@@ -24594,13 +24766,26 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       const hr = hrSamples.length
         ? { avg: Math.round(hrSamples.reduce((s, x) => s + x.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length }
         : null;
+      // Skip rate is the ONLY read we have on whether the prompt is working —
+      // the derived estimator that would have papered over a high skip rate was
+      // deliberately cut (SPEC-guardrails.md §3.1), so this must fire on EVERY
+      // completion, rated or not, or the denominator is meaningless. Fired
+      // before the save so a save failure cannot silently drop the sample.
+      try { window.ShapeAnalytics?.track?.('session_rpe_prompted', { rated: sessionRpe != null }); } catch (e) {}
       await window.ShapeWorkoutLogs?.saveSessionLog?.({
         title: `${moves[0]?.m || 'Workout'} session`,
         workout: moves[0]?.m || 'workout',
-        durationSeconds: elapsedSec,
+        durationSeconds: loggedDurationSec,
+        sessionRpe,
+        // ONE input; `bsDurationFacts` derives the coherent pair from it, so the
+        // writer cannot emit a self-contradiction. A FACT, never a verdict —
+        // whether the figure is credible is the core's to decide against
+        // whatever the ceiling is when it reads, so a retune re-judges this row
+        // instead of inheriting a judgement made today.
+        durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
         setLogs,
         hr,
-        review: { feel: reviewFeel, effort: reviewEffort },
+        review: { feel: reviewFeel, rpe: sessionRpe },
         // Checked → null = the member's share rule decides the audience
         // (public / followers / private-if-Off). Unchecked → force private.
         privacy: shareToFeed ? null : 'private',
@@ -24611,8 +24796,17 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
     }
     bsSetMyActivity(null);
     try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
-    onBack();
   };
+  finishRef.current = finishSession;
+  const finishAndExit = async (opts) => { await finishSession(opts); onBack(); };
+  // The safety net for every exit we do NOT control: hardware back, a parent
+  // route change, the shell unmounting us. Fires only once the member has
+  // REACHED the completion screen — an unmount mid-workout is an abandon, and
+  // `✕ End` discards on purpose. No navigation here: the component is already
+  // going away.
+  React.useEffect(() => () => {
+    if (completingRef.current && !savedRef.current) finishRef.current?.({ answered: false });
+  }, []);
 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const pct = totalSets ? doneSets / totalSets : 0;
@@ -24635,6 +24829,144 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
   const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
   const moveAllDone = (i) => Array.from({ length: moves[i].sets }).every((_, si) => completed[`${i}-${si}`]);
+
+  // ═══ THE COMPLETION SCREEN ═══
+  // Fixed-dark like the band — the same machine on every paper. Effort leads;
+  // the duration question appears ONLY when the wall-clock timer is not
+  // credible on its own; ← BACK saves with a NULL rating rather than stranding
+  // the log. `session_rpe_prompted` fires from finishSession, so BOTH exits
+  // land in the skip-rate denominator exactly once.
+  if (completing) {
+    const rpeColor = (n) => (n <= 4 ? '#4fd18b' : n <= 7 ? '#e8a33c' : '#e8674c');
+    const sectionHead = { ...bandEyebrow, fontSize: 9, color: BAND.dim };
+    return (
+      <BSPage noSwipe mast={false}>
+        <div style={{ minHeight: '100%', background: BAND.bg, padding: `46px ${t.padX}px 40px` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <button
+              onClick={() => finishAndExit({ answered: false })}
+              style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}
+            >← Back</button>
+            <span style={{ ...bandEyebrow, color: BAND.dim35 }}>Session · Complete</span>
+          </div>
+
+          <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>
+            {title || 'Session done'}
+          </div>
+          <div style={{ marginTop: 7, ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>
+            {doneSets} of {totalSets} sets · {fmt(elapsedSec)} on the clock
+          </div>
+
+          {/* THE EFFORT — the primary action. One tap, and skippable: a skipped
+              rating is NULL, not a guess, and the session simply drops out of
+              load maths rather than being scored as easy. */}
+          <div style={{ marginTop: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+              <div style={sectionHead}>How hard was that?</div>
+              <div style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>1 easy · 10 all-out</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+                const on = sessionRpe === n;
+                const c = rpeColor(n);
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setSessionRpe(on ? null : n)}
+                    aria-label={`Effort ${n} of 10`}
+                    aria-pressed={on}
+                    style={{ borderRadius: 5, border: `1px solid ${on ? c : BAND.hair}`, borderBottom: on ? `3px solid ${c}` : `1px solid ${BAND.hair}`, background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : BAND.dim, cursor: 'pointer', padding: '15px 0', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minHeight: 44 }}
+                  >{n}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Duration is asked for at BOTH ends of implausibility — the timer is
+              wall-clock, so it can be far too short (never ran) or far too long
+              (finished hours after they stopped). Never silently accepted, and
+              never shown on a normal-length session. */}
+          {askDuration && (
+            <div style={{ marginTop: 26 }}>
+              <div style={{ ...sectionHead, marginBottom: 9 }}>{timerImplausible ? 'How long, really?' : 'How long?'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={SESSION_MINUTES_MIN}
+                  max={SESSION_MINUTES_MAX}
+                  value={shownMinutes}
+                  onChange={(e) => setManualMinutes(e.target.value)}
+                  aria-label="Session length in minutes"
+                  placeholder="—"
+                  style={{ width: 104, borderRadius: 5, border: `1px solid ${BAND.hair}`, background: 'rgba(244,237,224,0.05)', color: BAND.cream, padding: '13px 11px', fontFamily: t.MONO, fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+                />
+                <span style={{ ...bandEyebrow, fontSize: 9, color: BAND.dim }}>minutes</span>
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: BAND.dim35 }}>
+                {!timerImplausible
+                  ? 'The timer didn’t run for this one.'
+                  : prefillOffered
+                    ? `The timer ran ${timerMinutes} min — fix it if you finished earlier.`
+                    : `The timer ran ${timerMinutes} min, which is longer than a session can be — how long did you actually train?`}
+              </div>
+              {/* Honest about the consequence rather than silently dropping the
+                  session from the maths. Only for the over-ceiling case: that is
+                  the one the core actually excludes without a confirmation. */}
+              {timerImplausible && !durationAnswered && (
+                <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: '#e8a33c' }}>
+                  Left blank, this one is logged but won’t count toward your limits.
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ marginTop: 26 }}>
+            <div style={{ ...sectionHead, marginBottom: 9 }}>The vibe</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {[['loved', 'Loved it', '#4fd18b'], ['ok', 'It was OK', '#e8a33c'], ['nope', 'Not for me', '#e8674c']].map(([key, label, c]) => {
+                const on = reviewFeel === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setReviewFeel(on ? null : key)}
+                    aria-pressed={on}
+                    style={{ borderRadius: 5, border: `1px solid ${on ? c : BAND.hair}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${BAND.hair}`, background: on ? bsTHexA(c, 0.14) : 'transparent', cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : BAND.dim, minHeight: 44 }}
+                  >{label}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Privacy sits with the save, not two screens away — this is the tap
+              that decides whether the session posts publicly. */}
+          <div style={{ marginTop: 26 }}>
+            <button
+              onClick={() => setShareToFeed((v) => !v)}
+              aria-pressed={shareToFeed}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? bandHeat : BAND.hair}`, borderLeft: shareToFeed ? `3px solid ${bandHeat}` : `1px solid ${BAND.hair}`, background: shareToFeed ? bsTHexA(bandHeat, 0.1) : 'transparent', cursor: 'pointer', textAlign: 'left', minHeight: 44 }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>Share to the community</span>
+                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>Posts your sets + breakdown to the feed</span>
+              </span>
+              <span aria-hidden style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? bandHeat : BAND.hair, position: 'relative', transition: 'background 0.15s' }}>
+                <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
+              </span>
+            </button>
+          </div>
+
+          <div style={{ marginTop: 30 }}>
+            <button
+              onClick={() => finishAndExit({ answered: durationAnswered })}
+              style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
+            >Save &amp; finish ✓</button>
+          </div>
+        </div>
+      </BSPage>
+    );
+  }
+
   return (
     <BSPage noSwipe>
       {/* ═══ THE BAND — live numbers only; the paper ledger below the seam
@@ -24815,7 +25147,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
           </button>
         ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
           </button>
         )}
@@ -24857,54 +25189,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         </div>
       </div>
 
-      {/* Post-workout review */}
-      <div style={{ padding: `26px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>How was it?</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Rate this workout</div>
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The vibe</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[['loved', 'Loved it', t.GREEN], ['ok', 'It was OK', t.AMBER], ['nope', 'Not for me', t.RUST]].map(([key, label, c]) => {
-            const on = reviewFeel === key;
-            return (
-              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</button>
-            );
-          })}
-        </div>
-      </div>
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 8 }}>The effort</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']].map(([key, label], i) => {
-            const on = reviewEffort === key;
-            const c = i === 0 ? t.GREEN : i === 1 ? t.AMBER : t.RUST;
-            return (
-              <button key={key} onClick={() => setReviewEffort(on ? null : key)} style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '11px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>
-            );
-          })}
-        </div>
-        {(reviewFeel || reviewEffort) && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>✓ Saved with your log — Jordan will see it</div>
-        )}
-      </div>
-
-      {/* Share to community — posts the session publicly with its per-set breakdown */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <button onClick={() => setShareToFeed(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? teal : t.RULE}`, borderLeft: shareToFeed ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: shareToFeed ? `${teal}14` : t.PAPER2, cursor: 'pointer', textAlign: 'left' }}>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>Share to the community</span>
-            <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>Posts your sets + breakdown to the feed</span>
-          </span>
-          <span style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? teal : t.RULE, position: 'relative', transition: 'background 0.15s' }}>
-            <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
-          </span>
-        </button>
-      </div>
-
-      {/* End workout early */}
+      {/* End workout early — routes to the SAME completion step, so finishing
+          early is still asked for an effort rating rather than saving blind. */}
       <div style={{ padding: `18px ${t.padX}px 90px` }}>
-        <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
+        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
 
       {/* Trainer form-clip player — a dark portal sheet over the session (the
