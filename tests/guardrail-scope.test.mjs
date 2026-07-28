@@ -14,10 +14,11 @@
 //   `source` check removed       -> 11 fail
 //   `status` check removed       ->  4 fail
 //
-// 11 + 4 - 14 = 1 overlap, and that one is the truth-table test at the end,
-// which is deliberately sensitive to both. Every OTHER test is sensitive to
-// exactly one half, so no fixture claims to pin one discriminator while
-// actually riding on the other.
+// 11 + 4 - 14 = 1 overlap, and that one is `the two halves are independent`
+// (the truth table, sixth test in this file — not the last one, as an earlier
+// version of this comment said). Every OTHER test is sensitive to exactly one
+// half, so no fixture claims to pin one discriminator while actually riding on
+// the other.
 //
 // ⚠ TWO WAYS A SCOPE FIXTURE GOES VACUOUS, and they are different traps. Both
 // were live here and both were found by mutation, not by reading:
@@ -141,19 +142,35 @@ test('scope: a JUNK row stays IN, so the malformed report still names it', () =>
   assert.ok(malformed.length > 0, 'a junk row must still be reported malformed');
 
   // Same reasoning as the absent-discriminator test: the asserts above are
-  // scope-invariant. Bucketing junk ALONGSIDE a rated device row pins both
-  // directions at once — the junk row is still named, and the device row
-  // materialises no week (it would carry 600 AU if scope were removed).
-  const mixed = bsBucketWeeks([null, synced('2026-07-06', 18, { sessionRpe: 10 })]);
-  assert.ok(mixed.malformed.length > 0, 'the junk row is still reported');
-  assert.equal(mixed.weeks.length, 0, 'and the device row builds no week');
+  // scope-invariant. Filtering junk ALONGSIDE a rated device row pins both
+  // directions at once, and deliberately does it through `bsScopeSessions`
+  // rather than through bucketing: `bsBucketWeeks(...).weeks.length === 0`
+  // has the identical kill profile but rests on TWO behaviours — scope, and
+  // "a malformed row materialises no week" — so a change to malformed
+  // handling would fail a line inside a test named for scope.
+  assert.deepEqual(
+    bsScopeSessions([null, synced('2026-07-06', 18, { sessionRpe: 10 })]),
+    [null],
+    'the junk row survives the filter and the device row does not',
+  );
 });
 
 test('scope: the two halves are independent — a row can fail either, or both', () => {
-  // The one combination the split-mutation matrix leaves unexercised, and a
-  // plausible shape the day a device writer lands: a SCHEDULED watch import.
-  // Deliberately sensitive to BOTH mutations — it is the truth table, not a
-  // fixture about one discriminator.
+  // ⚠ THIS TEST IS THE MATRIX'S ONE OVERLAP, BUT NOT FOR THE REASON IT WAS
+  // WRITTEN. Per-row kill analysis, measured:
+  //
+  //   1 · out on both   — dies only under the WHOLE-predicate mutant
+  //   2 · out on source — dies under source-off  (restates `ALLOWLIST`)
+  //   3 · out on status — dies under status-off  (restates `only work that HAPPENED`)
+  //   4 · in on both    — cannot be killed by any mutation of the predicate
+  //
+  // So rows 2 and 3 are what put this test in both mutant sets, by duplicating
+  // two tests above; row 1 — the combination that motivated writing this at
+  // all, and the plausible shape the day a device writer lands (a SCHEDULED
+  // watch import) — adds no kill coverage, because row 2 catches even an
+  // `if (sourceBad && statusBad)` mutation first. All four stay: a 2x2's worth
+  // is exhaustiveness and documenting that the predicate is an AND, and that
+  // is worth four lines even where the mutants are indifferent.
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'planned' })), false, 'out on both');
   assert.equal(bsSessionInScope(synced('2026-07-06', 9, { status: 'completed' })), false, 'out on source alone');
   assert.equal(bsSessionInScope(inApp('2026-07-06', 9, { status: 'planned' })), false, 'out on status alone');

@@ -956,9 +956,14 @@ vacuity causes into one and kept only the simpler.) Mutation matrix:
 | `source` check removed | 11 fail |
 | `status` check removed | 4 fail |
 
-The single overlap is the closing truth-table test, deliberately sensitive to
-both; every other test is sensitive to exactly one half, so no fixture pins one
-discriminator while riding on the other.
+The single overlap is the truth-table test `the two halves are independent`;
+every other test is sensitive to exactly one half, so no fixture pins one
+discriminator while riding on the other. ⚠ That test is in both mutant sets
+because two of its four rows **restate** the `ALLOWLIST` and `only work that
+HAPPENED` tests. The row it was written for — out on *both* halves — adds no
+kill coverage, and the both-in row cannot be killed at all; they are kept for
+exhaustiveness and to document that the predicate is an AND, not because the
+mutants reach them.
 
 ⚠ **TWO WAYS A SCOPE FIXTURE GOES VACUOUS.** Both were live in the first cut and
 both were found by mutation, not by reading. **(1) A counterfactual that varies
