@@ -7,6 +7,12 @@ import { registerPush } from './push.js';
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
 import { bsAdjustRegen } from './adjustRegen.mjs';
+// Assignment write-failure classification + the offline replay queue. Pure and
+// fixture-tested, so "was that the network or a rejection?" is decided in one
+// place and can never drift toward absorbing a rejection as a local save.
+import {
+  BS_ASSIGN_QUEUE_KEY, bsClassifyWriteFailure, bsQueueAssignment, bsPruneQueue, bsReplayQueue,
+} from './assignQueue.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
@@ -459,6 +465,7 @@ async function getCurrentSession() {
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { startAssignmentQueueDrain(); drainAssignmentQueue().catch(() => {}); } catch (e) {} } // replay assignments held while offline — through the same writer, so they can never bypass the gate
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
@@ -1415,22 +1422,104 @@ async function listClientWorkouts({ clientId, trainerId, status = 'published' } 
   return { stored: 'supabase', data: (data || []).map(workoutFromRow) };
 }
 
-async function assignClientWorkout({
-  trainerId,
-  clientId,
-  title,
-  description = '',
-  kind = 'custom',
-  payload = {},
-  playlistId = null,
-  scheduledDate = null,
-} = {}) {
-  if (!clientId || !title) {
-    throw new Error('Client and workout title are required.');
+// ─── Assignment writes: the failure-class contract ───────────────────────────
+//
+// ⚠ This path used to absorb EVERY failure. `assignClientWorkout` RETURNED
+// `{stored:'local', error}` instead of throwing, and BSProAssignPage ignores the
+// result entirely — so a rejected insert (RLS denial, constraint violation, and
+// after §9.4 the guardrail's 409) ran straight into `setStatus('done')` and the
+// coach was told the week saved. It had not. Worse, nothing ever replayed the
+// local record: `shape.clientWorkouts` was written by these two lines and read
+// by NOTHING, so an "offline save" was a write-only bin — the assignment was
+// gone, silently.
+//
+// The rule now (owner ruling 2026-07-28):
+//   NETWORK / offline  -> hold it in the replay queue and say so.
+//   SERVER REJECTION   -> NEVER absorbed. Nothing is queued, and the coach is
+//                         shown the reason the server gave.
+// The classification itself (and why 'rejected' is the safe default) lives in
+// the pure, fixture-tested assignQueue.mjs.
+
+function bsIsOnline() {
+  try {
+    return typeof navigator === 'undefined' || navigator.onLine !== false;
+  } catch (e) { return true; }
+}
+
+function readAssignQueue() {
+  try {
+    const raw = JSON.parse(window.localStorage?.getItem(BS_ASSIGN_QUEUE_KEY) || '[]');
+    return bsPruneQueue(raw, { now: Date.now() });
+  } catch (e) { return []; }
+}
+
+function writeAssignQueue(items) {
+  try { window.localStorage?.setItem(BS_ASSIGN_QUEUE_KEY, JSON.stringify(items)); } catch (e) {}
+}
+
+function assignErrorMessage(error) {
+  const raw = String((error && error.message) || '').trim();
+  const code = String((error && error.code) || '').trim();
+  // The discipline-coach guard (2026-06-17-coach-write-scope.sql) is the RLS
+  // policy this path actually trips, so name it rather than echoing "permission
+  // denied for table client_workouts" at a coach.
+  if (code === '42501') return "The server refused this assignment — you aren't this client's coach.";
+  return raw || 'The server refused this assignment.';
+}
+
+/**
+ * Turn a raw write failure into a typed error carrying its class.
+ * `rejected` errors must reach the coach; `offline` errors may be queued.
+ */
+function classifyAssignError(error) {
+  const kind = bsClassifyWriteFailure(error, { online: bsIsOnline() });
+  const err = error instanceof Error ? error : new Error(assignErrorMessage(error));
+  if (kind === 'rejected') {
+    err.message = assignErrorMessage(error) || err.message;
+    err.rejected = true;
+    err.code = (error && error.code) != null ? error.code : null;
+    err.status = Number.isFinite(Number(error && error.status)) ? Number(error.status) : null;
+    // Populated by the week-shaped boundary's 409 (SPEC-guardrails.md §9.4) so
+    // the coach sees the guardrail's own reason, not a bare "rejected".
+    err.guardrail = (error && error.guardrail) || null;
+  } else {
+    err.offline = true;
   }
-  const resolvedTrainerId = trainerId || await getOwnedTrainerId();
+  return err;
+}
+
+/** The raw write. Throws a classified error; never falls back, never queues. */
+async function writeClientWorkoutRow(args) {
+  const {
+    trainerId, clientId, title, description = '', kind = 'custom',
+    payload = {}, playlistId = null, scheduledDate = null,
+  } = args || {};
+
+  if (!clientId || !title) throw new Error('Client and workout title are required.');
+  if (!supabase) {
+    // Not connectivity — the client was never constructed, so this build can
+    // never reach the server. Reporting "saved" here is the same false
+    // assurance, so it is a rejection.
+    const err = new Error('Shape is not connected to the server on this build.');
+    err.rejected = true;
+    throw err;
+  }
+
+  let resolvedTrainerId = trainerId;
   if (!resolvedTrainerId) {
-    throw new Error('No trainer profile is connected to this account.');
+    // ⚠ This is a NETWORK CALL, and it runs BEFORE the insert — so offline the
+    // failure lands here, not on the insert. It must be classified too, or the
+    // one case the queue exists for never reaches it.
+    try {
+      resolvedTrainerId = await getOwnedTrainerId();
+    } catch (e) {
+      throw classifyAssignError(e);
+    }
+    if (!resolvedTrainerId) {
+      const err = new Error('No trainer profile is connected to this account.');
+      err.rejected = true;
+      throw err;
+    }
   }
 
   const payloadRow = {
@@ -1445,20 +1534,103 @@ async function assignClientWorkout({
     status: 'published',
   };
 
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow) };
-  }
-
   const { data, error } = await supabase
     .from('client_workouts')
     .insert(payloadRow)
     .select()
     .single();
 
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow, error), error };
+  if (error) throw classifyAssignError(error);
+  return workoutFromRow(data);
+}
+
+/**
+ * Is this assignment already on the client's calendar?
+ *
+ * A replay is at-least-once (no server-side idempotency key exists on
+ * `client_workouts` — the week-shaped boundary is where one belongs, §9.4), so
+ * an item whose insert SUCCEEDED but whose response was lost would be written
+ * twice. On a read failure this returns false and the write is attempted:
+ * a possible duplicate is recoverable, a silently dropped assignment is not.
+ */
+async function assignmentAlreadyWritten(p) {
+  if (!supabase || !p || !p.clientId || !p.scheduledDate || !p.title) return false;
+  try {
+    const { data, error } = await supabase
+      .from('client_workouts')
+      .select('id')
+      .eq('client_id', p.clientId)
+      .eq('scheduled_date', p.scheduledDate)
+      .eq('title', p.title)
+      .limit(1);
+    if (error) return false;
+    return Array.isArray(data) && data.length > 0;
+  } catch (e) { return false; }
+}
+
+async function assignClientWorkout(args = {}) {
+  try {
+    return { stored: 'supabase', data: await writeClientWorkoutRow(args) };
+  } catch (err) {
+    // A rejection is the coach's to see. It is never written anywhere local,
+    // and it never reports success.
+    if (err && err.rejected) throw err;
+    // Genuinely offline — hold the assignment and replay it on reconnect.
+    writeAssignQueue(bsQueueAssignment(readAssignQueue(), args, { now: Date.now() }));
+    return { stored: 'queued', queued: true, data: null };
   }
-  return { stored: 'supabase', data: workoutFromRow(data) };
+}
+
+let assignDraining = false;
+
+/**
+ * Replay held assignments. Runs on reconnect and on session resolve.
+ *
+ * ⚠ The queue drains through `writeClientWorkoutRow` — the SAME single writer
+ * `assignClientWorkout` uses. That is deliberate: when the week-shaped boundary
+ * lands (§9.4) and that writer is repointed at the gated route, queued work
+ * starts flowing through the gate with no change here. A replay must never be a
+ * side door around the guardrail.
+ */
+async function drainAssignmentQueue() {
+  if (assignDraining || !bsIsOnline() || !state.user?.id) return { sent: 0, rejected: 0, held: 0 };
+  const queue = readAssignQueue();
+  if (!queue.length) return { sent: 0, rejected: 0, held: 0 };
+
+  assignDraining = true;
+  let sent = 0;
+  let rejections = [];
+  let held = [];
+  try {
+    // The replay loop itself is pure + fixture-tested; this only supplies the
+    // effects. `write` is the SAME writer assignClientWorkout uses — repointing
+    // it at the gated route (§9.4) gates the queue too, automatically.
+    ({ sent, rejections, held } = await bsReplayQueue(queue, {
+      write: writeClientWorkoutRow,
+      exists: assignmentAlreadyWritten,
+    }));
+  } finally {
+    assignDraining = false;
+  }
+
+  writeAssignQueue(bsPruneQueue(held, { now: Date.now() }));
+  if (sent || rejections.length) {
+    try {
+      window.dispatchEvent(new CustomEvent('shape:assignQueue', {
+        detail: { sent, rejected: rejections, held: held.length },
+      }));
+    } catch (e) {}
+  }
+  return { sent, rejected: rejections.length, held: held.length };
+}
+
+let assignQueueWired = false;
+function startAssignmentQueueDrain() {
+  if (assignQueueWired) return;
+  assignQueueWired = true;
+  try {
+    window.addEventListener('online', () => { drainAssignmentQueue().catch(() => {}); });
+  } catch (e) {}
 }
 
 // ─── Self-authored training ──────────────────────────────────────────────────

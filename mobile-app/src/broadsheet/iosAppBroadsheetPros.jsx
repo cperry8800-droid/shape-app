@@ -3288,6 +3288,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [weeks, setWeeks] = useStateBSP(4);
   const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
+  // Sessions the device is HOLDING because it was offline. Never folded into
+  // "Assigned ✓" — a held week has not reached the client, and a coach who is
+  // told it has will not come back to check.
+  const [held, setHeld] = useStateBSP(0);
   const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
@@ -3371,7 +3375,18 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       }))) return;
     }
     setStatus('working');
+    setHeld(0);
     let gotDisclaimer = false;
+    // ⚠ A trainer assignment is a LOOP of one insert per session, so a failure
+    // partway leaves a PARTIAL week on the client's calendar. Until the
+    // week-shaped boundary makes this atomic (SPEC-guardrails.md §9.4), the
+    // coach must at least be told exactly how far it got — "couldn't assign" on
+    // a half-written week is its own false report.
+    const tally = { sent: 0, queued: 0 };
+    const assignOne = async (args) => {
+      const res = await window.ShapeAssign.workout(args);
+      if (res && res.stored === 'queued') tally.queued += 1; else tally.sent += 1;
+    };
     try {
       const start = dayCells[dayIdx];
       const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -3414,7 +3429,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             if (!dl || dl.rest) continue;
             const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
             if (d < start) continue;
-            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+            await assignOne({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
           }
         }
       } else if (isWeekBlock) {
@@ -3425,7 +3440,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const basePayload = timeSel ? { time: timeSel } : {};
         for (const u of weekUnits) {
           const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: u.title || `${plan.name} · Week ${u.week}`, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+          await assignOne({ clientId: uid, title: u.title || `${plan.name} · Week ${u.week}`, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
         }
       } else {
         // Week labels are never movements — keep them out of the exercise list.
@@ -3433,8 +3448,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
           const d = new Date(start); d.setDate(d.getDate() + w * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises, ...basePayload } });
+          await assignOne({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises, ...basePayload } });
         }
+      }
+      // Nothing reached the client yet — do NOT tell them it's live, and do not
+      // report "Assigned ✓". The queue replays on reconnect (through the same
+      // writer, so it still passes the gate); until then this is HELD.
+      if (tally.queued) {
+        setHeld(tally.queued);
+        setStatus('held');
+        return;
       }
       // Tell the client — best-effort, the assignment already landed.
       try {
@@ -3449,7 +3472,15 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       // coach can read it; they dismiss via the explicit Done button. Otherwise
       // auto-advance as before.
       if (!gotDisclaimer) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
-    } catch (e) { setStatus(String(e?.message || 'error')); }
+    } catch (e) {
+      // A rejection reaches here now instead of being swallowed. Name how much
+      // of the week actually landed, so the coach knows whether to re-assign
+      // the whole thing or only the rest.
+      const msg = String((e && e.message) || 'error');
+      const done = tally.sent + tally.queued;
+      setStatus(done ? tr('coach:assign.errPartial', { defaultValue: '{msg} · {n} already sent', msg, n: done }) : msg);
+      if (tally.queued) setHeld(tally.queued);
+    }
   };
 
   const rowBtn = (key, title, sub, on, onClick) => (
@@ -3465,7 +3496,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
   );
   const working = status === 'working';
-  const ctaLabel = working ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' }) : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' }) : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
+  const ctaLabel = working
+    ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' })
+    : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' })
+    : status === 'held' ? tr('coach:assign.heldCta', { defaultValue: 'Held — try again' })
+    : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
   const timeLabel = timeSel ? (() => { const [h, m] = timeSel.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return ` · ${hh}:${String(m).padStart(2, '0')} ${ap}`; })() : '';
   const fromLabel = `${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`;
   const summaryWhen = isNutriWeekBlock
@@ -3567,7 +3602,8 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
             ) : (
               <>
                 <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
-                {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
+                {status === 'held' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em', lineHeight: 1.6 }}><span style={{ fontWeight: 800 }}>{`HELD · ${held}`}</span>{' — '}{tr('coach:assign.heldOffline', { defaultValue: "you're offline. These send when you reconnect; {name} can't see them yet.", name: first })}</div>}
+                {status && status !== 'working' && status !== 'done' && status !== 'held' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em', lineHeight: 1.6 }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
                 <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
                   {uid
                     ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
