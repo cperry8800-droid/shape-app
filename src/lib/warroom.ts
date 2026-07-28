@@ -258,6 +258,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/community/feed/[postId]/like', 'POST'],
   ['/api/community/feed', 'GET,POST'],
   ['/api/community/pr-wall', 'POST'],
+  ['/api/console/flight', 'GET'],
   ['/api/consultation', 'POST'],
   ['/api/contact', 'POST'],
   ['/api/conversations/[id]/messages', 'GET,POST'],
@@ -355,7 +356,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
-  if (p === '/api/health' || p === '/api/warroom') return 'System';
+  if (p === '/api/health' || p === '/api/warroom' || p.startsWith('/api/console')) return 'System';
   // Remaining provider/marketplace plumbing.
   return 'Marketplace & providers';
 }
