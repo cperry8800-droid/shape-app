@@ -292,6 +292,128 @@ export function bsAssignIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// ── The week-shaped publish boundary's caller-side helpers ───────────────────
+// SPEC-guardrails.md §9.4. Training reaches a client through ONE gated,
+// week-shaped writer, so the caller has to answer two questions before it can
+// send anything: which WEEK does this session fall in, and what KEY identifies
+// this publish. Both are pure, so both are tested rather than trusted.
+
+/**
+ * Monday of the calendar week containing `d`, as a new Date.
+ *
+ * The boundary evaluates and writes a week atomically, so a session can only
+ * ride the week it actually falls in — grouping is by the session's OWN Monday,
+ * never by the week the coach happened to start from.
+ */
+export function bsAssignMonday(d) {
+  const m = new Date(d);
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return m;
+}
+
+/**
+ * A DETERMINISTIC, UUID-shaped publish key derived from the assignment itself.
+ *
+ * §9.4 requires the key to be minted at AUTHORING time and to stay stable
+ * across retries. "Stable" has to survive more than a re-render: a coach who
+ * loses signal mid-publish may kill the app and come back, and a key held only
+ * in memory (or in storage that failed to write) is gone by then — the retry
+ * would mint a second key and the boundary would read it as a second publish.
+ *
+ * Deriving the key from the assignment's own content gives that statelessly.
+ * The same coach, plan, client, start and week always produce the same key, so
+ * a retry is a REPLAY (the boundary answers `already_delivered`) rather than a
+ * duplicate. It is also what makes the acknowledge-and-republish path safe:
+ * re-running a whole assignment after a guardrail rejection re-sends the weeks
+ * that already landed under their original keys, and they no-op.
+ *
+ * ⚠ This is a CONTENT hash, not a random id. Changing any part of the seed is
+ * MEANT to mint a new key — that is a different assignment, not a retry.
+ *
+ * @param {string} seed the assignment's identity, caller-composed
+ * @returns {string} a v4-shaped UUID (the boundary rejects any other shape)
+ */
+export function bsAssignKey(seed) {
+  // Four independently-salted FNV-1a passes → 128 bits. One pass gives 32,
+  // which collides far too readily across a coach's catalogue.
+  const pass = (salt) => {
+    const s = `${salt} ${seed}`;
+    let x = 0x811c9dc5 ^ salt;
+    for (let i = 0; i < s.length; i += 1) {
+      x ^= s.charCodeAt(i);
+      x = Math.imul(x, 0x01000193) >>> 0;
+    }
+    return (x >>> 0).toString(16).padStart(8, '0');
+  };
+  const hex = `${pass(1)}${pass(2)}${pass(3)}${pass(4)}`;
+  const variant = '89ab'[parseInt(hex[16], 16) % 4];
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * Group authored sessions into the WEEK payloads the gated boundary accepts.
+ *
+ * Kept pure and separate from the page because the two rules it encodes are
+ * the ones that fail silently, and both are load-bearing:
+ *
+ *  GROUPING — a session rides the week it actually falls in, by its OWN Monday.
+ *  The boundary evaluates and writes a week atomically, so a session grouped
+ *  into the wrong week is judged against the wrong week's load and, worse,
+ *  lands in a replace that deletes a week it was never part of.
+ *
+ *  STAMPING — `per_session` is declared only when EVERY session in that week
+ *  carries BOTH halves of the planned-load pair (§3.2a). A PARTIAL stamp is
+ *  malformed (§13.17/F158), and one malformed row turns the whole evaluation
+ *  `unknown` — which never blocks. So a half-captured week must publish
+ *  UNSTAMPED (`incomplete_week`) rather than look like a transport bug: the
+ *  first is a coach who skipped a field, the second is an alarm.
+ *
+ * Session ids are deliberately NOT set. The boundary synthesizes positional
+ * labels and excludes them from the request digest, so a re-ordered retry still
+ * hashes to the same week; an index-derived id here would read as a CONFLICT.
+ *
+ * @param {Array<{date: Date, title: string, description: string,
+ *                block: object|null, exercises?: Array}>} rows
+ * @param {object} [basePayload] fields merged into every session's payload
+ * @returns {Array<{weekStartISO: string, capture: 'per_session'|undefined,
+ *                  sessions: Array}>} ordered by week, one publish each
+ */
+export function bsAssignWeeks(rows, basePayload = {}) {
+  const byWeek = new Map();
+  for (const r of (Array.isArray(rows) ? rows : [])) {
+    if (!r || !(r.date instanceof Date) || Number.isNaN(r.date.getTime())) continue;
+    const k = bsAssignIso(bsAssignMonday(r.date));
+    if (!byWeek.has(k)) byWeek.set(k, []);
+    byWeek.get(k).push(r);
+  }
+
+  return [...byWeek.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([weekStartISO, wk]) => {
+      // Read the pair off the block the COACH stamped it on. A non-finite
+      // value is absence, not zero — `Number(null)` is a finite 0 and would
+      // fabricate a session that was never captured.
+      const pairs = wk.map((r) => ({
+        min: r.block && Number.isFinite(r.block.plannedMinutes) ? r.block.plannedMinutes : undefined,
+        rpe: r.block && Number.isFinite(r.block.plannedRpe) ? r.block.plannedRpe : undefined,
+      }));
+      const stamped = pairs.every((p) => p.min !== undefined && p.rpe !== undefined);
+
+      return {
+        weekStartISO,
+        capture: stamped ? 'per_session' : undefined,
+        sessions: wk.map((r, i) => ({
+          title: r.title,
+          description: r.description,
+          kind: 'custom',
+          scheduledDate: bsAssignIso(r.date),
+          ...(stamped ? { plannedMinutes: pairs[i].min, plannedRpe: pairs[i].rpe, loadCapture: 'per_session' } : {}),
+          payload: { exercises: r.exercises || [], ...basePayload },
+        })),
+      };
+    });
+}
+
 // Materialize a purchased plan's outline into self-authored client_workouts
 // insert-payloads. Mirrors BSProAssignPage.apply's split-vs-exercise branch,
 // but returns payloads (stamped payload.program:{id:'plan:'+planId, …}) instead

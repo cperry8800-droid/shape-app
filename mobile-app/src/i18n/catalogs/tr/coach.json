@@ -913,5 +913,15 @@
   "editor.dowSun": "PAZ",
   "editor.dayInheritTitle": "Bu gün için varsayılan menü kullanılsın mı?",
   "editor.dayInheritMsg": "Bu, bu gün için yazdıklarını siler.",
-  "editor.dayInheritConfirm": "Varsayılanı kullan"
+  "editor.dayInheritConfirm": "Varsayılanı kullan",
+  "assign.nothingToPublish": "Bu planda yayımlanacak seans yok",
+  "assign.notHeld": "Çevrimdışısın ve bu cihaz haftayı saklayamadı — tekrar dene",
+  "assign.guardChip": "İnceleme için bekletildi",
+  "assign.guardLine": "Bu hafta inceleme için bekletildi.",
+  "assign.guardWeek": "Hafta · {date}",
+  "assign.guardPublished": "{count, plural, one {# hafta zaten yayımlandı} other {# hafta zaten yayımlandı}}",
+  "assign.guardReasonPlaceholder": "Bu hafta ona neden uygun?",
+  "assign.guardReasonHint": "Haftayla birlikte kaydedilir · yayımlamak için gerekli",
+  "assign.guardPublishAnyway": "Yine de yayımla",
+  "assign.queuedWeeks": "{count, plural, one {# hafta bu cihazda bekliyor} other {# hafta bu cihazda bekliyor}} — tekrar çevrimiçi olunca yayımlanacak ve şu kişiye henüz haber verilmedi: {name}"
 }

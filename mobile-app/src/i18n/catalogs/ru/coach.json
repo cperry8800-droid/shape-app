@@ -913,5 +913,15 @@
   "editor.dowSun": "ВС",
   "editor.dayInheritTitle": "Использовать меню по умолчанию для этого дня?",
   "editor.dayInheritMsg": "Это удалит то, что вы написали для этого дня.",
-  "editor.dayInheritConfirm": "Использовать по умолчанию"
+  "editor.dayInheritConfirm": "Использовать по умолчанию",
+  "assign.nothingToPublish": "В этом плане нет тренировок для публикации",
+  "assign.notHeld": "Нет сети, и это устройство не смогло сохранить неделю — попробуй ещё раз",
+  "assign.guardChip": "Отложено на проверку",
+  "assign.guardLine": "Эта неделя отложена на проверку.",
+  "assign.guardWeek": "Неделя с {date}",
+  "assign.guardPublished": "{count, plural, one {# неделя уже опубликована} few {# недели уже опубликованы} many {# недель уже опубликовано} other {# недели уже опубликовано}}",
+  "assign.guardReasonPlaceholder": "Почему эта неделя ему подходит?",
+  "assign.guardReasonHint": "Сохраняется вместе с неделей · без этого не опубликовать",
+  "assign.guardPublishAnyway": "Всё равно опубликовать",
+  "assign.queuedWeeks": "{count, plural, one {# неделя ждёт на этом устройстве} few {# недели ждут на этом устройстве} many {# недель ждут на этом устройстве} other {# недели ждут на этом устройстве}} — они опубликуются, когда ты снова будешь в сети, и {name} пока об этом не знает"
 }

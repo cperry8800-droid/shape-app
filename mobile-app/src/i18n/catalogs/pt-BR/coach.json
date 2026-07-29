@@ -913,5 +913,15 @@
   "editor.dowSun": "DOM",
   "editor.dayInheritTitle": "Usar o cardápio padrão neste dia?",
   "editor.dayInheritMsg": "Isso apaga o que você escreveu para este dia.",
-  "editor.dayInheritConfirm": "Usar o padrão"
+  "editor.dayInheritConfirm": "Usar o padrão",
+  "assign.nothingToPublish": "Este plano não tem sessões para publicar",
+  "assign.notHeld": "Sem conexão e este aparelho não conseguiu guardar a semana — tente de novo",
+  "assign.guardChip": "Em análise",
+  "assign.guardLine": "Esta semana ficou em análise.",
+  "assign.guardWeek": "Semana de {date}",
+  "assign.guardPublished": "{count, plural, one {# semana já publicada} other {# semanas já publicadas}}",
+  "assign.guardReasonPlaceholder": "Por que esta semana faz sentido para ele(a)?",
+  "assign.guardReasonHint": "Fica registrado com a semana · obrigatório para publicar",
+  "assign.guardPublishAnyway": "Publicar mesmo assim",
+  "assign.queuedWeeks": "{count, plural, one {# semana está guardada neste aparelho} other {# semanas estão guardadas neste aparelho}} — elas são publicadas quando você voltar a ficar online, e {name} ainda não foi avisado"
 }

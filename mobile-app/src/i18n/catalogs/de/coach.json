@@ -913,5 +913,15 @@
   "editor.dowSun": "SO",
   "editor.dayInheritTitle": "Für diesen Tag das Standardmenü verwenden?",
   "editor.dayInheritMsg": "Damit wird gelöscht, was du für diesen Tag geschrieben hast.",
-  "editor.dayInheritConfirm": "Standard verwenden"
+  "editor.dayInheritConfirm": "Standard verwenden",
+  "assign.nothingToPublish": "Dieser Plan hat keine Einheiten zum Veröffentlichen",
+  "assign.notHeld": "Offline, und dieses Gerät konnte die Woche nicht sichern — versuche es erneut",
+  "assign.guardChip": "Zur Prüfung angehalten",
+  "assign.guardLine": "Diese Woche wurde zur Prüfung angehalten.",
+  "assign.guardWeek": "Woche vom {date}",
+  "assign.guardPublished": "{count, plural, one {# Woche bereits veröffentlicht} other {# Wochen bereits veröffentlicht}}",
+  "assign.guardReasonPlaceholder": "Warum passt diese Woche zu ihnen?",
+  "assign.guardReasonHint": "Wird mit der Woche gespeichert · zum Veröffentlichen erforderlich",
+  "assign.guardPublishAnyway": "Trotzdem veröffentlichen",
+  "assign.queuedWeeks": "{count, plural, one {# Woche liegt auf diesem Gerät} other {# Wochen liegen auf diesem Gerät}} — sie werden veröffentlicht, sobald du wieder online bist, und {name} weiß noch nichts davon"
 }

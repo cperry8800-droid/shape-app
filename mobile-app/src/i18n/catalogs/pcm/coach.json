@@ -913,5 +913,15 @@
   "editor.dowSun": "SUN",
   "editor.dayInheritTitle": "You wan use di default menu for dis day?",
   "editor.dayInheritMsg": "Dis go delete wetin you write for dis day.",
-  "editor.dayInheritConfirm": "Use di default"
+  "editor.dayInheritConfirm": "Use di default",
+  "assign.nothingToPublish": "Dis plan no get any session wey we go post",
+  "assign.notHeld": "You dey offline and dis device no fit keep di week — try again",
+  "assign.guardChip": "Dem hold am make dem check",
+  "assign.guardLine": "Dem hold dis week make dem check am.",
+  "assign.guardWeek": "Week of {date}",
+  "assign.guardPublished": "{count, plural, one {dem don post # week already} other {dem don post # weeks already}}",
+  "assign.guardReasonPlaceholder": "Why dis week make sense for am?",
+  "assign.guardReasonHint": "Dem go save am with di week · you must put am before you fit post",
+  "assign.guardPublishAnyway": "Post am anyhow",
+  "assign.queuedWeeks": "{count, plural, one {# week dey wait for dis device} other {# weeks dey wait for dis device}} — dem go post once you come back online, and dem never tell {name}"
 }

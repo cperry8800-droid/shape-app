@@ -913,5 +913,15 @@
   "editor.dowSun": "DOM",
   "editor.dayInheritTitle": "¿Usar el menú predeterminado para este día?",
   "editor.dayInheritMsg": "Esto elimina lo que escribiste para este día.",
-  "editor.dayInheritConfirm": "Usar el predeterminado"
+  "editor.dayInheritConfirm": "Usar el predeterminado",
+  "assign.nothingToPublish": "Este plan no tiene sesiones que publicar",
+  "assign.notHeld": "Sin conexión y este dispositivo no pudo guardar la semana — inténtalo de nuevo",
+  "assign.guardChip": "En revisión",
+  "assign.guardLine": "Esta semana quedó en revisión.",
+  "assign.guardWeek": "Semana del {date}",
+  "assign.guardPublished": "{count, plural, one {# semana ya publicada} other {# semanas ya publicadas}}",
+  "assign.guardReasonPlaceholder": "¿Por qué esta semana les viene bien?",
+  "assign.guardReasonHint": "Se registra con la semana · obligatorio para publicar",
+  "assign.guardPublishAnyway": "Publicar igualmente",
+  "assign.queuedWeeks": "{count, plural, one {# semana está guardada en este dispositivo} other {# semanas están guardadas en este dispositivo}} — se publican cuando vuelvas a tener conexión, y {name} aún no lo sabe"
 }

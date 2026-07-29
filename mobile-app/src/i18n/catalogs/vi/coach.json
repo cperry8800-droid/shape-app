@@ -913,5 +913,15 @@
   "editor.dowSun": "CN",
   "editor.dayInheritTitle": "Dùng thực đơn mặc định cho ngày này?",
   "editor.dayInheritMsg": "Thao tác này xóa những gì bạn đã viết cho ngày này.",
-  "editor.dayInheritConfirm": "Dùng mặc định"
+  "editor.dayInheritConfirm": "Dùng mặc định",
+  "assign.nothingToPublish": "Kế hoạch này không có buổi tập nào để đăng",
+  "assign.notHeld": "Đang ngoại tuyến và thiết bị này không giữ được tuần đó — thử lại nhé",
+  "assign.guardChip": "Đang giữ để xem lại",
+  "assign.guardLine": "Tuần này đang được giữ để xem lại.",
+  "assign.guardWeek": "Tuần {date}",
+  "assign.guardPublished": "{count, plural, other {# tuần đã đăng}}",
+  "assign.guardReasonPlaceholder": "Vì sao tuần này phù hợp với họ?",
+  "assign.guardReasonHint": "Được lưu cùng tuần này · bắt buộc để đăng",
+  "assign.guardPublishAnyway": "Vẫn đăng",
+  "assign.queuedWeeks": "{count, plural, other {# tuần đang giữ trên thiết bị này}} — sẽ đăng khi bạn online lại, và {name} vẫn chưa được báo"
 }

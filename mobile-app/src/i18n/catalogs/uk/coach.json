@@ -913,5 +913,15 @@
   "editor.dowSun": "НД",
   "editor.dayInheritTitle": "Використати меню за замовчуванням для цього дня?",
   "editor.dayInheritMsg": "Це видалить те, що ви написали для цього дня.",
-  "editor.dayInheritConfirm": "Використати за замовчуванням"
+  "editor.dayInheritConfirm": "Використати за замовчуванням",
+  "assign.nothingToPublish": "У цьому плані немає тренувань для публікації",
+  "assign.notHeld": "Немає зв’язку, і цей пристрій не зміг зберегти тиждень — спробуй ще раз",
+  "assign.guardChip": "Відкладено на перевірку",
+  "assign.guardLine": "Цей тиждень відкладено на перевірку.",
+  "assign.guardWeek": "Тиждень із {date}",
+  "assign.guardPublished": "{count, plural, one {# тиждень уже опубліковано} few {# тижні вже опубліковано} many {# тижнів уже опубліковано} other {# тижня вже опубліковано}}",
+  "assign.guardReasonPlaceholder": "Чому цей тиждень йому підходить?",
+  "assign.guardReasonHint": "Зберігається разом із тижнем · без цього не опублікувати",
+  "assign.guardPublishAnyway": "Усе одно опублікувати",
+  "assign.queuedWeeks": "{count, plural, one {# тиждень чекає на цьому пристрої} few {# тижні чекають на цьому пристрої} many {# тижнів чекають на цьому пристрої} other {# тижня чекають на цьому пристрої}} — вони опублікуються, коли ти знову будеш онлайн, і {name} про це ще не знає"
 }

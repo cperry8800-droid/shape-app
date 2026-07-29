@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -3271,9 +3271,9 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 
 // The Assign page. Entered with a concrete plan (from the Plans catalogue) or
 // a fixed client (from the client profile's Manage tab) — whichever half is
-// missing gets an inline picker. Trainer assignments land as client_workouts
-// on real dates (a weekday split schedules across the week; an exercise
-// outline becomes one weekly session); nutritionist assignments publish a
+// missing gets an inline picker. Trainer assignments publish WEEKS through the
+// one gated boundary (a weekday split fills the week; a week block or an
+// exercise outline is one session per week); nutritionist assignments publish a
 // client_meal_plans weekly menu. A short note lands in the client's 1:1.
 function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, onBack, onDone }) {
   const t = useBS();
@@ -3289,6 +3289,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
   const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
+  // A guardrail rejection is an ANSWER, not an error: it is held here with the
+  // boundary's own words so the coach can read the reason and decide.
+  const [blocked, setBlocked] = useStateBSP(null); // {weekStartISO, copy, reason, published}
+  const [reasonText, setReasonText] = useStateBSP('');
+  const [queuedWeeks, setQueuedWeeks] = useStateBSP(0);
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
   const targetName = fixedClient ? (clientProp?.n || tr('coach:common.thisClient', { defaultValue: 'this client' })) : (picked ? picked.name : tr('coach:assign.aClient', { defaultValue: 'a client' }));
@@ -3318,9 +3323,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // reads these — C1a routes it through bsPlanWeek so it can serve a different
   // menu per day, and the raw block OBJECTS (carrying PR E's authored method
   // steps) ride that path instead.
-  const blocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
-    .map(b => String(((b && b.text != null) ? b.text : b) || '').trim())
-    .filter(Boolean);
+  // ⚠ Kept INDEX-ALIGNED with `rawBlocks` below — the flattening drops empties,
+  // so filtering the two lists separately would silently pair session N's text
+  // with session N+1's planned load.
+  const _rawAll = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
+    .map(b => ({ raw: b, text: String(((b && b.text != null) ? b.text : b) || '').trim() }))
+    .filter(x => x.text);
+  const blocks = _rawAll.map(x => x.text);
+  // The block OBJECTS, carrying the planned-load pair the editor captured
+  // (§3.2a). `blocks` is text-only and cannot reach it.
+  const rawBlocks = _rawAll.map(x => (x.raw && typeof x.raw === 'object' ? x.raw : {}));
   const dayLines = blocks.map(bsAssignDayLine);
   const weekLines = blocks.map(bsAssignWeekLine);
   const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
@@ -3354,7 +3366,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const weekUnits = bsWeekUnits(weekLines);
   const planNote = (plan && plan.detail && plan.detail.note) || '';
 
-  const apply = async () => {
+  const apply = async (ack = null) => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
     // C0 — an arc carries no meals, so there is nothing honest to install.
     // The CTA is already replaced by the notice below; this is the structural
@@ -3371,10 +3383,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       }))) return;
     }
     setStatus('working');
+    setBlocked(null);
+    setQueuedWeeks(0);
     let gotDisclaimer = false;
+    let heldWeeks = 0;
     try {
       const start = dayCells[dayIdx];
-      const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const monday = bsAssignMonday(start);
       if (isNutri) {
         // Menu meals from the outline lines; a block's authored method steps
         // (PR E) re-derive through bsAuthorStep on the way out — stored windows
@@ -3407,38 +3422,117 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
         // NC1 — show the individualized-care / scope disclaimer the server returns.
         if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
-      } else if (isSplit) {
+      } else {
+        // ── THE week-shaped training publish (SPEC-guardrails.md §9.4) ──
+        //
+        // All three training outline shapes collapse into ONE list of sessions
+        // here, are grouped by the week they fall in, and go to the boundary a
+        // whole week at a time. There is deliberately no per-session writer
+        // left beside this one: a session-shaped path living next to the
+        // week-shaped one makes the gate optional in practice, since the
+        // guardrail can only judge a week it is handed whole.
         const basePayload = timeSel ? { time: timeSel } : {};
-        for (let w = 0; w < weeks; w++) {
-          for (const dl of dayLines) {
-            if (!dl || dl.rest) continue;
-            const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
-            if (d < start) continue;
-            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+        const rows = [];
+        // `block` is the AUTHORED block this session came from — it carries the
+        // planned-load pair the editor stamped (§3.2a). Never re-derived here.
+        const add = (date, title, description, block, exercises) => rows.push({ date, title, description, block: block || null, exercises: exercises || [] });
+
+        if (isSplit) {
+          for (let w = 0; w < weeks; w++) {
+            for (let i = 0; i < dayLines.length; i++) {
+              const dl = dayLines[i];
+              if (!dl || dl.rest) continue;
+              const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
+              if (d < start) continue;
+              add(d, dl.title, planNote || plan.name, rawBlocks[i]);
+            }
+          }
+        } else if (isWeekBlock) {
+          // One session per week the coach STATED, titled by that week's phase.
+          // The outline's own week numbers drive the schedule (the Weeks stepper
+          // is hidden for this shape — a block's length is intrinsic). Exercises
+          // are empty on purpose: the coach wrote a phase, not movements.
+          for (const u of weekUnits) {
+            const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
+            // ⚠ Find the block that AUTHORED this week rather than trusting
+            // position: bsWeekUnits dedupes and re-sorts, so its index is not
+            // the outline's — pairing by index would hand one week another
+            // week's planned load.
+            const bi = weekLines.findIndex(wl => wl && wl.week === u.week);
+            add(d, u.title || `${plan.name} · Week ${u.week}`, planNote || plan.name, bi >= 0 ? rawBlocks[bi] : null);
+          }
+        } else {
+          // Week labels are never movements — keep them out of the exercise list.
+          const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
+          for (let w = 0; w < weeks; w++) {
+            const d = new Date(start); d.setDate(d.getDate() + w * 7);
+            // No planned-load pair, by design: an exercise block has no length
+            // or effort of its own (the session IS the whole week), so the
+            // editor never offers the row for this shape. The week publishes
+            // unstamped and the core reads `incomplete_week` → `unknown` —
+            // the honest answer, not a fabricated figure.
+            add(d, plan.name, planNote, null, exercises);
           }
         }
-      } else if (isWeekBlock) {
-        // One session per week the coach STATED, titled by that week's phase.
-        // The outline's own week numbers drive the schedule (the Weeks stepper
-        // is hidden for this shape — a block's length is intrinsic). Exercises
-        // are empty on purpose: the coach wrote a phase, not movements.
-        const basePayload = timeSel ? { time: timeSel } : {};
-        for (const u of weekUnits) {
-          const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: u.title || `${plan.name} · Week ${u.week}`, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+
+        if (!rows.length) throw new Error(tr('coach:assign.nothingToPublish', { defaultValue: 'This plan has no sessions to publish' }));
+
+        // Grouping by week and declaring the capture stamp are the two rules
+        // that fail silently, so they live in ONE tested function rather than
+        // in this page: planOutline.mjs `bsAssignWeeks`.
+        const publishes = bsAssignWeeks(rows, basePayload);
+
+        // The seed is the ASSIGNMENT, not the moment it was sent. NUL joins the
+        // parts because it cannot occur inside any of them — a printable
+        // separator lets two different assignments compose the same seed.
+        //
+        // ⚠ The coach is deliberately NOT in the seed. `plan.id` is a row from
+        // the coach's own owner-scoped catalogue, so it already separates two
+        // coaches; and the ledger is keyed (idempotency_key, client_id) with an
+        // explicit cross-coach check, so a genuine collision RAISES rather than
+        // overwriting. Adding an async-resolved identity would be worse than the
+        // problem: a retry before auth resolves would seed differently and mint a
+        // SECOND key — the exact duplicate publish this derivation exists to stop.
+        const seed = [uid, plan.id || plan.name, blocks.join('|'), planNote, bsAssignIso(start), weeks, timeSel].join('\u0000');
+        let landed = 0;
+
+        for (const wk of publishes) {
+          const res = await window.ShapeAssign.week({
+            clientId: uid,
+            weekStartISO: wk.weekStartISO,
+            // Derived from the assignment + this week, so a retry replays.
+            idempotencyKey: bsAssignKey(`${seed}\u0000${wk.weekStartISO}`),
+            ...(wk.capture ? { capture: wk.capture } : {}),
+            ...(ack ? { acknowledgment: ack } : {}),
+            sessions: wk.sessions,
+          });
+
+          if (res && res.stored === 'rejected') {
+            // Held, not failed. Show the boundary's own words and stop — the
+            // weeks already published stay published (their keys make a
+            // re-run a replay), so nothing is lost by stopping here.
+            setBlocked({ weekStartISO: wk.weekStartISO, copy: res.copy || null, reason: res.reason || null, published: landed });
+            // A week held before this one is still held — say so rather than
+            // letting the rejection swallow it.
+            setQueuedWeeks(heldWeeks);
+            setStatus('');
+            return;
+          }
+          if (res && res.stored === 'lost') {
+            throw new Error(tr('coach:assign.notHeld', { defaultValue: "Offline and this device couldn't hold the week — try again" }));
+          }
+          // Only a week the boundary actually took counts as landed. A queued
+          // week is held on THIS DEVICE, and reporting it as published would be
+          // the same false "saved" the old session-shaped writer used to give.
+          if (res && res.stored === 'queued') heldWeeks += 1; else landed += 1;
         }
-      } else {
-        // Week labels are never movements — keep them out of the exercise list.
-        const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
-        const basePayload = timeSel ? { time: timeSel } : {};
-        for (let w = 0; w < weeks; w++) {
-          const d = new Date(start); d.setDate(d.getDate() + w * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises, ...basePayload } });
-        }
+        setQueuedWeeks(heldWeeks);
       }
-      // Tell the client — best-effort, the assignment already landed.
+      // Tell the client — best-effort, the assignment already landed. Skipped
+      // when a week is still held offline: the note would announce a plan that
+      // is not on their Train tab yet.
       try {
-        if (window.ShapeMessages?.getOrCreateMemberConversation) {
+        if (!heldWeeks && window.ShapeMessages?.getOrCreateMemberConversation) {
           const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
           const cid = conv?.data;
           if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: isNutri ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name }) : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name }), metadata: { kind: 'plan_assigned' } });
@@ -3446,9 +3540,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       } catch (e) {}
       setStatus('done');
       // Keep the screen open when a compliance disclaimer was returned so the
-      // coach can read it; they dismiss via the explicit Done button. Otherwise
-      // auto-advance as before.
-      if (!gotDisclaimer) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
+      // coach can read it, or when a week is still held offline so they can
+      // read that too; both are dismissed via the explicit Done button.
+      // Otherwise auto-advance as before.
+      if (!gotDisclaimer && !heldWeeks) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
     } catch (e) { setStatus(String(e?.message || 'error')); }
   };
 
@@ -3566,7 +3661,44 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               </div>
             ) : (
               <>
-                <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                <button onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                {/* A guardrail rejection is HELD, never absorbed: the boundary's
+                    own words, a required reason, and an explicit override. */}
+                {blocked && (
+                  <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                    <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
+                    {blocked.copy && blocked.copy.detail && (
+                      <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
+                    )}
+                    <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                      {tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}
+                      {blocked.published > 0 ? ` · ${tr('coach:assign.guardPublished', { defaultValue: '{count, plural, one {# week already published} other {# weeks already published}}', count: blocked.published })}` : ''}
+                    </div>
+                    <textarea
+                      value={reasonText}
+                      onChange={(e) => setReasonText(e.target.value)}
+                      rows={3}
+                      placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
+                      style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
+                    />
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                    <button
+                      onClick={() => apply({ reasonCode: 'coach_override', reasonText: reasonText.trim() })}
+                      disabled={!reasonText.trim() || working}
+                      style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || working) ? 0.5 : 1 }}
+                    >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
+                    <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+                  </div>
+                )}
+                {/* Offline is not "sent". Say what actually happened — and say
+                    it even when a LATER week was rejected, or the rejection
+                    swallows the fact that earlier work is still on the device.
+                    The count is reset at the start of every run, so a non-zero
+                    value always describes the run the coach just made. */}
+                {queuedWeeks > 0 && (
+                  <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em' }}>{tr('coach:assign.queuedWeeks', { defaultValue: "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet", count: queuedWeeks, name: first })}</div>
+                )}
                 {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
                 <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
                   {uid
@@ -3581,7 +3713,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 {disclaimer}
               </div>
             )}
-            {status === 'done' && disclaimer && (
+            {status === 'done' && (disclaimer || queuedWeeks > 0) && (
               <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:assign.readAck', { defaultValue: 'Read & acknowledged · done' })}</button>
             )}
           </div>

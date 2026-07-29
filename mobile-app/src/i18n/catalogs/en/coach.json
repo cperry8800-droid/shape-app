@@ -913,5 +913,15 @@
   "editor.dowSun": "SUN",
   "editor.dayInheritTitle": "Use the default menu for this day?",
   "editor.dayInheritMsg": "This deletes what you wrote for this day.",
-  "editor.dayInheritConfirm": "Use the default"
+  "editor.dayInheritConfirm": "Use the default",
+  "assign.nothingToPublish": "This plan has no sessions to publish",
+  "assign.notHeld": "Offline and this device couldn't hold the week — try again",
+  "assign.guardChip": "Held for review",
+  "assign.guardLine": "This week was held for review.",
+  "assign.guardWeek": "Week of {date}",
+  "assign.guardPublished": "{count, plural, one {# week already published} other {# weeks already published}}",
+  "assign.guardReasonPlaceholder": "Why is this week right for them?",
+  "assign.guardReasonHint": "Recorded with the week · required to publish",
+  "assign.guardPublishAnyway": "Publish anyway",
+  "assign.queuedWeeks": "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet"
 }

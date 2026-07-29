@@ -913,5 +913,15 @@
   "editor.dowSun": "MIN",
   "editor.dayInheritTitle": "Gunakan menu bawaan untuk hari ini?",
   "editor.dayInheritMsg": "Ini menghapus apa yang Anda tulis untuk hari ini.",
-  "editor.dayInheritConfirm": "Gunakan bawaan"
+  "editor.dayInheritConfirm": "Gunakan bawaan",
+  "assign.nothingToPublish": "Program ini tidak punya sesi untuk diterbitkan",
+  "assign.notHeld": "Offline dan perangkat ini tidak bisa menyimpan minggu itu — coba lagi",
+  "assign.guardChip": "Ditahan untuk ditinjau",
+  "assign.guardLine": "Minggu ini ditahan untuk ditinjau.",
+  "assign.guardWeek": "Minggu {date}",
+  "assign.guardPublished": "{count, plural, other {# minggu sudah diterbitkan}}",
+  "assign.guardReasonPlaceholder": "Kenapa minggu ini cocok untuk dia?",
+  "assign.guardReasonHint": "Tercatat bersama minggu ini · wajib untuk menerbitkan",
+  "assign.guardPublishAnyway": "Tetap terbitkan",
+  "assign.queuedWeeks": "{count, plural, other {# minggu tersimpan di perangkat ini}} — semuanya terbit begitu kamu online lagi, dan {name} belum diberi tahu"
 }
