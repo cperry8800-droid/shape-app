@@ -58,7 +58,7 @@ async function loadModule(reactImpl = React) {
   // `import.meta.env` is Vite's, injected at build; substitute it the same way
   // the bundler does so asset URLs resolve instead of being a syntax error in a
   // CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -764,4 +764,119 @@ test('assign: a HELD week is never counted as published in the rejection panel',
   // ...and the week that IS held must still be reported, not swallowed by the
   // rejection that followed it.
   assert.match(shown, /held on this device/);
+});
+
+// ── Adjust regeneration through the boundary (SPEC-guardrails.md §9.4) ───────
+//
+// The Adjust page gained two hooks and an acknowledgment interstitial. A
+// hook-order fault or a TDZ reference passes parse, tsc, the unit suite AND the
+// bundle build — mounting is the only thing that catches it.
+
+const ADJUST_PROPS = {
+  role: 'trainer',
+  client: { n: 'Marcus Tan' },
+  clientUid: '11111111-2222-4333-8444-555555555555',
+  onBack() {},
+};
+
+/** Answer as the regeneration boundary would, and record what it was sent. */
+function stubAdjust(answer = () => ({ changed: true, gen: 2 })) {
+  const calls = [];
+  const written = [];
+  globalThis.bsAskConfirm = async () => true;
+  globalThis.ShapeAdjustRegen = { apply: async (body) => { calls.push(body); return answer(body, calls.length); } };
+  globalThis.ShapeProgramApi = { get: async () => ({}), set: async (d) => { written.push(d); } };
+  globalThis.ShapeMessages = undefined;
+  globalThis.__bsToast = () => {};
+  return { calls, written };
+}
+
+function driveAdjust(props, reactMod = SHIM_MOD, ctx = CTX) {
+  ctx.cells.length = 0;
+  let tree;
+  const renderOnce = () => { ctx.idx = 0; tree = reactMod.BSProAdjustProgram(props); return tree; };
+  renderOnce();
+  const nodes = () => flatten(tree);
+  const api = {
+    nodes,
+    text: () => nodes().map((n) => textOf(n)).join(' | '),
+    button(match) {
+      return nodes().find((n) => n.type === 'button' && match(textOf(n).trim()));
+    },
+    async click(match) {
+      const btn = api.button(match);
+      if (!btn) throw new Error('no matching button (have: ' + nodes().filter((n) => n.type === 'button').map((n) => JSON.stringify(textOf(n).trim())).join(', ') + ')');
+      await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
+    type(value) {
+      const el = nodes().find((n) => n.type === 'textarea' && n.props.onChange && n.props.placeholder);
+      if (!el) throw new Error('no reason textarea rendered');
+      el.props.onChange({ target: { value } });
+      renderOnce();
+      return api;
+    },
+  };
+  return api;
+}
+
+test('adjust: the page mounts (no TDZ, no hook-order fault, no render throw)', () => {
+  stubAdjust();
+  const out = render(React.createElement(MOD.BSProAdjustProgram, ADJUST_PROPS));
+  assert.equal(out.warnings.length, 0, out.warnings.join('\n'));
+  assert.match(out.html, /Marcus/);
+});
+
+test('adjust: a guardrail rejection is HELD — the program detail is never written', async () => {
+  // The detail + note are what the client actually reads. Writing them over a
+  // regeneration the boundary refused would tell the client their program
+  // changed when not one of their rows moved.
+  const { calls, written } = stubAdjust(() => ({
+    changed: false,
+    rejected: true,
+    blocking: { weekStartISO: '2026-08-03', reason: 'volume_jump', copy: { chip: 'Held for review', line: 'That is a big jump for Marcus.' } },
+  }));
+  const page = driveAdjust(ADJUST_PROPS);
+  await page.click((s) => /Apply & Send/i.test(s));
+
+  assert.equal(calls.length, 1, 'the regeneration was attempted');
+  assert.equal(written.length, 0, 'no program detail was written for a refused regeneration');
+  // The boundary's OWN words reach the coach, not a generic failure.
+  assert.match(page.text(), /Held for review/);
+  assert.match(page.text(), /That is a big jump for Marcus/);
+  // The week line renders, which is the branch gated on `blocked.weekStartISO`.
+  // ⚠ Asserted WITHOUT the date itself: this harness stubs i18n away, so `tr`
+  // returns its defaultValue verbatim and never interpolates `{date}`. Matching
+  // the value here would pin harness behaviour rather than product behaviour.
+  assert.match(page.text(), /Week of/);
+});
+
+test('adjust: the override needs a reason, and sends it as the acknowledgment', async () => {
+  // §10.1 — the reason is what makes the audit row meaningful. An override with
+  // no reason is not an acknowledgment, so the CTA stays disabled.
+  let reject = true;
+  const { calls } = stubAdjust((body) => {
+    if (body.acknowledgment) { reject = false; return { changed: true, gen: 3, audited: true }; }
+    return reject
+      ? { changed: false, rejected: true, blocking: { weekStartISO: '2026-08-03', copy: { line: 'Held.' } } }
+      : { changed: true, gen: 3 };
+  });
+  const page = driveAdjust(ADJUST_PROPS);
+  await page.click((s) => /Apply & Send/i.test(s));
+
+  const before = page.button((s) => /Publish anyway/i.test(s));
+  assert.ok(before, 'the override CTA is offered');
+  assert.equal(before.props.disabled, true, 'disabled until a reason is typed');
+
+  page.type('Planned overreach before a deload.');
+  const after = page.button((s) => /Publish anyway/i.test(s));
+  assert.equal(after.props.disabled, false, 'enabled once a reason exists');
+
+  await page.click((s) => /Publish anyway/i.test(s));
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].acknowledgment, {
+    reasonCode: 'coach_override',
+    reasonText: 'Planned overreach before a deload.',
+  });
 });

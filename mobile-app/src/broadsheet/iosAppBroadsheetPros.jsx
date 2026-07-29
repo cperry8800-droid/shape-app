@@ -2938,6 +2938,11 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   // Shared
   const [noteText, setNoteText] = useStateBSP(null);
   const [status, setStatus] = useStateBSP('');
+  // A guardrail rejection is an ANSWER, not an error (SPEC-guardrails.md §9.4):
+  // held here with the boundary's own words so the coach can read the reason
+  // and decide. Nothing else in the Apply runs while a regeneration is blocked.
+  const [blocked, setBlocked] = useStateBSP(null); // {weekStartISO, copy, reason}
+  const [reasonText, setReasonText] = useStateBSP('');
   const DOW = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
   // Seed the controls from the last-applied adjustment so reopening the page
@@ -2987,7 +2992,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     ? tr('coach:adjust.noteNutri', { defaultValue: 'Updated your plan to {calories} kcal — {protein}g protein, {carbs}g carbs, {fat}g fat across {meals} meals.{refeed} New targets are live in your Eat tab.', calories, protein, carbs, fat, meals, refeed: refeed ? tr('coach:adjust.noteRefeed', { defaultValue: ' Keeping the weekend refeed to support training.' }) : '' })
     : tr('coach:adjust.noteTrainer', { defaultValue: 'Adjusting your block: {sessions}×/week, {verb}. Focus stays on {focus}. Check the updated split in your Train tab.', sessions, verb, focus: focusLabel });
   const body = noteText == null ? autoNote : noteText;
-  const apply = async (notify) => {
+  const apply = async (notify, ack) => {
     const who = (client && (client.n || client.name)) || tr('coach:common.thisClient', { defaultValue: 'this client' });
     if (!(await window.bsAskConfirm({
       title: isNutri ? tr('coach:adjust.confirmTitleNutri', { defaultValue: 'Update nutrition targets?' }) : tr('coach:adjust.confirmTitleTrainer', { defaultValue: 'Update training program?' }),
@@ -3006,7 +3011,22 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       //     it degrades to the detail+note behavior below.
       let regenGen = null;
       if (!isNutri && clientUid && window.ShapeAdjustRegen?.apply) {
-        const regen = await window.ShapeAdjustRegen.apply({ clientId: clientUid, adjustment: { intensity, sessions, weeks, days } });
+        const regen = await window.ShapeAdjustRegen.apply({
+          clientId: clientUid,
+          adjustment: { intensity, sessions, weeks, days },
+          acknowledgment: ack || null,
+        });
+        // ⚠ A GUARDRAIL REJECTION STOPS THE WHOLE APPLY — it must not fall
+        // through to the detail/note writes below. Those are what the client
+        // actually reads, so persisting them over a regeneration the boundary
+        // refused would tell the client their program changed when not one of
+        // their rows moved. Held, surfaced, and never absorbed into a success.
+        if (regen?.rejected) {
+          setBlocked(regen.blocking || null);
+          setStatus('');
+          return;
+        }
+        setBlocked(null);
         // Keep the generation whenever the regeneration path ran (changed OR
         // a no-op re-apply returning the CURRENT gen) so the display guard
         // never lapses on already-baked rows; only the degraded
@@ -3141,6 +3161,41 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
               {cta(sendLabel, () => apply(false))}
               {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10)}
             </div>
+            {/* The guardrail's own words, a REQUIRED reason, and an explicit
+                override — the same acknowledgment path §9.4 gives a
+                hand-authored week, because a regenerated one is judged on
+                exactly the same terms.
+
+                ⚠ The `coach:assign.guard*` keys are reused DELIBERATELY. This is
+                one concept with one wording, and forking it into a second key
+                set would let the two gated surfaces drift into describing the
+                same refusal differently — in 13 locales. */}
+            {blocked && (
+              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
+                {blocked.copy && blocked.copy.detail && (
+                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
+                )}
+                {blocked.weekStartISO && (
+                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}</div>
+                )}
+                <textarea
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  rows={3}
+                  placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
+                />
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                <button
+                  onClick={() => apply(false, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
+                  disabled={!reasonText.trim() || status === 'saving'}
+                  style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
+                >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
+                <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+              </div>
+            )}
             {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
             {clientUid
               ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>

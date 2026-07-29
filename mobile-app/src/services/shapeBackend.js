@@ -6,7 +6,6 @@ import { registerPush } from './push.js';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
-import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
@@ -5780,45 +5779,58 @@ async function coachReferralLink(role, providerId) {
 }
 window.ShapeReferrals = { forClient: coachReferralForClient, link: coachReferralLink };
 
-// ─── Adjust → full program regeneration (spec #1707) ─────────────────────────
+// ─── Adjust → full program regeneration (spec #1707, gated by §9.4) ──────────
 // On the coach Adjust page's Apply, the trainer's adjustment rewrites the
 // client's REAL upcoming rows so every surface reads the same adjusted plan.
-// The pure planner (adjustRegen.mjs) decides WHAT changes; the transactional
-// regenerate_client_workouts RPC applies it atomically (never both plans,
-// never zero). Pre-migration (RPC absent) this degrades to detail+note only.
-async function applyAdjustRegeneration({ clientId, adjustment } = {}) {
-  if (!supabase || !state.user?.id || !clientId) return { changed: false, degraded: true };
-  // Next generation from the client's program record (coach-readable).
-  let gen = 1;
-  try {
-    const { data } = await supabase.from('client_programs').select('detail').eq('user_id', clientId).maybeSingle();
-    gen = (Number(data?.detail?.training?.gen) || 0) + 1;
-  } catch (e) { /* first generation */ }
-  // RLS scopes this read to the caller's own authored rows for this client.
-  const { data: rows, error: readErr } = await supabase
-    .from('client_workouts')
-    .select('id, title, description, kind, payload, playlist_id, scheduled_date')
-    .eq('client_id', clientId)
-    .not('trainer_id', 'is', null)
-    .eq('status', 'published')
-    .limit(400);
-  if (readErr) throw readErr;
-  // UTC date — matches the RPC's strictly-future validation basis.
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const plan = bsAdjustRegen({ rows: rows || [], adjustment, todayISO, gen });
-  if (!plan.changed) return { changed: false, gen: gen - 1 };
-  const { data, error } = await supabase.rpc('regenerate_client_workouts', {
-    p_client_id: clientId,
-    p_delete_ids: plan.deleteIds,
-    p_inserts: plan.inserts,
-    p_repeat_patches: plan.repeatPatches,
+//
+// ⚠ THE PLANNING AND THE WRITE BOTH MOVED TO THE SERVER. This used to read the
+// client's rows, run the pure planner here, and call regenerate_client_workouts
+// directly — the last ungated coach training write path. §9.4 gates it because
+// a regeneration changes week COMPOSITION, which can move a week across a
+// regime boundary with nobody looking at the result.
+//
+// It is NOT a loop of week-publishes: the RPC's single transaction is a real
+// safety property ("never both plans, never zero"). The route evaluates every
+// affected week first and writes once, so a red week refuses the whole
+// regeneration rather than half-applying it.
+//
+// The planner still exists and is still the authority on WHAT changes — it
+// simply runs inside POST /api/trainer/adjust now, over rows read under the
+// coach's own RLS. Sending a plan from here would let any signed-in coach post
+// arbitrary rows and have the guardrail bless them.
+async function applyAdjustRegeneration({ clientId, adjustment, acknowledgment } = {}) {
+  if (!clientId || !adjustment) return { changed: false, degraded: true };
+  const res = await fetch(`${apiBaseUrl || ''}/api/trainer/adjust`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ clientId, adjustment, acknowledgment: acknowledgment || null }),
   });
-  if (error) {
-    // RPC not deployed yet — honest degrade to today's detail+note behavior.
-    if (error.code === 'PGRST202' || error.code === '42883') return { changed: false, degraded: true };
-    throw error;
+  let d = {};
+  try { d = await res.json(); } catch (e) { /* a body-less error still has a status */ }
+
+  // Pre-migration, or PostgREST's schema cache still reloading after the
+  // drop-and-recreate: the ack-carrying signature is not callable yet. Honest
+  // degrade to today's detail+note behaviour rather than claiming a
+  // regeneration that did not happen.
+  if (res.status === 503 && d.degraded) return { changed: false, degraded: true };
+
+  // A guardrail REJECTION is an answer, not a failure — returned so the coach
+  // sees the reason and the acknowledgment path, never thrown and never
+  // absorbed into a success.
+  if (res.status === 409 && d.blocking) {
+    return { changed: false, rejected: true, blocking: d.blocking, weeks: d.weeks || [] };
   }
-  return { changed: true, gen, capped: !!plan.capped, result: data || null };
+
+  if (!res.ok) throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
+  return {
+    changed: !!d.changed,
+    gen: d.gen,
+    capped: !!d.capped,
+    audited: !!d.audited,
+    weeks: d.weeks || [],
+    result: d.applied || null,
+  };
 }
 window.ShapeAdjustRegen = { apply: applyAdjustRegeneration };
 

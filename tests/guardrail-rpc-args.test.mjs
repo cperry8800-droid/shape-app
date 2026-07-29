@@ -23,11 +23,17 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATIONS = [
   'supabase-migrations/2026-07-27-guardrail-load-history.sql',
   'supabase-migrations/2026-07-29-guardrail-week-publish.sql',
+  'supabase-migrations/2026-07-30-adjust-regeneration-ack.sql',
 ];
-// Both guardrail RPC calls live in the shared publisher; the routes above it
-// only orchestrate. When they moved here the 'checked >= 2' floor below
-// caught it rather than letting the guard pass on zero calls.
-const CALLERS = ['src/lib/week-publish-server.ts'];
+// The week/session RPC calls live in the shared publisher; the routes above it
+// only orchestrate. When they moved there the 'checked' floor below caught it
+// rather than letting the guard pass on zero calls.
+const PUBLISHER = 'src/lib/week-publish-server.ts';
+// Adjust does NOT publish through the week boundary — its atomicity is a real
+// safety property — so it calls the load history and the regeneration RPC
+// itself, and needs its own coverage here.
+const ADJUST = 'src/app/api/trainer/adjust/route.ts';
+const CALLERS = [PUBLISHER, ADJUST];
 
 /** name -> Set(declared parameter names), from `create [or replace] function`. */
 function declaredParams(sql) {
@@ -88,6 +94,11 @@ test('the guardrail migrations declare the functions the routes call', () => {
   assert.ok(DECLARED.has('get_client_load_history'), 'load-history migration parsed');
   assert.ok(DECLARED.has('publish_client_week'), 'week-publish migration parsed');
   assert.ok(DECLARED.get('publish_client_week').size >= 6, 'publish params parsed');
+  // The regeneration RPC is DROPPED and recreated (a fifth defaulted parameter
+  // is a new signature, not a replacement), so the parser must match a bare
+  // `create function` too — not only `create or replace`.
+  assert.ok(DECLARED.has('regenerate_client_workouts'), 'adjust-ack migration parsed');
+  assert.ok(DECLARED.get('regenerate_client_workouts').has('p_ack'), 'the recreate carries p_ack');
 });
 
 test('every RPC argument a guardrail route sends is a declared parameter', () => {
@@ -106,25 +117,52 @@ test('every RPC argument a guardrail route sends is a declared parameter', () =>
       }
     }
   }
-  assert.ok(checked >= 2, `expected to check both guardrail RPC calls, checked ${checked}`);
+  // The floor rises with every gated caller. Without it the loop passes
+  // vacuously on zero matched calls — which is exactly how this guard would
+  // have gone quiet when the publisher was extracted.
+  assert.ok(checked >= 4, `expected to check every guardrail RPC call, checked ${checked}`);
 });
 
 test('the load-history call names the client parameter the migration declares', () => {
-  // The exact regression, pinned by name so the intent survives a refactor.
-  const src = readFileSync(join(ROOT, CALLERS[0]), 'utf8');
-  const call = rpcCalls(src).find((c) => c.fn === 'get_client_load_history');
-  assert.ok(call, 'the publisher still reads the load history');
-  assert.deepEqual(call.keys, ['p_client_id']);
-  assert.ok(!call.keys.includes('p_user_id'), 'p_user_id does not resolve against this function');
+  // The exact regression, pinned by name so the intent survives a refactor —
+  // and pinned on BOTH readers, since each calls the RPC independently.
+  for (const file of [PUBLISHER, ADJUST]) {
+    const src = readFileSync(join(ROOT, file), 'utf8');
+    const call = rpcCalls(src).find((c) => c.fn === 'get_client_load_history');
+    assert.ok(call, `${file} still reads the load history`);
+    assert.deepEqual(call.keys, ['p_client_id'], `${file} names p_client_id`);
+    assert.ok(!call.keys.includes('p_user_id'), 'p_user_id does not resolve against this function');
+  }
 });
 
 test('publish_client_week is called with its full required argument set', () => {
   // `p_rows` and `p_ack` carry defaults; the first six do not, and omitting one
   // fails at the database rather than at any gate in this repo.
-  const src = readFileSync(join(ROOT, CALLERS[0]), 'utf8');
+  const src = readFileSync(join(ROOT, PUBLISHER), 'utf8');
   const call = rpcCalls(src).find((c) => c.fn === 'publish_client_week');
   assert.ok(call, 'the route still publishes through the boundary');
   for (const required of ['p_coach_user_id', 'p_idempotency_key', 'p_client_id', 'p_week_start', 'p_request_hash', 'p_outcome']) {
     assert.ok(call.keys.includes(required), `publish_client_week needs ${required}`);
   }
+});
+
+test('the adjust route sends the regeneration its full argument set, p_ack included', () => {
+  // §10.1: the acknowledgment must ride INSIDE the regeneration transaction.
+  // Dropping `p_ack` at the call site is invisible to every other gate — the
+  // RPC would default it to null and simply write no audit row, so an
+  // overridden red would land with no record that anyone overrode it.
+  const src = readFileSync(join(ROOT, ADJUST), 'utf8');
+  const call = rpcCalls(src).find((c) => c.fn === 'regenerate_client_workouts');
+  assert.ok(call, 'the adjust route still applies through the atomic RPC');
+  for (const required of ['p_client_id', 'p_delete_ids', 'p_inserts', 'p_repeat_patches', 'p_ack']) {
+    assert.ok(call.keys.includes(required), `regenerate_client_workouts needs ${required}`);
+  }
+});
+
+test('the adjust route does NOT call publish_client_week — its atomicity is the point', () => {
+  // Looping week-publishes would forfeit "never both plans, never zero" and can
+  // strand a client between two programs. If this ever starts failing, the
+  // regeneration was quietly re-shaped into N publishes.
+  const src = readFileSync(join(ROOT, ADJUST), 'utf8');
+  assert.equal(rpcCalls(src).some((c) => c.fn === 'publish_client_week'), false);
 });
