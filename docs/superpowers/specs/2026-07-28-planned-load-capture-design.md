@@ -21,7 +21,7 @@ hops without dying, and what the core does when they are absent.
 | session row | `payload.plannedRpe` | number 1–10, half-points allowed | the coach picks an effort |
 | session row | `payload.loadCapture` | `'per_session' \| 'per_plan'` | the builder collected the pair |
 | session row | `payload.adjustMode` | `'deload' \| 'maintain' \| 'progress'` | Adjust regenerates, beside `adjustGen` — **provenance only**; its one reader is the `guardrail_evaluated` telemetry dimension (§5.2) |
-| week object | `capture` | `'per_session'` | the builder submits the week to the gate |
+| week object | `capture` | `'per_session' \| 'per_plan'` | the builder submits the week to the gate |
 
 **Capture is PER SESSION.** A plan-level pair was proposed and rejected: it makes
 share-of-week exactly `1/n` for every plan, so `share_of_week` can never cross
@@ -216,9 +216,17 @@ return s.replace(/\d+(?:\.\d+)?/, (n) => { … Number(n) * scale … });
 | `maintain` | 1 | nothing — early return | **no-op** |
 | `progress` | 1.025 | first number of each load string | **no-op** |
 
-**All three are no-ops in sRPE terms**: none changes `plannedMinutes`,
-`plannedRpe`, sets, or session count. Confirmed by running all three over a row
-carrying the pair — minutes, effort, sets and reps returned byte-identical.
+**All three are no-ops in sRPE terms — on each TRANSFORMED ROW**: none changes
+`plannedMinutes`, `plannedRpe`, `sets` or `reps`. Confirmed by running all three
+over a row carrying the pair; every one of those fields returned byte-identical.
+
+⚠ **The week's shape is a different question and IS mutable.** `bsAdjustRegen`
+also consumes `adjustment.sessions`, `days` and `weeks`, so a regeneration can
+change **how many sessions the week contains and how far forward they
+replicate**. That is why the path is gated (spec §9.4) — session count moves a
+week across the core's regime boundaries (`BS_SHARE_MIN_SESSIONS` and
+`BS_COMPOUND_MIN_SESSIONS` both sit at 3). The no-op claim covers the per-row
+intensity transform only.
 
 **So a regenerated week is scored on its own captured pairs, exactly like an
 authored one.** No bound, no ceiling, no derived figure.
@@ -250,7 +258,7 @@ dropped the field goes with it. No field is written and never read.
    `{ deload: 0.85, maintain: 1, progress: 1.025 }` and `bsScaleLoad` rewrites
    the first number in a free-text load string (`"135 lb"` → `"115 lb"`).
    Duration and effort are untouched anywhere in the module, so all three modes
-   are **no-ops in sRPE terms**. **What makes the highest-risk path scoreable is
+   are **no-ops in sRPE terms**. **What makes the Adjust path scoreable is
    PER-SESSION CAPTURE (§3.2a), not a bound** — `emit()` spreads the row's
    payload forward, so the coach's authored pair rides through the regeneration
    intact and the regenerated week is scored on that pair directly.
@@ -260,9 +268,14 @@ dropped the field goes with it. No field is written and never read.
 intensity" and progress "add a set to main lifts and nudge top-set loads. Keep
 RPE ≤ 8". The transform is a 15% load cut and a 2.5% load bump, with no set
 addition and no RPE change. The `progress` ceiling is a coach-facing **promise**,
-not a measured property of the transform. It is still the right number to bound
-against — it is what the coach was told — but the mismatch is registered rather
-than resolved silently, and it is the copy or the constants that should move.
+not a measured property of the transform.
+
+⚠ **It is NOT a number to bound against** (this paragraph said the opposite until
+2026-07-29 — see §5.2 and spec §13.15). There is no Adjust bound: the ceiling was
+deleted once all three modes proved to be sRPE no-ops, so nothing here may be
+read as licence to reintroduce `max(authored, ceiling)`. What survives is the
+**mismatch itself**, registered rather than resolved silently — it is the copy or
+the constants that should move.
 
 ---
 

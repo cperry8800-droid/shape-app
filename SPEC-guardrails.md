@@ -313,9 +313,19 @@ return s.replace(/\d+(?:\.\d+)?/, (n) => { … Number(n) * scale … });
 | `maintain` | 1 | nothing; the early return hands the string back | **none — no-op** |
 | `progress` | 1.025 | the first number in each load string | **none — no-op** |
 
-**All three are no-ops in sRPE terms.** No mode changes `plannedMinutes`,
-`plannedRpe`, sets, or session count. Verified by running all three over a row
-carrying the pair: minutes, effort, sets and reps came back byte-identical.
+**All three are no-ops in sRPE terms — at the level of a TRANSFORMED ROW.** No
+mode changes `plannedMinutes`, `plannedRpe`, `sets` or `reps` on the rows it
+rewrites. Verified by running all three over a row carrying the pair: every one
+of those fields came back byte-identical.
+
+⚠ **The WEEK's shape is a separate question, and it IS mutable.** `bsAdjustRegen`
+also consumes `adjustment.sessions`, `days` and `weeks` — it caps the training
+weekdays, deletes rows falling outside the map, and replicates the last adjusted
+week to the horizon. **A regeneration can therefore change how many sessions the
+week contains**, which is precisely why the path is gated (§9.4). The no-op claim
+above is about the per-row intensity transform ONLY; it is not a claim that a
+regenerated week resembles the one it replaced, and an implementer must not read
+it as permission to skip evaluating regenerated weeks.
 
 **A regenerated week is scored on its own captured pairs, exactly like an
 authored one.** `emit()` spreads the row's payload forward, so the pair the coach
@@ -951,21 +961,34 @@ correct, and it must satisfy all four:
 Without (1)–(4) the queue work hits the same wall on the far side of the
 boundary, and the split will have bought nothing.
 
-**Adjust regeneration is the HIGHEST-risk path, not a secondary one — but not for
-the reason first written here (CORRECTED 2026-07-29, see §13.15).** It does NOT
-rescale this metric: the intensity setting edits free-text weight strings, which
-sRPE never reads. What it does change is **how many sessions are in the week and
-how far forward they replicate** — `adjustment.sessions` caps the training
-weekdays, rows falling outside that map are deleted, and the last adjusted week
-is repeated to the horizon. Session count multiplies weekly volume directly, so a
-regeneration from 3 sessions to 5 raises the week's planned load by two thirds,
-and the guardrail sees all of it. Add the republish case — an already-oversized
-week reissued unexamined — and the path is **automated**, so no human looked at
-the result at the moment of change. A coach hand-building a hot week at least saw
-it. Gating the manual path while leaving regeneration open inverts the risk
-ordering. **It evaluates the regenerated week as a FRESH proposal against the
-client's history, never a delta:** the guardrail's question is always *"is this
-week too big for this client"*, regardless of how the week came to be.
+**Adjust regeneration is gated because it changes week COMPOSITION** (premise
+CORRECTED twice — see §13.15; the earlier "highest-risk path" and "session count
+multiplies weekly volume" framings were both wrong).
+
+⚠ **The load-magnitude argument does not survive its own arithmetic.** Cutting a
+week from 5 sessions to 3 takes it from 2100 AU to 1260 AU — a **decrease** — and
+**F57 never flags a decrease**. So "regeneration can raise weekly load" is not a
+reason to gate: in the direction the session control is actually used, there is
+nothing to flag. And we cannot support a **risk ordering** between this path and
+a hand-built week; nothing measures that.
+
+**The real reason is that session count moves the EVALUATION, not just the
+total.** Both of the core's session-count thresholds sit at 3:
+
+- **`BS_SHARE_MIN_SESSIONS = 3`** — the share-of-week check only runs at 3+
+  sessions, so dropping to 2 silently removes that check from the week.
+- **`BS_COMPOUND_MIN_SESSIONS = 3`** — the compound-red path is **unreachable**
+  below 3 sessions.
+
+A regeneration can therefore move a week **across a regime boundary** — changing
+which axes are evaluable and which red paths can fire — without any human looking
+at the result. That is what an ungated regeneration hides, and it is invisible in
+the total.
+
+**Plus the republish case:** an already-oversized week can be reissued through
+Adjust unexamined. **The gate evaluates the regenerated week as a FRESH proposal
+against the client's history, never a delta:** the guardrail's question is always
+*"is this week too big for this client"*, regardless of how the week came to be.
 
 **The mobile gap's failure mode is worse than having no feature.** A coach on
 their phone would watch programs publish clean and conclude the guardrail passed
@@ -1877,7 +1900,7 @@ asymmetry lives in the inputs, not in the check.
 
 ### 13.15 Why there is no Adjust bound — the full arc
 
-Someone will ask why the highest-risk path carries no bound. This is the chain,
+Someone will ask why the Adjust path carries no bound. This is the chain,
 in the order it happened, because each step is only defensible in light of the
 one before it.
 
@@ -1929,9 +1952,12 @@ path scoreable**, not a bound.
    reading one mode. Reading the other two dissolved the mechanism entirely — a
    partial audit produced a defensible-but-wrong answer twice in a row.
 
-**The path is still gated (§9.4)** — for the real reason: Adjust changes **how
-many sessions are in the week** and how far forward they replicate, and it
-republishes unexamined. Those move weekly load; intensity does not.
+**The path is still gated (§9.4)** — for the real reason, which took its own
+correction: **not** because regeneration raises weekly load (cutting 5 sessions
+to 3 *lowers* it, and F57 never flags a decrease), but because changing the
+session count moves a week **across the core's regime boundaries** — both
+`BS_SHARE_MIN_SESSIONS` and `BS_COMPOUND_MIN_SESSIONS` sit at 3 — altering which
+axes are evaluable and which red paths can fire. Plus the republish case.
 
 **Reinstate only if the transform changes.** If Adjust is ever made to do what
 its copy promises — add a set, push RPE toward 8 — it starts writing fields sRPE
