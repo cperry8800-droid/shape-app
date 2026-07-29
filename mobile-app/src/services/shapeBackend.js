@@ -463,6 +463,7 @@ async function getCurrentSession() {
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { bsDrainAssignments(); } catch (e) {} } // publish any week held offline (no-op when the queue is empty)
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
@@ -1537,6 +1538,46 @@ async function assignClientWeek(body) {
  * identical boundary, and the server's idempotency key decides whether it is a
  * new publish or an already-delivered one.
  */
+// ⚠ A QUEUE NOTHING DRAINS IS NOT A QUEUE.
+//
+// `drainAssignmentQueue` was written, exported, and never called from anywhere.
+// So a week held offline was held FOREVER: it sat in localStorage until it aged
+// out of the prune window and vanished — while the coach had been told, in those
+// words, that it was queued and would publish. That is the failure this whole
+// path exists to prevent, reproduced one level up.
+//
+// Wired to the two moments connectivity can actually return: a resolved session
+// (app open, re-auth, foreground) and the platform's own `online` event.
+let bsDrainInFlight = null;
+
+/**
+ * Drain held weeks — at most one drain at a time, never throwing at the caller.
+ *
+ * Serialized because two overlapping drains would post the same held weeks
+ * twice. The idempotency key makes that harmless at the server (the second is
+ * `already_delivered`), but it would still burn a round trip per held week and
+ * make the counts this returns lie.
+ */
+function bsDrainAssignments() {
+  if (bsDrainInFlight) return bsDrainInFlight;
+  // The drain publishes as the signed-in coach; with no session there is nobody
+  // to publish as, and the held week keeps waiting.
+  if (!state.user || !state.user.id) return Promise.resolve({ sent: 0, rejections: [], held: [] });
+  bsDrainInFlight = drainAssignmentQueue()
+    .catch((e) => {
+      // A failed drain must never surface as an app error: the week is still
+      // held, and the next trigger tries again.
+      console.error('[shape] assignment drain:', e);
+      return { sent: 0, rejections: [], held: [] };
+    })
+    .finally(() => { bsDrainInFlight = null; });
+  return bsDrainInFlight;
+}
+
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('online', () => { try { bsDrainAssignments(); } catch (e) {} });
+}
+
 async function drainAssignmentQueue() {
   const started = bsPruneQueue(readAssignQueue(), { now: Date.now() }).kept;
   if (!started.length) return { sent: 0, rejections: [], held: [] };
@@ -3916,7 +3957,7 @@ window.ShapeAssign = {
   // `workout` entry is deliberately GONE: leaving a session-shaped path live
   // beside the week-shaped one makes the gate optional in practice (§9.4).
   week: assignClientWeek,
-  drain: drainAssignmentQueue,
+  drain: bsDrainAssignments,
   mealPlan: assignClientMealPlan,
 };
 

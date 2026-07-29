@@ -1097,6 +1097,81 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-29 — Progression guardrails Deploy 2b: the week-shaped publish boundary (#1848)
+
+- **Every coach training write now passes one evaluated door.** SPEC-guardrails §9.4:
+  the guardrail judges a whole client-week, so the week — not the session — is the unit
+  that gets written. `publish_client_week` claims an idempotency key, replaces the
+  coach's own future rows in the target week, inserts the submitted sessions and writes
+  the acknowledgment, **all in one transaction**: there is no publish without its audit
+  entry.
+- ⚠ **THREE OWNER MIGRATIONS, in this order:** `2026-07-29-guardrail-week-publish.sql`
+  (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied**)
+  → `2026-07-30-week-publish-precondition.sql`. The third **drops the eight-argument
+  `publish_client_week`**; leaving both overloads would make every publish ambiguous
+  under PostgREST, since an eight-argument call matches both once the ninth defaults.
+- ⚠ **THE GRANT WAS THE WHOLE GATE.** `regenerate_client_workouts` shipped granted to
+  `authenticated` while reading `auth.uid()`. SECURITY DEFINER bypasses RLS, so a
+  signed-in trainer could call it directly with arbitrary inserts and skip the
+  evaluation entirely (CWE-862). Now `service_role` only, with the coach passed as
+  `p_coach_user_id` and re-verified in-body. Two consequences the fix forced: the
+  discipline check **cannot** delegate to `is_discipline_coach_on_client` — it reads
+  `auth.uid()`, which is NULL on a service-role connection, so it would fail **OPEN** —
+  and the trainer row now resolves from the subscription that grants access rather than
+  `limit 1` over owned rows.
+- ⚠ **A WEEK-REPLACE OVER A READ-MERGE IS A LOST-UPDATE RACE.** A session-shaped caller
+  cannot send a whole week, so it reads the week, folds its session in, and publishes the
+  merge. Two of those interleave into silent data loss — both read the same week, both
+  publish a different merge, the later replace deletes the earlier one's session — and
+  **nothing existing could see it**: both keys are content-derived so the ledger sees two
+  legitimate publishes, both callers are the same authorized coach, and the loss lands
+  *after* the first write. A lock cannot span the two round trips on a pooled connection,
+  so the RPC takes a precondition (`p_expected_row_ids`, the ids the caller read) and the
+  route restarts **from the read** — which re-evaluates the guardrail against the week
+  actually about to be written. `NULL` = no precondition.
+- ⚠ **NEVER HAND THE BOUNDARY ONLY THE SESSIONS BEING ASSIGNED.** Both surfaces made this
+  mistake independently. The web builder posted one session per day (36 publishes for a
+  12-week program, wrecking §10.2's flag-rate denominators); the mobile Assign page
+  published a program's sessions straight into the replacing boundary, so a coach with a
+  Saturday conditioning day who then assigned a 3-day program **lost the Saturday** —
+  silently, and was told the assignment landed. It also judged a week missing that load,
+  i.e. **permissively**. The read-merge, the precondition and the retry now live in ONE
+  `publishMergedWeekForClient()` that both routes call, pinned by a test that fails if
+  either calls the unmerged publisher.
+- **The merge owns the capture stamp, not the caller.** A carried session with no captured
+  pair makes the whole week honestly `incomplete_week`; letting a caller's `per_session`
+  claim ride over the merged week would declare a hole-free week that has a hole — F158,
+  the malformed case that switches the guardrail **off**. Degrades safe: `unknown` never
+  blocks a publish.
+- **One publish is one message.** `notify_on_client_workout` fires per inserted ROW, and a
+  week-replace re-inserts everything it carried — so assigning one session into a week
+  holding three sent the client **four** "New workout from your coach" pushes, three for
+  sessions they were told about days ago. Same remedy as the Adjust regeneration: quiet
+  the per-row trigger with the transaction-local `shape.adjust_regen` GUC, emit one
+  summary.
+- ⚠ **A QUEUE NOTHING DRAINS IS NOT A QUEUE.** `drainAssignmentQueue` was written,
+  exported, and never called — so a week held offline was held forever, aging out of the
+  prune window while the coach had been told it would publish. Now wired to the two
+  moments connectivity returns: a resolved session and the platform `online` event,
+  serialized so two drains cannot double-post.
+- ⚠ **RLS DOES NOT REFUSE A DIRECT COACH INSERT** — a comment in `shapeBackend.js` claimed
+  it did, which is exactly the false assurance the guardrail doctrine warns against.
+  `trainer_insert_on_client_workouts` still grants INSERT to `authenticated`. What changed
+  is that the mobile path stops taking it. **Locking the policy down is deliberately NOT
+  done here**, and the reason matters: `publishClientWorkout` (`public/supabase.js:499`,
+  the website's "Publish & Send to Client") is a live unevaluated insert that creates
+  **undated** workouts, and the evaluated boundary refuses an undated session by name — an
+  undated row has no week, so there is no load to judge and no week to publish into.
+  Closing it needs a product call (give that flow a date, or carve out undated coach rows
+  and reopen the hole), not an implementation.
+- **Process:** the security fix above was **reported as done, in prose and in the PR body,
+  before the file had been edited**. Codex caught it as a live P1. The lesson is recorded
+  rather than smoothed over: a claim about a security posture is worth nothing until the
+  diff is read back.
+- Verified: **1325 tests**, `tsc --noEmit` clean, CI green (Web · Mobile · gitleaks),
+  every guard mutation-checked. Open: the third migration, the reviewers on the final
+  head, and the RLS lockout above.
+
 ### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)
 
 - **New admin-only `/console`** (spec
