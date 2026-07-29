@@ -172,6 +172,30 @@ test('the publish carries the concurrency precondition end to end', () => {
   assert.ok(call.keys.includes('p_expected_row_ids'), 'the publisher sends the precondition');
 });
 
+test('every coach training route publishes through the MERGING door', () => {
+  // The boundary REPLACES a client-week. A route that hands it only the sessions
+  // being assigned therefore DELETES every other session the coach had scheduled
+  // that week — silent data loss on the most ordinary action in the product —
+  // and hands the guardrail a week missing that load, so the verdict comes out
+  // wrong in the permissive direction.
+  //
+  // Both surfaces shipped exactly that bug, independently, which is why this is
+  // pinned rather than written down: calling the unmerged publisher compiles,
+  // typechecks and passes every other gate.
+  for (const file of ['src/app/api/trainer/week/route.ts', 'src/app/api/trainer/workout/route.ts']) {
+    const src = readFileSync(join(ROOT, file), 'utf8');
+    assert.ok(
+      src.includes('publishMergedWeekForClient'),
+      `${file} must publish through the read-merge path`,
+    );
+    assert.doesNotMatch(
+      src,
+      /\bpublishWeekForClient\s*\(/,
+      `${file} calls the UNMERGED publisher directly — that replaces the client's week`,
+    );
+  }
+});
+
 test('the precondition migration leaves exactly one publish_client_week overload', () => {
   // PostgREST resolves an overload by the argument names supplied, and an
   // eight-argument call matches BOTH candidates once the ninth defaults. Leaving

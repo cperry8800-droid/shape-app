@@ -10,8 +10,9 @@
 // (`week-publish.mjs`, `guardrail-gate.mjs`, the core). What is here is the
 // order of operations: read history, judge, gate, write atomically, record.
 
-import { weekRequestHash, toProposedWeek, toWorkoutRows } from '@/lib/week-publish.mjs';
+import { weekRequestHash, toProposedWeek, toWorkoutRows, normalizeWeekRequest } from '@/lib/week-publish.mjs';
 import type { PublishWeek } from '@/lib/week-publish.mjs';
+import { bsMergeWeekSessions } from '@/lib/week-merge.mjs';
 import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/guardrail-gate.mjs';
 import { bsProgressionGuardrail, bsGuardrailCopy } from '../../public/newdesign/progressionGuardrail.mjs';
 
@@ -203,5 +204,139 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
     inserted: pub.inserted ?? 0,
     replaced: pub.replaced ?? 0,
     ...outcome,
+  };
+}
+
+/** `YYYY-MM-DD` + n days, calendar arithmetic only. */
+function addDays(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** The bits of a Supabase client used for the existing-week read. */
+type Db = { from: (table: string) => any };
+
+export type MergePublishArgs = {
+  /** The CALLER's RLS-scoped client — the week read, history and telemetry. */
+  supabase: Rpc & Db;
+  /** Service-role client — the publish RPC only. */
+  admin: Rpc;
+  coachUserId: string;
+  /** The caller's own trainer row. The merge only ever carries THIS coach's work. */
+  trainerId: unknown;
+  clientId: string;
+  weekStartISO: string;
+  /** Publish-shaped sessions the caller wants added to the week. */
+  incoming: readonly unknown[];
+  todayISO: string;
+  /**
+   * The request's idempotency key. Called PER ATTEMPT with that attempt's merged
+   * sessions, so a caller can either return its own authoring-time key unchanged
+   * or derive one from the resolved content — the two routes want different
+   * things and neither should be guessed at here.
+   */
+  mintKey: (mergedSessions: unknown[]) => string;
+  acknowledgment?: unknown;
+  adjustMode?: unknown;
+};
+
+/**
+ * Read the client-week, fold `incoming` into it, and publish the whole thing —
+ * retrying from the read if the week moves underneath.
+ *
+ * ⚠ WHY EVERY CALLER MUST COME THROUGH HERE. The boundary REPLACES a client-week
+ * (§9.4), so handing it only the sessions being assigned DELETES every other
+ * session the coach had scheduled that week — silent data loss on the most
+ * ordinary action in the product. It also hands the guardrail a week missing
+ * most of its load, so the verdict comes out wrong in the PERMISSIVE direction.
+ * Both surfaces made that mistake independently; this function exists so there
+ * is one merge, one precondition and one retry policy rather than two that
+ * drift.
+ *
+ * The retry is not a nicety. Two assignments into one client-week both read the
+ * same week and both publish a different merge; the later replace deletes the
+ * earlier one's session, and no authz, key or ledger check can see it. The RPC's
+ * precondition rejects the stale write, and the loop restarts FROM THE READ so
+ * the guardrail is re-evaluated against the week actually about to be written.
+ */
+export async function publishMergedWeekForClient(args: MergePublishArgs): Promise<PublishResult> {
+  const {
+    supabase, admin, coachUserId, trainerId, clientId,
+    weekStartISO, incoming, todayISO, mintKey, acknowledgment, adjustMode,
+  } = args;
+  const weekEndISO = addDays(weekStartISO, 6);
+  const MAX_ATTEMPTS = 3;
+
+  let merged: ReturnType<typeof bsMergeWeekSessions> | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    // The coach's OWN rows for this client-week. Scoped to the caller's trainer
+    // row because the boundary only ever replaces the coach's own work — another
+    // provider's rows are not ours to carry or to clear.
+    const { data: existing, error: readErr } = await supabase
+      .from('client_workouts')
+      .select('id, title, description, kind, scheduled_date, payload')
+      .eq('trainer_id', trainerId)
+      .eq('client_id', clientId)
+      .eq('status', 'published')
+      .gte('scheduled_date', weekStartISO)
+      .lte('scheduled_date', weekEndISO);
+    if (readErr) {
+      // Publishing without knowing the rest of the week would DELETE it. A read
+      // failure has to stop this client, never fall through to a publish.
+      console.error('[shape-api] existing week read:', (readErr as { message?: string }).message);
+      return { clientId, status: 'error', error: "Could not read this client's week. Please retry." };
+    }
+
+    const rows = (existing ?? []) as Array<Record<string, unknown>>;
+    // The precondition covers the WHOLE week the read returned, not just the
+    // rows the merge keeps — the RPC compares against the same unfiltered set,
+    // so a past-dated row the merge drops still counts as part of "the week I
+    // read". Filtering either side would put the two on different clocks.
+    const expectedRowIds = rows.map((r) => String(r.id));
+    // Copied because the merge's declared signature takes a mutable array; the
+    // argument stays readonly here so a caller's own list can never be mutated.
+    merged = bsMergeWeekSessions(rows, [...incoming], { weekStartISO, todayISO });
+
+    const norm = normalizeWeekRequest(
+      {
+        clientId,
+        weekStartISO,
+        idempotencyKey: mintKey(merged.sessions),
+        // ⚠ THE MERGE OWNS THE CAPTURE STAMP, not the caller. A carried session
+        // with no captured pair makes the whole week honestly `incomplete_week`;
+        // letting a caller's "per_session" claim ride over the merged week would
+        // declare a hole-free week that has a hole — F158, the malformed case
+        // that switches the guardrail off.
+        capture: merged.capture,
+        sessions: merged.sessions,
+        ...(acknowledgment ? { acknowledgment } : {}),
+        ...(adjustMode ? { adjustMode } : {}),
+      },
+      { todayISO },
+    );
+    if (!norm.ok) {
+      return { clientId, status: 'error', error: 'That week could not be read.', reason: norm.error, detail: norm.detail };
+    }
+
+    const out = await publishWeekForClient({
+      supabase, admin, coachUserId, clientId, week: norm.week, todayISO, expectedRowIds,
+    });
+    if (out.status !== 'week_changed') {
+      // Report what the merge carried, so a caller can tell "your one session"
+      // from "your session plus the four already there" without guessing.
+      return { ...out, carried: merged.carried, skippedPast: merged.skippedPast };
+    }
+    // The week moved under us. Re-read, re-merge, re-evaluate.
+  }
+
+  // Every attempt lost the race. Reported honestly rather than retried forever —
+  // nothing was written, and the coach can simply tap again.
+  return {
+    clientId,
+    status: 'error',
+    error: 'That week kept changing while we saved it. Please retry.',
+    reason: 'week_contended',
+    ...(merged ? { carried: merged.carried, skippedPast: merged.skippedPast } : {}),
   };
 }

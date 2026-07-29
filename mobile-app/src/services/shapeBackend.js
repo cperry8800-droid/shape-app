@@ -1427,9 +1427,19 @@ async function listClientWorkouts({ clientId, trainerId, status = 'published' } 
 // assurance is worse than absence — the same reasoning that makes `unknown` its
 // own state instead of defaulting to green.
 //
-// Everything now goes through POST /api/trainer/week, which evaluates the week
-// and writes it atomically. RLS still refuses a direct insert from here; this
-// simply stops attempting one.
+// Everything now goes through POST /api/trainer/week, which reads the client's
+// existing week, folds these sessions in, evaluates the merged week and writes
+// it atomically.
+//
+// ⚠ RLS DOES NOT REFUSE A DIRECT INSERT FROM HERE — an earlier version of this
+// comment claimed it did, which is exactly the false assurance the paragraph
+// above warns against. `trainer_insert_on_client_workouts`
+// (2026-06-17-coach-write-scope.sql) still grants INSERT to `authenticated` for
+// a coach writing to their own client, so the direct path remains OPEN at the
+// database. What changed is that this file no longer takes it: the route is the
+// only EVALUATED door, and a direct insert would simply skip the guardrail.
+// Narrowing that policy to service_role is registered as its own step — it is
+// deliberately last, because it locks out every writer at once.
 
 /** Read the replay queue. A device that cannot read it holds nothing. */
 function readAssignQueue() {

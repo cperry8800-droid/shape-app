@@ -23,7 +23,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { normalizeWeekRequest } from '@/lib/week-publish.mjs';
-import { publishWeekForClient, type PublishResult } from '@/lib/week-publish-server';
+import { publishMergedWeekForClient, type PublishResult } from '@/lib/week-publish-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,9 +74,37 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const results: PublishResult[] = [];
 
+  // ⚠ THE WEEK IS MERGED INTO, NOT STAMPED OVER.
+  //
+  // This route publishes a PROGRAM: the mobile coach Assign page sends the
+  // sessions that program puts in each week, never the client's whole week. The
+  // RPC replaces the week, so publishing that payload directly deleted every
+  // other session the coach had scheduled there — a coach adding a Saturday
+  // conditioning day, then assigning a 3-day program, lost the Saturday with no
+  // error and no warning. It also handed the guardrail a week missing that load,
+  // so the verdict came out wrong in the PERMISSIVE direction.
+  //
+  // The same read-merge the session-shaped route uses now runs here, from the
+  // one shared implementation — including the concurrency precondition, so two
+  // assignments into one client-week cannot silently overwrite each other.
   for (const clientId of clientIds) {
-    results.push(await publishWeekForClient({
-      supabase, admin, coachUserId: user.id, clientId, week, todayISO,
+    results.push(await publishMergedWeekForClient({
+      supabase,
+      admin,
+      coachUserId: user.id,
+      trainerId: trainerRow.id,
+      clientId,
+      weekStartISO: week.weekStartISO,
+      incoming: week.sessions,
+      todayISO,
+      // The key is minted at AUTHORING time and carried in the payload, so it
+      // survives the device going offline and the app being killed. It is stable
+      // across retries by construction: a rejected attempt raises BEFORE the RPC
+      // claims the key, so nothing is recorded and the next attempt claims it
+      // cleanly with the re-merged content.
+      mintKey: () => week.idempotencyKey,
+      acknowledgment: week.acknowledgment,
+      adjustMode: week.adjustMode,
     }));
   }
 
