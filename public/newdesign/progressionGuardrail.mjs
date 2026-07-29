@@ -1246,6 +1246,8 @@ export function bsProposedWeek(proposedWeek) {
     hardestId: null,
     perSession: [],
     incomplete: issues,
+    capture: null,
+    malformed: [],
   });
 
   if (!proposedWeek || typeof proposedWeek !== 'object' || Array.isArray(proposedWeek)) {
@@ -1299,6 +1301,44 @@ export function bsProposedWeek(proposedWeek) {
     }
   }
 
+  // ── §3.2a — THE CAPTURE STAMP ────────────────────────────────────────────
+  // The week object is AUTHORITATIVE; each row's `loadCapture` is asserted to
+  // agree and is never read as a second source. Malformed is reserved for
+  // shapes no legitimate writer can emit — a builder never emits a partially
+  // stamped week, and a hop that strips the pair from EVERY session is the
+  // likelier bug than a coach who skipped the step, which content inspection
+  // alone cannot tell apart. An entirely UNSTAMPED week is NOT malformed: a
+  // stamp lost in transit must degrade to the safe direction (`unknown`).
+  const weekCapture = proposedWeek.capture;
+  const weekStamped = weekCapture === 'per_session' || weekCapture === 'per_plan';
+  const rowStamps = rows.map((r) => (r && typeof r === 'object' ? r.loadCapture : undefined));
+  const stamped = rowStamps.filter((s) => s === 'per_session' || s === 'per_plan');
+  const malformed = [];
+
+  if (weekStamped) {
+    if (stamped.length === 0) {
+      // Week stamped, rows carry nothing to assert against.
+      malformed.push(issue(-1, 'loadCapture', undefined));
+    } else if (stamped.some((s) => s !== weekCapture)) {
+      // Week and rows disagree. Never resolved silently in favour of either.
+      malformed.push(issue(-1, 'loadCapture', stamped[0]));
+    }
+    // Stamped-but-incomplete: the builder declared it collected the pair, and
+    // some or all of it is missing. That is a transport bug, not a blank.
+    if (perSession.length !== rows.length) {
+      malformed.push(issue(-1, 'capture', weekCapture));
+    }
+  } else if (stamped.length > 0) {
+    // Rows stamped, week unstamped — the same disagreement, other direction.
+    malformed.push(issue(-1, 'capture', weekCapture));
+  } else {
+    // NOTHING stamped. The stamp is REQUIRED — a week that never declared what
+    // the builder was able to ask cannot be scored, even when every pair looks
+    // present. Reported as INCOMPLETE, never malformed: a stamp lost in transit
+    // must degrade to the safe direction, and `unknown` never blocks publish.
+    incomplete.push(issue(-1, 'capture', weekCapture));
+  }
+
   return {
     // The session COUNT is the authored count, not the readable count: the caps
     // scale with what the coach wrote. Counting only the readable sessions would
@@ -1309,6 +1349,8 @@ export function bsProposedWeek(proposedWeek) {
     hardestId,
     perSession,
     incomplete,
+    capture: weekStamped ? weekCapture : null,
+    malformed,
   };
 }
 
@@ -1394,6 +1436,16 @@ export function bsColdStartVolumeAxis(proposed) {
  * @param {{hardestLoggedAu?:number}} [bounds]
  */
 export function bsConcentrationAxis(proposed, bounds) {
+  // ⚠ §5.1 — A PLAN-LEVEL PAIR CANNOT ANSWER THIS AXIS. At two or more sessions
+  // a single figure says nothing about distribution: which session is the hard
+  // one is unknowable, so BOTH checks are unanswerable, not just the share.
+  // Reported as its own state rather than omitted (invisible) or flagged on a
+  // green axis (misreadable as a pass). At exactly ONE session the plan-level
+  // figure IS that session's figure, so the axis evaluates normally.
+  if (proposed && proposed.capture === 'per_plan' && proposed.sessions >= 2) {
+    return { axis: 'concentration', state: 'not_evaluable', checks: [], ceilingPct: null };
+  }
+
   // `bounds = {}` would only default on `undefined`; an explicit null is a
   // realistic caller slip and this is an EXPORTED function, so it must not
   // throw — the never-throws contract covers the parts, not just the whole.
@@ -1962,8 +2014,13 @@ export const BS_COMPOUND_MIN_SESSIONS = 3;
  *            contributingAxes:Array<string>}}
  */
 export function bsResolveState(axes, proposedSessions) {
+  // `not_evaluable` (§5.1) is excluded ENTIRELY, exactly as a disabled axis is:
+  // it can raise neither amber nor red, and it cannot contribute to compound.
+  // It still rides in `axes` so copy can name what was not measured — the
+  // exclusion belongs here, not at the axis, or a consumer counting axes would
+  // read it as a pass.
   const live = (Array.isArray(axes) ? axes : []).filter(
-    (a) => a && bsAxisEnabled(a.axis),
+    (a) => a && bsAxisEnabled(a.axis) && a.state !== 'not_evaluable',
   );
 
   const reds = live.filter((a) => a.state === 'red');
@@ -2092,6 +2149,15 @@ export function bsProgressionGuardrail(history, proposedWeek) {
   // The regime and baseline ARE known here — the history was readable — but
   // they stay withheld for one rule rather than two: an unknown result asserts
   // nothing about the client, whatever made it unknown.
+  // MALFORMED BEATS INCOMPLETE, and the order is load-bearing. Both are
+  // `unknown`, but they name different faults: `incomplete_week` says the coach
+  // has not filled the pair in yet, `malformed_week` says the builder declared
+  // it captured the pair and the values did not survive the wire. Reporting a
+  // transport bug as an honest blank would hide it for as long as it lasts.
+  if (proposed.malformed.length > 0) {
+    return unknown('malformed_week', [], resolved.regime);
+  }
+
   if (proposed.incomplete.length > 0) {
     return unknown('incomplete_week', [], resolved.regime);
   }
@@ -2343,6 +2409,9 @@ const BS_UNKNOWN_DETAIL = {
     + 'problem with the week.',
   incomplete_week: 'Some sessions in this week have no duration or no effort target '
     + 'yet, so there is nothing to measure.',
+  malformed_week: 'This week says it captured a duration and effort for every '
+    + 'session, but the values did not arrive intact. That is a data problem to fix, '
+    + 'not a problem with the week.',
   unscoreable: 'The comparison could not be completed.',
 };
 

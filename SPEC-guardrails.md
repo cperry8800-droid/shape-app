@@ -440,7 +440,14 @@ history = {
 
 proposedWeek = {
   weekStartISO: 'YYYY-MM-DD',
-  sessions: [{ id, plannedMinutes: number, plannedRpe: number }]
+  // §3.2a — REQUIRED. The week object is AUTHORITATIVE; each row's
+  // `loadCapture` is asserted to agree and is never read as a second source.
+  // An entirely unstamped week is `incomplete_week` (a stamp lost in transit
+  // degrades to the safe direction); a stamped week whose pair is missing, or
+  // whose stamps disagree with the week's, is `malformed_week`.
+  capture: 'per_session' | 'per_plan',
+  sessions: [{ id, plannedMinutes: number, plannedRpe: number,
+               loadCapture: 'per_session' | 'per_plan' }]
 }
 ```
 
@@ -453,7 +460,8 @@ GuardrailResult = {
   // consumer written against a partial list hits unmapped values in
   // production. Every one of these is emitted by the shipped core; adding a
   // tenth means adding it to `BS_UNKNOWN_DETAIL` in the same commit.
-  reason:  string | null,                   // 'incomplete_week' | 'malformed_history'
+  reason:  string | null,                   // 'incomplete_week' | 'malformed_week'
+                                            // | 'malformed_history'
                                             // | 'no_history' | 'no_qualifying_weeks'
                                             // | 'insufficient_weeks' | 'stale_baseline'
                                             // | 'baseline_below_floor'
