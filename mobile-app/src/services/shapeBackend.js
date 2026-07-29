@@ -43,6 +43,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishabl
 // /api, so same-origin requests just work without a build-time env.
 const _apiEnvBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const _isNative = (() => { try { return !!(Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch (e) { return false; } })();
+import {
+  BS_ASSIGN_QUEUE_KEY, bsClassifyWriteFailure, bsQueueAssignment,
+  bsPruneQueue, bsReplayQueue, bsMergeAfterDrain,
+} from './assignQueue.mjs';
+
 const apiBaseUrl = _apiEnvBase
   || ((!_isNative && typeof window !== 'undefined' && window.location && window.location.origin)
       ? window.location.origin.replace(/\/$/, '')
@@ -1415,50 +1420,124 @@ async function listClientWorkouts({ clientId, trainerId, status = 'published' } 
   return { stored: 'supabase', data: (data || []).map(workoutFromRow) };
 }
 
-async function assignClientWorkout({
-  trainerId,
-  clientId,
-  title,
-  description = '',
-  kind = 'custom',
-  payload = {},
-  playlistId = null,
-  scheduledDate = null,
-} = {}) {
-  if (!clientId || !title) {
-    throw new Error('Client and workout title are required.');
-  }
-  const resolvedTrainerId = trainerId || await getOwnedTrainerId();
-  if (!resolvedTrainerId) {
-    throw new Error('No trainer profile is connected to this account.');
-  }
+// ─── The week-shaped publish boundary (SPEC-guardrails.md §9.4) ─────────────
+//
+// ⚠ THE DIRECT `client_workouts` INSERT IS GONE. It was the mobile coach app's
+// own write path, ungated, and the reason a coach on their phone could watch
+// programs publish clean and conclude the guardrail had passed them. False
+// assurance is worse than absence — the same reasoning that makes `unknown` its
+// own state instead of defaulting to green.
+//
+// Everything now goes through POST /api/trainer/week, which evaluates the week
+// and writes it atomically. RLS still refuses a direct insert from here; this
+// simply stops attempting one.
 
-  const payloadRow = {
-    trainer_id: resolvedTrainerId,
-    client_id: clientId,
-    title,
-    description,
-    kind: kind === 'template' ? 'template' : 'custom',
-    payload: payload || {},
-    playlist_id: playlistId || null,
-    scheduled_date: scheduledDate || null,
-    status: 'published',
+/** Read the replay queue. A device that cannot read it holds nothing. */
+function readAssignQueue() {
+  try { return JSON.parse(localStorage.getItem(BS_ASSIGN_QUEUE_KEY) || '[]'); } catch (e) { return []; }
+}
+
+/**
+ * Persist the replay queue, REPORTING whether it landed.
+ *
+ * ⚠ A device that cannot persist must not report "held". Storage can be full or
+ * disabled, and a silent failure there is a coach told their week is queued
+ * when nothing holds it.
+ */
+function writeAssignQueue(items) {
+  try { localStorage.setItem(BS_ASSIGN_QUEUE_KEY, JSON.stringify(items)); return true; } catch (e) { return false; }
+}
+
+const bsIsOnline = () => (typeof navigator === 'undefined' || typeof navigator.onLine !== 'boolean' ? undefined : navigator.onLine);
+
+/**
+ * Send ONE week to the boundary.
+ *
+ * Throws on a network failure (the caller holds it); returns the server's own
+ * per-client verdict otherwise. A REJECTION is returned, never thrown, because
+ * it is an answer — the coach has to see the reason.
+ */
+async function postWeek(body) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/trainer/week`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  let d = {};
+  try { d = await res.json(); } catch (e) { /* a body-less error still has a status */ }
+  if (!res.ok && res.status >= 500 && !d.results) {
+    // A 5xx with no per-client detail is the server failing, not judging. It is
+    // still an ANSWER — classified as a rejection, surfaced, never absorbed.
+    throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
+  }
+  const results = Array.isArray(d.results) ? d.results : [];
+  const rejected = results.filter((r) => r.status === 'rejected');
+  return {
+    ok: !!d.ok,
+    status: results.length === 1 ? results[0].status : (rejected.length ? 'rejected' : 'accepted'),
+    rejected: rejected.length > 0,
+    reason: rejected.length ? rejected[0].reason : null,
+    copy: rejected.length ? rejected[0].copy : null,
+    error: d.error || null,
+    results,
   };
+}
 
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow) };
+/**
+ * Publish a week. THE one coach training writer.
+ *
+ * The two failure classes are not interchangeable (owner ruling 2026-07-28):
+ *
+ *   NETWORK      -> held locally and replayed. Offline assignment is real work.
+ *   SERVER ANSWER -> NEVER absorbed. No local record is written, and the
+ *                    guardrail's own reason is handed back to the coach.
+ *
+ * ⚠ The old function RETURNED rather than threw on error, so the fallback
+ * swallowed EVERY failure — including a gate rejection — and reported it as
+ * saved. Nothing ever replayed the record it wrote (`shape.clientWorkouts` was
+ * written by those lines and read by nothing), and because the trainer lookup
+ * ran a network call BEFORE the insert, the offline case never even reached it.
+ */
+async function assignClientWeek(body) {
+  if (!body || !body.idempotencyKey) throw new Error('A publish key is required.');
+  try {
+    const out = await postWeek(body);
+    if (out.rejected) return { stored: 'rejected', rejected: true, reason: out.reason, copy: out.copy, results: out.results };
+    return { stored: 'supabase', status: out.status, results: out.results };
+  } catch (err) {
+    if (bsClassifyWriteFailure(err, { online: bsIsOnline() }) !== 'network') {
+      // The server answered. Surface it — no local record, no false "saved".
+      throw err;
+    }
+    // Positive evidence of connectivity loss. Hold it, and be honest about
+    // whether the hold actually persisted.
+    const { kept, dropped } = bsPruneQueue(
+      bsQueueAssignment(readAssignQueue(), body, { now: Date.now() }),
+      { now: Date.now() },
+    );
+    const persisted = writeAssignQueue(kept);
+    return { stored: persisted ? 'queued' : 'lost', queued: persisted, dropped, error: err };
   }
+}
 
-  const { data, error } = await supabase
-    .from('client_workouts')
-    .insert(payloadRow)
-    .select()
-    .single();
-
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow, error), error };
-  }
-  return { stored: 'supabase', data: workoutFromRow(data) };
+/**
+ * Drain the queue through the SAME writer, so replayed work passes the gate.
+ *
+ * A replay can never become a side door: it posts the identical week to the
+ * identical boundary, and the server's idempotency key decides whether it is a
+ * new publish or an already-delivered one.
+ */
+async function drainAssignmentQueue() {
+  const started = bsPruneQueue(readAssignQueue(), { now: Date.now() }).kept;
+  if (!started.length) return { sent: 0, rejections: [], held: [] };
+  const out = await bsReplayQueue(started, {
+    write: (p) => postWeek(p),
+    online: bsIsOnline(),
+  });
+  const merged = bsMergeAfterDrain(started, out.held, readAssignQueue());
+  const persisted = writeAssignQueue(merged);
+  return { ...out, persisted };
 }
 
 // ─── Self-authored training ──────────────────────────────────────────────────
@@ -3801,7 +3880,7 @@ window.ShapePlan = { get: getPlan };
 
 // Assignment — put a coach's catalogue plan onto a linked client's Train/Eat.
 // Writes the SAME tables the client's /api/client/plan reads: trainer →
-// client_workouts (direct Supabase via assignClientWorkout), nutritionist →
+// client_workouts (the gated week-shaped boundary), nutritionist →
 // client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
 // coach's real linked clients (subscriptions + sessions); uuid-backed only.
 async function listAssignableClients(role) {
@@ -3824,9 +3903,11 @@ async function assignClientMealPlan({ clientId, title, weekStart, days }) {
 }
 window.ShapeAssign = {
   clients: listAssignableClients,
-  // Reuses the existing client_workouts writer (direct Supabase, RLS-scoped),
-  // which the client's /api/client/plan reads back.
-  workout: (args) => assignClientWorkout({ ...args, kind: 'template' }),
+  // ⚠ ONE coach training writer, week-shaped and gated. The per-session
+  // `workout` entry is deliberately GONE: leaving a session-shaped path live
+  // beside the week-shaped one makes the gate optional in practice (§9.4).
+  week: assignClientWeek,
+  drain: drainAssignmentQueue,
   mealPlan: assignClientMealPlan,
 };
 
@@ -4088,7 +4169,6 @@ window.ShapeAvailability = {
 
 window.ShapeWorkouts = {
   listClientWorkouts,
-  assignClientWorkout,
   updateClientWorkout,
 };
 
