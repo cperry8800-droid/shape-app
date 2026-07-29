@@ -277,35 +277,42 @@ inspection alone cannot tell it from a coach who skipped the step.
 field at the **far end** rather than inspecting code, and a perturbation check
 that strips the field at one hop **uniformly** and confirms a test fails.
 
-### 3.2b Adjust regeneration — a bound, not a value
+### 3.2b Adjust regeneration — a bound derived from the TRANSFORM
 
-**RULED 2026-07-28.** Score against the **maximum load the regeneration could
-produce**: `max(authored, mode ceiling)`.
+**RULED 2026-07-28. REVERSED 2026-07-29 — see §13.15 for the reasoning.** The
+bound comes from what the regeneration ACTUALLY does, not from what its copy
+promises.
 
-| Mode | Upward ceiling | Bound |
+Verified at code level: `BS_ADJUST_SCALE` is `{ deload: 0.85, maintain: 1,
+progress: 1.025 }`, and the scale reaches exactly one field — the free-text
+`load` string on each exercise. **No mode touches minutes or RPE**, because the
+payload carries neither.
+
+| Mode | What it actually changes | Bound |
 |---|---|---|
-| `deload` | none — intensity is capped | authored |
-| `maintain` | none — RPE approximately holds | authored |
-| `progress` | **8**, from the copy's "keep RPE ≤ 8" | `max(authored, 8)` |
+| `deload` | the first number in each load string (×0.85) | **authored** |
+| `maintain` | nothing — `scale === 1` returns the string unchanged | **authored** |
+| `progress` | the first number in each load string (×1.025) | **authored** |
 
-> "keep RPE ≤ 8" is a **constraint, not a value**. Authored 7 satisfies it and so
-> does 8. Deriving a point value from a ceiling invents its position within the
-> bound — fabrication in the shape of the coach's own rule.
+**Score every mode at the AUTHORED value.** This is not a conservative
+approximation that happens to be safe — a regenerated session's planned load is
+byte-identical to the authored one on this metric, so the authored value is
+**exact**.
 
-This always over-estimates and never under-estimates. Because it feeds the
-proposed week rather than history, the error direction produces false flags
-rather than missed ones — a dismissal versus an unguarded rescale.
+⚠ **This bound holds only while the COPY is what moves.** The `progress` copy
+promises "add a set to main lifts … keep RPE ≤ 8", which the transform does not
+do; the ruling is to **fix the copy**. If the constants are ever changed instead
+— a set genuinely added, RPE genuinely pushed toward 8 — this section reverses
+back to `max(authored, 8)` with them.
 
-⚠ **Never persist the derived figure into `plannedRpe`.** `payload.adjustMode`
-goes on the row beside `adjustGen`; the bound is derived at read time. Writing it
+⚠ **Never persist a derived figure into `plannedRpe`.** `payload.adjustMode` goes
+on the row beside `adjustGen`; any bound is derived at read time. Writing it
 repeats the `durationConfirmed` error — a judgment stored as a measurement.
 
-**Copy must name what it did** — "scored against the maximum load this
-regeneration could produce" — never presented as the coach's authored effort.
-
 **Telemetry:** one field for a `length` value that fails to map, one for an
-authored RPE above the mode ceiling. Both must ship WITH the feature: there is no
-history to back-fill from (§9.2).
+authored RPE above 8 on a `progress` regeneration — the latter now a **copy-drift
+signal**, not a bound input. Both must ship WITH the feature: there is no history
+to back-fill from (§9.2).
 
 ---
 
@@ -910,14 +917,21 @@ correct, and it must satisfy all four:
 Without (1)–(4) the queue work hits the same wall on the far side of the
 boundary, and the split will have bought nothing.
 
-**Adjust regeneration is the HIGHEST-risk path, not a secondary one.** It
-rescales loads — precisely the guardrail's subject — and it is **automated**, so
-no human looked at the result at the moment of change. A coach hand-building a
-hot week at least saw it. Gating the manual path while leaving regeneration open
-inverts the risk ordering. **It evaluates the post-rescale week as a FRESH
-proposal against the client's history, never a delta:** the guardrail's question
-is always *"is this week too big for this client"*, regardless of how the week
-came to be.
+**Adjust regeneration is the HIGHEST-risk path, not a secondary one — but not for
+the reason first written here (CORRECTED 2026-07-29, see §13.15).** It does NOT
+rescale this metric: the intensity setting edits free-text weight strings, which
+sRPE never reads. What it does change is **how many sessions are in the week and
+how far forward they replicate** — `adjustment.sessions` caps the training
+weekdays, rows falling outside that map are deleted, and the last adjusted week
+is repeated to the horizon. Session count multiplies weekly volume directly, so a
+regeneration from 3 sessions to 5 raises the week's planned load by two thirds,
+and the guardrail sees all of it. Add the republish case — an already-oversized
+week reissued unexamined — and the path is **automated**, so no human looked at
+the result at the moment of change. A coach hand-building a hot week at least saw
+it. Gating the manual path while leaving regeneration open inverts the risk
+ordering. **It evaluates the regenerated week as a FRESH proposal against the
+client's history, never a delta:** the guardrail's question is always *"is this
+week too big for this client"*, regardless of how the week came to be.
 
 **The mobile gap's failure mode is worse than having no feature.** A coach on
 their phone would watch programs publish clean and conclude the guardrail passed
@@ -1819,3 +1833,75 @@ that can only ever catch a bug.
 compares a half-point-capable proposed value against integer-only history. That
 is fine mathematically — both sides reduce to AU before the comparison — and the
 asymmetry lives in the inputs, not in the check.
+
+### 13.15 REVERSAL — the Adjust bound comes from the transform, not the copy
+
+**§3.2b originally ruled `max(authored, mode ceiling)`, taking the `progress`
+ceiling of 8 from the coach-facing copy's "keep RPE ≤ 8". That is reversed. Every
+mode now scores at the AUTHORED value.** Recorded with the reasoning, because the
+original ruling was defensible on its own terms and will look like a regression
+to anyone who reads only the contract.
+
+**Why it reverses.** The copy is a promise about a transform that does not make
+it. Verified in `mobile-app/src/services/adjustRegen.mjs`: the only thing any
+intensity mode touches is the free-text `load` string on each exercise
+(`scaleExercises` → `bsScaleLoad`), and **sRPE = RPE × minutes reads neither**.
+So a `progress` regeneration is a **no-op in this metric** — the proposed load is
+byte-identical before and after. `max(authored, 8)` would then over-estimate
+**every** progress week: a coach who authored 6 would be scored at 8 for a
+regeneration that left them at 6. The original ruling's own justification —
+*"always over-estimates and never under-estimates, so the error direction produces
+false flags rather than missed ones"* — stops holding when the over-estimate is
+**universal rather than occasional**. A flag that fires on every regenerated week
+is not a conservative bound; it is noise, and noise is how a guardrail gets
+dismissed by reflex.
+
+**The rule that generalizes: bound against what the code DOES, not what the copy
+SAYS it does.** A promise in coach-facing copy is a product commitment, not a
+measurement, and the guardrail may not treat it as one.
+
+**Conditional on the copy being what moves.** The mismatch is registered in the
+planned-load design document (§5.3) and the owner ruled 2026-07-29 to **fix the
+copy**. Should the constants ever be changed instead — a set genuinely added, RPE
+genuinely pushed toward 8 — this reverses back and §3.2b goes with it.
+
+⚠ **The companion document is stale on this point.**
+`docs/superpowers/specs/2026-07-28-planned-load-capture-design.md` §5.2 and its
+§8 Adjust fixtures still state `max(authored, ceiling)`; they must be reversed to
+match before that document is treated as build-ready.
+
+### 13.16 sRPE is blind to external load — weight progression is invisible
+
+**Known limitation, deliberate, not a defect.** The primary metric is
+`RPE × minutes`. It measures **what the session cost the athlete**, which is what
+the guardrail exists to judge. It therefore cannot see **external load**: adding
+weight to the bar at constant effort and duration produces the same figure.
+
+**The concrete consequence.** `BS_ADJUST_SCALE`'s `deload: 0.85` /
+`progress: 1.025` scale weight strings and nothing else, so **every Adjust
+intensity mode is invisible to this metric** (§13.15). More broadly, a coach who
+progresses a client purely by load — same sessions, same minutes, heavier bar —
+will never trip a volume flag no matter how far the weight climbs.
+
+**Why it is still the right metric.** sRPE is the validated construct for
+internal training load, applies across every discipline the app supports
+(including the conditioning and cardio work where external load is meaningless),
+and is computable from what the app actually captures. Adding an external-load
+axis would need a per-movement one-rep-max model the app does not have and could
+not honestly populate today.
+
+**Revisit if telemetry shows weight-driven overreaching** — sessions that never
+flag but produce the outcomes flagging is meant to prevent. The
+`guardrail_evaluated` telemetry carries state and axis, so the question is
+answerable from what already ships.
+
+⚠ **Separately, and independently of the guardrail:** `bsScaleLoad` rewrites the
+**first number** in the load string, but the load string is prose whose type was
+flattened away upstream (`loadLabel` in `public/newdesign/dashBuilderCore.js`
+turns `{loadType:'rpe', load:8}` into `"RPE 8"`). A deload therefore rewrites an
+authored **`"RPE 8"` into `"RPE 7"`** — the transform silently restating the
+coach's prescribed effort — and mis-parses ramps (`"135/155/175"`) and
+unrecognised set-count prose (`"10 sets x 3 reps @ 225 lb"` → **9 sets**). The
+`loadType: 'rpe'` case exists in production data today. This is a data-integrity
+defect in a shipped path, **not a guardrail concern**, and is registered to be
+fixed in its own change.
