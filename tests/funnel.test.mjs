@@ -41,14 +41,19 @@ test('zero signups -> all zero, no biggest drop, never divides by zero', () => {
 // a name it does not know, so an event added here but not to the SQL function
 // writes nothing and reports no error. Failing this test is the reminder to go
 // and edit the migration too — do not relax it to make an addition pass.
-test('event whitelist is exactly the 7 names', () => {
+test('event whitelist is exactly the 8 names', () => {
   assert.deepEqual([...ANALYTICS_EVENTS].sort(),
-    ['app_opened', 'checkout_started', 'onboarding_started', 'paywall_viewed',
-     'session_rpe_dropped', 'session_rpe_prompted', 'workout_started']);
+    ['app_opened', 'checkout_started', 'guardrail_evaluated', 'onboarding_started',
+     'paywall_viewed', 'session_rpe_dropped', 'session_rpe_prompted', 'workout_started']);
   assert.equal(isAnalyticsEvent('app_opened'), true);
   // Both added by 2026-07-27-session-rpe.sql, which extends track_event's list.
   assert.equal(isAnalyticsEvent('session_rpe_prompted'), true);
   assert.equal(isAnalyticsEvent('session_rpe_dropped'), true);
+  // ⚠ Added by 2026-07-29-guardrail-week-publish.sql. This test EARNED ITS KEEP
+  // here: the deployed track_event was read on 2026-07-29 and did NOT carry the
+  // name, so the event would have written nothing and reported no error — the
+  // exact failure §10.2 warns is easier to miss the second time.
+  assert.equal(isAnalyticsEvent('guardrail_evaluated'), true);
   assert.equal(isAnalyticsEvent('drop_table'), false);
   assert.equal(isAnalyticsEvent(''), false);
   assert.equal(isAnalyticsEvent(null), false);

@@ -53,11 +53,44 @@ function dayDelta(fromISO, toISO) {
 }
 
 /**
+ * One session inside a submitted week.
+ *
+ * `plannedMinutes` / `plannedRpe` / `loadCapture` are `undefined` when ABSENT —
+ * never null, never 0. The distinction is load-bearing: the core reads absence
+ * against the week's stamp to tell `incomplete_week` from `malformed_week`.
+ *
+ * @typedef {{
+ *   id: string,
+ *   title: string,
+ *   description: string,
+ *   kind: 'template'|'custom',
+ *   scheduledDate: string,
+ *   plannedMinutes: number|undefined,
+ *   plannedRpe: number|undefined,
+ *   loadCapture: 'per_session'|'per_plan'|undefined,
+ *   payload: Record<string, unknown>
+ * }} WeekSession
+ */
+
+/**
+ * A validated week, ready for the core, the ledger and the insert.
+ *
+ * @typedef {{
+ *   idempotencyKey: string,
+ *   weekStartISO: string,
+ *   capture: 'per_session'|'per_plan'|undefined,
+ *   sessions: WeekSession[],
+ *   acknowledgment: {reasonCode: string|null, reasonText: string|null}|null,
+ *   adjustMode: 'deload'|'maintain'|'progress'|null
+ * }} PublishWeek
+ */
+
+/**
  * Normalize + validate a week-shaped publish request.
  *
  * @param {*} body the raw request body — assume nothing about it
  * @param {{todayISO: string}} opts today, as an INPUT (never a clock read)
- * @returns {{ok:true, week:object, clientIds:string[]}
+ * @returns {{ok:true, week:PublishWeek, clientIds:string[]}
  *          |{ok:false, error:string, detail:string|null}}
  */
 export function normalizeWeekRequest(body, opts = {}) {
@@ -154,6 +187,8 @@ export function normalizeWeekRequest(body, opts = {}) {
  * FNV-1a rather than a crypto hash: edge-safe with no import, and a collision
  * here costs a wrongly-rejected replay rather than a wrong write, because
  * `publish_client_week` independently re-checks the coach and the client.
+ * @param {string} clientId
+ * @param {PublishWeek} week
  */
 export function weekRequestHash(clientId, week) {
   const rows = [...week.sessions]
@@ -183,7 +218,10 @@ export function weekRequestHash(clientId, week) {
   return `fnv1a-${h.toString(16).padStart(8, '0')}-${canonical.length}`;
 }
 
-/** The core's `proposedWeek` — the pair, the stamp, and nothing that isn't load. */
+/**
+ * The core's `proposedWeek` — the pair, the stamp, and nothing that isn't load.
+ * @param {PublishWeek} week
+ */
 export function toProposedWeek(week) {
   return {
     weekStartISO: week.weekStartISO,
@@ -210,6 +248,7 @@ export function toProposedWeek(week) {
  * A key is written only when the value EXISTS. Writing `plannedMinutes: null`
  * on an unstamped week would make an honest blank indistinguishable from a
  * value that was dropped in transit.
+ * @param {PublishWeek} week
  */
 export function toWorkoutRows(week) {
   return week.sessions.map((s) => {
