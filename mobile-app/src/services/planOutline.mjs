@@ -391,3 +391,63 @@ export function bsMaterializeOutline({ plan, startISO, weeks = 4, runId }) {
   }
   return rows;
 }
+
+// ── Deploy 2b: the planned-load pair ────────────────────────────────────────
+//
+// SPEC-guardrails.md §3.2a; the capture design §2 and §6.
+//
+// ⚠ THESE ARE ENUM MAPPINGS, NOT PARSES. The builder renders LENGTH and EFFORT
+// through the same closed `chips()` helper as FOCUS and EQUIPMENT — pickers
+// whose values happen to be strings. So the mapping is over EXACT MATCHES
+// against those known values, and anything else is ABSENT.
+//
+// The rule, stated so it survives a later writer who is less disciplined:
+//
+//   * A range ('45-60 minutes'), prose, an empty string, or a value from a
+//     different builder is ABSENT. NEVER resolve a range by picking an end — a
+//     45-vs-60 resolution is a 33% swing in that session's load, silently, in
+//     the direction that LOOSENS ceilings.
+//   * A failed mapping yields ABSENT, **never 0**. A zero-minute session scores
+//     as zero load and reads as a rest day the coach never wrote.
+//
+// Absent is safe here because the core knows what to do with it: an unstamped
+// week is `incomplete_week`, and a stamped week whose pair is missing is
+// `malformed_week`. Neither is a fabricated number.
+
+/** The LENGTH chip's closed list. KEEP IN SYNC with the `chips()` call. */
+export const BS_LENGTH_CHIPS = Object.freeze({ '30 min': 30, '45 min': 45, '60 min': 60, '75 min': 75 });
+
+/** The EFFORT chip's closed list. KEEP IN SYNC with the `chips()` call. */
+export const BS_EFFORT_CHIPS = Object.freeze({ 'RPE 6': 6, 'RPE 7': 7, 'RPE 8': 8, 'RPE 9': 9 });
+
+// `hasOwnProperty` rather than a bare lookup: `CHIPS['toString']` would
+// otherwise return a function off the prototype chain.
+const mapChip = (table, v) => (
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(table, v) ? table[v] : undefined
+);
+
+/** @returns {number|undefined} minutes, or ABSENT */
+export function bsPlannedMinutes(chipValue) { return mapChip(BS_LENGTH_CHIPS, chipValue); }
+
+/** @returns {number|undefined} RPE, or ABSENT */
+export function bsPlannedRpe(chipValue) { return mapChip(BS_EFFORT_CHIPS, chipValue); }
+
+/**
+ * Does this outline block represent a SESSION (rather than an exercise)?
+ *
+ * The capture design §6's table, read through THIS module's own classifiers and
+ * never re-derived — three surfaces already classify through planOutline, and a
+ * fourth opinion is how they start disagreeing:
+ *
+ *   split day line (non-rest) -> one session per day line per week
+ *   week block line           -> one session per authored week
+ *   anything else             -> an EXERCISE; the session is the whole week
+ *
+ * A rest day is not a session: there is nothing scheduled to capture a length
+ * or an effort for.
+ */
+export function bsBlockIsSession(text) {
+  const day = bsAssignDayLine(text);
+  if (day) return !day.rest;
+  return !!bsAssignWeekLine(text);
+}

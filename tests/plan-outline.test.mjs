@@ -8,6 +8,9 @@ import {
   bsWeekSpan,
   bsAssignMeal,
   bsMaterializeOutline,
+  bsPlannedMinutes,
+  bsPlannedRpe,
+  bsBlockIsSession,
 } from '../mobile-app/src/services/planOutline.mjs';
 import { bsPlanPreview } from '../mobile-app/src/services/planPreview.mjs';
 
@@ -185,4 +188,70 @@ test('preview and materialize agree on a MESSY outline (duplicate + out of order
   assert.deepEqual(pv.units.map((u) => u.title), rows.map((r) => r.title), 'same titles');
   assert.equal(pv.weeks, 3);
   assert.ok(rows.every((r) => r.payload.program.weeks === 3));
+});
+
+// ── Deploy 2b: the planned-load pair (SPEC-guardrails.md §3.2a, capture design §2)
+//
+// plannedMinutes is an ENUM MAPPING over the LENGTH chip's own closed list, not
+// a parse. The hazard these fixtures pin is the one that loosens ceilings
+// silently: resolving a range by picking an end, or letting a failed mapping
+// become 0.
+
+test('bsPlannedMinutes maps the four chip values and nothing else', () => {
+  assert.equal(bsPlannedMinutes('30 min'), 30);
+  assert.equal(bsPlannedMinutes('45 min'), 45);
+  assert.equal(bsPlannedMinutes('60 min'), 60);
+  assert.equal(bsPlannedMinutes('75 min'), 75);
+});
+
+test('a RANGED length is ABSENT — never resolved to an end', () => {
+  // A 45-vs-60 resolution is a 33% swing in that session's load, silently, in
+  // the direction that loosens ceilings.
+  assert.equal(bsPlannedMinutes('45-60 minutes'), undefined);
+  assert.equal(bsPlannedMinutes('45–60 min'), undefined);
+});
+
+test('prose, empty and foreign values are ABSENT', () => {
+  for (const v of ['', '   ', 'about an hour', '45', '45 min ', 'PT45M', null, undefined, 45, {}]) {
+    assert.equal(bsPlannedMinutes(v), undefined, String(v));
+  }
+});
+
+test('a failed mapping yields ABSENT, never 0', () => {
+  // A zero-minute session scores as ZERO LOAD and reads as a rest day the coach
+  // never wrote — the single most dangerous wrong answer this function has.
+  assert.notEqual(bsPlannedMinutes('nonsense'), 0);
+  assert.equal(bsPlannedMinutes('nonsense'), undefined);
+});
+
+test('the mapping cannot be reached through the prototype chain', () => {
+  // A bare `LOOKUP[value]` would return Object.prototype.toString for
+  // 'toString'. hasOwnProperty is the reason it does not.
+  assert.equal(bsPlannedMinutes('toString'), undefined);
+  assert.equal(bsPlannedMinutes('constructor'), undefined);
+  assert.equal(bsPlannedMinutes('__proto__'), undefined);
+});
+
+test('bsPlannedRpe maps the four effort chips and nothing else', () => {
+  assert.equal(bsPlannedRpe('RPE 6'), 6);
+  assert.equal(bsPlannedRpe('RPE 9'), 9);
+  assert.equal(bsPlannedRpe('RPE 8.5'), undefined);   // not on the chip list
+  assert.equal(bsPlannedRpe('8'), undefined);
+  assert.equal(bsPlannedRpe(''), undefined);
+  assert.equal(bsPlannedRpe('__proto__'), undefined);
+});
+
+test('bsBlockIsSession is true only where a block IS a session', () => {
+  // capture design §6, read through the ONE classifier. Three surfaces already
+  // classify through planOutline and a fourth opinion is how they disagree.
+  assert.equal(bsBlockIsSession('Mon — Upper (push)'), true);
+  assert.equal(bsBlockIsSession('Week 1 — Accumulation'), true);
+  assert.equal(bsBlockIsSession('Main lift · 4×8'), false);
+  assert.equal(bsBlockIsSession('Warm-up · 8 min'), false);
+  assert.equal(bsBlockIsSession(''), false);
+  assert.equal(bsBlockIsSession(null), false);
+});
+
+test('a REST day line is not a session — nothing is scheduled to capture', () => {
+  assert.equal(bsBlockIsSession('Sun — Rest'), false);
 });
