@@ -881,6 +881,35 @@ in one pass, sequence it — **mobile first** (the primary coaching surface and 
 largest share of real writes), then Adjust, then web — but not past the end of
 the wave.
 
+**⚠ THE IDEMPOTENCY KEY MUST SERVE OFFLINE REPLAY, NOT ONLY ONLINE PUBLISH.**
+`client_workouts` carries no natural unique key, so *"has this session been
+delivered?"* currently has **three** answers — what the composing screen
+remembers, what the device's offline queue holds, and what is actually on the
+server — and nothing reconciles them. That missing invariant is not theoretical:
+the offline assign queue produced **three consecutive rounds** of duplicate-insert
+and false-"held" defects, each one an adjacent path the previous fix didn't
+cover, and it was **split out of this wave** (`claude/offline-assign-queue`)
+because no amount of client-side bookkeeping closes it.
+
+So the boundary's key is not a publish-path detail — it is what makes the queue
+correct, and it must satisfy all four:
+
+1. **Minted at AUTHORING time and carried in the payload** — never derived at
+   send time. It has to survive the device going offline, the app being killed,
+   and the coach re-authenticating before the week is ever transmitted.
+2. **Re-submitting the same week returns the same outcome**, not a second set of
+   rows — whether the repeat comes from a retry tap, a background drain, or both
+   racing.
+3. **The response distinguishes `accepted` from `already delivered`.** A replay
+   that lands on an already-delivered week must be able to say so, so the client
+   reports honestly instead of re-inserting or claiming work is still held.
+4. **Scoped to the originating coach.** A queued payload replayed under a
+   different signed-in account is REJECTED by the server, never silently
+   re-attributed — the client-side owner guard is a courtesy, not the boundary.
+
+Without (1)–(4) the queue work hits the same wall on the far side of the
+boundary, and the split will have bought nothing.
+
 **Adjust regeneration is the HIGHEST-risk path, not a secondary one.** It
 rescales loads — precisely the guardrail's subject — and it is **automated**, so
 no human looked at the result at the moment of change. A coach hand-building a
