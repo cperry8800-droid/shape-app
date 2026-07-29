@@ -28,15 +28,62 @@
 
 export const BS_ADJUST_SCALE = { deload: 0.85, maintain: 1, progress: 1.025 };
 
-// Scale the first number in a free-text load ("135 lb" → "115 lb"); loads
-// ≥20 round to the nearest 5 (plate math), smaller round to 1.
+// Scale the WEIGHT VALUES in a free-text load ("135 lb" → "115 lb"); loads ≥20
+// round to the nearest 5 (plate math), smaller round to 1.
+//
+// ⚠ THIS FIELD IS PROSE WHOSE TYPE WAS FLATTENED AWAY UPSTREAM, so the function
+// cannot ask what a number MEANS — only recognise the shapes that are
+// unambiguously a weight and refuse everything else. Three writers feed it and
+// not one preserves the type: `loadLabel` (dashBuilderCore) turns
+// `{loadType:'rpe', load:8}` into the string `"RPE 8"`, the mobile builder's
+// Load field is free text, and `bsAssignExercise` leaves whatever survives
+// scheme-stripping.
+//
+// The original "replace the first number, whatever it is" rewrote an authored
+// `"RPE 8"` into `"RPE 7"` on a deload — silently restating the coach's
+// prescribed EFFORT as if it were weight — scaled only the first rung of a
+// `"135/155/175 lb"` ramp, and turned `"10 sets x 3 reps @ 225 lb"` into
+// **9 sets**. So the rule is a whitelist, not a blacklist of "RPE":
+//
+//   · a number scales when it carries a MASS UNIT (kg/lb/#), or when the whole
+//     field is nothing but a number (a load field holding only "110" has no
+//     competing meaning);
+//   · EVERY weight token scales, including each rung of a slash-separated ramp
+//     sharing one trailing unit;
+//   · anything else — RPE annotations, set counts, percentages, plate counts,
+//     prose — comes back byte-identical.
+//
+// When nothing is identifiable as a weight the string is returned UNCHANGED. A
+// non-rewrite is always safer than a wrong rewrite: the coach's authored text
+// is the fact, and guessing at it is the defect this replaced.
+const BS_MASS_UNIT = 'kgs?|lbs?|#';
+const BS_BARE_NUMBER = /^\s*\d+(?:\.\d+)?\s*$/;
+const bsRoundLoad = (v) => (v >= 20 ? Math.round(v / 5) * 5 : Math.round(v));
+
 export function bsScaleLoad(load, scale) {
   const s = String(load == null ? '' : load);
   if (scale === 1 || !/\d/.test(s)) return s;
-  return s.replace(/\d+(?:\.\d+)?/, (n) => {
-    const v = Number(n) * scale;
-    return String(v >= 20 ? Math.round(v / 5) * 5 : Math.round(v));
+
+  // The whole field is a number → unambiguously a load.
+  if (BS_BARE_NUMBER.test(s)) {
+    return s.replace(/\d+(?:\.\d+)?/, (n) => String(bsRoundLoad(Number(n) * scale)));
+  }
+
+  // Numbers carrying a mass unit, ramps included. Built per call rather than
+  // hoisted: a module-level /g regex carries lastIndex between calls, and a
+  // future `.test()` on it would silently skip matches.
+  const weightRun = new RegExp(
+    `(\\d+(?:\\.\\d+)?(?:\\s*/\\s*\\d+(?:\\.\\d+)?)*)(\\s*(?:${BS_MASS_UNIT})\\b)`,
+    'gi',
+  );
+  let touched = false;
+  const out = s.replace(weightRun, (_m, nums, unit) => {
+    touched = true;
+    return nums.replace(/\d+(?:\.\d+)?/g, (n) => String(bsRoundLoad(Number(n) * scale))) + unit;
   });
+
+  // Nothing identifiable as a weight → leave it exactly as the coach wrote it.
+  return touched ? out : s;
 }
 
 const isoShift = (iso, days) => {

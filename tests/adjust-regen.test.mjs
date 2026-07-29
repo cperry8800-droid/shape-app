@@ -116,3 +116,78 @@ test('garbage input changes nothing', () => {
   assert.equal(run([], adj()).changed, false);
   assert.equal(run([row('a', '2026-07-14')], null).changed, false);
 });
+
+// ── bsScaleLoad: the load field is PROSE, so only weight values may move ────
+// The field's type is flattened away upstream (loadLabel → "RPE 8", the mobile
+// builder's free-text Load input, bsAssignExercise's leftovers), so the parse
+// whitelists what a weight IS and leaves everything else byte-identical.
+const DELOAD = BS_ADJUST_SCALE.deload;     // 0.85
+const PROGRESS = BS_ADJUST_SCALE.progress; // 1.025
+
+test('bsScaleLoad: an authored RPE annotation is NEVER rewritten as weight', () => {
+  // The live defect: a deload restated the coach's prescribed effort.
+  // loadType:'rpe' rows exist in production, so this is not hypothetical.
+  assert.equal(bsScaleLoad('RPE 8', DELOAD), 'RPE 8');
+  assert.equal(bsScaleLoad('RPE 7', DELOAD), 'RPE 7');
+  assert.equal(bsScaleLoad('@8 RPE', DELOAD), '@8 RPE');
+  assert.equal(bsScaleLoad('RPE 8', PROGRESS), 'RPE 8');
+});
+
+test('bsScaleLoad: a set count is never scaled, but the weight beside it is', () => {
+  // The scheme regex in bsAssignExercise misses "N sets x M reps", so the whole
+  // tail used to land in `load` and the FIRST number (the set count) moved.
+  assert.equal(bsScaleLoad('10 sets x 3 reps @ 225 lb', DELOAD), '10 sets x 3 reps @ 190 lb');
+  assert.equal(bsScaleLoad('3 sets x 8 reps @ 135 lb', PROGRESS), '3 sets x 8 reps @ 140 lb');
+});
+
+test('bsScaleLoad: every rung of a ramp scales, not just the first', () => {
+  // Scaling only the first rung produced a ramp that descended then overshot.
+  assert.equal(bsScaleLoad('135/155/175 lb across', DELOAD), '115/130/150 lb across');
+  assert.equal(bsScaleLoad('135/155/175 lb across', PROGRESS), '140/160/180 lb across');
+});
+
+test('bsScaleLoad: plain weights, bare numbers and bodyweight-plus still scale', () => {
+  assert.equal(bsScaleLoad('110 kg', DELOAD), '95 kg');
+  assert.equal(bsScaleLoad('225 lb', DELOAD), '190 lb');
+  assert.equal(bsScaleLoad('@ 135 lb', PROGRESS), '@ 140 lb');
+  assert.equal(bsScaleLoad('BW+25 lb', DELOAD), 'BW+20 lb');
+  assert.equal(bsScaleLoad('110', DELOAD), '95');          // mobile builder's free-text field
+  assert.equal(bsScaleLoad('27.5 lb', DELOAD), '25 lb');   // decimals survive the parse
+});
+
+test('bsScaleLoad: unidentifiable loads are returned UNCHANGED, never guessed at', () => {
+  for (const s of ['work up to a heavy triple', '2 plates', '75% 1RM', '@ 80% 1RM', 'bodyweight', '']) {
+    assert.equal(bsScaleLoad(s, DELOAD), s, `deload must not touch ${JSON.stringify(s)}`);
+    assert.equal(bsScaleLoad(s, PROGRESS), s, `progress must not touch ${JSON.stringify(s)}`);
+  }
+});
+
+test('bsScaleLoad: maintain (scale 1) is byte-identical for every shape', () => {
+  for (const s of ['110 kg', 'RPE 8', '135/155/175 lb', '10 sets x 3 reps @ 225 lb', '110', '75% 1RM']) {
+    assert.equal(bsScaleLoad(s, BS_ADJUST_SCALE.maintain), s);
+  }
+});
+
+test('bsScaleLoad: surrounding text is structurally preserved — only digits may move', () => {
+  const CORPUS = ['110 kg', '92.5 kg', 'RPE 8', '75% 1RM', '110', '@ 135 lb', '225 lb', '27.5 lb',
+    'BW+25 lb', '135/155/175 lb across', '10 sets x 3 reps @ 225 lb', 'work up to a heavy triple',
+    '2 plates', '@ 80% 1RM', 'RPE 7', ''];
+  const skeleton = (x) => x.replace(/\d+(?:\.\d+)?/g, '#');
+  for (const s of CORPUS) {
+    for (const scale of [DELOAD, PROGRESS]) {
+      const out = bsScaleLoad(s, scale);
+      assert.equal(skeleton(out), skeleton(s), `non-numeric shape changed: ${JSON.stringify(s)} → ${JSON.stringify(out)}`);
+      // and a number may only have moved if it was eligible in the first place
+      if (out !== s) {
+        assert.ok(/^\s*\d+(?:\.\d+)?\s*$/.test(s) || /\d\s*(?:kgs?|lbs?|#)\b/i.test(s),
+          `ineligible string was rewritten: ${JSON.stringify(s)} → ${JSON.stringify(out)}`);
+      }
+    }
+  }
+});
+
+test('bsScaleLoad: null/undefined and unit-less junk never throw', () => {
+  assert.equal(bsScaleLoad(null, DELOAD), '');
+  assert.equal(bsScaleLoad(undefined, DELOAD), '');
+  assert.equal(bsScaleLoad('—', DELOAD), '—');
+});
