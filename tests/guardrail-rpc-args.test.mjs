@@ -24,6 +24,10 @@ const MIGRATIONS = [
   'supabase-migrations/2026-07-27-guardrail-load-history.sql',
   'supabase-migrations/2026-07-29-guardrail-week-publish.sql',
   'supabase-migrations/2026-07-30-adjust-regeneration-ack.sql',
+  // ⚠ LAST WINS, AND THAT IS THE POINT. This one RECREATES publish_client_week
+  // with a ninth parameter, so its declaration must be the one every assertion
+  // below reads — exactly as the deployed database will see it.
+  'supabase-migrations/2026-07-30-week-publish-precondition.sql',
 ];
 // The week/session RPC calls live in the shared publisher; the routes above it
 // only orchestrate. When they moved there the 'checked' floor below caught it
@@ -150,6 +154,52 @@ test('publish_client_week is called with its full required argument set', () => 
   for (const required of ['p_coach_user_id', 'p_idempotency_key', 'p_client_id', 'p_week_start', 'p_request_hash', 'p_outcome']) {
     assert.ok(call.keys.includes(required), `publish_client_week needs ${required}`);
   }
+});
+
+test('the publish carries the concurrency precondition end to end', () => {
+  // A week-replace over a read-merge is a lost-update race: two assignments into
+  // one client-week both read the same week, both publish a different merge, and
+  // the later replace deletes the earlier one's session. The precondition is the
+  // only thing that catches it, and it is invisible to every other gate — drop
+  // the argument and the publish still succeeds, still typechecks, still passes
+  // the suite, and silently goes back to losing sessions.
+  assert.ok(
+    DECLARED.get('publish_client_week').has('p_expected_row_ids'),
+    'the migration declares the precondition parameter',
+  );
+  const src = readFileSync(join(ROOT, PUBLISHER), 'utf8');
+  const call = rpcCalls(src).find((c) => c.fn === 'publish_client_week');
+  assert.ok(call.keys.includes('p_expected_row_ids'), 'the publisher sends the precondition');
+});
+
+test('the precondition migration leaves exactly one publish_client_week overload', () => {
+  // PostgREST resolves an overload by the argument names supplied, and an
+  // eight-argument call matches BOTH candidates once the ninth defaults. Leaving
+  // the old form behind does not merely keep a stale path alive — it makes every
+  // publish ambiguous and fails them all at the database.
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-07-30-week-publish-precondition.sql'), 'utf8');
+  assert.match(
+    sql,
+    /drop function if exists public\.publish_client_week\(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb\)/i,
+    'the eight-argument form is dropped, not left beside the new one',
+  );
+  assert.match(sql, /grant\s+execute on function public\.publish_client_week\([^)]*uuid\[\]\) to service_role/i);
+  assert.doesNotMatch(
+    sql,
+    /grant\s+execute on function public\.publish_client_week\([^)]*\) to authenticated/i,
+    'the grant IS the gate — authenticated must never hold EXECUTE',
+  );
+});
+
+test('a publish sends ONE notification, not one per carried row', () => {
+  // notify_on_client_workout fires per INSERTED ROW, and a week-replace
+  // re-inserts every session it carried. Without the transaction-local GUC a
+  // coach assigning one session into a week holding three sent the client FOUR
+  // "New workout from your coach" pushes — three for sessions they were told
+  // about days ago. Same remedy, same flag, as the Adjust regeneration.
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-07-30-week-publish-precondition.sql'), 'utf8');
+  assert.match(sql, /set_config\('shape\.adjust_regen', '1', true\)/, 'the per-row trigger is quieted');
+  assert.match(sql, /insert into public\.notifications/, 'and one summary is emitted in its place');
 });
 
 test('the adjust route sends the regeneration its full argument set, p_ack included', () => {

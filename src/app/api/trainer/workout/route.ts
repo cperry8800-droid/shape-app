@@ -136,56 +136,93 @@ export async function POST(request: Request) {
   const results: PublishResult[] = [];
   const weekEndISO = addDays(weekStartISO, 6);
 
+  // ⚠ THE READ AND THE PUBLISH ARE TWO ROUND TRIPS, AND THE PUBLISH REPLACES.
+  //
+  // Two assignments into the same client-week interleave into silent data loss:
+  // both read the same week, both compute a different merge, and the later
+  // replace deletes the session the earlier one just added. Both carry
+  // content-derived keys, so the idempotency ledger sees two legitimate
+  // publishes and cannot tell them apart.
+  //
+  // A lock cannot span the two calls (separate round trips on a pooled
+  // connection), so the RPC takes a precondition instead: the row ids THIS
+  // attempt read. If the week moved, nothing is written and the attempt restarts
+  // from the read — so the guardrail is RE-EVALUATED against the week actually
+  // about to be written, never against the stale one. That re-evaluation is the
+  // point: a verdict carried over from a week that no longer exists would be the
+  // same class of bug one level up.
+  const MAX_PUBLISH_ATTEMPTS = 3;
+
   for (const clientId of clientIds) {
-    // The coach's OWN rows for this client-week. Scoped to the caller's trainer
-    // row because the boundary only ever replaces the coach's own work — another
-    // provider's rows are not ours to carry or to clear.
-    const { data: existing, error: readErr } = await supabase
-      .from('client_workouts')
-      .select('title, description, kind, scheduled_date, payload')
-      .eq('trainer_id', trainerRow.id)
-      .eq('client_id', clientId)
-      .eq('status', 'published')
-      .gte('scheduled_date', weekStartISO)
-      .lte('scheduled_date', weekEndISO);
-    if (readErr) {
-      // Publishing without knowing the rest of the week would DELETE it. A read
-      // failure therefore has to stop this client, not fall through.
-      console.error('[shape-api] existing week read:', readErr.message);
-      results.push({ clientId, status: 'error', error: 'Could not read this client\'s week. Please retry.' });
-      continue;
+    let out: PublishResult | null = null;
+    let merged: ReturnType<typeof bsMergeWeekSessions> | null = null;
+
+    for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {
+      // The coach's OWN rows for this client-week. Scoped to the caller's trainer
+      // row because the boundary only ever replaces the coach's own work — another
+      // provider's rows are not ours to carry or to clear.
+      const { data: existing, error: readErr } = await supabase
+        .from('client_workouts')
+        .select('id, title, description, kind, scheduled_date, payload')
+        .eq('trainer_id', trainerRow.id)
+        .eq('client_id', clientId)
+        .eq('status', 'published')
+        .gte('scheduled_date', weekStartISO)
+        .lte('scheduled_date', weekEndISO);
+      if (readErr) {
+        // Publishing without knowing the rest of the week would DELETE it. A read
+        // failure therefore has to stop this client, not fall through.
+        console.error('[shape-api] existing week read:', readErr.message);
+        out = { clientId, status: 'error', error: 'Could not read this client\'s week. Please retry.' };
+        break;
+      }
+
+      const rows = existing ?? [];
+      // The precondition covers the WHOLE week the read returned, not just the
+      // rows the merge keeps — the RPC compares against the same unfiltered set,
+      // so a past-dated row the merge drops still counts as part of "the week I
+      // read". Filtering either side would put the two on different clocks.
+      const expectedRowIds = rows.map((r) => String((r as { id: unknown }).id));
+      merged = bsMergeWeekSessions(rows, incoming, { weekStartISO, todayISO });
+
+      // Content-derived, so a retry of the same assignment REPLAYS rather than
+      // publishing twice: the first call merges [] + A into [A]; the retry merges
+      // the now-stored [A] + A back into [A] (same day, same title replaces), so
+      // both hash the same. Adding a genuinely different session changes the
+      // content and correctly mints a new key.
+      const idempotencyKey = keyFor([
+        user.id, clientId, weekStartISO, JSON.stringify(merged.sessions),
+      ].join('\u0000'));
+
+      const norm = normalizeWeekRequest(
+        { clientId, weekStartISO, idempotencyKey, capture: merged.capture, sessions: merged.sessions },
+        { todayISO },
+      );
+      if (!norm.ok) {
+        out = { clientId, status: 'error', error: 'That week could not be read.', reason: norm.error, detail: norm.detail };
+        break;
+      }
+
+      out = await publishWeekForClient({
+        supabase, admin, coachUserId: user.id, clientId, week: norm.week, todayISO, expectedRowIds,
+      });
+      if (out.status !== 'week_changed') break;
+      out = null; // The week moved under us. Re-read, re-merge, re-evaluate.
     }
 
-    const merged = bsMergeWeekSessions(
-      existing ?? [],
-      incoming,
-      { weekStartISO, todayISO },
-    );
-
-    // Content-derived, so a retry of the same assignment REPLAYS rather than
-    // publishing twice: the first call merges [] + A into [A]; the retry merges
-    // the now-stored [A] + A back into [A] (same day, same title replaces), so
-    // both hash the same. Adding a genuinely different session changes the
-    // content and correctly mints a new key.
-    const idempotencyKey = keyFor([
-      user.id, clientId, weekStartISO, JSON.stringify(merged.sessions),
-    ].join('\u0000'));
-
-    const norm = normalizeWeekRequest(
-      { clientId, weekStartISO, idempotencyKey, capture: merged.capture, sessions: merged.sessions },
-      { todayISO },
-    );
-    if (!norm.ok) {
-      results.push({ clientId, status: 'error', error: 'That week could not be read.', reason: norm.error, detail: norm.detail });
-      continue;
+    if (!out) {
+      // Every attempt lost the race. Reported honestly rather than retried
+      // forever — nothing was written, and the coach can simply tap again.
+      out = {
+        clientId,
+        status: 'error',
+        error: 'That week kept changing while we saved it. Please retry.',
+        reason: 'week_contended',
+      };
     }
-
-    const out = await publishWeekForClient({
-      supabase, admin, coachUserId: user.id, clientId, week: norm.week, todayISO,
-    });
     // Report what the merge carried, so a caller can tell "your one session" from
     // "your session plus the four already there" without guessing.
-    results.push({ ...out, carried: merged.carried, skippedPast: merged.skippedPast });
+    results.push({ ...out, ...(merged ? { carried: merged.carried, skippedPast: merged.skippedPast } : {}) });
   }
 
   const errored = results.some((r) => r.status === 'error' || r.status === 'key_reused');

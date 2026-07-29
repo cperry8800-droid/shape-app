@@ -38,10 +38,25 @@ export type PublishWeekArgs = {
    */
   week: PublishWeek;
   todayISO: string;
+  /**
+   * The ids of the coach's own published rows in this client-week AT THE MOMENT
+   * THE CALLER READ THEM — the optimistic-concurrency precondition.
+   *
+   * ⚠ REQUIRED BY ANY CALLER THAT READ-MERGES. The boundary REPLACES a week, so
+   * a caller that reads the week, folds a session in, and publishes the result
+   * has a lost-update race with another caller doing the same: both read the
+   * same week, both publish a different merge, and the later replace deletes the
+   * earlier one's session. Declaring what was read lets the RPC refuse a week
+   * that moved, and the caller re-reads, RE-EVALUATES and retries.
+   *
+   * `null`/absent = no precondition, which is the whole-week route's contract:
+   * an explicitly authored week replaces by design and read nothing to merge.
+   */
+  expectedRowIds?: readonly string[] | null;
 };
 
 export async function publishWeekForClient(args: PublishWeekArgs): Promise<PublishResult> {
-  const { supabase, admin, coachUserId, clientId, week, todayISO } = args;
+  const { supabase, admin, coachUserId, clientId, week, todayISO, expectedRowIds } = args;
   const hash = weekRequestHash(clientId, week);
 
   // History AND the kill switch ride on ONE call (§7.4: the flag rides on the
@@ -119,8 +134,18 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
     p_outcome: outcome,
     p_rows: toWorkoutRows(week),
     p_ack: ack,
+    p_expected_row_ids: expectedRowIds ?? null,
   });
   if (pubErr) {
+    // 40001 = the week moved between the caller's read and this publish. Nothing
+    // is wrong with the request and NOTHING WAS WRITTEN — the RPC raises before
+    // it claims the key, so the whole transaction rolled back. Reported as its
+    // own status rather than an error so the caller can re-read, re-merge and
+    // RE-EVALUATE. It never reaches telemetry: no week was published, and §10.2's
+    // denominator is publishes.
+    if ((pubErr as { code?: string }).code === '40001') {
+      return { clientId, status: 'week_changed' };
+    }
     // 23505 = the same key with DIFFERENT content. A caller bug, not a replay,
     // and it must never be served the first week's outcome.
     const conflict = (pubErr as { code?: string }).code === '23505';
