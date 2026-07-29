@@ -349,7 +349,57 @@
     return seeds[templateId] || null;
   }
 
+  // ── Assignment grouping — one publish per WEEK, not per session ────────────
+  //
+  // The publish boundary (SPEC-guardrails.md §9.4) evaluates and REPLACES a whole
+  // client-week. Sending a program one session at a time is correct — each call
+  // re-merges and accumulates — but it republishes the same week once per
+  // session, so a 12-week × 3-day program does ~36 publishes and ~36 telemetry
+  // rows for ONE authoring act, which skews §10.2's flag-rate denominators.
+  //
+  // ⚠ MONDAY COMES FROM THE SESSION'S OWN DATE, never from the program start.
+  // A session grouped into the wrong week is judged against the wrong week's
+  // load AND lands in a replace that clears a week it was never part of. The
+  // arithmetic below is `bsWeekStartOf` (src/lib/week-merge.mjs) verbatim —
+  // UTC-only, so no local timezone can shift the boundary — because the route
+  // re-derives the week server-side and rejects a call whose sessions span two.
+  function weekStartOf(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+    if (!m) return null;
+    var y = +m[1], mo = +m[2], day = +m[3];
+    var d = new Date(Date.UTC(y, mo - 1, day));
+    if (isNaN(d.getTime())) return null;
+    // ⚠ DAY OVERFLOW IS THE ONE CASE A NaN CHECK MISSES. `Date.UTC(2026, 1, 30)`
+    // does not fail — it rolls Feb 30 to March 2 — so a calendar-impossible date
+    // would be bucketed into a week nobody authored, silently. Month 13 and
+    // hour 25 do yield NaN, which is exactly why the round-trip is the check.
+    if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== day) return null;
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+
+  // rows (from buildAssignmentRows) -> [{ weekStartISO, rows }], week-ascending.
+  // A row with an unreadable date is DROPPED rather than bucketed into a
+  // fabricated week: the route refuses an undated session by name, and silently
+  // inventing a Monday for it would publish it into a week nobody authored.
+  function groupAssignmentWeeks(rows) {
+    var byWeek = {};
+    var list = Array.isArray(rows) ? rows : [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r) continue;
+      var k = weekStartOf(r.scheduledDate);
+      if (!k) continue;
+      if (!byWeek[k]) byWeek[k] = [];
+      byWeek[k].push(r);
+    }
+    return Object.keys(byWeek).sort().map(function (k) {
+      return { weekStartISO: k, rows: byWeek[k] };
+    });
+  }
+
   return {
+    weekStartOf: weekStartOf, groupAssignmentWeeks: groupAssignmentWeeks,
     GOAL_TAGS: GOAL_TAGS,
     BLOCK_KINDS: BLOCK_KINDS,
     EXERCISES: EXERCISES,

@@ -24,7 +24,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
-import { normalizeWeekRequest } from '@/lib/week-publish.mjs';
+import { normalizeWeekRequest, BS_WEEK_SESSION_MAX } from '@/lib/week-publish.mjs';
 import { bsMergeWeekSessions, bsWeekStartOf } from '@/lib/week-merge.mjs';
 import { publishWeekForClient, type PublishResult } from '@/lib/week-publish-server';
 
@@ -53,24 +53,59 @@ export async function POST(request: Request) {
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
   const clientIds = Array.isArray(body.clientIds) ? body.clientIds.map(String).filter(Boolean) : [];
-  const title = String(body.title ?? '').trim().slice(0, 200);
-  const description = body.description ? String(body.description).slice(0, 2000) : '';
-  const kind = body.kind === 'custom' ? 'custom' : 'template';
-  const scheduledDate = body.scheduledDate ? String(body.scheduledDate).slice(0, 10) : '';
-  const payload = (body.payload && typeof body.payload === 'object') ? body.payload as Record<string, unknown> : {};
-
   if (!clientIds.length) return NextResponse.json({ error: 'Pick at least one client.' }, { status: 400 });
-  if (!title) return NextResponse.json({ error: 'Workout title is required.' }, { status: 400 });
+
+  // ⚠ ONE SESSION OR A WHOLE WEEK. The array form exists so a program assignment
+  // can send every session of a week in ONE call. Sending them one at a time is
+  // CORRECT (each call re-merges and accumulates) but it publishes the same week
+  // once per session — a 12-week × 3-day program does ~36 publishes and ~36
+  // telemetry rows, which skews §10.2's flag-rate denominators by counting one
+  // authoring act as 36. The single-session shape is kept because newWorkout.jsx
+  // and Nora's assign_workout both speak it; both shapes take the same
+  // merge-and-publish path below, so there is one gate, not two.
+  const rawSessions = Array.isArray(body.sessions)
+    ? body.sessions
+    : [{ title: body.title, description: body.description, kind: body.kind, scheduledDate: body.scheduledDate, payload: body.payload }];
+
+  if (!rawSessions.length) return NextResponse.json({ error: 'Nothing to assign.' }, { status: 400 });
+  if (rawSessions.length > BS_WEEK_SESSION_MAX) {
+    return NextResponse.json({ error: 'That is more sessions than one week can hold.', reason: 'too_many_sessions' }, { status: 400 });
+  }
+
+  const incoming: Array<{ title: string; description: string; kind: string; scheduledDate: string; payload: Record<string, unknown> }> = [];
+  for (const raw of rawSessions) {
+    const s = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw as Record<string, unknown> : {};
+    const title = String(s.title ?? '').trim().slice(0, 200);
+    if (!title) return NextResponse.json({ error: 'Workout title is required.' }, { status: 400 });
+    incoming.push({
+      title,
+      description: s.description ? String(s.description).slice(0, 2000) : '',
+      kind: s.kind === 'custom' ? 'custom' : 'template',
+      scheduledDate: s.scheduledDate ? String(s.scheduledDate).slice(0, 10) : '',
+      payload: (s.payload && typeof s.payload === 'object' && !Array.isArray(s.payload)) ? s.payload as Record<string, unknown> : {},
+    });
+  }
 
   // ⚠ A DATE IS NOW REQUIRED, and this is a deliberate behaviour change. An
   // undated row has no week, so there is no load for the guardrail to judge and
   // no week to publish it into — it is the one shape that cannot pass through
   // the boundary at all. Leaving it ungated would keep exactly the hole §9.4
   // exists to close, so it is refused, by name, rather than waved through.
-  const weekStartISO = bsWeekStartOf(scheduledDate);
-  if (!weekStartISO) {
+  const weekStarts = incoming.map((s) => bsWeekStartOf(s.scheduledDate));
+  if (weekStarts.some((w) => !w)) {
     return NextResponse.json(
       { error: 'Give the workout a date — a session has to land in a week to be assigned.', reason: 'date_required' },
+      { status: 400 },
+    );
+  }
+  // Every session must fall in the SAME week: this route publishes exactly one
+  // client-week per call, and the boundary REPLACES that week. Sessions from two
+  // weeks in one call would publish only the first and silently drop the rest —
+  // so the caller groups by week and sends one call per week.
+  const weekStartISO = weekStarts[0] as string;
+  if (weekStarts.some((w) => w !== weekStartISO)) {
+    return NextResponse.json(
+      { error: 'Those sessions span more than one week — assign a week at a time.', reason: 'multi_week' },
       { status: 400 },
     );
   }
@@ -123,7 +158,7 @@ export async function POST(request: Request) {
 
     const merged = bsMergeWeekSessions(
       existing ?? [],
-      [{ title, description, kind, scheduledDate, payload }],
+      incoming,
       { weekStartISO, todayISO },
     );
 

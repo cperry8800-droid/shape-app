@@ -200,11 +200,25 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
     const rows = DashBuilder.buildAssignmentRows(doc, { id: template.id, name: template.name }, startDate);
     try {
       if (live) {
-        for (const row of rows) {
+        // ⚠ ONE PUBLISH PER WEEK, not per session. The boundary evaluates and
+        // replaces a whole client-week, so sending sessions one at a time
+        // republishes the same week once per session — ~36 publishes and ~36
+        // telemetry rows for a 12-week program, which skews §10.2's flag-rate
+        // denominators by counting one authoring act as 36. Grouping is in
+        // dashBuilderCore (pure + tested) because a session bucketed into the
+        // wrong week is judged against the wrong load and lands in a replace
+        // that clears a week it was never part of.
+        for (const wk of DashBuilder.groupAssignmentWeeks(rows)) {
           const res = await fetch("/api/trainer/workout", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientIds: ids, title: row.title, description: template.name, kind: "template", scheduledDate: row.scheduledDate, payload: row.payload }),
+            body: JSON.stringify({
+              clientIds: ids,
+              sessions: wk.rows.map((row) => ({
+                title: row.title, description: template.name, kind: "template",
+                scheduledDate: row.scheduledDate, payload: row.payload,
+              })),
+            }),
           });
           // A 409 is the progression guardrail HOLDING the week, not a fault —
           // it carries the reason in `error`, and throwing "HTTP 409" would

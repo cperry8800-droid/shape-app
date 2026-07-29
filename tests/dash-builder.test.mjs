@@ -103,3 +103,73 @@ test("demo templates cover all five goal tags and pass through the snapshot path
   assert.ok(rows[0].payload.playlist && rows[0].payload.playlist.name.includes("Lower Push"));
   assert.ok(DB.demoPerformance(strength.id).retention.length >= 8);
 });
+
+// ── groupAssignmentWeeks — one publish per WEEK, not per session ─────────────
+//
+// The grouping is the load-bearing half: the publish boundary REPLACES a whole
+// client-week, so a session bucketed into the wrong week is judged against the
+// wrong load AND lands in a replace that clears a week it was never part of.
+
+test("groupAssignmentWeeks: a 12-week × 3-day program becomes 12 calls, not 36", () => {
+  const rows = [];
+  for (let w = 0; w < 12; w += 1) {
+    for (const d of [0, 2, 4]) {           // Mon / Wed / Fri
+      const dt = new Date(Date.UTC(2026, 5, 15 + w * 7 + d)); // 2026-06-15 is a Monday
+      rows.push({ title: `W${w + 1} D${d}`, scheduledDate: dt.toISOString().slice(0, 10), payload: {} });
+    }
+  }
+  assert.equal(rows.length, 36);
+  const weeks = DB.groupAssignmentWeeks(rows);
+  assert.equal(weeks.length, 12);
+  assert.ok(weeks.every((w) => w.rows.length === 3));
+  assert.equal(weeks[0].weekStartISO, "2026-06-15");
+  assert.equal(weeks[11].weekStartISO, "2026-08-31");
+});
+
+test("groupAssignmentWeeks: Monday comes from the session's OWN date", () => {
+  // Sunday closes the week it belongs to; the next Monday opens a new one.
+  const weeks = DB.groupAssignmentWeeks([
+    { title: "Sun", scheduledDate: "2026-06-21", payload: {} },
+    { title: "Mon", scheduledDate: "2026-06-22", payload: {} },
+    { title: "Wed", scheduledDate: "2026-06-17", payload: {} },
+  ]);
+  assert.deepEqual(weeks.map((w) => w.weekStartISO), ["2026-06-15", "2026-06-22"]);
+  assert.deepEqual(weeks[0].rows.map((r) => r.title), ["Sun", "Wed"]);
+  assert.deepEqual(weeks[1].rows.map((r) => r.title), ["Mon"]);
+});
+
+test("groupAssignmentWeeks: weeks come back calendar-ascending", () => {
+  const weeks = DB.groupAssignmentWeeks([
+    { title: "c", scheduledDate: "2026-07-06", payload: {} },
+    { title: "a", scheduledDate: "2026-06-15", payload: {} },
+    { title: "b", scheduledDate: "2026-06-29", payload: {} },
+  ]);
+  assert.deepEqual(weeks.map((w) => w.weekStartISO), ["2026-06-15", "2026-06-29", "2026-07-06"]);
+});
+
+test("groupAssignmentWeeks: an undated row is DROPPED, never given a fabricated Monday", () => {
+  const weeks = DB.groupAssignmentWeeks([
+    { title: "real", scheduledDate: "2026-06-17", payload: {} },
+    { title: "undated", scheduledDate: "", payload: {} },
+    { title: "garbage", scheduledDate: "next tuesday", payload: {} },
+    { title: "impossible", scheduledDate: "2026-02-30", payload: {} },
+    null,
+  ]);
+  assert.equal(weeks.length, 1);
+  assert.deepEqual(weeks[0].rows.map((r) => r.title), ["real"]);
+});
+
+test("groupAssignmentWeeks: garbage input yields no weeks rather than throwing", () => {
+  for (const bad of [null, undefined, "rows", 7, {}]) {
+    assert.deepEqual(DB.groupAssignmentWeeks(bad), []);
+  }
+});
+
+test("groupAssignmentWeeks: the real builder output round-trips into one week", () => {
+  const strength = DB.demoTemplates()[0];
+  const rows = DB.buildAssignmentRows(strength.detail.builder, { id: strength.id, name: strength.name }, "2026-06-15");
+  const weeks = DB.groupAssignmentWeeks(rows);
+  const total = weeks.reduce((n, w) => n + w.rows.length, 0);
+  assert.equal(total, rows.length);          // nothing dropped
+  assert.ok(weeks.length < rows.length);     // and genuinely fewer calls
+});
