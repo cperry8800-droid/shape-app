@@ -2302,6 +2302,10 @@
                 </select>
               </div>
               <div class="pb-field">
+                <label class="pb-label">Session date</label>
+                <input type="date" class="pb-input" id="wbTplDate" data-wb-date>
+              </div>
+              <div class="pb-field">
                 <label class="pb-label">Music (optional)</label>
                 <select class="pb-select wb-playlist-select" id="wbTplPlaylist" data-wb-playlist>
                   <option value="">None</option>
@@ -2351,6 +2355,10 @@
                 <select class="pb-select wb-client-select" id="wbCustClient" data-wb-client>
                   <option value="">None</option>
                 </select>
+              </div>
+              <div class="pb-field">
+                <label class="pb-label">Session date</label>
+                <input type="date" class="pb-input" id="wbCustDate" data-wb-date>
               </div>
               <div class="pb-field">
                 <label class="pb-label">Music (optional)</label>
@@ -3763,8 +3771,16 @@
     ['wbTplName','wbTplMuscles'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
-    ['wbTplCategory','wbTplDifficulty','wbTplDuration','wbTplEquipment','wbTplClient','wbCustClient'].forEach(function(id) {
+    ['wbTplCategory','wbTplDifficulty','wbTplDuration','wbTplEquipment','wbTplClient','wbCustClient','wbTplDate','wbCustDate'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
+    });
+    // The publish boundary refuses a past-dated session (it would replace a week
+    // that may already have been logged against), and it compares against the
+    // SERVER's UTC day. Pinning `min` to that same day is the point: a date the
+    // picker offers is a date the boundary will accept.
+    var _wbMinDate = new Date().toISOString().slice(0, 10);
+    ['wbTplDate','wbCustDate'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.min = _wbMinDate;
     });
     ['wbTplDesc','wbCustDesc'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
@@ -3864,6 +3880,7 @@
       cooldown: cooldown,
       client: clientId ? clientLabel : '',
       clientId: clientId || '',
+      date: document.getElementById('wbTplDate') ? document.getElementById('wbTplDate').value : '',
       playlistId: plSel ? plSel.value : ''
     };
   }
@@ -3880,6 +3897,7 @@
       files: _wbUploadedFiles.map(function(f) { return { name: f.name, type: f.type, size: f.size, data: f.data }; }),
       client: clientId ? clientLabel : '',
       clientId: clientId || '',
+      date: document.getElementById('wbCustDate') ? document.getElementById('wbCustDate').value : '',
       playlistId: plSel ? plSel.value : ''
     };
   }
@@ -3914,35 +3932,49 @@
     var workout = type === 'template' ? wbCollectTemplate() : wbCollectCustom();
     if (!workout.name) { if (typeof showToast === 'function') showToast('Please enter a workout name.'); return; }
     if (!workout.clientId) { if (typeof showToast === 'function') showToast('Please assign a client first.'); return; }
+    // ⚠ A DATE IS REQUIRED to send a workout to a client, and this is a
+    // deliberate behaviour change. SPEC-guardrails.md §9.4 evaluates and
+    // publishes a whole client-WEEK, so an undated session has no week to land
+    // in and no load to judge — it is the one shape the boundary cannot accept.
+    // Publishing to your own profile (a catalogue entry, nobody's week) and
+    // saving a draft are unchanged and still need no date.
+    if (!workout.date) { if (typeof showToast === 'function') showToast('Pick a session date — a workout has to land on a day to be sent.'); return; }
     workout.status = 'Published';
     wbCoreSave(workout);
-    // Mirror the workout to Supabase so the assigned client actually sees it
-    // on /my-workouts.html. Payload is the full builder object minus the
-    // scalar fields already broken out as columns.
+    // Deliver through the evaluated boundary (`/api/trainer/workout`), which
+    // reads the client's existing week, folds this session in, and publishes the
+    // merged week. Payload is the full builder object minus the scalar fields
+    // already broken out as columns.
+    //
+    // ⚠ The Music selection does NOT reach the client. The boundary carries no
+    // `playlist_id` on ANY surface — the RPC never inserts one and the merge
+    // never reads one — so a week publish always writes NULL and a re-publish
+    // clears whatever was attached. Pre-existing across the whole wave; the
+    // coach's own saved copy keeps `playlistId` either way.
     try {
-      if (window.shapeDb && window.__wbTrainerId) {
+      if (window.shapeDb) {
         var payload = JSON.parse(JSON.stringify(workout));
         delete payload.client; delete payload.clientId; delete payload.playlistId;
         delete payload.status; delete payload.id; delete payload.createdAt; delete payload.updatedAt;
-        var res = await window.shapeDb.publishClientWorkout(window.__wbTrainerId, {
+        var res = await window.shapeDb.assignClientWorkout({
           clientId: workout.clientId,
           title: workout.name,
           description: workout.description || '',
           kind: workout.type === 'custom' ? 'custom' : 'template',
+          scheduledDate: workout.date,
           payload: payload,
-          playlistId: workout.playlistId || null,
         });
         if (res && res.error) {
-          console.warn('[shape] publishClientWorkout', res.error);
+          console.warn('[shape] assignClientWorkout', res.error);
           if (typeof showToast === 'function') showToast('Saved locally but could not deliver to client: ' + (res.error.message || 'unknown'));
         } else if (typeof showToast === 'function') {
           showToast('Workout published and sent to ' + (workout.client || 'client') + '!');
         }
       } else if (typeof showToast === 'function') {
-        showToast('Workout saved locally (trainer profile not linked yet).');
+        showToast('Workout saved locally (not signed in).');
       }
     } catch (err) {
-      console.warn('[shape] publishClientWorkout threw', err);
+      console.warn('[shape] assignClientWorkout threw', err);
       if (typeof showToast === 'function') showToast('Saved locally but delivery failed.');
     }
     _wbBuilderOpen = false;
@@ -4013,7 +4045,10 @@
       setVal('wbTplMuscles', workout.muscles);
       setVal('wbTplEquipment', workout.equipment);
       setVal('wbTplDesc', workout.description);
-      setVal('wbTplClient', workout.client);
+      // The select's option values are client USER IDS, so restoring the saved
+      // label left it on "None" and silently dropped the assignment.
+      setVal('wbTplClient', workout.clientId);
+      setVal('wbTplDate', workout.date);
       var warmupEl = document.getElementById('wbWarmup');
       if (warmupEl && workout.warmup && workout.warmup.length > 0) {
         warmupEl.innerHTML = '';
@@ -4054,7 +4089,8 @@
       var tplForm2 = document.getElementById('wbTemplateForm'); if (tplForm2) tplForm2.classList.remove('active');
       var custName = document.getElementById('wbCustName'); if (custName) custName.value = workout.name || '';
       var custDesc = document.getElementById('wbCustDesc'); if (custDesc) custDesc.value = workout.description || '';
-      var custClient = document.getElementById('wbCustClient'); if (custClient) custClient.value = workout.client || '';
+      var custClient = document.getElementById('wbCustClient'); if (custClient) custClient.value = workout.clientId || '';
+      var custDate = document.getElementById('wbCustDate'); if (custDate) custDate.value = workout.date || '';
       _wbUploadedFiles = (workout.files || []).map(function(f) { return { name: f.name, type: f.type, size: f.size, data: f.data }; });
       wbRenderFileList();
     }

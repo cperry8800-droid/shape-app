@@ -246,3 +246,41 @@ test('the adjust route does NOT call publish_client_week — its atomicity is th
   const src = readFileSync(join(ROOT, ADJUST), 'utf8');
   assert.equal(rpcCalls(src).some((c) => c.fn === 'publish_client_week'), false);
 });
+
+test('the website publish button goes through the evaluated boundary, not a direct insert', () => {
+  // `publishClientWorkout` inserted into client_workouts straight from the
+  // browser — the last unevaluated coach write in the product, live in
+  // production while three places claimed every coach write was gated. It could
+  // not be moved onto the boundary as-is because it created UNDATED rows, and an
+  // undated session has no week to be judged in. The builder now asks for a date
+  // and posts to /api/trainer/workout, which reads the week, merges, judges and
+  // publishes. If this fails, a surface has gone back around the door.
+  const page = readFileSync(join(ROOT, 'public/trainer-dashboard.html'), 'utf8');
+  const db = readFileSync(join(ROOT, 'public/supabase.js'), 'utf8');
+
+  assert.match(db, /fetch\('\/api\/trainer\/workout'/, 'delivery posts to the evaluated route');
+  assert.doesNotMatch(db, /from\('client_workouts'\)\s*\.insert\(/, 'and never inserts the table itself');
+  assert.doesNotMatch(db, /publishClientWorkout/, 'the direct-insert helper is gone, not merely unused');
+  assert.doesNotMatch(page, /publishClientWorkout/, 'and nothing still calls it');
+
+  assert.match(page, /assignClientWorkout\(/, 'the builder delivers through the boundary helper');
+  assert.match(page, /scheduledDate: workout\.date,/, 'and carries the date the boundary requires');
+  assert.match(page, /if \(!workout\.date\)/, 'a dateless send is refused before it is sent');
+});
+
+test('the coach INSERT policy is dropped — and the member self-authoring policy is NOT', () => {
+  // The lockout is what makes "one evaluated door" structural instead of
+  // conventional: with no coach INSERT policy, a future surface cannot
+  // reintroduce the hole by writing the table directly. The second assertion is
+  // the one that matters most — self-serve training (#1618) writes
+  // `trainer_id is null` rows under its OWN policy, and taking that down with
+  // the coach policy would silently break every member authoring their own week.
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-07-31-coach-insert-lockout.sql'), 'utf8');
+  assert.match(sql, /drop policy if exists "trainer_insert_on_client_workouts" on public\.client_workouts/i);
+  assert.doesNotMatch(
+    sql,
+    /drop policy if exists "client_insert_self_workouts"/i,
+    'the member self-insert policy must survive the lockout',
+  );
+  assert.match(sql, /client_insert_self_workouts is missing/, 'and the migration fails loudly if it did not');
+});
