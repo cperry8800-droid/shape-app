@@ -24,7 +24,10 @@ const MIGRATIONS = [
   'supabase-migrations/2026-07-27-guardrail-load-history.sql',
   'supabase-migrations/2026-07-29-guardrail-week-publish.sql',
 ];
-const CALLERS = ['src/app/api/trainer/week/route.ts'];
+// Both guardrail RPC calls live in the shared publisher; the routes above it
+// only orchestrate. When they moved here the 'checked >= 2' floor below
+// caught it rather than letting the guard pass on zero calls.
+const CALLERS = ['src/lib/week-publish-server.ts'];
 
 /** name -> Set(declared parameter names), from `create [or replace] function`. */
 function declaredParams(sql) {
@@ -108,9 +111,9 @@ test('every RPC argument a guardrail route sends is a declared parameter', () =>
 
 test('the load-history call names the client parameter the migration declares', () => {
   // The exact regression, pinned by name so the intent survives a refactor.
-  const src = readFileSync(join(ROOT, 'src/app/api/trainer/week/route.ts'), 'utf8');
+  const src = readFileSync(join(ROOT, CALLERS[0]), 'utf8');
   const call = rpcCalls(src).find((c) => c.fn === 'get_client_load_history');
-  assert.ok(call, 'the route still reads the load history');
+  assert.ok(call, 'the publisher still reads the load history');
   assert.deepEqual(call.keys, ['p_client_id']);
   assert.ok(!call.keys.includes('p_user_id'), 'p_user_id does not resolve against this function');
 });
@@ -118,7 +121,7 @@ test('the load-history call names the client parameter the migration declares', 
 test('publish_client_week is called with its full required argument set', () => {
   // `p_rows` and `p_ack` carry defaults; the first six do not, and omitting one
   // fails at the database rather than at any gate in this repo.
-  const src = readFileSync(join(ROOT, 'src/app/api/trainer/week/route.ts'), 'utf8');
+  const src = readFileSync(join(ROOT, CALLERS[0]), 'utf8');
   const call = rpcCalls(src).find((c) => c.fn === 'publish_client_week');
   assert.ok(call, 'the route still publishes through the boundary');
   for (const required of ['p_coach_user_id', 'p_idempotency_key', 'p_client_id', 'p_week_start', 'p_request_hash', 'p_outcome']) {

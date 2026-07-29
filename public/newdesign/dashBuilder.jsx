@@ -206,7 +206,13 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ clientIds: ids, title: row.title, description: template.name, kind: "template", scheduledDate: row.scheduledDate, payload: row.payload }),
           });
-          if (!res.ok) throw new Error("HTTP " + res.status);
+          // A 409 is the progression guardrail HOLDING the week, not a fault —
+          // it carries the reason in `error`, and throwing "HTTP 409" would
+          // strip exactly the sentence the coach needs to act on.
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d.error || ("HTTP " + res.status));
+          }
         }
       }
       // Plan written → those clients leave the programming queue for this week.
