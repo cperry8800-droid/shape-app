@@ -2970,7 +2970,18 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   }, []);
 
   // Trainer derived
-  const intensityDesc = { deload: tr('coach:adjust.descDeload', { defaultValue: 'Pull volume back ~40% and cap intensity. Recover and resensitize.' }), maintain: tr('coach:adjust.descMaintain', { defaultValue: 'Hold volume and loads — keep the engine ticking, no new stress.' }), progress: tr('coach:adjust.descProgress', { defaultValue: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }) }[intensity];
+  // ⚠ THIS COPY MUST DESCRIBE THE TRANSFORM, NOT AN INTENTION. It promised
+  // "pull volume back ~40%" and "add a set to main lifts … keep RPE ≤ 8" while
+  // bsAdjustRegen only ever multiplies the free-text load string by
+  // BS_ADJUST_SCALE (deload 0.85 · maintain 1 · progress 1.025) — it adds no
+  // set, caps no RPE, and never touches sets, reps or session count. A coach
+  // programming against "~40% volume" was deciding on a number the code does
+  // not produce. Corrected 2026-07-29; keep it true if the constants move.
+  //
+  // REGISTERED, NOT BUILT: coaches may genuinely expect a deload to cut VOLUME.
+  // If that is the expectation, the transform is what is wrong, not these
+  // words — a product question, deliberately not answered here.
+  const intensityDesc = { deload: tr('coach:adjust.descDeload', { defaultValue: 'Cut loads about 15% — sets and reps unchanged. Recover and resensitize.' }), maintain: tr('coach:adjust.descMaintain', { defaultValue: 'Hold volume and loads — keep the engine ticking, no new stress.' }), progress: tr('coach:adjust.descProgress', { defaultValue: 'Nudge every load about 2.5% — sets and reps unchanged. Small, repeatable progress.' }) }[intensity];
   const focusOpts = [{ k: 'strength', l: tr('coach:adjust.focusStrength', { defaultValue: 'Strength' }) }, { k: 'hypertrophy', l: tr('coach:adjust.focusHypertrophy', { defaultValue: 'Hypertrophy' }) }, { k: 'conditioning', l: tr('coach:adjust.focusConditioning', { defaultValue: 'Conditioning' }) }, { k: 'mobility', l: tr('coach:adjust.focusMobility', { defaultValue: 'Mobility' }) }, { k: 'power', l: tr('coach:adjust.focusPower', { defaultValue: 'Power' }) }];
   const toggleFocus = (k) => setFocus(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k]);
   const cycleDay = (i) => setDays(d => d.map((v, j) => j === i ? DAY_OPTS[(DAY_OPTS.indexOf(v) + 1) % DAY_OPTS.length] : v));
