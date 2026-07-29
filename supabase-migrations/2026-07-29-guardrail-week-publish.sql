@@ -48,13 +48,32 @@ create index if not exists coach_week_publishes_coach_idx
   on public.coach_week_publishes (coach_user_id, created_at desc);
 
 -- ── (2) The atomic publish ──────────────────────────────────────────────────
+--
+-- ⚠ SERVICE-ROLE ONLY, AND THE COACH IS AN EXPLICIT ARGUMENT (CWE-862).
+-- The first cut granted this to `authenticated` and read the actor from
+-- auth.uid(). That is a privilege-escalation surface: a signed-in trainer could
+-- call it directly with any client id, any week, any rows, bypassing the route's
+-- own scope check and the shaped contract in week-publish.mjs — the RPC deletes
+-- and inserts a whole week of a client's training. The route is now the ONLY
+-- caller (it runs an admin client and passes the id it has already authenticated
+-- and scoped), and the authz below is re-verified HERE against that id, so the
+-- boundary does not depend on the route being correct.
+--
+-- Because a service-role connection carries no auth.uid(), the discipline check
+-- cannot delegate to is_discipline_coach_on_client (which reads auth.uid()); the
+-- same predicate is inlined against p_coach_user_id. Resolving the trainer row
+-- from the SUBSCRIPTION that grants access — rather than "any trainer row this
+-- account owns" — also pins the write to the provider row the client actually
+-- pays, which the old `limit 1` did not.
 create or replace function public.publish_client_week(
+  p_coach_user_id   uuid,
   p_idempotency_key uuid,
   p_client_id       uuid,
   p_week_start      date,
   p_request_hash    text,
   p_outcome         jsonb,
-  p_rows            jsonb default '[]'
+  p_rows            jsonb default '[]',
+  p_ack             jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -62,16 +81,16 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_uid        uuid := auth.uid();
   v_trainer_id bigint;
   v_existing   public.coach_week_publishes%rowtype;
   v_row        jsonb;
   v_sched      date;
   v_inserted   int := 0;
   v_deleted    int := 0;
+  v_audited    boolean := false;
 begin
-  if v_uid is null then
-    raise exception 'authentication required' using errcode = '42501';
+  if p_coach_user_id is null then
+    raise exception 'coach is required' using errcode = '42501';
   end if;
   if p_idempotency_key is null or p_client_id is null or p_week_start is null then
     raise exception 'idempotency key, client and week are required' using errcode = '22023';
@@ -80,12 +99,16 @@ begin
   -- (4) The originating-coach scope. Checked BEFORE the ledger read so a
   -- different account replaying a queued payload is REJECTED rather than served
   -- the original coach's outcome.
-  if not public.is_discipline_coach_on_client(p_client_id, 'trainer') then
-    raise exception 'not this client''s training coach' using errcode = '42501';
-  end if;
-  select t.id into v_trainer_id from public.trainers t where t.owner_id = v_uid limit 1;
+  select t.id into v_trainer_id
+    from public.subscriptions s
+    join public.trainers t on t.id = s.provider_id
+   where s.client_id = p_client_id
+     and s.status in ('active', 'trialing')
+     and s.provider_role = 'trainer'
+     and t.owner_id = p_coach_user_id
+   limit 1;
   if v_trainer_id is null then
-    raise exception 'no trainer profile for this account' using errcode = '42501';
+    raise exception 'not this client''s training coach' using errcode = '42501';
   end if;
 
   -- (2)+(3) Replay. A completed record wins outright: no re-evaluation, no
@@ -95,7 +118,7 @@ begin
   where idempotency_key = p_idempotency_key and client_id = p_client_id;
 
   if found then
-    if v_existing.coach_user_id <> v_uid then
+    if v_existing.coach_user_id <> p_coach_user_id then
       raise exception 'idempotency key belongs to another coach' using errcode = '42501';
     end if;
     if v_existing.request_hash <> p_request_hash then
@@ -118,12 +141,12 @@ begin
     insert into public.coach_week_publishes
       (idempotency_key, client_id, coach_user_id, week_start, request_hash, outcome)
     values
-      (p_idempotency_key, p_client_id, v_uid, p_week_start, p_request_hash, p_outcome);
+      (p_idempotency_key, p_client_id, p_coach_user_id, p_week_start, p_request_hash, p_outcome);
   exception when unique_violation then
     select * into v_existing
     from public.coach_week_publishes
     where idempotency_key = p_idempotency_key and client_id = p_client_id;
-    if v_existing.request_hash <> p_request_hash or v_existing.coach_user_id <> v_uid then
+    if v_existing.request_hash <> p_request_hash or v_existing.coach_user_id <> p_coach_user_id then
       raise exception 'idempotency key reused with different content' using errcode = '23505';
     end if;
     return jsonb_build_object('status', 'already_delivered', 'outcome', v_existing.outcome);
@@ -170,20 +193,53 @@ begin
     v_inserted := v_inserted + 1;
   end loop;
 
+  -- §10.1 — THE ACKNOWLEDGMENT RIDES IN THIS TRANSACTION.
+  -- Writing it from the route after the RPC returned meant a crash, a timeout or
+  -- an RLS refusal between the two calls left an overridden red PUBLISHED WITH NO
+  -- RECORD THAT ANYONE OVERRODE IT — the one thing §10.1 calls authoritative for
+  -- anything legal. Here the ack row and the week's rows commit or roll back
+  -- together: there is no publish without its audit entry.
+  --
+  -- Written directly rather than via log_ai_action, which stamps the actor from
+  -- auth.uid() (null on a service-role connection). ai_audit_log has no INSERT
+  -- policy by design and this function is SECURITY DEFINER, so the write is
+  -- reachable only from here. `replaced`/`sessions` are the RPC's own counts —
+  -- the route cannot know them before the delete runs.
+  if p_ack is not null and jsonb_typeof(p_ack) = 'object' then
+    insert into public.ai_audit_log (
+      actor_user_id, actor_role, source, action,
+      target_user_id, target_kind, target_id,
+      suggestion, confirmed_payload, before_state, after_state
+    ) values (
+      p_coach_user_id, 'trainer', 'engine', 'guardrail_red_ack',
+      p_client_id, 'training_week', to_char(p_week_start, 'YYYY-MM-DD'),
+      p_ack -> 'suggestion',
+      jsonb_build_object('acknowledged', true) || coalesce(p_ack -> 'acknowledgment', '{}'::jsonb),
+      jsonb_build_object('weekStartISO', to_char(p_week_start, 'YYYY-MM-DD'), 'replaced', v_deleted),
+      jsonb_build_object('weekStartISO', to_char(p_week_start, 'YYYY-MM-DD'), 'sessions', v_inserted)
+    );
+    v_audited := true;
+  end if;
+
   return jsonb_build_object(
     'status',   'accepted',
     'outcome',  p_outcome,
     'inserted', v_inserted,
-    'replaced', v_deleted
+    'replaced', v_deleted,
+    'audited',  v_audited
   );
 end;
 $$;
 
-comment on function public.publish_client_week(uuid, uuid, date, text, jsonb, jsonb) is
-  'Atomic week-shaped publish: claims the idempotency key, replaces the caller''s own future rows in the target week, and inserts the submitted sessions — all in one transaction. Returns accepted | already_delivered. SPEC-guardrails.md §9.4.';
+comment on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb) is
+  'Atomic week-shaped publish: claims the idempotency key, replaces the coach''s own future rows in the target week, inserts the submitted sessions, and writes the guardrail acknowledgment — all in one transaction. SERVICE-ROLE ONLY; the coach is an explicit, re-verified argument. Returns accepted | already_delivered. SPEC-guardrails.md §9.4.';
 
-revoke all on function public.publish_client_week(uuid, uuid, date, text, jsonb, jsonb) from public, anon;
-grant execute on function public.publish_client_week(uuid, uuid, date, text, jsonb, jsonb) to authenticated, service_role;
+-- The auth.uid()-based 6-arg form is REMOVED, not left beside the new one: an
+-- overload reachable by `authenticated` would leave the escalation path open.
+drop function if exists public.publish_client_week(uuid, uuid, date, text, jsonb, jsonb);
+
+revoke all on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb) to service_role;
 
 -- ── (3) The telemetry whitelist — HALF ONE OF TWO ──────────────────────────
 --

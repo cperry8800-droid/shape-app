@@ -470,7 +470,13 @@ GuardrailResult = {
   proposed: { totalAu: number, hardestAu: number, sessions: number },
   axes: [{
     axis:      'volume' | 'concentration' | 'distribution',  // see §7.3
-    state:     'green' | 'amber' | 'red',
+    // ⚠ `not_evaluable` is a REAL fourth value, not an omission (§5.1): a
+    // `per_plan` week carries no per-session split, so concentration has
+    // nothing to judge and says so rather than reporting a fabricated green.
+    // An axis in this state is excluded from resolution ENTIRELY — exactly as
+    // a disabled axis is — so it can neither raise nor lower the verdict, and
+    // it never counts toward the two-amber compound-red path (§7.1).
+    state:     'green' | 'amber' | 'red' | 'not_evaluable',
     checks:    [{ check, value, ceiling, tripped }],
     ceilingPct: number | null
   }]
@@ -2007,3 +2013,37 @@ unrecognised set-count prose (`"10 sets x 3 reps @ 225 lb"` → **9 sets**). The
 `loadType: 'rpe'` case exists in production data today. This is a data-integrity
 defect in a shipped path, **not a guardrail concern**, and is registered to be
 fixed in its own change.
+
+### 13.17 §3.2a AMENDMENT — a PARTIALLY stamped week is malformed (adds F158)
+
+**Amends the fixture table** (2026-07-29, review round on Deploy 2b). The
+declaration table in §3.2a rules that `per_session` **+ some or none** of the
+pair is `malformed_week`. `bsProposedWeek` implemented only the *pair* half of
+that — `perSession.length !== rows.length` — and never checked that the
+**stamp** itself was present on every row.
+
+**The gap.** A week declaring `capture: 'per_session'` in which one session
+carried `loadCapture: 'per_session'` and the rest carried nothing, but every
+session had a complete `plannedMinutes`/`plannedRpe` pair, passed all three
+existing checks: the stamped set was non-empty, no stamp disagreed with the
+week, and no pair was missing. It was scored as an ordinary week.
+
+**Why that is wrong.** It is the identical inconsistent declaration F154
+already rejects in the other direction (rows stamped, week unstamped). A
+builder stamps the whole week or none of it; it never stamps a subset. That is
+precisely the reserved class — *a shape no legitimate writer can emit* — so
+`malformed` applies, and reading the same inconsistency two different ways
+depending on which side declared it is not a defensible boundary.
+
+**The counter-argument, and why it does not win.** Over-using `malformed` is
+the dangerous direction: one malformed row turns the whole evaluation
+`unknown`, and §7.5 rules that `unknown` never blocks publish — so a false
+malformed silently switches the guardrail OFF. That is exactly why the second
+half of F158 exists: a fully stamped week with every pair present must still
+evaluate. The guard is scoped to `0 < stamped.length < rows.length` and
+nothing else.
+
+**Fixtures added:** **F158** (partial stamp → `malformed_week`) and its
+non-regression twin (full stamp, complete pairs → still evaluates). Nothing in
+the frozen table changed value; this closes a case the table already ruled on
+and the implementation did not enforce.

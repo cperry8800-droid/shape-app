@@ -17,6 +17,8 @@
 // distinction is the entire reason the stamp exists (§3.2a). Collapsing them
 // into one 400 here would destroy it.
 
+import { createHash } from 'node:crypto';
+
 /** A week no human schedule exceeds. Above this the caller is malformed. */
 export const BS_WEEK_SESSION_MAX = 40;
 
@@ -61,6 +63,7 @@ function dayDelta(fromISO, toISO) {
  *
  * @typedef {{
  *   id: string,
+ *   idGiven: boolean,
  *   title: string,
  *   description: string,
  *   kind: 'template'|'custom',
@@ -144,8 +147,15 @@ export function normalizeWeekRequest(body, opts = {}) {
     // range are the CORE's judgement (§3.2a's declaration table). Coercing
     // '60' to 60 here would launder a wire-shape bug into a plausible number;
     // defaulting a missing value would erase the stamp's whole purpose.
+    // A caller-supplied id is IDENTITY; a synthesized one is a positional label.
+    // The core reports both (`issue()` carries index AND id), so a week with no
+    // ids still points at the offending row — but `idGiven` lets the digest tell
+    // the two apart, which matters because `s0`/`s1` are derived from the array
+    // index: hashing them would make a re-sorted retry read as a CONFLICT.
+    const givenId = String(s.id == null ? '' : s.id).trim();
     sessions.push({
-      id: String(s.id == null ? `s${i}` : s.id),
+      id: givenId || `s${i}`,
+      idGiven: Boolean(givenId),
       title: String(s.title == null ? '' : s.title).trim().slice(0, 200) || 'Workout',
       description: typeof s.description === 'string' ? s.description.slice(0, 2000) : '',
       kind: s.kind === 'template' ? 'template' : 'custom',
@@ -177,45 +187,89 @@ export function normalizeWeekRequest(body, opts = {}) {
 }
 
 /**
+ * A total, key-order-independent serialization of any JSON value.
+ *
+ * ⚠ NOT `JSON.stringify`. Object key order in JSON.stringify follows insertion
+ * order, so the SAME payload built by two code paths (or round-tripped through a
+ * queue) serializes differently — and a byte-identical replay would then read as
+ * a CONFLICT and hard-error the coach. Keys are sorted here so it cannot.
+ *
+ * Every scalar is tagged and every string length-prefixed, so a boundary cannot
+ * be forged by moving characters across it: `{a:'1', b:'2'}` and `{a:'1b', …}`
+ * cannot collide, and `undefined` (absent) stays distinct from `null` (present
+ * and empty) — the distinction the whole stamp rests on (§3.2a).
+ */
+function canon(v) {
+  if (v === undefined) return 'u';
+  if (v === null) return 'z';
+  const t = typeof v;
+  if (t === 'string') return `s${v.length}:${v}`;
+  if (t === 'number') return Number.isFinite(v) ? `n${v}` : 'z';
+  if (t === 'boolean') return v ? 'b1' : 'b0';
+  if (Array.isArray(v)) return `a${v.length}:[${v.map(canon).join(',')}]`;
+  if (t === 'object') {
+    const keys = Object.keys(v).sort();
+    return `o${keys.length}:{${keys.map((k) => `${canon(k)}=${canon(v[k])}`).join(',')}}`;
+  }
+  return 'z';
+}
+
+/**
  * A deterministic digest of what was submitted, PER CLIENT.
  *
- * Order-independent by construction: sessions are sorted by (date, id) before
- * hashing, so a builder that reorders its own list is a REPLAY, not a conflict.
- * Length-prefixed so a field boundary cannot be forged by moving characters
- * across it — dropping a session and renaming another cannot collide.
+ * The ledger serves this hash back as the definition of "the same request", so
+ * the rule is absolute: EVERYTHING THE PUBLISH WRITES MUST BE IN IT. A field
+ * left out is a field a coach can silently fail to change — re-publishing under
+ * the same key returns `already_delivered` and their edit never lands. That is
+ * why `description` (the coach's cue text) and `adjustMode` (written into the
+ * stored payload) are hashed, and why the acknowledgment is too: it is legally
+ * material under §10.1 and must never be swapped under a delivered key.
  *
- * FNV-1a rather than a crypto hash: edge-safe with no import, and a collision
- * here costs a wrongly-rejected replay rather than a wrong write, because
- * `publish_client_week` independently re-checks the coach and the client.
+ * Order-independent by construction: sessions are sorted by (date, id), and
+ * `canon` sorts object keys — so a builder that reorders its own list, or a
+ * payload rebuilt in a different key order, is a REPLAY rather than a conflict.
+ *
+ * SHA-256, not FNV-1a: a 32-bit digest is small enough that a collision is a
+ * real (if unlikely) event, and a collision here does not merely reject a
+ * replay — it makes a DIFFERENT week read as already delivered and silently
+ * drops it. Node-only, which this module already is (the route runs on nodejs).
  * @param {string} clientId
  * @param {PublishWeek} week
  */
 export function weekRequestHash(clientId, week) {
-  const rows = [...week.sessions]
+  const sessions = [...week.sessions]
     .sort((a, b) => (
       a.scheduledDate === b.scheduledDate
         ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
         : (a.scheduledDate < b.scheduledDate ? -1 : 1)
     ))
-    .map((s) => [
-      s.scheduledDate,
-      s.title,
-      s.kind,
-      s.plannedMinutes === undefined ? '' : String(s.plannedMinutes),
-      s.plannedRpe === undefined ? '' : String(s.plannedRpe),
-      s.loadCapture === undefined ? '' : s.loadCapture,
-      JSON.stringify(s.payload || {}),
-    ].map((p) => `${p.length}:${p}`).join(''));
+    .map((s) => ({
+      // Only a REAL id is content. A remapped caller id changes which session
+      // the core names as hardest, and that verdict is stored in the ledger's
+      // outcome — so it must move the hash. A synthesized `s${i}` must not: it
+      // is the array index wearing a name, and hashing it would turn a builder
+      // re-sorting its own list into an unrecoverable key conflict.
+      id: s.idGiven ? s.id : null,
+      scheduledDate: s.scheduledDate,
+      title: s.title,
+      description: s.description,
+      kind: s.kind,
+      plannedMinutes: s.plannedMinutes,
+      plannedRpe: s.plannedRpe,
+      loadCapture: s.loadCapture,
+      payload: s.payload || {},
+    }));
 
-  const parts = [String(clientId), week.weekStartISO, week.capture === undefined ? '' : week.capture, ...rows];
-  const canonical = parts.map((p) => `${p.length}:${p}`).join('');
+  const doc = {
+    clientId: String(clientId),
+    weekStartISO: week.weekStartISO,
+    capture: week.capture,
+    adjustMode: week.adjustMode === undefined ? null : week.adjustMode,
+    acknowledgment: week.acknowledgment === undefined ? null : week.acknowledgment,
+    sessions,
+  };
 
-  let h = 0x811c9dc5;
-  for (let i = 0; i < canonical.length; i += 1) {
-    h ^= canonical.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return `fnv1a-${h.toString(16).padStart(8, '0')}-${canonical.length}`;
+  return `sha256-${createHash('sha256').update(canon(doc), 'utf8').digest('hex')}`;
 }
 
 /**

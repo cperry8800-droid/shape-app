@@ -3134,6 +3134,38 @@ test('F157: per_session, pair complete, row stamps agree → evaluates normally'
   assert.ok(r.axes.length > 0);
 });
 
+test('F158: week stamped, only SOME rows stamped → malformed_week', () => {
+  // §13 AMENDMENT (2026-07-29, review). The table rules `per_session` + some →
+  // malformed; the code only enforced the PAIR half of that (`perSession.length
+  // !== rows.length`), so a partial stamp whose pairs were all present was
+  // scored as an ordinary week. It is the same inconsistent declaration F154
+  // already rejects in the other direction.
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [
+      { id: 'a', plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_session' },
+      { id: 'b', plannedMinutes: 60, plannedRpe: 7 },
+    ],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F158: a FULLY stamped week with every pair present still evaluates', () => {
+  // The guard above must not over-reject: malformed degrades to `unknown`, and
+  // `unknown` never blocks publish — so a false malformed silently switches the
+  // guardrail OFF, which is the dangerous direction.
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [
+      { id: 'a', plannedMinutes: 45, plannedRpe: 7, loadCapture: 'per_session' },
+      { id: 'b', plannedMinutes: 45, plannedRpe: 7, loadCapture: 'per_session' },
+    ],
+  });
+  assert.notEqual(r.reason, 'malformed_week');
+});
+
 test('malformed_week has copy — no reason may reach a coach unmapped', () => {
   const copy = bsGuardrailCopy(bsProgressionGuardrail(hist(GOOD_HISTORY()), {
     weekStartISO: M0, capture: 'per_session', sessions: [{ id: 'a', loadCapture: 'per_session' }],

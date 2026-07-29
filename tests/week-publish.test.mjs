@@ -124,6 +124,29 @@ test('the hash is stable across session order', () => {
   assert.equal(a, b);
 });
 
+test('order-stability holds WITH caller ids too', () => {
+  const withIds = {
+    ...OK,
+    sessions: [{ ...OK.sessions[0], id: 'upper-a' }, { ...OK.sessions[1], id: 'lower-b' }],
+  };
+  const a = weekRequestHash(CLIENT, norm(withIds).week);
+  const b = weekRequestHash(CLIENT, norm({ ...withIds, sessions: [withIds.sessions[1], withIds.sessions[0]] }).week);
+  assert.equal(a, b);
+});
+
+test('a REMAPPED caller id is a content change, a synthesized one is not', () => {
+  // The core names the hardest session by id and that verdict is stored in the
+  // ledger outcome, so moving a real id across sessions is a different week.
+  // `s0`/`s1` are the array index wearing a name and must never do that — or a
+  // builder re-sorting an id-less list hits an unrecoverable key conflict.
+  const ids = (a, b) => norm({
+    ...OK,
+    sessions: [{ ...OK.sessions[0], id: a }, { ...OK.sessions[1], id: b }],
+  }).week;
+  assert.notEqual(weekRequestHash(CLIENT, ids('x', 'y')), weekRequestHash(CLIENT, ids('y', 'x')));
+  assert.notEqual(weekRequestHash(CLIENT, ids('x', 'y')), weekRequestHash(CLIENT, norm(OK).week));
+});
+
 test('the hash CHANGES when the content changes', () => {
   const a = weekRequestHash(CLIENT, norm(OK).week);
   const b = weekRequestHash(CLIENT, norm({ ...OK, sessions: [{ ...OK.sessions[0], plannedRpe: 9 }, OK.sessions[1]] }).week);
@@ -139,6 +162,64 @@ test('the hash separates a dropped session from a reordered one', () => {
   const full = weekRequestHash(CLIENT, norm(OK).week);
   const one = weekRequestHash(CLIENT, norm({ ...OK, sessions: [OK.sessions[0]] }).week);
   assert.notEqual(full, one);
+});
+
+// ⚠ EVERY FIELD THE PUBLISH WRITES MUST MOVE THE HASH. A field left out of the
+// digest is a field a coach can silently fail to change: the ledger serves the
+// first outcome back as `already_delivered` and the edit is dropped with no
+// error. These three were genuinely missing and were caught in review.
+test('the hash CHANGES when only the description changes', () => {
+  const a = weekRequestHash(CLIENT, norm({
+    ...OK,
+    sessions: [{ ...OK.sessions[0], description: 'Bar speed on the last two.' }, OK.sessions[1]],
+  }).week);
+  const b = weekRequestHash(CLIENT, norm({
+    ...OK,
+    sessions: [{ ...OK.sessions[0], description: 'Stop one shy of failure.' }, OK.sessions[1]],
+  }).week);
+  assert.notEqual(a, b);
+});
+
+test('the hash CHANGES when only adjustMode changes', () => {
+  // adjustMode is written into the stored row payload by toWorkoutRows, so the
+  // same sessions published as a deload and as a progress are two DIFFERENT
+  // writes — not a replay of one another.
+  const a = weekRequestHash(CLIENT, norm({ ...OK, adjustMode: 'deload' }).week);
+  const b = weekRequestHash(CLIENT, norm({ ...OK, adjustMode: 'progress' }).week);
+  assert.notEqual(a, b);
+  assert.notEqual(a, weekRequestHash(CLIENT, norm(OK).week));
+});
+
+test('the hash CHANGES when only the acknowledgment changes', () => {
+  const ack = (reasonText) => norm({ ...OK, acknowledgment: { reasonCode: 'returning', reasonText } }).week;
+  assert.notEqual(
+    weekRequestHash(CLIENT, ack('Back from a deload block.')),
+    weekRequestHash(CLIENT, ack('Client asked for the jump.')),
+  );
+});
+
+test('the hash is INDIFFERENT to payload key order — a rebuilt payload is a replay', () => {
+  // The offline queue round-trips the payload through storage, and two builders
+  // can emit the same object with keys in a different order. Under
+  // JSON.stringify that read as a CONFLICT and hard-errored a genuine replay.
+  const withPayload = (payload) => norm({
+    ...OK,
+    sessions: [{ ...OK.sessions[0], payload }, OK.sessions[1]],
+  }).week;
+  const a = withPayload({ blocks: [{ move: 'Row', sets: 3 }], note: 'keep it crisp' });
+  const b = withPayload({ note: 'keep it crisp', blocks: [{ sets: 3, move: 'Row' }] });
+  assert.equal(weekRequestHash(CLIENT, a), weekRequestHash(CLIENT, b));
+});
+
+test('the hash separates an ABSENT value from an empty one', () => {
+  // undefined (never stamped) and null (stamped blank) must not collide — the
+  // §3.2a declaration table turns on exactly that difference.
+  const absent = weekRequestHash(CLIENT, norm(OK).week);
+  const nulled = weekRequestHash(CLIENT, {
+    ...norm(OK).week,
+    sessions: norm(OK).week.sessions.map((s, i) => (i ? s : { ...s, loadCapture: null })),
+  });
+  assert.notEqual(absent, nulled);
 });
 
 test('toProposedWeek carries the stamp and the pair, and nothing else', () => {

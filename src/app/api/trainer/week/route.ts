@@ -19,12 +19,12 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { normalizeWeekRequest, weekRequestHash, toProposedWeek, toWorkoutRows } from '@/lib/week-publish.mjs';
 import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/guardrail-gate.mjs';
 import { bsProgressionGuardrail, bsGuardrailCopy } from '../../../../../public/newdesign/progressionGuardrail.mjs';
-import { auditSink } from '@/lib/ai/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -72,7 +72,11 @@ export async function POST(request: Request) {
 
   const proposedWeek = toProposedWeek(week);
   const rows = toWorkoutRows(week);
-  const audit = auditSink(supabase);
+  // publish_client_week is service-role only and takes the coach as an argument
+  // (see the migration's §2 note). Every read above ran on the CALLER's client
+  // under RLS; this admin client is used for exactly one call, and the RPC
+  // re-verifies `user.id` against an active trainer subscription to the client.
+  const admin = createAdminClient();
   const results: PublishResult[] = [];
 
   for (const clientId of clientIds) {
@@ -132,13 +136,23 @@ export async function POST(request: Request) {
       copy,
     };
 
-    const { data: pub, error: pubErr } = await supabase.rpc('publish_client_week', {
+    // §10.1 — the acknowledgment rides INSIDE the publish transaction, so an
+    // overridden red can never be written without the record of who overrode it.
+    // Sent only for a genuine acknowledged override; a suppressed red has
+    // nothing to acknowledge, so `writeAck` is false and no ack row is written.
+    const ack = decision.writeAck
+      ? { suggestion: result, acknowledgment: week.acknowledgment ?? {} }
+      : null;
+
+    const { data: pub, error: pubErr } = await admin.rpc('publish_client_week', {
+      p_coach_user_id: user.id,
       p_idempotency_key: week.idempotencyKey,
       p_client_id: clientId,
       p_week_start: week.weekStartISO,
       p_request_hash: hash,
       p_outcome: outcome,
       p_rows: rows,
+      p_ack: ack,
     });
     if (pubErr) {
       // 23505 = the same key with DIFFERENT content. A caller bug, not a replay,
@@ -162,29 +176,11 @@ export async function POST(request: Request) {
       continue;
     }
 
-    // §10.1 — ai_audit_log is authoritative for anything coach-facing or legal.
-    // Written ONLY for a genuine acknowledged override, never for a suppressed
-    // red, where there is nothing to acknowledge.
-    if (decision.writeAck) {
-      try {
-        await audit.log({
-          actorUserId: user.id,
-          source: 'engine',
-          action: 'guardrail_red_ack',
-          actorRole: 'trainer',
-          target: { userId: clientId, kind: 'training_week', id: week.weekStartISO },
-          suggestion: result,
-          confirmedPayload: { acknowledged: true, ...week.acknowledgment },
-          beforeState: { weekStartISO: week.weekStartISO, replaced: pub?.replaced ?? null },
-          afterState: { weekStartISO: week.weekStartISO, sessions: rows.length },
-        });
-      } catch (e) {
-        // The week IS written. An audit failure is loud but not a rollback — and
-        // the response says so rather than reporting a clean, audited publish.
-        console.error('[shape-api] guardrail_red_ack write failed:', e);
-        outcome.audited = false;
-      }
-    }
+    // The ack was written inside the transaction above, so there is no
+    // "published but unaudited" state to report — an ack that could not be
+    // written took the whole publish down with it. `audited` is echoed for the
+    // caller rather than asserted here.
+    if (decision.writeAck) outcome.audited = pub?.audited === true;
 
     // ONE telemetry row per publish, regardless of session count (§9.4). Never
     // from a builder — per-keystroke evaluations would destroy the flag-rate

@@ -1322,6 +1322,16 @@ export function bsProposedWeek(proposedWeek) {
     } else if (stamped.some((s) => s !== weekCapture)) {
       // Week and rows disagree. Never resolved silently in favour of either.
       malformed.push(issue(-1, 'loadCapture', stamped[0]));
+    } else if (stamped.length !== rows.length) {
+      // ⚠ F158 — PARTIALLY stamped: some rows carry the stamp, others carry
+      // nothing. The mirror case (rows stamped, week unstamped) was already
+      // malformed; this one was scored, which is the same inconsistent
+      // declaration read two different ways. A builder stamps the week or it
+      // does not — it never stamps a subset — so this is the reserved class:
+      // a shape no legitimate writer emits. It is caught HERE rather than by
+      // the pair check below, because a partial stamp with every pair present
+      // slips past `perSession.length !== rows.length` entirely.
+      malformed.push(issue(-1, 'loadCapture', undefined));
     }
     // Stamped-but-incomplete: the builder declared it collected the pair, and
     // some or all of it is missing. That is a transport bug, not a blank.
