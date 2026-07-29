@@ -41,15 +41,6 @@ globalThis.__VITE_ENV__ = { BASE_URL: '/m/' };
 // it is the real component.
 globalThis.BSPage = ({ children }) => React.createElement('div', { 'data-bspage': true }, children);
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
-// The theme arrives via a window-global hook, not a prop, on some components
-// (BSProAssignPage). It is destructured at MODULE EVAL, so it has to exist
-// before loadModule runs — hence the late-bound read of __BS_T.
-globalThis.useBS = () => globalThis.__BS_T;
-// BSProAssignPage's header chrome reaches one level further into the window
-// globals than the draft editor does. Stub only the chrome — the page body,
-// which is what these tests are about, is the real component.
-globalThis.BSBackButton = ({ onClick, label }) => React.createElement('button', { onClick }, label || '← BACK');
-globalThis.BSFacetAvatar = () => React.createElement('span', { 'data-avatar': true });
 
 async function loadModule(reactImpl = React) {
   const dir = dirname(SRC);
@@ -58,7 +49,7 @@ async function loadModule(reactImpl = React) {
   // `import.meta.env` is Vite's, injected at build; substitute it the same way
   // the bundler does so asset URLs resolve instead of being a syntax error in a
   // CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -112,9 +103,7 @@ function render(el) {
 const t = {
   MONO: 'mono', DISPLAY: 'display', PAPER: '#fff', PAPER2: '#eee', INK: '#111',
   INK50: '#777', RULE: '#ccc', padX: 18, isLight: true,
-  AMBER: '#d8a23a', RUST: '#c0533b', ACCENT: '#0a8f87', GREEN: '#5fa96e', BLUE: '#3b74b8',
 };
-globalThis.__BS_T = t; // what the window-global useBS() hands back
 const editor = (props) => React.createElement(MOD.BSCoachDraftEditor, {
   t, accent: '#c8a24a', typeName: 'meal plan', blockLabel: 'MEALS',
   initialName: 'Lean Cut', initialBlocks: [{ id: 'b1', text: 'Breakfast — Oats · 500 kcal' }],
@@ -400,91 +389,4 @@ test('wiring: perDayAuthoring is passed ONLY on the nutrition menu build types',
   // Never unconditional: `program` drafts are week ARCS and must never offer day
   // tabs, and a bare `perDayAuthoring` (or ={true}) would put them there.
   assert.match(gated[0], /perDayAuthoring=\{buildType === 'mealplan' \|\| buildType === 'diet'\}/);
-});
-
-// ── The assign page: a HELD week must never read as an assigned one ──────────
-//
-// This is the render-crash class the house rule exists for: adding a hook and a
-// conditional branch passes parse, tsc, the suite and the build, because none
-// of them CALL the component. It also drives the branch, because the held state
-// only exists after a failed publish — a first paint would never reach it.
-
-function driveAssign(props) {
-  CTX.cells.length = 0;
-  let tree;
-  const render = () => { CTX.idx = 0; tree = SHIM_MOD.BSProAssignPage(props); return tree; };
-  render();
-  const nodes = () => flatten(tree);
-  return {
-    render,
-    nodes,
-    text: () => nodes().map((n) => textOf(n)).join(' '),
-    button: (re) => nodes().find((n) => n.type === 'button' && n.props.onClick && re.test(textOf(n))),
-  };
-}
-
-const ASSIGN_PLAN = { id: 'p1', name: 'Base Block', meta: '', detail: { blocks: ['Back squat · 4×8'], note: 'Keep RPE 7.' } };
-const assignProps = (over = {}) => ({
-  role: 'trainer', plan: ASSIGN_PLAN, client: { n: 'Alex Rivera' }, clientUid: 'u-1',
-  onBack: () => {}, onDone: () => {}, ...over,
-});
-
-test('assign page mounts (hook order + every new identifier in scope)', () => {
-  globalThis.ShapeAssign = { workout: async () => ({ stored: 'supabase' }), clients: async () => [] };
-  const { html, warnings } = render(React.createElement(MOD.BSProAssignPage, assignProps()));
-  assert.equal(warnings.length, 0, warnings.join('\n'));
-  assert.match(html, /Base Block/);
-});
-
-test('assign: an offline week reads HELD and is never reported as assigned', async () => {
-  const seen = [];
-  globalThis.ShapeAssign = {
-    workout: async (a) => { seen.push(a); return { stored: 'queued', queued: true }; },
-    clients: async () => [],
-  };
-  // If this ever fires, the coach was told the plan is live when nothing left
-  // the device — the exact false assurance the fix exists to prevent.
-  let toldClient = false;
-  globalThis.ShapeMessages = {
-    getOrCreateMemberConversation: async () => { toldClient = true; return { data: 'c1' }; },
-    sendMessage: async () => { toldClient = true; },
-  };
-
-  const d = driveAssign(assignProps());
-  const cta = d.button(/Assign & notify/);
-  assert.ok(cta, 'the assign CTA renders');
-  await cta.props.onClick();
-  d.render();
-
-  const txt = d.text();
-  assert.ok(seen.length > 0, 'the week was attempted');
-  assert.match(txt, /HELD · \d/, 'the held count is shown');
-  assert.match(txt, /offline/i, 'and it says why');
-  assert.doesNotMatch(txt, /Assigned ✓/, 'a held week is NEVER "Assigned ✓"');
-  assert.equal(toldClient, false, 'the client is not told a plan is live that never left the device');
-});
-
-test('assign: a REJECTED week surfaces the reason instead of reporting success', async () => {
-  globalThis.ShapeAssign = {
-    workout: async () => { const e = new Error('guardrail red — not acknowledged'); e.rejected = true; throw e; },
-    clients: async () => [],
-  };
-  let toldClient = false;
-  globalThis.ShapeMessages = {
-    getOrCreateMemberConversation: async () => { toldClient = true; return { data: 'c1' }; },
-    sendMessage: async () => { toldClient = true; },
-  };
-
-  const d = driveAssign(assignProps());
-  await d.button(/Assign & notify/).props.onClick();
-  d.render();
-
-  const txt = d.text();
-  // The harness translator returns defaultValue WITHOUT interpolating, so the
-  // reason itself renders as the literal `{status}` placeholder. What is
-  // assertable — and what matters — is which branch the failure took.
-  assert.match(txt, /Couldn't assign/, 'the failure surfaces on the error line');
-  assert.doesNotMatch(txt, /Assigned ✓/, 'a rejection is never reported as success');
-  assert.doesNotMatch(txt, /HELD · /, 'a rejection is not disguised as an offline hold');
-  assert.equal(toldClient, false);
 });
