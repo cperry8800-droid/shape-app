@@ -26,6 +26,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { readJson } from '@/lib/request-utils';
 import { toProposedWeek, BS_ADJUST_MODES } from '@/lib/week-publish.mjs';
 import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/guardrail-gate.mjs';
@@ -196,10 +197,16 @@ export async function POST(request: Request) {
       }
     : null;
 
-  // The ONE atomic write. Runs on the CALLER's connection, not service-role:
-  // the RPC's own guard calls `is_discipline_coach_on_client`, which reads
-  // `auth.uid()` and would be NULL — failing OPEN — on a service-role client.
-  const { data: applied, error: rpcErr } = await supabase.rpc('regenerate_client_workouts', {
+  // The ONE atomic write. `regenerate_client_workouts` is SERVICE-ROLE ONLY and
+  // takes the coach as an explicit argument (see the migration's note): the
+  // grant was the whole gate, because SECURITY DEFINER bypasses RLS and a
+  // signed-in trainer calling the RPC directly would skip this entire
+  // evaluation. Every read above ran on the CALLER's client under RLS; the
+  // admin client reaches exactly one call, and the RPC re-verifies `user.id`
+  // against an active trainer subscription to this client.
+  const admin = createAdminClient();
+  const { data: applied, error: rpcErr } = await admin.rpc('regenerate_client_workouts', {
+    p_coach_user_id: user.id,
     p_client_id: clientId,
     p_delete_ids: plan.deleteIds,
     p_inserts: plan.inserts,
@@ -224,13 +231,21 @@ export async function POST(request: Request) {
   // flag rate is computed against a denominator that omits its own successes.
   const excludedSessionRate = bsExcludedSessionRate(sessions);
   for (const e of evaluations) {
+    // ⚠ A DENIED OR MISSING `track_event` RESOLVES, IT DOES NOT REJECT.
+    // PostgREST errors come back as `{ error }` on a resolved promise, so a
+    // bare try/catch here would never fire and the row would vanish in silence
+    // — corrupting exactly the flag-rate data §10.2 needs to retune and enable
+    // enforcement. The resolved error is inspected explicitly.
     try {
-      await supabase.rpc('track_event', {
+      const { error: trackErr } = await supabase.rpc('track_event', {
         p_event: 'guardrail_evaluated',
         p_props: bsTelemetryProps({ result: e.result, decision: e.decision, excludedSessionRate, adjustMode }),
       });
+      if (trackErr) {
+        console.error('[shape-api] guardrail_evaluated write failed:', trackErr.message);
+      }
     } catch (err) {
-      console.error('[shape-api] guardrail_evaluated write failed:', err);
+      console.error('[shape-api] guardrail_evaluated threw:', err);
     }
   }
 

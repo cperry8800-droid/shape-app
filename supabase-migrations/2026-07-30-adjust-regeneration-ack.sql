@@ -45,7 +45,28 @@ begin;
 
 drop function if exists public.regenerate_client_workouts(uuid, uuid[], jsonb, jsonb);
 
+-- ⚠ SERVICE-ROLE ONLY, AND THE COACH IS AN EXPLICIT ARGUMENT (CWE-862).
+--
+-- The previous cut granted this to `authenticated` and read the actor from
+-- auth.uid(). SECURITY DEFINER bypasses RLS, so that grant was the ONLY thing
+-- holding the gate: any signed-in trainer could call this through PostgREST
+-- with arbitrary `p_inserts`/`p_delete_ids` and a null acknowledgment, skipping
+-- the whole guardrail evaluation in /api/trainer/adjust — the exact hole §9.4
+-- exists to close. The route is now the ONLY caller (it runs an admin client
+-- and passes the id it has already authenticated and scoped), and the authz
+-- below is re-verified HERE against that id, so the boundary does not depend on
+-- the route being correct. Mirrors publish_client_week's §2 note.
+--
+-- Because a service-role connection carries no auth.uid(), the discipline check
+-- cannot delegate to is_discipline_coach_on_client (which reads auth.uid() and
+-- would therefore fail OPEN); the same predicate is inlined against
+-- p_coach_user_id. Resolving the trainer row from the SUBSCRIPTION that grants
+-- access — rather than "any trainer row this account owns" — also pins the
+-- write to the provider row the client actually pays, which the old `limit 1`
+-- did not: an account owning two trainer rows could be approved through one and
+-- have its rows validated against the other.
 create function public.regenerate_client_workouts(
+  p_coach_user_id uuid,
   p_client_id uuid,
   p_delete_ids uuid[] default '{}',
   p_inserts jsonb default '[]',
@@ -58,7 +79,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid uuid := p_coach_user_id;
   v_trainer_id bigint;
   v_expected int;
   v_found int;
@@ -73,14 +94,23 @@ declare
   v_audited boolean := false;
 begin
   if v_uid is null then
-    raise exception 'authentication required' using errcode = '42501';
+    raise exception 'coach identity required' using errcode = '42501';
   end if;
-  if not public.is_discipline_coach_on_client(p_client_id, 'trainer') then
-    raise exception 'not this client''s training coach' using errcode = '42501';
-  end if;
-  select t.id into v_trainer_id from public.trainers t where t.owner_id = v_uid limit 1;
+
+  -- The discipline gate AND the trainer row resolved in ONE join, from the
+  -- subscription that actually grants access. `is_discipline_coach_on_client`
+  -- cannot be used here: it reads auth.uid(), which is NULL on the service-role
+  -- connection this function now runs on, so it would fail OPEN.
+  select t.id into v_trainer_id
+  from public.subscriptions s
+  join public.trainers t on t.id = s.provider_id
+  where s.client_id = p_client_id
+    and s.provider_role = 'trainer'
+    and s.status in ('active', 'trialing')
+    and t.owner_id = v_uid
+  limit 1;
   if v_trainer_id is null then
-    raise exception 'no trainer profile for this account' using errcode = '42501';
+    raise exception 'not this client''s training coach' using errcode = '42501';
   end if;
 
   -- Bounds: deletes match the client's 400-row read (every survivor's old id
@@ -213,13 +243,22 @@ begin
 end;
 $$;
 
--- Grants are recreated from scratch — the drop took the old ones with it.
-revoke execute on function public.regenerate_client_workouts(uuid, uuid[], jsonb, jsonb, jsonb) from public;
-revoke execute on function public.regenerate_client_workouts(uuid, uuid[], jsonb, jsonb, jsonb) from anon;
-grant execute on function public.regenerate_client_workouts(uuid, uuid[], jsonb, jsonb, jsonb) to authenticated;
+-- Grants are recreated from scratch — the drop took the old ones with it, and
+-- without this block the recreated function falls back to Supabase's default
+-- grants and `anon` regains EXECUTE (the #1459 lesson).
+--
+-- ⚠ `authenticated` IS DELIBERATELY NOT GRANTED. The grant was the whole gate:
+-- SECURITY DEFINER bypasses RLS, so a signed-in trainer calling this directly
+-- would skip the guardrail entirely. The route is the only caller and reaches
+-- it with an admin client.
+revoke execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) from public;
+revoke execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) from anon;
+revoke execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) from authenticated;
+grant  execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) to service_role;
 
 -- Fail the migration rather than leave a silently wrong deployment: exactly one
--- overload must survive, and it must be the 5-argument one.
+-- overload must survive, it must carry the coach argument, and NEITHER anon nor
+-- authenticated may hold EXECUTE.
 do $$
 declare v_count int;
 begin
@@ -234,13 +273,16 @@ begin
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'regenerate_client_workouts'
       and pg_get_function_identity_arguments(p.oid)
-          = 'p_client_id uuid, p_delete_ids uuid[], p_inserts jsonb, p_repeat_patches jsonb, p_ack jsonb'
+          = 'p_coach_user_id uuid, p_client_id uuid, p_delete_ids uuid[], p_inserts jsonb, p_repeat_patches jsonb, p_ack jsonb'
   ) then
-    raise exception 'regenerate_client_workouts does not carry the p_ack signature';
+    raise exception 'regenerate_client_workouts does not carry the p_coach_user_id + p_ack signature';
   end if;
 
-  if has_function_privilege('anon', 'public.regenerate_client_workouts(uuid, uuid[], jsonb, jsonb, jsonb)', 'EXECUTE') then
-    raise exception 'anon regained EXECUTE on regenerate_client_workouts';
+  if has_function_privilege('anon', 'public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb)', 'EXECUTE') then
+    raise exception 'anon holds EXECUTE on regenerate_client_workouts';
+  end if;
+  if has_function_privilege('authenticated', 'public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb)', 'EXECUTE') then
+    raise exception 'authenticated holds EXECUTE on regenerate_client_workouts — the gate is open';
   end if;
 end $$;
 

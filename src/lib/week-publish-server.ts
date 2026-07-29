@@ -150,8 +150,15 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
   // ONE telemetry row per publish, regardless of session count (§9.4). Never
   // from a builder — per-keystroke evaluations would destroy the flag-rate
   // denominators (§10.2).
+  //
+  // ⚠ A DENIED OR MISSING `track_event` RESOLVES, IT DOES NOT REJECT. PostgREST
+  // errors arrive as `{ error }` on a resolved promise, so the catch below never
+  // fires for the most likely failure (grant revoked, function absent, event not
+  // whitelisted) and the row would disappear without even the intended log —
+  // silently corrupting the flag-rate data §10.2 needs to retune and enable
+  // enforcement. The resolved error is therefore inspected explicitly.
   try {
-    await supabase.rpc('track_event', {
+    const { error: trackErr } = await supabase.rpc('track_event', {
       p_event: 'guardrail_evaluated',
       p_props: bsTelemetryProps({
         result,
@@ -160,8 +167,9 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
         adjustMode: week.adjustMode,
       }),
     });
+    if (trackErr) console.error('[shape-api] guardrail_evaluated write failed:', trackErr.message);
   } catch (e) {
-    console.error('[shape-api] guardrail_evaluated write failed:', e);
+    console.error('[shape-api] guardrail_evaluated threw:', e);
   }
 
   return {

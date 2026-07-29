@@ -99,6 +99,12 @@ test('the guardrail migrations declare the functions the routes call', () => {
   // `create function` too — not only `create or replace`.
   assert.ok(DECLARED.has('regenerate_client_workouts'), 'adjust-ack migration parsed');
   assert.ok(DECLARED.get('regenerate_client_workouts').has('p_ack'), 'the recreate carries p_ack');
+  // The coach is an EXPLICIT argument now: the function is service-role only, so
+  // auth.uid() is NULL inside it and an identity read there would fail OPEN.
+  assert.ok(
+    DECLARED.get('regenerate_client_workouts').has('p_coach_user_id'),
+    'the recreate carries p_coach_user_id',
+  );
 });
 
 test('every RPC argument a guardrail route sends is a declared parameter', () => {
@@ -154,7 +160,7 @@ test('the adjust route sends the regeneration its full argument set, p_ack inclu
   const src = readFileSync(join(ROOT, ADJUST), 'utf8');
   const call = rpcCalls(src).find((c) => c.fn === 'regenerate_client_workouts');
   assert.ok(call, 'the adjust route still applies through the atomic RPC');
-  for (const required of ['p_client_id', 'p_delete_ids', 'p_inserts', 'p_repeat_patches', 'p_ack']) {
+  for (const required of ['p_coach_user_id', 'p_client_id', 'p_delete_ids', 'p_inserts', 'p_repeat_patches', 'p_ack']) {
     assert.ok(call.keys.includes(required), `regenerate_client_workouts needs ${required}`);
   }
 });
