@@ -86,7 +86,12 @@ export async function POST(request: Request) {
     // load-history response, so the builder and the route cannot disagree — a
     // coach is never shown a red the server will not enforce, or an amber the
     // server will block).
-    const { data: history, error: histErr } = await supabase.rpc('get_client_load_history', { p_user_id: clientId });
+    // ⚠ The argument name is `p_client_id`, matching the migration's declared
+    // parameter. PostgREST resolves RPC arguments BY NAME, so a wrong name is
+    // not a wrong value — the function simply does not resolve, every publish
+    // falls into the error branch below, and no week can ever be written.
+    // tests/guardrail-rpc-args.test.mjs pins this against the migration.
+    const { data: history, error: histErr } = await supabase.rpc('get_client_load_history', { p_client_id: clientId });
     if (histErr) {
       console.error('[shape-api] guardrail load history:', histErr.message);
       results.push({ clientId, status: 'error', error: 'Could not read this client\'s history.' });

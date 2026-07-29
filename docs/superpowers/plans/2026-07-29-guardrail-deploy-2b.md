@@ -6,6 +6,64 @@
 
 **Architecture:** A new `POST /api/trainer/week` route is the only door. It authenticates, scope-gates, checks a server-side idempotency ledger, fetches the client's raw history through `get_client_load_history`, runs the pure core (`bsProgressionGuardrail`), applies the kill switch, and — when the verdict permits — calls a SECURITY DEFINER RPC that claims the idempotency key, replaces the coach's own rows for that client-week, and inserts the new ones in one transaction. The judgement itself lives in a new pure module so every rule in §9.4 is fixture-tested rather than hidden in a route handler. The three existing write paths (web builders + Nora, mobile `assignClientWorkout`, `regenerate_client_workouts`) move onto it one at a time; the final PR revokes the coach INSERT policy on `client_workouts` and deletes the session-shaped route, so no ungated path survives.
 
+---
+
+## ⚠ AMENDED BY THE IMPLEMENTATION — read this before building from anything below
+
+This plan has been BUILT, and review of the plan itself found real defects in
+the code it prescribes. **The shipped implementation is the authority; where it
+disagrees with a snippet below, the snippet is wrong.** Recorded here rather
+than silently rewritten, so the corrections stay legible.
+
+1. **`publish_client_week` grants — the plan is INSECURE.** It grants EXECUTE to
+   `authenticated`. That hands any signed-in caller a SECURITY DEFINER function
+   taking arbitrary `p_rows` and a fabricated `p_outcome` — the guardrail
+   bypassed by calling past the route (CWE-862). Shipped: revoked from
+   `public, anon, authenticated`, granted to `service_role` only, with the coach
+   an explicit `p_coach_user_id` the function RE-VERIFIES in-body. The discipline
+   predicate is inlined because `is_discipline_coach_on_client` reads
+   `auth.uid()`, which is NULL on a service-role connection — calling it there
+   would have failed open.
+
+2. **The acknowledgment audit must be INSIDE the transaction.** The plan writes
+   the `guardrail_red_ack` row after the week commits, so a crash or a replay
+   leaves a published week with no audit — and §10.1 makes `ai_audit_log`
+   authoritative for anything coach-facing. Shipped: a `p_ack` argument writes
+   the audit row inside the same transaction as the insert; the route only
+   echoes `audited`.
+
+3. **`weekRequestHash` must be SHA-256 over a canonical document.** The plan uses
+   FNV-1a over a partial projection, so two materially different weeks can share
+   a digest and the ledger would call the second one a replay. Shipped: SHA-256
+   over a recursive, key-sorted canonicalisation covering `description`,
+   `adjustMode` and the acknowledgment. ⚠ Session ids are hashed ONLY when the
+   caller supplied one (`idGiven`): the synthesized `s0`/`s1` are derived from
+   the array index, so hashing them makes a re-ordered retry read as a CONFLICT.
+
+4. **A PARTIALLY stamped week is malformed.** The plan accepts a week whose
+   `capture` is `per_session` when only SOME rows carry the pair. Shipped: the
+   stamped count must equal the row count (`SPEC-guardrails.md` §13.17 / F158),
+   with a non-regression fixture proving a fully-stamped week still evaluates.
+
+5. **The offline assign queue is BUILT, not parked.** The owner ruled mobile
+   option (a) — the key plus a minimal replay inside 2b, so the offline window
+   never opens. `mobile-app/src/services/assignQueue.mjs` and
+   `tests/assign-queue.test.mjs` are live and imported by `shapeBackend.js`.
+   Tasks 6–7 keep their queue scope.
+
+6. **The load-history migration IS applied** (verified live 2026-07-29:
+   `get_client_load_history` present, SECURITY DEFINER, `search_path` pinned,
+   returns `redEnabled`, anon=false / authenticated=true / service_role=true).
+   `2026-07-29-guardrail-week-publish.sql` is the one still OUTSTANDING.
+
+7. **The RPC argument name is `p_client_id`, not `p_user_id`.** PostgREST
+   resolves RPC arguments BY NAME, so the wrong name does not pass a wrong
+   value — the function does not resolve at all, every publish falls into the
+   history-error branch, and NO week can ever be written. This shipped once and
+   was invisible to typecheck, the unit suite and the build alike, because none
+   of them reach a database. Pinned by `tests/guardrail-rpc-args.test.mjs`.
+
+---
 **Tech Stack:** Next.js 16 App Router (`src/app/api`), Supabase Postgres + RLS + SECURITY DEFINER RPCs, plain-ESM pure modules (`.mjs`) tested with `node --test`, React via babel-standalone (`public/newdesign/*.jsx`), Capacitor/Vite mobile SPA (`mobile-app/src/broadsheet/*.jsx`).
 
 ---
