@@ -331,9 +331,22 @@ its copy promises — add a set, push RPE toward 8 — it begins writing fields 
 reads and a bound becomes a real question again. Today the **copy** is what moves
 (owner ruling 2026-07-29).
 
-**Telemetry:** one field for a `length` value that fails to map (§3.2a). The
-authored-above-ceiling field is deleted with the bound. It must ship WITH the
-feature: there is no history to back-fill from (§9.2).
+**`payload.adjustMode` is KEPT — as provenance, with exactly one reader.** It
+still rides on the row beside `adjustGen`, because *how this row came to exist*
+is a **raw fact**, and the doctrine is to store raw facts and derive at read time
+(§13.4). What died was the *derived mechanism* that read it. Its one reader is
+now the `guardrail_evaluated` telemetry dimension (§10.2), which lets the retune
+ask whether regenerated weeks flag differently from authored ones.
+
+⚠ **No field is written and never read.** If that telemetry dimension is ever
+dropped, `adjustMode` goes with it — an unread stamp is untested and drifts.
+**Nothing in the core may branch on it**: it is a reporting dimension, never a
+judgment input.
+
+**Telemetry:** one field for a `length` value that fails to map (§3.2a), plus the
+`adjustMode` dimension above. The authored-above-ceiling field is deleted with
+the bound. Both must ship WITH the feature: there is no history to back-fill from
+(§9.2).
 
 ---
 
@@ -1241,13 +1254,20 @@ retunable.
 - Written **server-side at publish only** — never from the builder.
   Per-keystroke evaluations would destroy the flag-rate denominators.
 - `props`: `{ state, regime, redPath, axes: [...], baselineAu, proposedAu,
-  ceilingPct, overridden, reasonCode, excludedSessionRate, redSuppressed }` —
+  ceilingPct, overridden, reasonCode, excludedSessionRate, redSuppressed,
+  adjustMode }` —
   `state` is always the **true** computed state, never the value shown to the
   coach: when the kill switch (§7.4) has downgraded a red, `state` stays `'red'`
   and `redSuppressed` is `true`. —
   `excludedSessionRate` is the share of the baseline window's sessions dropped
   for want of a session RPE, so the cost of skipping is visible at the point it
-  actually distorts a ceiling.
+  actually distorts a ceiling. —
+  **`adjustMode`** is `payload.adjustMode` when the week came from an Adjust
+  regeneration (`'deload' | 'maintain' | 'progress'`) and **null** when a coach
+  authored it directly. It is the ONLY reader of that field (§3.2b), and it
+  exists so the retune can ask **whether regenerated weeks flag differently from
+  authored ones** — a question the flag-rate bands cannot answer without it.
+  Provenance, never a judgment input: nothing in the core branches on it.
 - `props` carries **no client identifier**.
 
 **A second event, shipping earlier: `session_rpe_prompted`.** Skip rate is a
@@ -1855,41 +1875,68 @@ compares a half-point-capable proposed value against integer-only history. That
 is fine mathematically — both sides reduce to AU before the comparison — and the
 asymmetry lives in the inputs, not in the check.
 
-### 13.15 REVERSAL — the Adjust bound comes from the transform, not the copy
+### 13.15 Why there is no Adjust bound — the full arc
 
-**§3.2b originally ruled `max(authored, mode ceiling)`, taking the `progress`
-ceiling of 8 from the coach-facing copy's "keep RPE ≤ 8". That is reversed. Every
-mode now scores at the AUTHORED value.** Recorded with the reasoning, because the
-original ruling was defensible on its own terms and will look like a regression
-to anyone who reads only the contract.
+Someone will ask why the highest-risk path carries no bound. This is the chain,
+in the order it happened, because each step is only defensible in light of the
+one before it.
 
-**Why it reverses.** The copy is a promise about a transform that does not make
-it. Verified in `mobile-app/src/services/adjustRegen.mjs`: the only thing any
-intensity mode touches is the free-text `load` string on each exercise
-(`scaleExercises` → `bsScaleLoad`), and **sRPE = RPE × minutes reads neither**.
-So a `progress` regeneration is a **no-op in this metric** — the proposed load is
-byte-identical before and after. `max(authored, 8)` would then over-estimate
-**every** progress week: a coach who authored 6 would be scored at 8 for a
-regeneration that left them at 6. The original ruling's own justification —
-*"always over-estimates and never under-estimates, so the error direction produces
-false flags rather than missed ones"* — stops holding when the over-estimate is
-**universal rather than occasional**. A flag that fires on every regenerated week
-is not a conservative bound; it is noise, and noise is how a guardrail gets
-dismissed by reflex.
+**Step 1 — RULED 2026-07-28: `max(authored, mode ceiling)`.** Adjust regeneration
+was believed to rescale the proposed week, so scoring it at its authored value
+would under-state what the regeneration could produce. The bound took the
+`progress` ceiling of **8** from the coach-facing copy's "keep RPE ≤ 8", on the
+reasoning that a ceiling is a **constraint, not a value** — deriving a point
+value from it would invent its position within the bound. It always
+over-estimated and never under-estimated, so the error direction produced false
+flags rather than missed ones.
 
-**The rule that generalizes: bound against what the code DOES, not what the copy
-SAYS it does.** A promise in coach-facing copy is a product commitment, not a
-measurement, and the guardrail may not treat it as one.
+**Step 2 — REVERSED 2026-07-29 to the authored value, when `progress` turned out
+not to change effort.** Reading
+`mobile-app/src/services/adjustRegen.mjs` showed the `progress` transform is a
+2.5% bump to a free-text weight string — it adds no set and moves no RPE, so
+**sRPE = RPE × minutes does not read anything it writes**. A `progress`
+regeneration is a no-op in this metric, which means `max(authored, 8)` would
+over-state **every** progress week: a coach who authored 6 scored at 8 for a
+regeneration that left them at 6. Step 1's own justification — *"always
+over-estimates, so the error direction produces false flags rather than missed
+ones"* — stops holding once the over-estimate is **universal rather than
+occasional**. A flag that fires on every regenerated week is not a conservative
+bound; it is noise, and noise is how a guardrail gets dismissed by reflex.
 
-**Conditional on the copy being what moves.** The mismatch is registered in the
-planned-load design document (§5.3) and the owner ruled 2026-07-29 to **fix the
-copy**. Should the constants ever be changed instead — a set genuinely added, RPE
-genuinely pushed toward 8 — this reverses back and §3.2b goes with it.
+**Step 3 — DELETED 2026-07-29, when all three modes proved weight-string-only.**
+Checking `deload` and `maintain` closed it: every mode calls the **same**
+transform with a different scalar (`BS_ADJUST_SCALE`), `scaleExercises` spreads
+the move and overwrites **`baseL` and `load` only**, and `bsScaleLoad` returns
+the string byte-identical when the scalar is 1. So no mode changes
+`plannedMinutes`, `plannedRpe`, sets, or session count — verified by running all
+three over a row carrying the pair. The bound therefore **always returned its
+input**, and a mechanism that always returns its input is dead code that reads as
+a safety feature: the next reader assumes the regenerated week was checked
+against something. Deleted along with the mode-ceiling constant, the
+authored-exceeds-ceiling telemetry field, and its fixtures.
 
-⚠ **The companion document is stale on this point.**
-`docs/superpowers/specs/2026-07-28-planned-load-capture-design.md` §5.2 and its
-§8 Adjust fixtures still state `max(authored, ceiling)`; they must be reversed to
-match before that document is treated as build-ready.
+**What replaced it: nothing — and nothing was needed.** A regenerated week is
+scored on its own captured pairs, exactly like an authored one; `emit()` spreads
+the row's payload forward, so **per-session capture (§3.2a) is what makes the
+path scoreable**, not a bound.
+
+**Two rules that generalize.**
+
+1. **Bound against what the code DOES, not what the copy SAYS it does.** A
+   promise in coach-facing copy is a product commitment, not a measurement, and
+   the guardrail may not treat it as one.
+2. **Check every branch before ruling on the mechanism.** Step 2 was reached by
+   reading one mode. Reading the other two dissolved the mechanism entirely — a
+   partial audit produced a defensible-but-wrong answer twice in a row.
+
+**The path is still gated (§9.4)** — for the real reason: Adjust changes **how
+many sessions are in the week** and how far forward they replicate, and it
+republishes unexamined. Those move weekly load; intensity does not.
+
+**Reinstate only if the transform changes.** If Adjust is ever made to do what
+its copy promises — add a set, push RPE toward 8 — it starts writing fields sRPE
+reads and a bound becomes a live question again. The ruling today is that the
+**copy** moves, not the constants (owner, 2026-07-29).
 
 ### 13.16 sRPE is blind to external load — weight progression is invisible
 

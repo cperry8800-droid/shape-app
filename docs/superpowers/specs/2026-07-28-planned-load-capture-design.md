@@ -20,7 +20,7 @@ hops without dying, and what the core does when they are absent.
 | session row | `payload.plannedMinutes` | integer | the coach picks a length |
 | session row | `payload.plannedRpe` | number 1–10, half-points allowed | the coach picks an effort |
 | session row | `payload.loadCapture` | `'per_session' \| 'per_plan'` | the builder collected the pair |
-| session row | `payload.adjustMode` | `'deload' \| 'maintain' \| 'progress'` | Adjust regenerates, beside `adjustGen` |
+| session row | `payload.adjustMode` | `'deload' \| 'maintain' \| 'progress'` | Adjust regenerates, beside `adjustGen` — **provenance only**; its one reader is the `guardrail_evaluated` telemetry dimension (§5.2) |
 | week object | `capture` | `'per_session'` | the builder submits the week to the gate |
 
 **Capture is PER SESSION.** A plan-level pair was proposed and rejected: it makes
@@ -231,13 +231,21 @@ regenerated week was checked against something. It is removed, not simplified.
 its copy promises — add a set, push RPE toward 8 — it starts writing fields sRPE
 reads and a bound becomes a live question again.
 
+**`payload.adjustMode` is KEPT — provenance, with one reader.** The *derived
+mechanism* died; the *raw fact* stays, per the store-raw-facts / derive-at-read
+doctrine. Its single reader is a new **`guardrail_evaluated` telemetry
+dimension** (spec §10.2): `adjustMode` on a regenerated week, **null** on a
+coach-authored one, so the retune can ask whether regenerated weeks flag
+differently from authored ones. ⚠ **Nothing in the core branches on it** — a
+reporting dimension, never a judgment input — and if that dimension is ever
+dropped the field goes with it. No field is written and never read.
+
 ### 5.3 What Adjust actually does — two premises corrected
 
 1. **Adjust is per ROW, not plan level.** `bsAdjustRegen`'s `emit()` spreads
    `{ ...(row.payload || {}) }` (`adjustRegen.mjs:180`), so a per-session pair
    rides through per session and regenerated weeks keep an **evaluable**
-   concentration axis. The owner's conditional does not trigger. The mode belongs
-   beside the stamp `emit` already writes (`payload.adjustGen = gen`).
+   concentration axis. The owner's conditional does not trigger.
 2. **Regeneration never touches minutes or RPE.** `BS_ADJUST_SCALE` is
    `{ deload: 0.85, maintain: 1, progress: 1.025 }` and `bsScaleLoad` rewrites
    the first number in a free-text load string (`"135 lb"` → `"115 lb"`).
