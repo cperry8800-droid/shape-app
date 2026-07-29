@@ -390,3 +390,119 @@ test('wiring: perDayAuthoring is passed ONLY on the nutrition menu build types',
   // tabs, and a bare `perDayAuthoring` (or ={true}) would put them there.
   assert.match(gated[0], /perDayAuthoring=\{buildType === 'mealplan' \|\| buildType === 'diet'\}/);
 });
+
+// ── Deploy 2b: the planned-load pair crosses the publish callback ───────────
+//
+// The capture design §7's TWO STRUCTURAL GUARDS. A new field must cross the
+// draft editor, onPublish, every receiver and the RPC; dropping it anywhere
+// kills the feature WITHOUT ERRORING — the exact failure the `days` work
+// already documented, where deleting the key from the payload passed every one
+// of 884 tests because it does not change the first paint.
+//
+// So these assert the field AT THE FAR END (the published payload), never by
+// inspecting the source for it.
+
+const trainerProps = (over = {}) => {
+  const published = [];
+  return {
+    published,
+    props: {
+      t, accent: '#2ee0c4', typeName: 'program', blockLabel: 'SESSIONS',
+      initialName: 'Base Block', initialNote: '', initialMedia: [],
+      // A SPLIT: three day lines, so planOutline classifies each block as a
+      // session and the capture row is offered.
+      initialBlocks: [
+        { id: 'b1', text: 'Mon — Upper (push)' },
+        { id: 'b2', text: 'Wed — Lower' },
+        { id: 'b3', text: 'Fri — Upper (pull)' },
+      ],
+      loadCapture: true,
+      onPublish: async (payload) => { published.push(payload); },
+      onCancel: () => {},
+      ...over,
+    },
+  };
+};
+
+test('drive: the planned pair reaches onPublish, mapped and stamped', async () => {
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');
+  ed.click('RPE 8');
+  await ed.publish();
+
+  const b = published[0].blocks[0];
+  assert.equal(b.plannedMinutes, 60, 'plannedMinutes must survive the callback');
+  assert.equal(b.plannedRpe, 8, 'plannedRpe must survive the callback');
+  assert.equal(b.loadCapture, 'per_session', 'the row stamp must survive the callback');
+  // The chip VALUES are dropped after mapping — a stored block must never carry
+  // two representations of the same fact.
+  assert.equal('plannedLength' in b, false);
+  assert.equal('plannedEffort' in b, false);
+});
+
+test('drive: a HALF-answered session publishes UNSTAMPED, not stamped-with-a-hole', () => {
+  // The whole point of the stamp is to tell "the coach skipped it" from "a hop
+  // dropped it". Recording a half-answer as captured would report a blank field
+  // as a transport bug, and one malformed row turns the WHOLE evaluation
+  // unknown — which switches the guardrail off.
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');            // length only
+  return ed.publish().then(() => {
+    const b = published[0].blocks[0];
+    assert.equal('loadCapture' in b, false);
+    assert.equal('plannedMinutes' in b, false);
+  });
+});
+
+test('drive: an untouched session publishes with no pair keys at all', async () => {
+  const { published, props } = trainerProps();
+  await drive(props).publish();
+  const b = published[0].blocks[0];
+  assert.equal('plannedMinutes' in b, false);
+  assert.equal('plannedRpe' in b, false);
+  assert.equal('loadCapture' in b, false);
+});
+
+test('drive: tapping the SAME chip again clears it back to honestly-absent', async () => {
+  // There is no other way out of a chip row. A coach who mis-tapped must be
+  // able to return to absent rather than being forced to publish a number they
+  // did not mean.
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');
+  ed.click('RPE 8');
+  ed.click('60 min');            // same chip -> clear
+  await ed.publish();
+  assert.equal('loadCapture' in published[0].blocks[0], false);
+});
+
+test('drive: the capture row is NOT offered where a block is an EXERCISE', () => {
+  // An exercise block has no length or effort of its own — the session is the
+  // whole week — so offering the row there would collect a figure the guardrail
+  // must then refuse.
+  const { props } = trainerProps({
+    initialBlocks: [{ id: 'b1', text: 'Main lift · 4×8' }, { id: 'b2', text: 'Accessory · 3×12' }],
+  });
+  const ed = drive(props);
+  assert.throws(() => ed.click('60 min'), /no button labelled/);
+});
+
+test('drive: capture is OFF unless the surface asks for it', () => {
+  // The nutritionist editor shares this component. A meal plan has no session
+  // to carry a length, so the row must not appear there.
+  const { props } = trainerProps({ loadCapture: false });
+  assert.throws(() => drive(props).click('60 min'), /no button labelled/);
+});
+
+test('drive: a REST day line is not a session and is not offered the row', () => {
+  const { props } = trainerProps({
+    initialBlocks: [{ id: 'b1', text: 'Sun — Rest' }, { id: 'b2', text: 'Mon — Upper (push)' }],
+  });
+  const ed = drive(props);
+  // Exactly ONE session in this outline, so exactly one length chip row.
+  const chips = ed.nodes().filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined
+    && String(n.props.children) === '60 min');
+  assert.equal(chips.length, 1, 'the rest day must not be offered a planned load');
+});

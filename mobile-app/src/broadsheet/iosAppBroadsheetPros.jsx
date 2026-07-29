@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek, bsCanonicalDays } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -4880,7 +4880,7 @@ const bsEditorSteps = (steps) => (Array.isArray(steps)
   ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
   : undefined);
 
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, onPublish, onCancel }) {
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, loadCapture = false, onPublish, onCancel }) {
   const tr = useShapeTr();
   const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
   // ⚠ Seven STATIC keys, not `coach:editor.dow.${d}`. A template-literal key is
@@ -4987,6 +4987,16 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const clearClip = (i) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
   const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
   const setBlock = (i, v) => editBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
+  // §3.2a capture. Stored as the CHIP VALUE the coach picked, never a number:
+  // the mapping to minutes/RPE runs once, at publish, through the one enum in
+  // planOutline. Picking the selected chip again CLEARS it — a coach who
+  // mis-tapped must be able to get back to honestly-absent, and there is no
+  // other way out of a chip row.
+  const setBlockChip = (i, key, v) => editBlocks(bs => bs.map((b, j) => {
+    if (j !== i) return b;
+    if (b[key] === v) { const { [key]: _drop, ...rest } = b; return rest; }
+    return { ...b, [key]: v };
+  }));
   // No per-day cap here, deliberately: delivery serves an override in full
   // (planOutline), so there is nothing for the editor to protect the coach
   // from. An earlier revision refused the 41st block on a day, and that turned
@@ -5078,6 +5088,41 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                     <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
                   </span>
                 </div>
+                {/* Deploy 2b — the planned-load pair (SPEC-guardrails.md §3.2a).
+                    Shown ONLY where a block IS a session, read through
+                    planOutline's own classifier rather than a fourth opinion.
+                    An exercise block has no length or effort of its own — the
+                    session is the whole week — so offering the row there would
+                    invite a figure the guardrail must then refuse. */}
+                {loadCapture && bsBlockIsSession(b.text) && (
+                  <div style={{ margin: '6px 0 4px 28px', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50, width: '100%' }}>
+                      {tr('coach:editor.loadLabel', { defaultValue: 'PLANNED LOAD · OPTIONAL' })}
+                    </span>
+                    {[['plannedLength', Object.keys(BS_LENGTH_CHIPS), tr('coach:editor.lengthAria', { defaultValue: 'Planned length for {name}', name: b.text || tr('coach:editor.session', { defaultValue: 'session' }) })],
+                      ['plannedEffort', Object.keys(BS_EFFORT_CHIPS), tr('coach:editor.effortAria', { defaultValue: 'Planned effort for {name}', name: b.text || tr('coach:editor.session', { defaultValue: 'session' }) })]].map(([key, opts, aria]) => (
+                      <span key={key} role="group" aria-label={aria} style={{ display: 'flex', gap: 4 }}>
+                        {opts.map((opt) => {
+                          const on = b[key] === opt;
+                          return (
+                            <button key={opt} type="button" onClick={() => setBlockChip(i, key, opt)} aria-pressed={on}
+                              style={{ minHeight: 34, borderRadius: 8, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', padding: '0 7px', cursor: 'pointer' }}>
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </span>
+                    ))}
+                    {/* Honest about what absence COSTS, without nagging: a blank
+                        pair is a real answer the core reads as incomplete_week,
+                        and the coach should know the week goes unscored. */}
+                    {(!b.plannedLength || !b.plannedEffort) && (
+                      <div style={{ width: '100%', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>
+                        {tr('coach:editor.loadHint', { defaultValue: 'Both are needed to check this week against their history — leave blank and it publishes unscored.' })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* PR E — the method: ordered cooking steps on a meal block. A step
                     with a station AND a duration STATED IN ITS OWN TEXT becomes a
                     hands-off window (Cook Mode's board can interleave around it);
@@ -5178,7 +5223,30 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 return ds.length ? { ...rest, steps: ds } : rest;
               })
             : list);
-          const pubBlocks = finish(blocks);
+          // §3.2a — the pair is mapped ONCE, here, through the one enum in
+          // planOutline. The chip values are dropped after mapping so a stored
+          // block never carries two representations of the same fact.
+          //
+          // ⚠ THE STAMP IS WRITTEN BY THE BUILDER AT THE MOMENT IT COLLECTS THE
+          // PAIR — never inferred from contents. That is what lets a hop that
+          // strips the field from EVERY session (the likelier bug, since
+          // transforms apply uniformly) be told apart from a coach who skipped
+          // the step. Content inspection alone catches only the partial drop.
+          const stampLoad = (list) => (loadCapture
+            ? list.map((b) => {
+                if (!bsBlockIsSession(b.text)) return b;
+                const { plannedLength, plannedEffort, ...rest } = b;
+                const min = bsPlannedMinutes(plannedLength);
+                const rpe = bsPlannedRpe(plannedEffort);
+                // Stamp ONLY when the pair genuinely arrived. A half-answered
+                // session stays unstamped rather than being recorded as
+                // captured-with-a-hole, which the core would read as malformed
+                // — a transport-bug report for what is really a blank field.
+                if (min === undefined || rpe === undefined) return rest;
+                return { ...rest, plannedMinutes: min, plannedRpe: rpe, loadCapture: 'per_session' };
+              })
+            : list);
+          const pubBlocks = stampLoad(finish(blocks));
           // Canonicalized here, by the same module that reads it back, so the
           // stored winner for a duplicate dow is the one bsPlanWeek resolves.
           const pubDays = perDayAuthoring
@@ -5354,7 +5422,11 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  // `loadCapture` is TRAINING-ONLY. The guardrail's universe is training load
+  // (sRPE = RPE x minutes); a meal plan has no session to carry a length or an
+  // effort, so offering the row on the nutritionist editor would collect a
+  // figure nothing scores.
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} loadCapture onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
