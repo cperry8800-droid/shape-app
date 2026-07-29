@@ -277,42 +277,63 @@ inspection alone cannot tell it from a coach who skipped the step.
 field at the **far end** rather than inspecting code, and a perturbation check
 that strips the field at one hop **uniformly** and confirms a test fails.
 
-### 3.2b Adjust regeneration — a bound derived from the TRANSFORM
+### 3.2b Adjust regeneration — NO BOUND; score the captured pairs
 
-**RULED 2026-07-28. REVERSED 2026-07-29 — see §13.15 for the reasoning.** The
-bound comes from what the regeneration ACTUALLY does, not from what its copy
-promises.
+**RULED 2026-07-28 as `max(authored, mode ceiling)`. THE BOUND IS DELETED
+2026-07-29** — along with the mode-ceiling constant, the authored-exceeds-ceiling
+telemetry field, and the bound fixtures.
 
-Verified at code level: `BS_ADJUST_SCALE` is `{ deload: 0.85, maintain: 1,
-progress: 1.025 }`, and the scale reaches exactly one field — the free-text
-`load` string on each exercise. **No mode touches minutes or RPE**, because the
-payload carries neither.
+**Why: every mode calls the same transform, and it writes exactly two keys.**
+`bsAdjustRegen` picks a scalar (`adjustRegen.mjs:80`) and hands it to one function
+(`:136`):
 
-| Mode | What it actually changes | Bound |
-|---|---|---|
-| `deload` | the first number in each load string (×0.85) | **authored** |
-| `maintain` | nothing — `scale === 1` returns the string unchanged | **authored** |
-| `progress` | the first number in each load string (×1.025) | **authored** |
+```js
+const scale = BS_ADJUST_SCALE[adjustment.intensity] ?? 1;   // deload .85 · maintain 1 · progress 1.025
+const exercises = scaleExercises(r.payload?.exercises, scale);
+```
 
-**Score every mode at the AUTHORED value.** This is not a conservative
-approximation that happens to be safe — a regenerated session's planned load is
-byte-identical to the authored one on this metric, so the authored value is
-**exact**.
+`scaleExercises` spreads the move and overwrites **`baseL` and `load` only** —
+`sets`, `reps` and every other key survive the spread untouched:
 
-⚠ **This bound holds only while the COPY is what moves.** The `progress` copy
-promises "add a set to main lifts … keep RPE ≤ 8", which the transform does not
-do; the ruling is to **fix the copy**. If the constants are ever changed instead
-— a set genuinely added, RPE genuinely pushed toward 8 — this section reverses
-back to `max(authored, 8)` with them.
+```js
+return { ...m, baseL: base, load: bsScaleLoad(base, scale) };
+```
 
-⚠ **Never persist a derived figure into `plannedRpe`.** `payload.adjustMode` goes
-on the row beside `adjustGen`; any bound is derived at read time. Writing it
-repeats the `durationConfirmed` error — a judgment stored as a measurement.
+and `bsScaleLoad` rewrites the first number of a **free-text weight string**,
+returning it byte-identical when the scalar is 1:
 
-**Telemetry:** one field for a `length` value that fails to map, one for an
-authored RPE above 8 on a `progress` regeneration — the latter now a **copy-drift
-signal**, not a bound input. Both must ship WITH the feature: there is no history
-to back-fill from (§9.2).
+```js
+if (scale === 1 || !/\d/.test(s)) return s;
+return s.replace(/\d+(?:\.\d+)?/, (n) => { … Number(n) * scale … });
+```
+
+| Mode | Scalar | What it writes | Effect on sRPE |
+|---|---|---|---|
+| `deload` | 0.85 | the first number in each load string | **none — no-op** |
+| `maintain` | 1 | nothing; the early return hands the string back | **none — no-op** |
+| `progress` | 1.025 | the first number in each load string | **none — no-op** |
+
+**All three are no-ops in sRPE terms.** No mode changes `plannedMinutes`,
+`plannedRpe`, sets, or session count. Verified by running all three over a row
+carrying the pair: minutes, effort, sets and reps came back byte-identical.
+
+**A regenerated week is scored on its own captured pairs, exactly like an
+authored one.** `emit()` spreads the row's payload forward, so the pair the coach
+captured rides through the regeneration intact — that is what makes the path
+scoreable, not a bound.
+
+⚠ **This is not "the bound reduces to authored".** A mechanism that always
+returns its input is dead code that reads as a safety feature: the next reader
+assumes a regenerated week was checked against something. It is gone.
+
+**Reinstate only if the transform changes.** If Adjust is ever made to do what
+its copy promises — add a set, push RPE toward 8 — it begins writing fields sRPE
+reads and a bound becomes a real question again. Today the **copy** is what moves
+(owner ruling 2026-07-29).
+
+**Telemetry:** one field for a `length` value that fails to map (§3.2a). The
+authored-above-ceiling field is deleted with the bound. It must ship WITH the
+feature: there is no history to back-fill from (§9.2).
 
 ---
 

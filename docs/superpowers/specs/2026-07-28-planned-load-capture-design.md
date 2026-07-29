@@ -182,41 +182,54 @@ measurement declared not honestly computable at all; `not_evaluable` is per-week
 and data-driven. Same resolution behaviour, different meaning, and it is reported
 rather than silent.
 
-### 5.2 The Adjust bound — derived at read time
+### 5.2 No Adjust bound — regenerated weeks score their captured pairs
 
-**Score against the MAXIMUM LOAD THE REGENERATION COULD PRODUCE**, implemented as
-`max(authored, mode ceiling)`. Deload and maintain have no upward ceiling, so it
-reduces to authored; progress takes whichever is higher. One rule, no
-branch-by-branch guarantee checking.
+**The bound is DELETED (2026-07-29).** `max(authored, mode ceiling)`, the
+mode-ceiling constant, and the authored-exceeds-ceiling telemetry field all go.
 
-The ceilings, stated rather than implied:
+**Every mode calls one transform, and it writes two keys.** `bsAdjustRegen`
+selects a scalar (`adjustRegen.mjs:80`) and passes it to `scaleExercises` (`:136`):
 
-| Mode | Upward ceiling | Bound |
-|---|---|---|
-| `deload` | none — intensity is capped | authored |
-| `maintain` | none — RPE approximately holds | authored |
-| `progress` | **8**, from the copy's "keep RPE ≤ 8" | `max(authored, 8)` |
+```js
+const scale = BS_ADJUST_SCALE[adjustment.intensity] ?? 1;   // deload .85 · maintain 1 · progress 1.025
+const exercises = scaleExercises(r.payload?.exercises, scale);
+```
 
-This always over-estimates and never under-estimates. Because it feeds the
-proposed week rather than history, the error direction produces false flags
-rather than missed ones — a dismissal versus an unguarded rescale.
+`scaleExercises` spreads the move and overwrites **`baseL` and `load` only**, so
+`sets`, `reps` and everything else survive by the spread:
 
-> "keep RPE ≤ 8" is a **constraint, not a value**. Authored 7 satisfies it and so
-> does 8. Deriving a point value from a ceiling invents its position within the
-> bound — fabrication in the shape of the coach's own rule.
+```js
+return { ...m, baseL: base, load: bsScaleLoad(base, scale) };
+```
 
-⚠ **Never persist the derived figure into `plannedRpe`.** Store the mode on the
-row; derive the bound at read time. Writing it repeats the `durationConfirmed`
-error: a judgment stored as a measurement, silently reclassifying itself if the
-Adjust semantics change.
+and `bsScaleLoad` rewrites the first number of a **free-text weight string**,
+handing it back byte-identical when the scalar is 1:
 
-**Telemetry:** a field flagging when authored exceeds the mode ceiling. If it
-fires regularly, either the copy promises something coaches do not follow or the
-constant has drifted from what the copy states. Both worth knowing, neither worth
-blocking on.
+```js
+if (scale === 1 || !/\d/.test(s)) return s;
+return s.replace(/\d+(?:\.\d+)?/, (n) => { … Number(n) * scale … });
+```
 
-**Copy must name what it did** — "scored against the maximum load this
-regeneration could produce" — never presented as the coach's authored effort.
+| Mode | Scalar | What it writes | sRPE effect |
+|---|---|---|---|
+| `deload` | 0.85 | first number of each load string | **no-op** |
+| `maintain` | 1 | nothing — early return | **no-op** |
+| `progress` | 1.025 | first number of each load string | **no-op** |
+
+**All three are no-ops in sRPE terms**: none changes `plannedMinutes`,
+`plannedRpe`, sets, or session count. Confirmed by running all three over a row
+carrying the pair — minutes, effort, sets and reps returned byte-identical.
+
+**So a regenerated week is scored on its own captured pairs, exactly like an
+authored one.** No bound, no ceiling, no derived figure.
+
+⚠ **Not "the bound reduces to authored".** A mechanism that always returns its
+input is dead code that reads as a safety feature — a later reader assumes the
+regenerated week was checked against something. It is removed, not simplified.
+
+**Reinstate only if the transform changes.** If Adjust is ever made to do what
+its copy promises — add a set, push RPE toward 8 — it starts writing fields sRPE
+reads and a bound becomes a live question again.
 
 ### 5.3 What Adjust actually does — two premises corrected
 
@@ -228,10 +241,11 @@ regeneration could produce" — never presented as the coach's authored effort.
 2. **Regeneration never touches minutes or RPE.** `BS_ADJUST_SCALE` is
    `{ deload: 0.85, maintain: 1, progress: 1.025 }` and `bsScaleLoad` rewrites
    the first number in a free-text load string (`"135 lb"` → `"115 lb"`).
-   Duration and effort are untouched anywhere in the module. **Without this
-   ruling a regeneration is invisible to the guardrail** — the proposed load is
-   byte-identical before and after. The bound is what makes the highest-risk path
-   scoreable at all.
+   Duration and effort are untouched anywhere in the module, so all three modes
+   are **no-ops in sRPE terms**. **What makes the highest-risk path scoreable is
+   PER-SESSION CAPTURE (§3.2a), not a bound** — `emit()` spreads the row's
+   payload forward, so the coach's authored pair rides through the regeneration
+   intact and the regenerated week is scored on that pair directly.
 
 ⚠ **The stated ceiling lives in copy that does not describe the code.**
 `intensityDesc` (`:2973`) promises deload "pull volume back ~40% and cap
@@ -265,7 +279,7 @@ Threading, per writer:
 |---|---|
 | mobile coach app | `BSProAssignPage` writes at `:3432` split, `:3443` week block, `:3451` single |
 | web builders | `dashBuilder.jsx` already posts `payload: row.payload` (`:207`); needs its own numeric length input |
-| Adjust | no capture — the bound is derived at read time from `payload.adjustMode` |
+| Adjust | no capture — `emit()` carries the authored pair through unchanged (§5.2) |
 
 ---
 
@@ -306,13 +320,10 @@ mode `iosAppBroadsheetPros.jsx:5347-5351` already documents.
 - a 90/30/30/30 week flagging on concentration where a flat assumption would have
   passed
 
-**The Adjust bound**
+**Adjust regeneration** *(the five bound fixtures are deleted with the bound)*
 
-- authored 9, ceiling 8, progress → scored at **9**, not 8
-- authored 7, ceiling 8, progress → scored at **8**
-- authored 9, deload → scored at **9**
-- authored exactly at the ceiling → both paths agree
-- the authored-above-ceiling telemetry field firing **only** in that case
+- a regenerated row carries `plannedMinutes` / `plannedRpe` through **unchanged**
+  under all three modes, and is scored on that pair — no bound, no ceiling
 
 ---
 
