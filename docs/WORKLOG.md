@@ -1214,6 +1214,34 @@ changelog whenever something ships.
   explicitly depends on — its seed omits the coach *because* a collision raises), and the
   Adjust page **stops swallowing the reason** (a bare "Couldn't send" for a conflict that
   wrote nothing). Suite **1336**.
+- ⚠ **THE KEY MUST HASH EVERYTHING THAT CHANGES WHAT GETS PUBLISHED.** The Assign page
+  holds two index-aligned lists — `blocks` (text only) and the raw block OBJECTS — and the
+  authored planned-load pair (`plannedMinutes`/`plannedRpe`) lives ONLY on the objects; the
+  declaration of `blocks` says so in as many words. The seed hashed the text. So editing a
+  catalogue plan's planned minutes or RPE **without touching a word of its text** produced a
+  byte-identical key, the publish route's ledger short-circuit answered `already_delivered`
+  from the first publish, and the new load was **never written and never judged** — and that
+  pair is precisely what §3.2a evaluates, so it is the guardrail switching itself off on the
+  coach's most ordinary action. Proven with the real hash before fixing (identical keys),
+  and after (distinct, with an unchanged re-assign still replaying). The rule moved into
+  `planOutline.mjs` **`bsAssignSeed`** beside the other two that fail silently, and it
+  serialises the whole block rather than enumerating fields, so the next authored field is
+  covered without anyone remembering the function; key-order churn can only **over**-mint
+  (one extra publish of identical content), which is the safe direction. `tests/assign-seed.test.mjs`.
+  **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
+  it omits is a different assignment answering as an old one, silently.**
+- **Registered, not built (owner-ruled 2026-07-30 — register and merge):** ⚠ **a THIRD
+  writer of `client_workouts` is unserialized** — Nora's `assign_workout` **undo**
+  (`src/lib/ai/actions.mjs:231`) archives coach-authored rows with a direct UPDATE under the
+  trainer policy, taking no advisory lock, so it can interleave with a week publish. It
+  cannot be fixed with a lock statement: a PostgREST update is its own transaction, so this
+  needs an RPC that locks and archives together. **My claim on the PR that the two RPCs were
+  the only coach-side writers was wrong** — Codex produced the counterexample. Separately and
+  in the same four lines, that undo **discards its result** (`await q;`), so Nora reports
+  "undone" when it archived **zero rows**; the July-10 wave gave every MEMBER-tool undo the
+  "zero affected rows = the honest *Changed since* conflict" rule and never extended it to
+  the **four coach-tool** undos (`assign_workout` · `assign_meal_plan` · `set_program_detail`
+  · `add_review_note`). Both pre-date this wave.
 - **Open:** ⚠ **`2026-08-01-client-schedule-serialize.sql`** (order-independent) and
   **`2026-07-31-coach-insert-lockout.sql` only AFTER the deploy** — the other four are
   applied + verified live; the earlier RE-RUN warning is superseded · Codex on the final
