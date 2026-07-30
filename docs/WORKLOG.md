@@ -1097,6 +1097,183 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-29 — Progression guardrails Deploy 2b: the week-shaped publish boundary (#1848)
+
+- **Every coach training write now passes one evaluated door.** SPEC-guardrails §9.4:
+  the guardrail judges a whole client-week, so the week — not the session — is the unit
+  that gets written. `publish_client_week` claims an idempotency key, replaces the
+  coach's own future rows in the target week, inserts the submitted sessions and writes
+  the acknowledgment, **all in one transaction**: there is no publish without its audit
+  entry.
+- ⚠ **FIVE OWNER MIGRATIONS, in this order:** `2026-07-29-guardrail-week-publish.sql`
+  (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied +
+  verified live 2026-07-30**) → `2026-07-30-week-publish-precondition.sql` (**applied +
+  verified live 2026-07-30**) → `2026-07-31-week-publish-serialize.sql` (**applied +
+  verified live 2026-07-30**) → `2026-08-01-client-schedule-serialize.sql` (**outstanding**;
+  order-independent — safe before or after the deploy). The third **drops the eight-argument
+  `publish_client_week`**; leaving both overloads would make every publish ambiguous
+  under PostgREST, since an eight-argument call matches both once the ninth defaults.
+- ⚠ **THE GRANT WAS THE WHOLE GATE.** `regenerate_client_workouts` shipped granted to
+  `authenticated` while reading `auth.uid()`. SECURITY DEFINER bypasses RLS, so a
+  signed-in trainer could call it directly with arbitrary inserts and skip the
+  evaluation entirely (CWE-862). Now `service_role` only, with the coach passed as
+  `p_coach_user_id` and re-verified in-body. Two consequences the fix forced: the
+  discipline check **cannot** delegate to `is_discipline_coach_on_client` — it reads
+  `auth.uid()`, which is NULL on a service-role connection, so it would fail **OPEN** —
+  and the trainer row now resolves from the subscription that grants access rather than
+  `limit 1` over owned rows.
+- ⚠ **A WEEK-REPLACE OVER A READ-MERGE IS A LOST-UPDATE RACE.** A session-shaped caller
+  cannot send a whole week, so it reads the week, folds its session in, and publishes the
+  merge. Two of those interleave into silent data loss — both read the same week, both
+  publish a different merge, the later replace deletes the earlier one's session — and
+  **nothing existing could see it**: both keys are content-derived so the ledger sees two
+  legitimate publishes, both callers are the same authorized coach, and the loss lands
+  *after* the first write. A lock cannot span the two round trips on a pooled connection,
+  so the RPC takes a precondition (`p_expected_row_ids`, the ids the caller read) and the
+  route restarts **from the read** — which re-evaluates the guardrail against the week
+  actually about to be written. `NULL` = no precondition.
+- ⚠ **NEVER HAND THE BOUNDARY ONLY THE SESSIONS BEING ASSIGNED.** Both surfaces made this
+  mistake independently. The web builder posted one session per day (36 publishes for a
+  12-week program, wrecking §10.2's flag-rate denominators); the mobile Assign page
+  published a program's sessions straight into the replacing boundary, so a coach with a
+  Saturday conditioning day who then assigned a 3-day program **lost the Saturday** —
+  silently, and was told the assignment landed. It also judged a week missing that load,
+  i.e. **permissively**. The read-merge, the precondition and the retry now live in ONE
+  `publishMergedWeekForClient()` that both routes call, pinned by a test that fails if
+  either calls the unmerged publisher.
+- **The merge owns the capture stamp, not the caller.** A carried session with no captured
+  pair makes the whole week honestly `incomplete_week`; letting a caller's `per_session`
+  claim ride over the merged week would declare a hole-free week that has a hole — F158,
+  the malformed case that switches the guardrail **off**. Degrades safe: `unknown` never
+  blocks a publish.
+- **One publish is one message.** `notify_on_client_workout` fires per inserted ROW, and a
+  week-replace re-inserts everything it carried — so assigning one session into a week
+  holding three sent the client **four** "New workout from your coach" pushes, three for
+  sessions they were told about days ago. Same remedy as the Adjust regeneration: quiet
+  the per-row trigger with the transaction-local `shape.adjust_regen` GUC, emit one
+  summary.
+- ⚠ **A QUEUE NOTHING DRAINS IS NOT A QUEUE.** `drainAssignmentQueue` was written,
+  exported, and never called — so a week held offline was held forever, aging out of the
+  prune window while the coach had been told it would publish. Now wired to the two
+  moments connectivity returns: a resolved session and the platform `online` event,
+  serialized so two drains cannot double-post.
+- ⚠ **RLS DOES NOT REFUSE A DIRECT COACH INSERT** — a comment in `shapeBackend.js` claimed
+  it did, which is exactly the false assurance the guardrail doctrine warns against.
+  `trainer_insert_on_client_workouts` still grants INSERT to `authenticated`. What changed
+  is that the mobile path stops taking it. **Locking the policy down is deliberately NOT
+  done here**, and the reason matters: `publishClientWorkout` (`public/supabase.js:499`,
+  the website's "Publish & Send to Client") is a live unevaluated insert that creates
+  **undated** workouts, and the evaluated boundary refuses an undated session by name — an
+  undated row has no week, so there is no load to judge and no week to publish into.
+  Closing it needs a product call (give that flow a date, or carve out undated coach rows
+  and reopen the hole), not an implementation.
+- **Process:** the security fix above was **reported as done, in prose and in the PR body,
+  before the file had been edited**. Codex caught it as a live P1. The lesson is recorded
+  rather than smoothed over: a claim about a security posture is worth nothing until the
+  diff is read back.
+- Verified: **1325 tests**, `tsc --noEmit` clean, CI green (Web · Mobile · gitleaks),
+  every guard mutation-checked.
+- **⚠ THE RLS LOCKOUT ABOVE IS NOW DONE** (`2026-07-31-coach-insert-lockout.sql`).
+  The owner ruled the carve-out away — *"Give the flow a date… no carve-out — the
+  wave's premise is one evaluated door"* — so `publishClientWorkout` takes a
+  `scheduledDate` and posts to `/api/trainer/workout`, and dropping
+  `trainer_insert_on_client_workouts` makes the doctrine **structural**: a future
+  surface cannot reintroduce the hole, because the database refuses a direct coach
+  insert. ⚠ It closes the unevaluated CREATE, **not every unevaluated mutation** —
+  the trainer UPDATE policy still allows an un-judged date move, and narrowing it
+  breaks Nora's undo, so that is registered rather than folded in.
+- **Review round on the final head** (`e5475481b`): a **4xx was reported to the coach
+  as a successful publish** — the throw was gated on `status >= 500`, so a 401/403/409
+  resolved to `status:'accepted'`; `bsAdjustProposedWeeks` **failed OPEN** on a missing
+  `todayISO` (zero evaluations reads as nothing to block); `weekRequestHash` tie-broke
+  on the **synthesized** id while hashing `id: null`, so two same-day id-less sessions
+  hashed by submission order and published **twice**; `pg_temp` unpinned on two
+  definers (unlisted, it is searched FIRST — ahead of `pg_catalog`); an **unordered
+  `.limit(400)`** could truncate the current week away; and both the drain and
+  `dashBuilder` **swallowed the guardrail's reason**. Suite **1329**.
+- ⚠ **A LOCK ONLY ONE WRITER TAKES IS NOT A LOCK** (review round on `1a167c26f`). The
+  precondition migration gave `publish_client_week` an advisory lock over (client, week)
+  and closed the publish-vs-publish lost update — while the SIBLING writer,
+  `regenerate_client_workouts` (the Adjust apply), took no lock at all. An advisory lock
+  only excludes a transaction asking for the **identical key**, so the two never
+  conflicted, and two corruptions followed that **nothing raises**: two Adjust applies
+  both validate the same `p_delete_ids` against a pre-commit snapshot, both pass, and the
+  second **deletes zero rows without aborting** — committing its replacement program on
+  top of the first one's; and an apply committing between a publish's precondition check
+  and its replace either wipes the regeneration or lands beside it, purely on statement
+  timing. Fixed by putting BOTH on ONE key — **keyed on the CLIENT, not the client-week**,
+  because a regeneration spans many weeks *plus undated weekly-repeat rows* and has no
+  single week it could name; the widening subsumes the old guarantee and costs only that
+  two weeks of one client publish in sequence. The regeneration also gained a
+  **delete-rowcount precondition** (`v_deleted <> v_expected` → 40001), so if the
+  serialization is ever bypassed it fails loudly instead of doubling a program.
+  `tests/schedule-lock.test.mjs` pins the invariant statically — the migration's own guard
+  only fires at apply time, long after the code that broke it was written. Also on that
+  head: the ledger replay pre-check is now **scoped to the calling coach** (it was
+  short-circuiting the RPC's own cross-coach refusal, which the mobile key-mint site
+  explicitly depends on — its seed omits the coach *because* a collision raises), and the
+  Adjust page **stops swallowing the reason** (a bare "Couldn't send" for a conflict that
+  wrote nothing). Suite **1336**.
+- ⚠ **THE KEY MUST HASH EVERYTHING THAT CHANGES WHAT GETS PUBLISHED.** The Assign page
+  holds two index-aligned lists — `blocks` (text only) and the raw block OBJECTS — and the
+  authored planned-load pair (`plannedMinutes`/`plannedRpe`) lives ONLY on the objects; the
+  declaration of `blocks` says so in as many words. The seed hashed the text. So editing a
+  catalogue plan's planned minutes or RPE **without touching a word of its text** produced a
+  byte-identical key, the publish route's ledger short-circuit answered `already_delivered`
+  from the first publish, and the new load was **never written and never judged** — and that
+  pair is precisely what §3.2a evaluates, so it is the guardrail switching itself off on the
+  coach's most ordinary action. Proven with the real hash before fixing (identical keys),
+  and after (distinct, with an unchanged re-assign still replaying). The rule moved into
+  `planOutline.mjs` **`bsAssignSeed`** beside the other two that fail silently, and it
+  serialises the whole block rather than enumerating fields, so the next authored field is
+  covered without anyone remembering the function; key-order churn can only **over**-mint
+  (one extra publish of identical content), which is the safe direction. `tests/assign-seed.test.mjs`.
+  ⚠ **Serialising the block does not cover authored fields OUTSIDE it** — the very next
+  review round found one: `planKey` prefers `plan.id`, which is exactly what a rename through
+  `PATCH /api/coach/plans` preserves, while the *name* is published (the session title outright
+  in the exercise-shaped branch, the description fallback in the others). So a renamed plan
+  re-assigned unchanged replayed and the client kept reading the old title. The name is now
+  seeded beside the id.
+  **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
+  it omits is a different assignment answering as an old one, silently.**
+- ⚠ **REGISTERED AFTER THREE FAILED ATTEMPTS — the unevaluated repeat-only regeneration.**
+  `bsAdjustRegen` returns `changed: true` carrying only `repeatPatches` when a weekday is
+  trimmed from a client whose rows are all undated weekly-repeat sources. Neither leg of
+  `bsAdjustProposedWeeks` reads `repeatPatches`, so the proposal is empty, `bsAdjustOutcome([])`
+  answers `publish: true`, and the route regenerates with **zero guardrail evaluations**
+  (found by CodeRabbit). Three fixes were attempted and all three were withdrawn, each after
+  review found it **worse than the bug**: (1) refusing every weekless changed plan turned a
+  supported operation into a **500** — nothing catches a throw from that function and the coach
+  has no other path to narrow a repeat source; (2) exempting the repeat-only shape rested on
+  “a patch only ever REMOVES a training day”, which is true of the patched ROW and **false of the
+  schedule**: `bsBuildTrainProgram` fills any freed weekday from undated non-repeat rows
+  (`iosAppBroadsheetClient.jsx:4142-4144`); (3) tightening that to “all undated rows must be
+  repeat sources” fails one level down — `bsSlotRepeats` is **first-come-wins**
+  (`trainingBuilder.mjs:110`), so narrowing the winner off a day reveals a COMPETING repeat
+  source there, which can carry higher load. **The real fix is not a guard.** The server would
+  have to evaluate the resulting *slotted* schedule, which means modelling the client’s slotting
+  server-side — a design change with its own spec, not something to guess at merge time. The
+  status quo is preserved deliberately: this is pre-existing, so reverting restores what every
+  prior round of this PR reviewed rather than introducing a regression. **The general lesson:
+  a load guarantee about a ROW is not a load guarantee about the SCHEDULE that row appears in.**
+- **Registered, not built (owner-ruled 2026-07-30 — register and merge):** ⚠ **a THIRD
+  writer of `client_workouts` is unserialized** — Nora's `assign_workout` **undo**
+  (`src/lib/ai/actions.mjs:231`) archives coach-authored rows with a direct UPDATE under the
+  trainer policy, taking no advisory lock, so it can interleave with a week publish. It
+  cannot be fixed with a lock statement: a PostgREST update is its own transaction, so this
+  needs an RPC that locks and archives together. **My claim on the PR that the two RPCs were
+  the only coach-side writers was wrong** — Codex produced the counterexample. Separately and
+  in the same four lines, that undo **discards its result** (`await q;`), so Nora reports
+  "undone" when it archived **zero rows**; the July-10 wave gave every MEMBER-tool undo the
+  "zero affected rows = the honest *Changed since* conflict" rule and never extended it to
+  the **four coach-tool** undos (`assign_workout` · `assign_meal_plan` · `set_program_detail`
+  · `add_review_note`). Both pre-date this wave.
+- **Open:** ⚠ **`2026-08-01-client-schedule-serialize.sql`** (order-independent) and
+  **`2026-07-31-coach-insert-lockout.sql` only AFTER the deploy** — the other four are
+  applied + verified live; the earlier RE-RUN warning is superseded · Codex on the final
+  head (CodeRabbit waived on this PR by the owner) · the owner's say. Handoff:
+  **[`docs/HANDOFF-2026-07-30.md`](HANDOFF-2026-07-30.md)**.
+
 ### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)
 
 - **New admin-only `/console`** (spec

@@ -26,6 +26,19 @@ export const ANALYTICS_EVENTS = [
   // without it, session_rpe_prompted keeps reporting {rated:true} while the
   // column stays empty, so skip-rate reads healthy through a broken window.
   'session_rpe_dropped',
+  // guardrail_evaluated { state, regime, redPath, axes, baselineAu, proposedAu,
+  // ceilingPct, overridden, reasonCode, unknownReason, excludedSessionRate,
+  // redSuppressed, adjustMode } — the progression guardrail's flag-rate
+  // telemetry (SPEC-guardrails.md §10.2). Written SERVER-SIDE AT PUBLISH ONLY,
+  // one row per publish regardless of session count, and carrying NO client
+  // identifier. `state` is always the TRUE computed state, never the value
+  // shown to the coach: when the §7.4 kill switch has downgraded a red, `state`
+  // stays 'red' and `redSuppressed` is true.
+  // ⚠ THE TWO-PLACE TRAP, SET A SECOND TIME — and it caught us. As of
+  // 2026-07-29 the deployed track_event did NOT carry this name, so the event
+  // would have written nothing and reported no error. The other half ships in
+  // 2026-07-29-guardrail-week-publish.sql; BOTH must carry it.
+  'guardrail_evaluated',
 ];
 
 export function isAnalyticsEvent(name) {

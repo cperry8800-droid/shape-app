@@ -41,6 +41,15 @@ globalThis.__VITE_ENV__ = { BASE_URL: '/m/' };
 // it is the real component.
 globalThis.BSPage = ({ children }) => React.createElement('div', { 'data-bspage': true }, children);
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
+// `useBS` is read off `window` at module load, so it must exist before the
+// module is compiled. It resolves the theme lazily — `t` is declared below.
+globalThis.useBS = () => t;
+// The rest of the shared chrome, as passthroughs — everything inside them is
+// the real component. Without these a chrome global resolves to `undefined`
+// and React reports "Element type is invalid", masking real render faults.
+for (const name of ['BSMasthead', 'BSPageHeader', 'BSBackButton', 'BSAvatar', 'BSFacetAvatar', 'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber', 'BSHalftone']) {
+  globalThis[name] = ({ children }) => React.createElement('div', { 'data-chrome': name }, children);
+}
 
 async function loadModule(reactImpl = React) {
   const dir = dirname(SRC);
@@ -49,7 +58,7 @@ async function loadModule(reactImpl = React) {
   // `import.meta.env` is Vite's, injected at build; substitute it the same way
   // the bundler does so asset URLs resolve instead of being a syntax error in a
   // CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -102,7 +111,8 @@ function render(el) {
 
 const t = {
   MONO: 'mono', DISPLAY: 'display', PAPER: '#fff', PAPER2: '#eee', INK: '#111',
-  INK50: '#777', RULE: '#ccc', padX: 18, isLight: true,
+  INK50: '#777', INK70: '#555', RULE: '#ccc', padX: 18, isLight: true,
+  BODY: 'body', AMBER: '#d8b25a', RUST: '#c0533b',
 };
 const editor = (props) => React.createElement(MOD.BSCoachDraftEditor, {
   t, accent: '#c8a24a', typeName: 'meal plan', blockLabel: 'MEALS',
@@ -389,4 +399,484 @@ test('wiring: perDayAuthoring is passed ONLY on the nutrition menu build types',
   // Never unconditional: `program` drafts are week ARCS and must never offer day
   // tabs, and a bare `perDayAuthoring` (or ={true}) would put them there.
   assert.match(gated[0], /perDayAuthoring=\{buildType === 'mealplan' \|\| buildType === 'diet'\}/);
+});
+
+// ── Deploy 2b: the planned-load pair crosses the publish callback ───────────
+//
+// The capture design §7's TWO STRUCTURAL GUARDS. A new field must cross the
+// draft editor, onPublish, every receiver and the RPC; dropping it anywhere
+// kills the feature WITHOUT ERRORING — the exact failure the `days` work
+// already documented, where deleting the key from the payload passed every one
+// of 884 tests because it does not change the first paint.
+//
+// So these assert the field AT THE FAR END (the published payload), never by
+// inspecting the source for it.
+
+const trainerProps = (over = {}) => {
+  const published = [];
+  return {
+    published,
+    props: {
+      t, accent: '#2ee0c4', typeName: 'program', blockLabel: 'SESSIONS',
+      initialName: 'Base Block', initialNote: '', initialMedia: [],
+      // A SPLIT: three day lines, so planOutline classifies each block as a
+      // session and the capture row is offered.
+      initialBlocks: [
+        { id: 'b1', text: 'Mon — Upper (push)' },
+        { id: 'b2', text: 'Wed — Lower' },
+        { id: 'b3', text: 'Fri — Upper (pull)' },
+      ],
+      loadCapture: true,
+      onPublish: async (payload) => { published.push(payload); },
+      onCancel: () => {},
+      ...over,
+    },
+  };
+};
+
+test('drive: the planned pair reaches onPublish, mapped and stamped', async () => {
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');
+  ed.click('RPE 8');
+  await ed.publish();
+
+  const b = published[0].blocks[0];
+  assert.equal(b.plannedMinutes, 60, 'plannedMinutes must survive the callback');
+  assert.equal(b.plannedRpe, 8, 'plannedRpe must survive the callback');
+  assert.equal(b.loadCapture, 'per_session', 'the row stamp must survive the callback');
+  // The chip VALUES are dropped after mapping — a stored block must never carry
+  // two representations of the same fact.
+  assert.equal('plannedLength' in b, false);
+  assert.equal('plannedEffort' in b, false);
+});
+
+test('drive: a HALF-answered session publishes UNSTAMPED, not stamped-with-a-hole', () => {
+  // The whole point of the stamp is to tell "the coach skipped it" from "a hop
+  // dropped it". Recording a half-answer as captured would report a blank field
+  // as a transport bug, and one malformed row turns the WHOLE evaluation
+  // unknown — which switches the guardrail off.
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');            // length only
+  return ed.publish().then(() => {
+    const b = published[0].blocks[0];
+    assert.equal('loadCapture' in b, false);
+    assert.equal('plannedMinutes' in b, false);
+  });
+});
+
+test('drive: an untouched session publishes with no pair keys at all', async () => {
+  const { published, props } = trainerProps();
+  await drive(props).publish();
+  const b = published[0].blocks[0];
+  assert.equal('plannedMinutes' in b, false);
+  assert.equal('plannedRpe' in b, false);
+  assert.equal('loadCapture' in b, false);
+});
+
+test('drive: tapping the SAME chip again clears it back to honestly-absent', async () => {
+  // There is no other way out of a chip row. A coach who mis-tapped must be
+  // able to return to absent rather than being forced to publish a number they
+  // did not mean.
+  const { published, props } = trainerProps();
+  const ed = drive(props);
+  ed.click('60 min');
+  ed.click('RPE 8');
+  ed.click('60 min');            // same chip -> clear
+  await ed.publish();
+  assert.equal('loadCapture' in published[0].blocks[0], false);
+});
+
+test('drive: the capture row is NOT offered where a block is an EXERCISE', () => {
+  // An exercise block has no length or effort of its own — the session is the
+  // whole week — so offering the row there would collect a figure the guardrail
+  // must then refuse.
+  const { props } = trainerProps({
+    initialBlocks: [{ id: 'b1', text: 'Main lift · 4×8' }, { id: 'b2', text: 'Accessory · 3×12' }],
+  });
+  const ed = drive(props);
+  assert.throws(() => ed.click('60 min'), /no button labelled/);
+});
+
+test('drive: capture is OFF unless the surface asks for it', () => {
+  // The nutritionist editor shares this component. A meal plan has no session
+  // to carry a length, so the row must not appear there.
+  const { props } = trainerProps({ loadCapture: false });
+  assert.throws(() => drive(props).click('60 min'), /no button labelled/);
+});
+
+test('drive: a REST day line is not a session and is not offered the row', () => {
+  const { props } = trainerProps({
+    initialBlocks: [{ id: 'b1', text: 'Sun — Rest' }, { id: 'b2', text: 'Mon — Upper (push)' }],
+  });
+  const ed = drive(props);
+  // Exactly ONE session in this outline, so exactly one length chip row.
+  const chips = ed.nodes().filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined
+    && String(n.props.children) === '60 min');
+  assert.equal(chips.length, 1, 'the rest day must not be offered a planned load');
+});
+
+// ── The assign page: the ONE gated training writer (SPEC-guardrails §9.4) ────
+//
+// This is the surface that used to hold three per-session `ShapeAssign.workout`
+// calls. Mounting it is the crash gate (the page gained state and a new
+// derivation); DRIVING it is what proves the publish is actually week-shaped —
+// the boundary can only judge a week it is handed whole, so a path that emits
+// one session at a time makes the guardrail optional in practice.
+
+const splitPlan = {
+  id: 'plan-split',
+  name: 'Hypertrophy Block',
+  detail: {
+    note: 'Push the top set.',
+    blocks: [
+      { id: 'b1', text: 'Mon — Upper (push)', plannedMinutes: 60, plannedRpe: 7 },
+      { id: 'b2', text: 'Wed — Lower (squat)', plannedMinutes: 75, plannedRpe: 8 },
+      { id: 'b3', text: 'Fri — Upper (pull)', plannedMinutes: 60, plannedRpe: 7 },
+      { id: 'b4', text: 'Sun — Rest' },
+    ],
+  },
+};
+
+function driveAssign(props, reactMod = SHIM_MOD, ctx = CTX) {
+  ctx.cells.length = 0;
+  let tree;
+  const renderOnce = () => { ctx.idx = 0; tree = reactMod.BSProAssignPage(props); return tree; };
+  renderOnce();
+  const nodes = () => flatten(tree);
+  const api = {
+    get tree() { return tree; },
+    nodes,
+    text: () => nodes().map((n) => textOf(n)).join(' | '),
+    async click(match) {
+      const btn = nodes().find((n) => n.type === 'button' && n.props.onClick && match(textOf(n).trim()));
+      if (!btn) throw new Error('no matching button (have: ' + nodes().filter((n) => n.type === 'button').map((n) => JSON.stringify(textOf(n).trim())).join(', ') + ')');
+      await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
+    type(value) {
+      const el = nodes().find((n) => n.type === 'textarea' && n.props.onChange);
+      if (!el) throw new Error('no textarea rendered');
+      el.props.onChange({ target: { value } });
+      renderOnce();
+      return api;
+    },
+  };
+  return api;
+}
+
+// Capture what the page actually sends, and answer as the boundary would.
+function stubAssign(answer = () => ({ stored: 'supabase', status: 'accepted' })) {
+  const calls = [];
+  globalThis.ShapeAssign = {
+    week: async (body) => { calls.push(body); return answer(body, calls.length); },
+    clients: async () => [],
+  };
+  globalThis.ShapeCoachPlans = { list: async () => [] };
+  globalThis.ShapeMessages = undefined;
+  return calls;
+}
+
+const ASSIGN_PROPS = {
+  role: 'trainer',
+  plan: splitPlan,
+  client: { n: 'Marcus Tan' },
+  clientUid: '11111111-2222-4333-8444-555555555555',
+  onBack() {},
+  onDone() {},
+};
+
+test('assign: the page mounts (no TDZ, no hook-order fault, no render throw)', () => {
+  stubAssign();
+  const out = render(React.createElement(MOD.BSProAssignPage, ASSIGN_PROPS));
+  assert.equal(out.warnings.length, 0, out.warnings.join('\n'));
+  assert.match(out.html, /Hypertrophy Block/);
+  assert.match(out.html, /Marcus/);
+});
+
+test('assign: a weekday split publishes WEEKS, not sessions', async () => {
+  const calls = stubAssign();
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+
+  // 4 weeks is the stepper default for a split; the rest day never rides.
+  assert.equal(calls.length, 4, 'expected 4 week publishes, got ' + calls.length);
+  const titles = calls.flatMap((c) => c.sessions.map((s) => s.title));
+  assert.equal(titles.filter((x) => /Rest/i.test(x)).length, 0, 'a REST day must not be scheduled');
+
+  for (const c of calls) {
+    // Every session must fall inside the week it was published under, or the
+    // boundary's atomic week-replace deletes a week it was never handed.
+    for (const s of c.sessions) {
+      const delta = (new Date(s.scheduledDate) - new Date(c.weekStartISO)) / 86400000;
+      assert.ok(delta >= 0 && delta <= 6, s.scheduledDate + ' is outside week ' + c.weekStartISO);
+    }
+    assert.match(c.idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  }
+  // One key per week — a shared key would make week 2 replay week 1.
+  assert.equal(new Set(calls.map((c) => c.idempotencyKey)).size, calls.length);
+  assert.equal(new Set(calls.map((c) => c.weekStartISO)).size, calls.length);
+});
+
+test('assign: a fully-captured split declares per_session on every week', async () => {
+  const calls = stubAssign();
+  await driveAssign(ASSIGN_PROPS).click((s) => /Assign/i.test(s));
+  assert.ok(calls.length > 0);
+  for (const c of calls) {
+    assert.equal(c.capture, 'per_session');
+    for (const s of c.sessions) assert.equal(s.loadCapture, 'per_session');
+  }
+});
+
+test('assign: ONE unstamped day makes THAT WHOLE week unstamped, never malformed', async () => {
+  // The F158 rule, end to end from an authored plan: a coach who filled two
+  // rows and skipped the third must read as `incomplete_week`, not as an
+  // alarm. Judged PER WEEK — the first week can start mid-week and so may
+  // contain only fully-paired sessions, which is a real (and correct) stamp.
+  const partial = {
+    ...splitPlan,
+    id: 'plan-partial',
+    detail: { ...splitPlan.detail, blocks: splitPlan.detail.blocks.map((b, i) => (i === 1 ? { id: b.id, text: b.text } : b)) },
+  };
+  const calls = stubAssign();
+  await driveAssign({ ...ASSIGN_PROPS, plan: partial }).click((s) => /Assign/i.test(s));
+  assert.ok(calls.length > 0);
+
+  const holed = calls.filter((c) => c.sessions.some((s) => /Lower/.test(s.title)));
+  assert.ok(holed.length > 0, 'the stripped session should appear in at least one week');
+  for (const c of holed) {
+    assert.equal(c.capture, undefined);
+    for (const s of c.sessions) {
+      assert.equal(s.loadCapture, undefined);
+      assert.equal(s.plannedMinutes, undefined);
+    }
+  }
+  // ...and a week that happens to hold only paired sessions still measures.
+  const whole = calls.filter((c) => !c.sessions.some((s) => /Lower/.test(s.title)));
+  for (const c of whole) assert.equal(c.capture, 'per_session');
+});
+test('assign: the SAME assignment re-run mints the SAME keys (a retry replays)', async () => {
+  const first = stubAssign();
+  await driveAssign(ASSIGN_PROPS).click((s) => /Assign/i.test(s));
+  const second = stubAssign();
+  await driveAssign(ASSIGN_PROPS).click((s) => /Assign/i.test(s));
+  assert.ok(first.length > 0);
+  assert.deepEqual(second.map((c) => c.idempotencyKey), first.map((c) => c.idempotencyKey));
+});
+
+test('assign: a rejection is HELD with the boundary words, and nothing publishes past it', async () => {
+  const calls = stubAssign((body, n) => (n === 2
+    ? { stored: 'rejected', rejected: true, reason: 'acute_spike', copy: { chip: 'OVER LIMIT', line: 'This week is a big jump.', detail: 'Week load is 61% over their four-week average.', axes: [] } }
+    : { stored: 'supabase', status: 'accepted' }));
+
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+
+  // Stopped at the rejection — weeks 3 and 4 were never sent.
+  assert.equal(calls.length, 2);
+  const shown = page.text();
+  assert.match(shown, /OVER LIMIT/);
+  assert.match(shown, /This week is a big jump/);
+  assert.match(shown, /61% over/);
+  // The panel names the week and the count through interpolated copy; this
+  // harness runs with no ShapeI18n, so `tr` yields the raw defaultValue and
+  // placeholders stay literal. Assert the copy is PRESENT, and assert the
+  // underlying facts (which week, how many landed) off the calls themselves.
+  assert.match(shown, /Week of/);
+  assert.match(shown, /already published/);
+  assert.equal(calls[1].weekStartISO > calls[0].weekStartISO, true, 'the held week is the second one');
+});
+
+test('assign: publish-anyway requires a reason, and the reason rides with the week', async () => {
+  const calls = stubAssign((body, n) => (n === 1 && !body.acknowledgment
+    ? { stored: 'rejected', rejected: true, reason: 'acute_spike', copy: { chip: 'OVER LIMIT', line: 'Big jump.', detail: null, axes: [] } }
+    : { stored: 'supabase', status: 'accepted' }));
+
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+
+  // The override is inert until a reason exists — an unexplained override is
+  // exactly what the acknowledgment ledger exists to prevent.
+  const anyway = page.nodes().find((n) => n.type === 'button' && /Publish anyway/i.test(textOf(n)));
+  assert.ok(anyway, 'the override button should be offered');
+  assert.equal(anyway.props.disabled, true);
+
+  page.type('Deliberate overreach week before a deload.');
+  const armed = page.nodes().find((n) => n.type === 'button' && /Publish anyway/i.test(textOf(n)));
+  assert.equal(armed.props.disabled, false);
+
+  const before = calls.length;
+  await page.click((s) => /Publish anyway/i.test(s));
+  const acked = calls.slice(before);
+  assert.ok(acked.length > 0, 'the override should re-run the publish');
+  for (const c of acked) {
+    assert.equal(c.acknowledgment.reasonCode, 'coach_override');
+    assert.match(c.acknowledgment.reasonText, /Deliberate overreach/);
+  }
+  // Re-run under the ORIGINAL keys, so a week that already landed no-ops
+  // instead of publishing twice.
+  assert.equal(acked[0].idempotencyKey, calls[0].idempotencyKey);
+});
+
+test('assign: an offline hold is reported as held — the client is NOT told', async () => {
+  const calls = stubAssign(() => ({ stored: 'queued', queued: true }));
+  let messaged = false;
+  globalThis.ShapeMessages = {
+    getOrCreateMemberConversation: async () => { messaged = true; return { data: 'c1' }; },
+    sendMessage: async () => {},
+  };
+
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+  assert.ok(calls.length > 0);
+  assert.equal(messaged, false, 'a held week must not announce a plan that is not live');
+  assert.match(page.text(), /held on this device/);
+  globalThis.ShapeMessages = undefined;
+});
+
+test('assign: a device that cannot hold the week says so instead of claiming success', async () => {
+  stubAssign(() => ({ stored: 'lost', queued: false }));
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+  assert.match(page.text(), /hold the week|Couldn't assign/i);
+});
+
+test('assign: a HELD week is never counted as published in the rejection panel', async () => {
+  // Self-review catch. The first cut incremented the landed count on every
+  // answer, so a week merely QUEUED on the device was reported to the coach as
+  // "already published" — the same false "saved" the old session-shaped writer
+  // gave, reappearing one layer up.
+  const calls = stubAssign((body, n) => {
+    if (n === 1) return { stored: 'queued', queued: true };
+    return { stored: 'rejected', rejected: true, reason: 'acute_spike', copy: { chip: 'OVER LIMIT', line: 'Big jump.', detail: null, axes: [] } };
+  });
+
+  const page = driveAssign(ASSIGN_PROPS);
+  await page.click((s) => /Assign/i.test(s));
+  assert.equal(calls.length, 2);
+
+  const shown = page.text();
+  assert.match(shown, /OVER LIMIT/, 'the rejection is shown');
+  // Nothing landed, so the panel must not claim a published week...
+  assert.doesNotMatch(shown, /already published/, 'a queued week is not a published week');
+  // ...and the week that IS held must still be reported, not swallowed by the
+  // rejection that followed it.
+  assert.match(shown, /held on this device/);
+});
+
+// ── Adjust regeneration through the boundary (SPEC-guardrails.md §9.4) ───────
+//
+// The Adjust page gained two hooks and an acknowledgment interstitial. A
+// hook-order fault or a TDZ reference passes parse, tsc, the unit suite AND the
+// bundle build — mounting is the only thing that catches it.
+
+const ADJUST_PROPS = {
+  role: 'trainer',
+  client: { n: 'Marcus Tan' },
+  clientUid: '11111111-2222-4333-8444-555555555555',
+  onBack() {},
+};
+
+/** Answer as the regeneration boundary would, and record what it was sent. */
+function stubAdjust(answer = () => ({ changed: true, gen: 2 })) {
+  const calls = [];
+  const written = [];
+  globalThis.bsAskConfirm = async () => true;
+  globalThis.ShapeAdjustRegen = { apply: async (body) => { calls.push(body); return answer(body, calls.length); } };
+  globalThis.ShapeProgramApi = { get: async () => ({}), set: async (d) => { written.push(d); } };
+  globalThis.ShapeMessages = undefined;
+  globalThis.__bsToast = () => {};
+  return { calls, written };
+}
+
+function driveAdjust(props, reactMod = SHIM_MOD, ctx = CTX) {
+  ctx.cells.length = 0;
+  let tree;
+  const renderOnce = () => { ctx.idx = 0; tree = reactMod.BSProAdjustProgram(props); return tree; };
+  renderOnce();
+  const nodes = () => flatten(tree);
+  const api = {
+    nodes,
+    text: () => nodes().map((n) => textOf(n)).join(' | '),
+    button(match) {
+      return nodes().find((n) => n.type === 'button' && match(textOf(n).trim()));
+    },
+    async click(match) {
+      const btn = api.button(match);
+      if (!btn) throw new Error('no matching button (have: ' + nodes().filter((n) => n.type === 'button').map((n) => JSON.stringify(textOf(n).trim())).join(', ') + ')');
+      await btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      renderOnce();
+      return api;
+    },
+    type(value) {
+      const el = nodes().find((n) => n.type === 'textarea' && n.props.onChange && n.props.placeholder);
+      if (!el) throw new Error('no reason textarea rendered');
+      el.props.onChange({ target: { value } });
+      renderOnce();
+      return api;
+    },
+  };
+  return api;
+}
+
+test('adjust: the page mounts (no TDZ, no hook-order fault, no render throw)', () => {
+  stubAdjust();
+  const out = render(React.createElement(MOD.BSProAdjustProgram, ADJUST_PROPS));
+  assert.equal(out.warnings.length, 0, out.warnings.join('\n'));
+  assert.match(out.html, /Marcus/);
+});
+
+test('adjust: a guardrail rejection is HELD — the program detail is never written', async () => {
+  // The detail + note are what the client actually reads. Writing them over a
+  // regeneration the boundary refused would tell the client their program
+  // changed when not one of their rows moved.
+  const { calls, written } = stubAdjust(() => ({
+    changed: false,
+    rejected: true,
+    blocking: { weekStartISO: '2026-08-03', reason: 'volume_jump', copy: { chip: 'Held for review', line: 'That is a big jump for Marcus.' } },
+  }));
+  const page = driveAdjust(ADJUST_PROPS);
+  await page.click((s) => /Apply & Send/i.test(s));
+
+  assert.equal(calls.length, 1, 'the regeneration was attempted');
+  assert.equal(written.length, 0, 'no program detail was written for a refused regeneration');
+  // The boundary's OWN words reach the coach, not a generic failure.
+  assert.match(page.text(), /Held for review/);
+  assert.match(page.text(), /That is a big jump for Marcus/);
+  // The week line renders, which is the branch gated on `blocked.weekStartISO`.
+  // ⚠ Asserted WITHOUT the date itself: this harness stubs i18n away, so `tr`
+  // returns its defaultValue verbatim and never interpolates `{date}`. Matching
+  // the value here would pin harness behaviour rather than product behaviour.
+  assert.match(page.text(), /Week of/);
+});
+
+test('adjust: the override needs a reason, and sends it as the acknowledgment', async () => {
+  // §10.1 — the reason is what makes the audit row meaningful. An override with
+  // no reason is not an acknowledgment, so the CTA stays disabled.
+  let reject = true;
+  const { calls } = stubAdjust((body) => {
+    if (body.acknowledgment) { reject = false; return { changed: true, gen: 3, audited: true }; }
+    return reject
+      ? { changed: false, rejected: true, blocking: { weekStartISO: '2026-08-03', copy: { line: 'Held.' } } }
+      : { changed: true, gen: 3 };
+  });
+  const page = driveAdjust(ADJUST_PROPS);
+  await page.click((s) => /Apply & Send/i.test(s));
+
+  const before = page.button((s) => /Publish anyway/i.test(s));
+  assert.ok(before, 'the override CTA is offered');
+  assert.equal(before.props.disabled, true, 'disabled until a reason is typed');
+
+  page.type('Planned overreach before a deload.');
+  const after = page.button((s) => /Publish anyway/i.test(s));
+  assert.equal(after.props.disabled, false, 'enabled once a reason exists');
+
+  await page.click((s) => /Publish anyway/i.test(s));
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].acknowledgment, {
+    reasonCode: 'coach_override',
+    reasonText: 'Planned overreach before a deload.',
+  });
 });

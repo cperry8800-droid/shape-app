@@ -6,7 +6,6 @@ import { registerPush } from './push.js';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
-import { bsAdjustRegen } from './adjustRegen.mjs';
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
@@ -43,6 +42,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishabl
 // /api, so same-origin requests just work without a build-time env.
 const _apiEnvBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const _isNative = (() => { try { return !!(Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch (e) { return false; } })();
+import {
+  BS_ASSIGN_QUEUE_KEY, bsClassifyWriteFailure, bsQueueAssignment,
+  bsPruneQueue, bsReplayQueue, bsMergeAfterDrain,
+} from './assignQueue.mjs';
+
 const apiBaseUrl = _apiEnvBase
   || ((!_isNative && typeof window !== 'undefined' && window.location && window.location.origin)
       ? window.location.origin.replace(/\/$/, '')
@@ -459,6 +463,7 @@ async function getCurrentSession() {
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { bsDrainAssignments(); } catch (e) {} } // publish any week held offline (no-op when the queue is empty)
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
@@ -1415,50 +1420,215 @@ async function listClientWorkouts({ clientId, trainerId, status = 'published' } 
   return { stored: 'supabase', data: (data || []).map(workoutFromRow) };
 }
 
-async function assignClientWorkout({
-  trainerId,
-  clientId,
-  title,
-  description = '',
-  kind = 'custom',
-  payload = {},
-  playlistId = null,
-  scheduledDate = null,
-} = {}) {
-  if (!clientId || !title) {
-    throw new Error('Client and workout title are required.');
-  }
-  const resolvedTrainerId = trainerId || await getOwnedTrainerId();
-  if (!resolvedTrainerId) {
-    throw new Error('No trainer profile is connected to this account.');
-  }
+// ─── The week-shaped publish boundary (SPEC-guardrails.md §9.4) ─────────────
+//
+// ⚠ THE DIRECT `client_workouts` INSERT IS GONE. It was the mobile coach app's
+// own write path, ungated, and the reason a coach on their phone could watch
+// programs publish clean and conclude the guardrail had passed them. False
+// assurance is worse than absence — the same reasoning that makes `unknown` its
+// own state instead of defaulting to green.
+//
+// Everything now goes through POST /api/trainer/week, which reads the client's
+// existing week, folds these sessions in, evaluates the merged week and writes
+// it atomically.
+//
+// ⚠ RLS DOES NOT REFUSE A DIRECT INSERT FROM HERE — an earlier version of this
+// comment claimed it did, which is exactly the false assurance the paragraph
+// above warns against. `trainer_insert_on_client_workouts`
+// (2026-06-17-coach-write-scope.sql) still grants INSERT to `authenticated` for
+// a coach writing to their own client, so the direct path remains OPEN at the
+// database. What changed is that this file no longer takes it: the route is the
+// only EVALUATED door, and a direct insert would simply skip the guardrail.
+// Narrowing that policy to service_role is registered as its own step — it is
+// deliberately last, because it locks out every writer at once.
 
-  const payloadRow = {
-    trainer_id: resolvedTrainerId,
-    client_id: clientId,
-    title,
-    description,
-    kind: kind === 'template' ? 'template' : 'custom',
-    payload: payload || {},
-    playlist_id: playlistId || null,
-    scheduled_date: scheduledDate || null,
-    status: 'published',
+/** Read the replay queue. A device that cannot read it holds nothing. */
+function readAssignQueue() {
+  try { return JSON.parse(localStorage.getItem(BS_ASSIGN_QUEUE_KEY) || '[]'); } catch (e) { return []; }
+}
+
+/**
+ * Persist the replay queue, REPORTING whether it landed.
+ *
+ * ⚠ A device that cannot persist must not report "held". Storage can be full or
+ * disabled, and a silent failure there is a coach told their week is queued
+ * when nothing holds it.
+ */
+function writeAssignQueue(items) {
+  try { localStorage.setItem(BS_ASSIGN_QUEUE_KEY, JSON.stringify(items)); return true; } catch (e) { return false; }
+}
+
+const bsIsOnline = () => (typeof navigator === 'undefined' || typeof navigator.onLine !== 'boolean' ? undefined : navigator.onLine);
+
+/**
+ * Send ONE week to the boundary.
+ *
+ * Throws on a network failure (the caller holds it); returns the server's own
+ * per-client verdict otherwise. A REJECTION is returned, never thrown, because
+ * it is an answer — the coach has to see the reason.
+ */
+async function postWeek(body) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/trainer/week`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  let d = {};
+  try { d = await res.json(); } catch (e) { /* a body-less error still has a status */ }
+  if (!res.ok && !d.results) {
+    // A non-2xx with no per-client detail is the server REFUSING or FAILING —
+    // never a verdict. It is still an ANSWER: classified as a rejection,
+    // surfaced, never absorbed.
+    //
+    // ⚠ DO NOT narrow this to 5xx. Every 4xx the boundary can return arrives
+    // without `results` — 400 (the week failed validation), 401 (the session
+    // expired), 403 (RLS refused), 409 (a precondition moved) — and letting one
+    // fall through resolves `results = []` → `rejected = []` → `status:
+    // 'accepted'`, which tells the coach the week landed when the boundary
+    // never even read it. That is the single worst thing this file can do: the
+    // whole wave exists so a refusal reaches the coach by name.
+    throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
+  }
+  const results = Array.isArray(d.results) ? d.results : [];
+  const rejected = results.filter((r) => r.status === 'rejected');
+  return {
+    ok: !!d.ok,
+    status: results.length === 1 ? results[0].status : (rejected.length ? 'rejected' : 'accepted'),
+    rejected: rejected.length > 0,
+    reason: rejected.length ? rejected[0].reason : null,
+    copy: rejected.length ? rejected[0].copy : null,
+    error: d.error || null,
+    results,
   };
+}
 
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow) };
+/**
+ * Publish a week. THE one coach training writer.
+ *
+ * The two failure classes are not interchangeable (owner ruling 2026-07-28):
+ *
+ *   NETWORK      -> held locally and replayed. Offline assignment is real work.
+ *   SERVER ANSWER -> NEVER absorbed. No local record is written, and the
+ *                    guardrail's own reason is handed back to the coach.
+ *
+ * ⚠ The old function RETURNED rather than threw on error, so the fallback
+ * swallowed EVERY failure — including a gate rejection — and reported it as
+ * saved. Nothing ever replayed the record it wrote (`shape.clientWorkouts` was
+ * written by those lines and read by nothing), and because the trainer lookup
+ * ran a network call BEFORE the insert, the offline case never even reached it.
+ */
+async function assignClientWeek(body) {
+  if (!body || !body.idempotencyKey) throw new Error('A publish key is required.');
+  try {
+    const out = await postWeek(body);
+    if (out.rejected) return { stored: 'rejected', rejected: true, reason: out.reason, copy: out.copy, results: out.results };
+    return { stored: 'supabase', status: out.status, results: out.results };
+  } catch (err) {
+    if (bsClassifyWriteFailure(err, { online: bsIsOnline() }) !== 'network') {
+      // The server answered. Surface it — no local record, no false "saved".
+      throw err;
+    }
+    // Positive evidence of connectivity loss. Hold it, and be honest about
+    // whether the hold actually persisted.
+    const { kept, dropped } = bsPruneQueue(
+      bsQueueAssignment(readAssignQueue(), body, { now: Date.now() }),
+      { now: Date.now() },
+    );
+    const persisted = writeAssignQueue(kept);
+    return { stored: persisted ? 'queued' : 'lost', queued: persisted, dropped, error: err };
   }
+}
 
-  const { data, error } = await supabase
-    .from('client_workouts')
-    .insert(payloadRow)
-    .select()
-    .single();
+/**
+ * Drain the queue through the SAME writer, so replayed work passes the gate.
+ *
+ * A replay can never become a side door: it posts the identical week to the
+ * identical boundary, and the server's idempotency key decides whether it is a
+ * new publish or an already-delivered one.
+ */
+// ⚠ A QUEUE NOTHING DRAINS IS NOT A QUEUE.
+//
+// `drainAssignmentQueue` was written, exported, and never called from anywhere.
+// So a week held offline was held FOREVER: it sat in localStorage until it aged
+// out of the prune window and vanished — while the coach had been told, in those
+// words, that it was queued and would publish. That is the failure this whole
+// path exists to prevent, reproduced one level up.
+//
+// Wired to the two moments connectivity can actually return: a resolved session
+// (app open, re-auth, foreground) and the platform's own `online` event.
+let bsDrainInFlight = null;
 
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.clientWorkouts', payloadRow, error), error };
+/**
+ * Drain held weeks — at most one drain at a time, never throwing at the caller.
+ *
+ * Serialized because two overlapping drains would post the same held weeks
+ * twice. The idempotency key makes that harmless at the server (the second is
+ * `already_delivered`), but it would still burn a round trip per held week and
+ * make the counts this returns lie.
+ */
+function bsDrainAssignments() {
+  if (bsDrainInFlight) return bsDrainInFlight;
+  // The drain publishes as the signed-in coach; with no session there is nobody
+  // to publish as, and the held week keeps waiting.
+  if (!state.user || !state.user.id) return Promise.resolve({ sent: 0, rejections: [], held: [] });
+  bsDrainInFlight = drainAssignmentQueue()
+    .catch((e) => {
+      // A failed drain must never surface as an app error: the week is still
+      // held, and the next trigger tries again.
+      console.error('[shape] assignment drain:', e);
+      return { sent: 0, rejections: [], held: [] };
+    })
+    .finally(() => { bsDrainInFlight = null; });
+  return bsDrainInFlight;
+}
+
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('online', () => { try { bsDrainAssignments(); } catch (e) {} });
+}
+
+async function drainAssignmentQueue() {
+  const pruned = bsPruneQueue(readAssignQueue(), { now: Date.now() });
+  const started = pruned.kept;
+  if (!started.length) return { sent: 0, rejections: [], held: [], dropped: pruned.dropped };
+  const out = await bsReplayQueue(started, {
+    write: (p) => postWeek(p),
+    online: bsIsOnline(),
+  });
+  const merged = bsMergeAfterDrain(started, out.held, readAssignQueue());
+  const persisted = writeAssignQueue(merged);
+  const result = { ...out, dropped: pruned.dropped, persisted };
+
+  // ⚠ A DRAIN MUST NOT ABSORB THE SERVER'S ANSWER. Both triggers are
+  // fire-and-forget (session resolve, the `online` event), so without this the
+  // outcome went nowhere: a held week the guardrail REFUSES on replay, or that
+  // RLS refuses, was dropped from the queue in total silence — after the coach
+  // had been told in those words that it was queued and would publish. That is
+  // the same failure the drain was built to fix, one level up.
+  //
+  // Rejections and cap/age evictions are both work a human is waiting on, so
+  // they are announced on the house event convention (any mounted surface can
+  // toast them) AND logged, so they are never merely invisible.
+  //
+  // ⚠ Owner scoping is deliberately NOT re-added here. This module removed
+  // client-side owner partitioning on purpose — it was one of the heuristics
+  // that drifted across three review rounds — and `publish_client_week`
+  // re-verifies the coach server-side. A week replayed under a different
+  // account is refused there, and that refusal now SURFACES instead of
+  // vanishing, which is the part that was missing.
+  if (result.rejections.length || (result.dropped && result.dropped.length)) {
+    try {
+      console.error('[shape] held weeks not delivered:', {
+        rejected: result.rejections.length,
+        dropped: (result.dropped || []).length,
+        reasons: result.rejections.map((r) => r && r.reason).filter(Boolean),
+      });
+    } catch (e) {}
   }
-  return { stored: 'supabase', data: workoutFromRow(data) };
+  try {
+    window.dispatchEvent(new CustomEvent('shape:assignDrain', { detail: result }));
+  } catch (e) {}
+  return result;
 }
 
 // ─── Self-authored training ──────────────────────────────────────────────────
@@ -3801,7 +3971,7 @@ window.ShapePlan = { get: getPlan };
 
 // Assignment — put a coach's catalogue plan onto a linked client's Train/Eat.
 // Writes the SAME tables the client's /api/client/plan reads: trainer →
-// client_workouts (direct Supabase via assignClientWorkout), nutritionist →
+// client_workouts (the gated week-shaped boundary), nutritionist →
 // client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
 // coach's real linked clients (subscriptions + sessions); uuid-backed only.
 async function listAssignableClients(role) {
@@ -3824,9 +3994,11 @@ async function assignClientMealPlan({ clientId, title, weekStart, days }) {
 }
 window.ShapeAssign = {
   clients: listAssignableClients,
-  // Reuses the existing client_workouts writer (direct Supabase, RLS-scoped),
-  // which the client's /api/client/plan reads back.
-  workout: (args) => assignClientWorkout({ ...args, kind: 'template' }),
+  // ⚠ ONE coach training writer, week-shaped and gated. The per-session
+  // `workout` entry is deliberately GONE: leaving a session-shaped path live
+  // beside the week-shaped one makes the gate optional in practice (§9.4).
+  week: assignClientWeek,
+  drain: bsDrainAssignments,
   mealPlan: assignClientMealPlan,
 };
 
@@ -4088,7 +4260,6 @@ window.ShapeAvailability = {
 
 window.ShapeWorkouts = {
   listClientWorkouts,
-  assignClientWorkout,
   updateClientWorkout,
 };
 
@@ -5700,45 +5871,58 @@ async function coachReferralLink(role, providerId) {
 }
 window.ShapeReferrals = { forClient: coachReferralForClient, link: coachReferralLink };
 
-// ─── Adjust → full program regeneration (spec #1707) ─────────────────────────
+// ─── Adjust → full program regeneration (spec #1707, gated by §9.4) ──────────
 // On the coach Adjust page's Apply, the trainer's adjustment rewrites the
 // client's REAL upcoming rows so every surface reads the same adjusted plan.
-// The pure planner (adjustRegen.mjs) decides WHAT changes; the transactional
-// regenerate_client_workouts RPC applies it atomically (never both plans,
-// never zero). Pre-migration (RPC absent) this degrades to detail+note only.
-async function applyAdjustRegeneration({ clientId, adjustment } = {}) {
-  if (!supabase || !state.user?.id || !clientId) return { changed: false, degraded: true };
-  // Next generation from the client's program record (coach-readable).
-  let gen = 1;
-  try {
-    const { data } = await supabase.from('client_programs').select('detail').eq('user_id', clientId).maybeSingle();
-    gen = (Number(data?.detail?.training?.gen) || 0) + 1;
-  } catch (e) { /* first generation */ }
-  // RLS scopes this read to the caller's own authored rows for this client.
-  const { data: rows, error: readErr } = await supabase
-    .from('client_workouts')
-    .select('id, title, description, kind, payload, playlist_id, scheduled_date')
-    .eq('client_id', clientId)
-    .not('trainer_id', 'is', null)
-    .eq('status', 'published')
-    .limit(400);
-  if (readErr) throw readErr;
-  // UTC date — matches the RPC's strictly-future validation basis.
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const plan = bsAdjustRegen({ rows: rows || [], adjustment, todayISO, gen });
-  if (!plan.changed) return { changed: false, gen: gen - 1 };
-  const { data, error } = await supabase.rpc('regenerate_client_workouts', {
-    p_client_id: clientId,
-    p_delete_ids: plan.deleteIds,
-    p_inserts: plan.inserts,
-    p_repeat_patches: plan.repeatPatches,
+//
+// ⚠ THE PLANNING AND THE WRITE BOTH MOVED TO THE SERVER. This used to read the
+// client's rows, run the pure planner here, and call regenerate_client_workouts
+// directly — the last ungated coach training write path. §9.4 gates it because
+// a regeneration changes week COMPOSITION, which can move a week across a
+// regime boundary with nobody looking at the result.
+//
+// It is NOT a loop of week-publishes: the RPC's single transaction is a real
+// safety property ("never both plans, never zero"). The route evaluates every
+// affected week first and writes once, so a red week refuses the whole
+// regeneration rather than half-applying it.
+//
+// The planner still exists and is still the authority on WHAT changes — it
+// simply runs inside POST /api/trainer/adjust now, over rows read under the
+// coach's own RLS. Sending a plan from here would let any signed-in coach post
+// arbitrary rows and have the guardrail bless them.
+async function applyAdjustRegeneration({ clientId, adjustment, acknowledgment } = {}) {
+  if (!clientId || !adjustment) return { changed: false, degraded: true };
+  const res = await fetch(`${apiBaseUrl || ''}/api/trainer/adjust`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ clientId, adjustment, acknowledgment: acknowledgment || null }),
   });
-  if (error) {
-    // RPC not deployed yet — honest degrade to today's detail+note behavior.
-    if (error.code === 'PGRST202' || error.code === '42883') return { changed: false, degraded: true };
-    throw error;
+  let d = {};
+  try { d = await res.json(); } catch (e) { /* a body-less error still has a status */ }
+
+  // Pre-migration, or PostgREST's schema cache still reloading after the
+  // drop-and-recreate: the ack-carrying signature is not callable yet. Honest
+  // degrade to today's detail+note behaviour rather than claiming a
+  // regeneration that did not happen.
+  if (res.status === 503 && d.degraded) return { changed: false, degraded: true };
+
+  // A guardrail REJECTION is an answer, not a failure — returned so the coach
+  // sees the reason and the acknowledgment path, never thrown and never
+  // absorbed into a success.
+  if (res.status === 409 && d.blocking) {
+    return { changed: false, rejected: true, blocking: d.blocking, weeks: d.weeks || [] };
   }
-  return { changed: true, gen, capped: !!plan.capped, result: data || null };
+
+  if (!res.ok) throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
+  return {
+    changed: !!d.changed,
+    gen: d.gen,
+    capped: !!d.capped,
+    audited: !!d.audited,
+    weeks: d.weeks || [],
+    result: d.applied || null,
+  };
 }
 window.ShapeAdjustRegen = { apply: applyAdjustRegeneration };
 

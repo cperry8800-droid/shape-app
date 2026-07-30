@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsPlanWeek, bsCanonicalDays } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -2938,6 +2938,11 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
   // Shared
   const [noteText, setNoteText] = useStateBSP(null);
   const [status, setStatus] = useStateBSP('');
+  // A guardrail rejection is an ANSWER, not an error (SPEC-guardrails.md §9.4):
+  // held here with the boundary's own words so the coach can read the reason
+  // and decide. Nothing else in the Apply runs while a regeneration is blocked.
+  const [blocked, setBlocked] = useStateBSP(null); // {weekStartISO, copy, reason}
+  const [reasonText, setReasonText] = useStateBSP('');
   const DOW = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
   // Seed the controls from the last-applied adjustment so reopening the page
@@ -2987,7 +2992,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     ? tr('coach:adjust.noteNutri', { defaultValue: 'Updated your plan to {calories} kcal — {protein}g protein, {carbs}g carbs, {fat}g fat across {meals} meals.{refeed} New targets are live in your Eat tab.', calories, protein, carbs, fat, meals, refeed: refeed ? tr('coach:adjust.noteRefeed', { defaultValue: ' Keeping the weekend refeed to support training.' }) : '' })
     : tr('coach:adjust.noteTrainer', { defaultValue: 'Adjusting your block: {sessions}×/week, {verb}. Focus stays on {focus}. Check the updated split in your Train tab.', sessions, verb, focus: focusLabel });
   const body = noteText == null ? autoNote : noteText;
-  const apply = async (notify) => {
+  const apply = async (notify, ack) => {
     const who = (client && (client.n || client.name)) || tr('coach:common.thisClient', { defaultValue: 'this client' });
     if (!(await window.bsAskConfirm({
       title: isNutri ? tr('coach:adjust.confirmTitleNutri', { defaultValue: 'Update nutrition targets?' }) : tr('coach:adjust.confirmTitleTrainer', { defaultValue: 'Update training program?' }),
@@ -3006,7 +3011,31 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       //     it degrades to the detail+note behavior below.
       let regenGen = null;
       if (!isNutri && clientUid && window.ShapeAdjustRegen?.apply) {
-        const regen = await window.ShapeAdjustRegen.apply({ clientId: clientUid, adjustment: { intensity, sessions, weeks, days } });
+        const regen = await window.ShapeAdjustRegen.apply({
+          clientId: clientUid,
+          adjustment: { intensity, sessions, weeks, days },
+          acknowledgment: ack || null,
+        });
+        // ⚠ A GUARDRAIL REJECTION STOPS THE WHOLE APPLY — it must not fall
+        // through to the detail/note writes below. Those are what the client
+        // actually reads, so persisting them over a regeneration the boundary
+        // refused would tell the client their program changed when not one of
+        // their rows moved. Held, surfaced, and never absorbed into a success.
+        if (regen?.rejected) {
+          // ⚠ CARRY THE NOTIFY CHOICE THAT TRIGGERED THE HOLD. "Publish anyway"
+          // replays this apply, and it used to pass `false` unconditionally — so
+          // a coach who tapped Apply & Notify, got held, then overrode, changed
+          // the client's Train tab and NOBODY TOLD THE CLIENT. The override is a
+          // decision about the guardrail, not about notification.
+          //
+          // Spread over an object rather than `|| null` so a rejection with no
+          // blocking week still RENDERS (the panel's default copy). Clearing the
+          // status with nothing on screen is the silent refusal §9.4 forbids.
+          setBlocked({ ...(regen.blocking || {}), notify: notify === true });
+          setStatus('');
+          return;
+        }
+        setBlocked(null);
         // Keep the generation whenever the regeneration path ran (changed OR
         // a no-op re-apply returning the CURRENT gen) so the display guard
         // never lapses on already-baked rows; only the degraded
@@ -3038,7 +3067,25 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       }
       setStatus('done');
       setTimeout(onBack, 950);
-    } catch (e) { setStatus('error'); }
+    } catch (e) {
+      setStatus('error');
+      // ⚠ NEVER SWALLOW THE BOUNDARY'S REASON. The rust line below says only
+      // "Couldn't send — try again", which is true of a network blip and
+      // actively misleading for the answer that matters: a 409 means the
+      // client's plan MOVED under this adjustment and NOTHING WAS WRITTEN. The
+      // coach needs to know their apply was refused rather than half-applied,
+      // and that applying again re-reads the plan rather than repeating a
+      // doomed call.
+      //
+      // Only a 4xx carries a message written for a human; a 5xx is our own
+      // failure and its text is not the coach's business, so that falls back to
+      // the same generic line the status already renders.
+      const s = e && e.status;
+      const msg = (s >= 400 && s < 500 && e && e.message)
+        ? e.message
+        : tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." });
+      window.__bsToast?.(msg, 'warn');
+    }
   };
   const cta = (txt, onClick, mt) => (
     <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>
@@ -3141,6 +3188,41 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
               {cta(sendLabel, () => apply(false))}
               {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10)}
             </div>
+            {/* The guardrail's own words, a REQUIRED reason, and an explicit
+                override — the same acknowledgment path §9.4 gives a
+                hand-authored week, because a regenerated one is judged on
+                exactly the same terms.
+
+                ⚠ The `coach:assign.guard*` keys are reused DELIBERATELY. This is
+                one concept with one wording, and forking it into a second key
+                set would let the two gated surfaces drift into describing the
+                same refusal differently — in 13 locales. */}
+            {blocked && (
+              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
+                {blocked.copy && blocked.copy.detail && (
+                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
+                )}
+                {blocked.weekStartISO && (
+                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}</div>
+                )}
+                <textarea
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  rows={3}
+                  placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
+                />
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                <button
+                  onClick={() => apply(blocked.notify === true, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
+                  disabled={!reasonText.trim() || status === 'saving'}
+                  style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
+                >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
+                <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+              </div>
+            )}
             {status === 'error' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
             {clientUid
               ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>
@@ -3271,9 +3353,9 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 
 // The Assign page. Entered with a concrete plan (from the Plans catalogue) or
 // a fixed client (from the client profile's Manage tab) — whichever half is
-// missing gets an inline picker. Trainer assignments land as client_workouts
-// on real dates (a weekday split schedules across the week; an exercise
-// outline becomes one weekly session); nutritionist assignments publish a
+// missing gets an inline picker. Trainer assignments publish WEEKS through the
+// one gated boundary (a weekday split fills the week; a week block or an
+// exercise outline is one session per week); nutritionist assignments publish a
 // client_meal_plans weekly menu. A short note lands in the client's 1:1.
 function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, onBack, onDone }) {
   const t = useBS();
@@ -3289,6 +3371,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
   const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
+  // A guardrail rejection is an ANSWER, not an error: it is held here with the
+  // boundary's own words so the coach can read the reason and decide.
+  const [blocked, setBlocked] = useStateBSP(null); // {weekStartISO, copy, reason, published}
+  const [reasonText, setReasonText] = useStateBSP('');
+  const [queuedWeeks, setQueuedWeeks] = useStateBSP(0);
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
   const targetName = fixedClient ? (clientProp?.n || tr('coach:common.thisClient', { defaultValue: 'this client' })) : (picked ? picked.name : tr('coach:assign.aClient', { defaultValue: 'a client' }));
@@ -3318,9 +3405,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // reads these — C1a routes it through bsPlanWeek so it can serve a different
   // menu per day, and the raw block OBJECTS (carrying PR E's authored method
   // steps) ride that path instead.
-  const blocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
-    .map(b => String(((b && b.text != null) ? b.text : b) || '').trim())
-    .filter(Boolean);
+  // ⚠ Kept INDEX-ALIGNED with `rawBlocks` below — the flattening drops empties,
+  // so filtering the two lists separately would silently pair session N's text
+  // with session N+1's planned load.
+  const _rawAll = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
+    .map(b => ({ raw: b, text: String(((b && b.text != null) ? b.text : b) || '').trim() }))
+    .filter(x => x.text);
+  const blocks = _rawAll.map(x => x.text);
+  // The block OBJECTS, carrying the planned-load pair the editor captured
+  // (§3.2a). `blocks` is text-only and cannot reach it.
+  const rawBlocks = _rawAll.map(x => (x.raw && typeof x.raw === 'object' ? x.raw : {}));
   const dayLines = blocks.map(bsAssignDayLine);
   const weekLines = blocks.map(bsAssignWeekLine);
   const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
@@ -3354,7 +3448,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const weekUnits = bsWeekUnits(weekLines);
   const planNote = (plan && plan.detail && plan.detail.note) || '';
 
-  const apply = async () => {
+  const apply = async (ack = null) => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
     // C0 — an arc carries no meals, so there is nothing honest to install.
     // The CTA is already replaced by the notice below; this is the structural
@@ -3371,10 +3465,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       }))) return;
     }
     setStatus('working');
+    setBlocked(null);
+    setQueuedWeeks(0);
     let gotDisclaimer = false;
+    let heldWeeks = 0;
     try {
       const start = dayCells[dayIdx];
-      const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const monday = bsAssignMonday(start);
       if (isNutri) {
         // Menu meals from the outline lines; a block's authored method steps
         // (PR E) re-derive through bsAuthorStep on the way out — stored windows
@@ -3407,38 +3504,133 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
         // NC1 — show the individualized-care / scope disclaimer the server returns.
         if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
-      } else if (isSplit) {
+      } else {
+        // ── THE week-shaped training publish (SPEC-guardrails.md §9.4) ──
+        //
+        // All three training outline shapes collapse into ONE list of sessions
+        // here, are grouped by the week they fall in, and go to the boundary a
+        // whole week at a time. There is deliberately no per-session writer
+        // left beside this one: a session-shaped path living next to the
+        // week-shaped one makes the gate optional in practice, since the
+        // guardrail can only judge a week it is handed whole.
         const basePayload = timeSel ? { time: timeSel } : {};
-        for (let w = 0; w < weeks; w++) {
-          for (const dl of dayLines) {
-            if (!dl || dl.rest) continue;
-            const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
-            if (d < start) continue;
-            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+        const rows = [];
+        // `block` is the AUTHORED block this session came from — it carries the
+        // planned-load pair the editor stamped (§3.2a). Never re-derived here.
+        const add = (date, title, description, block, exercises) => rows.push({ date, title, description, block: block || null, exercises: exercises || [] });
+
+        if (isSplit) {
+          for (let w = 0; w < weeks; w++) {
+            for (let i = 0; i < dayLines.length; i++) {
+              const dl = dayLines[i];
+              if (!dl || dl.rest) continue;
+              const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
+              if (d < start) continue;
+              add(d, dl.title, planNote || plan.name, rawBlocks[i]);
+            }
+          }
+        } else if (isWeekBlock) {
+          // One session per week the coach STATED, titled by that week's phase.
+          // The outline's own week numbers drive the schedule (the Weeks stepper
+          // is hidden for this shape — a block's length is intrinsic). Exercises
+          // are empty on purpose: the coach wrote a phase, not movements.
+          for (const u of weekUnits) {
+            const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
+            // ⚠ Find the block that AUTHORED this week rather than trusting
+            // position: bsWeekUnits dedupes and re-sorts, so its index is not
+            // the outline's — pairing by index would hand one week another
+            // week's planned load.
+            const bi = weekLines.findIndex(wl => wl && wl.week === u.week);
+            add(d, u.title || `${plan.name} · Week ${u.week}`, planNote || plan.name, bi >= 0 ? rawBlocks[bi] : null);
+          }
+        } else {
+          // Week labels are never movements — keep them out of the exercise list.
+          const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
+          for (let w = 0; w < weeks; w++) {
+            const d = new Date(start); d.setDate(d.getDate() + w * 7);
+            // No planned-load pair, by design: an exercise block has no length
+            // or effort of its own (the session IS the whole week), so the
+            // editor never offers the row for this shape. The week publishes
+            // unstamped and the core reads `incomplete_week` → `unknown` —
+            // the honest answer, not a fabricated figure.
+            add(d, plan.name, planNote, null, exercises);
           }
         }
-      } else if (isWeekBlock) {
-        // One session per week the coach STATED, titled by that week's phase.
-        // The outline's own week numbers drive the schedule (the Weeks stepper
-        // is hidden for this shape — a block's length is intrinsic). Exercises
-        // are empty on purpose: the coach wrote a phase, not movements.
-        const basePayload = timeSel ? { time: timeSel } : {};
-        for (const u of weekUnits) {
-          const d = new Date(start); d.setDate(d.getDate() + (u.week - 1) * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: u.title || `${plan.name} · Week ${u.week}`, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
+
+        if (!rows.length) throw new Error(tr('coach:assign.nothingToPublish', { defaultValue: 'This plan has no sessions to publish' }));
+
+        // Grouping by week and declaring the capture stamp are the two rules
+        // that fail silently, so they live in ONE tested function rather than
+        // in this page: planOutline.mjs `bsAssignWeeks`.
+        const publishes = bsAssignWeeks(rows, basePayload);
+
+        // The seed is the ASSIGNMENT, not the moment it was sent. NUL joins the
+        // parts because it cannot occur inside any of them — a printable
+        // separator lets two different assignments compose the same seed.
+        //
+        // ⚠ The coach is deliberately NOT in the seed. `plan.id` is a row from
+        // the coach's own owner-scoped catalogue, so it already separates two
+        // coaches; and the ledger is keyed (idempotency_key, client_id) with an
+        // explicit cross-coach check, so a genuine collision RAISES rather than
+        // overwriting. Adding an async-resolved identity would be worse than the
+        // problem: a retry before auth resolves would seed differently and mint a
+        // SECOND key — the exact duplicate publish this derivation exists to stop.
+        //
+        // ⚠ AND IT SEEDS ON THE BLOCK OBJECTS, NOT THEIR TEXT — a rule that
+        // fails silently the same way, so it lives in the same tested module:
+        // planOutline.mjs `bsAssignSeed`. `blocks` is text-only and cannot
+        // reach the authored planned-load pair, yet that pair is published per
+        // session and is precisely what §3.2a evaluates.
+        const seed = bsAssignSeed({
+          clientId: uid,
+          // Both: the id survives a rename, and the name is published as copy.
+          planKey: plan.id || plan.name,
+          planName: plan.name,
+          blocks: _rawAll.map((x) => x.raw),
+          note: planNote,
+          startISO: bsAssignIso(start),
+          weeks,
+          time: timeSel,
+        });
+        let landed = 0;
+
+        for (const wk of publishes) {
+          const res = await window.ShapeAssign.week({
+            clientId: uid,
+            weekStartISO: wk.weekStartISO,
+            // Derived from the assignment + this week, so a retry replays.
+            idempotencyKey: bsAssignKey(`${seed}\u0000${wk.weekStartISO}`),
+            ...(wk.capture ? { capture: wk.capture } : {}),
+            ...(ack ? { acknowledgment: ack } : {}),
+            sessions: wk.sessions,
+          });
+
+          if (res && res.stored === 'rejected') {
+            // Held, not failed. Show the boundary's own words and stop — the
+            // weeks already published stay published (their keys make a
+            // re-run a replay), so nothing is lost by stopping here.
+            setBlocked({ weekStartISO: wk.weekStartISO, copy: res.copy || null, reason: res.reason || null, published: landed });
+            // A week held before this one is still held — say so rather than
+            // letting the rejection swallow it.
+            setQueuedWeeks(heldWeeks);
+            setStatus('');
+            return;
+          }
+          if (res && res.stored === 'lost') {
+            throw new Error(tr('coach:assign.notHeld', { defaultValue: "Offline and this device couldn't hold the week — try again" }));
+          }
+          // Only a week the boundary actually took counts as landed. A queued
+          // week is held on THIS DEVICE, and reporting it as published would be
+          // the same false "saved" the old session-shaped writer used to give.
+          if (res && res.stored === 'queued') heldWeeks += 1; else landed += 1;
         }
-      } else {
-        // Week labels are never movements — keep them out of the exercise list.
-        const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
-        const basePayload = timeSel ? { time: timeSel } : {};
-        for (let w = 0; w < weeks; w++) {
-          const d = new Date(start); d.setDate(d.getDate() + w * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises, ...basePayload } });
-        }
+        setQueuedWeeks(heldWeeks);
       }
-      // Tell the client — best-effort, the assignment already landed.
+      // Tell the client — best-effort, the assignment already landed. Skipped
+      // when a week is still held offline: the note would announce a plan that
+      // is not on their Train tab yet.
       try {
-        if (window.ShapeMessages?.getOrCreateMemberConversation) {
+        if (!heldWeeks && window.ShapeMessages?.getOrCreateMemberConversation) {
           const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
           const cid = conv?.data;
           if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: isNutri ? tr('coach:assign.msgNutri', { defaultValue: "Put you on “{plan}” — it's live on your Eat tab now.", plan: plan.name }) : tr('coach:assign.msgTrainer', { defaultValue: "Put you on “{plan}” — it's live on your Train tab now.", plan: plan.name }), metadata: { kind: 'plan_assigned' } });
@@ -3446,9 +3638,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       } catch (e) {}
       setStatus('done');
       // Keep the screen open when a compliance disclaimer was returned so the
-      // coach can read it; they dismiss via the explicit Done button. Otherwise
-      // auto-advance as before.
-      if (!gotDisclaimer) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
+      // coach can read it, or when a week is still held offline so they can
+      // read that too; both are dismissed via the explicit Done button.
+      // Otherwise auto-advance as before.
+      if (!gotDisclaimer && !heldWeeks) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
     } catch (e) { setStatus(String(e?.message || 'error')); }
   };
 
@@ -3566,7 +3759,44 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               </div>
             ) : (
               <>
-                <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                <button onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+                {/* A guardrail rejection is HELD, never absorbed: the boundary's
+                    own words, a required reason, and an explicit override. */}
+                {blocked && (
+                  <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
+                    <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
+                    {blocked.copy && blocked.copy.detail && (
+                      <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
+                    )}
+                    <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                      {tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}
+                      {blocked.published > 0 ? ` · ${tr('coach:assign.guardPublished', { defaultValue: '{count, plural, one {# week already published} other {# weeks already published}}', count: blocked.published })}` : ''}
+                    </div>
+                    <textarea
+                      value={reasonText}
+                      onChange={(e) => setReasonText(e.target.value)}
+                      rows={3}
+                      placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
+                      style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
+                    />
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
+                    <button
+                      onClick={() => apply({ reasonCode: 'coach_override', reasonText: reasonText.trim() })}
+                      disabled={!reasonText.trim() || working}
+                      style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || working) ? 0.5 : 1 }}
+                    >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
+                    <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
+                  </div>
+                )}
+                {/* Offline is not "sent". Say what actually happened — and say
+                    it even when a LATER week was rejected, or the rejection
+                    swallows the fact that earlier work is still on the device.
+                    The count is reset at the start of every run, so a non-zero
+                    value always describes the run the coach just made. */}
+                {queuedWeeks > 0 && (
+                  <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.AMBER, letterSpacing: '0.08em' }}>{tr('coach:assign.queuedWeeks', { defaultValue: "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet", count: queuedWeeks, name: first })}</div>
+                )}
                 {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
                 <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
                   {uid
@@ -3581,7 +3811,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 {disclaimer}
               </div>
             )}
-            {status === 'done' && disclaimer && (
+            {status === 'done' && (disclaimer || queuedWeeks > 0) && (
               <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:assign.readAck', { defaultValue: 'Read & acknowledged · done' })}</button>
             )}
           </div>
@@ -4880,7 +5110,7 @@ const bsEditorSteps = (steps) => (Array.isArray(steps)
   ? steps.map((s) => (typeof s === 'string' ? { t: s, station: null } : { t: (s && typeof s.t === 'string') ? s.t : '', station: (s && s.station) || null }))
   : undefined);
 
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, onPublish, onCancel }) {
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel, initialName, initialBlocks, initialNote, initialMedia, initialDays, stepAuthoring = false, perDayAuthoring = false, loadCapture = false, onPublish, onCancel }) {
   const tr = useShapeTr();
   const blockLabelText = blockLabel || tr('coach:editor.sections', { defaultValue: 'Sections' });
   // ⚠ Seven STATIC keys, not `coach:editor.dow.${d}`. A template-literal key is
@@ -4987,6 +5217,16 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const clearClip = (i) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
   const clipBtnStyle = { minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', color: accent, whiteSpace: 'nowrap', padding: '0 2px' };
   const setBlock = (i, v) => editBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
+  // §3.2a capture. Stored as the CHIP VALUE the coach picked, never a number:
+  // the mapping to minutes/RPE runs once, at publish, through the one enum in
+  // planOutline. Picking the selected chip again CLEARS it — a coach who
+  // mis-tapped must be able to get back to honestly-absent, and there is no
+  // other way out of a chip row.
+  const setBlockChip = (i, key, v) => editBlocks(bs => bs.map((b, j) => {
+    if (j !== i) return b;
+    if (b[key] === v) { const { [key]: _drop, ...rest } = b; return rest; }
+    return { ...b, [key]: v };
+  }));
   // No per-day cap here, deliberately: delivery serves an override in full
   // (planOutline), so there is nothing for the editor to protect the coach
   // from. An earlier revision refused the 41st block on a day, and that turned
@@ -5078,6 +5318,41 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                     <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
                   </span>
                 </div>
+                {/* Deploy 2b — the planned-load pair (SPEC-guardrails.md §3.2a).
+                    Shown ONLY where a block IS a session, read through
+                    planOutline's own classifier rather than a fourth opinion.
+                    An exercise block has no length or effort of its own — the
+                    session is the whole week — so offering the row there would
+                    invite a figure the guardrail must then refuse. */}
+                {loadCapture && bsBlockIsSession(b.text) && (
+                  <div style={{ margin: '6px 0 4px 28px', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50, width: '100%' }}>
+                      {tr('coach:editor.loadLabel', { defaultValue: 'PLANNED LOAD · OPTIONAL' })}
+                    </span>
+                    {[['plannedLength', Object.keys(BS_LENGTH_CHIPS), tr('coach:editor.lengthAria', { defaultValue: 'Planned length for {name}', name: b.text || tr('coach:editor.session', { defaultValue: 'session' }) })],
+                      ['plannedEffort', Object.keys(BS_EFFORT_CHIPS), tr('coach:editor.effortAria', { defaultValue: 'Planned effort for {name}', name: b.text || tr('coach:editor.session', { defaultValue: 'session' }) })]].map(([key, opts, aria]) => (
+                      <span key={key} role="group" aria-label={aria} style={{ display: 'flex', gap: 4 }}>
+                        {opts.map((opt) => {
+                          const on = b[key] === opt;
+                          return (
+                            <button key={opt} type="button" onClick={() => setBlockChip(i, key, opt)} aria-pressed={on}
+                              style={{ minHeight: 34, borderRadius: 8, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? accent : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', padding: '0 7px', cursor: 'pointer' }}>
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </span>
+                    ))}
+                    {/* Honest about what absence COSTS, without nagging: a blank
+                        pair is a real answer the core reads as incomplete_week,
+                        and the coach should know the week goes unscored. */}
+                    {(!b.plannedLength || !b.plannedEffort) && (
+                      <div style={{ width: '100%', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>
+                        {tr('coach:editor.loadHint', { defaultValue: 'Both are needed to check this week against their history — leave blank and it publishes unscored.' })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* PR E — the method: ordered cooking steps on a meal block. A step
                     with a station AND a duration STATED IN ITS OWN TEXT becomes a
                     hands-off window (Cook Mode's board can interleave around it);
@@ -5178,7 +5453,30 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                 return ds.length ? { ...rest, steps: ds } : rest;
               })
             : list);
-          const pubBlocks = finish(blocks);
+          // §3.2a — the pair is mapped ONCE, here, through the one enum in
+          // planOutline. The chip values are dropped after mapping so a stored
+          // block never carries two representations of the same fact.
+          //
+          // ⚠ THE STAMP IS WRITTEN BY THE BUILDER AT THE MOMENT IT COLLECTS THE
+          // PAIR — never inferred from contents. That is what lets a hop that
+          // strips the field from EVERY session (the likelier bug, since
+          // transforms apply uniformly) be told apart from a coach who skipped
+          // the step. Content inspection alone catches only the partial drop.
+          const stampLoad = (list) => (loadCapture
+            ? list.map((b) => {
+                if (!bsBlockIsSession(b.text)) return b;
+                const { plannedLength, plannedEffort, ...rest } = b;
+                const min = bsPlannedMinutes(plannedLength);
+                const rpe = bsPlannedRpe(plannedEffort);
+                // Stamp ONLY when the pair genuinely arrived. A half-answered
+                // session stays unstamped rather than being recorded as
+                // captured-with-a-hole, which the core would read as malformed
+                // — a transport-bug report for what is really a blank field.
+                if (min === undefined || rpe === undefined) return rest;
+                return { ...rest, plannedMinutes: min, plannedRpe: rpe, loadCapture: 'per_session' };
+              })
+            : list);
+          const pubBlocks = stampLoad(finish(blocks));
           // Canonicalized here, by the same module that reads it back, so the
           // stored winner for a duplicate dow is the one bsPlanWeek resolves.
           const pubDays = perDayAuthoring
@@ -5354,7 +5652,11 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  // `loadCapture` is TRAINING-ONLY. The guardrail's universe is training load
+  // (sRPE = RPE x minutes); a meal plan has no session to carry a length or an
+  // effort, so offering the row on the nutritionist editor would collect a
+  // figure nothing scores.
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} loadCapture onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {

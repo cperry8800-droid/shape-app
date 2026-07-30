@@ -272,6 +272,51 @@ function harness({ elapsedMinutes = 0 } = {}) {
       const el = nodes().find((n) => n.type === 'input' && n.props['aria-label'] === label);
       return el ? el.props.value : undefined;
     },
+    // ⏱ Advance the ticking wall clock the way the 1s effect does in production
+    // (`setNow(Date.now())`). Effects are no-ops here — running them hangs the
+    // runner — so the `now` cell is poked directly, which is the same mutation
+    // the tick performs. This is what makes the latch testable at all: without
+    // a moving clock, "the question does not change under the member" is
+    // trivially true and proves nothing.
+    //
+    // The cell is found BY VALUE, never by a hardcoded index. `now` and
+    // `elapsedStart` are CONSECUTIVE `useStateBSC(Date.now())` reads, so their
+    // cells are adjacent — and the gap between them is the offset this harness
+    // staged, which makes the pair self-identifying. Other epoch-valued cells
+    // exist (rest timers), so a first-match scan finds the wrong one; matching
+    // on the staged offset is what distinguishes them. Requires a non-zero
+    // `elapsedMinutes` to be unambiguous, asserted below.
+    //
+    // A new hook inserted between the two fails this loudly instead of
+    // silently advancing the wrong cell and turning the assertion into a no-op.
+    advanceNow(seconds) {
+      assert.ok(elapsedMinutes > 0, 'advanceNow needs a staged elapsedMinutes to identify the clock pair');
+      const epochish = (v) => typeof v === 'number' && Number.isFinite(v) && v > 1e12;
+      const wantMs = elapsedMinutes * 60 * 1000;
+      const hits = CTX.cells.reduce((acc, v, k) => {
+        const next = CTX.cells[k + 1];
+        if (epochish(v) && epochish(next) && Math.abs((v - next) - wantMs) <= 1000) acc.push(k);
+        return acc;
+      }, []);
+      assert.ok(
+        hits.length > 0,
+        `no adjacent now/elapsedStart pair ${wantMs}ms apart — have the eager Date.now() reads moved or separated?`,
+      );
+      // ⚠ UNIQUENESS IS ASSERTED, not assumed. Taking the first match makes the
+      // identification depend on today's hook layout: if another epoch pair ever
+      // sat the staged offset apart, advanceNow would advance an unrelated cell,
+      // the clock would not move, and BOTH latch tests would pass vacuously with
+      // the latch removed — a green test proving nothing, one level up from the
+      // vacuous-boundary trap §13.12 already records.
+      assert.equal(
+        hits.length, 1,
+        `the now/elapsedStart pair is no longer uniquely identifiable (matched cells ${hits.join(', ')})`,
+      );
+      const i = hits[0];
+      CTX.cells[i] += seconds * 1000;
+      renderOnce();
+      return api;
+    },
     // Walk the real session to its end: the primary CTA cycles
     // Start set → Log set per set, and only becomes `Finish workout ✓` once the
     // last set of the last move is logged. Driving it this way (rather than
@@ -572,6 +617,66 @@ test('drive: an under-a-minute timer is never recorded as confirmed', async () =
   assert.equal(h.saved.length, 1);
   // Nothing was offered and nothing was typed, so nothing was confirmed.
   assert.equal(h.saved[0].durationAnswer, 'declined');
+});
+
+// ═══ THE LATCHED CLOCK ═══
+// Recorded as the one perturbation survivor on the grounds that time cannot
+// pass in the harness. It can: `now` is a state cell and the production tick is
+// just `setNow(Date.now())`, so `advanceNow` performs the same mutation. Both
+// directions the source comment names are driven below. Without a moving clock
+// these assertions would pass vacuously — that is precisely why the survivor
+// existed, and why the driver, not the assertion, is the load-bearing part.
+
+test('drive: the clock crossing a minute does not withdraw the question mid-answer', async () => {
+  // Under a minute the timer plainly did not run, so we ask. The member starts
+  // typing — and the wall clock crosses 60s while they do. Unlatched,
+  // `timerRan` flips true, `askDuration` flips FALSE, and the field vanishes
+  // under them: their typed answer is stored as the duration while the facts
+  // say nobody was ever asked.
+  const h = harness({ elapsedMinutes: 0.5 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  assert.ok(h.hasAria(MIN), 'the question is asked at this end');
+  assert.equal(h.valueOf(MIN), '', 'no credible figure is offered under a minute');
+
+  h.type(MIN, '45');
+  h.advanceNow(40); // 30s + 40s = 70s — past the minute mark, mid-answer
+
+  assert.ok(h.hasAria(MIN), 'the question must not be withdrawn under the member');
+  assert.equal(h.valueOf(MIN), '45', 'their typed answer must survive the crossing');
+
+  await h.click('Save & finish ✓');
+  assert.equal(h.saved.length, 1);
+  assert.equal(h.saved[0].durationSeconds, 45 * 60);
+  // The answer they gave is recorded as an answer — not orphaned behind a
+  // `not_prompted` that would exclude the session from every load figure.
+  assert.equal(h.saved[0].durationAnswer, 'confirmed');
+});
+
+test('drive: the clock crossing the ceiling does not confirm a figure nobody was shown', async () => {
+  // The mirror case, and the worse one. A 149-minute session is credible, so
+  // no question is asked. Sitting on the screen for a minute crosses the
+  // 150-minute ceiling; unlatched, `askDuration` flips TRUE and the prefill
+  // path answers itself — `confirmed`, with no member action at all.
+  const h = harness({ elapsedMinutes: BS_SESSION_MINUTES_CEILING - 1 });
+  await h.completeAllSets();
+  await h.click('Finish workout ✓');
+  assert.equal(h.hasAria(MIN), false, 'a credible timer is not questioned');
+
+  // ⚠ Must land STRICTLY past the ceiling: `timerImplausible` is `> ceiling`,
+  // so advancing exactly 60s here lands ON 150m, crosses nothing, and the
+  // assertion below passes whether or not the clock is latched. Caught by the
+  // perturbation run — the first version of this test was vacuous.
+  h.advanceNow(90); // 149m + 90s = 150m30s — past the ceiling, screen just sitting there
+
+  assert.equal(h.hasAria(MIN), false, 'the question must not appear on its own');
+
+  await h.click('Save & finish ✓');
+  assert.equal(h.saved.length, 1);
+  // Never asked, so never answered. `confirmed` here would be a member
+  // affirmation that never happened, admitting an inflated session into the
+  // baseline and loosening every future ceiling.
+  assert.equal(h.saved[0].durationAnswer, 'not_prompted');
 });
 
 test('drive: what the writer SAVES is a valid input to the reader', async () => {

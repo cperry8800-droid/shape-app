@@ -69,7 +69,13 @@ history = {
 
 proposedWeek = {
   weekStartISO: 'YYYY-MM-DD',
-  sessions: [{ id, plannedMinutes, plannedRpe }]
+  // §3.2a — REQUIRED. The week object is AUTHORITATIVE; each row's
+  // `loadCapture` is asserted to agree and is never read as a second source.
+  // An entirely unstamped week is `incomplete_week` (a stamp lost in transit
+  // degrades to the safe direction); a stamped week whose pair is missing, or
+  // whose stamps disagree, is `malformed_week`.
+  capture: 'per_session' | 'per_plan',
+  sessions: [{ id, plannedMinutes, plannedRpe, loadCapture: 'per_session' | 'per_plan' }]
 }
 ```
 
@@ -554,3 +560,59 @@ bound fires, and so does `share_of_week`); both are named now.
 **The lesson the sweep exists to enforce:** an expected value that is *reasoned*
 rather than *computed* can be confidently wrong and invisible to review. Three of
 the four defects above were of exactly that shape.
+
+---
+
+## 13. The capture stamp — §3.2a and §5.1 (F144–F157)
+
+Added 2026-07-29 on the owner's ruling. §3.2a and §5.1 were ruled after 2a
+shipped, and the core could not express either: it read no stamp and had no
+`not_evaluable` state. The table was re-opened for exactly this scope and
+**re-frozen on approval**.
+
+The stamp is what separates *"the coach has not filled this in yet"* from *"the
+builder declared it captured the pair and the wire lost it"*. The week object is
+authoritative; each row's `loadCapture` is asserted to agree and is never read
+as a second source.
+
+⚠ **A tenth `reason` was added — `malformed_week`** — with its `BS_UNKNOWN_DETAIL`
+entry in the same commit, per §4.1's rule. `malformed_history` would have been
+wrong by name: the fault is in the proposed week, not the history.
+
+### Concentration axis
+
+| # | Scenario | Expected |
+|---|---|---|
+| F144 | `per_plan`, **3 sessions**, pair present | concentration `state: 'not_evaluable'`; **no checks computed** — with distribution unstated, both the share and the peak comparison are unanswerable, not just the share. Volume still scores from `sessions × (minutes × rpe)` |
+| F145 | `per_plan`, **exactly 1 session** | concentration **EVALUABLE** — at one session the plan-level figure *is* that session's figure |
+| F146 | `per_plan`, **2 sessions** | `not_evaluable` — pins the ≥2 boundary against F145 |
+
+### State resolution
+
+| # | Scenario | Expected |
+|---|---|---|
+| F147 | volume **amber** + concentration `not_evaluable`, 5 sessions | **amber**, `redPath: null`, contributing axes `['volume']` — excluded from the distinct-axis count exactly as a disabled axis is (F84) |
+| F148 | `not_evaluable` is **reported** | the axis is present in `axes[]` and is **not** `green` — omitting it would make it invisible, and greening it would let a consumer read it as a pass |
+| F149 | `not_evaluable` alone | **green** — it raises neither amber nor red on its own |
+
+### The declaration table
+
+| # | Scenario | Expected |
+|---|---|---|
+| F150 | week `per_session`, **some** sessions carry the pair | `unknown` / `malformed_week` |
+| F151 | week `per_session`, **none** carry the pair | `unknown` / `malformed_week` — **and the same week unstamped is `incomplete_week`**, asserted in the same fixture. The stamp is what turns uniform absence into a caller bug: a hop stripping the field from every session is likelier than a coach who skipped the step, and content inspection alone cannot tell them apart |
+| F152 | week `per_plan`, pair missing | `unknown` / `malformed_week` |
+| F153 | week stamped, rows carry **no** `loadCapture` | `unknown` / `malformed_week` |
+| F154 | rows stamped, **week** unstamped | `unknown` / `malformed_week` — both directions |
+| F155 | week `per_session`, rows `per_plan` | `unknown` / `malformed_week` — a disagreement is never resolved silently in favour of either |
+| F156 | **no stamp anywhere**, pair complete on every session | `unknown` / `incomplete_week` — **not** malformed. ⚠ A behaviour change: such a week evaluated before this amendment. The stamp is REQUIRED, and a stamp lost in transit degrades to the safe direction |
+| F157 | `per_session`, pair complete, row stamps agree | **evaluates normally** — guards the stamp check against over-rejecting the happy path |
+| — | `malformed_week` carries copy | chip `NOT CHECKED`, detail names that the values did not arrive intact. No reason may reach a coach unmapped (§4.1) |
+
+**Consequence recorded:** requiring the stamp made every pre-existing fixture's
+proposed week unstamped, and therefore `unknown`. The table builds proposed weeks
+through three helpers (`P`, `proposeN`, `propose`), so this was a three-line
+change rather than 133 edits. **F85/F86's assertion was scoped to session-level
+issues** — its week is legitimately unstamped (the coach skipped the inputs), so
+the week-level capture issue now rides alongside the two session ones; the
+fixture still asserts what it was written to assert.

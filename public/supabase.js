@@ -493,23 +493,54 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
       return { data: out, error: null };
     },
 
-    // Publish a workout from the builder to Supabase so it reaches a real
-    // assigned client. localStorage still holds the in-progress draft — this
-    // only runs on "Publish & Send to Client".
-    async publishClientWorkout(trainerId, fields) {
-      var row = {
-        trainer_id: trainerId,
-        client_id: fields.clientId,
-        title: (fields.title || '').slice(0, 200),
-        description: fields.description ? String(fields.description).slice(0, 2000) : null,
-        kind: fields.kind === 'custom' ? 'custom' : 'template',
-        payload: fields.payload || {},
-        playlist_id: fields.playlistId || null,
-        status: 'published',
-      };
-      if (!row.client_id) return { error: { message: 'Pick a client first.' } };
-      if (!row.title) return { error: { message: 'Workout name is required.' } };
-      return await client.from('client_workouts').insert(row).select().single();
+    // Deliver a built workout to an assigned client — through the EVALUATED
+    // boundary, never a direct insert.
+    //
+    // SPEC-guardrails.md §9.4 makes the WEEK the unit that gets written, so
+    // `/api/trainer/workout` reads the client's existing week, folds this
+    // session in, evaluates the merged load, and publishes the whole week in one
+    // transaction. This used to `insert` into `client_workouts` straight from
+    // the browser, which skipped the guardrail entirely — the last unevaluated
+    // coach write in the product, live in production.
+    //
+    // ⚠ A DATE IS REQUIRED. An undated row has no week, so there is no load to
+    // judge and no week to publish it into; the boundary refuses it by name
+    // (`date_required`). That is the whole reason the builder now asks for one.
+    //
+    // ⚠ The playlist does NOT ride through the boundary — it carries no
+    // `playlist_id` on any surface (see the note in trainer-dashboard.html).
+    //
+    // Returns { error: { message } } on failure so callers read one shape.
+    async assignClientWorkout(fields) {
+      if (!fields || !fields.clientId) return { error: { message: 'Pick a client first.' } };
+      if (!fields.title) return { error: { message: 'Workout name is required.' } };
+      if (!fields.scheduledDate) return { error: { message: 'Give the workout a date.' } };
+      var session = await shapeDb.getSession();
+      if (!session || !session.access_token) return { error: { message: 'Sign in again to send this to your client.' } };
+      var res, body;
+      try {
+        res = await fetch('/api/trainer/workout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({
+            clientIds: [fields.clientId],
+            title: String(fields.title).slice(0, 200),
+            description: fields.description ? String(fields.description).slice(0, 2000) : '',
+            kind: fields.kind === 'custom' ? 'custom' : 'template',
+            scheduledDate: fields.scheduledDate,
+            payload: fields.payload || {},
+          }),
+        });
+        body = await res.json().catch(function () { return {}; });
+      } catch (err) {
+        return { error: { message: 'Could not reach Shape. Check your connection and try again.' } };
+      }
+      // A guardrail hold arrives as WORDS (409 + `error`), not a bare status —
+      // surface it verbatim so the coach has something to act on.
+      if (!res.ok || !body || body.ok === false) {
+        return { error: { message: (body && body.error) || 'Could not deliver the workout.' } };
+      }
+      return { data: body };
     },
 
     // Pull all workouts assigned to the signed-in client. Joins the playlist

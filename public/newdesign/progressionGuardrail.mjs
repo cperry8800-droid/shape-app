@@ -709,6 +709,105 @@ export function bsClassifySession(session, index = 0) {
   };
 }
 
+/* ── §9.5. THE UNIVERSE — which rows are the client's training at all ──────
+ *
+ * Owner ruling 2026-07-28. This is a SCOPE question, and it sits UPSTREAM of
+ * malformed/excluded: an out-of-scope row is not a bad session and not an
+ * unusable one, it is **not a session in this guardrail's universe**. Not in
+ * the numerator, not in the denominator, not scored, and — because the gap
+ * read runs over the same array — NOT GAP-BREAKING.
+ *
+ * ⚠ WHY SOURCE DECIDES IT, and why the distinction is not pedantic.
+ * An unrated IN-APP session was ASKED and not answered — a behavioural signal,
+ * and §3.1 is right to count it in the measured-week denominator. A DEVICE
+ * IMPORT was never promptable: there is no completion step on a watch sync, so
+ * no rating could ever have been given. It is STRUCTURALLY unratable, not
+ * ELECTIVELY unrated. Treating them alike is the same conflation this module
+ * has now rejected twice — absent-vs-malformed (§13.8) and "no baseline
+ * yet"-vs-"estimated" (§3.2).
+ *
+ * One rule resolves both hazards §9.5 raised: a watch-wearing client can no
+ * longer be pinned in `cold_start` by their own sync diluting the rated share,
+ * and a workout that is BOTH logged in-app and synced from Strava cannot
+ * double-count, because only the in-app row was ever in scope. There is no
+ * dedupe pass — the sync copy simply never enters.
+ *
+ * ⚠ AN ALLOWLIST, NOT A BLOCKLIST, and that choice is load-bearing.
+ * `workout_sessions.source` carries a CHECK constraint of nine values, so
+ * SEVEN sit outside this list — six device sources plus `manual`. (Stated the
+ * same way in SPEC-guardrails.md §9.5: two sites counting different sets is how
+ * a reader ends up trusting neither.) A blocklist would silently admit the
+ * eighth the day someone widens that constraint; the allowlist puts a new
+ * source OUT until it is ruled in — the safe direction, see §13 below.
+ *
+ * ⚠ WHAT THE ALLOWLIST DOES NOT PROTECT AGAINST: a source that LIES. It stops a
+ * new source VALUE entering unruled; it cannot stop a future device-sync writer
+ * stamping `shape_app`. See §9.5's registered regression vector.
+ *
+ * ⚠ `manual` IS DEFERRED OUT, and that is a decision, not an oversight. A
+ * hand-entered past workout was not prompted at the time either, so it fails
+ * the same test. Nothing writes it today. If a manual-entry form ever ships
+ * WITH an RPE field, that row becomes promptable and this list should be
+ * revisited — registered rather than guessed at.
+ *
+ * ⚠ STATUS: only work that HAPPENED. `planned` and `active` are prescribed or
+ * in-flight, not performed; admitting them would inflate demonstrated capacity
+ * and loosen every future ceiling, which is the expensive direction.
+ * `abandoned` is started-not-finished and is not a record of a session done.
+ *
+ * ⚠ `reviewed` IS IN SCOPE — a deliberate widening of the owner's word
+ * "completed", serving that ruling's own stated reason ("baseline is a record
+ * of what happened"). A reviewed session is a COMPLETED one a coach has since
+ * looked at. Reading `= 'completed'` literally would mean a coach opening a
+ * session REMOVES it from that client's baseline — the same silent
+ * baseline-shrink class as the `started_at is not null` drop, and worse than a
+ * direction error because it makes the verdict depend on an unrelated act.
+ *
+ * ⚠ AN ABSENT FIELD IS IN SCOPE, and this is the opposite call from malformed.
+ * Both columns are `NOT NULL DEFAULT`, so the DATABASE cannot emit a null one;
+ * an absent field can only mean an RPC that predates this contract — and under
+ * such an RPC every row is in-app anyway, because one writer exists. Reading
+ * absence as out-of-scope would vanish an entire history on a contract
+ * regression. The RPC's emission is pinned by tests/guardrail-load-history-wire.
+ */
+
+/** Sources whose sessions the member could actually have been asked to rate. */
+export const BS_SESSION_SOURCES_IN_SCOPE = ['shape_app', 'shape_session'];
+
+/** Statuses that record work PERFORMED (not prescribed, not in flight). */
+export const BS_SESSION_STATUSES_IN_SCOPE = ['completed', 'reviewed'];
+
+/**
+ * Is this row part of the client's training, at all?
+ *
+ * Deliberately tolerant of a non-object: scope is not the place to report a
+ * caller bug. A junk row stays IN so `bsClassifySession` can name it malformed
+ * — otherwise scope would silently swallow the very rows the malformed report
+ * exists to surface.
+ *
+ * @param {*} session
+ * @returns {boolean}
+ */
+export function bsSessionInScope(session) {
+  if (!session || typeof session !== 'object' || Array.isArray(session)) return true;
+  const { source, status } = session;
+  if (source !== undefined && source !== null && !BS_SESSION_SOURCES_IN_SCOPE.includes(source)) return false;
+  if (status !== undefined && status !== null && !BS_SESSION_STATUSES_IN_SCOPE.includes(status)) return false;
+  return true;
+}
+
+/**
+ * Narrow a history to the guardrail's universe. Idempotent, so every entry
+ * point can apply it without the composite paths double-filtering.
+ *
+ * @param {*} sessions
+ * @returns {*} the filtered array, or the input untouched when it is not one
+ */
+export function bsScopeSessions(sessions) {
+  if (!Array.isArray(sessions)) return sessions;
+  return sessions.filter(bsSessionInScope);
+}
+
 /**
  * Derive one week's load from its logged sessions.
  *
@@ -736,6 +835,14 @@ export function bsWeekLoad(sessions) {
   const malformed = [];
   const classified = [];
   sessions.forEach((s, i) => {
+    // ⚠ §9.5 SCOPE APPLIES HERE TOO, and it is easy to miss why. This function
+    // is a PARALLEL implementation of the week tally — `bsBucketWeeks` does not
+    // call it, it runs the same classify+tally inline — so it inherits nothing
+    // from the scoping applied there. Without this line the two disagree on
+    // identical input (measured: 1080 AU here vs 480 from bucketing), and this
+    // is the one a 2b implementer reaches for, because its docstring says
+    // exactly what they want.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) malformed.push(...c.issues);
     else classified.push(c);
@@ -778,9 +885,15 @@ function tally(classified) {
  * and Section 4b's qualifying rules must not read it as one.
  *
  * @param {*} sessions
- * @returns {{weeks:Array<{weekStartISO:string, eligible:number, rated:number,
- *            loadAu:number, measured:boolean, realSessions:number,
- *            hardestAu:number, sessions:number}>, malformed:Array}}
+ * ⚠ The returned week keys are EXACTLY those below. This list previously named
+ * a `realSessions` count that nothing has ever produced — a 2b implementer
+ * following the JSDoc would have read `undefined` into a numeric comparison and
+ * failed silently. The gap floor is applied per SESSION inside `bsHistoryGap`,
+ * not per week; see BS_GAP_SESSION_FLOOR_AU.
+ *
+ * @returns {{weeks:Array<{weekStartISO:string, sessions:number, eligible:number,
+ *            rated:number, loadAu:number, measured:boolean, hardestAu:number}>,
+ *            malformed:Array}}
  */
 export function bsBucketWeeks(sessions) {
   if (!Array.isArray(sessions)) {
@@ -791,6 +904,10 @@ export function bsBucketWeeks(sessions) {
   const byWeek = new Map();
 
   sessions.forEach((s, i) => {
+    // §9.5 scope runs FIRST and skips in place rather than pre-filtering the
+    // array, so `i` stays the row's WIRE index — a malformed report that
+    // renumbered its rows would point a reader at the wrong session.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) {
       malformed.push(...c.issues);
@@ -861,7 +978,8 @@ export const BS_WINDOW_REACH_DAYS = 84;
  *
  * A gap is a run of consecutive days with no session ABOVE this floor, so a
  * 60 AU walk does not reset an interruption (F64) and a 140 AU session does
- * (F65). Each week carries its own count of such sessions (`realSessions`).
+ * (F65). The floor is applied PER SESSION inside `bsHistoryGap` — weeks carry
+ * no count of real sessions, and this sentence used to claim they did.
  *
  * ⚠ This floor does NOT filter the baseline window. F103 pins four weeks of
  * ~0.02 AU sub-minute sessions as QUALIFYING — they reach the floor test and
@@ -945,7 +1063,14 @@ export function bsBaseline(sessions, todayISO) {
   // No history at all is a DIFFERENT answer from history we cannot use (F107
   // vs F106): one is "not enough logged", the other is "logged but unusable",
   // and a coach reads them differently.
-  if (sessions.length === 0) return none('no_history');
+  //
+  // ⚠ Measured against the SCOPED history (§9.5). A client whose every row is
+  // a device import has no history IN THIS GUARDRAIL'S UNIVERSE, and that is
+  // `no_history` — not `no_qualifying_weeks`, which would tell a coach we
+  // looked at weeks that never entered. Only this emptiness test needs the
+  // filtered array; bucketing and the gap read skip in place to keep their
+  // row indices honest.
+  if (bsScopeSessions(sessions).length === 0) return none('no_history');
 
   const currentMonday = mondayIsoFromUtcMs(todayMs);
   const reachStart = isoDateFromUtcMs(todayMs - BS_WINDOW_REACH_DAYS * DAY_MS);
@@ -1121,6 +1246,8 @@ export function bsProposedWeek(proposedWeek) {
     hardestId: null,
     perSession: [],
     incomplete: issues,
+    capture: null,
+    malformed: [],
   });
 
   if (!proposedWeek || typeof proposedWeek !== 'object' || Array.isArray(proposedWeek)) {
@@ -1174,6 +1301,54 @@ export function bsProposedWeek(proposedWeek) {
     }
   }
 
+  // ── §3.2a — THE CAPTURE STAMP ────────────────────────────────────────────
+  // The week object is AUTHORITATIVE; each row's `loadCapture` is asserted to
+  // agree and is never read as a second source. Malformed is reserved for
+  // shapes no legitimate writer can emit — a builder never emits a partially
+  // stamped week, and a hop that strips the pair from EVERY session is the
+  // likelier bug than a coach who skipped the step, which content inspection
+  // alone cannot tell apart. An entirely UNSTAMPED week is NOT malformed: a
+  // stamp lost in transit must degrade to the safe direction (`unknown`).
+  const weekCapture = proposedWeek.capture;
+  const weekStamped = weekCapture === 'per_session' || weekCapture === 'per_plan';
+  const rowStamps = rows.map((r) => (r && typeof r === 'object' ? r.loadCapture : undefined));
+  const stamped = rowStamps.filter((s) => s === 'per_session' || s === 'per_plan');
+  const malformed = [];
+
+  if (weekStamped) {
+    if (stamped.length === 0) {
+      // Week stamped, rows carry nothing to assert against.
+      malformed.push(issue(-1, 'loadCapture', undefined));
+    } else if (stamped.some((s) => s !== weekCapture)) {
+      // Week and rows disagree. Never resolved silently in favour of either.
+      malformed.push(issue(-1, 'loadCapture', stamped[0]));
+    } else if (stamped.length !== rows.length) {
+      // ⚠ F158 — PARTIALLY stamped: some rows carry the stamp, others carry
+      // nothing. The mirror case (rows stamped, week unstamped) was already
+      // malformed; this one was scored, which is the same inconsistent
+      // declaration read two different ways. A builder stamps the week or it
+      // does not — it never stamps a subset — so this is the reserved class:
+      // a shape no legitimate writer emits. It is caught HERE rather than by
+      // the pair check below, because a partial stamp with every pair present
+      // slips past `perSession.length !== rows.length` entirely.
+      malformed.push(issue(-1, 'loadCapture', undefined));
+    }
+    // Stamped-but-incomplete: the builder declared it collected the pair, and
+    // some or all of it is missing. That is a transport bug, not a blank.
+    if (perSession.length !== rows.length) {
+      malformed.push(issue(-1, 'capture', weekCapture));
+    }
+  } else if (stamped.length > 0) {
+    // Rows stamped, week unstamped — the same disagreement, other direction.
+    malformed.push(issue(-1, 'capture', weekCapture));
+  } else {
+    // NOTHING stamped. The stamp is REQUIRED — a week that never declared what
+    // the builder was able to ask cannot be scored, even when every pair looks
+    // present. Reported as INCOMPLETE, never malformed: a stamp lost in transit
+    // must degrade to the safe direction, and `unknown` never blocks publish.
+    incomplete.push(issue(-1, 'capture', weekCapture));
+  }
+
   return {
     // The session COUNT is the authored count, not the readable count: the caps
     // scale with what the coach wrote. Counting only the readable sessions would
@@ -1184,6 +1359,8 @@ export function bsProposedWeek(proposedWeek) {
     hardestId,
     perSession,
     incomplete,
+    capture: weekStamped ? weekCapture : null,
+    malformed,
   };
 }
 
@@ -1269,6 +1446,16 @@ export function bsColdStartVolumeAxis(proposed) {
  * @param {{hardestLoggedAu?:number}} [bounds]
  */
 export function bsConcentrationAxis(proposed, bounds) {
+  // ⚠ §5.1 — A PLAN-LEVEL PAIR CANNOT ANSWER THIS AXIS. At two or more sessions
+  // a single figure says nothing about distribution: which session is the hard
+  // one is unknowable, so BOTH checks are unanswerable, not just the share.
+  // Reported as its own state rather than omitted (invisible) or flagged on a
+  // green axis (misreadable as a pass). At exactly ONE session the plan-level
+  // figure IS that session's figure, so the axis evaluates normally.
+  if (proposed && proposed.capture === 'per_plan' && proposed.sessions >= 2) {
+    return { axis: 'concentration', state: 'not_evaluable', checks: [], ceilingPct: null };
+  }
+
   // `bounds = {}` would only default on `undefined`; an explicit null is a
   // realistic caller slip and this is an EXPORTED function, so it must not
   // throw — the never-throws contract covers the parts, not just the whole.
@@ -1450,6 +1637,11 @@ export function bsHistoryGap(sessions, todayISO) {
   let lastRealISO = null;
 
   sessions.forEach((s, i) => {
+    // §9.5: an out-of-scope row is NOT GAP-BREAKING. A watch sync must not
+    // reset the return-regime clock — it is not evidence the client trained
+    // in the sense this guardrail measures. Skipped in place to keep `i` the
+    // wire index, as in bsBucketWeeks.
+    if (!bsSessionInScope(s)) return;
     const c = bsClassifySession(s, i);
     if (c.malformed) {
       malformed.push(...c.issues);
@@ -1832,8 +2024,13 @@ export const BS_COMPOUND_MIN_SESSIONS = 3;
  *            contributingAxes:Array<string>}}
  */
 export function bsResolveState(axes, proposedSessions) {
+  // `not_evaluable` (§5.1) is excluded ENTIRELY, exactly as a disabled axis is:
+  // it can raise neither amber nor red, and it cannot contribute to compound.
+  // It still rides in `axes` so copy can name what was not measured — the
+  // exclusion belongs here, not at the axis, or a consumer counting axes would
+  // read it as a pass.
   const live = (Array.isArray(axes) ? axes : []).filter(
-    (a) => a && bsAxisEnabled(a.axis),
+    (a) => a && bsAxisEnabled(a.axis) && a.state !== 'not_evaluable',
   );
 
   const reds = live.filter((a) => a.state === 'red');
@@ -1962,6 +2159,15 @@ export function bsProgressionGuardrail(history, proposedWeek) {
   // The regime and baseline ARE known here — the history was readable — but
   // they stay withheld for one rule rather than two: an unknown result asserts
   // nothing about the client, whatever made it unknown.
+  // MALFORMED BEATS INCOMPLETE, and the order is load-bearing. Both are
+  // `unknown`, but they name different faults: `incomplete_week` says the coach
+  // has not filled the pair in yet, `malformed_week` says the builder declared
+  // it captured the pair and the values did not survive the wire. Reporting a
+  // transport bug as an honest blank would hide it for as long as it lasts.
+  if (proposed.malformed.length > 0) {
+    return unknown('malformed_week', [], resolved.regime);
+  }
+
   if (proposed.incomplete.length > 0) {
     return unknown('incomplete_week', [], resolved.regime);
   }
@@ -2213,6 +2419,9 @@ const BS_UNKNOWN_DETAIL = {
     + 'problem with the week.',
   incomplete_week: 'Some sessions in this week have no duration or no effort target '
     + 'yet, so there is nothing to measure.',
+  malformed_week: 'This week says it captured a duration and effort for every '
+    + 'session, but the values did not arrive intact. That is a data problem to fix, '
+    + 'not a problem with the week.',
   unscoreable: 'The comparison could not be completed.',
 };
 

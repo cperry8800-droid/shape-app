@@ -230,6 +230,134 @@ returns `state: 'unknown'` with `reason: 'incomplete_week'`, names the offending
 sessions, and publish is **not** gated. An unscoreable week is not a safe week —
 it is an unmeasured one, and the spec says so rather than passing it green.
 
+### 3.2a Capture — RULED 2026-07-28
+
+⚠ **The reasoning, the evidence and the fixture list live in
+`docs/superpowers/specs/2026-07-28-planned-load-capture-design.md`, and this is
+deliberately the only copy of them.** What follows is the contract alone. This
+branch has already spent three review rounds correcting one paragraph that
+existed in two places and was wrong in both simultaneously (§9.5).
+
+**Capture is PER SESSION.** A plan-level pair makes share-of-week exactly `1/n`
+for every plan, so the hardest-session bound never fires and `redPath:
+'compound'` becomes unreachable — and a real 90/30/30/30 week would report as
+45/45/45/45, a safe number for a concentrated week.
+
+⚠ **HARD RULE — never derive per-session values by dividing a plan-level figure
+by session count.** Uniform distribution is an assumption, not a measurement. No
+"temporarily, until the UI lands" exception.
+
+**`plannedMinutes` is an ENUM MAPPING, not a parse.** LENGTH is a four-value chip
+(`iosAppBroadsheetPros.jsx:5444`), not free text. Map exact matches only;
+anything ranged, unrecognised, or from another builder is **absent** — never
+resolved to an end of a range, never 0.
+
+**The stamps.** `payload.loadCapture` is `'per_session'` or `'per_plan'`, written
+by the builder at the moment it collects the pair — never inferred from contents,
+never defaulted. The week object passed to the gate carries the same value as
+`capture`, and **the week object is authoritative**; the row stamp is asserted to
+agree, never read as a second source.
+
+| Shape | Result |
+|---|---|
+| no stamp | `incomplete_week` / `unknown` (§3.2) — the coach skipped the inputs |
+| `per_session` + all sessions carry the pair | evaluate normally |
+| `per_session` + some carry the pair | **malformed** |
+| `per_session` + none carry the pair | **malformed** |
+| `per_plan` + the pair present | volume scores; concentration per §7.4 |
+| `per_plan` + the pair missing | **malformed** |
+| week stamped, rows unstamped (or the reverse) | **malformed** |
+| the stamp itself dropped in transit | `unknown`, never malformed |
+
+⚠ **Stamped-but-empty is malformed on purpose.** A hop stripping the field from
+*every* session is the likelier bug — transforms apply uniformly — and content
+inspection alone cannot tell it from a coach who skipped the step.
+
+**Two structural guards, not one test.** A full-path presence test asserting the
+field at the **far end** rather than inspecting code, and a perturbation check
+that strips the field at one hop **uniformly** and confirms a test fails.
+
+### 3.2b Adjust regeneration — NO BOUND; score the captured pairs
+
+**RULED 2026-07-28 as `max(authored, mode ceiling)`. THE BOUND IS DELETED
+2026-07-29** — along with the mode-ceiling constant, the authored-exceeds-ceiling
+telemetry field, and the bound fixtures.
+
+**Why: every mode calls the same transform, and it writes exactly two keys.**
+`bsAdjustRegen` picks a scalar (`adjustRegen.mjs:80`) and hands it to one function
+(`:136`):
+
+```js
+const scale = BS_ADJUST_SCALE[adjustment.intensity] ?? 1;   // deload .85 · maintain 1 · progress 1.025
+const exercises = scaleExercises(r.payload?.exercises, scale);
+```
+
+`scaleExercises` spreads the move and overwrites **`baseL` and `load` only** —
+`sets`, `reps` and every other key survive the spread untouched:
+
+```js
+return { ...m, baseL: base, load: bsScaleLoad(base, scale) };
+```
+
+and `bsScaleLoad` rewrites the first number of a **free-text weight string**,
+returning it byte-identical when the scalar is 1:
+
+```js
+if (scale === 1 || !/\d/.test(s)) return s;
+return s.replace(/\d+(?:\.\d+)?/, (n) => { … Number(n) * scale … });
+```
+
+| Mode | Scalar | What it writes | Effect on sRPE |
+|---|---|---|---|
+| `deload` | 0.85 | the first number in each load string | **none — no-op** |
+| `maintain` | 1 | nothing; the early return hands the string back | **none — no-op** |
+| `progress` | 1.025 | the first number in each load string | **none — no-op** |
+
+**All three are no-ops in sRPE terms — at the level of a TRANSFORMED ROW.** No
+mode changes `plannedMinutes`, `plannedRpe`, `sets` or `reps` on the rows it
+rewrites. Verified by running all three over a row carrying the pair: every one
+of those fields came back byte-identical.
+
+⚠ **The WEEK's shape is a separate question, and it IS mutable.** `bsAdjustRegen`
+also consumes `adjustment.sessions`, `days` and `weeks` — it caps the training
+weekdays, deletes rows falling outside the map, and replicates the last adjusted
+week to the horizon. **A regeneration can therefore change how many sessions the
+week contains**, which is precisely why the path is gated (§9.4). The no-op claim
+above is about the per-row intensity transform ONLY; it is not a claim that a
+regenerated week resembles the one it replaced, and an implementer must not read
+it as permission to skip evaluating regenerated weeks.
+
+**A regenerated week is scored on its own captured pairs, exactly like an
+authored one.** `emit()` spreads the row's payload forward, so the pair the coach
+captured rides through the regeneration intact — that is what makes the path
+scoreable, not a bound.
+
+⚠ **This is not "the bound reduces to authored".** A mechanism that always
+returns its input is dead code that reads as a safety feature: the next reader
+assumes a regenerated week was checked against something. It is gone.
+
+**Reinstate only if the transform changes.** If Adjust is ever made to do what
+its copy promises — add a set, push RPE toward 8 — it begins writing fields sRPE
+reads and a bound becomes a real question again. Today the **copy** is what moves
+(owner ruling 2026-07-29).
+
+**`payload.adjustMode` is KEPT — as provenance, with exactly one reader.** It
+still rides on the row beside `adjustGen`, because *how this row came to exist*
+is a **raw fact**, and the doctrine is to store raw facts and derive at read time
+(§13.4). What died was the *derived mechanism* that read it. Its one reader is
+now the `guardrail_evaluated` telemetry dimension (§10.2), which lets the retune
+ask whether regenerated weeks flag differently from authored ones.
+
+⚠ **No field is written and never read.** If that telemetry dimension is ever
+dropped, `adjustMode` goes with it — an unread stamp is untested and drifts.
+**Nothing in the core may branch on it**: it is a reporting dimension, never a
+judgment input.
+
+**Telemetry:** one field for a `length` value that fails to map (§3.2a), plus the
+`adjustMode` dimension above. The authored-above-ceiling field is deleted with
+the bound. Both must ship WITH the feature: there is no history to back-fill from
+(§9.2).
+
 ---
 
 ## 4. The pure core
@@ -248,6 +376,35 @@ bsProgressionGuardrail(history, proposedWeek) -> GuardrailResult
 bsGuardrailCopy(result)                       -> GuardrailCopy | null
 bsInterpolateAnchors(anchors, x)              -> number
 ```
+
+**STANDING RULE — the core reads RAW SESSION ROWS ONLY, never precomputed
+summary aggregates.** Ruled 2026-07-28, generalising the duration-specific
+amendment below, which was one instance of it. Every field in `sessions[]` is a
+fact the writer observed; not one is a figure someone else already reduced. Three
+reasons, each sufficient on its own:
+
+- **An aggregate is a drift hazard by construction.** It is computed under one
+  version of the rules and read under another. The load rules carry real
+  judgement — RPE 0 is absent, an unconfirmed overrun is excluded, credibility is
+  derived against the *current* ceiling (§13.8) — so a stored aggregate is a
+  verdict frozen at write time, and §13.4 promises the thresholds will move.
+- **It moves the rules out of the only place they are fixture-testable.**
+  Pre-aggregating in SQL puts the derivation where §12's fixtures cannot reach
+  it, which is the reasoning already recorded for the week buckets.
+- **It hides its own staleness.** A wrong raw row reports `malformed` **by name**
+  and degrades the evaluation honestly; a wrong aggregate reports a plausible
+  number and is indistinguishable from a right one.
+
+Concretely: `workout_sessions` also carries `completedSets`, `avgSetSeconds` and
+`avgRestSeconds`. **The guardrail reads none of them, and 2b must not begin to.**
+Whether *those* columns drift against their own writers is a real risk but not
+this wave's — it is registered separately for whoever consumes them, deliberately
+not fixed here.
+
+Note the boundary this rule does **not** cross: it governs values that
+*interpret* data. Transactional facts — a price paid, an amount charged — are
+frozen at write time on purpose and are the opposite case. The test that
+separates them is in §13.11.
 
 ```
 // AMENDED — the core takes RAW SESSIONS and derives the weeks itself. Load
@@ -283,7 +440,14 @@ history = {
 
 proposedWeek = {
   weekStartISO: 'YYYY-MM-DD',
-  sessions: [{ id, plannedMinutes: number, plannedRpe: number }]
+  // §3.2a — REQUIRED. The week object is AUTHORITATIVE; each row's
+  // `loadCapture` is asserted to agree and is never read as a second source.
+  // An entirely unstamped week is `incomplete_week` (a stamp lost in transit
+  // degrades to the safe direction); a stamped week whose pair is missing, or
+  // whose stamps disagree with the week's, is `malformed_week`.
+  capture: 'per_session' | 'per_plan',
+  sessions: [{ id, plannedMinutes: number, plannedRpe: number,
+               loadCapture: 'per_session' | 'per_plan' }]
 }
 ```
 
@@ -296,7 +460,8 @@ GuardrailResult = {
   // consumer written against a partial list hits unmapped values in
   // production. Every one of these is emitted by the shipped core; adding a
   // tenth means adding it to `BS_UNKNOWN_DETAIL` in the same commit.
-  reason:  string | null,                   // 'incomplete_week' | 'malformed_history'
+  reason:  string | null,                   // 'incomplete_week' | 'malformed_week'
+                                            // | 'malformed_history'
                                             // | 'no_history' | 'no_qualifying_weeks'
                                             // | 'insufficient_weeks' | 'stale_baseline'
                                             // | 'baseline_below_floor'
@@ -305,7 +470,13 @@ GuardrailResult = {
   proposed: { totalAu: number, hardestAu: number, sessions: number },
   axes: [{
     axis:      'volume' | 'concentration' | 'distribution',  // see §7.3
-    state:     'green' | 'amber' | 'red',
+    // ⚠ `not_evaluable` is a REAL fourth value, not an omission (§5.1): a
+    // `per_plan` week carries no per-session split, so concentration has
+    // nothing to judge and says so rather than reporting a fabricated green.
+    // An axis in this state is excluded from resolution ENTIRELY — exactly as
+    // a disabled axis is — so it can neither raise nor lower the verdict, and
+    // it never counts toward the two-amber compound-red path (§7.1).
+    state:     'green' | 'amber' | 'red' | 'not_evaluable',
     checks:    [{ check, value, ceiling, tripped }],
     ceilingPct: number | null
   }]
@@ -691,6 +862,12 @@ acknowledged, and the acknowledgment plus reason ride along on the save.
 
 ### 9.2 Publish route (authoritative)
 
+⚠ **SUPERSEDED IN SHAPE BY §9.4 (ruled 2026-07-28).** The gate is not a check
+added to the existing one-session-per-call route; it is a **new week-shaped
+publish boundary** that every coach writer moves onto. §9.2's *rule* stands
+verbatim — red without an acknowledgment does not publish — but the boundary it
+attaches to, and the enforcement default at ship, are §9.4's. Read §9.4 first.
+
 **Modify:** `src/app/api/trainer/workout/route.ts`
 
 After the existing auth and on-client scope gate, and before insert: load the
@@ -700,15 +877,349 @@ able to publish a red week without an audit entry.
 
 `unknown` (§3.2) does not gate publish — it is reported, not enforced.
 
+⚠ **v1 may effectively ship with ONE axis, and that is stated here rather than
+discovered from telemetry.** §3.2a puts capture per session; a plan whose blocks
+are exercises rather than sessions can only state a plan-level figure, and such a
+week reports concentration `not_evaluable`. If plain workouts turn out to
+dominate real coach authoring, concentration is unevaluable for most weeks — the
+hardest-session bound rarely fires and `redPath: 'compound'` is unreachable in
+practice, leaving volume as the only live axis.
+
+**Whether that happens is currently unmeasurable, not unfavourable.** Read
+2026-07-28: `coach_plans` holds **1 row** (carrying no `length` key and no
+`blocks` array), `client_workouts` and `workout_sessions` hold **0**. There is no
+corpus to measure a distribution against, so any figure quoted here would be
+invented. What can be said is structural: of the three build types the mobile
+builder offers, `program` (day lines) and `plan` (week lines) emit per-session
+blocks and `workout` emits exercises — **two of three**. That is a statement
+about the builder, not about coach behaviour, which nothing yet knows.
+
+**Consequence for the telemetry:** it has to ship WITH the feature. There is no
+history to back-fill from, so a field added later measures only the future.
+
+### 9.4 The week-shaped boundary, and total write coverage
+
+Three premises in §9 did not survive contact with the codebase. Recorded before
+the ruling, because each one changes what 2b is:
+
+1. **No week-shaped publish boundary exists.** `dashBuilder` flattens a program
+   and fires **one POST per day** (16 for a 4×4); `BSProAssignPage` loops one
+   insert per session. Nothing anywhere assembles sessions-for-one-week as an
+   object before writing.
+2. **`/api/trainer/workout` is not the chokepoint.** It covers the two web
+   builders and Nora. The **mobile coach app does not use it at all** —
+   `assignClientWorkout` (`shapeBackend.js`) is a **direct client-side
+   `supabase.from('client_workouts').insert(…)`** under RLS. So is Adjust, via
+   the `regenerate_client_workouts` RPC.
+3. **`plannedMinutes` and `plannedRpe` exist nowhere outside this spec and the
+   core.** No builder, no payload, no route carries them. Two of the three mobile
+   Assign branches write `exercises: []`. Capturing them is a **prerequisite** of
+   the gate scoring anything, not parallel work.
+
+**RULING — one boundary, week-shaped, every writer through it.**
+
+A builder submits `{ clientIds[], weekStartISO, sessions: [{ title,
+scheduledDate, plannedMinutes, plannedRpe, payload }] }` in **one call**,
+evaluated once and written **atomically**.
+
+*Why not compose the week server-side from one-session-per-call:* the server
+**cannot know when a week is complete** — POST 8 of 16 is indistinguishable from
+an 8-session week. That breaks evaluation (16 scorings of a growing week, 15 of
+them incomplete), telemetry (16 rows per real week, with no final POST to key
+off — the same denominator problem that moved telemetry out of the builder,
+§10.2), and acknowledgment (a coach cannot acknowledge a red for a week still
+arriving).
+
+**Coverage is total, and this is the architecture, not a nice-to-have.** The
+whole rationale is one boundary every writer passes through; gating one of three
+defeats it rather than partially delivering it.
+
+| Path | Today | After 2b |
+|---|---|---|
+| `/api/trainer/workout` — web builders + Nora | ungated | **gated**, week-shaped |
+| `assignClientWorkout` — **the mobile coach app** | ungated, **direct client-side insert** | **gated**, routed through the boundary |
+| `regenerate_client_workouts` — Adjust | ungated | **gated** |
+
+**No session-shaped coach write path stays live alongside the week-shaped one.**
+Two contracts makes the gate optional in practice. If the migration cannot land
+in one pass, sequence it — **mobile first** (the primary coaching surface and the
+largest share of real writes), then Adjust, then web — but not past the end of
+the wave.
+
+**⚠ THE IDEMPOTENCY KEY MUST SERVE OFFLINE REPLAY, NOT ONLY ONLINE PUBLISH.**
+`client_workouts` carries no natural unique key, so *"has this session been
+delivered?"* currently has **three** answers — what the composing screen
+remembers, what the device's offline queue holds, and what is actually on the
+server — and nothing reconciles them. That missing invariant is not theoretical:
+the offline assign queue produced **three consecutive rounds** of duplicate-insert
+and false-"held" defects, each one an adjacent path the previous fix didn't
+cover, and it was **split out of this wave** (`claude/offline-assign-queue`)
+because no amount of client-side bookkeeping closes it.
+
+So the boundary's key is not a publish-path detail — it is what makes the queue
+correct, and it must satisfy all four:
+
+1. **Minted at AUTHORING time and carried in the payload** — never derived at
+   send time. It has to survive the device going offline, the app being killed,
+   and the coach re-authenticating before the week is ever transmitted.
+2. **Re-submitting the same week returns the same outcome**, not a second set of
+   rows — whether the repeat comes from a retry tap, a background drain, or both
+   racing.
+3. **The response distinguishes `accepted` from `already delivered`.** A replay
+   that lands on an already-delivered week must be able to say so, so the client
+   reports honestly instead of re-inserting or claiming work is still held.
+4. **Scoped to the originating coach.** A queued payload replayed under a
+   different signed-in account is REJECTED by the server, never silently
+   re-attributed — the client-side owner guard is a courtesy, not the boundary.
+
+Without (1)–(4) the queue work hits the same wall on the far side of the
+boundary, and the split will have bought nothing.
+
+**Adjust regeneration is gated because it changes week COMPOSITION** (premise
+CORRECTED twice — see §13.15; the earlier "highest-risk path" and "session count
+multiplies weekly volume" framings were both wrong).
+
+⚠ **The load-magnitude argument does not survive its own arithmetic.** Cutting a
+week from 5 sessions to 3 takes it from 2100 AU to 1260 AU — a **decrease** — and
+**F57 never flags a decrease**. So "regeneration can raise weekly load" is not a
+reason to gate: in the direction the session control is actually used, there is
+nothing to flag. And we cannot support a **risk ordering** between this path and
+a hand-built week; nothing measures that.
+
+**The real reason is that session count moves the EVALUATION, not just the
+total.** Both of the core's session-count thresholds sit at 3:
+
+- **`BS_SHARE_MIN_SESSIONS = 3`** — the share-of-week check only runs at 3+
+  sessions, so dropping to 2 silently removes that check from the week.
+- **`BS_COMPOUND_MIN_SESSIONS = 3`** — the compound-red path is **unreachable**
+  below 3 sessions.
+
+A regeneration can therefore move a week **across a regime boundary** — changing
+which axes are evaluable and which red paths can fire — without any human looking
+at the result. That is what an ungated regeneration hides, and it is invisible in
+the total.
+
+**Plus the republish case:** an already-oversized week can be reissued through
+Adjust unexamined. **The gate evaluates the regenerated week as a FRESH proposal
+against the client's history, never a delta:** the guardrail's question is always
+*"is this week too big for this client"*, regardless of how the week came to be.
+
+**The mobile gap's failure mode is worse than having no feature.** A coach on
+their phone would watch programs publish clean and conclude the guardrail passed
+them. False assurance is worse than absence — the same reasoning that makes
+`unknown` its own state instead of defaulting to green.
+
+**Ships with the kill switch (§7.4) DEFAULTED TO ADVISORY.** Red computes, is
+recorded, and surfaces to the coach with the acknowledgment path live — but does
+**not** 409. Telemetry records the true state throughout. Enforcement flips on by
+config once flag rates come back in the target band (10–15% amber, 1–2% red).
+Advisory is a **runtime state of this architecture**, not an alternative to it:
+shipping "advisory-only" as its own design would mean doing the integration
+twice.
+
+**Fixtures this ruling requires** (beyond §12):
+
+- a full week is accepted atomically;
+- a red week **in advisory mode** is written, with the flag recorded and **not**
+  rejected;
+- a red week with the kill switch **off** is rejected without an acknowledgment
+  and accepted with one;
+- a **partial submission is rejected as malformed**, never scored;
+- **one evaluation and one telemetry row per publish**, regardless of session
+  count;
+- a mobile week-shaped publish is gated **identically** to web;
+- regeneration producing a red week is handled by the same acknowledgment path,
+  and is evaluated as a **fresh week, not a delta**;
+- a **direct client-side insert attempt is rejected**.
+
+⚠ One consequence to handle explicitly in the mobile migration: today
+`assignClientWorkout` **falls back to a local record when the insert errors**. A
+gate that returns a rejection must not be absorbed by that fallback and reported
+to the coach as saved. **CLOSED 2026-07-28** — and it was worse than written: the
+function *returned* rather than threw, so the fallback swallowed every failure;
+nothing ever replayed the local record (`shape.clientWorkouts` was written by
+those lines and read by nothing); and because `getOwnedTrainerId()` is a network
+call that runs *before* the insert, the offline case never even reached the
+fallback. Fixed as its own change, with the replay draining through the same
+writer so it cannot become a side door around this gate.
+
+### §9.5 RULED 2026-07-28 — the guardrail's universe is IN-APP, PERFORMED work
+
+**Which `workout_sessions` rows are the client's training?** Ruled on both
+discriminators. Device-imported sessions are **outside the guardrail entirely** —
+not in the numerator, not in the denominator, not scored, **not gap-breaking** —
+and the history reads **completed work only**.
+
+**The reasoning, which is the part that generalises.** An unrated *in-app*
+session was **asked and not answered**: a behavioural signal, correctly counted
+in §3.1's measured-week denominator. A device import was **never promptable** —
+there is no completion step on a watch sync — so it is **structurally
+unratable, not electively unrated**. Treating them alike is the same conflation
+this spec has now rejected twice: absent-vs-malformed (§13.8) and
+"no baseline yet"-vs-"estimated" (§3.2).
+
+One rule resolves both hazards §9.5 originally raised: **no cold-start pinning**
+(syncs stop diluting the rated share) and **no double-count** (only the in-app
+row was ever in scope — there is no dedupe pass, and none is needed).
+
+⚠ **THE PREMISE OF THE ORIGINAL §9.5 WAS WRONG, and the correction is recorded
+rather than quietly dropped.** It asserted that device imports reach the
+denominator today. They do not. Verified read-only against production
+2026-07-28:
+
+- The RPC reads `public.workout_sessions` directly — no view.
+- **Exactly one writer reaches that table**: `saveStructuredWorkoutSession`
+  (two inserts, the second being the no-RPE retry). No `update`, `upsert` or
+  `delete` anywhere in the repo, and no database function or trigger writes it.
+- **All five device syncs** (Apple Health, Garmin, Oura, Strava, Whoop) write
+  `activities` and `daily_health_snapshot`. Round 4's finding #5 was correct.
+- Scheduled work is not in this table at all — it lives in `client_workouts`.
+- The single writer hardcodes `source: 'shape_app'` and `status: 'completed'`,
+  and production held **zero rows**.
+
+So the rule is **anticipatory, not remedial** — which is precisely why it is
+worth having: `workout_sessions.source` already carries a CHECK constraint of
+**nine** values — so **seven sit outside the allowlist: six device sources plus
+`manual`** — and `status` carries five states, of which two are in scope. The
+schema anticipates writers the guardrail must not silently absorb. (The core's
+§9.5 comment counts it the same way; two sites counting different sets is how a
+reader ends up trusting neither.)
+
+**Where each half lives, and why they are split.**
+
+| Half | Enforced in | Why there |
+|---|---|---|
+| `status in ('completed','reviewed')` | **the RPC** | Not a judgement about whose training counts — a `planned` row is not a past session under any reading, so it belongs with the ownership and date-window bounds. Filtering it in SQL also stops non-performed rows consuming the `limit 500`. |
+| `source in ('shape_app','shape_session')` | **the core** (`bsSessionInScope`) | This *is* the ruling — the contestable half, with `manual` registered for revisit. Under the §4.1 standing rule a judgement belongs where §12's fixtures reach it. |
+
+The RPC therefore **returns `source` and `status` on every row**, closing the
+contract gap the original §9.5 named.
+
+⚠ **`reviewed` is in scope.** It reads like a widening of the ruling's word
+"completed", and it was written as one — but it is not. **Three already-shipped
+migrations read exactly `status in ('completed','reviewed')` against this same
+table**: `2026-06-13-client-lifts.sql`, `2026-06-13-client-profile-stats.sql`
+(twice), and `2026-06-25-client-lifts-e1rm.sql`. So this is the **house
+definition of "work that happened" on `workout_sessions`**, and a literal
+`= 'completed'` would have made the guardrail the odd one out — quietly
+disagreeing with the key-lift and profile-stat reads about which sessions the
+same client performed.
+
+The independent reason still holds and is the sharper one: `reviewed` is a
+*completed* session a coach has since opened, so reading `= 'completed'`
+literally would mean **a coach reviewing a session removes it from that client's
+baseline** — the same silent baseline-shrink class as the `started_at is not
+null` drop, and worse than a direction error, because it makes the verdict
+depend on an unrelated act by a different person.
+
+`abandoned` is correctly out: nothing writes it, and "End workout early" routes
+through the same completion step and saves `completed`.
+
+⚠ **An ALLOWLIST, not a blocklist.** A blocklist silently admits the **eighth**
+value outside the list the day someone widens the CHECK. `manual` falls **out**
+— a hand-entered past workout was not prompted at the time either — which is a
+decision, not an oversight: if a manual-entry form ever ships *with* an RPE
+field, that row becomes promptable and the list should be revisited.
+
+⚠ **An ABSENT discriminator is IN scope** — the opposite call from malformed,
+and deliberately so. Both columns are `not null default`, so the **database**
+cannot emit a null one; an absent field can only mean an RPC predating this
+contract. Reading absence as out-of-scope would vanish an entire history on a
+contract regression. The emission is pinned by
+`tests/guardrail-load-history-wire.test.mjs`.
+
+⚠ **Precision on "one writer exists": that is an APP-CODE invariant, not a
+schema one**, and the distinction matters because the sentence above leans on
+it. The `clients update own active workout sessions` policy carries **no status
+predicate** — its body is `using (client_id = auth.uid()) with check (client_id
+= auth.uid())` — so despite the name a client may update any of their own rows,
+including `source` and `status`. The absent-is-in-scope call does *not* rest on
+the writer count (it rests on `NOT NULL`, which is genuinely enforced), so the
+conclusion stands; but the policy name overpromises relative to its body. That
+is pre-existing and outside this guardrail's threat model — **registered, not
+fixed here.** The hazard is not the permission; it is that a future reader
+trusts the NAME and assumes a constraint that is not there. So the registered
+fix is a naming one: either rename the policy to what it does, or add the
+`status` predicate its name implies. Changing an auth policy inside a guardrail
+branch is the wrong blast radius.
+
+⚠ **REGISTERED REGRESSION VECTOR — a source that LIES, which no fixture can
+catch.** The allowlist stops a new source *value* entering unruled. It cannot
+stop a future device-sync writer stamping `shape_app`. The day one starts
+writing `workout_sessions`, the likely implementation path is copy-paste from
+`saveStructuredWorkoutSession`, which hardcodes `source: 'shape_app'` — and
+that **fails OPEN**: device rows enter the baseline wearing the in-app label,
+while every §9.5 fixture stays green, because they all construct `source` by
+hand. The guard is a code-review one, recorded here because the test suite
+cannot be it. A real fix, if a device writer ever lands, is to make the sync
+path set `source` from the integration that produced the row and assert that in
+that writer's own tests.
+
+Fixtures: `tests/guardrail-scope.test.mjs`. ⚠ **Stated as measured, because two
+earlier versions of this paragraph were wrong in the same way — a claim about
+test rigor that the next auditor trusts instead of re-running.** (First it said
+every fixture asserts both sides; then, correcting that, it merged two distinct
+vacuity causes into one and kept only the simpler.) Mutation matrix:
+
+| Mutant | Result |
+|---|---|
+| whole predicate forced `true` | **14 of 14 fail** — nothing in the suite is inert |
+| `source` check removed | 11 fail |
+| `status` check removed | 4 fail |
+
+The single overlap is the truth-table test `the two halves are independent`;
+every other test is sensitive to exactly one half, so no fixture pins one
+discriminator while riding on the other. ⚠ That test is in both mutant sets
+because two of its four rows **restate** the `ALLOWLIST` and `only work that
+HAPPENED` tests. The row it was written for — out on *both* halves — adds no
+kill coverage, and is kept because a 2×2's fourth cell is what makes this a
+truth table rather than three assertions. ⚠ The both-in row is **not** dead
+weight, though an earlier version of this paragraph said it could not be killed
+at all: it is the only row that catches a flipped default (`return true` →
+`return false`), an over-broad exclusion the three exclusion rows are blind to.
+
+⚠ **TWO WAYS A SCOPE FIXTURE GOES VACUOUS.** Both were live in the first cut and
+both were found by mutation, not by reading. **This is the only copy of this
+paragraph** — the test file's header carried a second one, and the pair had to
+be corrected in lockstep three review rounds running, both wrong at the same
+time twice. The header now points here instead. **(1) A counterfactual that varies
+two things** — the return-clock fixture restamped `source` *and* filled in a
+rating together, so it proved "a rated in-app session closes the gap", which is
+true either way. **(2) An assertion that compares two implementations** — the
+`bsWeekLoad` fixture had no counterfactual at all; it used an unrated device row
+(0 AU, never the hardest, so scope-invariant on its own) and asserted
+`bsWeekLoad === bsBucketWeeks`, which holds in both worlds because removing
+scope moves the two identically. **The second is the subtler trap: an
+implementation-vs-implementation check reads as more rigorous than a literal and
+proves strictly less.** Fixed respectively by varying `source` alone, and by
+rating the row and asserting literals. The accepted cost is recorded in §13.13.
+
 **Create:** `supabase-migrations/2026-07-27-guardrail-load-history.sql` — a
-`SECURITY DEFINER` RPC returning the trailing per-week load buckets and
-qualifying-session dates for one client, gated on `is_coach_on_client`.
+`SECURITY DEFINER` RPC returning the client's **raw trailing session rows**,
+gated on `is_coach_on_client`.
+
+⚠ **AMENDED 2026-07-28 — this paragraph said "per-week load buckets" and was
+STALE.** The bucketing ruling was reversed in `SPEC-guardrails-2a-fixtures.md
+§0` and §4.1 was amended to match; **this site and §11 were not**, so a 2b
+implementer reading §9 in isolation would have built the exact SQL aggregation
+the amendment exists to prevent — the same stale-contract-site failure recorded
+in the Deploy 1 handoff. Corrected here rather than followed. See the §4.1
+**standing rule**: the core reads raw session rows only, never precomputed
+summary aggregates.
+
+**The RPC returns rows, one per session, and makes no judgement of any kind** —
+no weeks, no sums, no load, no qualifying flag. It selects, filters to the
+trailing window, and hands over exactly the six fields §4.1 names
+(`startedAtISO`, `timezone`, `durationSec`, `sessionRpe`, `durationPrompted`,
+`durationAnswer`) plus the kill-switch flag (§7.4). Every derivation — week
+membership in the client's own zone, RPE 0 as absent, an unconfirmed overrun as
+excluded, credibility against the *current* ceiling — happens in the pure core
+where §12's fixtures can reach it.
 
 Follow `get_roster_weekly_adherence` exactly: `search_path` pinned with
 `pg_temp`, every reference schema-qualified, unauthorized ids **absent** from the
 result rather than erroring, `revoke all … from public, anon` before
-`grant execute … to authenticated, service_role`. **It buckets only — it makes
-no judgement.**
+`grant execute … to authenticated, service_role`.
 
 ### 9.3 Visibility — coach-facing only, enforced at the API boundary
 
@@ -780,13 +1291,20 @@ retunable.
 - Written **server-side at publish only** — never from the builder.
   Per-keystroke evaluations would destroy the flag-rate denominators.
 - `props`: `{ state, regime, redPath, axes: [...], baselineAu, proposedAu,
-  ceilingPct, overridden, reasonCode, excludedSessionRate, redSuppressed }` —
+  ceilingPct, overridden, reasonCode, excludedSessionRate, redSuppressed,
+  adjustMode }` —
   `state` is always the **true** computed state, never the value shown to the
   coach: when the kill switch (§7.4) has downgraded a red, `state` stays `'red'`
   and `redSuppressed` is `true`. —
   `excludedSessionRate` is the share of the baseline window's sessions dropped
   for want of a session RPE, so the cost of skipping is visible at the point it
-  actually distorts a ceiling.
+  actually distorts a ceiling. —
+  **`adjustMode`** is `payload.adjustMode` when the week came from an Adjust
+  regeneration (`'deload' | 'maintain' | 'progress'`) and **null** when a coach
+  authored it directly. It is the ONLY reader of that field (§3.2b), and it
+  exists so the retune can ask **whether regenerated weeks flag differently from
+  authored ones** — a question the flag-rate bands cannot answer without it.
+  Provenance, never a judgment input: nothing in the core branches on it.
 - `props` carries **no client identifier**.
 
 **A second event, shipping earlier: `session_rpe_prompted`.** Skip rate is a
@@ -856,8 +1374,8 @@ on anything below it.
 |---|---|
 | **Create** `public/newdesign/progressionGuardrail.mjs` | The pure core, three anchor tables, the interpolation utility, the copy function |
 | **Create** `tests/progression-guardrail.test.mjs` | Fixtures per §12 |
-| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC (returning the kill-switch flag alongside the buckets, §7.4) · **and** add `guardrail_evaluated` to the `track_event` whitelist |
-| **Create** `supabase-migrations/2026-07-27-guardrail-config.sql` | Minimal app-config table holding `guardrail_red_enabled` (§7.4), seeded `true`. Service-role write; read only through the load-history RPC |
+| **Create** `supabase-migrations/2026-07-27-guardrail-load-history.sql` | Load-history RPC — **raw trailing session ROWS**, not buckets (amended 2026-07-28, see §9.2) — returning the kill-switch flag alongside them (§7.4). ⚠ **It also carries the `app_config` table + the `guardrail_red_enabled` seed** (see the row below). **Still owed by this file:** `guardrail_evaluated` on the `track_event` whitelist — deferred with the telemetry work, NOT delivered by the foundation commit |
+| ~~**Create** `supabase-migrations/2026-07-27-guardrail-config.sql`~~ | ⚠ **SUPERSEDED 2026-07-28 — DO NOT CREATE THIS FILE.** It described a second migration seeding `guardrail_red_enabled` **`true`**, which contradicts §9.4's ruling that 2b **ships advisory**. The table + seed live in the load-history migration above and are seeded **`false`**. This row survived the same stale-contract sweep that corrected §9.2 and §11's bucketing line one row up — an implementer reading §11 as the build manifest would have created a second file with the opposite seed and enforced red on day one |
 | **Modify** `supabase-migrations/` — the `ai_audit_read_own_or_coach` policy | Close the client-visibility hole in §9.3: a `guardrail_red_ack` row sets `target_user_id` to the client, so the policy's "own entries" arm would expose it to them |
 | **Modify** `src/lib/funnel.mjs` | Add `guardrail_evaluated` to `ANALYTICS_EVENTS` — the whitelist trap, second time (§10.2) |
 | **Modify** `src/app/api/trainer/workout/route.ts` | Authoritative evaluation, 409 on unacknowledged red, audit + telemetry writes |
@@ -1180,6 +1698,75 @@ the test implementing it. Amended to *"malformed — missing or unparseable
 alongside F109 / F120 / F127 / F95 as a flagged-and-ruled amendment, not a silent
 edit.
 
+### 13.11 Derived-at-read-time vs frozen-at-write-time — the test
+
+Ruled 2026-07-28, after review correctly flagged `store_catalogue` pricing as a
+persisted derived value and proposed applying §13.8's doctrine to it. **The flag
+was right; the fix would have been wrong.** Recorded here so the same reading
+does not recur and get "corrected" next time.
+
+§13.8 does not say *never persist a derived value*. It says a value that
+**interprets** data must re-derive when the interpretation rule changes —
+otherwise old records inherit a verdict nobody would reach today. That reasoning
+covers verdicts. It does not cover facts.
+
+**The test — if the rule changes, should history change?**
+
+| | Answer | Therefore |
+|---|---|---|
+| Guardrail verdicts, credibility, eligibility, measured-week status | **YES** — a retuned ceiling should re-judge old rows | Store the raw facts; derive at read time |
+| Prices paid, amounts charged, fee rates, anything transactional | **NO** — a reprice must never rewrite what a customer was charged | Freeze at write time |
+
+Both are persisted derived values. They sit on **opposite sides** of this line,
+and the line is not architectural taste — for the transactional half it is
+accounting and consumer-protection law. Re-deriving a completed order under
+today's prices would misstate revenue and misrepresent the contract the customer
+actually entered. This is the same principle already shipped as *"the stored
+`fee_bps` is the billing truth"* in the BYO commission split: every dashboard,
+analytics and refund path computes from the row's own stored rate precisely so a
+future reprice cannot rewrite history.
+
+**Scope, explicitly:** `store_catalogue` is outside the guardrail entirely.
+**Deploy 2b must not read from or write to it.** It is named here only to settle
+the classification.
+
+### 13.12 The latched clock is NOT an untestable path — the survivor is closed
+
+Deploy 1 recorded the latched completion clock as the one perturbation survivor,
+on the stated grounds that *time cannot pass in the harness*. **That was wrong,
+and the claim is withdrawn.** Both directions are now driven and both kill their
+mutation.
+
+The reasoning that produced it: effects are no-ops in
+`tests/broadsheet-session-render.test.mjs` (running them hangs the runner —
+`BSSession` starts wall-clock timers on mount), so the 1s tick never fires and
+`now` looked frozen. But **the tick is only `setNow(Date.now())`** — a state
+write. The harness already owns the state cells, so performing that same write
+directly *is* the tick, with none of the machinery that hangs. `advanceNow()`
+does exactly that, and the two paths the §13.8 note describes are now covered:
+
+| Direction | Unlatched failure | Test |
+|---|---|---|
+| under a minute → crosses 60s mid-answer | `askDuration` flips false, the field is **withdrawn under the member**, their typed figure is stored while the facts say nobody was asked | *the clock crossing a minute does not withdraw the question mid-answer* |
+| 149 min → crosses the 150-min ceiling while the screen sits | `askDuration` flips true and the prefill path **answers itself** — `confirmed`, with no member action at all | *the clock crossing the ceiling does not confirm a figure nobody was shown* |
+
+Three things worth carrying, because each cost a real defect here:
+
+1. **"The harness can't do X" deserves one attempt before it becomes a
+   recorded limitation.** The no-op-effects fact was true; the conclusion drawn
+   from it was not, and it hardened into a documented gap on the strength of
+   sounding right.
+2. **Identify a state cell by value, never by index.** `now` and `elapsedStart`
+   are *consecutive* reads but sit deep in the hook order, not at 0/1 — a
+   first-match scan finds a rest timer instead. The pair is located by the
+   offset the harness itself staged, so a hook inserted between them fails
+   loudly rather than advancing the wrong cell and silently voiding the test.
+3. **A boundary test must land STRICTLY past the boundary.** The ceiling test
+   first advanced exactly 60 s, landing *on* 150 min — and `timerImplausible`
+   is `>`, not `>=`. It crossed nothing and passed with the latch removed. Only
+   the perturbation run exposed it; the assertion looked correct in review.
+   **Run the mutation before believing a green boundary test.**
+
 ## 14. End-to-end verification
 
 Run after implementation, in order. Steps 1–2 are automated; 3–7 need a real
@@ -1262,3 +1849,205 @@ majority, amber is occasional and actionable, and red is rare enough that every
 instance is worth the coach's attention. If step 4 returns zero, none of that is
 measurable and the launch is flying blind — fix the whitelist before drawing any
 conclusion from flag rates.
+
+---
+
+### 13.13 Training outside the app understates capacity (§9.5's accepted cost)
+
+**Known, accepted, and deliberately chosen.** §9.5 puts device-imported
+sessions outside the guardrail's universe. The direct consequence: **a client
+who trains heavily outside the app has their capacity understated**, so their
+ceilings run tighter than their true fitness warrants and they will see more
+amber and red than a client doing identical work entirely in-app.
+
+This is the same shape as §13.7 (deload) and the unrated-session rule in §3.1 —
+a real cost paid by real coaches, accepted because the alternative is worse:
+
+- Counting device rows in the denominator **pins a watch-wearing client in
+  `cold_start` indefinitely by their own sync**, which is not a tighter ceiling
+  but a *wrong regime* — and cold start's per-session bounds stand in for a
+  measurement we do not have, so applying them to someone we *could* have
+  measured is strictly less honest.
+- Counting a device row's *duration* toward load without a rating means
+  imputing an RPE, which §3.2 already ruled against for exactly this reason.
+
+**It fails toward the safe direction.** Understated capacity over-flags: the
+coach is asked to acknowledge a week that was probably fine. Overstated capacity
+under-flags: the guardrail stays quiet on a week that was not. The first is
+friction; the second is the failure the guardrail exists to prevent.
+
+⚠ **The residual risk is alarm fatigue, not silence** — and it is loud rather
+than quiet, which is why it is acceptable. A client whose entire history is
+device syncs reads `no_history` and lands in `cold_start`, where a genuinely
+strong week may flag every time. That is visible in `guardrail_evaluated`
+(§10.2) from day one.
+
+**Revisit in v2 if telemetry shows it biting.** The measurable signal is the
+flag rate for clients with a connected integration versus those without; the
+state and axis already ride on `guardrail_evaluated`, so no new instrumentation
+is needed. If it is a meaningful share of reds, the first candidate is *not*
+admitting device rows to the denominator but **making them promptable** — a
+post-sync rating prompt would convert them into genuine in-app rated sessions
+and dissolve the problem at its source rather than trading one bias for another.
+
+### 13.14 A planned RPE may carry half-points; a logged one may not
+
+**Deliberate asymmetry, recorded so it is not "harmonised" later.** `plannedRpe`
+(§3.2) accepts half-points; `session_rpe` (§3) must be a whole number. Both sit
+on the same 1–10 scale, so the two rules look like a drift. They are not:
+
+- **A logged rating comes from the completion prompt, which only ever writes
+  whole numbers.** A fraction there can only be a defect, so the integer rule is
+  a real check.
+- **A coach authoring a week has no such constraint**, and half-points are a real
+  coaching convention — F45's reference athlete is planned at **RPE 7.5** and
+  must compute a load, not report a defect.
+
+Making either side match the other breaks something: forcing plans to integers
+rejects a legitimate authored week; allowing fractions on logs discards a check
+that can only ever catch a bug.
+
+⚠ **The consequence, stated so it is not mistaken for one:** `jump_vs_history`
+compares a half-point-capable proposed value against integer-only history. That
+is fine mathematically — both sides reduce to AU before the comparison — and the
+asymmetry lives in the inputs, not in the check.
+
+### 13.15 Why there is no Adjust bound — the full arc
+
+Someone will ask why the Adjust path carries no bound. This is the chain,
+in the order it happened, because each step is only defensible in light of the
+one before it.
+
+**Step 1 — RULED 2026-07-28: `max(authored, mode ceiling)`.** Adjust regeneration
+was believed to rescale the proposed week, so scoring it at its authored value
+would under-state what the regeneration could produce. The bound took the
+`progress` ceiling of **8** from the coach-facing copy's "keep RPE ≤ 8", on the
+reasoning that a ceiling is a **constraint, not a value** — deriving a point
+value from it would invent its position within the bound. It always
+over-estimated and never under-estimated, so the error direction produced false
+flags rather than missed ones.
+
+**Step 2 — REVERSED 2026-07-29 to the authored value, when `progress` turned out
+not to change effort.** Reading
+`mobile-app/src/services/adjustRegen.mjs` showed the `progress` transform is a
+2.5% bump to a free-text weight string — it adds no set and moves no RPE, so
+**sRPE = RPE × minutes does not read anything it writes**. A `progress`
+regeneration is a no-op in this metric, which means `max(authored, 8)` would
+over-state **every** progress week: a coach who authored 6 scored at 8 for a
+regeneration that left them at 6. Step 1's own justification — *"always
+over-estimates, so the error direction produces false flags rather than missed
+ones"* — stops holding once the over-estimate is **universal rather than
+occasional**. A flag that fires on every regenerated week is not a conservative
+bound; it is noise, and noise is how a guardrail gets dismissed by reflex.
+
+**Step 3 — DELETED 2026-07-29, when all three modes proved weight-string-only.**
+Checking `deload` and `maintain` closed it: every mode calls the **same**
+transform with a different scalar (`BS_ADJUST_SCALE`), `scaleExercises` spreads
+the move and overwrites **`baseL` and `load` only**, and `bsScaleLoad` returns
+the string byte-identical when the scalar is 1. So no mode changes
+`plannedMinutes`, `plannedRpe`, sets, or the session count **of a row it
+scales** — verified by running all three over a row carrying the pair. ⚠ That is
+a claim about the LOAD TRANSFORM, not about the adjustment: `adjustment.sessions`
+changes the week's row SET (it deletes and adds rows), per the row-versus-week
+distinction in §3.2b and §9.4. The two are separate mechanisms and only the
+first one is a no-op. The bound therefore **always returned its
+input**, and a mechanism that always returns its input is dead code that reads as
+a safety feature: the next reader assumes the regenerated week was checked
+against something. Deleted along with the mode-ceiling constant, the
+authored-exceeds-ceiling telemetry field, and its fixtures.
+
+**What replaced it: nothing — and nothing was needed.** A regenerated week is
+scored on its own captured pairs, exactly like an authored one; `emit()` spreads
+the row's payload forward, so **per-session capture (§3.2a) is what makes the
+path scoreable**, not a bound.
+
+**Two rules that generalize.**
+
+1. **Bound against what the code DOES, not what the copy SAYS it does.** A
+   promise in coach-facing copy is a product commitment, not a measurement, and
+   the guardrail may not treat it as one.
+2. **Check every branch before ruling on the mechanism.** Step 2 was reached by
+   reading one mode. Reading the other two dissolved the mechanism entirely — a
+   partial audit produced a defensible-but-wrong answer twice in a row.
+
+**The path is still gated (§9.4)** — for the real reason, which took its own
+correction: **not** because regeneration raises weekly load (cutting 5 sessions
+to 3 *lowers* it, and F57 never flags a decrease), but because changing the
+session count moves a week **across the core's regime boundaries** — both
+`BS_SHARE_MIN_SESSIONS` and `BS_COMPOUND_MIN_SESSIONS` sit at 3 — altering which
+axes are evaluable and which red paths can fire. Plus the republish case.
+
+**Reinstate only if the transform changes.** If Adjust is ever made to do what
+its copy promises — add a set, push RPE toward 8 — it starts writing fields sRPE
+reads and a bound becomes a live question again. The ruling today is that the
+**copy** moves, not the constants (owner, 2026-07-29).
+
+### 13.16 sRPE is blind to external load — weight progression is invisible
+
+**Known limitation, deliberate, not a defect.** The primary metric is
+`RPE × minutes`. It measures **what the session cost the athlete**, which is what
+the guardrail exists to judge. It therefore cannot see **external load**: adding
+weight to the bar at constant effort and duration produces the same figure.
+
+**The concrete consequence.** `BS_ADJUST_SCALE`'s `deload: 0.85` /
+`progress: 1.025` scale weight strings and nothing else, so **every Adjust
+intensity mode is invisible to this metric** (§13.15). More broadly, a coach who
+progresses a client purely by load — same sessions, same minutes, heavier bar —
+will never trip a volume flag no matter how far the weight climbs.
+
+**Why it is still the right metric.** sRPE is the validated construct for
+internal training load, applies across every discipline the app supports
+(including the conditioning and cardio work where external load is meaningless),
+and is computable from what the app actually captures. Adding an external-load
+axis would need a per-movement one-rep-max model the app does not have and could
+not honestly populate today.
+
+**Revisit if telemetry shows weight-driven overreaching** — sessions that never
+flag but produce the outcomes flagging is meant to prevent. The
+`guardrail_evaluated` telemetry carries state and axis, so the question is
+answerable from what already ships.
+
+⚠ **Separately, and independently of the guardrail:** `bsScaleLoad` rewrites the
+**first number** in the load string, but the load string is prose whose type was
+flattened away upstream (`loadLabel` in `public/newdesign/dashBuilderCore.js`
+turns `{loadType:'rpe', load:8}` into `"RPE 8"`). A deload therefore rewrites an
+authored **`"RPE 8"` into `"RPE 7"`** — the transform silently restating the
+coach's prescribed effort — and mis-parses ramps (`"135/155/175"`) and
+unrecognised set-count prose (`"10 sets x 3 reps @ 225 lb"` → **9 sets**). The
+`loadType: 'rpe'` case exists in production data today. This is a data-integrity
+defect in a shipped path, **not a guardrail concern**, and is registered to be
+fixed in its own change.
+
+### 13.17 §3.2a AMENDMENT — a PARTIALLY stamped week is malformed (adds F158)
+
+**Amends the fixture table** (2026-07-29, review round on Deploy 2b). The
+declaration table in §3.2a rules that `per_session` **+ some or none** of the
+pair is `malformed_week`. `bsProposedWeek` implemented only the *pair* half of
+that — `perSession.length !== rows.length` — and never checked that the
+**stamp** itself was present on every row.
+
+**The gap.** A week declaring `capture: 'per_session'` in which one session
+carried `loadCapture: 'per_session'` and the rest carried nothing, but every
+session had a complete `plannedMinutes`/`plannedRpe` pair, passed all three
+existing checks: the stamped set was non-empty, no stamp disagreed with the
+week, and no pair was missing. It was scored as an ordinary week.
+
+**Why that is wrong.** It is the identical inconsistent declaration F154
+already rejects in the other direction (rows stamped, week unstamped). A
+builder stamps the whole week or none of it; it never stamps a subset. That is
+precisely the reserved class — *a shape no legitimate writer can emit* — so
+`malformed` applies, and reading the same inconsistency two different ways
+depending on which side declared it is not a defensible boundary.
+
+**The counter-argument, and why it does not win.** Over-using `malformed` is
+the dangerous direction: one malformed row turns the whole evaluation
+`unknown`, and §7.5 rules that `unknown` never blocks publish — so a false
+malformed silently switches the guardrail OFF. That is exactly why the second
+half of F158 exists: a fully stamped week with every pair present must still
+evaluate. The guard is scoped to `0 < stamped.length < rows.length` and
+nothing else.
+
+**Fixtures added:** **F158** (partial stamp → `malformed_week`) and its
+non-regression twin (full stamp, complete pairs → still evaluates). Nothing in
+the frozen table changed value; this closes a case the table already ruled on
+and the implementation did not enforce.

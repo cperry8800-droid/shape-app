@@ -1286,12 +1286,13 @@ test('deriving a baseline does not mutate the history it was given', () => {
 // A proposed session: `P(minutes, rpe)`. Ids are stable so an incomplete row
 // can be named in the report.
 let pid = 0;
-const P = (min, rpe) => ({ id: `p${(pid += 1)}`, plannedMinutes: min, plannedRpe: rpe });
+const P = (min, rpe) => ({ id: `p${(pid += 1)}`, plannedMinutes: min, plannedRpe: rpe, loadCapture: 'per_session' });
 const proposeN = (n, min, rpe) => ({
   weekStartISO: M0,
+  capture: 'per_session',
   sessions: Array.from({ length: n }, () => P(min, rpe)),
 });
-const propose = (...rows) => ({ weekStartISO: M0, sessions: rows });
+const propose = (...rows) => ({ weekStartISO: M0, capture: 'per_session', sessions: rows });
 
 // The axes as a lookup, so a test reads by name rather than by position.
 const axesOf = (week) => {
@@ -2440,7 +2441,11 @@ test('F85 / F86 — an unreadable proposed session makes the WEEK unknown', () =
 
   assert.equal(r.state, 'unknown');
   assert.equal(r.reason, 'incomplete_week');
-  assert.deepEqual(r.issues.incompleteWeek.map((i) => [i.id, i.field]),
+  // Scoped to SESSION-level issues: this week is unstamped (the coach skipped
+  // the inputs — §3.2a's first row), so the week-level capture issue rides
+  // alongside. F85/F86 is about naming the offending SESSIONS.
+  assert.deepEqual(
+    r.issues.incompleteWeek.filter((i) => i.id !== undefined).map((i) => [i.id, i.field]),
     [['"b"', 'plannedRpe'], ['"c"', 'plannedMinutes']],
     'F85 / F86 the offending sessions are NAMED, by id and field');
   assert.deepEqual(r.issues.malformedHistory, [], 'the history was fine');
@@ -2883,8 +2888,12 @@ test('unknown gets words, not silence — and cannot be read as a pass', () => {
   assert.deepEqual(copy.axes, []);
   assert.doesNotMatch(copyStrings(copy).join(' '), /limit|threshold/i);
 
+  // UNSTAMPED on purpose: a week the coach has not finished filling in is
+  // `incomplete_week`. The same week STAMPED would be `malformed_week` (F151) —
+  // the stamp is what turns a blank into a transport bug.
   const incomplete = bsGuardrailCopy(bsProgressionGuardrail(
-    hist(GOOD_HISTORY()), propose({ id: 'x', plannedMinutes: 60 }),
+    hist(GOOD_HISTORY()),
+    { weekStartISO: M0, sessions: [{ id: 'x', plannedMinutes: 60 }] },
   ));
   assert.equal(incomplete.chip, 'NOT CHECKED');
   assert.match(incomplete.detail, /no duration or no effort target/);
@@ -2989,4 +2998,178 @@ test('a curve read does not depend on the ORDER of its anchor table', () => {
   assert.equal(bsInterpolateAnchors(a, 100), bsInterpolateAnchors(b, 100),
     'same table, different order, same read');
   assert.equal(bsInterpolateAnchors(a, 100), 10, 'and it is the tighter bound');
+});
+
+/* ── §3.2a / §5.1 — the capture stamp (F144–F157) ─────────────────────────────
+ *
+ * The load-capture stamp is what separates "the coach has not filled this in
+ * yet" from "the builder said it captured the pair and the wire lost it". The
+ * week object is authoritative; each row's `loadCapture` is asserted to agree
+ * and is never read as a second source.
+ */
+const perPlan = (n, min, rpe) => ({
+  weekStartISO: M0,
+  capture: 'per_plan',
+  sessions: Array.from({ length: n }, (_, i) => ({
+    id: `pp${i}`, plannedMinutes: min, plannedRpe: rpe, loadCapture: 'per_plan',
+  })),
+});
+const axisOf = (r, name) => (r.axes || []).find((a) => a.axis === name);
+
+test('F144: per_plan with 3 sessions — concentration is not_evaluable, volume still scores', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), perPlan(3, 45, 7));
+  const conc = axisOf(r, 'concentration');
+  assert.equal(conc.state, 'not_evaluable');
+  assert.deepEqual(conc.checks, [], 'neither share nor jump may be computed');
+  assert.ok(axisOf(r, 'volume'), 'volume still scores from sessions x (minutes x rpe)');
+  assert.equal(r.proposed.totalAu, 3 * 45 * 7);
+});
+
+test('F145: per_plan with exactly ONE session — concentration is EVALUABLE', () => {
+  const conc = axisOf(bsProgressionGuardrail(hist(GOOD_HISTORY()), perPlan(1, 45, 7)), 'concentration');
+  assert.notEqual(conc.state, 'not_evaluable', 'at one session the plan figure IS that session');
+  assert.ok(conc.checks.length > 0);
+});
+
+test('F146: per_plan with 2 sessions — not_evaluable (the boundary against F145)', () => {
+  assert.equal(axisOf(bsProgressionGuardrail(hist(GOOD_HISTORY()), perPlan(2, 45, 7)), 'concentration').state,
+    'not_evaluable');
+});
+
+test('F147: not_evaluable never compounds — a per_plan amber week stays amber', () => {
+  const r = bsResolveState(
+    [{ axis: 'volume', state: 'amber' }, { axis: 'concentration', state: 'not_evaluable' }], 5,
+  );
+  assert.equal(r.state, 'amber');
+  assert.equal(r.redPath, null);
+  assert.deepEqual(r.contributingAxes, ['volume']);
+});
+
+test('F148: not_evaluable is REPORTED, never omitted and never green', () => {
+  const conc = axisOf(bsProgressionGuardrail(hist(GOOD_HISTORY()), perPlan(3, 45, 7)), 'concentration');
+  assert.ok(conc, 'the axis must still be present so copy can name what was not measured');
+  assert.notEqual(conc.state, 'green', 'a consumer must not be able to read it as a pass');
+});
+
+test('F149: not_evaluable raises nothing on its own', () => {
+  const r = bsResolveState([{ axis: 'concentration', state: 'not_evaluable' }], 5);
+  assert.equal(r.state, 'green');
+  assert.deepEqual(r.contributingAxes, []);
+});
+
+test('F150: per_session + SOME sessions carry the pair → malformed_week', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [
+      { id: 'a', plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_session' },
+      { id: 'b', plannedMinutes: 60, loadCapture: 'per_session' },
+    ],
+  });
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F151: per_session + NONE carry the pair → malformed_week, not incomplete_week', () => {
+  const stamped = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [{ id: 'a', loadCapture: 'per_session' }, { id: 'b', loadCapture: 'per_session' }],
+  });
+  assert.equal(stamped.reason, 'malformed_week', 'the stamp turns uniform absence into a caller bug');
+  // and the SAME week unstamped is an honest blank
+  const bare = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0, sessions: [{ id: 'a' }, { id: 'b' }],
+  });
+  assert.equal(bare.reason, 'incomplete_week');
+});
+
+test('F152: per_plan + the pair missing → malformed_week', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_plan',
+    sessions: [{ id: 'a', loadCapture: 'per_plan' }, { id: 'b', loadCapture: 'per_plan' }],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F153: week stamped, rows carry no loadCapture → malformed_week', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [{ id: 'a', plannedMinutes: 60, plannedRpe: 7 }],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F154: rows stamped, week unstamped → malformed_week (the other direction)', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    sessions: [{ id: 'a', plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_session' }],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F155: week and rows DISAGREE → malformed_week, never resolved silently', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [{ id: 'a', plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_plan' }],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F156: NO stamp anywhere, pair complete → unknown/incomplete_week, NOT malformed', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    sessions: [{ id: 'a', plannedMinutes: 60, plannedRpe: 7 }],
+  });
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.reason, 'incomplete_week', 'a stamp lost in transit degrades to the SAFE direction');
+});
+
+test('F157: per_session, pair complete, row stamps agree → evaluates normally', () => {
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), proposeN(3, 45, 7));
+  assert.notEqual(r.state, 'unknown', 'the stamp check must not over-reject the happy path');
+  assert.ok(r.axes.length > 0);
+});
+
+test('F158: week stamped, only SOME rows stamped → malformed_week', () => {
+  // §13 AMENDMENT (2026-07-29, review). The table rules `per_session` + some →
+  // malformed; the code only enforced the PAIR half of that (`perSession.length
+  // !== rows.length`), so a partial stamp whose pairs were all present was
+  // scored as an ordinary week. It is the same inconsistent declaration F154
+  // already rejects in the other direction.
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [
+      { id: 'a', plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_session' },
+      { id: 'b', plannedMinutes: 60, plannedRpe: 7 },
+    ],
+  });
+  assert.equal(r.reason, 'malformed_week');
+});
+
+test('F158: a FULLY stamped week with every pair present still evaluates', () => {
+  // The guard above must not over-reject: malformed degrades to `unknown`, and
+  // `unknown` never blocks publish — so a false malformed silently switches the
+  // guardrail OFF, which is the dangerous direction.
+  const r = bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0,
+    capture: 'per_session',
+    sessions: [
+      { id: 'a', plannedMinutes: 45, plannedRpe: 7, loadCapture: 'per_session' },
+      { id: 'b', plannedMinutes: 45, plannedRpe: 7, loadCapture: 'per_session' },
+    ],
+  });
+  assert.notEqual(r.reason, 'malformed_week');
+});
+
+test('malformed_week has copy — no reason may reach a coach unmapped', () => {
+  const copy = bsGuardrailCopy(bsProgressionGuardrail(hist(GOOD_HISTORY()), {
+    weekStartISO: M0, capture: 'per_session', sessions: [{ id: 'a', loadCapture: 'per_session' }],
+  }));
+  assert.equal(copy.chip, 'NOT CHECKED');
+  assert.match(copy.detail, /did not arrive intact/);
 });

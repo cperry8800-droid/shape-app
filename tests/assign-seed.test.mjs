@@ -1,0 +1,114 @@
+// The assignment key must change when the AUTHORED assignment changes.
+//
+// WHY THIS FILE EXISTS: the publish key is a content hash, and the publish
+// route's ledger short-circuit trusts it completely — same key for this client
+// means "already delivered, don't re-merge". So a seed that misses part of the
+// authored content does not merely mint a duplicate; it makes a DIFFERENT
+// assignment answer as an old one, silently, with nothing written and nothing
+// judged.
+//
+// It shipped exactly that way: the seed hashed the block TEXT, while the
+// authored planned-load pair (`plannedMinutes` / `plannedRpe`) lives only on the
+// block OBJECT. Editing a catalogue plan's planned minutes without touching a
+// word of its text produced a byte-identical seed — and that pair is precisely
+// what SPEC-guardrails §3.2a evaluates, so the guardrail would have been reading
+// a week it never saw. Found by review (Codex) rather than by any gate here,
+// which is why the rule moved into a tested function.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { bsAssignSeed, bsAssignKey } from '../mobile-app/src/services/planOutline.mjs';
+
+const BASE = {
+  clientId: 'client-1',
+  planKey: 'plan-1',
+  planName: 'Hypertrophy · Block 1',
+  note: 'Push/pull block',
+  startISO: '2026-08-03',
+  weeks: 4,
+  time: '17:30',
+};
+/** The key exactly as the Assign page mints it: seed + the week being published. */
+const keyFor = (blocks, over = {}) =>
+  bsAssignKey(`${bsAssignSeed({ ...BASE, ...over, blocks })}\u0000${over.week || '2026-08-03'}`);
+
+const WEEK = [
+  { text: 'Mon — Upper (push)', plannedMinutes: 60, plannedRpe: 7 },
+  { text: 'Wed — Lower', plannedMinutes: 55, plannedRpe: 7 },
+];
+
+test('an edited planned-load pair mints a NEW key, though every word is unchanged', () => {
+  const edited = [{ ...WEEK[0], plannedMinutes: 75, plannedRpe: 9 }, WEEK[1]];
+  assert.deepEqual(
+    edited.map((b) => b.text),
+    WEEK.map((b) => b.text),
+    'the fixture must differ ONLY in the load pair, or it proves nothing',
+  );
+  assert.notEqual(
+    keyFor(edited),
+    keyFor(WEEK),
+    'a re-assigned plan whose load changed reused its key — the route would report it already delivered and the new load would never be judged',
+  );
+});
+
+test('either half of the pair is enough to mint a new key', () => {
+  assert.notEqual(keyFor([{ ...WEEK[0], plannedMinutes: 61 }, WEEK[1]]), keyFor(WEEK));
+  assert.notEqual(keyFor([{ ...WEEK[0], plannedRpe: 8 }, WEEK[1]]), keyFor(WEEK));
+  // Absent is not the same as present-and-equal: dropping the stamp changes what
+  // is published (an unstamped week reads `incomplete_week`), so it must re-key.
+  const { plannedRpe, ...noRpe } = WEEK[0];
+  assert.notEqual(keyFor([noRpe, WEEK[1]]), keyFor(WEEK));
+});
+
+test('a renamed plan mints a new key, though its id and blocks are unchanged', () => {
+  // The seed's plan part prefers `plan.id` — and an id is exactly what a rename
+  // through `PATCH /api/coach/plans` PRESERVES. The name is published though: the
+  // session title outright in the exercise-shaped branch, the description
+  // fallback in the others. Seeded on the id alone, re-assigning a renamed plan
+  // replayed, and the client went on reading the old title. Found by review
+  // (Codex) one round after the block-text bug — same class, one field further out.
+  assert.notEqual(
+    keyFor(WEEK, { planName: 'Hypertrophy · Block 2' }),
+    keyFor(WEEK),
+    'a renamed plan reused its key — the new title would never reach the client',
+  );
+  // The id still keys on its own, so two plans sharing a name stay apart.
+  assert.notEqual(keyFor(WEEK, { planKey: 'plan-2' }), keyFor(WEEK));
+});
+
+test('replay is preserved: an unchanged assignment keeps its key', () => {
+  // The property the whole derivation exists for — a retry, an offline drain, or
+  // a re-run after a guardrail rejection must REPLAY, not publish twice.
+  const clone = JSON.parse(JSON.stringify(WEEK));
+  assert.equal(keyFor(clone), keyFor(WEEK));
+});
+
+test('the rest of the assignment still keys', () => {
+  assert.notEqual(keyFor(WEEK, { clientId: 'client-2' }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { planKey: 'plan-2' }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { note: 'different note' }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { startISO: '2026-08-10' }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { weeks: 5 }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { time: '18:00' }), keyFor(WEEK));
+  assert.notEqual(keyFor(WEEK, { week: '2026-08-10' }), keyFor(WEEK));
+});
+
+test('a legacy string block still keys off its text', () => {
+  // Stored blocks may be bare strings, not objects. Those carry no pair — but
+  // they must still separate two different plans.
+  assert.notEqual(keyFor(['Mon — Upper', 'Wed — Lower']), keyFor(['Mon — Upper', 'Fri — Lower']));
+  assert.equal(keyFor(['Mon — Upper']), keyFor(['Mon — Upper']));
+});
+
+test('an unserialisable block degrades instead of taking the assign down', () => {
+  // A throw here would fail the coach's entire publish. Stored blocks come from
+  // JSON so this cannot happen in practice; the guard is for the day it does.
+  const circular = { text: 'Mon — Upper' };
+  circular.self = circular;
+  assert.doesNotThrow(() => bsAssignSeed({ ...BASE, blocks: [circular] }));
+  assert.match(bsAssignSeed({ ...BASE, blocks: [circular] }), /Mon — Upper/);
+});
+
+test('garbage in does not throw', () => {
+  assert.doesNotThrow(() => bsAssignSeed(null));
+  assert.doesNotThrow(() => bsAssignSeed({ blocks: 'not an array' }));
+});

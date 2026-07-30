@@ -8,6 +8,13 @@ import {
   bsWeekSpan,
   bsAssignMeal,
   bsMaterializeOutline,
+  bsPlannedMinutes,
+  bsPlannedRpe,
+  bsBlockIsSession,
+  bsAssignIso,
+  bsAssignMonday,
+  bsAssignKey,
+  bsAssignWeeks,
 } from '../mobile-app/src/services/planOutline.mjs';
 import { bsPlanPreview } from '../mobile-app/src/services/planPreview.mjs';
 
@@ -185,4 +192,239 @@ test('preview and materialize agree on a MESSY outline (duplicate + out of order
   assert.deepEqual(pv.units.map((u) => u.title), rows.map((r) => r.title), 'same titles');
   assert.equal(pv.weeks, 3);
   assert.ok(rows.every((r) => r.payload.program.weeks === 3));
+});
+
+// ── Deploy 2b: the planned-load pair (SPEC-guardrails.md §3.2a, capture design §2)
+//
+// plannedMinutes is an ENUM MAPPING over the LENGTH chip's own closed list, not
+// a parse. The hazard these fixtures pin is the one that loosens ceilings
+// silently: resolving a range by picking an end, or letting a failed mapping
+// become 0.
+
+test('bsPlannedMinutes maps the four chip values and nothing else', () => {
+  assert.equal(bsPlannedMinutes('30 min'), 30);
+  assert.equal(bsPlannedMinutes('45 min'), 45);
+  assert.equal(bsPlannedMinutes('60 min'), 60);
+  assert.equal(bsPlannedMinutes('75 min'), 75);
+});
+
+test('a RANGED length is ABSENT — never resolved to an end', () => {
+  // A 45-vs-60 resolution is a 33% swing in that session's load, silently, in
+  // the direction that loosens ceilings.
+  assert.equal(bsPlannedMinutes('45-60 minutes'), undefined);
+  assert.equal(bsPlannedMinutes('45–60 min'), undefined);
+});
+
+test('prose, empty and foreign values are ABSENT', () => {
+  for (const v of ['', '   ', 'about an hour', '45', '45 min ', 'PT45M', null, undefined, 45, {}]) {
+    assert.equal(bsPlannedMinutes(v), undefined, String(v));
+  }
+});
+
+test('a failed mapping yields ABSENT, never 0', () => {
+  // A zero-minute session scores as ZERO LOAD and reads as a rest day the coach
+  // never wrote — the single most dangerous wrong answer this function has.
+  assert.notEqual(bsPlannedMinutes('nonsense'), 0);
+  assert.equal(bsPlannedMinutes('nonsense'), undefined);
+});
+
+test('the mapping cannot be reached through the prototype chain', () => {
+  // A bare `LOOKUP[value]` would return Object.prototype.toString for
+  // 'toString'. hasOwnProperty is the reason it does not.
+  assert.equal(bsPlannedMinutes('toString'), undefined);
+  assert.equal(bsPlannedMinutes('constructor'), undefined);
+  assert.equal(bsPlannedMinutes('__proto__'), undefined);
+});
+
+test('bsPlannedRpe maps the four effort chips and nothing else', () => {
+  assert.equal(bsPlannedRpe('RPE 6'), 6);
+  assert.equal(bsPlannedRpe('RPE 9'), 9);
+  assert.equal(bsPlannedRpe('RPE 8.5'), undefined);   // not on the chip list
+  assert.equal(bsPlannedRpe('8'), undefined);
+  assert.equal(bsPlannedRpe(''), undefined);
+  assert.equal(bsPlannedRpe('__proto__'), undefined);
+});
+
+test('bsBlockIsSession is true only where a block IS a session', () => {
+  // capture design §6, read through the ONE classifier. Three surfaces already
+  // classify through planOutline and a fourth opinion is how they disagree.
+  assert.equal(bsBlockIsSession('Mon — Upper (push)'), true);
+  assert.equal(bsBlockIsSession('Week 1 — Accumulation'), true);
+  assert.equal(bsBlockIsSession('Main lift · 4×8'), false);
+  assert.equal(bsBlockIsSession('Warm-up · 8 min'), false);
+  assert.equal(bsBlockIsSession(''), false);
+  assert.equal(bsBlockIsSession(null), false);
+});
+
+test('a REST day line is not a session — nothing is scheduled to capture', () => {
+  assert.equal(bsBlockIsSession('Sun — Rest'), false);
+});
+
+// ── The week-shaped publish boundary's caller-side helpers (§9.4) ────────────
+
+test('bsAssignMonday: every day of a week resolves to the SAME Monday', () => {
+  // Mon 2026-07-27 .. Sun 2026-08-02. A session can only ride the week it
+  // actually falls in, so this is what decides which publish it joins.
+  const days = ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31', '2026-08-01', '2026-08-02'];
+  for (const d of days) {
+    const [y, m, day] = d.split('-').map(Number);
+    assert.equal(bsAssignIso(bsAssignMonday(new Date(y, m - 1, day))), '2026-07-27', d);
+  }
+  // ...and the next day starts a NEW week, or a Sunday session would be
+  // published into the week that just ended.
+  assert.equal(bsAssignIso(bsAssignMonday(new Date(2026, 7, 3))), '2026-08-03');
+});
+
+test('bsAssignMonday: a Monday is its own Monday, and the input is not mutated', () => {
+  const d = new Date(2026, 6, 27);
+  assert.equal(bsAssignIso(bsAssignMonday(d)), '2026-07-27');
+  assert.equal(bsAssignIso(d), '2026-07-27');
+});
+
+test('bsAssignKey: UUID-shaped, or the boundary rejects the whole publish', () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  // Sweep, not a single sample: the version/variant nibbles are STAMPED, but
+  // the surrounding hex is hash output — a padding slip only shows on some seeds.
+  for (let i = 0; i < 500; i += 1) {
+    const key = bsAssignKey(`client-${i} plan-${i * 7} 2026-07-${(i % 28) + 1}`);
+    assert.match(key, UUID, `seed ${i} produced ${key}`);
+  }
+  assert.match(bsAssignKey(''), UUID);
+});
+
+test('bsAssignKey: the SAME assignment always mints the same key (a retry replays)', () => {
+  // This is the whole offline-replay guarantee: an app killed mid-publish must
+  // re-derive the identical key, or the retry reads as a second publish.
+  const seed = 'coach-a plan-hypertrophy 2026-07-27';
+  assert.equal(bsAssignKey(seed), bsAssignKey(seed));
+});
+
+test('bsAssignKey: a DIFFERENT assignment mints a different key', () => {
+  // Each part of the seed must move the key — a week, a client or a start date
+  // that collides would silently publish one assignment as another.
+  const keys = new Set([
+    bsAssignKey('client-a plan-x 2026-07-27'),
+    bsAssignKey('client-b plan-x 2026-07-27'), // different client
+    bsAssignKey('client-a plan-y 2026-07-27'), // different plan
+    bsAssignKey('client-a plan-x 2026-08-03'), // different week
+  ]);
+  assert.equal(keys.size, 4);
+});
+
+test('bsAssignKey: no collisions across a realistic assignment space', () => {
+  // 20 clients x 12 plans x 8 weeks. A collision here would publish one
+  // client's week under another's key and the boundary would call it delivered.
+  const seen = new Set();
+  for (let c = 0; c < 20; c += 1) {
+    for (let p = 0; p < 12; p += 1) {
+      for (let w = 0; w < 8; w += 1) {
+        seen.add(bsAssignKey(`client-${c} plan-${p} 2026-07-${w + 1}`));
+      }
+    }
+  }
+  assert.equal(seen.size, 20 * 12 * 8);
+});
+
+// ── bsAssignWeeks: grouping + the capture stamp ─────────────────────────────
+
+const row = (iso, over = {}) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return { date: new Date(y, m - 1, d), title: `S ${iso}`, description: 'note', block: null, ...over };
+};
+const PAIR = { block: { plannedMinutes: 60, plannedRpe: 7 } };
+
+test('bsAssignWeeks: sessions group by their OWN Monday, not the first one', () => {
+  // Fri 2026-07-31 and Sat 2026-08-01 share a week; Mon 2026-08-03 starts a new
+  // one. Grouping the Monday into the first week would put it inside a replace
+  // that deletes a week it was never part of.
+  const out = bsAssignWeeks([row('2026-07-31'), row('2026-08-01'), row('2026-08-03')]);
+  assert.deepEqual(out.map(w => w.weekStartISO), ['2026-07-27', '2026-08-03']);
+  assert.equal(out[0].sessions.length, 2);
+  assert.equal(out[1].sessions.length, 1);
+});
+
+test('bsAssignWeeks: weeks come back in calendar order whatever order they arrive', () => {
+  // The boundary is called in sequence and a rejection stops the run, so the
+  // coach must be shown the EARLIEST offending week, not an arbitrary one.
+  const out = bsAssignWeeks([row('2026-08-10'), row('2026-07-27'), row('2026-08-03')]);
+  assert.deepEqual(out.map(w => w.weekStartISO), ['2026-07-27', '2026-08-03', '2026-08-10']);
+});
+
+test('bsAssignWeeks: a fully-paired week declares per_session on the week AND every session', () => {
+  const out = bsAssignWeeks([row('2026-07-27', PAIR), row('2026-07-29', PAIR)]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].capture, 'per_session');
+  for (const s of out[0].sessions) {
+    assert.equal(s.loadCapture, 'per_session');
+    assert.equal(s.plannedMinutes, 60);
+    assert.equal(s.plannedRpe, 7);
+  }
+});
+
+test('bsAssignWeeks: a PARTIALLY paired week publishes UNSTAMPED (F158)', () => {
+  // The rule this whole function exists for. A partial stamp is malformed, one
+  // malformed row makes the evaluation `unknown`, and `unknown` never blocks —
+  // so stamping here would silently switch the guardrail OFF. Unstamped reads
+  // as `incomplete_week`, which is what actually happened: a skipped field.
+  const out = bsAssignWeeks([row('2026-07-27', PAIR), row('2026-07-29')]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].capture, undefined);
+  for (const s of out[0].sessions) {
+    assert.equal(s.loadCapture, undefined);
+    assert.equal(s.plannedMinutes, undefined);
+    assert.equal(s.plannedRpe, undefined);
+  }
+});
+
+test('bsAssignWeeks: HALF a pair is not a pair — minutes without an effort is unstamped', () => {
+  const out = bsAssignWeeks([row('2026-07-27', { block: { plannedMinutes: 60 } })]);
+  assert.equal(out[0].capture, undefined);
+  assert.equal(out[0].sessions[0].plannedMinutes, undefined);
+});
+
+test('bsAssignWeeks: the stamp is decided PER WEEK, not across the assignment', () => {
+  // A coach who captured week 1 and skipped week 2 must not lose week 1's
+  // measurement, and must not have week 2 report a hole it never had.
+  const out = bsAssignWeeks([row('2026-07-27', PAIR), row('2026-08-03')]);
+  assert.equal(out[0].capture, 'per_session');
+  assert.equal(out[1].capture, undefined);
+});
+
+test('bsAssignWeeks: a null-valued pair is ABSENCE, never a zero', () => {
+  // `Number(null)` is a finite 0. Reading it as captured would invent a
+  // zero-load session and drag the client's baseline down with it.
+  const out = bsAssignWeeks([row('2026-07-27', { block: { plannedMinutes: null, plannedRpe: null } })]);
+  assert.equal(out[0].capture, undefined);
+  assert.equal(out[0].sessions[0].plannedMinutes, undefined);
+});
+
+test('bsAssignWeeks: sessions carry NO id — the boundary excludes synthesized ids from the digest', () => {
+  // An index-derived id would make a re-ordered retry hash to a different week
+  // and read as a CONFLICT rather than a replay.
+  const out = bsAssignWeeks([row('2026-07-27'), row('2026-07-29')]);
+  for (const s of out[0].sessions) assert.equal('id' in s, false);
+});
+
+test('bsAssignWeeks: basePayload merges into every session, exercises default to []', () => {
+  const out = bsAssignWeeks([row('2026-07-27'), row('2026-07-29', { exercises: [{ name: 'Squat' }] })], { time: '17:45' });
+  assert.deepEqual(out[0].sessions[0].payload, { exercises: [], time: '17:45' });
+  assert.deepEqual(out[0].sessions[1].payload, { exercises: [{ name: 'Squat' }], time: '17:45' });
+});
+
+test('bsAssignWeeks: basePayload cannot shadow the authored exercises', () => {
+  // The base is spread FIRST so authored content always wins. Spread last, any
+  // caller-supplied `exercises` key silently replaced the coach's own list — and
+  // the publish would have reported success for a session nobody authored.
+  const out = bsAssignWeeks(
+    [row('2026-07-27', { exercises: [{ name: 'Squat' }] })],
+    { time: '17:45', exercises: [{ name: 'INJECTED' }] },
+  );
+  assert.deepEqual(out[0].sessions[0].payload.exercises, [{ name: 'Squat' }]);
+  assert.equal(out[0].sessions[0].payload.time, '17:45');
+});
+
+test('bsAssignWeeks: junk in cannot produce a junk publish', () => {
+  assert.deepEqual(bsAssignWeeks(null), []);
+  assert.deepEqual(bsAssignWeeks([]), []);
+  assert.deepEqual(bsAssignWeeks([null, { date: 'nope' }, { date: new Date(NaN) }]), []);
 });
