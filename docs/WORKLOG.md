@@ -1169,8 +1169,29 @@ changelog whenever something ships.
   rather than smoothed over: a claim about a security posture is worth nothing until the
   diff is read back.
 - Verified: **1325 tests**, `tsc --noEmit` clean, CI green (Web · Mobile · gitleaks),
-  every guard mutation-checked. Open: the third migration, the reviewers on the final
-  head, and the RLS lockout above.
+  every guard mutation-checked.
+- **⚠ THE RLS LOCKOUT ABOVE IS NOW DONE** (`2026-07-31-coach-insert-lockout.sql`).
+  The owner ruled the carve-out away — *"Give the flow a date… no carve-out — the
+  wave's premise is one evaluated door"* — so `publishClientWorkout` takes a
+  `scheduledDate` and posts to `/api/trainer/workout`, and dropping
+  `trainer_insert_on_client_workouts` makes the doctrine **structural**: a future
+  surface cannot reintroduce the hole, because the database refuses a direct coach
+  insert. ⚠ It closes the unevaluated CREATE, **not every unevaluated mutation** —
+  the trainer UPDATE policy still allows an un-judged date move, and narrowing it
+  breaks Nora's undo, so that is registered rather than folded in.
+- **Review round on the final head** (`e5475481b`): a **4xx was reported to the coach
+  as a successful publish** — the throw was gated on `status >= 500`, so a 401/403/409
+  resolved to `status:'accepted'`; `bsAdjustProposedWeeks` **failed OPEN** on a missing
+  `todayISO` (zero evaluations reads as nothing to block); `weekRequestHash` tie-broke
+  on the **synthesized** id while hashing `id: null`, so two same-day id-less sessions
+  hashed by submission order and published **twice**; `pg_temp` unpinned on two
+  definers (unlisted, it is searched FIRST — ahead of `pg_catalog`); an **unordered
+  `.limit(400)`** could truncate the current week away; and both the drain and
+  `dashBuilder` **swallowed the guardrail's reason**. Suite **1329**.
+- **Open:** the three migrations in order (⚠ `2026-07-30-adjust-regeneration-ack.sql`
+  needs a **RE-RUN**; the lockout goes **last, after deploy**) · CodeRabbit + Codex on
+  the final head · the owner's say. Handoff:
+  **[`docs/HANDOFF-2026-07-30.md`](HANDOFF-2026-07-30.md)**.
 
 ### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)
 
