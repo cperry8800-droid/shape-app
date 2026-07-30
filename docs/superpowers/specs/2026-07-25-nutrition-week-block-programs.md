@@ -23,7 +23,7 @@ signal, not this paragraph.
 | Track | State |
 | --- | --- |
 | **C0** — stop the fabrication | ✓ **SHIPPED** (#1836) |
-| **C1a** — per-DAY menus (the builder authors a different day) | → **IN FLIGHT, not clear to build against yet.** Delivery has MERGED (#1840 — `bsPlanWeek` resolves `detail.days` for Assign and the paid preview); the storage contract is still in review (#1839) and the authoring half is open (#1843). Until #1839 lands, `2026-07-26-per-day-menu-contract.md` is not on `main` and nothing can be validated against it — so treat C1a as owned, not as available to depend on |
+| **C1a** — per-DAY menus (the builder authors a different day) | ✓ **SHIPPED, COMPLETE.** All three halves merged: storage contract #1839, delivery #1840 (`bsPlanWeek` resolves `detail.days` for Assign and the paid preview), authoring #1843. `docs/superpowers/specs/2026-07-26-per-day-menu-contract.md` is on `main` and is the thing to build against. ⚠ This row read “IN FLIGHT, not clear to build against yet” until 2026-07-30 — stale by four days, and this table declares itself the authority, which made it the artifact most likely to misdirect the next build. |
 | **C1b** — make the ✦ AI DRAFT real | × **blocked on the AI contract** (below) |
 | **C2 / C3** — multi-week rows, precedence, labelling | × **blocked on E** (C2's end-of-program rule needs a term to end) |
 | **E** — the entitlement layer | × **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
