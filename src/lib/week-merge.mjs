@@ -17,12 +17,30 @@
 //
 // Pure: no I/O, no clock reads. `todayISO` is an input.
 
-/** A stored payload's planned pair, or undefined — never coerced. */
-function pairOf(payload) {
-  const p = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+/**
+ * A session's planned pair, or undefined — never coerced.
+ *
+ * ⚠ TOP LEVEL FIRST, THEN THE PAYLOAD. The two callers hand this two different
+ * shapes and both are legitimate: a stored `client_workouts` row keeps the pair
+ * inside `payload`, while `normalizeWeekRequest` type-checks it onto the TOP
+ * LEVEL of every session it emits. Reading `payload` alone stripped the pair off
+ * each NEWLY AUTHORED session on its way through the merge, so `capture`
+ * recomputed as undefined and the primary mobile assignment path published
+ * `incomplete_week` → `unknown` — a week that is never judged. §7.5 rules that
+ * `unknown` never blocks, so that is the guardrail switching ITSELF OFF, which is
+ * the one direction the wave exists to prevent.
+ *
+ * Neither source is coerced. `Number.isFinite` gates both, so a wire-shape bug
+ * still reads as ABSENT rather than as a plausible number — the §3.2a rule that
+ * a missing stamp degrades safe while a laundered one does not.
+ */
+function pairFrom(session) {
+  const s = session && typeof session === 'object' && !Array.isArray(session) ? session : {};
+  const p = s.payload && typeof s.payload === 'object' && !Array.isArray(s.payload) ? s.payload : {};
+  const pick = (top, inner) => (Number.isFinite(top) ? top : Number.isFinite(inner) ? inner : undefined);
   return {
-    plannedMinutes: Number.isFinite(p.plannedMinutes) ? p.plannedMinutes : undefined,
-    plannedRpe: Number.isFinite(p.plannedRpe) ? p.plannedRpe : undefined,
+    plannedMinutes: pick(s.plannedMinutes, p.plannedMinutes),
+    plannedRpe: pick(s.plannedRpe, p.plannedRpe),
   };
 }
 
@@ -72,7 +90,9 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
     const iso = String(r.scheduled_date == null ? '' : r.scheduled_date).slice(0, 10);
     if (!inWeek(iso)) continue;
     if (!isFuture(iso)) { skippedPast += 1; continue; }
-    const { plannedMinutes, plannedRpe } = pairOf(r.payload);
+    // A DB row carries no top-level pair (the select is id/title/description/
+    // kind/scheduled_date/payload), so this resolves through the payload.
+    const { plannedMinutes, plannedRpe } = pairFrom(r);
     kept.push({
       title: String(r.title == null ? '' : r.title).trim() || 'Workout',
       description: typeof r.description === 'string' ? r.description : '',
@@ -94,7 +114,11 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
     if (!s || typeof s !== 'object') continue;
     const iso = String(s.scheduledDate == null ? '' : s.scheduledDate).slice(0, 10);
     if (!inWeek(iso)) continue;
-    const { plannedMinutes, plannedRpe } = pairOf(s.payload);
+    // An incoming session is normalize-shaped: the pair rides on the TOP LEVEL.
+    // The caller's per-session `loadCapture` is deliberately NOT read — the week
+    // stamp is derived below from what the merged week actually carries, because
+    // letting a caller's claim ride over the merge is F158.
+    const { plannedMinutes, plannedRpe } = pairFrom(s);
     const next = {
       title: String(s.title == null ? '' : s.title).trim() || 'Workout',
       description: typeof s.description === 'string' ? s.description : '',

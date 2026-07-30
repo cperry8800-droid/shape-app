@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bsMergeWeekSessions, bsWeekStartOf, bsGroupByWeek } from '../src/lib/week-merge.mjs';
+import { normalizeWeekRequest } from '../src/lib/week-publish.mjs';
 
 // Mon 2026-08-03 .. Sun 2026-08-09; "today" is the Monday.
 const WEEK = '2026-08-03';
@@ -106,6 +107,56 @@ test('merge: a fully-paired merged week declares per_session', () => {
     assert.equal(s.loadCapture, 'per_session');
     assert.equal(s.plannedMinutes, 60);
   }
+});
+
+test('merge: the pair survives a NORMALIZE-SHAPED incoming session', () => {
+  // ⚠ THE REGRESSION THIS FILE MISSED. Every fixture above hands the merge its
+  // incoming pair inside `payload`, but that is the DB row's shape — NOT the
+  // shape `/api/trainer/week` passes. `normalizeWeekRequest` type-checks the pair
+  // onto the TOP LEVEL of each session it emits, and the merge read `payload`
+  // alone, so the primary mobile assignment path stripped every newly authored
+  // pair, recomputed `capture` as undefined, and published `incomplete_week` →
+  // `unknown` — which §7.5 says never blocks. The guardrail switching itself off.
+  //
+  // Fed the REAL normalizer output rather than a hand-written imitation of it, so
+  // the two modules' contract is pinned end to end and cannot drift apart again.
+  const norm = normalizeWeekRequest({
+    clientId: '11111111-1111-4111-8111-111111111111',
+    weekStartISO: WEEK,
+    idempotencyKey: '22222222-2222-4222-8222-222222222222',
+    capture: 'per_session',
+    sessions: [{
+      title: 'Lower', scheduledDate: '2026-08-06',
+      plannedMinutes: 60, plannedRpe: 7, loadCapture: 'per_session',
+    }],
+  }, { todayISO: TODAY });
+  assert.equal(norm.ok, true);
+  // The shape the bug depended on: pair up top, payload empty.
+  assert.equal(norm.week.sessions[0].plannedMinutes, 60);
+  assert.deepEqual(norm.week.sessions[0].payload, {});
+
+  const out = bsMergeWeekSessions([], norm.week.sessions, opts);
+  assert.equal(out.capture, 'per_session');
+  assert.equal(out.sessions[0].plannedMinutes, 60);
+  assert.equal(out.sessions[0].plannedRpe, 7);
+  assert.equal(out.sessions[0].loadCapture, 'per_session');
+});
+
+test('merge: a top-level pair wins over a stale one in the payload', () => {
+  // Both shapes can arrive on one object once a normalized session carries a
+  // payload of its own. The normalizer's type-checked value is the authored one.
+  const out = bsMergeWeekSessions(
+    [],
+    [{
+      title: 'Lower', kind: 'custom', scheduledDate: '2026-08-06',
+      plannedMinutes: 75, plannedRpe: 8,
+      payload: { plannedMinutes: 60, plannedRpe: 7 },
+    }],
+    opts,
+  );
+  assert.equal(out.capture, 'per_session');
+  assert.equal(out.sessions[0].plannedMinutes, 75);
+  assert.equal(out.sessions[0].plannedRpe, 8);
 });
 
 test('merge: a CARRIED session with no pair makes the merged week unstamped', () => {

@@ -81,15 +81,36 @@ export async function POST(request: Request) {
   }
 
   // client → the trainer row that carries that client's subscription.
+  //
+  // ⚠ AMBIGUITY IS REFUSED, NOT RESOLVED. If one owner reaches the same client
+  // through two owned trainer rows, this query and the RPC's `limit 1` are BOTH
+  // unordered, and nothing in the subscriptions schema prevents the case — so
+  // picking "the first row" here would still be picking independently of what the
+  // RPC picks. When they disagree the read set and the verified set differ, every
+  // retry raises 40001, and the coach is told the week keeps changing while
+  // nothing touches it. Refusing is the only answer that cannot be silently
+  // wrong; the state is a data anomaly for ops, not something to guess through.
   const trainerIdByClient = new Map<string, unknown>();
+  const ambiguous = new Set<string>();
   for (const s of (subs ?? []) as Array<{ client_id: unknown; provider_id: unknown }>) {
     const cid = String(s.client_id);
-    if (!trainerIdByClient.has(cid)) trainerIdByClient.set(cid, s.provider_id);
+    const prev = trainerIdByClient.get(cid);
+    if (prev === undefined) trainerIdByClient.set(cid, s.provider_id);
+    else if (String(prev) !== String(s.provider_id)) ambiguous.add(cid);
   }
 
   const activeIds = [...trainerIdByClient.keys()];
   if (unauthorizedAssignTargets(clientIds, activeIds).length) {
     return NextResponse.json({ error: 'You can only assign workouts to your own active clients.' }, { status: 403 });
+  }
+  if (clientIds.some((id) => ambiguous.has(String(id)))) {
+    return NextResponse.json(
+      {
+        error: 'This client is linked to you through more than one coaching profile. Support needs to merge them before you can publish.',
+        reason: 'ambiguous_provider',
+      },
+      { status: 409 },
+    );
   }
 
   // publish_client_week is service-role only and takes the coach as an argument
@@ -113,6 +134,39 @@ export async function POST(request: Request) {
   // one shared implementation — including the concurrency precondition, so two
   // assignments into one client-week cannot silently overwrite each other.
   for (const clientId of clientIds) {
+    // ⚠ A DELIVERED KEY IS RESOLVED BEFORE THE WEEK IS REBUILT.
+    //
+    // This route's key is minted at AUTHORING time while the request hash is
+    // computed over the MERGED week. So: the publish commits, its response is
+    // lost, another assignment changes that week, and the queued retry re-merges
+    // into different content under the SAME key. The RPC then finds the ledger
+    // entry, sees a different hash, and raises `key_reused` — so the drain reports
+    // an assignment that genuinely landed as REJECTED, which is the precise class
+    // of lie this wave exists to remove.
+    //
+    // Reading the ledger first makes the replay answer itself: a claimed key for
+    // this client was already delivered, and re-merging cannot change that.
+    const { data: prior, error: priorErr } = await admin
+      .from('coach_week_publishes')
+      .select('outcome')
+      .eq('idempotency_key', week.idempotencyKey)
+      .eq('client_id', clientId)
+      .maybeSingle();
+    if (priorErr) {
+      // Never guess. Failing to read the ledger is not evidence of a first
+      // publish, and treating it as one is how a week gets published twice.
+      console.error('[shape-api] publish ledger read:', (priorErr as { message?: string }).message);
+      results.push({ clientId, status: 'error', error: 'Could not check whether this week already published. Please retry.' });
+      continue;
+    }
+    if (prior) {
+      results.push({
+        clientId,
+        status: 'already_delivered',
+        ...((prior as { outcome?: Record<string, unknown> }).outcome ?? {}),
+      });
+      continue;
+    }
     results.push(await publishMergedWeekForClient({
       supabase,
       admin,

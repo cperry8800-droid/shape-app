@@ -136,14 +136,29 @@ export async function POST(request: Request) {
   if (subsError) {
     return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   }
+  // ⚠ Ambiguity is REFUSED, not resolved — see the note in `trainer/week/route.ts`.
+  // Both this query and the RPC's `limit 1` are unordered, so guessing here would
+  // still be guessing independently of what the RPC verifies against.
   const trainerIdByClient = new Map<string, unknown>();
+  const ambiguous = new Set<string>();
   for (const s of (subs ?? []) as Array<{ client_id: unknown; provider_id: unknown }>) {
     const cid = String(s.client_id);
-    if (!trainerIdByClient.has(cid)) trainerIdByClient.set(cid, s.provider_id);
+    const prev = trainerIdByClient.get(cid);
+    if (prev === undefined) trainerIdByClient.set(cid, s.provider_id);
+    else if (String(prev) !== String(s.provider_id)) ambiguous.add(cid);
   }
   const activeIds = [...trainerIdByClient.keys()];
   if (unauthorizedAssignTargets(clientIds, activeIds).length) {
     return NextResponse.json({ error: 'You can only assign workouts to your own active clients.' }, { status: 403 });
+  }
+  if (clientIds.some((id) => ambiguous.has(String(id)))) {
+    return NextResponse.json(
+      {
+        error: 'This client is linked to you through more than one coaching profile. Support needs to merge them before you can publish.',
+        reason: 'ambiguous_provider',
+      },
+      { status: 409 },
+    );
   }
 
   const admin = createAdminClient();

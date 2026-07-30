@@ -82,16 +82,43 @@ export async function POST(request: Request) {
   if (!trainerIds.length) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
 
   const { data: subs, error: subsError } = await supabase
-    .from('subscriptions').select('client_id')
+    .from('subscriptions').select('client_id, provider_id')
     .in('provider_id', trainerIds)
     .eq('provider_role', 'trainer')
     .in('status', ['active', 'trialing']);
   if (subsError) {
     return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   }
-  const activeIds = new Set((subs ?? []).map((s) => String((s as { client_id: unknown }).client_id)));
+  // ⚠ THE PLAN READ MUST BE SCOPED TO THE ROW THE RPC WILL USE.
+  // `regenerate_client_workouts` resolves exactly ONE trainer row from the
+  // client's active subscription and rejects any delete or repeat patch belonging
+  // to another. RLS alone returns this coach's rows under EVERY owned provider
+  // row, so a client carrying legacy sessions under a second row would be planned
+  // from the combined plan and then fail every Apply with "delete set contains
+  // rows outside the regeneration scope". Ambiguity is refused for the same reason
+  // as the publish routes: both selectors are unordered, so a guess here would not
+  // agree with the RPC's guess.
+  let subscribedTrainerId: unknown;
+  let ambiguousProvider = false;
+  const activeIds = new Set<string>();
+  for (const s of (subs ?? []) as Array<{ client_id: unknown; provider_id: unknown }>) {
+    const cid = String(s.client_id);
+    activeIds.add(cid);
+    if (cid !== clientId) continue;
+    if (subscribedTrainerId === undefined) subscribedTrainerId = s.provider_id;
+    else if (String(subscribedTrainerId) !== String(s.provider_id)) ambiguousProvider = true;
+  }
   if (!activeIds.has(clientId)) {
     return NextResponse.json({ error: 'You can only adjust your own active clients.' }, { status: 403 });
+  }
+  if (ambiguousProvider) {
+    return NextResponse.json(
+      {
+        error: 'This client is linked to you through more than one coaching profile. Support needs to merge them before you can adjust their plan.',
+        reason: 'ambiguous_provider',
+      },
+      { status: 409 },
+    );
   }
 
   // The generation stamp the regenerated rows carry (row-scoped, so the display
@@ -122,7 +149,7 @@ export async function POST(request: Request) {
     .from('client_workouts')
     .select('id, title, description, kind, payload, playlist_id, scheduled_date')
     .eq('client_id', clientId)
-    .not('trainer_id', 'is', null)
+    .eq('trainer_id', subscribedTrainerId as never)
     .eq('status', 'published')
     .or(`scheduled_date.is.null,scheduled_date.gt.${todayISO}`)
     .order('scheduled_date', { ascending: true, nullsFirst: true })
