@@ -178,6 +178,55 @@ changelog whenever something ships.
 
 ## Changelog
 
+> **Latest (2026-07-30): BROKEN ACCESS CONTROL — SIX LIVE HOLES CLOSED, FOUR OF THEM
+> REACHABLE WITH NO ACCOUNT (#1851 → `789a950cf`). All three migrations applied and
+> verified against production.** An audit of all 156 API routes, 189 SECURITY DEFINER
+> functions and every RLS policy, run on the owner's instruction to "check that the
+> logged-in user actually owns the data before handing anything back". Every finding was
+> confirmed against the **production** database before write-up — grant and policy reads
+> only, no exploitation.
+>
+> **The four unauthenticated ones.** `apply_obligation_penalty`, `award_session_kept`,
+> `settle_commitment` and `get_store_credit_for` were `anon`-executable with no
+> `auth.uid()` check of any kind. With **no account**, passing a uuid harvested from
+> `community_posts.author_id`: force a score penalty onto any member, award them points,
+> force-settle their weekly stake, or read their wallet balance. ⚠ **The cause is a bug
+> class this repo had already written down and not swept:** `revoke ... from public` does
+> NOT revoke Supabase's *explicit* `anon`/`authenticated` default grants.
+> `league_assign_cohort` shipped a self-promote vulnerability for exactly this reason and
+> `2026-06-30-rpc-authz-hardening.sql` documents the rule **in its own header** — the
+> 2026-06-18 score functions were simply never retro-fitted. Writing a rule down is not the
+> same as sweeping the code that predates it.
+>
+> **`profiles` served every member's PII to any signed-in user** — `SELECT USING (true)`
+> on a table carrying `email`, `phone`, `date_of_birth`, `location`,
+> `stripe_customer_id` and `username`. One request returned all of it for the entire
+> user base. ⚠ **The obvious fix is wrong:** column privileges are ROLE-WIDE, not row-aware,
+> so revoking `email` from `authenticated` also stops a member reading their own
+> (`account/export` star-selects it). ⚠ **And there was no self-read policy in the
+> migration history at all** — `USING (true)` was quietly doing that job, so dropping it
+> alone would have locked every member out of their own profile. The shape that works:
+> self-read (net-new) + the existing coach policy + `get_display_names()` for everyone
+> else, display fields only, bounded to 200 ids, revoked from `anon`. Seven call sites
+> migrated; `public/sessions-widget.js` was the worst — a `select('*')` pulling a
+> prospect's email, phone, DOB and stripe id into a coach's browser **to render a name**.
+>
+> **Deliberately two migrations around the deploy.** As one file there is an unavoidable
+> breakage window in *either* direction: drop the policy before the code ships and the
+> migrated call sites read a policy that is gone; deploy first and they call a function that
+> does not exist. Split, there is no window. ⚠ And running the lockdown early does not
+> *error* — it makes two analytics routes render the literal string `Former client`, so a
+> broken read produces plausible copy.
+>
+> **Also closed:** a coach could sell **another coach's plan into their own payout account**
+> (`planId` and `provider_id` were two independent caller-supplied values, never bound);
+> `/api/health` returned the last four characters of `STRIPE_SECRET_KEY`
+> unauthenticated while its own header claimed "no secrets in response"; `/api/consultation`
+> put the coach's private `auth.users` email in the ICS `ORGANIZER` of a mail sent to a
+> caller-supplied address; shared-client `ack` had no entitlement gate at all.
+>
+> See the full entry below.
+
 > **Latest (2026-07-30): PROGRESSION GUARDRAILS DEPLOY 2b — ONE EVALUATED, SERIALIZED
 > DOOR FOR EVERY COACH TRAINING WRITE (#1848 → `5d7e8c08`). The wave is complete.**
 > The advisory core built in 2a now sits behind every coach-side training write, and the
@@ -1136,6 +1185,89 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-30 — Broken access control: six live holes closed (#1851 → `789a950cf`)
+
+Run on the owner's instruction: *"check broken access controls. check that the logged-in
+user actually owns the data before handing anything back"*, then *"make sure this is all
+done on website and app"*. Scope: **156 API routes, 189 SECURITY DEFINER functions, every
+RLS policy**. Six live holes; **four reachable unauthenticated**. Every finding verified
+against the **production** database before write-up.
+
+**Website and app both covered, and the reason they are covered together:** the website and
+the mobile app use the same anon key against the same database, so a DB-layer finding is a
+finding on both surfaces by construction. The mobile app needed **no code change** — every
+cross-user profile read there already goes through a definer RPC. The website did: two
+files, one of them the worst offender in the whole audit.
+
+| Hole | Reachable by | Fix |
+| --- | --- | --- |
+| 4 score RPCs `anon`-executable, no auth check | **no account** | revoked to `service_role` only |
+| `profiles` PII to any signed-in user | any member | policy swap + `get_display_names()` |
+| plan sellable into another coach's payout | any buyer | bound on `owner_id` **and** discipline |
+| `/api/health` leaked Stripe key suffixes | **no account** | admin-gated, 404 not 403 |
+| `/api/consultation` leaked coach login email | **no account** | no-reply platform organizer |
+| shared-client `ack` ungated | any member | `is_coach_on_client` + counterpart check |
+
+**Three migrations, applied and verified live:**
+
+- `2026-08-02-rpc-grant-lockdown.sql` — revoke-only, plus the `pg_temp` pin on
+  `is_coach_on_client`. Its `DO` block aborts if any function is still reachable **or if
+  `service_role` LOST execute**, which would have killed the score cron silently.
+- `2026-08-03-profiles-display-names.sql` — additive only; creates the resolver.
+- `2026-08-04-profiles-pii-lockdown.sql` — the policy swap, run **after** the deploy.
+
+Verified after the owner ran the last one: `0` unconditional read policies on `profiles`,
+`0` policies granting `anon` any read of it, RLS on, exactly two read paths surviving
+(self + coach), all four RPCs `anon=f authenticated=f service_role=t`.
+
+**What the audit found SOUND**, recorded so it is not re-audited from scratch: **every table
+has RLS enabled** — zero gaps. The coach↔client boundary is genuinely well built —
+`is_coach_on_client` keys off `auth.uid()` **and** an active subscription, so a lapsed sub
+revokes access. The guardrail RPCs are service-role-only with in-body re-verification plus a
+migration guard. The OAuth callback validates `state` and takes the user id from an httpOnly
+cookie, closing account-linking CSRF. ~40 routes came back correctly gated.
+
+**Review, and the two findings that mattered most — both against my own work:**
+
+- **Codex, round 2:** a dual-role owner could still cross a plan into the wrong *discipline*.
+  Binding on `owner_id` closed the cross-**coach** case, but my own comment named the
+  reason — "one owner may hold both a trainer and a nutritionist row" — without following it
+  to the consequence that `owner_id` then matches through **both**. Five things keyed off
+  the caller-chosen role: store-credit kind, the capacity gate, `transfer_data.destination`,
+  the BYO fee rate, and the `provider_role` the webhook records. The database already
+  declares the mapping twice, identically —
+  `case when cp.kind = 'meal_plan' then 'nutritionist' else 'trainer' end` — so the fix is
+  enforcing what the server already says.
+- **CodeRabbit:** all five migrated call sites destructured `{ data }` and **discarded the
+  RPC error**. Two of them carry a comment *I wrote* saying "this failed SILENTLY, rendering
+  plausible copy for every churn row". The one signal that would tell the owner they got the
+  migration order wrong was the thing being thrown away. Fixed at all five.
+- Codex also caught the guard blind spot: `pg_policies.cmd` is `'ALL'` for a `FOR ALL`
+  policy, whose `USING` **is** what a SELECT is checked against — so a guard filtering
+  `cmd = 'SELECT'` would have certified the hole it exists to catch. Same trap as
+  `2026-07-31-coach-insert-lockout.sql`, hit twice now.
+
+**Declined with evidence:** CodeRabbit asked for the `real-providers.js` listing to be
+deleted because "there is no anonymous SELECT policy on `trainers`/`nutritionists` in the
+migrations". Literally true about the repo, wrong about the database — and it **withdrew the
+finding** on that evidence. It did surface something real by accident, now registered below.
+
+⚠ **REGISTERED, NOT BUILT — schema drift.** `trainers public read` and
+`nutritionists public read` are live in production (`SELECT`, `{anon,authenticated}`,
+`USING (true)`) but **absent from `supabase-migrations/`**. The repo cannot reproduce the
+database's access rules for its two most public tables — a rebuild from migrations would
+produce a different security posture than production has.
+
+**Also registered, not built:** the `pg_temp` sweep across the remaining ~168 definers ·
+the shared-client `ack` counterpart check is the weaker of two options, because
+`subscriptions` RLS is client-reads-own + provider-reads-own only, so a request-scoped read
+of a counterpart's subscription returns **nothing** (which also means the shared-clients
+roster may not work at all — worth checking) · batching `get_display_names` in
+`sessions-widget.js` · **error tracking, PARKED by the owner** in favour of this work.
+
+Suite 1347 · tsc clean · CI green · Codex clean on the final head · four CodeRabbit
+findings, two fixed, one withdrawn by CodeRabbit, one deferred by agreement.
 
 ### 2026-07-29 — Progression guardrails Deploy 2b: the week-shaped publish boundary (#1848)
 
