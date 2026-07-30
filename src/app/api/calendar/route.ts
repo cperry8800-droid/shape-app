@@ -110,8 +110,19 @@ export async function GET(request: Request) {
   const sessClientIds = [...new Set((sessRows ?? []).map((s: { client_id?: string }) => s.client_id).filter(Boolean) as string[])];
   const sessNameById = new Map<string, string>();
   if (sessClientIds.length) {
-    const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', sessClientIds);
-    for (const p of profs ?? []) sessNameById.set(String(p.id), String((p.full_name ?? '').trim()) || 'Client');
+    // ⚠ A status='requested' booking is a PROSPECT — no subscription yet, so the
+    // coach read policy on `profiles` does not cover them. get_display_names
+    // returns display fields only and is not scoped to the roster.
+    const { data: profs, error: profsError } = await supabase.rpc('get_display_names', { p_ids: sessClientIds });
+    if (profsError) {
+      // A silent fall-through here renders plausible copy — the exact failure
+      // this PR exists to stop. The likeliest cause is a deploy-order mismatch:
+      // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
+      console.warn("[shape-app] calendar: get_display_names failed — every client renders as 'Client':", profsError.message);
+    }
+    for (const p of (profs ?? []) as { user_id: string; full_name: string | null }[]) {
+      sessNameById.set(String(p.user_id), String((p.full_name ?? '').trim()) || 'Client');
+    }
   }
 
   const sessions = (sessRows ?? []).map((s: {
