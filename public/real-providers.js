@@ -34,10 +34,19 @@
     }
     if (!window.shapeDb || !window.shapeDb.client) { el.innerHTML = ''; return; }
 
+    // ⚠ THIS WAS AN UNBOUNDED SCAN OF THE profiles TABLE, OFTEN SIGNED OUT.
+    //
+    // `.eq('role', role)` with no id filter returned every matching member row.
+    // It is also the wrong source: a coach's PUBLIC listing lives in the
+    // `trainers` / `nutritionists` tables (what newdesign/marketplace.jsx reads),
+    // which are public by design. `profiles` is the private account record and no
+    // longer serves other people's rows at all
+    // (2026-08-03-profiles-pii-lockdown.sql), so reading it here would return an
+    // empty list rather than a wrong one.
+    var table = role === 'trainer' ? 'trainers' : 'nutritionists';
     var res = await window.shapeDb.client
-      .from('profiles')
-      .select('id, full_name, role')
-      .eq('role', role)
+      .from(table)
+      .select('id, name')
       .order('created_at', { ascending: false });
 
     var rows = (res && res.data) || [];
@@ -59,7 +68,7 @@
 
     html += '<div class="rp-grid">';
     rows.forEach(function (p) {
-      var name = p.full_name || 'Shape ' + role;
+      var name = p.name || 'Shape ' + role;
       html +=
         '<div class="rp-card">' +
           '<div class="rp-avatar">' + initials(name) + '</div>' +

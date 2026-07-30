@@ -40,10 +40,25 @@
       : '💬 Message';
   }
 
+  // ⚠ THIS USED TO CALL getProfile(), WHICH IS A select('*') ON profiles.
+  //
+  // A session requester is a PROSPECT — no subscription — so this was only ever
+  // possible because profiles carried a USING (true) SELECT policy, and it pulled
+  // that member's email, phone, date_of_birth and stripe_customer_id into the
+  // coach's browser to render a NAME. Both are fixed: the policy is gone
+  // (2026-08-03-profiles-pii-lockdown.sql) and this asks for the display name
+  // only. Falls back to the same copy as before, so a signed-out or failed read
+  // degrades exactly as it did.
   async function fetchOtherPartyName(userId) {
-    if (!window.shapeDb) return '';
-    var p = await window.shapeDb.getProfile(userId);
-    return (p && p.full_name) || 'Shape user';
+    var db = window.shapeDb;
+    if (!db || !db.client || !userId) return '';
+    try {
+      var res = await db.client.rpc('get_display_names', { p_ids: [userId] });
+      var row = res && res.data && res.data[0];
+      return (row && row.full_name) || 'Shape user';
+    } catch (e) {
+      return 'Shape user';
+    }
   }
 
   async function renderClient(mount) {

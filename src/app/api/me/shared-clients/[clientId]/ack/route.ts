@@ -29,6 +29,21 @@ export async function POST(
     return NextResponse.json({ error: 'counterpartUserId required.' }, { status: 400 });
   }
 
+  // ⚠ ENTITLEMENT, NOT JUST AUTHENTICATION.
+  //
+  // The RLS policy on shared_client_acks pins only `coach_user_id = auth.uid()`;
+  // it says nothing about client_id or counterpart_user_id. So ANY signed-in
+  // account — not even a coach — could write rows naming arbitrary uuids. Both
+  // columns are FKs to auth.users, which also made this an account-EXISTENCE
+  // oracle: a real uuid returned 200, a fake one 500 on the FK violation.
+  //
+  // Fails CLOSED on an RPC error: `!== true` catches null and undefined, so a
+  // failed check denies rather than waves through.
+  const { data: onClient } = await supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  if (onClient !== true) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
+  }
+
   const { error } = await supabase.from('shared_client_acks').upsert({
     coach_user_id: user.id,
     client_id: clientId,

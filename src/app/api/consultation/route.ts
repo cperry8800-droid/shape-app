@@ -12,6 +12,10 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
 import { buildIcs, sendEmail } from '@/lib/email';
+
+// The calendar ORGANIZER shown to whoever requested the booking. A no-reply
+// platform identity, never a person's private account address.
+const ORGANIZER_EMAIL = process.env.CALENDAR_ORGANIZER_EMAIL || 'no-reply@theshapecommunity.com';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
 
@@ -196,7 +200,18 @@ export async function POST(req: NextRequest) {
           durationMin: 15,
           summary,
           description,
-          organizerEmail: coachEmail,
+          // ⚠ NOT the coach's private account email.
+          //
+          // This ICS is attached to the mail sent to `clientEmail` — an address
+          // the CALLER supplies, on a route with no authentication. Putting the
+          // coach's auth.users email in ORGANIZER meant anyone could POST a
+          // booking with their own address, receive the invite, and read that
+          // coach's login email out of it. Iterate providerId and you harvest
+          // every coach on the platform.
+          //
+          // The coach still gets their own copy addressed to coachEmail below;
+          // it just never travels to a stranger.
+          organizerEmail: ORGANIZER_EMAIL,
           organizerName: provider.name,
           attendeeEmail: clientEmail,
           attendeeName: clientName,

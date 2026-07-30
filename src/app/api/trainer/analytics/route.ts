@@ -59,8 +59,15 @@ export async function GET() {
   const churnIds = (churnRows ?? []).map((r) => r.client_id).filter(Boolean);
   const churnNames = new Map<string, string>();
   if (churnIds.length) {
-    const { data } = await supabase.from('profiles').select('id, full_name').in('id', churnIds);
-    for (const r of data ?? []) churnNames.set(String(r.id), String(r.full_name ?? '').trim());
+    // ⚠ A CHURNED CLIENT IS OUTSIDE THE COACH POLICY BY DEFINITION. It scopes to
+    // status in ('active','trialing'), and these rows come from status='canceled'.
+    // Reading `profiles` directly returned nothing once the USING (true) policy
+    // was dropped, and the fallback below is the literal string 'Former client' —
+    // so this failed SILENTLY, rendering plausible copy for every churn row.
+    const { data } = await supabase.rpc('get_display_names', { p_ids: churnIds });
+    for (const r of (data ?? []) as { user_id: string; full_name: string | null }[]) {
+      churnNames.set(String(r.user_id), String(r.full_name ?? '').trim());
+    }
   }
   const churn = (churnRows ?? []).map((r) => ({
     name: churnNames.get(String(r.client_id)) || 'Former client',

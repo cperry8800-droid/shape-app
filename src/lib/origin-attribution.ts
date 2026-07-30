@@ -90,8 +90,15 @@ export async function buildOriginFeed(
     ),
   ];
   if (otpMissing.length) {
-    const { data } = await supabase.from('profiles').select('id, full_name').in('id', otpMissing);
-    for (const r of data ?? []) activeNames.set(String(r.id), String(r.full_name ?? '').trim());
+    // ⚠ NOT a profiles table read. `profiles` no longer exposes other members'
+    // rows (it carried email/phone/DOB/stripe_customer_id behind a USING (true)
+    // SELECT policy). get_display_names is the definer that returns display
+    // fields ONLY, and these ids are deliberately outside the coach policy's
+    // active/trialing scope, so the table would return nothing here.
+    const { data } = await supabase.rpc('get_display_names', { p_ids: otpMissing });
+    for (const r of (data ?? []) as { user_id: string; full_name: string | null }[]) {
+      activeNames.set(String(r.user_id), String(r.full_name ?? '').trim());
+    }
   }
 
   const row = (r: OriginSourceRow, kind: OriginFeedRow['kind']): OriginFeedRow => ({
