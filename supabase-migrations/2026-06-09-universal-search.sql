@@ -6,6 +6,10 @@
 -- cards); the photo is withheld — and bio/goal keywords are NOT matched — for
 -- accounts whose profile visibility is 'private'. Idempotent — safe to re-run.
 
+-- ⚠ SUPERSEDED for this function by 2026-08-05-search-pattern-hardening.sql
+--   (clamps the term to 80 chars, escapes LIKE metacharacters, pins pg_temp).
+--   This is `create or replace`, so RE-RUNNING THIS FILE SILENTLY REVERTS that
+--   hardening. Apply the 2026-08-05 file again afterwards if you ever do.
 create or replace function public.search_shape_people(p_q text default '', p_limit int default 20)
 returns table (id uuid, full_name text, role text, avatar text, points bigint)
 language sql stable security definer set search_path = public as $$

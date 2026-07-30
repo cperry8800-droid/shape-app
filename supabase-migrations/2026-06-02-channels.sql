@@ -134,6 +134,10 @@ grant execute on function public.create_channel(text, text) to authenticated;
 
 -- member directory search for the "add people" picker (returns only id + name,
 -- never emails) so a host can add other Shape members to a channel.
+-- ⚠ SUPERSEDED for this function by 2026-08-05-search-pattern-hardening.sql
+--   (clamps the term to 80 chars, escapes LIKE metacharacters, pins pg_temp).
+--   This is `create or replace`, so RE-RUNNING THIS FILE SILENTLY REVERTS that
+--   hardening. Apply the 2026-08-05 file again afterwards if you ever do.
 create or replace function public.search_members(p_q text default '')
 returns table (id uuid, full_name text)
 language sql stable security definer set search_path = public as $$
