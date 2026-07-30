@@ -48,6 +48,10 @@ grant execute on function public.get_email_for_username(text) to anon, authentic
 
 -- Universal search also matches the new username (alongside name, the
 -- client_identity @handle, and non-private bio/goal keywords).
+-- ⚠ SUPERSEDED for this function by 2026-08-05-search-pattern-hardening.sql
+--   (clamps the term to 80 chars, escapes LIKE metacharacters, pins pg_temp).
+--   This is `create or replace`, so RE-RUNNING THIS FILE SILENTLY REVERTS that
+--   hardening. Apply the 2026-08-05 file again afterwards if you ever do.
 create or replace function public.search_shape_people(p_q text default '', p_limit int default 20)
 returns table (id uuid, full_name text, role text, avatar text, points bigint)
 language sql stable security definer set search_path = public as $$
