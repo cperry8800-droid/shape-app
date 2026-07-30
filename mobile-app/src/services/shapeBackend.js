@@ -1476,9 +1476,18 @@ async function postWeek(body) {
   });
   let d = {};
   try { d = await res.json(); } catch (e) { /* a body-less error still has a status */ }
-  if (!res.ok && res.status >= 500 && !d.results) {
-    // A 5xx with no per-client detail is the server failing, not judging. It is
-    // still an ANSWER — classified as a rejection, surfaced, never absorbed.
+  if (!res.ok && !d.results) {
+    // A non-2xx with no per-client detail is the server REFUSING or FAILING —
+    // never a verdict. It is still an ANSWER: classified as a rejection,
+    // surfaced, never absorbed.
+    //
+    // ⚠ DO NOT narrow this to 5xx. Every 4xx the boundary can return arrives
+    // without `results` — 400 (the week failed validation), 401 (the session
+    // expired), 403 (RLS refused), 409 (a precondition moved) — and letting one
+    // fall through resolves `results = []` → `rejected = []` → `status:
+    // 'accepted'`, which tells the coach the week landed when the boundary
+    // never even read it. That is the single worst thing this file can do: the
+    // whole wave exists so a refusal reaches the coach by name.
     throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
   }
   const results = Array.isArray(d.results) ? d.results : [];
@@ -1579,15 +1588,47 @@ if (typeof window !== 'undefined' && window.addEventListener) {
 }
 
 async function drainAssignmentQueue() {
-  const started = bsPruneQueue(readAssignQueue(), { now: Date.now() }).kept;
-  if (!started.length) return { sent: 0, rejections: [], held: [] };
+  const pruned = bsPruneQueue(readAssignQueue(), { now: Date.now() });
+  const started = pruned.kept;
+  if (!started.length) return { sent: 0, rejections: [], held: [], dropped: pruned.dropped };
   const out = await bsReplayQueue(started, {
     write: (p) => postWeek(p),
     online: bsIsOnline(),
   });
   const merged = bsMergeAfterDrain(started, out.held, readAssignQueue());
   const persisted = writeAssignQueue(merged);
-  return { ...out, persisted };
+  const result = { ...out, dropped: pruned.dropped, persisted };
+
+  // ⚠ A DRAIN MUST NOT ABSORB THE SERVER'S ANSWER. Both triggers are
+  // fire-and-forget (session resolve, the `online` event), so without this the
+  // outcome went nowhere: a held week the guardrail REFUSES on replay, or that
+  // RLS refuses, was dropped from the queue in total silence — after the coach
+  // had been told in those words that it was queued and would publish. That is
+  // the same failure the drain was built to fix, one level up.
+  //
+  // Rejections and cap/age evictions are both work a human is waiting on, so
+  // they are announced on the house event convention (any mounted surface can
+  // toast them) AND logged, so they are never merely invisible.
+  //
+  // ⚠ Owner scoping is deliberately NOT re-added here. This module removed
+  // client-side owner partitioning on purpose — it was one of the heuristics
+  // that drifted across three review rounds — and `publish_client_week`
+  // re-verifies the coach server-side. A week replayed under a different
+  // account is refused there, and that refusal now SURFACES instead of
+  // vanishing, which is the part that was missing.
+  if (result.rejections.length || (result.dropped && result.dropped.length)) {
+    try {
+      console.error('[shape] held weeks not delivered:', {
+        rejected: result.rejections.length,
+        dropped: (result.dropped || []).length,
+        reasons: result.rejections.map((r) => r && r.reason).filter(Boolean),
+      });
+    } catch (e) {}
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('shape:assignDrain', { detail: result }));
+  } catch (e) {}
+  return result;
 }
 
 // ─── Self-authored training ──────────────────────────────────────────────────

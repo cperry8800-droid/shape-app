@@ -3939,6 +3939,17 @@
     // Publishing to your own profile (a catalogue entry, nobody's week) and
     // saving a draft are unchanged and still need no date.
     if (!workout.date) { if (typeof showToast === 'function') showToast('Pick a session date — a workout has to land on a day to be sent.'); return; }
+    // ⚠ The `min` attribute is an AFFORDANCE, NOT A GATE — this button reads
+    // `.value` directly, so a typed or pasted past date still gets here. The
+    // boundary refuses a past-dated week outright (it would replace a week that
+    // may already have been logged against) and reports it as a generic failure
+    // the coach is told to "retry" — advice that can never work. Refuse it here
+    // instead, on the SAME UTC day the boundary compares against, with a
+    // sentence a coach can act on.
+    if (workout.date < new Date().toISOString().slice(0, 10)) {
+      if (typeof showToast === 'function') showToast('That date has already passed — pick today or a day ahead.');
+      return;
+    }
     workout.status = 'Published';
     wbCoreSave(workout);
     // Deliver through the evaluated boundary (`/api/trainer/workout`), which
@@ -3956,6 +3967,18 @@
         var payload = JSON.parse(JSON.stringify(workout));
         delete payload.client; delete payload.clientId; delete payload.playlistId;
         delete payload.status; delete payload.id; delete payload.createdAt; delete payload.updatedAt;
+        delete payload.date;
+        // ⚠ Drop the base64 file BODIES. Nothing on the client ever read them,
+        // and base64 inflates a file ~33% — so a coach attaching a 2 MB PDF
+        // would blow the API's 1 MB JSON body cap and could not deliver the
+        // workout at all (this used to bypass our API and write PostgREST
+        // directly, so the cap is new exposure). Name/type/size stay, so the
+        // record is still truthful about what was attached.
+        if (Array.isArray(payload.files)) {
+          payload.files = payload.files.map(function (f) {
+            return { name: f.name, type: f.type, size: f.size };
+          });
+        }
         var res = await window.shapeDb.assignClientWorkout({
           clientId: workout.clientId,
           title: workout.name,

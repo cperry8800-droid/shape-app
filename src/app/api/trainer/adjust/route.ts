@@ -93,12 +93,29 @@ export async function POST(request: Request) {
   } catch { /* first generation */ }
 
   // RLS scopes this to the caller's OWN authored rows for this client.
+  //
+  // ⚠ THE CAP MUST ONLY EVER TRIM THE FAR TAIL. An unordered `.limit(400)` gets
+  // an ARBITRARY 400 rows — Postgres guarantees no order without ORDER BY — so a
+  // client with a long history could have their CURRENT and upcoming weeks
+  // truncated away, and the regeneration would then rewrite and delete against a
+  // partial view of the plan. 400 rows is reachable: three saved 26-week programs
+  // at 5 days each is 390. This is the same defect the self-plans RPC shipped and
+  // fixed by windowing to relevance.
+  //
+  // The window is the PLANNER'S OWN SCOPE, not a new rule: `bsAdjustRegen`
+  // operates on the strict future (`scheduled_date > todayISO`) plus undated
+  // weekly-repeat sources, and `bsAdjustProposedWeeks` excludes past rows too. So
+  // reading exactly that set removes nothing either module would have looked at.
+  // Undated repeats sort FIRST (they are never trimmed), then the nearest dated
+  // sessions — so the cap can only drop the far end of a long program.
   const { data: rows, error: readErr } = await supabase
     .from('client_workouts')
     .select('id, title, description, kind, payload, playlist_id, scheduled_date')
     .eq('client_id', clientId)
     .not('trainer_id', 'is', null)
     .eq('status', 'published')
+    .or(`scheduled_date.is.null,scheduled_date.gt.${todayISO}`)
+    .order('scheduled_date', { ascending: true, nullsFirst: true })
     .limit(400);
   if (readErr) {
     return NextResponse.json({ error: "Could not read this client's plan. Please retry." }, { status: 500 });

@@ -59,7 +59,20 @@ export function bsAdjustProposedWeeks({ rows, plan, todayISO } = {}) {
   const p = plan && typeof plan === 'object' && !Array.isArray(plan) ? plan : {};
   const inserts = Array.isArray(p.inserts) ? p.inserts : [];
   const deleteIds = Array.isArray(p.deleteIds) ? p.deleteIds : [];
-  if (!todayISO) return [];
+  // ⚠ AN ABSENT WINDOW REFUSES; IT DOES NOT ANSWER "no weeks" (CWE-863).
+  // The caller owns the clock so every pure module in one regeneration judges
+  // against the same day — that part is deliberate and unchanged. What changed
+  // is the fail direction: returning `[]` here was indistinguishable from "this
+  // plan affects no week", so the guardrail got ZERO evaluations, found no red,
+  // and the regeneration published unevaluated. A gate handed nothing to judge
+  // does not hold — it opens.
+  //
+  // This is also a caller bug by construction (the route derives `todayISO`
+  // itself), which is precisely the class the house rule reserves a hard failure
+  // for: a shape no legitimate writer can emit.
+  if (typeof todayISO !== 'string' || !todayISO.trim()) {
+    throw new Error('bsAdjustProposedWeeks: todayISO is required — refusing to propose an unevaluated week.');
+  }
 
   const deleted = new Set(deleteIds.map((id) => String(id)));
   const surviving = all.filter((r) => !deleted.has(String(r.id)));

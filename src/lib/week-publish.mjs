@@ -225,9 +225,11 @@ function canon(v) {
  * stored payload) are hashed, and why the acknowledgment is too: it is legally
  * material under §10.1 and must never be swapped under a delivered key.
  *
- * Order-independent by construction: sessions are sorted by (date, id), and
- * `canon` sorts object keys — so a builder that reorders its own list, or a
- * payload rebuilt in a different key order, is a REPLAY rather than a conflict.
+ * Order-independent by construction: sessions are sorted by (date, then their
+ * own canonical form), and `canon` sorts object keys — so a builder that
+ * reorders its own list, or a payload rebuilt in a different key order, is a
+ * REPLAY rather than a conflict. The sort runs AFTER the per-session projection
+ * so it can only ever depend on bytes that are actually hashed.
  *
  * SHA-256, not FNV-1a: a 32-bit digest is small enough that a collision is a
  * real (if unlikely) event, and a collision here does not merely reject a
@@ -237,12 +239,7 @@ function canon(v) {
  * @param {PublishWeek} week
  */
 export function weekRequestHash(clientId, week) {
-  const sessions = [...week.sessions]
-    .sort((a, b) => (
-      a.scheduledDate === b.scheduledDate
-        ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-        : (a.scheduledDate < b.scheduledDate ? -1 : 1)
-    ))
+  const sessions = week.sessions
     .map((s) => ({
       // Only a REAL id is content. A remapped caller id changes which session
       // the core names as hardest, and that verdict is stored in the ledger's
@@ -258,7 +255,26 @@ export function weekRequestHash(clientId, week) {
       plannedRpe: s.plannedRpe,
       loadCapture: s.loadCapture,
       payload: s.payload || {},
-    }));
+    }))
+    // ⚠ SORT ON WHAT IS HASHED — never on the synthesized id. The map runs
+    // FIRST for exactly this reason: ordering has to be a function of the
+    // digest's own content, or the two can disagree.
+    //
+    // They did. The tie-break used to compare `s.id`, which for an id-less
+    // session is the submission INDEX wearing a name, while the digest stores
+    // `id: null`. So two sessions on the SAME day with no caller id (a two-a-day,
+    // or a lift plus a separately-authored finisher) hashed differently when the
+    // builder submitted them in the other order — the ledger read one logical
+    // week as two legitimate publishes and wrote it TWICE.
+    //
+    // Code-unit comparison, not `localeCompare`: this ordering is a
+    // cross-surface contract and locale collation varies by ICU build.
+    .sort((a, b) => {
+      if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate < b.scheduledDate ? -1 : 1;
+      const ca = canon(a);
+      const cb = canon(b);
+      return ca < cb ? -1 : ca > cb ? 1 : 0;
+    });
 
   const doc = {
     clientId: String(clientId),

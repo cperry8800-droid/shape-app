@@ -124,6 +124,38 @@ test('the hash is stable across session order', () => {
   assert.equal(a, b);
 });
 
+test('order-stability holds for TWO ID-LESS SESSIONS ON THE SAME DAY', () => {
+  // ⚠ THE CASE THE OTHER ORDER TESTS MISS. Every one of them uses sessions on
+  // DIFFERENT dates, so `scheduledDate` decides the order and the tie-break
+  // never runs. Two sessions on the SAME day with no caller id are the only
+  // shape that reaches it — and the tie-break compared the SYNTHESIZED `s${i}`
+  // id, which is the submission index wearing a name while the digest stores
+  // `id: null`. So the same logical week, submitted in the other order, hashed
+  // differently: the ledger saw two legitimate publishes instead of a replay and
+  // the week was written TWICE.
+  //
+  // A double session on one day is not exotic — it is a two-a-day, or a lift
+  // plus a conditioning finisher the coach authored as its own row.
+  const twoADay = {
+    ...OK,
+    sessions: [
+      { title: 'AM squat', scheduledDate: '2026-08-04', plannedMinutes: 60, plannedRpe: 8, loadCapture: 'per_session' },
+      { title: 'PM conditioning', scheduledDate: '2026-08-04', plannedMinutes: 30, plannedRpe: 6, loadCapture: 'per_session' },
+    ],
+  };
+  const a = weekRequestHash(CLIENT, norm(twoADay).week);
+  const b = weekRequestHash(CLIENT, norm({ ...twoADay, sessions: [twoADay.sessions[1], twoADay.sessions[0]] }).week);
+  assert.equal(a, b);
+
+  // POSITIVE CONTROL — the ordering is stable, not blind: editing one of the two
+  // same-day sessions still moves the hash.
+  const edited = weekRequestHash(CLIENT, norm({
+    ...twoADay,
+    sessions: [{ ...twoADay.sessions[0], plannedRpe: 9 }, twoADay.sessions[1]],
+  }).week);
+  assert.notEqual(a, edited);
+});
+
 test('order-stability holds WITH caller ids too', () => {
   const withIds = {
     ...OK,

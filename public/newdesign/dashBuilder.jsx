@@ -190,6 +190,11 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   });
   const [state, setState] = React.useState("");
+  // ⚠ The guardrail's REASON, kept. A 409 is the gate holding the week and it
+  // carries the sentence the coach has to act on ("this is a 40% jump on
+  // her last four weeks"); a fixed "try again" is advice that can never work,
+  // because retrying an unchanged week returns the same 409 forever.
+  const [errMsg, setErrMsg] = React.useState("");
   const queueState = (id) => { const q = (queue || []).find((r) => r.client.profile.id === id); return q ? q.state : null; };
   const dayCount = doc.weeks.reduce((s, w) => s + w.days.length, 0);
   const ids = Object.keys(picked).filter((k) => picked[k]);
@@ -197,7 +202,14 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
   const assign = async () => {
     if (!ids.length || state === "working" || state === "done") return;
     setState("working");
+    setErrMsg("");
     const rows = DashBuilder.buildAssignmentRows(doc, { id: template.id, name: template.name }, startDate);
+    // Weeks publish one at a time, so a failure partway through leaves the
+    // earlier weeks LIVE. Counting them is the difference between "nothing
+    // happened" and "three weeks landed and week four was held" — and only the
+    // second is true.
+    let landed = 0;
+    let totalWeeks = 0;
     try {
       if (live) {
         // ⚠ ONE PUBLISH PER WEEK, not per session. The boundary evaluates and
@@ -208,7 +220,9 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
         // dashBuilderCore (pure + tested) because a session bucketed into the
         // wrong week is judged against the wrong load and lands in a replace
         // that clears a week it was never part of.
-        for (const wk of DashBuilder.groupAssignmentWeeks(rows)) {
+        const weekGroups = DashBuilder.groupAssignmentWeeks(rows);
+        totalWeeks = weekGroups.length;
+        for (const wk of weekGroups) {
           const res = await fetch("/api/trainer/workout", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
@@ -227,6 +241,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
             const d = await res.json().catch(() => ({}));
             throw new Error(d.error || ("HTTP " + res.status));
           }
+          landed += 1;
         }
       }
       // Plan written → those clients leave the programming queue for this week.
@@ -239,7 +254,17 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
       } catch (e) {}
       setState("done");
       setTimeout(onClose, 1100);
-    } catch (e) { setState("error"); }
+    } catch (e) {
+      const reason = (e && e.message ? String(e.message) : "").trim();
+      // Name what actually landed. Silence here reads as "nothing was written",
+      // and the coach would re-assign the whole program on top of the weeks that
+      // already published.
+      const partial = landed > 0
+        ? "First " + landed + " of " + totalWeeks + " week" + (totalWeeks === 1 ? "" : "s") + " published. "
+        : "";
+      setErrMsg(partial + (reason || "Couldn't assign — try again."));
+      setState("error");
+    }
   };
 
   return (
@@ -271,9 +296,18 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
             {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : "Publish to " + (ids.length || 0) + " client" + (ids.length === 1 ? "" : "s")}
           </button>
           <button onClick={onClose} style={dbuBtn(false)}>Cancel</button>
-          {state === "error" && <span style={{ fontFamily: DBU_MONO, fontSize: 9, color: "#e0644b" }}>Couldn't assign — try again</span>}
           {!live && <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>DEMO · marks the queue only</span>}
         </div>
+        {state === "error" && (
+          // A guardrail reason is a SENTENCE, so it gets a line to be read on —
+          // out of the button row, where a long one would wrap the actions apart.
+          // role=alert because this is the one thing on the screen the coach must
+          // not miss.
+          <div role="alert" style={{ marginTop: 12, borderLeft: "3px solid " + DBU_RUST, paddingLeft: 11 }}>
+            <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Publish stopped</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "#f2ede4", marginTop: 3 }}>{errMsg}</div>
+          </div>
+        )}
       </div>
     </div>
   );

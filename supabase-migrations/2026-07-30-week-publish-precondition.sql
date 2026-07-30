@@ -312,6 +312,40 @@ revoke execute on function public.publish_client_week(uuid, uuid, uuid, date, te
 revoke execute on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb, uuid[]) from authenticated;
 grant  execute on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb, uuid[]) to service_role;
 
+-- ── track_event: pin pg_temp (CWE-426) ─────────────────────────────────────
+--
+-- ⚠ NOT flagged by review — found by sweeping the class after the same defect
+-- was caught on regenerate_client_workouts. `track_event` is deployed with
+-- `search_path to 'public'`, and an unlisted pg_temp is searched FIRST, ahead of
+-- even pg_catalog. Its body is fully schema-qualified and it is granted broadly
+-- BY DESIGN (it binds auth.uid() itself and drops unknown event names), so the
+-- practical exposure is small — but "small" is not the standard the rest of this
+-- wave holds, and a definer this widely callable is the wrong place to leave a
+-- shadowing surface.
+--
+-- The hardening rides HERE, in the one migration still pending, rather than in
+-- 2026-07-29 which is already applied — so it costs no extra owner re-run.
+-- Recreated verbatim from the deployed definition (whitelist included) with only
+-- the search_path changed, so re-running either file is a no-op, not a revert.
+create or replace function public.track_event(p_event text, p_props jsonb default '{}'::jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+begin
+  if p_event not in (
+    'onboarding_started','app_opened','workout_started','paywall_viewed','checkout_started',
+    'session_rpe_prompted','session_rpe_dropped',
+    'guardrail_evaluated'
+  ) then
+    return; -- silently ignore non-whitelisted names (defensive)
+  end if;
+  insert into public.analytics_events (user_id, event, props)
+  values (auth.uid(), p_event, coalesce(p_props, '{}'::jsonb));
+end;
+$function$;
+
 -- Fail the migration rather than leave a silently wrong deployment: exactly one
 -- overload must survive, it must carry the precondition argument, and NEITHER
 -- anon nor authenticated may hold EXECUTE.
@@ -339,6 +373,30 @@ begin
   end if;
   if has_function_privilege('authenticated', 'public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb, uuid[])', 'EXECUTE') then
     raise exception 'authenticated holds EXECUTE on publish_client_week — the gate is open';
+  end if;
+
+  -- The pg_temp pin, asserted rather than assumed. An unpinned definer is the
+  -- CWE-426 surface this section exists to close, and a later `create or replace`
+  -- that forgets the clause would otherwise revert it in silence.
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'track_event'
+      and 'search_path=public, pg_temp' = any(p.proconfig)
+  ) then
+    raise exception 'track_event does not pin search_path to public, pg_temp';
+  end if;
+
+  -- track_event must still ACCEPT the wave's event, or §10.2's trap is re-armed:
+  -- a dropped whitelist entry writes nothing and reports no error. Asserted by
+  -- INSPECTING the definition, never by calling it — a live call would insert a
+  -- real analytics row with a null user_id, i.e. fabricate telemetry to test that
+  -- telemetry works.
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'track_event'
+      and pg_get_functiondef(p.oid) like '%guardrail_evaluated%'
+  ) then
+    raise exception 'track_event no longer accepts guardrail_evaluated';
   end if;
 end $$;
 

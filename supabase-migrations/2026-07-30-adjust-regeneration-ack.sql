@@ -65,7 +65,13 @@ drop function if exists public.regenerate_client_workouts(uuid, uuid[], jsonb, j
 -- write to the provider row the client actually pays, which the old `limit 1`
 -- did not: an account owning two trainer rows could be approved through one and
 -- have its rows validated against the other.
-create function public.regenerate_client_workouts(
+-- ⚠ `create OR REPLACE`, not a bare `create`. This file has to be re-runnable:
+-- it was applied once already, and the search_path pin below is a correction to
+-- a deployed function. A bare `create` raises 42723 the second time, which would
+-- abort the whole migration — including the revoke/grant block that is the
+-- actual security gate. Replace keeps one canonical definition and re-asserts the
+-- grants below either way.
+create or replace function public.regenerate_client_workouts(
   p_coach_user_id uuid,
   p_client_id uuid,
   p_delete_ids uuid[] default '{}',
@@ -76,7 +82,16 @@ create function public.regenerate_client_workouts(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+-- ⚠ pg_temp MUST BE LISTED (CWE-426). Left out, it is not merely omitted — it is
+-- searched FIRST, ahead of even pg_catalog. This body calls unqualified
+-- catalog functions (`jsonb_array_elements`, aggregates, operators), so a caller
+-- could plant `pg_temp.jsonb_array_elements(jsonb)` and have it run as the
+-- function's OWNER. Naming pg_temp last puts it after `public`, where it can
+-- shadow nothing. Every table reference in here is already schema-qualified and
+-- the grant is service_role-only, so the practical exposure today is small — but
+-- it becomes live the moment that grant widens, and `public, pg_temp` is the
+-- house pin on every other definer in this wave.
+set search_path = public, pg_temp
 as $$
 declare
   v_uid uuid := p_coach_user_id;

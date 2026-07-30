@@ -187,13 +187,6 @@ test('repeat patches alone never produce a week — they can only NARROW a repea
 
 test('a garbage plan yields no weeks rather than throwing', () => {
   assert.deepEqual(bsAdjustProposedWeeks({ rows: null, plan: null, todayISO: TODAY }), []);
-  assert.deepEqual(bsAdjustProposedWeeks({}), []);
-  // A missing todayISO cannot be defaulted to a clock read — no week window
-  // exists without it, so it yields nothing rather than guessing.
-  assert.deepEqual(
-    bsAdjustProposedWeeks({ rows: [], plan: { inserts: [insert('2026-08-04', 'A')] } }),
-    [],
-  );
 
   // POSITIVE CONTROL — the same well-formed call DOES produce a week, so this
   // cannot pass against a function that returns [] unconditionally.
@@ -203,6 +196,32 @@ test('a garbage plan yields no weeks rather than throwing', () => {
     todayISO: TODAY,
   });
   assert.equal(good.length, 1);
+});
+
+test('a missing todayISO REFUSES rather than proposing zero weeks (CWE-863)', () => {
+  // ⚠ THE FAIL DIRECTION IS THE WHOLE POINT. `todayISO` cannot be defaulted to a
+  // clock read — the caller owns the clock so every pure module in one
+  // regeneration judges against the SAME day. But the previous contract answered
+  // that by returning `[]`, and `[]` is indistinguishable from "this plan
+  // affects no week": the guardrail evaluates nothing, `bsAdjustOutcome` sees no
+  // red, and the regeneration publishes UNEVALUATED. A gate handed zero
+  // evaluations does not hold — it opens.
+  //
+  // So an absent window is a REFUSAL, not an empty answer. It is also a caller
+  // bug by construction (the route derives `todayISO` itself), which is exactly
+  // the class the house rule reserves a hard failure for: a shape no legitimate
+  // writer can emit.
+  assert.throws(
+    () => bsAdjustProposedWeeks({ rows: [], plan: { inserts: [insert('2026-08-04', 'A')] } }),
+    /todayISO/,
+  );
+  // Even with nothing to propose — a caller that cannot name the day cannot be
+  // told "no weeks are affected", because that reads as an evaluated all-clear.
+  assert.throws(() => bsAdjustProposedWeeks({}), /todayISO/);
+  assert.throws(
+    () => bsAdjustProposedWeeks({ rows: [], plan: null, todayISO: '   ' }),
+    /todayISO/,
+  );
 });
 
 // ── The outcome across weeks ────────────────────────────────────────────────
