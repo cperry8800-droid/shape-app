@@ -35,6 +35,9 @@ type CheckoutBody = {
 type ProviderRow = {
   id: number;
   name: string;
+  /** The coach account behind this discipline row. Load-bearing: a purchased
+   *  plan is bound to it, so the payee and the product cannot be chosen apart. */
+  owner_id: string | null;
   price: number | null;
   session_price?: number | null;
   meal_plan_price?: number | null;
@@ -83,10 +86,13 @@ export async function POST(request: Request) {
   }
 
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
+  // owner_id is selected ONLY to bind the purchased plan to this provider below.
+  // Without it the payee and the product are two independent caller-supplied
+  // values, which is the whole bug this guard closes.
   const selectFields =
     providerRole === 'trainer'
-      ? 'id, name, price, session_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at'
-      : 'id, name, price, meal_plan_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at';
+      ? 'id, name, owner_id, price, session_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at'
+      : 'id, name, owner_id, price, meal_plan_price, stripe_account_id, stripe_account_status, at_capacity, capacity_resume_at';
   const admin = createAdminClient();
   const { data: provider, error } = await admin
     .from(table)
@@ -149,13 +155,39 @@ export async function POST(request: Request) {
     if (!/^[0-9a-f-]{36}$/i.test(planId)) {
       return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
     }
+    // ⚠ THE PLAN MUST BELONG TO THE COACH BEING PAID.
+    //
+    // `item.planId` and `coach.provider_id` arrive as two INDEPENDENT
+    // caller-supplied values: the first picks the priced product, the second
+    // picks the payout destination (`transfer_data.destination`), the capacity
+    // gate, and the BYO fee resolution. Looking the plan up by id alone let a
+    // caller pair coach B's published plan with coach A's provider row — Stripe
+    // charged B's price, A's connected account received the transfer, the
+    // webhook wrote `one_time_purchases { provider_id: A, plan_id: B }`, and
+    // `get_my_purchased_plans()` (which joins on plan_id alone) unlocked B's
+    // `detail` to the buyer. B is paid nothing for their own content.
+    //
+    // Three more consequences rode on the same request: the platform fee was
+    // resolved against A (a BYO referral to A zeroes `application_fee_amount`,
+    // so Shape earned nothing on B's sale), B's at-capacity gate was bypassed
+    // because capacity was checked on A, and the store-credit kind was taken
+    // from A's named role rather than the product's discipline.
+    //
+    // Binding on owner_id, not provider_id, is deliberate: one owner may hold
+    // both a trainer and a nutritionist row, and a plan is authored by the
+    // OWNER (`coach_plans.owner_id`), not by a discipline row.
     const { data: plan, error: planErr } = await admin
       .from('coach_plans')
-      .select('price, published')
+      .select('price, published, owner_id')
       .eq('id', planId)
-      .maybeSingle<{ price: string | null; published: boolean }>();
+      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null }>();
     if (planErr) return dbError(planErr, 'checkout plan lookup', 500);
     if (!plan || plan.published !== true) {
+      return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
+    }
+    if (!plan.owner_id || !provider.owner_id || plan.owner_id !== provider.owner_id) {
+      // Same 404 copy as an unpublished plan: a buyer has no business learning
+      // whether some other coach's plan id exists.
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
     }
     oneTimeCents = priceCentsFrom(plan.price);
