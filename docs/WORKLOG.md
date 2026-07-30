@@ -1236,6 +1236,26 @@ changelog whenever something ships.
   seeded beside the id.
   **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
   it omits is a different assignment answering as an old one, silently.**
+- ⚠ **REGISTERED AFTER THREE FAILED ATTEMPTS — the unevaluated repeat-only regeneration.**
+  `bsAdjustRegen` returns `changed: true` carrying only `repeatPatches` when a weekday is
+  trimmed from a client whose rows are all undated weekly-repeat sources. Neither leg of
+  `bsAdjustProposedWeeks` reads `repeatPatches`, so the proposal is empty, `bsAdjustOutcome([])`
+  answers `publish: true`, and the route regenerates with **zero guardrail evaluations**
+  (found by CodeRabbit). Three fixes were attempted and all three were withdrawn, each after
+  review found it **worse than the bug**: (1) refusing every weekless changed plan turned a
+  supported operation into a **500** — nothing catches a throw from that function and the coach
+  has no other path to narrow a repeat source; (2) exempting the repeat-only shape rested on
+  “a patch only ever REMOVES a training day”, which is true of the patched ROW and **false of the
+  schedule**: `bsBuildTrainProgram` fills any freed weekday from undated non-repeat rows
+  (`iosAppBroadsheetClient.jsx:4142-4144`); (3) tightening that to “all undated rows must be
+  repeat sources” fails one level down — `bsSlotRepeats` is **first-come-wins**
+  (`trainingBuilder.mjs:110`), so narrowing the winner off a day reveals a COMPETING repeat
+  source there, which can carry higher load. **The real fix is not a guard.** The server would
+  have to evaluate the resulting *slotted* schedule, which means modelling the client’s slotting
+  server-side — a design change with its own spec, not something to guess at merge time. The
+  status quo is preserved deliberately: this is pre-existing, so reverting restores what every
+  prior round of this PR reviewed rather than introducing a regression. **The general lesson:
+  a load guarantee about a ROW is not a load guarantee about the SCHEDULE that row appears in.**
 - **Registered, not built (owner-ruled 2026-07-30 — register and merge):** ⚠ **a THIRD
   writer of `client_workouts` is unserialized** — Nora's `assign_workout` **undo**
   (`src/lib/ai/actions.mjs:231`) archives coach-authored rows with a direct UPDATE under the
