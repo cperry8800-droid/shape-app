@@ -55,15 +55,22 @@ begin
 
   -- Any OTHER surviving INSERT policy is an unreviewed door. Name it loudly
   -- rather than assume this file knows every policy on the table.
+  --
+  -- ⚠ `cmd = 'INSERT'` ALONE MISSES HALF THE DOORS. `pg_policies.cmd` reports
+  -- 'ALL' for `create policy ... for all`, and a permissive FOR ALL policy grants
+  -- INSERT just as surely as a FOR INSERT one. Filtering on 'INSERT' would have
+  -- let such a policy hold the unevaluated coach write open while this migration
+  -- reported success — the exact opposite of the structural guarantee the header
+  -- claims, and the failure mode is a green run that proves nothing.
   if exists (
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'client_workouts'
-      and cmd = 'INSERT' and policyname <> 'client_insert_self_workouts'
+      and cmd in ('INSERT', 'ALL') and policyname <> 'client_insert_self_workouts'
   ) then
-    raise exception 'an unexpected INSERT policy remains on client_workouts: %',
-      (select string_agg(policyname, ', ') from pg_policies
+    raise exception 'an unexpected INSERT-capable policy remains on client_workouts: %',
+      (select string_agg(policyname || ' (' || cmd || ')', ', ') from pg_policies
         where schemaname = 'public' and tablename = 'client_workouts'
-          and cmd = 'INSERT' and policyname <> 'client_insert_self_workouts');
+          and cmd in ('INSERT', 'ALL') and policyname <> 'client_insert_self_workouts');
   end if;
 end $$;
 

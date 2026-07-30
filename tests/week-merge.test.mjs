@@ -200,6 +200,23 @@ test('merge: junk in cannot produce a junk week', () => {
   assert.deepEqual(out.sessions.map((s) => s.title), ['Real']);
 });
 
+test('bsWeekStartOf: a calendar-impossible date is refused, not rolled forward', () => {
+  // `Date.UTC(2026, 1, 30)` does NOT return NaN — it rolls Feb 30 into March 2.
+  // So the NaN check alone let an impossible date be bucketed into the week of
+  // March 2, a week nobody authored, and the publish boundary REPLACES the week
+  // it is given. The round-trip is the only check that catches day overflow.
+  assert.equal(bsWeekStartOf('2026-02-30'), null);
+  assert.equal(bsWeekStartOf('2025-02-29'), null);   // not a leap year
+  assert.equal(bsWeekStartOf('2026-04-31'), null);
+  assert.equal(bsWeekStartOf('2026-13-01'), null);   // NaN path, still refused
+  assert.equal(bsWeekStartOf('2026-00-10'), null);
+  // A real leap day still resolves — the guard must not over-refuse.
+  assert.equal(bsWeekStartOf('2028-02-29'), '2028-02-28');
+  // And the grouping built on it drops the impossible row rather than
+  // publishing it into an invented week.
+  assert.equal(bsGroupByWeek([{ scheduledDate: '2026-02-30' }]).size, 0);
+});
+
 test('bsWeekStartOf: every day of a week maps to its Monday', () => {
   for (const d of ['2026-08-03', '2026-08-04', '2026-08-06', '2026-08-09']) {
     assert.equal(bsWeekStartOf(d), '2026-08-03', d);

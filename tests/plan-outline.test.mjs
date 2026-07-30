@@ -411,6 +411,18 @@ test('bsAssignWeeks: basePayload merges into every session, exercises default to
   assert.deepEqual(out[0].sessions[1].payload, { exercises: [{ name: 'Squat' }], time: '17:45' });
 });
 
+test('bsAssignWeeks: basePayload cannot shadow the authored exercises', () => {
+  // The base is spread FIRST so authored content always wins. Spread last, any
+  // caller-supplied `exercises` key silently replaced the coach's own list — and
+  // the publish would have reported success for a session nobody authored.
+  const out = bsAssignWeeks(
+    [row('2026-07-27', { exercises: [{ name: 'Squat' }] })],
+    { time: '17:45', exercises: [{ name: 'INJECTED' }] },
+  );
+  assert.deepEqual(out[0].sessions[0].payload.exercises, [{ name: 'Squat' }]);
+  assert.equal(out[0].sessions[0].payload.time, '17:45');
+});
+
 test('bsAssignWeeks: junk in cannot produce a junk publish', () => {
   assert.deepEqual(bsAssignWeeks(null), []);
   assert.deepEqual(bsAssignWeeks([]), []);

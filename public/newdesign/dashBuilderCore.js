@@ -360,7 +360,8 @@
   // ⚠ MONDAY COMES FROM THE SESSION'S OWN DATE, never from the program start.
   // A session grouped into the wrong week is judged against the wrong week's
   // load AND lands in a replace that clears a week it was never part of. The
-  // arithmetic below is `bsWeekStartOf` (src/lib/week-merge.mjs) verbatim —
+  // arithmetic below is `bsWeekStartOf` (src/lib/week-merge.mjs) verbatim,
+  // overflow round-trip included —
   // UTC-only, so no local timezone can shift the boundary — because the route
   // re-derives the week server-side and rejects a call whose sessions span two.
   function weekStartOf(iso) {

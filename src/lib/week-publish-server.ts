@@ -59,6 +59,18 @@ export type PublishWeekArgs = {
 export async function publishWeekForClient(args: PublishWeekArgs): Promise<PublishResult> {
   const { supabase, admin, coachUserId, clientId, week, todayISO, expectedRowIds } = args;
   const hash = weekRequestHash(clientId, week);
+  // ⚠ A NULL HASH WOULD DEFEAT THE LEDGER'S REUSE CHECK. The RPC compares
+  // `v_existing.request_hash <> p_request_hash`, and in SQL that yields NULL —
+  // not true — when either side is NULL, so the `raise` is skipped and the FIRST
+  // request's outcome is served for a DIFFERENT body. The stored side is
+  // `not null` by schema (2026-07-29-guardrail-week-publish.sql:28) and this is
+  // the RPC's only caller, so the hole is unreachable today; this assertion is
+  // what keeps it that way. Raised by review (CodeRabbit); the SQL-side
+  // hardening (`is distinct from` plus the argument guard) needs a migration
+  // against a live function and is registered rather than folded in here.
+  if (typeof hash !== 'string' || !hash) {
+    throw new Error('publishWeekForClient: refusing to publish without a request hash.');
+  }
 
   // History AND the kill switch ride on ONE call (§7.4: the flag rides on the
   // load-history response, so the builder and the route cannot disagree — a

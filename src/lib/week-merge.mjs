@@ -156,8 +156,16 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
 export function bsWeekStartOf(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
   if (!m) return null;
-  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const y = +m[1], mo = +m[2], day = +m[3];
+  const d = new Date(Date.UTC(y, mo - 1, day));
   if (Number.isNaN(d.getTime())) return null;
+  // ⚠ DAY OVERFLOW IS THE ONE CASE A NaN CHECK MISSES. `Date.UTC(2026, 1, 30)`
+  // does not fail — it rolls Feb 30 to March 2 — so a calendar-impossible date
+  // would be bucketed into a week nobody authored and published there, silently.
+  // Month 13 and day 40 do yield NaN, which is exactly why the ROUND-TRIP is the
+  // check and the NaN test alone is not. The client builder has carried this
+  // guard since it was written; this copy is what made the two disagree.
+  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== day) return null;
   // Calendar-arithmetic only — no local timezone can shift a UTC-constructed
   // date here, which is why the whole function stays on Date.UTC.
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));

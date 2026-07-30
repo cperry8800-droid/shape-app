@@ -70,8 +70,16 @@ export function bsAdjustProposedWeeks({ rows, plan, todayISO } = {}) {
   // This is also a caller bug by construction (the route derives `todayISO`
   // itself), which is precisely the class the house rule reserves a hard failure
   // for: a shape no legitimate writer can emit.
-  if (typeof todayISO !== 'string' || !todayISO.trim()) {
-    throw new Error('bsAdjustProposedWeeks: todayISO is required — refusing to propose an unevaluated week.');
+  //
+  // PRESENCE IS NOT SHAPE. A non-empty but malformed value ('today', '2026-7-1',
+  // '2026-02-30') passed the old check, then `dayDelta` returned null inside
+  // `bsMergeWeekSessions` and EVERY surviving row was classed as past and
+  // dropped — so the week was judged on inserts alone. That is a systematic
+  // under-count of load: the same fail-open direction this guard exists to close,
+  // reached through the front door. `bsWeekStartOf` is the calendar-validity
+  // oracle here, so Feb 30 is refused rather than rolled into March.
+  if (typeof todayISO !== 'string' || !bsWeekStartOf(todayISO.trim())) {
+    throw new Error('bsAdjustProposedWeeks: todayISO must be a calendar-valid YYYY-MM-DD — refusing to propose an unevaluated week.');
   }
 
   const deleted = new Set(deleteIds.map((id) => String(id)));
@@ -104,6 +112,23 @@ export function bsAdjustProposedWeeks({ rows, plan, todayISO } = {}) {
     // occurrences are dated rows and are handled on their own dates.
     const wk = bsWeekStartOf(String(r.scheduled_date == null ? '' : r.scheduled_date).slice(0, 10));
     if (wk) weeks.add(wk);
+  }
+
+  // ⚠ A CHANGED PLAN THAT PROPOSES NO WEEK IS NOT AN UNCHANGED PLAN.
+  //
+  // `bsAdjustRegen` can return `changed: true` carrying ONLY `repeatPatches` —
+  // trim a weekday off a client whose rows are all undated weekly-repeat sources
+  // and nothing is inserted and nothing is deleted. Neither leg above reads
+  // `repeatPatches`, so the proposal came out empty, `bsAdjustOutcome([])` found
+  // no blocking week and answered `publish: true`, and the route then ran
+  // `regenerate_client_workouts` with ZERO evaluations. Same shape as the absent
+  // window above: a gate handed nothing to judge does not hold, it opens.
+  //
+  // Refusing is the safe direction and it is honest — the alternative is
+  // inventing which materialized weeks a repeat patch touches, and guessing
+  // wrong there publishes into a week nobody authored.
+  if (!weeks.size && p.changed === true) {
+    throw new Error('bsAdjustProposedWeeks: a changed plan proposed no week — refusing to regenerate unevaluated.');
   }
 
   return [...weeks].sort().map((weekStartISO) => {

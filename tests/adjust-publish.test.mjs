@@ -278,3 +278,48 @@ test('an evaluation missing its decision blocks rather than passing', () => {
   assert.equal(out.publish, false);
   assert.equal(out.blocking.weekStartISO, THIS_MON);
 });
+
+test('bsAdjustProposedWeeks: a malformed todayISO is refused, not merely a missing one', () => {
+  // Presence was checked; SHAPE was not. A non-empty but unusable value made
+  // `dayDelta` return null inside the merge, so every surviving row was classed
+  // as past and dropped and the week was judged on inserts alone — a systematic
+  // under-count of load, the same fail-open direction the guard exists to close.
+  const plan = { changed: true, inserts: [], deleteIds: [], repeatPatches: [] };
+  for (const bad of ['today', '2026-7-1', '2026-02-30', '2026/08/03', 'xx']) {
+    assert.throws(
+      () => bsAdjustProposedWeeks({ rows: [], plan, todayISO: bad }),
+      /calendar-valid/,
+      `todayISO ${bad} should be refused`,
+    );
+  }
+  // Still refuses the absent case it already refused.
+  assert.throws(() => bsAdjustProposedWeeks({ rows: [], plan, todayISO: '' }), /calendar-valid/);
+  assert.throws(() => bsAdjustProposedWeeks({ rows: [], plan }), /calendar-valid/);
+});
+
+test('bsAdjustProposedWeeks: a changed plan that proposes no week fails CLOSED', () => {
+  // `bsAdjustRegen` returns changed:true carrying only `repeatPatches` when the
+  // client's rows are all undated weekly-repeat sources and a weekday is trimmed.
+  // Neither leg of the proposal reads repeatPatches, so the set came out empty,
+  // `bsAdjustOutcome([])` found no blocking week and answered publish:true, and
+  // the regeneration ran with ZERO evaluations. A gate handed nothing to judge
+  // does not hold — it opens.
+  const repeatOnly = {
+    changed: true,
+    inserts: [],
+    deleteIds: [],
+    repeatPatches: [{ id: 'r1', repeatDow: [1, 3] }],
+  };
+  assert.throws(
+    () => bsAdjustProposedWeeks({ rows: [], plan: repeatOnly, todayISO: TODAY }),
+    /refusing to regenerate unevaluated/,
+  );
+  // And the shape that made it dangerous is still exactly what it was: an empty
+  // evaluation list reads as "publish".
+  assert.equal(bsAdjustOutcome([]).publish, true);
+  // An UNCHANGED plan proposing nothing is legitimate and must not throw.
+  assert.deepEqual(
+    bsAdjustProposedWeeks({ rows: [], plan: { changed: false, inserts: [], deleteIds: [] }, todayISO: TODAY }),
+    [],
+  );
+});

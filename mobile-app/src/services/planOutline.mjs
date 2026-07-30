@@ -456,7 +456,9 @@ export function bsAssignWeeks(rows, basePayload = {}) {
           kind: 'custom',
           scheduledDate: bsAssignIso(r.date),
           ...(stamped ? { plannedMinutes: pairs[i].min, plannedRpe: pairs[i].rpe, loadCapture: 'per_session' } : {}),
-          payload: { exercises: r.exercises || [], ...basePayload },
+          // Authored content wins: spread the caller's base FIRST so an
+          // `exercises` key in it can never overwrite the coach's own list.
+          payload: { ...basePayload, exercises: r.exercises || [] },
         })),
       };
     });

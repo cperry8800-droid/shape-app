@@ -123,11 +123,20 @@ export async function POST(request: Request) {
 
   // The generation stamp the regenerated rows carry (row-scoped, so the display
   // path can tell a regenerated row from one assigned afterwards).
-  let gen = 1;
-  try {
-    const { data } = await supabase.from('client_programs').select('detail').eq('user_id', clientId).maybeSingle();
-    gen = (Number((data as any)?.detail?.training?.gen) || 0) + 1;
-  } catch { /* first generation */ }
+  //
+  // ⚠ `maybeSingle()` RESOLVES ON FAILURE — it returns `{ data: null, error }`
+  // rather than throwing, so the `try` that used to wrap this caught nothing and
+  // a transient read failure simply yielded `gen = 1`. That re-stamped the
+  // regenerated rows with a generation the client had already passed, and since
+  // the display path uses `gen` to tell regenerated rows apart, two generations
+  // collapsed into one. A read that failed is not "first generation".
+  const { data: progRow, error: progErr } = await supabase
+    .from('client_programs').select('detail').eq('user_id', clientId).maybeSingle();
+  if (progErr) {
+    console.error('[shape-api] adjust generation read:', (progErr as { message?: string }).message);
+    return NextResponse.json({ error: "Could not read this client's plan generation." }, { status: 500 });
+  }
+  const gen = (Number((progRow as { detail?: { training?: { gen?: unknown } } } | null)?.detail?.training?.gen) || 0) + 1;
 
   // RLS scopes this to the caller's OWN authored rows for this client.
   //
