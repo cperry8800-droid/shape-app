@@ -220,7 +220,11 @@ export async function POST(req: NextRequest) {
       location: 'Video call',
     });
 
-  const clientIcs = coachEmail ? inviteFor(clientEmail, clientName) : undefined;
+  // The client's invite is unconditional now. It used to be gated on coachEmail
+  // only because the coach's address WAS the organizer — with a platform
+  // organizer that dependency is gone, and a booking with a coach who has no
+  // account email should still put the call on the client's calendar.
+  const clientIcs = inviteFor(clientEmail, clientName);
   const coachIcs = coachEmail ? inviteFor(coachEmail, provider.name) : undefined;
 
   // Attacker-supplied (unauthenticated) values are HTML-escaped in every email body.

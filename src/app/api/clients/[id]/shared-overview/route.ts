@@ -42,7 +42,13 @@ export async function GET(
   // reviewing a client whose subscription has just LAPSED — outside the
   // active/trialing coach policy. get_display_names covers all three cases with
   // one round trip and cannot return email/phone/DOB/stripe_customer_id.
-  const { data: identityRows } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
+  const { data: identityRows, error: identityError } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
+  if (identityError) {
+    // A silent fall-through here renders plausible copy — the exact failure this
+    // PR exists to stop. The likeliest cause is a deploy-order mismatch:
+    // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
+    console.warn('[shape-app] shared-overview: get_display_names failed — client identity is null:', identityError.message);
+  }
   const identity = ((identityRows ?? []) as { user_id: string; full_name: string | null; avatar_url: string | null }[])[0] ?? null;
   const clientProfile = identity
     ? { id: identity.user_id, full_name: identity.full_name, avatar_url: identity.avatar_url }

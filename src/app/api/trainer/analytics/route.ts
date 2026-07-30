@@ -64,7 +64,13 @@ export async function GET() {
     // Reading `profiles` directly returned nothing once the USING (true) policy
     // was dropped, and the fallback below is the literal string 'Former client' —
     // so this failed SILENTLY, rendering plausible copy for every churn row.
-    const { data } = await supabase.rpc('get_display_names', { p_ids: churnIds });
+    const { data, error } = await supabase.rpc('get_display_names', { p_ids: churnIds });
+    if (error) {
+      // A silent fall-through here renders plausible copy — the exact failure
+      // this PR exists to stop. The likeliest cause is a deploy-order mismatch:
+      // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
+      console.warn("[shape-app] trainer analytics: get_display_names failed — every churn row renders as 'Former client':", error.message);
+    }
     for (const r of (data ?? []) as { user_id: string; full_name: string | null }[]) {
       churnNames.set(String(r.user_id), String(r.full_name ?? '').trim());
     }

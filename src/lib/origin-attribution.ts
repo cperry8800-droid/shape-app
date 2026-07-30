@@ -95,7 +95,13 @@ export async function buildOriginFeed(
     // SELECT policy). get_display_names is the definer that returns display
     // fields ONLY, and these ids are deliberately outside the coach policy's
     // active/trialing scope, so the table would return nothing here.
-    const { data } = await supabase.rpc('get_display_names', { p_ids: otpMissing });
+    const { data, error } = await supabase.rpc('get_display_names', { p_ids: otpMissing });
+    if (error) {
+      // A silent fall-through here renders plausible copy — the exact failure
+      // this PR exists to stop. The likeliest cause is a deploy-order mismatch:
+      // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
+      console.warn('[shape-app] origin feed: get_display_names failed — names fall back to “—”:', error.message);
+    }
     for (const r of (data ?? []) as { user_id: string; full_name: string | null }[]) {
       activeNames.set(String(r.user_id), String(r.full_name ?? '').trim());
     }
