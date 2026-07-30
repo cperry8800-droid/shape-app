@@ -178,7 +178,7 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-30): BROKEN ACCESS CONTROL — SIX LIVE HOLES CLOSED, FOUR OF THEM
+> **Latest (2026-07-30): BROKEN ACCESS CONTROL — SIX LIVE HOLES CLOSED, THREE OF THEM
 > REACHABLE WITH NO ACCOUNT (#1851 → `789a950cf`). All three migrations applied and
 > verified against production.** An audit of all 156 API routes, 189 SECURITY DEFINER
 > functions and every RLS policy, run on the owner's instruction to "check that the
@@ -1191,8 +1191,15 @@ changelog whenever something ships.
 Run on the owner's instruction: *"check broken access controls. check that the logged-in
 user actually owns the data before handing anything back"*, then *"make sure this is all
 done on website and app"*. Scope: **156 API routes, 189 SECURITY DEFINER functions, every
-RLS policy**. Six live holes; **four reachable unauthenticated**. Every finding verified
-against the **production** database before write-up.
+RLS policy**. **Six holes, counted as the table below counts them — one row per fix.**
+Three of those six need **no account at all**: the RPC row (which is four separate
+`anon`-executable functions, hence "four unauthenticated *functions*" elsewhere in this
+entry — same finding, different unit), `/api/health`, and `/api/consultation`. The other
+three (`profiles` PII, the plan/payee binding, the shared-client `ack`) need a signed-in
+caller. ⚠ The count in this paragraph originally read "four reachable unauthenticated",
+mixing the two units on one page; a security record that cannot state its own attack
+surface consistently will undercount it next time. Every finding was verified against the
+**production** database before write-up.
 
 **Website and app both covered, and the reason they are covered together:** the website and
 the mobile app use the same anon key against the same database, so a DB-layer finding is a
