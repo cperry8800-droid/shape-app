@@ -1186,6 +1186,81 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-30 — Search-term hardening: clamp, escape, pin `pg_temp` (#1853 → `ed6c52e45`)
+
+⚠ **OWNER MIGRATION OUTSTANDING — `2026-08-05-search-pattern-hardening.sql`.** Nothing
+in the app changes until it is applied; the two RPCs keep their current behaviour.
+
+**This is NOT an injection fix, and the record should not read as one.** It ships the one
+actionable item from the 2026-07-30 **SQL-injection** and **secret-exposure** audits (five
+parallel finders each, every candidate adversarially verified) — **both of which came back
+clean**. The injection sweep returned **zero confirmed findings** across 189 migrations,
+`src/`, `public/` and `mobile-app/`: exactly three non-trigger `EXECUTE` statements (two
+hardcoded DDL, one defended with `%I` plus a ten-value allowlist), no `%s` splicing, four
+hand-built PostgREST filter strings all server-derived, and no `pg`/`knex`/`prisma` in the
+tree. The secret sweep found no secret ever committed and only `sb_publishable_*` in ~2.5 MB
+of shipped JS across seven entry points. **Both verifiers who examined these two functions
+REFUTED the report** — `search_shape_people` and `search_members` are `language sql` with
+static bodies, so the parse tree is fixed at `CREATE FUNCTION` time and no argument can alter
+the query's *meaning*.
+
+**What was actually wrong — one cost issue, one correctness issue.** `p_q` had no length
+bound at any layer, and both functions are `SECURITY DEFINER` granted to `authenticated` —
+so **the browser calls them directly and they never pass through the `/api/*` rate limiter**.
+A wildcard-dense term drives a backtracking LIKE across an unindexable scan of
+`public.profiles`, and `search_shape_people` additionally pays a lateral `user_goals` lookup
+and a correlated `sum()` over `score_ledger` per candidate row. Clamped to 80 characters.
+And `%`/`_` were unescaped, so a member searching for a literal underscore got wildcard
+semantics. Also pins **`pg_temp`** on both (CWE-426) — two off the registered sweep, ~166
+definers still carry the gap.
+
+⚠ **BOTH REVIEW ROUNDS LANDED ON THE GUARD, NOT ON THE FIX IT PROTECTS.**
+
+- **Codex P1 — the migration was DEAD ON ARRIVAL.** The `RAISE` on the escape-check failure
+  path carried two `%` placeholders and one argument. **PL/pgSQL checks RAISE placeholder
+  arity at COMPILE time, not when the RAISE executes**, so the `DO` block failed to compile
+  and rolled back every function and grant change — on a healthy database, with the `IF`
+  still false. Proved against production with the `IF` hardcoded to `false`, so the RAISE
+  could never run, and it still failed: `42601: too few parameters specified for RAISE …
+  compilation of PL/pgSQL function`. A sweep of every `RAISE` in all 189 migrations found no
+  other real mismatch.
+- **CodeRabbit Major — the guard was certifying a COPY.** The escape formula was pasted three
+  times (both functions plus the guard's self-test) and the guard never called the deployed
+  RPCs, so editing one function later would leave it green while that RPC silently diverged.
+  ⚠ **The guard cannot simply call them instead: both gate on `auth.uid() is not null`, which
+  is NULL while a migration runs**, so they return zero rows whatever the pattern says — an
+  end-to-end behavioural test through them is impossible. Fixed by extracting
+  **`public._escape_like_pattern`**, called **fully qualified** by both functions (so the
+  `pg_temp` entry in their own `search_path` cannot hijack it) and evaluated directly by the
+  guard, so the tested expression and the shipped expression cannot be different things.
+- ⚠ **Two live LIKE wildcards in the guard itself.** The source checks used `like '%…%'`
+  around strings containing underscores — `_` is a LIKE wildcard, so `'%_escape_like_pattern%'`
+  also matches `Xescape%like%pattern` and the pre-existing `'%pg_temp%'` matches `pgXtemp`.
+  Both are now `strpos`. **In a migration about escaping `_` in LIKE patterns, leaving one
+  live in the guard was the same bug one level up.**
+
+**The lesson, recorded rather than smoothed over: validating the pieces is not validating the
+artifact.** Every escape expression had been checked against production individually; the
+guard was never compiled as a whole, which is exactly how a migration that cannot apply
+reached review. The final version was verified as an artifact — the complete guard compiled
+and run against **production** with the helper created in `pg_temp` (throwaway, nothing
+created in `public`), reaching its structural check, and both function bodies parsed and
+planned with the helper call in place.
+
+⚠ **RE-RUNNING AN OLDER FILE REVERTS THIS.** Both functions are also defined in
+`2026-06-02-channels.sql`, `2026-06-09-usernames.sql` and the superseded
+`2026-06-09-universal-search.sql` — all `create or replace`. Each now carries a warning
+header pointing here; this file must be the **last** one applied for these two functions.
+
+**Registered, NOT built:** rate-limiting the search RPCs (escaping treats the symptom — they
+are still callable directly from the browser with no limit, so the cost ceiling is lower, not
+closed; the real fix is having them call the existing HMAC bucket RPC) · `trainers public read`
+/ `nutritionists public read` are **live in production but absent from `supabase-migrations/`**,
+so the repo cannot reproduce the access rules for its two most public tables.
+
+Suite **1347** · tsc clean · CI green · **CodeRabbit APPROVED** and **Codex clean** on the
+final head.
+
 ### 2026-07-30 — Broken access control: six live holes closed (#1851 → `789a950cf`)
 
 Run on the owner's instruction: *"check broken access controls. check that the logged-in
