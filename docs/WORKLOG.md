@@ -178,7 +178,48 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-27→28): PROGRESSION GUARDRAILS — session-RPE capture + the pure
+> **Latest (2026-07-30): PROGRESSION GUARDRAILS DEPLOY 2b — ONE EVALUATED, SERIALIZED
+> DOOR FOR EVERY COACH TRAINING WRITE (#1848 → `5d7e8c08`). The wave is complete.**
+> The advisory core built in 2a now sits behind every coach-side training write, and the
+> two writes that reach it can no longer race each other. **Both** `publish_client_week`
+> **and** `regenerate_client_workouts` take the *same* client-level advisory lock —
+> `pg_advisory_xact_lock(hashtext('shape_client_schedule'), hashtext(p_client_id::text))`
+> — a deliberate deviation from the per-week key review suggested, because a regeneration
+> spans many weeks **plus undated rows**, so a per-week lock would have left the two able
+> to interleave. ⚠ **An advisory lock only excludes a transaction asking for the IDENTICAL
+> key pair; two writers on different keys are as good as unlocked.** The regeneration also
+> carries a delete-rowcount precondition that raises `40001`, because **EvalPlanQual** makes
+> a DELETE blocked on a concurrently-deleted row re-qualify and *skip* it — so the delete
+> reports **0 rows without erroring** and both replacement sets commit.
+>
+> The other half of the wave was the **assignment key**, which is a content hash the publish
+> route's ledger short-circuit trusts completely. It was missing two pieces of the content
+> it claimed to cover, and each omission made a *different* assignment answer as an old one:
+> the seed hashed block **text** while the authored planned-load pair lives only on the block
+> **object** (edit a plan's planned minutes, publish reports `already_delivered`, the new load
+> is never judged — the guardrail switching itself off on the most ordinary coach action);
+> and `planKey` preferred `plan.id`, which is exactly what a **rename** preserves, while the
+> name is published as the session title. Both now seed through one tested function.
+> **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
+> it omits is a different assignment answering as an old one, silently.**
+>
+> ⚠ **ONE OWNER MIGRATION REMAINS**, and only **after** the deploy that ships the new publish
+> path (against the old code it breaks the website's publish button):
+> **`2026-07-31-coach-insert-lockout.sql`**. All six earlier migrations are applied and
+> verified live. Its structural assertion was itself fixed at review — it filtered
+> `pg_policies` on `cmd = 'INSERT'`, and Postgres reports `ALL` for a `for all` policy, which
+> grants INSERT just as surely; a permissive trainer FOR ALL policy would have held the
+> unevaluated coach write open **while the migration reported success**.
+>
+> Nine Codex rounds and three CodeRabbit rounds. Two claims of mine were refuted on the PR
+> and corrected there. One fix was **withdrawn entirely** after three attempts, each proven
+> worse than the bug it closed — registered above with all three failure modes, because the
+> real fix needs the server to evaluate the resulting *slotted* schedule and that is a design
+> change, not a guard. **A load guarantee about a ROW is not a load guarantee about the
+> SCHEDULE that row appears in.** Suite **1347**; tsc clean; mobile build clean.
+> Open: OWNER on-device pass · the migration above.
+>
+> **Prior (2026-07-27→28): PROGRESSION GUARDRAILS — session-RPE capture + the pure
 > advisory core (#1846).** Advisory load flags on a coach-authored training week: the
 > guardrail says when the week just written is an unusually large jump **for that
 > client**, and never blocks, rewrites, or proposes an alternative. Three phases on one
@@ -206,8 +247,7 @@ changelog whenever something ships.
 > not reject `2026-02-30` — it silently moves it to March 2**, bucketing a session into a
 > week it was never in. Suite **1109**; perturbation sweeps 50 core + 14 completion + 4 late
 > guards. Handoff:
-> **[`docs/HANDOFF-2026-07-28.md`](HANDOFF-2026-07-28.md)**. Open: OWNER on-device pass ·
-> Deploy 2b.
+> **[`docs/HANDOFF-2026-07-28.md`](HANDOFF-2026-07-28.md)**. Deploy 2b is now shipped — see above.
 >
 > **Prior (2026-07-26): PER-DAY MENUS (C1a) — COMPLETE end to end (#1839 contract,
 > #1840 delivery, #1843 authoring).** The week-block wave's prerequisite is closed: a
