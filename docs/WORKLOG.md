@@ -1228,6 +1228,12 @@ changelog whenever something ships.
   serialises the whole block rather than enumerating fields, so the next authored field is
   covered without anyone remembering the function; key-order churn can only **over**-mint
   (one extra publish of identical content), which is the safe direction. `tests/assign-seed.test.mjs`.
+  ⚠ **Serialising the block does not cover authored fields OUTSIDE it** — the very next
+  review round found one: `planKey` prefers `plan.id`, which is exactly what a rename through
+  `PATCH /api/coach/plans` preserves, while the *name* is published (the session title outright
+  in the exercise-shaped branch, the description fallback in the others). So a renamed plan
+  re-assigned unchanged replayed and the client kept reading the old title. The name is now
+  seeded beside the id.
   **The general rule: a content-derived idempotency key is a promise about CONTENT — anything
   it omits is a different assignment answering as an old one, silently.**
 - **Registered, not built (owner-ruled 2026-07-30 — register and merge):** ⚠ **a THIRD

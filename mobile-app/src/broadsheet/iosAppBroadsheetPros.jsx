@@ -3583,7 +3583,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         // session and is precisely what §3.2a evaluates.
         const seed = bsAssignSeed({
           clientId: uid,
+          // Both: the id survives a rename, and the name is published as copy.
           planKey: plan.id || plan.name,
+          planName: plan.name,
           blocks: _rawAll.map((x) => x.raw),
           note: planNote,
           startISO: bsAssignIso(start),

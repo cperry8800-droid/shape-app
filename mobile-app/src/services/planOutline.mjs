@@ -353,11 +353,20 @@ export function bsAssignMonday(d) {
  * function. Key-order churn in stored JSON can only OVER-mint (one extra publish
  * of identical content) — the safe direction. Under-minting is what loses work.
  *
+ * The NAME is seeded separately from the id for the same reason. `planKey`
+ * prefers `plan.id`, which is exactly what a rename PRESERVES — but the name is
+ * published: it is the session title outright in the exercise-shaped branch, and
+ * the description fallback in the others. So renaming a catalogue plan through
+ * `PATCH /api/coach/plans` and re-assigning it composed the old seed, and the
+ * client went on reading the old title. One field further out, same failure:
+ * authored content that reaches the published rows but not the key.
+ *
  * NUL joins the parts because it cannot occur inside any of them; a printable
  * separator lets two different assignments compose the same seed.
  *
- * @param {{clientId: string, planKey: string, blocks: Array, note: string,
- *          startISO: string, weeks: number|string, time: string}} parts
+ * @param {{clientId: string, planKey: string, planName: string, blocks: Array,
+ *          note: string, startISO: string, weeks: number|string,
+ *          time: string}} parts
  * @returns {string} the seed to hand `bsAssignKey`
  */
 export function bsAssignSeed(parts) {
@@ -369,7 +378,7 @@ export function bsAssignSeed(parts) {
     // than crash the action.
     try { return JSON.stringify(b); } catch (e) { return String((b && b.text) || b || ''); }
   }).join('|');
-  return [p.clientId, p.planKey, blockSeed, p.note, p.startISO, p.weeks, p.time].join('\u0000');
+  return [p.clientId, p.planKey, p.planName, blockSeed, p.note, p.startISO, p.weeks, p.time].join('\u0000');
 }
 
 export function bsAssignKey(seed) {
