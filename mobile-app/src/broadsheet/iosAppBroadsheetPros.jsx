@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
-import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
+import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
@@ -3575,7 +3575,21 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         // overwriting. Adding an async-resolved identity would be worse than the
         // problem: a retry before auth resolves would seed differently and mint a
         // SECOND key — the exact duplicate publish this derivation exists to stop.
-        const seed = [uid, plan.id || plan.name, blocks.join('|'), planNote, bsAssignIso(start), weeks, timeSel].join('\u0000');
+        //
+        // ⚠ AND IT SEEDS ON THE BLOCK OBJECTS, NOT THEIR TEXT — a rule that
+        // fails silently the same way, so it lives in the same tested module:
+        // planOutline.mjs `bsAssignSeed`. `blocks` is text-only and cannot
+        // reach the authored planned-load pair, yet that pair is published per
+        // session and is precisely what §3.2a evaluates.
+        const seed = bsAssignSeed({
+          clientId: uid,
+          planKey: plan.id || plan.name,
+          blocks: _rawAll.map((x) => x.raw),
+          note: planNote,
+          startISO: bsAssignIso(start),
+          weeks,
+          time: timeSel,
+        });
         let landed = 0;
 
         for (const wk of publishes) {

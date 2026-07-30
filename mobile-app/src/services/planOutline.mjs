@@ -333,6 +333,45 @@ export function bsAssignMonday(d) {
  * @param {string} seed the assignment's identity, caller-composed
  * @returns {string} a v4-shaped UUID (the boundary rejects any other shape)
  */
+/**
+ * The assignment identity `bsAssignKey` hashes — composed HERE, not at the page.
+ *
+ * ⚠ IT SEEDS ON THE BLOCK OBJECTS, NOT THEIR TEXT, AND THAT IS THE WHOLE POINT.
+ *
+ * The Assign page holds two index-aligned lists: `blocks` (text only) and the
+ * raw block OBJECTS, which are the only place the authored planned-load pair
+ * (`plannedMinutes` / `plannedRpe`) lives. Seeding on the text alone let two
+ * GENUINELY DIFFERENT assignments compose the same seed: edit a catalogue plan's
+ * planned minutes or RPE without touching a word of the block text and the seed
+ * came out byte-identical. The publish route's ledger short-circuit then answers
+ * `already_delivered` from the FIRST publish, so the new load is never written
+ * and never judged — and the pair is precisely what §3.2a evaluates, which makes
+ * that the guardrail switching itself off on the coach's most ordinary action.
+ *
+ * Serialising the whole block rather than enumerating the fields that matter is
+ * deliberate: the next authored field is covered without anyone remembering this
+ * function. Key-order churn in stored JSON can only OVER-mint (one extra publish
+ * of identical content) — the safe direction. Under-minting is what loses work.
+ *
+ * NUL joins the parts because it cannot occur inside any of them; a printable
+ * separator lets two different assignments compose the same seed.
+ *
+ * @param {{clientId: string, planKey: string, blocks: Array, note: string,
+ *          startISO: string, weeks: number|string, time: string}} parts
+ * @returns {string} the seed to hand `bsAssignKey`
+ */
+export function bsAssignSeed(parts) {
+  const p = (parts && typeof parts === 'object') ? parts : {};
+  const list = Array.isArray(p.blocks) ? p.blocks : [];
+  const blockSeed = list.map((b) => {
+    // A stored block came from JSON so it cannot be circular, but a throw here
+    // would take down the coach's whole assign — degrade to the text rather
+    // than crash the action.
+    try { return JSON.stringify(b); } catch (e) { return String((b && b.text) || b || ''); }
+  }).join('|');
+  return [p.clientId, p.planKey, blockSeed, p.note, p.startISO, p.weeks, p.time].join('\u0000');
+}
+
 export function bsAssignKey(seed) {
   // Four independently-salted FNV-1a passes → 128 bits. One pass gives 32,
   // which collides far too readily across a coach's catalogue.
