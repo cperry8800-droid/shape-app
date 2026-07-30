@@ -1106,8 +1106,9 @@ changelog whenever something ships.
   the acknowledgment, **all in one transaction**: there is no publish without its audit
   entry.
 - ⚠ **THREE OWNER MIGRATIONS, in this order:** `2026-07-29-guardrail-week-publish.sql`
-  (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied**)
-  → `2026-07-30-week-publish-precondition.sql`. The third **drops the eight-argument
+  (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied +
+  verified live 2026-07-30**) → `2026-07-30-week-publish-precondition.sql` (**applied +
+  verified live 2026-07-30**). The third **drops the eight-argument
   `publish_client_week`**; leaving both overloads would make every publish ambiguous
   under PostgREST, since an eight-argument call matches both once the ninth defaults.
 - ⚠ **THE GRANT WAS THE WHOLE GATE.** `regenerate_client_workouts` shipped granted to
@@ -1188,9 +1189,9 @@ changelog whenever something ships.
   definers (unlisted, it is searched FIRST — ahead of `pg_catalog`); an **unordered
   `.limit(400)`** could truncate the current week away; and both the drain and
   `dashBuilder` **swallowed the guardrail's reason**. Suite **1329**.
-- **Open:** the three migrations in order (⚠ `2026-07-30-adjust-regeneration-ack.sql`
-  needs a **RE-RUN**; the lockout goes **last, after deploy**) · CodeRabbit + Codex on
-  the final head · the owner's say. Handoff:
+- **Open:** ⚠ **`2026-07-31-coach-insert-lockout.sql` only, and only AFTER the deploy**
+  — the other two are applied + verified live (2026-07-30); the earlier RE-RUN warning is
+  superseded · CodeRabbit + Codex on the final head · the owner's say. Handoff:
   **[`docs/HANDOFF-2026-07-30.md`](HANDOFF-2026-07-30.md)**.
 
 ### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)

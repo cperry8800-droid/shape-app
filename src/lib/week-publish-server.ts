@@ -267,6 +267,17 @@ export async function publishMergedWeekForClient(args: MergePublishArgs): Promis
   const weekEndISO = addDays(weekStartISO, 6);
   const MAX_ATTEMPTS = 3;
 
+  // ⚠ AN ABSENT TRAINER ROW MUST NEVER REACH THE READ. `.eq('trainer_id',
+  // undefined)` does not scope to nothing — PostgREST drops the filter, and the
+  // merge would then carry (and the replace would then clear) ANOTHER provider's
+  // rows. Both callers resolve this per client from the subscription and cannot
+  // hand over a miss while their scope gate holds; this is the floor that makes a
+  // future reorder fail loudly instead of silently widening the read.
+  if (trainerId == null) {
+    console.error('[shape-api] merged publish called with no trainer row for client', clientId);
+    return { clientId, status: 'error', error: 'Could not resolve your coach account. Please retry.' };
+  }
+
   let merged: ReturnType<typeof bsMergeWeekSessions> | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {

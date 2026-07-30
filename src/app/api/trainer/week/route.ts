@@ -50,19 +50,44 @@ export async function POST(request: Request) {
 
   // Trainer row + on-client scope — the same gate as the session-shaped route
   // this replaces. RLS enforces it again at the DB; this is for a clean error.
-  const { data: trainerRow } = await supabase.from('trainers').select('id').eq('owner_id', user.id).maybeSingle();
-  if (!trainerRow) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
+  //
+  // ⚠ RESOLVED THE WAY THE RPC RESOLVES IT: per CLIENT, through the subscription
+  // that grants access — never `limit 1` over the coach's owned rows. Nothing
+  // constrains `trainers.owner_id` to one row per owner (verified: only the `id`
+  // primary key and a partial unique on `stripe_account_id`), and
+  // `publish_client_week` picks the trainer row carrying THAT client's
+  // subscription. The precondition set is READ with the id chosen here and
+  // VERIFIED against the id chosen there, so a divergence would not fail
+  // loudly — it would raise 40001, burn every retry, and tell the coach the week
+  // kept changing when nothing had touched it. One resolution, per client, is
+  // the only version that cannot drift. The old `.maybeSingle()` also DISCARDED
+  // its error, and it errors on more than one row — so a second trainer row read
+  // as "Not a trainer."
+  const { data: trainerRows, error: trainerErr } = await supabase
+    .from('trainers').select('id').eq('owner_id', user.id);
+  if (trainerErr) {
+    return NextResponse.json({ error: 'Could not verify your coach account. Please retry.' }, { status: 500 });
+  }
+  const trainerIds = (trainerRows ?? []).map((r) => (r as { id: unknown }).id);
+  if (!trainerIds.length) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
 
   const { data: subs, error: subsError } = await supabase
-    .from('subscriptions').select('client_id')
-    .eq('provider_id', trainerRow.id)
+    .from('subscriptions').select('client_id, provider_id')
+    .in('provider_id', trainerIds)
     .eq('provider_role', 'trainer')
     .in('status', ['active', 'trialing']);
   if (subsError) {
     return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   }
 
-  const activeIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
+  // client → the trainer row that carries that client's subscription.
+  const trainerIdByClient = new Map<string, unknown>();
+  for (const s of (subs ?? []) as Array<{ client_id: unknown; provider_id: unknown }>) {
+    const cid = String(s.client_id);
+    if (!trainerIdByClient.has(cid)) trainerIdByClient.set(cid, s.provider_id);
+  }
+
+  const activeIds = [...trainerIdByClient.keys()];
   if (unauthorizedAssignTargets(clientIds, activeIds).length) {
     return NextResponse.json({ error: 'You can only assign workouts to your own active clients.' }, { status: 403 });
   }
@@ -92,7 +117,7 @@ export async function POST(request: Request) {
       supabase,
       admin,
       coachUserId: user.id,
-      trainerId: trainerRow.id,
+      trainerId: trainerIdByClient.get(clientId),
       clientId,
       weekStartISO: week.weekStartISO,
       incoming: week.sessions,

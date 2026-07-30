@@ -68,12 +68,22 @@ export async function POST(request: Request) {
 
   // Trainer row + on-client scope. RLS enforces it again at the DB and the RPC
   // re-checks `is_discipline_coach_on_client` in-body; this is for a clean error.
-  const { data: trainerRow } = await supabase.from('trainers').select('id').eq('owner_id', user.id).maybeSingle();
-  if (!trainerRow) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
+  // ⚠ Every owned trainer row, and the error INSPECTED. `.maybeSingle()` errors
+  // on more than one row and nothing constrains `trainers.owner_id` to one — with
+  // the error discarded that read as `null`, i.e. "Not a trainer." to a coach who
+  // is one. The RPC resolves the row through the subscription itself, so this
+  // read only has to cover the same set, not pick a winner.
+  const { data: trainerRows, error: trainerErr } = await supabase
+    .from('trainers').select('id').eq('owner_id', user.id);
+  if (trainerErr) {
+    return NextResponse.json({ error: 'Could not verify your coach account. Please retry.' }, { status: 500 });
+  }
+  const trainerIds = (trainerRows ?? []).map((r) => (r as { id: unknown }).id);
+  if (!trainerIds.length) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
 
   const { data: subs, error: subsError } = await supabase
     .from('subscriptions').select('client_id')
-    .eq('provider_id', (trainerRow as { id: unknown }).id)
+    .in('provider_id', trainerIds)
     .eq('provider_role', 'trainer')
     .in('status', ['active', 'trialing']);
   if (subsError) {
@@ -246,13 +256,18 @@ export async function POST(request: Request) {
   // guardrail judged, and the retune's question — do regenerated weeks flag
   // differently from authored ones — needs the green weeks in it too, or the
   // flag rate is computed against a denominator that omits its own successes.
+  // Written CONCURRENTLY, not one awaited round trip per week. The write has
+  // already committed by here, so these rows are pure observation on the tail of
+  // the response — serialising them charged the coach a round trip per evaluated
+  // week (the whole horizon) for data they never see.
   const excludedSessionRate = bsExcludedSessionRate(sessions);
-  for (const e of evaluations) {
+  await Promise.all(evaluations.map(async (e) => {
     // ⚠ A DENIED OR MISSING `track_event` RESOLVES, IT DOES NOT REJECT.
     // PostgREST errors come back as `{ error }` on a resolved promise, so a
     // bare try/catch here would never fire and the row would vanish in silence
     // — corrupting exactly the flag-rate data §10.2 needs to retune and enable
-    // enforcement. The resolved error is inspected explicitly.
+    // enforcement. The resolved error is inspected explicitly, PER CALL, so one
+    // failed write is still reported and never takes the others down with it.
     try {
       const { error: trackErr } = await supabase.rpc('track_event', {
         p_event: 'guardrail_evaluated',
@@ -264,7 +279,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error('[shape-api] guardrail_evaluated threw:', err);
     }
-  }
+  }));
 
   return NextResponse.json({
     ok: true,

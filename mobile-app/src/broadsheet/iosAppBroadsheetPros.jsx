@@ -3022,7 +3022,16 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
         // refused would tell the client their program changed when not one of
         // their rows moved. Held, surfaced, and never absorbed into a success.
         if (regen?.rejected) {
-          setBlocked(regen.blocking || null);
+          // ⚠ CARRY THE NOTIFY CHOICE THAT TRIGGERED THE HOLD. "Publish anyway"
+          // replays this apply, and it used to pass `false` unconditionally — so
+          // a coach who tapped Apply & Notify, got held, then overrode, changed
+          // the client's Train tab and NOBODY TOLD THE CLIENT. The override is a
+          // decision about the guardrail, not about notification.
+          //
+          // Spread over an object rather than `|| null` so a rejection with no
+          // blocking week still RENDERS (the panel's default copy). Clearing the
+          // status with nothing on screen is the silent refusal §9.4 forbids.
+          setBlocked({ ...(regen.blocking || {}), notify: notify === true });
           setStatus('');
           return;
         }
@@ -3189,7 +3198,7 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
                 />
                 <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
                 <button
-                  onClick={() => apply(false, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
+                  onClick={() => apply(blocked.notify === true, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
                   disabled={!reasonText.trim() || status === 'saving'}
                   style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
                 >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>

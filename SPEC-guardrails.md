@@ -1945,8 +1945,12 @@ Checking `deload` and `maintain` closed it: every mode calls the **same**
 transform with a different scalar (`BS_ADJUST_SCALE`), `scaleExercises` spreads
 the move and overwrites **`baseL` and `load` only**, and `bsScaleLoad` returns
 the string byte-identical when the scalar is 1. So no mode changes
-`plannedMinutes`, `plannedRpe`, sets, or session count — verified by running all
-three over a row carrying the pair. The bound therefore **always returned its
+`plannedMinutes`, `plannedRpe`, sets, or the session count **of a row it
+scales** — verified by running all three over a row carrying the pair. ⚠ That is
+a claim about the LOAD TRANSFORM, not about the adjustment: `adjustment.sessions`
+changes the week's row SET (it deletes and adds rows), per the row-versus-week
+distinction in §3.2b and §9.4. The two are separate mechanisms and only the
+first one is a no-op. The bound therefore **always returned its
 input**, and a mechanism that always returns its input is dead code that reads as
 a safety feature: the next reader assumes the regenerated week was checked
 against something. Deleted along with the mode-ceiling constant, the

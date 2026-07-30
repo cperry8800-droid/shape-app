@@ -152,12 +152,24 @@ test('prune: a cap eviction is REPORTED, never silent', () => {
   // The parked branch's third open finding: at the cap each new assignment
   // silently discarded the oldest while the writer still answered "held", so a
   // coach was told work was queued that no longer existed.
+  // ⚠ BUILT IN PRODUCTION ORDER — OLDEST FIRST. `bsQueueAssignment` APPENDS, so
+  // index 0 is the entry that has waited longest, and `bsPruneQueue` evicts by
+  // POSITION. A fixture built newest-first would exercise the eviction backwards
+  // and still pass every count.
   const many = Array.from({ length: BS_ASSIGN_QUEUE_CAP + 3 }, (_, i) =>
-    entry({ idempotencyKey: `k${i}` }, NOW - i));
+    entry({ idempotencyKey: `k${i}` }, NOW - (BS_ASSIGN_QUEUE_CAP + 3 - i) * 1000));
   const { kept, dropped } = bsPruneQueue(many, { now: NOW });
   assert.equal(kept.length, BS_ASSIGN_QUEUE_CAP);
   assert.equal(dropped.length, 3);
   assert.ok(dropped.every((d) => d.why === 'evicted'));
+  // ⚠ WHICH entries go, not just how many. Counting alone passes identically
+  // whether the oldest three or the NEWEST three are discarded — and discarding
+  // the newest would throw away the assignment the coach just made while the
+  // writer still answered "held". The three longest-waiting go; everything the
+  // coach wrote most recently survives.
+  const keyOf = (e) => e.payload.idempotencyKey;
+  assert.deepEqual(dropped.map(keyOf), ['k0', 'k1', 'k2']);
+  assert.deepEqual(kept.map(keyOf), Array.from({ length: BS_ASSIGN_QUEUE_CAP }, (_, i) => `k${i + 3}`));
 });
 
 test('prune: a FUTURE timestamp is a moved clock, not an expiry', () => {

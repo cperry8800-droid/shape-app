@@ -113,21 +113,35 @@ export async function POST(request: Request) {
   // The clock is read exactly once, here at the I/O boundary.
   const todayISO = new Date().toISOString().slice(0, 10);
 
-  const { data: trainerRow } = await supabase.from('trainers').select('id').eq('owner_id', user.id).maybeSingle();
-  if (!trainerRow) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
+  // ⚠ Resolved per CLIENT through the subscription, exactly as
+  // `publish_client_week` resolves it — see the note in `trainer/week/route.ts`.
+  // The precondition set is read with the id chosen here and verified against
+  // the id chosen in the RPC; a divergence raises 40001 and reads as contention.
+  const { data: trainerRows, error: trainerErr } = await supabase
+    .from('trainers').select('id').eq('owner_id', user.id);
+  if (trainerErr) {
+    return NextResponse.json({ error: 'Could not verify your coach account. Please retry.' }, { status: 500 });
+  }
+  const trainerIds = (trainerRows ?? []).map((r) => (r as { id: unknown }).id);
+  if (!trainerIds.length) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
 
   // On-client + discipline gate: a trainer may assign only to clients they
   // actively coach AS A TRAINER. RLS enforces the same rule at the DB; this is
   // for a clean error rather than a policy denial.
   const { data: subs, error: subsError } = await supabase
-    .from('subscriptions').select('client_id')
-    .eq('provider_id', trainerRow.id)
+    .from('subscriptions').select('client_id, provider_id')
+    .in('provider_id', trainerIds)
     .eq('provider_role', 'trainer')
     .in('status', ['active', 'trialing']);
   if (subsError) {
     return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   }
-  const activeIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
+  const trainerIdByClient = new Map<string, unknown>();
+  for (const s of (subs ?? []) as Array<{ client_id: unknown; provider_id: unknown }>) {
+    const cid = String(s.client_id);
+    if (!trainerIdByClient.has(cid)) trainerIdByClient.set(cid, s.provider_id);
+  }
+  const activeIds = [...trainerIdByClient.keys()];
   if (unauthorizedAssignTargets(clientIds, activeIds).length) {
     return NextResponse.json({ error: 'You can only assign workouts to your own active clients.' }, { status: 403 });
   }
@@ -146,7 +160,7 @@ export async function POST(request: Request) {
       supabase,
       admin,
       coachUserId: user.id,
-      trainerId: trainerRow.id,
+      trainerId: trainerIdByClient.get(clientId),
       clientId,
       weekStartISO,
       incoming,
