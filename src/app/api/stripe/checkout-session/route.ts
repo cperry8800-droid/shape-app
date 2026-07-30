@@ -176,11 +176,27 @@ export async function POST(request: Request) {
     // Binding on owner_id, not provider_id, is deliberate: one owner may hold
     // both a trainer and a nutritionist row, and a plan is authored by the
     // OWNER (`coach_plans.owner_id`), not by a discipline row.
+    //
+    // ⚠ WHICH IS EXACTLY WHY OWNERSHIP ALONE IS NOT ENOUGH. For a dual-role
+    // owner, owner_id matches through BOTH of their rows, so a buyer could pair
+    // that owner's meal_plan with their trainer row (or a program with the
+    // nutritionist row) and still pass. Everything downstream keys off the
+    // caller-chosen `providerRole`, so all of it would come from the wrong
+    // discipline: `storeCreditKind` (a nutrition credit paying for a training
+    // program), the capacity gate, `transfer_data.destination`, the BYO fee
+    // resolution, and the `provider_role` the webhook records on the purchase.
+    //
+    // The database already declares the mapping — twice, identically:
+    //   case when cp.kind = 'meal_plan' then 'nutritionist' else 'trainer' end
+    // (2026-06-14-market-plans.sql:27, 2026-06-08-coach-sale-plans-by-user.sql:21)
+    // so a request whose role disagrees with the plan's kind contradicts the
+    // server's own definition of where that plan is sold. `kind` is a two-value
+    // check constraint ('program' | 'meal_plan'), so the mapping is total.
     const { data: plan, error: planErr } = await admin
       .from('coach_plans')
-      .select('price, published, owner_id')
+      .select('price, published, owner_id, kind')
       .eq('id', planId)
-      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null }>();
+      .maybeSingle<{ price: string | null; published: boolean; owner_id: string | null; kind: string | null }>();
     if (planErr) return dbError(planErr, 'checkout plan lookup', 500);
     if (!plan || plan.published !== true) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
@@ -188,6 +204,10 @@ export async function POST(request: Request) {
     if (!plan.owner_id || !provider.owner_id || plan.owner_id !== provider.owner_id) {
       // Same 404 copy as an unpublished plan: a buyer has no business learning
       // whether some other coach's plan id exists.
+      return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
+    }
+    const planRole = plan.kind === 'meal_plan' ? 'nutritionist' : 'trainer';
+    if (planRole !== providerRole) {
       return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
     }
     oneTimeCents = priceCentsFrom(plan.price);

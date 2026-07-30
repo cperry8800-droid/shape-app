@@ -29,10 +29,12 @@ signal, not this paragraph.
 | **E** — the entitlement layer | × **split out and NOT build-ready** → [`2026-07-26-entitlement-layer.md`](2026-07-26-entitlement-layer.md) |
 
 **C0 has shipped** (#1836, on `main`: a nutrition week block assigns as an arc
-and never fabricates meals). **C1a is owned and in flight, not finished** — the
-paragraph below states the test it passes, and that test is about
-*independence*, not about readiness. Its contract is written AND
-settled. The remaining blocks are not all the same kind, and naming them
+and never fabricates meals). **C1a has shipped too** — storage #1839, delivery
+#1840, authoring #1843, all on `main`; its contract is written, settled and
+linked below. ⚠ Until 2026-07-30 this paragraph said C1a was "owned and in
+flight, not finished" and warned that passing the independence test is not
+readiness. That warning was right about the *distinction* and four days stale
+about the *fact*. The remaining blocks are not all the same kind, and naming them
 precisely matters because the fix for each is different: **C1b** is blocked on
 a contract that genuinely does not exist yet (its *requirements* are specified
 in "What C actually requires" below, but the six-mode kind-map + seven-day
@@ -423,12 +425,12 @@ weeks a coach actually filled and still forbids fabricating "Reset & habits"
 into food. C0 is therefore never *reverted* by C2 — it is the degenerate case
 of the rule C2 generalizes.
 
-**C1a — Per-DAY menus (the prerequisite). IN FLIGHT, not available to build
-against — the storage contract
-described below is now written** (`2026-07-26-per-day-menu-contract.md`, riding
-PR #1839; named rather than linked until it lands on `main`). The requirements
-in this section are what that document had to satisfy, and they are kept here as
-the record of what was demanded, not as an open question.
+**C1a — Per-DAY menus (the prerequisite). SHIPPED, COMPLETE — build against
+it.** The storage contract described below is written and on `main`:
+[`2026-07-26-per-day-menu-contract.md`](2026-07-26-per-day-menu-contract.md)
+(#1839), with delivery in #1840 and authoring in #1843. The requirements in this
+section are what that document had to satisfy, and they are kept here as the
+record of what was demanded, not as an open question.
 
 The builder learns to author a different day; the assign stops
 replicating one `meals` array across all seven (`BSProAssignPage`'s `apply()`,
@@ -824,10 +826,10 @@ rest of this wave stops waiting on it.
 
 - **C0, C1a and C1b do not depend on E at all** — but independence from E is not
   readiness (see the warning at the top of this spec). C0 is shipped (#1836);
-  **C1a is IN FLIGHT, not available to build against — its storage contract is
-  written but not yet on `main` (#1839); delivery has merged (#1840), authoring is
-  open (#1843)**
-  (`2026-07-26-per-day-menu-contract.md`, riding PR #1839) — and **C1b remains
+  **C1a is SHIPPED and complete — storage contract #1839, delivery #1840,
+  authoring #1843, all on `main`**
+  ([`2026-07-26-per-day-menu-contract.md`](2026-07-26-per-day-menu-contract.md))
+  — and **C1b remains
   blocked on the AI contract**, defined in "What C actually requires" above.
   The build-ready table at the top of this document is the authority; this
   summary restates it and must never disagree with it.
