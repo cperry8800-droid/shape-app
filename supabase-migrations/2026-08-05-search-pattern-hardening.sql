@@ -36,6 +36,9 @@
 -- this step just inserted, turning `\%` into `\\%` — a literal backslash
 -- followed by a live wildcard, i.e. the exact bug being fixed. The E'' literals
 -- are deliberate: they mean one backslash regardless of standard_conforming_strings.
+-- That order lives in ONE place — `public._escape_like_pattern`, which both
+-- functions call and the guard evaluates directly, so the tested expression and
+-- the shipped expression cannot be different things.
 --
 -- ALSO PINS pg_temp on both functions (CWE-426). An omitted pg_temp is not
 -- merely absent from the search path — it is searched FIRST, ahead of pg_catalog,
@@ -57,6 +60,32 @@
 
 begin;
 
+-- ── The escape helper — ONE implementation, called by both functions ─────────
+-- The guard at the bottom CANNOT test the deployed RPCs end to end: both gate on
+-- `auth.uid() is not null`, which is NULL while a migration runs, so they return
+-- zero rows no matter what the pattern says. A guard that re-derives the escaping
+-- inline therefore certifies a COPY — edit one function later and the guard stays
+-- green while the RPC silently diverges. With one helper, the guard evaluates the
+-- exact expression both functions run.
+--
+-- SECURITY INVOKER and deliberately NO `set search_path`: it reads no table, so
+-- there is nothing to escalate, and a function carrying a SET clause cannot be
+-- inlined into the calling query. `replace` resolves to pg_catalog regardless
+-- (pg_catalog is searched first unless named explicitly), so there is nothing to
+-- shadow. Callers qualify it as `public._escape_like_pattern` so the pg_temp entry
+-- in their own search_path can never hijack the call.
+--
+-- Granted to `authenticated` to match the two functions it serves. The definers
+-- would reach it either way (a SECURITY DEFINER body executes as its owner), but
+-- over-revoking here would break search for every member if that ever stopped
+-- holding, while granting a pure string function costs nothing.
+create or replace function public._escape_like_pattern(p_raw text)
+returns text language sql immutable as $esc$
+  select replace(replace(replace(p_raw, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
+$esc$;
+revoke all on function public._escape_like_pattern(text) from public, anon;
+grant execute on function public._escape_like_pattern(text) to authenticated;
+
 -- ── search_shape_people — universal people search (name, username, @handle,
 --    and non-private bio/goal) ────────────────────────────────────────────────
 create or replace function public.search_shape_people(p_q text default '', p_limit int default 20)
@@ -68,8 +97,7 @@ language sql stable security definer set search_path = public, pg_temp as $fn$
     select left(trim(leading '@' from trim(coalesce(p_q, ''))), 80) as raw
   ),
   qq as (
-    select raw,
-           replace(replace(replace(raw, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_') as pat
+    select raw, public._escape_like_pattern(raw) as pat
     from q
   )
   select p.id,
@@ -116,8 +144,7 @@ language sql stable security definer set search_path = public, pg_temp as $fn$
     select left(coalesce(p_q, ''), 80) as raw
   ),
   qq as (
-    select raw,
-           replace(replace(replace(raw, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_') as pat
+    select raw, public._escape_like_pattern(raw) as pat
     from q
   )
   select p.id, p.full_name
@@ -140,15 +167,19 @@ declare
   r record;
 begin
   -- 1. The escape expression is asserted BEHAVIOURALLY, not by reading the
-  --    source. A prosrc scan is worthless here — it matches the comment that
-  --    describes the escaping as readily as the escaping itself, which is
-  --    exactly how the 2026-08-03 guard false-positived on its own warning.
-  --    This evaluates the real expression against a term containing all three
+  --    source, and it is asserted through the SAME helper both functions call —
+  --    so this can never certify a copy that has drifted from what ships. A
+  --    prosrc scan would be worthless as the primary check: it matches the
+  --    comment that describes the escaping as readily as the escaping itself,
+  --    which is exactly how the 2026-08-03 guard false-positived on its own
+  --    warning. This runs the real helper against a term carrying all three
   --    metacharacters and checks the exact output.
-  select replace(replace(replace('a_b%c' || E'\\' || 'd', E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_')
-    into v_esc;
+  select public._escape_like_pattern('a_b%c' || E'\\' || 'd') into v_esc;
   if v_esc <> 'a' || E'\\' || '_b' || E'\\' || '%c' || E'\\\\' || 'd' then
-    raise exception 'escape expression is wrong: got %, so % and _ would stay live', v_esc;
+    -- %% is the LITERAL percent sign. PL/pgSQL checks RAISE placeholder arity at
+    -- COMPILE time, not when the RAISE executes — a bare % here would abort this
+    -- whole migration on a healthy database, with the IF still false.
+    raise exception 'escape helper is wrong: got %, so %% and _ would stay live', v_esc;
   end if;
 
   -- 2. And prove the escaped pattern actually matches literally — the point of
@@ -160,14 +191,28 @@ begin
     raise exception 'escaped underscore still behaves as a wildcard';
   end if;
 
-  -- 3. Structural facts: pg_temp pinned, anon shut out, authenticated allowed.
+  -- 3. Structural facts: the helper is actually WIRED IN, pg_temp pinned, anon
+  --    shut out, authenticated allowed.
   for r in
     select p.oid, p.proname, pg_get_function_identity_arguments(p.oid) as args,
-           array_to_string(p.proconfig, ',') as cfg
+           array_to_string(p.proconfig, ',') as cfg, p.prosrc
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('search_shape_people', 'search_members')
   loop
-    if coalesce(r.cfg, '') not like '%pg_temp%' then
+    -- Check 1 proves the HELPER is right; this proves each function still calls
+    -- it, so nobody can quietly paste an inline copy back into one of them and
+    -- keep the guard green. ⚠ This one IS a source check, so it inherits the
+    -- known weakness: a comment merely naming the helper would satisfy it. It is
+    -- the secondary check for exactly that reason — the behavioural assertion
+    -- above is the primary one.
+    --
+    -- ⚠ strpos, NOT `like '%…%'`: `_` is a LIKE wildcard, so `'%_escape_like_pattern%'`
+    -- would also match `Xescape%like%pattern`. In a migration about escaping `_`
+    -- in LIKE patterns, leaving one live in the guard would be the same bug.
+    if strpos(r.prosrc, '_escape_like_pattern') = 0 then
+      raise exception '%(%) no longer calls public._escape_like_pattern — its escaping is an untested copy', r.proname, r.args;
+    end if;
+    if strpos(coalesce(r.cfg, ''), 'pg_temp') = 0 then
       raise exception '%(%) does not pin pg_temp — search_path is %', r.proname, r.args, r.cfg;
     end if;
     if has_function_privilege('anon', r.oid, 'EXECUTE') then
@@ -188,6 +233,12 @@ begin
   if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'search_members') <> 1 then
     raise exception 'search_members is overloaded — the unhardened version would still be callable';
+  end if;
+  -- The helper too: an overload would mean check 1 tested one function while the
+  -- two RPCs resolved to another.
+  if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = '_escape_like_pattern') <> 1 then
+    raise exception '_escape_like_pattern is overloaded — the tested one may not be the one the RPCs call';
   end if;
 end $guard$;
 
