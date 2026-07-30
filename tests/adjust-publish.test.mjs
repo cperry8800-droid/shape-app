@@ -304,14 +304,9 @@ test('bsAdjustProposedWeeks: a changed plan that proposes no week fails CLOSED',
   // `bsAdjustOutcome([])` found no blocking week and answered publish:true, and
   // the regeneration ran with ZERO evaluations. A gate handed nothing to judge
   // does not hold — it opens.
-  const repeatOnly = {
-    changed: true,
-    inserts: [],
-    deleteIds: [],
-    repeatPatches: [{ id: 'r1', repeatDow: [1, 3] }],
-  };
+  const weekless = { changed: true, inserts: [], deleteIds: [], repeatPatches: [] };
   assert.throws(
-    () => bsAdjustProposedWeeks({ rows: [], plan: repeatOnly, todayISO: TODAY }),
+    () => bsAdjustProposedWeeks({ rows: [], plan: weekless, todayISO: TODAY }),
     /refusing to regenerate unevaluated/,
   );
   // And the shape that made it dangerous is still exactly what it was: an empty
@@ -321,5 +316,44 @@ test('bsAdjustProposedWeeks: a changed plan that proposes no week fails CLOSED',
   assert.deepEqual(
     bsAdjustProposedWeeks({ rows: [], plan: { changed: false, inserts: [], deleteIds: [] }, todayISO: TODAY }),
     [],
+  );
+});
+
+test('bsAdjustProposedWeeks: a repeat-only NARROWING is allowed through weekless', () => {
+  // The one legitimate weekless shape, and the reason a blanket refusal was the
+  // wrong fix: trimming a weekday from an undated weekly-repeat source inserts
+  // nothing and deletes nothing, the RPC applies it through `p_repeat_patches`,
+  // and NOTHING catches a throw here — so refusing it turned a supported
+  // adjustment into a 500 with no other path for the coach.
+  //
+  // Safe unjudged by construction: `bsAdjustRegen` builds `repeatDow` as a
+  // filtered subset of the row's current days, so a patch only ever REMOVES a
+  // training day. No load is proposed, only load withdrawn.
+  const narrowing = {
+    changed: true,
+    inserts: [],
+    deleteIds: [],
+    repeatPatches: [{ id: 'r1', repeatDow: [1, 3] }],
+  };
+  assert.deepEqual(bsAdjustProposedWeeks({ rows: [], plan: narrowing, todayISO: TODAY }), []);
+
+  // The exemption is NARROW: a plan that also carries inserts or deletes but
+  // still proposed no week is the fail-open case and must keep refusing. (Both
+  // dates below are undated/unparseable, so neither leg contributes a week.)
+  assert.throws(
+    () => bsAdjustProposedWeeks({
+      rows: [],
+      plan: { ...narrowing, inserts: [{ title: 'X', scheduled_date: null }] },
+      todayISO: TODAY,
+    }),
+    /refusing to regenerate unevaluated/,
+  );
+  assert.throws(
+    () => bsAdjustProposedWeeks({
+      rows: [{ id: 'gone', scheduled_date: null }],
+      plan: { ...narrowing, deleteIds: ['gone'] },
+      todayISO: TODAY,
+    }),
+    /refusing to regenerate unevaluated/,
   );
 });

@@ -114,21 +114,38 @@ export function bsAdjustProposedWeeks({ rows, plan, todayISO } = {}) {
     if (wk) weeks.add(wk);
   }
 
-  // ⚠ A CHANGED PLAN THAT PROPOSES NO WEEK IS NOT AN UNCHANGED PLAN.
+  // ⚠ A CHANGED PLAN THAT PROPOSES NO WEEK IS NOT AN UNCHANGED PLAN — WITH ONE
+  // NAMED EXCEPTION.
   //
-  // `bsAdjustRegen` can return `changed: true` carrying ONLY `repeatPatches` —
-  // trim a weekday off a client whose rows are all undated weekly-repeat sources
-  // and nothing is inserted and nothing is deleted. Neither leg above reads
-  // `repeatPatches`, so the proposal came out empty, `bsAdjustOutcome([])` found
-  // no blocking week and answered `publish: true`, and the route then ran
-  // `regenerate_client_workouts` with ZERO evaluations. Same shape as the absent
-  // window above: a gate handed nothing to judge does not hold, it opens.
+  // Neither leg above reads `repeatPatches`, so a plan carrying only those came
+  // out with an empty proposal, `bsAdjustOutcome([])` found no blocking week and
+  // answered `publish: true`, and the route ran `regenerate_client_workouts`
+  // with ZERO evaluations. Same shape as the absent window above: a gate handed
+  // nothing to judge does not hold, it opens.
   //
-  // Refusing is the safe direction and it is honest — the alternative is
-  // inventing which materialized weeks a repeat patch touches, and guessing
-  // wrong there publishes into a week nobody authored.
+  // But refusing ALL of them was wrong, and would have shipped a worse bug than
+  // the one it closed. A REPEAT-ONLY NARROWING is legitimate, supported, and has
+  // no other path: the coach trims a weekday from a client whose rows are all
+  // undated weekly-repeat sources, so nothing is inserted and nothing is
+  // deleted, and `regenerate_client_workouts` applies it through
+  // `p_repeat_patches` directly. Nothing catches a throw here, so refusing it
+  // turned that adjustment into a 500 with no way for the coach to make it.
+  //
+  // It is also safe to pass unjudged, by construction rather than by assumption:
+  // `bsAdjustRegen` builds each patch's `repeatDow` as a filtered SUBSET of the
+  // row's current days (`cur.filter((d) => newDowSet.has(d))`), so a patch can
+  // only ever REMOVE a training day. There is no week to evaluate because no
+  // load is proposed — only load withdrawn.
+  //
+  // Every other weekless changed plan is the fail-open case, and still refuses.
+  // Raised by review (Codex) against the blanket refusal, which I had asked it
+  // to attack for exactly this.
   if (!weeks.size && p.changed === true) {
-    throw new Error('bsAdjustProposedWeeks: a changed plan proposed no week — refusing to regenerate unevaluated.');
+    const repeatPatches = Array.isArray(p.repeatPatches) ? p.repeatPatches : [];
+    const narrowingOnly = repeatPatches.length > 0 && !inserts.length && !deleteIds.length;
+    if (!narrowingOnly) {
+      throw new Error('bsAdjustProposedWeeks: a changed plan proposed no week — refusing to regenerate unevaluated.');
+    }
   }
 
   return [...weeks].sort().map((weekStartISO) => {
