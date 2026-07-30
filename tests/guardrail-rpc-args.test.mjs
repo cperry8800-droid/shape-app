@@ -28,6 +28,10 @@ const MIGRATIONS = [
   // with a ninth parameter, so its declaration must be the one every assertion
   // below reads — exactly as the deployed database will see it.
   'supabase-migrations/2026-07-30-week-publish-precondition.sql',
+  // Recreates BOTH writers to put them on one advisory lock. Its declarations
+  // are the last word on both signatures, so it belongs here even though it
+  // changes no parameter — the day it does, this guard is what notices.
+  'supabase-migrations/2026-08-01-client-schedule-serialize.sql',
 ];
 // The week/session RPC calls live in the shared publisher; the routes above it
 // only orchestrate. When they moved there the 'checked' floor below caught it

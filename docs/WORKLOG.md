@@ -1105,10 +1105,12 @@ changelog whenever something ships.
   coach's own future rows in the target week, inserts the submitted sessions and writes
   the acknowledgment, **all in one transaction**: there is no publish without its audit
   entry.
-- ⚠ **THREE OWNER MIGRATIONS, in this order:** `2026-07-29-guardrail-week-publish.sql`
+- ⚠ **FIVE OWNER MIGRATIONS, in this order:** `2026-07-29-guardrail-week-publish.sql`
   (**applied + verified live**) → `2026-07-30-adjust-regeneration-ack.sql` (**applied +
   verified live 2026-07-30**) → `2026-07-30-week-publish-precondition.sql` (**applied +
-  verified live 2026-07-30**). The third **drops the eight-argument
+  verified live 2026-07-30**) → `2026-07-31-week-publish-serialize.sql` (**applied +
+  verified live 2026-07-30**) → `2026-08-01-client-schedule-serialize.sql` (**outstanding**;
+  order-independent — safe before or after the deploy). The third **drops the eight-argument
   `publish_client_week`**; leaving both overloads would make every publish ambiguous
   under PostgREST, since an eight-argument call matches both once the ninth defaults.
 - ⚠ **THE GRANT WAS THE WHOLE GATE.** `regenerate_client_workouts` shipped granted to
@@ -1189,9 +1191,33 @@ changelog whenever something ships.
   definers (unlisted, it is searched FIRST — ahead of `pg_catalog`); an **unordered
   `.limit(400)`** could truncate the current week away; and both the drain and
   `dashBuilder` **swallowed the guardrail's reason**. Suite **1329**.
-- **Open:** ⚠ **`2026-07-31-coach-insert-lockout.sql` only, and only AFTER the deploy**
-  — the other two are applied + verified live (2026-07-30); the earlier RE-RUN warning is
-  superseded · CodeRabbit + Codex on the final head · the owner's say. Handoff:
+- ⚠ **A LOCK ONLY ONE WRITER TAKES IS NOT A LOCK** (review round on `1a167c26f`). The
+  precondition migration gave `publish_client_week` an advisory lock over (client, week)
+  and closed the publish-vs-publish lost update — while the SIBLING writer,
+  `regenerate_client_workouts` (the Adjust apply), took no lock at all. An advisory lock
+  only excludes a transaction asking for the **identical key**, so the two never
+  conflicted, and two corruptions followed that **nothing raises**: two Adjust applies
+  both validate the same `p_delete_ids` against a pre-commit snapshot, both pass, and the
+  second **deletes zero rows without aborting** — committing its replacement program on
+  top of the first one's; and an apply committing between a publish's precondition check
+  and its replace either wipes the regeneration or lands beside it, purely on statement
+  timing. Fixed by putting BOTH on ONE key — **keyed on the CLIENT, not the client-week**,
+  because a regeneration spans many weeks *plus undated weekly-repeat rows* and has no
+  single week it could name; the widening subsumes the old guarantee and costs only that
+  two weeks of one client publish in sequence. The regeneration also gained a
+  **delete-rowcount precondition** (`v_deleted <> v_expected` → 40001), so if the
+  serialization is ever bypassed it fails loudly instead of doubling a program.
+  `tests/schedule-lock.test.mjs` pins the invariant statically — the migration's own guard
+  only fires at apply time, long after the code that broke it was written. Also on that
+  head: the ledger replay pre-check is now **scoped to the calling coach** (it was
+  short-circuiting the RPC's own cross-coach refusal, which the mobile key-mint site
+  explicitly depends on — its seed omits the coach *because* a collision raises), and the
+  Adjust page **stops swallowing the reason** (a bare "Couldn't send" for a conflict that
+  wrote nothing). Suite **1336**.
+- **Open:** ⚠ **`2026-08-01-client-schedule-serialize.sql`** (order-independent) and
+  **`2026-07-31-coach-insert-lockout.sql` only AFTER the deploy** — the other four are
+  applied + verified live; the earlier RE-RUN warning is superseded · Codex on the final
+  head (CodeRabbit waived on this PR by the owner) · the owner's say. Handoff:
   **[`docs/HANDOFF-2026-07-30.md`](HANDOFF-2026-07-30.md)**.
 
 ### 2026-07-27 — Mission Control: `/console`, N.O.R.A.'s ops board (readiness-led admin dashboard)

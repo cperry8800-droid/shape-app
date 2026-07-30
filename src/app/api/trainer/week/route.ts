@@ -146,11 +146,26 @@ export async function POST(request: Request) {
     //
     // Reading the ledger first makes the replay answer itself: a claimed key for
     // this client was already delivered, and re-merging cannot change that.
+    //
+    // ⚠ SCOPED TO THIS COACH, BECAUSE THIS SHORT-CIRCUIT SKIPS THE RPC'S OWN
+    // OWNERSHIP CHECK. `publish_client_week` refuses a ledger row belonging to
+    // another coach by name (42501); answering from the ledger here would hand
+    // that coach's outcome back instead. The mobile Assign page relies on
+    // exactly that check — its key is seeded from the plan and the client but
+    // DELIBERATELY not the coach (documented at the mint site), on the grounds
+    // that a genuine collision raises rather than overwrites. Two coaches with a
+    // same-named plan for one client (a coach change, most plausibly) is the
+    // collision, and without this filter the second coach's week would never
+    // publish while they were told it had.
+    //
+    // A row under another coach falls through to the RPC on purpose, so the
+    // refusal comes from the one place that owns it.
     const { data: prior, error: priorErr } = await admin
       .from('coach_week_publishes')
       .select('outcome')
       .eq('idempotency_key', week.idempotencyKey)
       .eq('client_id', clientId)
+      .eq('coach_user_id', user.id)
       .maybeSingle();
     if (priorErr) {
       // Never guess. Failing to read the ledger is not evidence of a first

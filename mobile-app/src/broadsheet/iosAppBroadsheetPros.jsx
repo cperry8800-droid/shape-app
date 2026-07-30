@@ -3067,7 +3067,25 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
       }
       setStatus('done');
       setTimeout(onBack, 950);
-    } catch (e) { setStatus('error'); }
+    } catch (e) {
+      setStatus('error');
+      // ⚠ NEVER SWALLOW THE BOUNDARY'S REASON. The rust line below says only
+      // "Couldn't send — try again", which is true of a network blip and
+      // actively misleading for the answer that matters: a 409 means the
+      // client's plan MOVED under this adjustment and NOTHING WAS WRITTEN. The
+      // coach needs to know their apply was refused rather than half-applied,
+      // and that applying again re-reads the plan rather than repeating a
+      // doomed call.
+      //
+      // Only a 4xx carries a message written for a human; a 5xx is our own
+      // failure and its text is not the coach's business, so that falls back to
+      // the same generic line the status already renders.
+      const s = e && e.status;
+      const msg = (s >= 400 && s < 500 && e && e.message)
+        ? e.message
+        : tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." });
+      window.__bsToast?.(msg, 'warn');
+    }
   };
   const cta = (txt, onClick, mt) => (
     <button onClick={onClick} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: mt || 0, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>

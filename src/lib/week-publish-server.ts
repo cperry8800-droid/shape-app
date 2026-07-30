@@ -144,19 +144,28 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
     // own status rather than an error so the caller can re-read, re-merge and
     // RE-EVALUATE. It never reaches telemetry: no week was published, and §10.2's
     // denominator is publishes.
-    if ((pubErr as { code?: string }).code === '40001') {
+    const code = (pubErr as { code?: string }).code;
+    if (code === '40001') {
       return { clientId, status: 'week_changed' };
     }
     // 23505 = the same key with DIFFERENT content. A caller bug, not a replay,
     // and it must never be served the first week's outcome.
-    const conflict = (pubErr as { code?: string }).code === '23505';
+    const conflict = code === '23505';
+    // 42501 = the RPC refused on identity: either this coach does not train this
+    // client, or the key belongs to ANOTHER coach. Retrying cannot change either,
+    // so it must not carry retry copy — the route's ledger pre-check deliberately
+    // leaves this refusal to the RPC, and telling the coach to retry would send
+    // them round a loop that can only fail the same way.
+    const denied = code === '42501';
     console.error('[shape-api] week publish:', (pubErr as { message?: string }).message);
     return {
       clientId,
       status: conflict ? 'key_reused' : 'error',
       error: conflict
         ? 'That publish key was already used for a different week.'
-        : 'Could not publish the week. Please retry.',
+        : denied
+          ? 'That week could not be published under your coach account.'
+          : 'Could not publish the week. Please retry.',
     };
   }
   const pub = (pubRaw ?? {}) as { status?: string; outcome?: unknown; inserted?: number; replaced?: number; audited?: boolean };

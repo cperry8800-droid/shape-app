@@ -275,6 +275,24 @@ export async function POST(request: Request) {
     if (code === 'PGRST202' || code === '42883') {
       return NextResponse.json({ ok: false, changed: false, degraded: true }, { status: 503 });
     }
+    // 40001 = the plan moved between the read above and this write, and NOTHING
+    // WAS WRITTEN — the RPC's delete precondition raises before commit, so the
+    // whole regeneration rolled back. It is not a failure of the request; the
+    // request was computed against a plan that has since changed (another apply,
+    // or a week publish landing while the coach was adjusting). Reported as its
+    // own honest conflict rather than a 500, because "please retry" on a 500
+    // reads as "something broke" when the correct action is to reopen Adjust so
+    // the transform is re-planned against the plan that now exists.
+    if (code === '40001') {
+      return NextResponse.json(
+        {
+          error: "This client's plan changed while you were adjusting — nothing was written. Apply again to use the plan as it stands now.",
+          reason: 'plan_changed',
+          changed: false,
+        },
+        { status: 409 },
+      );
+    }
     console.error('[shape-api] adjust regenerate:', (rpcErr as { message?: string }).message);
     return NextResponse.json({ error: 'Could not apply the adjustment. Please retry.' }, { status: 500 });
   }
