@@ -192,32 +192,36 @@ export async function POST(req: NextRequest) {
     ? `15-minute consultation. Topic: ${topic}`
     : '15-minute consultation.';
 
-  const ics =
-    coachEmail
-      ? buildIcs({
-          uid: inserted.id,
-          start: scheduled,
-          durationMin: 15,
-          summary,
-          description,
-          // ⚠ NOT the coach's private account email.
-          //
-          // This ICS is attached to the mail sent to `clientEmail` — an address
-          // the CALLER supplies, on a route with no authentication. Putting the
-          // coach's auth.users email in ORGANIZER meant anyone could POST a
-          // booking with their own address, receive the invite, and read that
-          // coach's login email out of it. Iterate providerId and you harvest
-          // every coach on the platform.
-          //
-          // The coach still gets their own copy addressed to coachEmail below;
-          // it just never travels to a stranger.
-          organizerEmail: ORGANIZER_EMAIL,
-          organizerName: provider.name,
-          attendeeEmail: clientEmail,
-          attendeeName: clientName,
-          location: 'Video call',
-        })
-      : undefined;
+  // ONE MEETING, TWO INVITATIONS.
+  //
+  // ⚠ The organizer is NOT the coach's private account email. This ICS travels
+  // to `clientEmail` — an address the CALLER supplies, on a route with no
+  // authentication — so putting the coach's auth.users email in ORGANIZER meant
+  // anyone could POST a booking with their own address, receive the invite, and
+  // read that coach's login email out of it. Iterate providerId and you harvest
+  // every coach on the platform.
+  //
+  // But an invite where the recipient is neither ORGANIZER nor ATTENDEE is one
+  // a calendar client has no RSVP to offer — and moving the organizer off the
+  // coach took the coach off their own booking. So each side gets a copy naming
+  // THEM as the attendee. Same UID, because it is the same meeting; same
+  // no-reply organizer, so neither address ever reaches the other party.
+  const inviteFor = (attendeeEmail: string, attendeeName: string) =>
+    buildIcs({
+      uid: inserted.id,
+      start: scheduled,
+      durationMin: 15,
+      summary,
+      description,
+      organizerEmail: ORGANIZER_EMAIL,
+      organizerName: provider.name,
+      attendeeEmail,
+      attendeeName,
+      location: 'Video call',
+    });
+
+  const clientIcs = coachEmail ? inviteFor(clientEmail, clientName) : undefined;
+  const coachIcs = coachEmail ? inviteFor(coachEmail, provider.name) : undefined;
 
   // Attacker-supplied (unauthenticated) values are HTML-escaped in every email body.
   const providerNameHtml = escapeHtml(provider.name);
@@ -262,7 +266,7 @@ export async function POST(req: NextRequest) {
       subject: `Consultation booked with ${provider.name}`,
       html: clientHtml,
       text: `You're booked with ${provider.name} on ${niceDate} UTC. 15-min video consultation.`,
-      ics,
+      ics: clientIcs,
       icsFilename: 'shape-consultation.ics',
     }),
     coachEmail
@@ -271,7 +275,7 @@ export async function POST(req: NextRequest) {
           subject: `New consultation request — ${clientName}`,
           html: coachHtml,
           text: `New consultation request from ${clientName} (${clientEmail}) on ${niceDate} UTC.`,
-          ics,
+          ics: coachIcs,
           icsFilename: 'shape-consultation.ics',
         })
       : Promise.resolve({ ok: false }),

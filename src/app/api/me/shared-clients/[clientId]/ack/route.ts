@@ -44,6 +44,40 @@ export async function POST(
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
   }
 
+  // ⚠ AND THE COUNTERPART MUST BE A COACH — someone who OWNS a provider row.
+  //
+  // Coaching this client does not make every uuid a legitimate counterpart, and
+  // counterpart_user_id is a second FK to auth.users, so an arbitrary uuid still
+  // answered "does this account exist?" through the status code: 200 on a real
+  // one, 500 on the FK violation for a fake one.
+  //
+  // This is deliberately the WEAKER of the two available checks, because it is
+  // the strongest one a request-scoped client can make. Proving the counterpart
+  // is on THIS client needs a definer: the SELECT policies on `subscriptions`
+  // are client-reads-own and provider-reads-own ONLY, so reading the
+  // counterpart's subscription from here returns nothing at all. Registered, not
+  // built — it wants its own migration, not a fourth file bolted onto a
+  // security deploy whose ordering is already load-bearing.
+  //
+  // It is still enough to close the leak. `trainers` and `nutritionists` are
+  // USING (true) readable BY ANON, so every owner_id this accepts is public
+  // already: a caller learns nothing here they could not read off the
+  // marketplace signed out. What remains is self-inflicted only — the row is
+  // keyed by the caller's OWN coach_user_id, so pre-creating an ack suppresses
+  // the caller's own banner, which dismissing it does anyway.
+  if (counterpartUserId === user.id) {
+    return NextResponse.json({ error: 'Counterpart cannot be yourself.' }, { status: 400 });
+  }
+  const [asTrainer, asNutritionist] = await Promise.all([
+    supabase.from('trainers').select('id').eq('owner_id', counterpartUserId).limit(1),
+    supabase.from('nutritionists').select('id').eq('owner_id', counterpartUserId).limit(1),
+  ]);
+  // Fails CLOSED: a malformed uuid errors the query, leaving data null, which
+  // lands here rather than reaching the FK.
+  if (!asTrainer.data?.length && !asNutritionist.data?.length) {
+    return NextResponse.json({ error: 'Unknown counterpart.' }, { status: 403 });
+  }
+
   const { error } = await supabase.from('shared_client_acks').upsert({
     coach_user_id: user.id,
     client_id: clientId,

@@ -70,10 +70,25 @@ do $guard$
 declare
   v_bad text;
 begin
-  -- 4a. No surviving SELECT policy may be unconditional.
+  -- 4a. No surviving read policy may be unconditional.
+  --
+  --     ⚠ cmd in ('SELECT','ALL'), NOT cmd = 'SELECT'. A FOR ALL policy
+  --     reports pg_policies.cmd = 'ALL', and its USING clause is exactly what a
+  --     SELECT is checked against — so a permissive FOR ALL ... USING (true)
+  --     exposes every column of every profile while a 'SELECT'-only filter
+  --     reports the table clean. The guard would then certify the hole it
+  --     exists to catch. Same trap as 2026-07-31-coach-insert-lockout.sql.
+  --
+  --     A NULL qual is treated as unconditional on purpose: FOR ALL with only a
+  --     WITH CHECK leaves USING unset, and an unset USING filters nothing.
+  --
+  --     PERMISSIVE only. A RESTRICTIVE policy with USING (true) grants no
+  --     access — restrictive policies only ever subtract — so flagging one
+  --     would abort the migration over a no-op.
   select string_agg(policyname, ', ') into v_bad
   from pg_policies
-  where schemaname = 'public' and tablename = 'profiles' and cmd = 'SELECT'
+  where schemaname = 'public' and tablename = 'profiles'
+    and permissive = 'PERMISSIVE' and cmd in ('SELECT', 'ALL')
     and coalesce(qual, 'true') in ('true', '(true)');
   if v_bad is not null then
     raise exception 'profiles still has an unconditional SELECT policy: %', v_bad;
@@ -83,7 +98,7 @@ begin
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'profiles'
-      and cmd = 'SELECT' and policyname = 'profiles_read_self'
+      and cmd in ('SELECT', 'ALL') and policyname = 'profiles_read_self'
   ) then
     raise exception 'profiles_read_self is missing — members would lose their own row';
   end if;
@@ -92,7 +107,7 @@ begin
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public' and tablename = 'profiles'
-      and cmd = 'SELECT' and policyname = 'providers_read_subscriber_profiles_base'
+      and cmd in ('SELECT', 'ALL') and policyname = 'providers_read_subscriber_profiles_base'
   ) then
     raise exception 'the coach read policy vanished — every Case File would break';
   end if;
