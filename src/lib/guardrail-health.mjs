@@ -9,6 +9,8 @@
 // Adjust one writes a row PER EVALUATION inside a map. The migration comment
 // claiming "one row per publish" is wrong; sizing anything against it is wrong.
 
+import { BS_GUARDRAIL_STATES } from '../../public/newdesign/progressionGuardrail.mjs';
+
 /** Below this many evaluations a rate is noise, so it is not reported at all. */
 export const BS_SAMPLE_FLOOR = 20;
 
@@ -106,38 +108,84 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
   // ── 2. malformed, ANY occurrence, no floor. Malformed is reserved for shapes
   //       NO LEGITIMATE WRITER CAN EMIT, so one row means our own code produced
   //       something it should not have. That is a bug, not a rate to trend.
-  const malformed = rows.filter(
+  //
+  // ⚠ TWO CONTRIBUTORS, folded into ONE check, not a fifth one. A row the
+  // guardrail itself flagged `unknown` on malformed input, and a row whose
+  // `state` is not one of `BS_GUARDRAIL_STATES` (imported from the core, never
+  // re-typed here — that constant is the single source of the vocabulary),
+  // are both "a shape no legitimate writer can emit": an unrecognized state
+  // can only come from a core rename this monitor was never told about, or a
+  // row an OLDER deploy wrote under a state that has since been retired.
+  // Neither is a caller bug, and both would silently switch off the very rate
+  // checks below (red_rate/unknown_rate) that exist to catch a rename by going
+  // quiet. They are counted as ONE union (so a row cannot be double-counted by
+  // satisfying both predicates) but NAMED SEPARATELY in the alert body — "the
+  // guardrail reported malformed input" and "this monitor doesn't recognise a
+  // state it saw" are different faults with different fixes.
+  const isUnrecognizedState = (r) => r.state !== null && !BS_GUARDRAIL_STATES.includes(r.state);
+  const malformedReasonCount = rows.filter(
     (r) => r.unknownReason !== null && BS_MALFORMED_REASONS.includes(r.unknownReason),
   ).length;
+  const unrecognizedStateCount = rows.filter(isUnrecognizedState).length;
+  const malformed = rows.filter(
+    (r) => (r.unknownReason !== null && BS_MALFORMED_REASONS.includes(r.unknownReason))
+      || isUnrecognizedState(r),
+  ).length;
+  const malformedParts = [];
+  if (malformedReasonCount > 0) {
+    malformedParts.push(
+      `${malformedReasonCount} went unknown on malformed input the guardrail itself reported `
+      + `(${BS_MALFORMED_REASONS.join(' or ')}) — that is our bug, not the coach's.`,
+    );
+  }
+  if (unrecognizedStateCount > 0) {
+    malformedParts.push(
+      `${unrecognizedStateCount} carried a state this monitor does not recognise `
+      + `(expected one of ${BS_GUARDRAIL_STATES.join('/')}) — either the guardrail's `
+      + 'state vocabulary changed without this monitor being updated, or an older '
+      + 'deploy wrote a state that has since been retired.',
+    );
+  }
   record(
     'malformed',
     malformed > 0 ? 'alert' : 'ok',
     malformed,
     sample,
     'error',
-    `${malformed} guardrail evaluation(s) in the last 7d went unknown on malformed input `
-    + `(${BS_MALFORMED_REASONS.join(' or ')}). Malformed means a shape no legitimate `
-    + 'writer can emit, so this is our bug.',
+    `${malformed} guardrail evaluation(s) in the last 7d were malformed. ${malformedParts.join(' ')}`.trim(),
   );
 
   // ── 3 & 4. The rate checks. Below the floor they report insufficient_sample —
   //          never zero, never a number. One unknown out of one evaluation is
   //          100% and would trip every threshold in the design.
+  //
+  // ⚠ UNRECOGNIZED-STATE ROWS ARE EXCLUDED FROM THE DENOMINATOR HERE, not just
+  // counted above. Left in, they pad `sample` while matching neither `'red'`
+  // nor `'unknown'` in the matchers below — diluting BOTH rates DOWNWARD, the
+  // one direction this monitor must never move on its own account. A silently
+  // renamed vocabulary would then read as an IMPROVING red/unknown rate,
+  // exactly backwards for a check built to catch silent failure. Excluding
+  // them can only push `rateSample` DOWN toward `insufficient_sample` — never
+  // fabricate a rate by dividing by whatever recognizable rows are left — so
+  // the floor check below still runs against the reduced sample.
+  const rateRows = rows.filter((r) => !isUnrecognizedState(r));
+  const rateSample = rateRows.length;
+
   const rate = (check, matcher, max, severity, label) => {
-    if (sample < BS_SAMPLE_FLOOR) {
-      verdicts[check] = verdict('insufficient_sample', null, sample);
+    if (rateSample < BS_SAMPLE_FLOOR) {
+      verdicts[check] = verdict('insufficient_sample', null, rateSample);
       return;
     }
-    const hits = rows.filter(matcher).length;
-    const value = hits / sample;
+    const hits = rateRows.filter(matcher).length;
+    const value = hits / rateSample;
     record(
       check,
       value > max ? 'alert' : 'ok',
       value,
-      sample,
+      rateSample,
       severity,
       `${label} rate is ${(value * 100).toFixed(1)}% over the last 7d `
-      + `(${hits} of ${sample}), above the ${(max * 100).toFixed(0)}% threshold.`,
+      + `(${hits} of ${rateSample}), above the ${(max * 100).toFixed(0)}% threshold.`,
     );
   };
 

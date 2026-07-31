@@ -8,6 +8,7 @@ import {
   BS_SAMPLE_FLOOR,
   BS_MALFORMED_REASONS,
 } from '../src/lib/guardrail-health.mjs';
+import { BS_GUARDRAIL_STATES } from '../public/newdesign/progressionGuardrail.mjs';
 
 const NOW = '2026-08-01T07:00:00.000Z';
 
@@ -267,4 +268,46 @@ test('unknown_rate is ok exactly at the 10% threshold (strictly greater alerts)'
   assert.equal(verdicts.unknown_rate.status, 'ok');
   assert.equal(verdicts.unknown_rate.value, 0.1);
   assert.equal(verdicts.unknown_rate.sample, 20);
+});
+
+test('a rename must break a test: the core state vocabulary is pinned here', () => {
+  // If progressionGuardrail.mjs ever renames/adds/removes a state, this fails —
+  // a red test here is the whole point: it surfaces as a build failure instead
+  // of red_rate quietly reading 0% forever because the matcher never matches.
+  assert.deepEqual(
+    [...BS_GUARDRAIL_STATES].sort(),
+    ['amber', 'green', 'red', 'unknown'],
+  );
+});
+
+test('an unrecognized state value is excluded from the rate denominators AND counted as malformed', () => {
+  // 19 recognized + 1 row carrying a state outside BS_GUARDRAIL_STATES. Counted
+  // in the total readable sample (20), but the rate denominator must drop it —
+  // 19 is below the floor, so the rate checks must report insufficient_sample
+  // rather than a rate diluted by a row that matches neither 'red' nor 'unknown'.
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [...evals(19, 'green'), { state: 'archived', unknownReason: null }],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.red_rate.sample, 19, 'the unrecognized row is excluded from the denominator');
+  assert.equal(verdicts.unknown_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.unknown_rate.sample, 19);
+  assert.equal(verdicts.malformed.value, 1, 'the unrecognized-state row is still counted');
+});
+
+test('the malformed alert fires on a single unrecognized-state row', () => {
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: 'archived', unknownReason: null }],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.status, 'alert');
+  assert.equal(verdicts.malformed.value, 1);
+  assert.equal(alerts.some((a) => a.check === 'malformed'), true);
+  const malformedAlert = alerts.find((a) => a.check === 'malformed');
+  assert.match(malformedAlert.message, /does not recognise/, 'names the unrecognized-state contributor distinctly');
 });

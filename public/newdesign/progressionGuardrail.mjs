@@ -2095,6 +2095,21 @@ export function bsResolveState(axes, proposedSessions) {
  */
 
 /**
+ * The complete, closed vocabulary of `state` values this module ever emits.
+ * `bsWorstState` (§9) produces `'green'|'amber'|'red'`; `unknown()` (below) is
+ * the only place `'unknown'` is emitted, on the four `unknown(...)` call sites
+ * in this section.
+ *
+ * ⚠ A CONSUMER MUST NEVER HARDCODE THIS LIST A SECOND TIME. A monitor that
+ * matches `r.state === 'red'` literally, instead of importing this array, goes
+ * on reading 0% forever the day this vocabulary is renamed — the exact silent
+ * failure a health-monitoring consumer exists to catch. Import this constant
+ * and derive membership from it (`BS_GUARDRAIL_STATES.includes(r.state)`)
+ * rather than repeating the four strings.
+ */
+export const BS_GUARDRAIL_STATES = ['green', 'amber', 'red', 'unknown'];
+
+/**
  * Evaluate a coach-authored week against a client's logged history.
  *
  * @param {*} history `{ todayISO, sessions }` — `todayISO` is the only "now"
