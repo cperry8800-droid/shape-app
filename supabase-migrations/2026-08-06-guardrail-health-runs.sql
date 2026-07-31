@@ -104,9 +104,11 @@ grant select, insert on public.guardrail_health_runs to service_role;
 -- never left behind. Committing first would demote every assertion to a report.
 do $guard$
 declare
-  r      record;
-  v_type text;
-  v_null text;
+  r         record;
+  v_type    text;
+  v_null    text;
+  v_default text;
+  v_pkcols  text[];
 begin
   if not exists (
     select 1 from pg_tables where schemaname = 'public' and tablename = 'guardrail_health_runs'
@@ -144,6 +146,55 @@ begin
       raise exception 'guardrail_health_runs.% is nullable, expected NOT NULL', r.col;
     end if;
   end loop;
+
+  -- ⚠ TYPE AND NULLABILITY ARE NOT THE WHOLE SHAPE, AND THE PIECE THE LOOP ABOVE
+  -- CANNOT SEE IS THE ONE THAT BREAKS EVERY WRITE. A pre-existing table can carry
+  -- `id uuid NOT NULL` and have LOST its `gen_random_uuid()` default — a hand
+  -- `alter column id drop default` while iterating, or a table rebuilt from a
+  -- partial dump. The loop passes (type and nullability are both still correct),
+  -- `create table if not exists` no-ops, this file reports a clean re-run, and
+  -- then EVERY run-record insert fails, because the cron omits `id` and lets the
+  -- default supply it. The consequence is not just a lost audit trail: with no
+  -- rows to read, the previous-run lookup finds nothing, so `bsEvaluateHealth`
+  -- treats a CONTINUING alert as a fresh transition and re-notifies every single
+  -- day — the exact flapping the run record exists to prevent.
+  --
+  -- `position(... in ...)`, never LIKE: `gen_random_uuid` contains `_`, which is
+  -- a LIKE wildcard, so `like '%gen_random_uuid%'` would also match
+  -- `genXrandomXuuid`. This repo has already shipped that bug once inside a guard.
+  select c.column_default into v_default
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name   = 'guardrail_health_runs'
+    and c.column_name  = 'id';
+  if v_default is null or position('gen_random_uuid' in v_default) = 0 then
+    raise exception
+      'guardrail_health_runs.id has no gen_random_uuid() default (found: %) - the cron omits id on insert, so every run record would fail to write',
+      coalesce(v_default, '<no default>');
+  end if;
+
+  -- And the primary-key contract the default sits under. A default only promises
+  -- a value gets generated; the PRIMARY KEY is what promises it stays unique and
+  -- non-null, and it is separately droppable. Asserted on the exact column set,
+  -- so a PK moved onto another column — or widened into a composite, which would
+  -- let two run records share an id — fails here instead of passing as
+  -- "a primary key exists". Read from pg_constraint because information_schema
+  -- cannot express the ordered column list in one read.
+  select array_agg(a.attname::text order by k.ord) into v_pkcols
+  from pg_constraint con
+  cross join lateral unnest(con.conkey) with ordinality as k(attnum, ord)
+  join pg_attribute a
+    on a.attrelid = con.conrelid and a.attnum = k.attnum
+  where con.conrelid = 'public.guardrail_health_runs'::regclass
+    and con.contype  = 'p';
+  if v_pkcols is null then
+    raise exception
+      'guardrail_health_runs has no primary key - run records could duplicate, and nothing enforces a unique id';
+  end if;
+  if v_pkcols <> array['id']::text[] then
+    raise exception
+      'guardrail_health_runs primary key is on (%), expected (id)', array_to_string(v_pkcols, ', ');
+  end if;
 
   -- Same blindness, same remedy: `create index if not exists` never inspects the
   -- index it skips. Without this one the "most recent run" read degrades to a

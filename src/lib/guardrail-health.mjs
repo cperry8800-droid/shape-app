@@ -42,13 +42,34 @@ const BS_REALERT_MS = 7 * 24 * 60 * 60 * 1000;
 
 const finite = (n) => typeof n === 'number' && Number.isFinite(n);
 
-/** A readable evaluation row, or null. Junk is EXCLUDED, never counted. */
+/**
+ * A readable evaluation row, or null when the element IS NOT A ROW AT ALL.
+ *
+ * ⚠ TWO KINDS OF JUNK, AND THEY ARE DELIBERATELY NOT THE SAME CASE.
+ *
+ * A **NON-OBJECT** (`null`, `undefined`, `42`, `'nope'`) is excluded outright and
+ * counted nowhere. Nothing that reads `guardrail_evaluated` can produce one — the
+ * route maps every row through `{state, unknownReason}` before it gets here — so
+ * a non-object can only come from a caller handing this module something that is
+ * not a row. There is no telemetry row behind it to investigate, and counting it
+ * would file a CALLER bug as a PRODUCER bug, which is the mis-filing this
+ * module's own doctrine warns about.
+ *
+ * An **OBJECT WITH NEITHER FIELD** (`{}`) is the opposite, and it used to be
+ * dropped here alongside the non-objects. It is exactly what the route emits for
+ * a REAL `guardrail_evaluated` row whose props carry no usable `state` and no
+ * usable `unknownReason` — and `bsTelemetryProps` always writes a computed state,
+ * so such a row is a shape NO LEGITIMATE WRITER CAN EMIT: the definition of
+ * malformed. Dropping it meant a systematic regression in the telemetry mapper
+ * could report `malformed: ok/0` while the rate checks merely fell to
+ * `insufficient_sample` — a monitor going quiet exactly as it went blind. It is
+ * therefore returned (so `isStateless` below can count it toward malformed) and
+ * excluded from the rate denominators, the same treatment unrecognized states get.
+ */
 function readEvaluation(row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
   const state = typeof row.state === 'string' ? row.state : null;
   const unknownReason = typeof row.unknownReason === 'string' ? row.unknownReason : null;
-  // A row with neither field carries no signal and must not pad a denominator.
-  if (state === null && unknownReason === null) return null;
   return { state, unknownReason };
 }
 
@@ -153,27 +174,36 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
   //       NO LEGITIMATE WRITER CAN EMIT, so one row means our own code produced
   //       something it should not have. That is a bug, not a rate to trend.
   //
-  // ⚠ TWO CONTRIBUTORS, folded into ONE check, not a fifth one. A row the
-  // guardrail itself flagged `unknown` on malformed input, and a row whose
-  // `state` is not one of `BS_GUARDRAIL_STATES` (imported from the core, never
-  // re-typed here — that constant is the single source of the vocabulary),
-  // are both "a shape no legitimate writer can emit": an unrecognized state
-  // can only come from a core rename this monitor was never told about, or a
-  // row an OLDER deploy wrote under a state that has since been retired.
-  // Neither is a caller bug, and both would silently switch off the very rate
-  // checks below (red_rate/unknown_rate) that exist to catch a rename by going
-  // quiet. They are counted as ONE union (so a row cannot be double-counted by
-  // satisfying both predicates) but NAMED SEPARATELY in the alert body — "the
-  // guardrail reported malformed input" and "this monitor doesn't recognise a
-  // state it saw" are different faults with different fixes.
+  // ⚠ THREE CONTRIBUTORS, folded into ONE check, not three more. A row the
+  // guardrail itself flagged `unknown` on malformed input; a row whose `state` is
+  // not one of `BS_GUARDRAIL_STATES` (imported from the core, never re-typed here
+  // — that constant is the single source of the vocabulary); and a row carrying
+  // NO readable state and NO readable reason at all. All three are "a shape no
+  // legitimate writer can emit": an unrecognized state can only come from a core
+  // rename this monitor was never told about, or a row an OLDER deploy wrote
+  // under a state that has since been retired; a stateless row can only come from
+  // our own telemetry mapper, because the producer computes a state on every
+  // path. None is a caller bug, and all three would silently switch off the very
+  // rate checks below (red_rate/unknown_rate) that exist to catch a rename by
+  // going quiet. They are counted as ONE union (so a row cannot be double-counted
+  // by satisfying two predicates) but NAMED SEPARATELY in the alert body —
+  // "the guardrail reported malformed input", "this monitor doesn't recognise a
+  // state it saw" and "rows are arriving with no state at all" are three
+  // different faults with three different fixes.
   const isUnrecognizedState = (r) => r.state !== null && !BS_GUARDRAIL_STATES.includes(r.state);
-  const malformedReasonCount = rows.filter(
-    (r) => r.unknownReason !== null && BS_MALFORMED_REASONS.includes(r.unknownReason),
-  ).length;
+  /** Neither field readable — see `readEvaluation`: our own mapper's output. */
+  const isStateless = (r) => r.state === null && r.unknownReason === null;
+  const hasMalformedReason = (r) =>
+    r.unknownReason !== null && BS_MALFORMED_REASONS.includes(r.unknownReason);
+  const malformedReasonCount = rows.filter(hasMalformedReason).length;
   const unrecognizedStateCount = rows.filter(isUnrecognizedState).length;
+  const statelessCount = rows.filter(isStateless).length;
+  // The union is what makes "counted once" structural. The three predicates are
+  // mutually exclusive as written (a stateless row has neither a reason nor a
+  // state), but summing the three counts would quietly start double-counting the
+  // day one of them is widened.
   const malformed = rows.filter(
-    (r) => (r.unknownReason !== null && BS_MALFORMED_REASONS.includes(r.unknownReason))
-      || isUnrecognizedState(r),
+    (r) => hasMalformedReason(r) || isUnrecognizedState(r) || isStateless(r),
   ).length;
   const malformedParts = [];
   if (malformedReasonCount > 0) {
@@ -190,6 +220,13 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
       + 'deploy wrote a state that has since been retired.',
     );
   }
+  if (statelessCount > 0) {
+    malformedParts.push(
+      `${statelessCount} carried no state and no unknown reason at all — every `
+      + 'evaluation is written with a computed state, so this is the telemetry '
+      + 'mapper emitting rows without one, not anything a coach did.',
+    );
+  }
   record(
     'malformed',
     malformed > 0 ? 'alert' : 'ok',
@@ -203,16 +240,18 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
   //          never zero, never a number. One unknown out of one evaluation is
   //          100% and would trip every threshold in the design.
   //
-  // ⚠ UNRECOGNIZED-STATE ROWS ARE EXCLUDED FROM THE DENOMINATOR HERE, not just
-  // counted above. Left in, they pad `sample` while matching neither `'red'`
-  // nor `'unknown'` in the matchers below — diluting BOTH rates DOWNWARD, the
-  // one direction this monitor must never move on its own account. A silently
-  // renamed vocabulary would then read as an IMPROVING red/unknown rate,
-  // exactly backwards for a check built to catch silent failure. Excluding
-  // them can only push `rateSample` DOWN toward `insufficient_sample` — never
-  // fabricate a rate by dividing by whatever recognizable rows are left — so
-  // the floor check below still runs against the reduced sample.
-  const rateRows = rows.filter((r) => !isUnrecognizedState(r));
+  // ⚠ UNRECOGNIZED-STATE AND STATELESS ROWS ARE EXCLUDED FROM THE DENOMINATOR
+  // HERE, not just counted above. Left in, they pad `sample` while matching
+  // neither `'red'` nor `'unknown'` in the matchers below — diluting BOTH rates
+  // DOWNWARD, the one direction this monitor must never move on its own account.
+  // A silently renamed vocabulary, or a telemetry mapper that stopped writing a
+  // state, would then read as an IMPROVING red/unknown rate — exactly backwards
+  // for a check built to catch silent failure. Excluding them can only push
+  // `rateSample` DOWN toward `insufficient_sample` — never fabricate a rate by
+  // dividing by whatever recognizable rows are left — so the floor check below
+  // still runs against the reduced sample, and the malformed check above (no
+  // floor, any occurrence) is what actually raises the alarm.
+  const rateRows = rows.filter((r) => !isUnrecognizedState(r) && !isStateless(r));
   const rateSample = rateRows.length;
 
   const rate = (check, matcher, max, severity, label) => {

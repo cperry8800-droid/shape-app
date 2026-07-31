@@ -79,13 +79,34 @@ const orValue = (v: string) => `"${String(v).replace(/"/g, '')}"`;
  *    bound the read.
  * 3. **AN EXACT COUNT, NOT A LENGTH COMPARISON.** `count: 'exact'` returns the
  *    true number of matching rows from Content-Range regardless of any page cap,
- *    so `fetched < matched` is a truncation test that cannot be fooled by the
- *    server capping a page. Comparing `rows.length` against a limit we chose
- *    would be.
+ *    so comparing it against what we actually read is a truncation test that
+ *    cannot be fooled by the server capping a page. Comparing `rows.length`
+ *    against a limit we chose would be.
  * 4. **TRUNCATION IS REPORTED, NEVER SWALLOWED.** A capped read must never be
  *    indistinguishable from a complete one. When it happens, the rates are still
  *    a valid sample of the newest rows, but `malformed` — "any occurrence over
  *    7d" — can no longer prove absence, so the caller logs it and persists it.
+ *    It is set when the ceiling cut the read short, AND when the final row count
+ *    disagrees with `matched` in EITHER direction — a set that grew under the
+ *    read is as interesting as one that shrank.
+ * 5. **`matched` IS A REPORTING VALUE, NOT A STOP CONDITION — DO NOT "SIMPLIFY"
+ *    IT BACK INTO THE LOOP.** Stopping at `rows.length >= matched` reads like an
+ *    obvious early exit and is a silent row-loss bug. `matched` is captured from
+ *    the FIRST page's snapshot; every later page reads a database that has moved
+ *    on. A row backfilled with a `ts` OLDER than the current cursor is inserted
+ *    after that snapshot, so it appears on a later page even though it was never
+ *    counted in `matched` — and it consumes the same budget, displacing the
+ *    oldest original row off the end of the read. The two counts then land
+ *    EXACTLY equal, `truncated` stays false, and the run reports a complete read
+ *    that silently omitted an evaluation. (An earlier version of this comment
+ *    claimed the residual was safe because the mismatch would surface as
+ *    `rows.length < matched`. That was wrong: equality is precisely the case a
+ *    displacement produces.) The omitted row can be the malformed one, and
+ *    malformed is the check with no floor and any-occurrence semantics — one
+ *    dropped row turns a real alert into `ok/0`. So the loop stops ONLY on
+ *    genuine exhaustion (an empty page, or a page shorter than the one asked
+ *    for) or on the EVAL_MAX_ROWS ceiling, and `matched` is consulted only
+ *    afterwards, as the disagreement test above.
  */
 async function readEvaluations(
   admin: ReturnType<typeof createAdminClient>,
@@ -121,6 +142,10 @@ async function readEvaluations(
     rows.push(...page);
     if (first && typeof count === 'number') matched = count;
 
+    // ── THE ONLY STOP CONDITIONS. See point 5 above: `matched` is NOT one of
+    //    them, and adding it back reintroduces the concealed-omission bug.
+
+    // Exhaustion: nothing older than the cursor exists.
     if (page.length === 0) break;
 
     // ⚠ A row with no usable cursor pair cannot anchor the next page, and
@@ -130,15 +155,27 @@ async function readEvaluations(
     if (!last || typeof last.ts !== 'string' || typeof last.id !== 'string') break;
     cursor = { ts: last.ts, id: last.id };
 
-    if (matched !== null && rows.length >= matched) break;
-    // Only reachable if the exact count did not come back at all. A page shorter
-    // than the one requested is then the sole end-of-data signal available, and
-    // it is genuinely ambiguous (the server may have capped us) — which is why
-    // `matched: null` is surfaced rather than presented as a clean read.
-    if (matched === null && page.length < want) break;
+    // Exhaustion again: a page shorter than the one asked for means the server
+    // ran out of rows before the cursor. This is a sound end-of-data signal only
+    // because EVAL_PAGE_ROWS is held at or below PostgREST's "Max rows" cap (see
+    // its declaration). If that invariant were ever broken, EVERY page would come
+    // back short, the read would stop after one page — and `rows.length` would
+    // then disagree with `matched`, so it reports as truncated rather than as a
+    // clean read. The failure mode of the invariant is loud, not silent.
+    if (page.length < want) break;
+
+    // and the ceiling, which is the `while` condition — it keeps the read bounded
+    // for the 8s `statement_timeout` on `service_role` and for memory.
   }
 
-  const truncated = matched !== null ? rows.length < matched : rows.length >= EVAL_MAX_ROWS;
+  // ⚠ EITHER DIRECTION. Fewer rows than `matched` is the obvious truncation.
+  // MORE rows than `matched` means the set grew under the read, so the window
+  // this run judged is not the window the count describes — equally worth
+  // flagging, and equally a reason not to treat a `malformed: ok/0` from it as
+  // proof of absence. Over-reporting here is the safe direction; the alternative
+  // is a run that quietly certifies a read it cannot vouch for.
+  const truncated = rows.length >= EVAL_MAX_ROWS
+    || (matched !== null && rows.length !== matched);
   return { rows, matched, truncated };
 }
 
@@ -220,16 +257,19 @@ export async function GET(request: Request) {
     const { rows: rawEvals, matched, truncated } = await readEvaluations(admin, since7d);
     const read = { evaluations: rawEvals.length, matched, truncated };
     if (truncated || matched === null) {
-      // Loud, because every 7-day verdict below was computed on a partial read:
-      // the rates remain a valid sample of the newest rows, but `malformed` can
-      // no longer prove absence, and `ok/0` from it means "none in what we saw".
+      // Loud, because every 7-day verdict below was computed on a read that
+      // cannot prove it saw the whole window: the rates remain a valid sample of
+      // the newest rows, but `malformed` can no longer prove absence, and `ok/0`
+      // from it means "none in what we saw". Worded direction-neutrally on
+      // purpose — the count can disagree because the read was cut short OR
+      // because the set grew underneath it.
       console.error('[shape-health]', JSON.stringify({
         alert: 'guardrail-health',
         check: 'evaluation_read',
         severity: 'warning',
-        message: `The 7d evaluation read was incomplete: ${rawEvals.length} of `
-          + `${matched === null ? 'an unknown total' : matched} rows. Verdicts below `
-          + 'cover only the newest rows, so a malformed "ok" is not proof of absence.',
+        message: `The 7d evaluation read is not provably complete: ${rawEvals.length} rows read, `
+          + `count said ${matched === null ? 'nothing' : matched}. Verdicts below may cover only `
+          + 'part of the window, so a malformed "ok" is not proof of absence.',
       }));
     }
 

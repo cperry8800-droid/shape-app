@@ -351,16 +351,103 @@ test('malformed evaluations missing a state still count as malformed', () => {
   assert.equal(verdicts.malformed.value, 1);
 });
 
-test('garbage rows never throw and never inflate a rate', () => {
+test('NON-OBJECT garbage never throws, never inflates a rate, and is NOT malformed', () => {
+  // ⚠ RECONCILED DELIBERATELY WITH THE `{}` CASE BELOW — `{}` used to be in this
+  // list and is now its own test, because the two are different faults.
+  //
+  // A non-object cannot be a `guardrail_evaluated` row: the route maps every row
+  // through `{state, unknownReason}` before this module ever sees it, so a
+  // non-object only arrives when a CALLER passes something that is not a row.
+  // There is no telemetry row behind it to investigate, so counting it malformed
+  // would file a caller bug as a producer bug — the exact mis-filing that
+  // switches this monitor off. Excluded, counted nowhere.
   const { verdicts } = bsEvaluateHealth({
     rpeDropped: 0,
-    evaluations: [null, undefined, 42, 'nope', {}, ...evals(20, 'green')],
+    evaluations: [null, undefined, 42, 'nope', ...evals(20, 'green')],
     previous: null,
     nowISO: NOW,
   });
   assert.equal(verdicts.red_rate.status, 'ok');
-  assert.equal(verdicts.malformed.value, 0);
+  assert.equal(verdicts.malformed.value, 0, 'a non-row is not a malformed row');
+  assert.equal(verdicts.malformed.status, 'ok');
   assert.equal(verdicts.red_rate.sample, 20, 'unreadable rows are excluded, not counted');
+});
+
+test('a row with NEITHER state nor unknownReason counts as malformed and alerts', () => {
+  // The other half of the split above. `{}` is what the route emits for a REAL
+  // row whose props carry no usable state and no usable reason — and the producer
+  // writes a computed state on every path, so such a row is a shape no legitimate
+  // writer can emit. It used to be dropped silently, which is how a systematic
+  // telemetry-mapper regression could report `malformed: ok/0`.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{}],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.status, 'alert');
+  assert.equal(verdicts.malformed.value, 1);
+  assert.equal(alerts.some((a) => a.check === 'malformed'), true);
+  const malformedAlert = alerts.find((a) => a.check === 'malformed');
+  assert.match(
+    malformedAlert.message, /no state and no unknown reason/,
+    'the stateless contributor is named distinctly from the other two',
+  );
+});
+
+test('a stateless row is excluded from the rate denominators', () => {
+  // Same treatment as an unrecognized state, for the same reason: it matches
+  // neither 'red' nor 'unknown', so leaving it in dilutes BOTH rates downward —
+  // a monitor reading better exactly as it goes blind. 19 recognized + 1 stateless
+  // must fall below the floor rather than divide by 20.
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [...evals(19, 'green'), {}],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.red_rate.sample, 19, 'the stateless row is out of the denominator');
+  assert.equal(verdicts.unknown_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.unknown_rate.sample, 19);
+  assert.equal(verdicts.malformed.value, 1, 'but it is still counted as malformed');
+});
+
+test('the systematic-regression case: every row stateless still raises malformed', () => {
+  // Codex's scenario. A regression in the telemetry mapper writes 40 rows with no
+  // state. Before the fix: malformed read ok/0 and the rate checks merely fell to
+  // insufficient_sample, so NOTHING alerted.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: Array.from({ length: 40 }, () => ({})),
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.value, 40);
+  assert.equal(alerts.filter((a) => a.check === 'malformed').length, 1);
+  assert.equal(verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.red_rate.sample, 0);
+});
+
+test('a row satisfying two malformed predicates is counted ONCE', () => {
+  // An unrecognized state AND a malformed reason on the same row is one bad row,
+  // not two. Summing the per-contributor counts would say two.
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: 'archived', unknownReason: 'malformed_week' }],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.value, 1, 'one row, one count');
+  const { alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: 'archived', unknownReason: 'malformed_week' }],
+    previous: null,
+    nowISO: NOW,
+  });
+  const msg = alerts.find((a) => a.check === 'malformed').message;
+  assert.match(msg, /does not recognise/, 'both contributors are still named');
+  assert.match(msg, /malformed input/);
 });
 
 test('a missing rpeDropped count is treated as zero rather than throwing', () => {
