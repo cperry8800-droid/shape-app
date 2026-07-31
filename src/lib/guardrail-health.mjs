@@ -9,19 +9,28 @@
 // Adjust one writes a row PER EVALUATION inside a map. The migration comment
 // claiming "one row per publish" is wrong; sizing anything against it is wrong.
 
-import { BS_GUARDRAIL_STATES } from '../../public/newdesign/progressionGuardrail.mjs';
+import {
+  BS_GUARDRAIL_STATES,
+  BS_MALFORMED_REASONS,
+} from '../../public/newdesign/progressionGuardrail.mjs';
 
 /** Below this many evaluations a rate is noise, so it is not reported at all. */
 export const BS_SAMPLE_FLOOR = 20;
 
 /**
- * ⚠ TWO values, not one. `progressionGuardrail.mjs` returns `malformed_history`
- * when the history is unusable and `malformed_week` when the proposed week is.
- * Matching only the first silently misses every malformed proposed week — and a
- * malformed check that cannot see half its subject is the exact silent failure
- * this module exists to catch.
+ * ⚠ TWO values, not one. The core returns `malformed_history` when the history
+ * is unusable and `malformed_week` when the proposed week is. Matching only the
+ * first silently misses every malformed proposed week — and a malformed check
+ * that cannot see half its subject is the exact silent failure this module
+ * exists to catch.
+ *
+ * ⚠ IMPORTED FROM THE CORE, NEVER RE-TYPED HERE — the same treatment
+ * `BS_GUARDRAIL_STATES` got, for the same reason. A local literal means renaming
+ * `malformed_week` in the core makes this check read 0 forever with no test
+ * failing anywhere: the monitor goes blind exactly where it is supposed to see.
+ * Re-exported so consumers keep one import site.
  */
-export const BS_MALFORMED_REASONS = ['malformed_history', 'malformed_week'];
+export { BS_MALFORMED_REASONS };
 
 const BS_RED_RATE_MAX = 0.05;
 const BS_UNKNOWN_RATE_MAX = 0.10;
@@ -43,28 +52,47 @@ function readEvaluation(row) {
 
 const verdict = (status, value, sample, alertedAt = null) => ({ status, value, sample, alertedAt });
 
+/** The persisted alert stamp on a previous verdict, or null if it carries none. */
+function stampOf(previousEntry) {
+  if (!previousEntry || typeof previousEntry !== 'object') return null;
+  return typeof previousEntry.alertedAt === 'string' && previousEntry.alertedAt
+    ? previousEntry.alertedAt
+    : null;
+}
+
 /**
  * Decide whether a check that is currently `alert` should NOTIFY.
  *
  * Notifies on a transition into alert, and again every BS_REALERT_MS while it
  * stays there. Returns the `alertedAt` to persist.
  *
- * ⚠ `insufficient_sample` is not a state in either direction here: it never
- * notifies, and it never counts as the "previously fine" that arms a new alert
- * incorrectly — it simply leaves the previous stamp alone by having none.
+ * ⚠ THE STAMP, NOT THE STATUS, IS WHAT SAYS "THIS EPISODE IS ALREADY OPEN."
+ * Keying on `status === 'alert'` looked equivalent and is not, because
+ * `insufficient_sample` is a THIRD status that sits between two alerting runs:
+ * day 1 red_rate alerts and stamps; day 2 the sample dips below the floor and
+ * writes `insufficient_sample`; day 3 the sample recovers and the check is still
+ * failing. A status test reads day 2 as "was not alerting" and notifies AGAIN —
+ * a continuing fault announced as a new one, which is exactly the flapping this
+ * control exists to prevent. So the rate check CARRIES the stamp through
+ * `insufficient_sample` (see `rate()` below) and this function honours any stamp
+ * it finds.
+ *
+ * Only an `ok` verdict clears the stamp, and clearing it is what makes a genuine
+ * recovery-then-relapse notify again. `insufficient_sample` is therefore a
+ * transition in NEITHER direction: it never notifies, and it never re-arms.
  */
 function shouldNotify(previousEntry, nowISO) {
-  const wasAlerting = previousEntry && previousEntry.status === 'alert';
-  if (!wasAlerting) return { notify: true, alertedAt: nowISO };
+  const stamp = stampOf(previousEntry);
+  if (!stamp) return { notify: true, alertedAt: nowISO };
 
-  const last = Date.parse(previousEntry.alertedAt || '');
+  const last = Date.parse(stamp);
   if (!Number.isFinite(last)) return { notify: true, alertedAt: nowISO };
 
   const now = Date.parse(nowISO);
-  if (!Number.isFinite(now)) return { notify: false, alertedAt: previousEntry.alertedAt };
+  if (!Number.isFinite(now)) return { notify: false, alertedAt: stamp };
 
   if (now - last >= BS_REALERT_MS) return { notify: true, alertedAt: nowISO };
-  return { notify: false, alertedAt: previousEntry.alertedAt };
+  return { notify: false, alertedAt: stamp };
 }
 
 /**
@@ -173,7 +201,12 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
 
   const rate = (check, matcher, max, severity, label) => {
     if (rateSample < BS_SAMPLE_FLOOR) {
-      verdicts[check] = verdict('insufficient_sample', null, rateSample);
+      // ⚠ CARRY THE STAMP. `insufficient_sample` means "could not check", which
+      // is not the same claim as "checked, and fine" — so it must not erase the
+      // memory of an alert that is still open. Dropping it here let a fault that
+      // merely went quiet for a day re-announce itself as brand new the moment
+      // the sample recovered. `ok` is the only status allowed to clear a stamp.
+      verdicts[check] = verdict('insufficient_sample', null, rateSample, stampOf(prev[check]));
       return;
     }
     const hits = rateRows.filter(matcher).length;

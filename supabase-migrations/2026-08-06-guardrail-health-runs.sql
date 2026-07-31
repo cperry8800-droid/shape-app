@@ -29,11 +29,34 @@ alter table public.guardrail_health_runs enable row level security;
 -- #1851; the rule was written down in 2026-06-30-rpc-authz-hardening.sql and the
 -- older code was simply never swept.
 revoke all on public.guardrail_health_runs from public, anon, authenticated;
--- ⚠ SELECT + INSERT ONLY, deliberately NOT `grant all`. This table is an AUDIT
--- TRAIL: `grant all` includes TRUNCATE, and one stray truncate from a buggy
--- service-role script erases the entire history in a single statement, leaving
--- no rowcount trace behind. The cron only ever inserts one row per run and
--- selects the latest, so those two verbs are the whole contract.
+
+-- ⚠ AND FROM service_role, WHICH IS THE ROLE THIS FILE ORIGINALLY MISSED.
+-- Supabase DEFAULT-GRANTS `DELETE, INSERT, REFERENCES, SELECT, TRIGGER,
+-- TRUNCATE, UPDATE` to service_role on every new table in `public` (verified
+-- against production). So the revoke above — which names only public, anon and
+-- authenticated — left service_role holding TRUNCATE, and the `grant select,
+-- insert` below was a no-op re-stating two privileges it already had. The file
+-- claimed the opposite in as many words.
+--
+-- ⚠ THIS IS THE #1851 BUG CLASS THIS FILE'S OWN HEADER CITES, APPLIED TO THE ROLE
+-- NOBODY CHECKED. "revoke from public does not touch an explicit role grant" was
+-- written down for anon and authenticated and then not swept for service_role.
+--
+-- So: revoke everything from service_role FIRST, then grant back exactly the two
+-- verbs the cron uses. This table is an AUDIT TRAIL — one stray truncate from a
+-- buggy service-role script erases the entire history in a single statement,
+-- leaving no rowcount trace behind. The cron inserts one row per run and selects
+-- the latest; those two verbs are the whole contract.
+--
+-- ⚠ ACCEPTED TRADE-OFFS, STATED RATHER THAN GLOSSED:
+--   * Revoking DELETE leaves service_role with NO retention path. Deliberate at
+--     ~365 rows/year of small jsonb — negligible, and a table that cannot be
+--     pruned is a better audit trail than one that can be emptied by accident.
+--     Pruning later means a migration that grants DELETE for the occasion.
+--   * The table OWNER can still TRUNCATE, and no grant can change that. The
+--     claim asserted below is scoped to service_role — the role the cron and
+--     every ad-hoc service-key script actually connect as.
+revoke all on public.guardrail_health_runs from service_role;
 grant select, insert on public.guardrail_health_runs to service_role;
 
 -- No RLS policy is created deliberately: with RLS enabled and no policy, every
@@ -126,6 +149,28 @@ begin
   if not has_table_privilege('service_role', 'public.guardrail_health_runs', 'SELECT') then
     raise exception 'service_role cannot SELECT guardrail_health_runs - the cron would silently lose its re-alert memory';
   end if;
+
+  -- ⚠ ASSERT THE ABSENCES, NOT JUST THE PRESENCES. The two checks above prove
+  -- the cron can do its job; they say nothing about what else it can do, and
+  -- "what else" is the entire point of an audit trail. A guard that only proves
+  -- SELECT and INSERT exist passes unchanged over a table where Supabase's
+  -- default grant left TRUNCATE, DELETE and UPDATE in place — certifying a
+  -- posture the file does not actually deliver. Each is named separately so a
+  -- failure says which verb survived.
+  --
+  -- TRUNCATE erases the history in one statement with no rowcount trace. DELETE
+  -- erases it row by row. UPDATE is the quietest of the three and no less
+  -- disqualifying: a rewritten verdict is a run record that says something the
+  -- run did not say, which is worse than a missing one.
+  for r in
+    select unnest(array['TRUNCATE', 'DELETE', 'UPDATE']) as verb
+  loop
+    if has_table_privilege('service_role', 'public.guardrail_health_runs', r.verb) then
+      raise exception
+        'service_role still holds % on guardrail_health_runs - the audit trail can be rewritten or erased',
+        r.verb;
+    end if;
+  end loop;
 end $guard$;
 
 commit;

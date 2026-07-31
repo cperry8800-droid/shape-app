@@ -8,7 +8,11 @@ import {
   BS_SAMPLE_FLOOR,
   BS_MALFORMED_REASONS,
 } from '../src/lib/guardrail-health.mjs';
-import { BS_GUARDRAIL_STATES } from '../public/newdesign/progressionGuardrail.mjs';
+import {
+  BS_GUARDRAIL_STATES,
+  BS_UNKNOWN_REASONS,
+  BS_MALFORMED_REASONS as BS_CORE_MALFORMED_REASONS,
+} from '../public/newdesign/progressionGuardrail.mjs';
 
 const NOW = '2026-08-01T07:00:00.000Z';
 
@@ -19,6 +23,28 @@ const evals = (n, state, unknownReason = null) =>
 test('the floor is 20 and both malformed reasons are covered', () => {
   assert.equal(BS_SAMPLE_FLOOR, 20);
   assert.deepEqual([...BS_MALFORMED_REASONS].sort(), ['malformed_history', 'malformed_week']);
+});
+
+test('a reason rename must break a test: the core unknown vocabulary is pinned here', () => {
+  // The counterpart to the BS_GUARDRAIL_STATES pin below. Without this, renaming
+  // `malformed_week` in progressionGuardrail.mjs makes the malformed check read 0
+  // forever and NOTHING fails — the monitor goes blind exactly where it is meant
+  // to see. Pinning the full vocabulary AND the malformed subset means a rename,
+  // an addition or a removal surfaces as a red build.
+  assert.deepEqual(
+    [...BS_UNKNOWN_REASONS].sort(),
+    ['incomplete_week', 'malformed_history', 'malformed_week', 'unscoreable'],
+  );
+  assert.deepEqual(
+    [...BS_CORE_MALFORMED_REASONS].sort(),
+    ['malformed_history', 'malformed_week'],
+  );
+});
+
+test('the monitor uses the core vocabulary, it does not keep its own copy', () => {
+  // Referential identity, not deep equality: a second literal that happens to
+  // match today would pass a deepEqual and drift tomorrow.
+  assert.equal(BS_MALFORMED_REASONS, BS_CORE_MALFORMED_REASONS);
 });
 
 test('rpe_dropped alerts on any count above zero', () => {
@@ -169,6 +195,80 @@ test('recovering then failing again alerts once more', () => {
     rpeDropped: 1, evaluations: [], previous: good.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
   });
   assert.equal(badAgain.alerts.length, 1);
+});
+
+test('a fault that dips below the floor and comes back does NOT re-notify', () => {
+  // The regression this exists for: alert -> insufficient_sample -> alert.
+  // `insufficient_sample` means "could not check", not "checked, and fine", so
+  // the alerting episode is still open across the gap. Reading day 2 as a
+  // recovery makes day 3 announce a CONTINUING fault as a NEW one, every time
+  // the sample happens to dip — precisely the flapping this control prevents.
+  const failing = [...evals(3, 'red'), ...evals(17, 'green')];   // 15% of 20
+  const thin = [...evals(3, 'red'), ...evals(15, 'green')];      // 18 < floor
+
+  const day1 = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
+  });
+  assert.equal(day1.verdicts.red_rate.status, 'alert');
+  assert.equal(day1.alerts.filter((a) => a.check === 'red_rate').length, 1);
+
+  const day2 = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: thin, previous: day1.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
+  });
+  assert.equal(day2.verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(day2.alerts.length, 0, 'insufficient_sample never alerts');
+  assert.equal(
+    day2.verdicts.red_rate.alertedAt, '2026-08-01T07:00:00.000Z',
+    'the open episode keeps its stamp across the gap',
+  );
+
+  const day3 = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: day2.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
+  });
+  assert.equal(day3.verdicts.red_rate.status, 'alert');
+  assert.equal(
+    day3.alerts.filter((a) => a.check === 'red_rate').length, 0,
+    'a continuing fault must not read as a new one',
+  );
+  assert.equal(day3.verdicts.red_rate.alertedAt, '2026-08-01T07:00:00.000Z');
+});
+
+test('the weekly reminder still lands across an insufficient_sample gap', () => {
+  // The other half: carrying the stamp must not DISABLE the re-alert either.
+  const failing = [...evals(3, 'red'), ...evals(17, 'green')];
+  const thin = [...evals(3, 'red'), ...evals(15, 'green')];
+
+  const day1 = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
+  });
+  const mid = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: thin, previous: day1.verdicts, nowISO: '2026-08-04T07:00:00.000Z',
+  });
+  const later = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: mid.verdicts, nowISO: '2026-08-08T07:00:01.000Z',
+  });
+  assert.equal(later.alerts.filter((a) => a.check === 'red_rate').length, 1);
+});
+
+test('a real recovery still clears the stamp, so a relapse notifies', () => {
+  // `ok` is the ONLY status allowed to clear a stamp — otherwise the carry-through
+  // above would silence a genuine new fault after a genuine recovery.
+  const failing = [...evals(3, 'red'), ...evals(17, 'green')];
+  const clean = evals(20, 'green');
+
+  const bad = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: null, nowISO: '2026-08-01T07:00:00.000Z',
+  });
+  const good = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: clean, previous: bad.verdicts, nowISO: '2026-08-02T07:00:00.000Z',
+  });
+  assert.equal(good.verdicts.red_rate.status, 'ok');
+  assert.equal(good.verdicts.red_rate.alertedAt, null, 'ok clears the episode');
+
+  const badAgain = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: failing, previous: good.verdicts, nowISO: '2026-08-03T07:00:00.000Z',
+  });
+  assert.equal(badAgain.alerts.filter((a) => a.check === 'red_rate').length, 1);
 });
 
 test('crossing the floor from insufficient_sample into ok is not an alert', () => {

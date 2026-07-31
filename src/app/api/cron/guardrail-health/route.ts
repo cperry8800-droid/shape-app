@@ -14,6 +14,86 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+/**
+ * Rows per request. ⚠ MUST STAY AT OR BELOW PostgREST's "Max rows" setting
+ * (default 1000). Above it the server silently caps the page and every page
+ * looks short, which is exactly the trap that makes a naive
+ * `rows.length === LIMIT` truncation test read "complete" on a capped read.
+ */
+const EVAL_PAGE_ROWS = 500;
+
+/**
+ * Hard ceiling on the 7-day read. ⚠ `service_role` carries
+ * `statement_timeout = 8s`, so an unbounded read is a timeout risk as well as a
+ * memory one. Exceeding this is not silently tolerated — it sets `truncated`,
+ * which is reported and persisted.
+ */
+const EVAL_MAX_ROWS = 5000;
+
+type EvalRow = { props: unknown };
+
+/**
+ * The 7-day evaluation read: NEWEST FIRST, explicitly bounded, and honest about
+ * whether it saw everything.
+ *
+ * ⚠ THREE THINGS HERE ARE LOAD-BEARING, and the original read had none of them.
+ *
+ * 1. **ORDER.** With no `order()` PostgREST still applies its "Max rows" cap, and
+ *    the scan over `analytics_events_event_ts_idx (event, ts)` comes back
+ *    TS-ASCENDING — so the rows silently dropped were the MOST RECENT ones.
+ *    Adjust writes one row per evaluated week inside a `map`, so ~83 twelve-week
+ *    regenerations in 7 days is enough to reach 1000. A malformed row from
+ *    yesterday then vanishes, `malformed` reports `ok/0`, and a check with no
+ *    floor and any-occurrence semantics never fires again. Newest-first means a
+ *    capped read loses the OLDEST rows instead, which is the survivable
+ *    direction. `id` is the tiebreak so identical timestamps cannot make
+ *    pagination skip or repeat a row.
+ * 2. **AN EXACT COUNT, NOT A LENGTH COMPARISON.** `count: 'exact'` returns the
+ *    true number of matching rows from Content-Range regardless of any page cap,
+ *    so `fetched < matched` is a truncation test that cannot be fooled by the
+ *    server capping a page. Comparing `rows.length` against a limit we chose
+ *    would be.
+ * 3. **TRUNCATION IS REPORTED, NEVER SWALLOWED.** A capped read must never be
+ *    indistinguishable from a complete one. When it happens, the rates are still
+ *    a valid sample of the newest rows, but `malformed` — "any occurrence over
+ *    7d" — can no longer prove absence, so the caller logs it and persists it.
+ */
+async function readEvaluations(
+  admin: ReturnType<typeof createAdminClient>,
+  since: string,
+): Promise<{ rows: EvalRow[]; matched: number | null; truncated: boolean }> {
+  const rows: EvalRow[] = [];
+  let matched: number | null = null;
+
+  for (let from = 0; from < EVAL_MAX_ROWS; from += EVAL_PAGE_ROWS) {
+    const to = Math.min(from + EVAL_PAGE_ROWS, EVAL_MAX_ROWS) - 1;
+    const { data, count, error } = await admin
+      .from('analytics_events')
+      .select('props', from === 0 ? { count: 'exact' } : undefined)
+      .eq('event', 'guardrail_evaluated')
+      .gte('ts', since)
+      .order('ts', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, to);
+    if (error) throw new Error(`guardrail_evaluated query failed: ${error.message}`);
+
+    const page = (data ?? []) as EvalRow[];
+    rows.push(...page);
+    if (from === 0 && typeof count === 'number') matched = count;
+
+    if (page.length === 0) break;
+    if (matched !== null && rows.length >= matched) break;
+    // Only reachable if the exact count did not come back at all. A page shorter
+    // than the one requested is then the sole end-of-data signal available, and
+    // it is genuinely ambiguous (the server may have capped us) — which is why
+    // `matched: null` is surfaced rather than presented as a clean read.
+    if (matched === null && page.length < to - from + 1) break;
+  }
+
+  const truncated = matched !== null ? rows.length < matched : rows.length >= EVAL_MAX_ROWS;
+  return { rows, matched, truncated };
+}
+
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(String(a || '')); const y = Buffer.from(String(b || ''));
   return x.length === y.length && timingSafeEqual(x, y);
@@ -68,26 +148,44 @@ export async function GET(request: Request) {
   try {
     const admin = createAdminClient();
     const nowISO = new Date().toISOString();
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // ⚠ 25 HOURS, NOT 24, AND THE EXTRA HOUR IS NOT COSMETIC. Both bounds are
+    // taken from `Date.now()` at execution, so consecutive daily runs cover
+    // [N-24h, N] and [N+1-24h, N+1]. Any positive cron drift — and cron
+    // scheduling drifts — leaves the sliver (N, N+1-24h) covered by NEITHER run,
+    // and a `session_rpe_dropped` row landing in it is never counted by anything.
+    // The overlap this creates is harmless: `shouldNotify` suppresses a repeat
+    // notification while an alert is already open, so a row seen twice produces
+    // one alert, not two. Missing a row entirely has no such safety net.
+    const since25h = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // ── 1. The RPE drops, last 24h. head:true so no rows cross the wire.
+    // ── 1. The RPE drops, last 25h. head:true so no rows cross the wire, and
+    //       the exact count is the whole answer — nothing here can truncate.
     const { count: rpeDropped, error: rpeErr } = await admin
       .from('analytics_events')
       .select('id', { count: 'exact', head: true })
       .eq('event', 'session_rpe_dropped')
-      .gte('ts', since24h);
+      .gte('ts', since25h);
     if (rpeErr) throw new Error(`rpe_dropped query failed: ${rpeErr.message}`);
 
-    // ── 2. The evaluations, last 7d. Only the two fields the checks read.
-    const { data: rawEvals, error: evalErr } = await admin
-      .from('analytics_events')
-      .select('props')
-      .eq('event', 'guardrail_evaluated')
-      .gte('ts', since7d);
-    if (evalErr) throw new Error(`guardrail_evaluated query failed: ${evalErr.message}`);
+    // ── 2. The evaluations, last 7d — newest first, bounded, truncation-aware.
+    const { rows: rawEvals, matched, truncated } = await readEvaluations(admin, since7d);
+    const read = { evaluations: rawEvals.length, matched, truncated };
+    if (truncated || matched === null) {
+      // Loud, because every 7-day verdict below was computed on a partial read:
+      // the rates remain a valid sample of the newest rows, but `malformed` can
+      // no longer prove absence, and `ok/0` from it means "none in what we saw".
+      console.error('[shape-health]', JSON.stringify({
+        alert: 'guardrail-health',
+        check: 'evaluation_read',
+        severity: 'warning',
+        message: `The 7d evaluation read was incomplete: ${rawEvals.length} of `
+          + `${matched === null ? 'an unknown total' : matched} rows. Verdicts below `
+          + 'cover only the newest rows, so a malformed "ok" is not proof of absence.',
+      }));
+    }
 
-    const evaluations = (rawEvals ?? []).map((r: { props: unknown }) => {
+    const evaluations = rawEvals.map((r: { props: unknown }) => {
       const p = (r && typeof r.props === 'object' && r.props !== null ? r.props : {}) as
         Record<string, unknown>;
       return {
@@ -121,15 +219,22 @@ export async function GET(request: Request) {
     // ── 5. Persist. A failed insert is logged, never thrown: losing the record
     //       costs the next run its transition test, which is far better than
     //       losing the alerts that were just raised.
+    //
+    // ⚠ `_read` RIDES IN THE PERSISTED VERDICTS ON PURPOSE. A human reading the
+    // history months later has to be able to tell a run that checked everything
+    // from a run that checked the newest 5000 rows and stopped; without it a
+    // capped run is indistinguishable from a clean one in the record. The
+    // underscore keeps it out of the check namespace — `bsEvaluateHealth` only
+    // ever looks the previous run up by check name, so it is inert as input.
     const { error: insErr } = await admin
       .from('guardrail_health_runs')
-      .insert({ ran_at: nowISO, verdicts, alerted: alerts.length > 0 });
+      .insert({ ran_at: nowISO, verdicts: { ...verdicts, _read: read }, alerted: alerts.length > 0 });
     if (insErr) console.error('[shape-health] run record not saved:', insErr.message);
 
     // ── 6. The heartbeat, last, and only on a completed run.
     const heartbeat = await sendHeartbeat();
 
-    return NextResponse.json({ ok: true, verdicts, alerted: alerts.length, heartbeat });
+    return NextResponse.json({ ok: true, verdicts, read, alerted: alerts.length, heartbeat });
   } catch (e) {
     // ⚠ NO HEARTBEAT ON THIS PATH. A job that threw did not do its work, and a
     // dead-man's switch that pings anyway is worse than none — it reports health

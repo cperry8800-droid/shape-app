@@ -2441,6 +2441,48 @@ const BS_UNKNOWN_DETAIL = {
 };
 
 /**
+ * The complete, closed vocabulary of `unknown` reasons this module ever emits —
+ * the `reason` field of an `unknown()` result, which `bsTelemetryProps` ships as
+ * `unknownReason`.
+ *
+ * DERIVED from `BS_UNKNOWN_DETAIL` rather than re-typed, because that object is
+ * already the one place every reason must appear (an unknown reason with no
+ * detail entry falls back to `unscoreable`'s wording, so the map cannot go stale
+ * without the copy going wrong first). Adding a reason there adds it here.
+ *
+ * ⚠ SAME RULE AS `BS_GUARDRAIL_STATES` (§10): A CONSUMER MUST NEVER HARDCODE
+ * THIS LIST A SECOND TIME. A monitor that matches `unknownReason ===
+ * 'malformed_week'` literally reads 0 forever the day this vocabulary is
+ * renamed — and a malformed check that silently counts nothing is the exact
+ * silent failure a health monitor exists to catch.
+ *
+ * ⚠ Do NOT confuse these with `bsBaseline`'s reasons (`no_qualifying_weeks`,
+ * `insufficient_weeks`, `baseline_below_floor`, `baseline_unreadable`, and its
+ * own `malformed_history`). Those sit on the baseline sub-result and never reach
+ * telemetry — only the top-level `result.reason` does.
+ */
+export const BS_UNKNOWN_REASONS = Object.freeze(Object.keys(BS_UNKNOWN_DETAIL));
+
+/**
+ * The MALFORMED subset of that vocabulary: the reasons that mean *our own code
+ * emitted a shape no legitimate writer can emit*, as opposed to a week a coach
+ * has simply not finished filling in.
+ *
+ * Derived by the `malformed_` prefix, which is the convention every member of
+ * the subset already follows, so a fifth malformed reason added above joins this
+ * list automatically instead of being silently missed. A rename that breaks the
+ * convention shortens this array — which `tests/guardrail-health.test.mjs` pins,
+ * so it fails a test rather than quietly reading zero.
+ *
+ * ⚠ The distinction is load-bearing: one malformed row turns the whole
+ * evaluation `unknown`, and `unknown` never blocks a publish — so mis-filing a
+ * reason here switches the guardrail OFF for that client.
+ */
+export const BS_MALFORMED_REASONS = Object.freeze(
+  BS_UNKNOWN_REASONS.filter((r) => r.startsWith('malformed_')),
+);
+
+/**
  * The words for a guardrail result — the only place guardrail wording lives.
  *
  * @param {*} result a `bsProgressionGuardrail` result

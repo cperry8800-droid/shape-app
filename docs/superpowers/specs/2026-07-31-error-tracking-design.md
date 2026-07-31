@@ -35,8 +35,12 @@ document was written.
   reachable only through the `unknownReason` field. The originally requested name was
   therefore right; only its level was wrong.
   ⚠ **And there are TWO malformed values, not one** — `malformed_history` *and*
-  `malformed_week` (`progressionGuardrail.mjs:2137`, `:2150`, `:2168`). A check matching
+  `malformed_week` (`progressionGuardrail.mjs:2152`, `:2165`, `:2183`). A check matching
   only the first silently misses every malformed proposed week.
+  ⚠ **Do not re-type either value in a consumer.** The core now exports the vocabulary —
+  `BS_UNKNOWN_REASONS` (`progressionGuardrail.mjs:2464`) and its `BS_MALFORMED_REASONS`
+  subset (`:2481`) — so the monitor imports it and a rename breaks a test instead of making
+  the malformed check read 0 forever.
 - ⚠ **`guardrail_evaluated` measures coach activity, not system health.** A 24-hour window
   with no coach work is an ordinary quiet day, not a fault. The originally specified
   "count = 0 over 24h" alert would have fired on most pre-launch days. **Dropped until
@@ -93,13 +97,16 @@ Check 2 reads `guardrail_evaluated` where
 **`props->>'unknownReason' IN ('malformed_history', 'malformed_week')`**.
 Checks 3 and 4 read `props->>'state'`.
 
-The full `unknownReason` vocabulary, read off the only function that produces
-`state: 'unknown'` (`progressionGuardrail.mjs:2116`), is exactly four values:
-`malformed_history` · `malformed_week` · `incomplete_week` · `unscoreable`. The field is
-NULL on every non-unknown result (`guardrail-gate.mjs:168`).
+The full `unknownReason` vocabulary is exactly four values: `malformed_history` ·
+`malformed_week` · `incomplete_week` · `unscoreable`. They come from the only function that
+produces `state: 'unknown'` — the `unknown()` helper at `progressionGuardrail.mjs:2131` —
+and are now exported as **`BS_UNKNOWN_REASONS`** (`:2464`), derived from `BS_UNKNOWN_DETAIL`
+so the export cannot drift from the copy. The field is NULL on every non-unknown result
+(`guardrail-gate.mjs:168`).
 ⚠ **Do not confuse these with `bsBaseline`'s reasons** (`no_qualifying_weeks`,
-`insufficient_weeks`, `baseline_below_floor`, `baseline_unreadable`) — those sit on the
-baseline sub-result and **never reach telemetry**.
+`insufficient_weeks`, `baseline_below_floor`, `baseline_unreadable`, and its own separate
+`malformed_history` at `:1058`/`:1061`) — those sit on the baseline sub-result and **never
+reach telemetry**; only the top-level `result.reason` does.
 
 ⚠ **Checks 2 and 4 overlap by construction** — every malformed evaluation is also an
 unknown one. That is intended: check 2 is the specific alarm, check 4 the general one.
@@ -161,13 +168,57 @@ for three reasons: this is operational state rather than product analytics; the
 guardrail_health_runs
   id           uuid primary key default gen_random_uuid()
   ran_at       timestamptz not null default now()
-  verdicts     jsonb not null   -- { check_name: { status, value, sample } }
+  verdicts     jsonb not null   -- { check_name: { status, value, sample, alertedAt } }
   alerted      boolean not null default false
 ```
 
+⚠ **`alertedAt` is part of the verdict, not decoration.** It is the timestamp of the last
+notification for that check, and the flapping control below reads it back off the previous
+run to decide between silence and the weekly re-alert. Persisting a verdict without it
+would make every run a fresh transition.
+
+⚠ **`insufficient_sample` carries the stamp forward; only `ok` clears it.** A check that
+alerts, drops below the floor for a day, and comes back is *one* open episode — so the
+stamp survives the gap. Dropping it there makes a continuing fault re-announce itself as a
+new one every time the sample happens to dip, which is the flapping this control exists to
+prevent. `ok` clearing the stamp is what lets a genuine recovery-then-relapse notify again.
+
+The verdicts blob also carries a `_read` entry — `{ evaluations, matched, truncated }` —
+recording whether the 7-day read saw every matching row. A capped read must never be
+indistinguishable from a complete one in the history: with `truncated: true` the rates are
+still a valid sample of the newest rows, but `malformed` reporting `ok/0` means "none in
+what we saw", not "none". The underscore keeps it out of the check namespace.
+
 Requires one migration. Revoke from `public`, `anon` **and** `authenticated` — not just
-`public`, per the bug class the access-control audit closed in #1851. Pin
-`search_path = public, pg_temp` on anything created.
+`public`, per the bug class the access-control audit closed in #1851.
+⚠ **And from `service_role`, which is the role that class is easiest to miss on.** Supabase
+default-grants `DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE` to
+`service_role` on every new `public` table (verified against production), so a revoke naming
+only the first three leaves `service_role` holding TRUNCATE on an audit trail and makes the
+follow-up `grant select, insert` a no-op. Revoke from `service_role` first, then grant back
+the two verbs the cron uses, and have the migration's guard assert the **absence** of
+TRUNCATE, DELETE and UPDATE — asserting only that SELECT and INSERT exist passes unchanged
+over exactly the hole it is meant to catch. Pin `search_path = public, pg_temp` on anything
+created.
+
+## The 7-day read
+
+⚠ **Order it, bound it, and make truncation detectable.** PostgREST applies its "Max rows"
+setting (default 1000) whether or not a query asks for a limit, and with no `ORDER BY` the
+scan over `analytics_events_event_ts_idx (event, ts)` returns **ts-ascending** — so the rows
+silently dropped are the **newest**. Adjust writes one row per evaluated week inside a `map`,
+so roughly 83 twelve-week regenerations in 7 days reaches 1000. A malformed row from
+yesterday then vanishes, `malformed` reports `ok/0`, and a check with no floor and
+any-occurrence semantics never fires again.
+
+⚠ **A naive `rows.length === LIMIT` truncation test does not work.** Request a limit *above*
+the server's cap and the response is capped instead, so the length never equals the limit and
+the check silently reports a complete read. Use an exact count (`count: 'exact'` returns the
+true total from Content-Range regardless of any page cap) and compare against what was
+actually fetched, paging with `range()` at a page size at or below the plausible cap.
+
+`service_role` carries `statement_timeout = 8s`, so the read needs a hard ceiling as well as
+an order.
 
 ---
 
@@ -177,28 +228,42 @@ Layer 2 has the same absence-needs-a-presence-signal problem it was built to sol
 level up: **if the Vercel cron stops firing, there are no alerts and no signal that alerts
 stopped.**
 
-### The mechanism: Sentry Cron Monitors (external dead-man's switch)
+### The mechanism: a provider-agnostic ping to an external dead-man's switch
 
-The job sends `Sentry.captureCheckIn({ monitorSlug: 'guardrail-health', status })` —
-`in_progress` on entry, `ok` or `error` on exit. The monitor is configured in Sentry with
-the expected schedule plus a grace margin, and **Sentry raises the alarm when an expected
-check-in does not arrive.**
+On a **completed** run the job sends a plain `GET` to whatever URL `HEARTBEAT_PING_URL`
+holds. The service on the other end is configured with the expected schedule plus a grace
+margin, and **it raises the alarm when an expected ping does not arrive.**
+
+⚠ **Deliberately NOT `Sentry.captureCheckIn`.** Sentry Cron Monitors, Healthchecks.io and
+Cronitor **all accept exactly this plain ping**, so nothing is foreclosed — pointing
+`HEARTBEAT_PING_URL` at a Sentry monitor URL later is an env-var change, not a code change.
+What it buys is that **the heartbeat is not blocked on choosing a provider, and not blocked
+on an account that does not exist.** Layer 2 ships before Sentry exists anywhere in this
+repo; a check-in call written against an SDK that is not installed would be dead code
+pretending to be a dead-man's switch. The route therefore imports nothing from Sentry.
 
 This works because the observer is genuinely outside the system observed:
 
 | Failure | Caught? |
 |---|---|
-| Vercel cron never fires | ✅ no check-in arrives, Sentry alerts |
-| Job starts, crashes mid-run | ✅ `in_progress` with no terminal status |
-| Job runs, a check throws | ✅ `error` status |
-| Sentry itself is down | ⛔ lose both the alerts and the alarm |
+| Vercel cron never fires | ✅ no ping arrives, the monitor alerts |
+| Job starts, crashes mid-run | ✅ the ping is the LAST thing a run does |
+| Job runs, a check throws | ✅ the catch path returns without pinging |
+| The monitoring service is down | ⛔ lose the alarm |
 
-⚠ **The tradeoff, stated plainly: this makes Sentry load-bearing for the alarm about a
-system that is not Sentry.** Accepted, because the likely failure is a Vercel or job
-failure and Sentry is external to both; a simultaneous Sentry outage is a smaller risk than
-having no dead-man's switch at all. The alternative — a separate service such as
-Healthchecks.io or Cronitor — removes even that shared dependency at the cost of a second
-account and a second notification setup to keep alive.
+⚠ **`HEARTBEAT_PING_URL` is currently unset, so every run reports `heartbeat: 'skipped'`
+and there is no dead-man's switch yet.** That is the honest state, and it is a one-line env
+change to close rather than an integration.
+
+⚠ **Two statuses, not three.** A plain GET carries no `in_progress`/`ok`/`error` vocabulary,
+so the signal is binary: pinged, or did not. That is enough for the failure this exists to
+catch — a run that threw takes the catch path and never reaches the ping, so a crashed run
+is indistinguishable from a cron that never fired, and **both are alarms**. Distinguishing
+them is what the logs and the run record are for.
+
+⚠ **A HEARTBEAT IS ABOUT THE JOB RUNNING, NOT ABOUT THE CHECKS FINDING NOTHING.** A run
+where all four checks report `insufficient_sample` is a **healthy** run and must still ping.
+Only an actual failure to complete withholds it.
 
 ### ⚠ Why the self-referential option was rejected
 
@@ -206,14 +271,11 @@ The second candidate was *a check inside the job that reads the previous run's r
 alerts if it is stale*. **It cannot work for the failure it is meant to catch.** If the cron
 never fires, nothing runs, nothing reads the record, and nothing notices — the record simply
 grows staler in silence. **A cron that never fires cannot self-report.** It would catch only
-partial failure (the job fires but a check throws), which the check-in status already
+partial failure (the job fires but a check throws), which withholding the ping already
 covers.
 
 The run record is still written — flapping control needs the verdict history regardless — it
 just is not the heartbeat.
-
-⚠ **The heartbeat is about the JOB running, not about the checks finding anything.** A run
-where all four checks report `insufficient_sample` is a **healthy** run and sends `ok`.
 
 ---
 
@@ -275,23 +337,35 @@ with **no minification**, so those stack traces are already readable.
 `captureMessage` **creates an issue; it does not notify anyone.** Without a routing rule,
 Layer 2 runs correctly, files its findings, and no human ever learns of them.
 
+⚠ **This section is about Layer 1's delivery of Layer 2's findings, and it is not what makes
+the heartbeat work.** The heartbeat is a plain ping to `HEARTBEAT_PING_URL` and is
+independent of everything below — see *Heartbeat*. The two are set up separately and either
+can land first.
+
 Owner steps, in the Sentry UI:
 
 1. **Alerts → Create Alert → Issues.**
 2. Condition: **an issue is first seen**, filtered on **`alert` equals `guardrail-health`**.
 3. Action: notify the owner by email (and Slack, if connected).
 4. Set the environment filter to **production** so preview deploys do not page.
-5. Repeat for the **cron monitor**: Alerts → Create Alert → **Cron Monitor**, on
-   `guardrail-health`, condition **missed check-in** *and* **error status**.
-6. ⚠ **The two rules are separate.** An issue rule does not cover a missed check-in — a
-   missed check-in produces no issue, which is the entire point.
+
+### The heartbeat's own alarm — separate, and not Sentry-dependent
+
+Configure the schedule + grace margin on whichever service `HEARTBEAT_PING_URL` points at.
+If that is a **Sentry Cron Monitor**, its URL is the ping target and the missed-check-in
+rule is configured on the monitor; if it is Healthchecks.io or Cronitor, the alarm is
+configured there instead and Sentry is not involved at all.
+
+⚠ **This alarm and the issue rule above are separate, whichever provider is chosen.** An
+issue rule does not cover a missed ping — a missed ping produces no issue, which is the
+entire point.
 
 ### Verification — required, not optional
 
 **Fire a test `captureMessage` tagged `alert: guardrail-health` and confirm a notification
 actually arrives in the inbox.** Filing an issue in Sentry is not evidence anyone was told.
-Then deliberately skip one scheduled check-in and confirm the missed-check-in alert arrives
-too — the heartbeat is worthless unverified, and its whole job is to speak up on a day when
+Then deliberately skip one scheduled ping and confirm the missed-heartbeat alert arrives too
+— the heartbeat is worthless unverified, and its whole job is to speak up on a day when
 nothing else does.
 
 The same standard applies to Layer 1's own smoke test: throw a deliberate error on each of
@@ -354,13 +428,19 @@ editing an applied migration's prose is the owner's call. Registered, not built.
 | # | Action | Blocks |
 |---|---|---|
 | 1 | Run the `guardrail_health_runs` migration | Layer 2 |
-| 2 | Create the Sentry org + three projects; supply three DSNs and a source-map auth token | Layer 1 |
-| 3 | Create both Sentry alert rules (issue + cron monitor) | alerts reaching a human |
-| 4 | Verify a test notification actually arrives | the whole point |
+| 2 | Set `HEARTBEAT_PING_URL` to a dead-man's-switch endpoint, and configure its schedule + grace margin | Layer 2's heartbeat |
+| 3 | Create the Sentry org + three projects; supply three DSNs and a source-map auth token | Layer 1 |
+| 4 | Create the Sentry issue alert rule (`alert` = `guardrail-health`) | findings reaching a human |
+| 5 | Verify a test notification arrives, and that a skipped ping raises the missed-heartbeat alarm | the whole point |
 
-Items 2–4 are why Layer 2 builds first: it needs only item 1, and it guards the failure
-modes that matter most.
+Items 3–5 are why Layer 2 builds first: it needs only items 1 and 2, and it guards the
+failure modes that matter most.
 
-⚠ **Layer 2's heartbeat depends on Sentry**, so until item 2 lands the job runs without a
-dead-man's switch. That gap is real and should not be forgotten when Layer 1 arrives — the
-check-in call is part of Layer 2's route but inert until a DSN exists.
+⚠ **Item 2 does NOT depend on item 3.** The heartbeat is a provider-agnostic HTTP ping, so
+it can be closed today with any of Sentry Cron Monitors, Healthchecks.io or Cronitor —
+picking Sentry later costs an env-var change, not a code change. **Until `HEARTBEAT_PING_URL`
+is set the job runs with no dead-man's switch and every run reports `heartbeat: 'skipped'`.**
+That gap is real and is the cheapest one on this list to close.
+
+⚠ **Alerts currently reach Vercel logs and no further.** `reportAlerts()` in the route is the
+single seam item 4 replaces; until then the job evaluates correctly and notifies nobody.

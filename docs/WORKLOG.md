@@ -1322,7 +1322,11 @@ changelog whenever something ships.
 
 - ⚠ **Malformed is TWO reason values, not one, and not an event.** Check 2 reads
   `guardrail_evaluated` where `props->>'unknownReason' IN ('malformed_history',
-  'malformed_week')` (`progressionGuardrail.mjs:2137`, `:2150`, `:2168`). Matching only
+  'malformed_week')` (`progressionGuardrail.mjs:2152`, `:2165`, `:2183`; the `unknown()`
+  producer they all route through is `:2131`). ⚠ **And the monitor no longer re-types those
+  two strings** — the core exports `BS_UNKNOWN_REASONS` (`:2464`) and its
+  `BS_MALFORMED_REASONS` subset (`:2481`), derived from `BS_UNKNOWN_DETAIL`, so a rename
+  breaks a test instead of making the malformed check read 0 forever. Matching only
   `malformed_history` would silently miss every malformed proposed week — the exact
   silent-failure shape this module exists to catch. (The other two `unknownReason` values,
   `incomplete_week` and `unscoreable`, count toward the unknown-rate check but are **not**
