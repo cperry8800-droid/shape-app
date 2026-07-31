@@ -93,6 +93,20 @@ function shouldNotify(previousEntry, nowISO) {
   const now = Date.parse(nowISO);
   if (!Number.isFinite(now)) return { notify: false, alertedAt: stamp };
 
+  // ⚠ A STAMP IN THE FUTURE IS A CORRUPT STAMP, NOT A FRESH ONE — and it is the
+  // one corruption that PARSES. After a clock correction or a bad run record,
+  // `now - last` is negative, so the re-alert test below can never fire; the run
+  // then suppresses the alert AND persists the same future stamp again, every
+  // day, until seven days past that timestamp. For a far-future value that is
+  // effectively forever — a check silenced permanently by a single bad write.
+  // Treated exactly like an unparseable stamp (above): re-notify and reset, so
+  // this module's rule holds without exception — a corrupt stamp fails toward
+  // over-notifying, never toward silence.
+  //
+  // ⚠ STRICTLY greater. `last === now` is two runs inside the same millisecond,
+  // which is an ordinary repeat and must stay suppressed.
+  if (last > now) return { notify: true, alertedAt: nowISO };
+
   if (now - last >= BS_REALERT_MS) return { notify: true, alertedAt: nowISO };
   return { notify: false, alertedAt: stamp };
 }

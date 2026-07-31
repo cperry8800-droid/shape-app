@@ -400,6 +400,40 @@ test('a corrupt alertedAt re-notifies rather than going silent forever', () => {
   assert.equal(verdicts.rpe_dropped.alertedAt, NOW, 'and the corrupt stamp is replaced');
 });
 
+test('a FUTURE alertedAt re-notifies and resets rather than silencing forever', () => {
+  // A parseable stamp later than now (clock correction, corrupted run record) is
+  // the corruption that used to slip through: `now - last` is negative, so the
+  // seven-day re-alert test can never fire, and the same future stamp is written
+  // back on every run. For a far-future value the check is silenced permanently.
+  const FUTURE = '2126-01-01T00:00:00.000Z';
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 1,
+    evaluations: [],
+    previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: FUTURE } },
+    nowISO: NOW,
+  });
+  assert.equal(alerts.length, 1, 'a future stamp re-arms the alert');
+  assert.equal(alerts[0].check, 'rpe_dropped');
+  assert.equal(
+    verdicts.rpe_dropped.alertedAt, NOW,
+    'and the future stamp is REPLACED, so it cannot re-suppress the next run',
+  );
+});
+
+test('alertedAt exactly equal to now still suppresses (only strictly future is invalid)', () => {
+  // Two runs inside the same millisecond is an ordinary repeat, not a corrupt
+  // stamp — the boundary the future-stamp guard must not swallow.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 1,
+    evaluations: [],
+    previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: NOW } },
+    nowISO: NOW,
+  });
+  assert.equal(alerts.length, 0, 'an already-open episode stamped this instant does not re-notify');
+  assert.equal(verdicts.rpe_dropped.status, 'alert', 'the fault is still recorded');
+  assert.equal(verdicts.rpe_dropped.alertedAt, NOW, 'and the stamp is carried, not refreshed');
+});
+
 test('an unparseable nowISO skips one run without losing the last stamp', () => {
   // One run is skipped rather than notified, but the last valid stamp survives, so
   // the seven-day reminder still lands on schedule once the clock reads properly again.

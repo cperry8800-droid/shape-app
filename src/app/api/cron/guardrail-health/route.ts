@@ -30,13 +30,29 @@ const EVAL_PAGE_ROWS = 500;
  */
 const EVAL_MAX_ROWS = 5000;
 
-type EvalRow = { props: unknown };
+type EvalRow = { id: string; ts: string; props: unknown };
+
+/**
+ * One value inside a PostgREST `or(...)` group, safe to embed.
+ *
+ * ⚠ `,` `.` `:` `(` `)` are RESERVED inside a logic tree, and an ISO timestamp
+ * carries `.` (milliseconds), `:` (the time separator) and usually a `+00:00`
+ * offset — PostgREST returns `timestamptz` in that form, so the cursor value is
+ * exactly the shape that needs quoting. Double quotes are PostgREST's documented
+ * escape; supabase-js builds the query through `URLSearchParams`, so the quotes
+ * and the `+` are percent-encoded for us.
+ *
+ * A `"` cannot occur in a `uuid` or a `timestamptz` rendering, so the strip is
+ * belt-and-braces: a stray quote would terminate the value early and change what
+ * the filter means, which is the one failure mode worth spending a line on.
+ */
+const orValue = (v: string) => `"${String(v).replace(/"/g, '')}"`;
 
 /**
  * The 7-day evaluation read: NEWEST FIRST, explicitly bounded, and honest about
  * whether it saw everything.
  *
- * ⚠ THREE THINGS HERE ARE LOAD-BEARING, and the original read had none of them.
+ * ⚠ FOUR THINGS HERE ARE LOAD-BEARING, and the original read had none of them.
  *
  * 1. **ORDER.** With no `order()` PostgREST still applies its "Max rows" cap, and
  *    the scan over `analytics_events_event_ts_idx (event, ts)` comes back
@@ -48,12 +64,25 @@ type EvalRow = { props: unknown };
  *    capped read loses the OLDEST rows instead, which is the survivable
  *    direction. `id` is the tiebreak so identical timestamps cannot make
  *    pagination skip or repeat a row.
- * 2. **AN EXACT COUNT, NOT A LENGTH COMPARISON.** `count: 'exact'` returns the
+ * 2. **KEYSET PAGING, NOT `range()`.** ⚠ `.range(from, to)` is an OFFSET into a
+ *    result set that is recomputed per request. Insert one evaluation between
+ *    two pages and every later offset shifts by one: a boundary row is fetched
+ *    twice and an older row is never fetched at all — and when the original
+ *    count is an exact multiple of the page size, `rows.length === matched` so
+ *    `truncated` stays FALSE. The run then reports a complete read that skipped
+ *    a row, and the skipped row can be the malformed one. The `id` tiebreak
+ *    stabilises ORDER within one snapshot; it does nothing across snapshots.
+ *    A cursor on the last `(ts, id)` pair is immune, because each page asks for
+ *    rows strictly BEFORE a fixed point rather than at a counted position — a
+ *    row inserted mid-read is newer than the cursor and simply never appears.
+ *    The ceiling stays: a cursor removes the shifting window, not the need to
+ *    bound the read.
+ * 3. **AN EXACT COUNT, NOT A LENGTH COMPARISON.** `count: 'exact'` returns the
  *    true number of matching rows from Content-Range regardless of any page cap,
  *    so `fetched < matched` is a truncation test that cannot be fooled by the
  *    server capping a page. Comparing `rows.length` against a limit we chose
  *    would be.
- * 3. **TRUNCATION IS REPORTED, NEVER SWALLOWED.** A capped read must never be
+ * 4. **TRUNCATION IS REPORTED, NEVER SWALLOWED.** A capped read must never be
  *    indistinguishable from a complete one. When it happens, the rates are still
  *    a valid sample of the newest rows, but `malformed` — "any occurrence over
  *    7d" — can no longer prove absence, so the caller logs it and persists it.
@@ -64,30 +93,49 @@ async function readEvaluations(
 ): Promise<{ rows: EvalRow[]; matched: number | null; truncated: boolean }> {
   const rows: EvalRow[] = [];
   let matched: number | null = null;
+  let cursor: { ts: string; id: string } | null = null;
 
-  for (let from = 0; from < EVAL_MAX_ROWS; from += EVAL_PAGE_ROWS) {
-    const to = Math.min(from + EVAL_PAGE_ROWS, EVAL_MAX_ROWS) - 1;
-    const { data, count, error } = await admin
+  while (rows.length < EVAL_MAX_ROWS) {
+    const first = cursor === null;
+    const want = Math.min(EVAL_PAGE_ROWS, EVAL_MAX_ROWS - rows.length);
+
+    let q = admin
       .from('analytics_events')
-      .select('props', from === 0 ? { count: 'exact' } : undefined)
+      .select('id, ts, props', first ? { count: 'exact' } : undefined)
       .eq('event', 'guardrail_evaluated')
-      .gte('ts', since)
+      .gte('ts', since);
+    if (cursor) {
+      // `ts < c.ts OR (ts = c.ts AND id < c.id)` — ONE filter, so it AND-s with
+      // the event/since predicates and keeps the `ts desc, id desc` order intact.
+      const ts = orValue(cursor.ts);
+      q = q.or(`ts.lt.${ts},and(ts.eq.${ts},id.lt.${orValue(cursor.id)})`);
+    }
+
+    const { data, count, error } = await q
       .order('ts', { ascending: false })
       .order('id', { ascending: false })
-      .range(from, to);
+      .limit(want);
     if (error) throw new Error(`guardrail_evaluated query failed: ${error.message}`);
 
     const page = (data ?? []) as EvalRow[];
     rows.push(...page);
-    if (from === 0 && typeof count === 'number') matched = count;
+    if (first && typeof count === 'number') matched = count;
 
     if (page.length === 0) break;
+
+    // ⚠ A row with no usable cursor pair cannot anchor the next page, and
+    // guessing one would either repeat rows forever or skip past them. Stop, and
+    // let the truncation test below report the short read honestly.
+    const last = page[page.length - 1];
+    if (!last || typeof last.ts !== 'string' || typeof last.id !== 'string') break;
+    cursor = { ts: last.ts, id: last.id };
+
     if (matched !== null && rows.length >= matched) break;
     // Only reachable if the exact count did not come back at all. A page shorter
     // than the one requested is then the sole end-of-data signal available, and
     // it is genuinely ambiguous (the server may have capped us) — which is why
     // `matched: null` is surfaced rather than presented as a clean read.
-    if (matched === null && page.length < to - from + 1) break;
+    if (matched === null && page.length < want) break;
   }
 
   const truncated = matched !== null ? rows.length < matched : rows.length >= EVAL_MAX_ROWS;

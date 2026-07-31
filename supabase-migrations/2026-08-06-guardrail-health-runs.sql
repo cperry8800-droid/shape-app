@@ -57,6 +57,42 @@ revoke all on public.guardrail_health_runs from public, anon, authenticated;
 --     claim asserted below is scoped to service_role — the role the cron and
 --     every ad-hoc service-key script actually connect as.
 revoke all on public.guardrail_health_runs from service_role;
+
+-- ⚠ AND A THIRD PLACE PRIVILEGES HIDE: COLUMN-LEVEL GRANTS.
+-- `revoke all ON TABLE` clears `pg_class.relacl`. Column privileges live in a
+-- SEPARATE store, `pg_attribute.attacl`, and a table-level revoke does not touch
+-- them — so on a pre-existing or hand-altered table a `grant update (verdicts,
+-- alerted) ... to service_role` survives every revoke above. Verified against
+-- production: `pg_catalog.pg_subscription` grants SELECT to PUBLIC on 17 of its
+-- columns and NOTHING at table level, and there
+-- `has_table_privilege('anon', ..., 'SELECT')` is FALSE while
+-- `has_any_column_privilege('anon', ..., 'SELECT')` is TRUE. So the guard below
+-- could not see this, and this sweep is what makes its claim true rather than
+-- merely asserted.
+--
+-- Dynamic over the live column list rather than the four expected names on
+-- purpose: an extra column left behind by hand-iteration carries its own ACL,
+-- and enumerating names would step straight past it.
+do $cols$
+declare
+  r record;
+begin
+  for r in
+    select a.attname
+    from pg_attribute a
+    where a.attrelid = 'public.guardrail_health_runs'::regclass
+      and a.attnum > 0
+      and not a.attisdropped
+  loop
+    execute format(
+      'revoke all (%I) on table public.guardrail_health_runs from public, anon, authenticated, service_role',
+      r.attname
+    );
+  end loop;
+end $cols$;
+
+-- Table-level, so it covers every column including any added later. Granted
+-- AFTER the sweep above, which only clears the column store and cannot undo it.
 grant select, insert on public.guardrail_health_runs to service_role;
 
 -- No RLS policy is created deliberately: with RLS enabled and no policy, every
@@ -131,11 +167,20 @@ begin
   -- The whole point of the revoke. If either role kept access, operational
   -- state (including how often the guardrail is failing) is readable by any
   -- signed-in member, and anon would be worse.
-  if has_table_privilege('anon', 'public.guardrail_health_runs', 'SELECT') then
-    raise exception 'anon can still read guardrail_health_runs';
+  --
+  -- ⚠ `has_any_column_privilege`, NOT `has_table_privilege`. The table-level
+  -- function inspects `pg_class.relacl` ONLY: a role holding SELECT on a single
+  -- column reads FALSE there, so the assertion passes while the role can still
+  -- select that column. `has_any_column_privilege` is the strict superset — it
+  -- is TRUE for a table-level grant AND for a column-only grant — which is
+  -- exactly the "prove the absence" shape these two checks need. Confirmed
+  -- against production on `pg_catalog.pg_subscription`, which carries column-only
+  -- SELECT for PUBLIC: table-level FALSE, any-column TRUE.
+  if has_any_column_privilege('anon', 'public.guardrail_health_runs', 'SELECT') then
+    raise exception 'anon can still read guardrail_health_runs (table- or column-level)';
   end if;
-  if has_table_privilege('authenticated', 'public.guardrail_health_runs', 'SELECT') then
-    raise exception 'authenticated can still read guardrail_health_runs';
+  if has_any_column_privilege('authenticated', 'public.guardrail_health_runs', 'SELECT') then
+    raise exception 'authenticated can still read guardrail_health_runs (table- or column-level)';
   end if;
   -- Both verbs the cron actually uses, asserted separately so the failure names
   -- the operation. ⚠ The SELECT half matters MORE than it looks: the route reads
@@ -162,8 +207,17 @@ begin
   -- erases it row by row. UPDATE is the quietest of the three and no less
   -- disqualifying: a rewritten verdict is a run record that says something the
   -- run did not say, which is worse than a missing one.
+  --
+  -- ⚠ TWO FUNCTIONS, AND THE SPLIT IS NOT COSMETIC. Only SELECT, INSERT, UPDATE
+  -- and REFERENCES have a column-level form in PostgreSQL. TRUNCATE and DELETE
+  -- act on whole rows, so they exist only at table level and
+  -- `has_any_column_privilege(..., 'DELETE')` does not merely return false — it
+  -- RAISES `22023 unrecognized privilege type` (verified against production),
+  -- which inside this guard would abort the migration on a healthy database.
+  -- So: table-level function for the two row-level verbs, column-aware function
+  -- for UPDATE, which is the one of the three a column grant can smuggle in.
   for r in
-    select unnest(array['TRUNCATE', 'DELETE', 'UPDATE']) as verb
+    select unnest(array['TRUNCATE', 'DELETE']) as verb
   loop
     if has_table_privilege('service_role', 'public.guardrail_health_runs', r.verb) then
       raise exception
@@ -171,6 +225,14 @@ begin
         r.verb;
     end if;
   end loop;
+
+  -- The column-capable one. `grant update (verdicts) ...` is invisible to
+  -- `has_table_privilege`, and rewriting `verdicts` or `alerted` is precisely the
+  -- quiet corruption this assertion exists to rule out.
+  if has_any_column_privilege('service_role', 'public.guardrail_health_runs', 'UPDATE') then
+    raise exception
+      'service_role still holds UPDATE on guardrail_health_runs (table- or column-level) - the audit trail can be rewritten';
+  end if;
 end $guard$;
 
 commit;
