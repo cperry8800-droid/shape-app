@@ -226,3 +226,45 @@ test('every alert carries a check name, severity and a human message', () => {
     assert.ok(typeof a.message === 'string' && a.message.length > 10);
   }
 });
+
+test('a corrupt alertedAt re-notifies rather than going silent forever', () => {
+  // An unreadable stamp must not be treated as "recently alerted". Over-notifying
+  // is the safe direction; a corrupt stamp that disables an alert permanently is not.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 1,
+    evaluations: [],
+    previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: 'not-a-date' } },
+    nowISO: NOW,
+  });
+  assert.equal(alerts.length, 1, 'an unreadable stamp re-arms the alert');
+  assert.equal(alerts[0].check, 'rpe_dropped');
+  assert.equal(verdicts.rpe_dropped.alertedAt, NOW, 'and the corrupt stamp is replaced');
+});
+
+test('an unparseable nowISO skips one run without losing the last stamp', () => {
+  // One run is skipped rather than notified, but the last valid stamp survives, so
+  // the seven-day reminder still lands on schedule once the clock reads properly again.
+  const STAMPED = '2026-07-30T07:00:00.000Z';
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 1,
+    evaluations: [],
+    previous: { rpe_dropped: { status: 'alert', value: 1, sample: null, alertedAt: STAMPED } },
+    nowISO: 'garbage',
+  });
+  assert.equal(alerts.length, 0, 'an unreadable now cannot justify a new notification');
+  assert.equal(verdicts.rpe_dropped.status, 'alert', 'the fault is still recorded');
+  assert.equal(verdicts.rpe_dropped.alertedAt, STAMPED, 'the last valid stamp is preserved');
+});
+
+test('unknown_rate is ok exactly at the 10% threshold (strictly greater alerts)', () => {
+  // 2 unknown of 20 = 10%, not > 10%
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [...evals(2, 'unknown'), ...evals(18, 'green')],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.unknown_rate.status, 'ok');
+  assert.equal(verdicts.unknown_rate.value, 0.1);
+  assert.equal(verdicts.unknown_rate.sample, 20);
+});
