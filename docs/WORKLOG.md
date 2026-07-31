@@ -1188,8 +1188,20 @@ changelog whenever something ships.
 
 ### 2026-07-30 — Search-term hardening: clamp, escape, pin `pg_temp` (#1853 → `ed6c52e45`)
 
-⚠ **OWNER MIGRATION OUTSTANDING — `2026-08-05-search-pattern-hardening.sql`.** Nothing
-in the app changes until it is applied; the two RPCs keep their current behaviour.
+✅ **MIGRATION APPLIED + VERIFIED LIVE 2026-07-31.** The shipped guard was re-run verbatim
+against production and **every assertion passed**: `_escape_like_pattern` present and not
+overloaded, **both RPCs call it**, `search_path=public, pg_temp` pinned on both, and
+`anon=false / authenticated=true / service_role=true` on all three. Behaviour confirmed
+against the live helper — `'a_b%c\d'` escapes to `a\_b\%c\\d`, an escaped `_` matches a
+literal underscore and **no longer matches an arbitrary character** (the same term unescaped
+still does, i.e. the bug was real), and the term clamps to 80. Security advisors after:
+**0 ERROR**. ⚠ One new WARN is mine and is cosmetic — `function_search_path_mutable` on
+`_escape_like_pattern`, which ships without a `SET` clause. It is **SECURITY INVOKER**, so a
+caller shadowing something only fools themselves, and `replace` resolves to `pg_catalog`
+regardless; called from the definers it inherits their pinned path. **Correction to the
+rationale in the file:** it was justified partly on preserving inlining, but the helper is
+evaluated **once per query** in the `qq` CTE rather than per row, so that argument is much
+weaker than stated — pinning it would cost effectively nothing and is the tidier end state.
 
 **This is NOT an injection fix, and the record should not read as one.** It ships the one
 actionable item from the 2026-07-30 **SQL-injection** and **secret-exposure** audits (five
