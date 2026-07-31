@@ -596,28 +596,78 @@ test('assign: the page mounts (no TDZ, no hook-order fault, no render throw)', (
   assert.match(out.html, /Marcus/);
 });
 
-test('assign: a weekday split publishes WEEKS, not sessions', async () => {
-  const calls = stubAssign();
-  const page = driveAssign(ASSIGN_PROPS);
-  await page.click((s) => /Assign/i.test(s));
-
-  // 4 weeks is the stepper default for a split; the rest day never rides.
-  assert.equal(calls.length, 4, 'expected 4 week publishes, got ' + calls.length);
-  const titles = calls.flatMap((c) => c.sessions.map((s) => s.title));
-  assert.equal(titles.filter((x) => /Rest/i.test(x)).length, 0, 'a REST day must not be scheduled');
-
-  for (const c of calls) {
-    // Every session must fall inside the week it was published under, or the
-    // boundary's atomic week-replace deletes a week it was never handed.
-    for (const s of c.sessions) {
-      const delta = (new Date(s.scheduledDate) - new Date(c.weekStartISO)) / 86400000;
-      assert.ok(delta >= 0 && delta <= 6, s.scheduledDate + ' is outside week ' + c.weekStartISO);
+// `BSProAssignPage` reads the real wall clock (`new Date()` with no injection
+// point) to default "Starts" to tomorrow. The isSplit publish path then drops
+// any session dated before "Starts" — so when "tomorrow" lands on a Saturday
+// or Sunday, the plan's own Mon/Wed/Fri sessions in the FIRST calendar week
+// are all before "Starts" (Friday < Saturday, etc.), that week publishes
+// empty, and an empty week gets no entry in bsAssignWeeks's Map — silently
+// dropping the published-week count from 4 to 3. That is real, intentional,
+// server-enforced behavior (the boundary rejects both an empty week and a
+// session dated before today); hardcoding `4` against an uncontrolled clock
+// was the test's own bug. Freeze `new Date()` here so the expectation is
+// stable on every weekday, restoring the real Date even if the test throws.
+function withFrozenToday(y, m, d, fn) {
+  const RealDate = globalThis.Date;
+  // Noon, not midnight — keeps the frozen instant safely clear of any
+  // timezone-adjacent day-boundary edge case while still resolving to the
+  // intended calendar date via local getters (getDay/getDate/…).
+  const FROZEN_MS = new RealDate(y, m, d, 12, 0, 0).getTime();
+  class FrozenDate extends RealDate {
+    constructor(...args) {
+      // Only the no-arg form is pinned. `new Date(x)` (parsing an ISO string,
+      // copying another Date, …) must keep behaving exactly like the real
+      // constructor, or the surrounding date math (bsAssignMonday, the
+      // weekStartISO delta checks below) breaks.
+      if (args.length === 0) super(FROZEN_MS);
+      else super(...args);
     }
-    assert.match(c.idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    static now() { return FROZEN_MS; }
+    // `Date.parse` is inherited from RealDate through the static prototype
+    // chain (classes carry statics via `Object.setPrototypeOf`), so it is
+    // deliberately NOT overridden here — it keeps parsing real strings.
   }
-  // One key per week — a shared key would make week 2 replay week 1.
-  assert.equal(new Set(calls.map((c) => c.idempotencyKey)).size, calls.length);
-  assert.equal(new Set(calls.map((c) => c.weekStartISO)).size, calls.length);
+  globalThis.Date = FrozenDate;
+  return (async () => {
+    try {
+      return await fn();
+    } finally {
+      globalThis.Date = RealDate;
+    }
+  })();
+}
+
+test('assign: a weekday split publishes WEEKS, not sessions', async () => {
+  // Pinned to SUNDAY 2024-01-07 (2024-01-01 is a Monday, so 2024-01-07 is
+  // that week's Sunday). "Starts" defaults to tomorrow = Monday 2024-01-08 —
+  // which is ALSO that week's own Monday, so `bsAssignMonday(start) ===
+  // start` and the first week's Mon/Wed/Fri sessions all land ON OR AFTER
+  // `start` (there is nothing before it to drop). All 4 weeks stay non-empty,
+  // so 4 is the genuine, clock-independent answer — not an artifact of one
+  // lucky day. (Verified below to hold on Friday/Saturday too, once frozen.)
+  await withFrozenToday(2024, 0, 7, async () => {
+    const calls = stubAssign();
+    const page = driveAssign(ASSIGN_PROPS);
+    await page.click((s) => /Assign/i.test(s));
+
+    // 4 weeks is the stepper default for a split; the rest day never rides.
+    assert.equal(calls.length, 4, 'expected 4 week publishes, got ' + calls.length);
+    const titles = calls.flatMap((c) => c.sessions.map((s) => s.title));
+    assert.equal(titles.filter((x) => /Rest/i.test(x)).length, 0, 'a REST day must not be scheduled');
+
+    for (const c of calls) {
+      // Every session must fall inside the week it was published under, or the
+      // boundary's atomic week-replace deletes a week it was never handed.
+      for (const s of c.sessions) {
+        const delta = (new Date(s.scheduledDate) - new Date(c.weekStartISO)) / 86400000;
+        assert.ok(delta >= 0 && delta <= 6, s.scheduledDate + ' is outside week ' + c.weekStartISO);
+      }
+      assert.match(c.idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
+    // One key per week — a shared key would make week 2 replay week 1.
+    assert.equal(new Set(calls.map((c) => c.idempotencyKey)).size, calls.length);
+    assert.equal(new Set(calls.map((c) => c.weekStartISO)).size, calls.length);
+  });
 });
 
 test('assign: a fully-captured split declares per_session on every week', async () => {

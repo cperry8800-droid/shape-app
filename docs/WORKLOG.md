@@ -178,7 +178,74 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-30): BROKEN ACCESS CONTROL — SIX LIVE HOLES CLOSED, THREE OF THEM
+> **Latest (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
+> OVER `analytics_events`, DAILY AT 09:00 UTC** (`51e0bbc05` / `2004209ef` / `8e61f4687` /
+> `810110fdc` / `46dc67be0` / `47729fe8b` / `3b51f7271` / `943eafb43` / `af3b8f6ac` on
+> `claude/error-tracking-layer2`, not yet merged). A scheduled check for the
+> failure modes Sentry can never see, because the progression guardrail never throws by
+> contract — `/api/cron/guardrail-health`, mirroring the existing `funnel.mjs` /
+> `guardrail-gate.mjs` split: a pure, tested evaluation core (`src/lib/guardrail-health.mjs`)
+> wrapped by a thin I/O route. Layer 1 (Sentry) is blocked on an owner account that doesn't
+> exist yet, so this layer builds first.
+>
+> ⚠ **Four checks, not five — one failure mode is UNCOVERED.** The originally specified
+> "`guardrail_evaluated` count = 0 over 24h" alert (the "guardrail silently not running at
+> all" check) was **not built**: that event measures coach *activity*, so it would fire on
+> any ordinary quiet day. Not hypothetical —
+> `2026-07-29-guardrail-week-publish.sql:246` records that `track_event` did not accept
+> `guardrail_evaluated` when that wave shipped, and the event *"would have written NOTHING
+> and reported NO ERROR."* It was caught by a pre-flight probe, not by monitoring, and
+> nothing shipped here would catch that happening again.
+>
+> ⚠ **Only two of the four checks can fire before launch** — `session_rpe_dropped` (a
+> count) and malformed (any occurrence). The two rate checks report `insufficient_sample`
+> until 20 evaluations land in a rolling 7-day window; correct behaviour, but the coverage
+> claim on the page has to stay honest about it.
+>
+> ⚠ **Alerts currently reach Vercel logs and no further.** `reportAlerts()` in the route is
+> the single seam Layer 1 replaces — until then this job files findings nobody is notified
+> about.
+>
+> ⚠ **A documented write rule is wrong, and this work's denominator depends on the
+> correction.** `2026-07-29-guardrail-week-publish.sql:266` claims `guardrail_evaluated` is
+> written "SERVER-SIDE AT PUBLISH ONLY, one row per publish." Both halves are false — two
+> emission sites (`week-publish-server.ts:209`, `trainer/adjust/route.ts:327`), and Adjust
+> writes one row per evaluation inside a `map`. **Every rate here is per EVALUATION, not
+> per publish**; the field contract itself has not drifted, only that one sentence.
+>
+> ⚠ **Malformed is TWO reason values** — `malformed_history` and `malformed_week` — not
+> one, and not an event; matching only the first would silently miss every malformed
+> proposed week.
+>
+> The migration `2026-08-06-guardrail-health-runs.sql` is **NOT yet applied** (owed to the
+> owner); the route degrades to treating every check as a fresh transition without it
+> rather than crashing. `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
+> inert and every run reports `heartbeat: 'skipped'` — deliberately a provider-agnostic
+> HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry exists anywhere in
+> this repo. Suite **1394/1394, zero failures**; `tsc` clean.
+>
+> ⚠ **The monitor no longer hardcodes the state vocabulary** (`3b51f7271`). It matched
+> `r.state === 'red'` literally, so a rename in the guardrail core would have made
+> `red_rate` read **0% forever** — a permanent all-clear from the module whose whole job is
+> catching silent failure, and the same drift class this repo has now hit twice. The core
+> gained one additive export, `BS_GUARDRAIL_STATES` (15 insertions, 0 deletions);
+> unrecognized states fold into the **existing** malformed check rather than a fifth one,
+> and are **excluded from the rate denominators** — left in they pad the denominator and
+> contribute to no numerator, so a drifted vocabulary would make the rates read *lower*, a
+> monitor going quieter exactly as it goes blind. A rename now breaks a test.
+>
+> ⚠ **A weekly time-bomb test was found and fixed** (`47729fe8b`), unrelated to this work
+> but blocking it. `tests/broadsheet-render.test.mjs:599` hardcoded 4 published weeks
+> against an uncontrolled wall clock: it passed Sunday-Thursday and **failed every Friday
+> and Saturday**, introduced by #1848 (merged a Thursday, failing by Friday). The product
+> behaviour is correct and untouched — an empty week is dropped client-side and rejected
+> server-side, so a Mon/Wed/Fri split starting Saturday honestly yields 3 weeks. Fixed
+> test-side with a scoped freeze restored in a `finally`; verified by running the real test
+> under a frozen clock on both previously-failing days and one control day.
+>
+> See the full entry below.
+
+> **Prior (2026-07-30): BROKEN ACCESS CONTROL — SIX LIVE HOLES CLOSED, THREE OF THEM
 > REACHABLE WITH NO ACCOUNT (#1851 → `789a950cf`). All three migrations applied and
 > verified against production.** An audit of all 156 API routes, 189 SECURITY DEFINER
 > functions and every RLS policy, run on the owner's instruction to "check that the
@@ -227,7 +294,7 @@ changelog whenever something ships.
 >
 > See the full entry below.
 
-> **Latest (2026-07-30): PROGRESSION GUARDRAILS DEPLOY 2b — ONE EVALUATED, SERIALIZED
+> **Prior (2026-07-30): PROGRESSION GUARDRAILS DEPLOY 2b — ONE EVALUATED, SERIALIZED
 > DOOR FOR EVERY COACH TRAINING WRITE (#1848 → `5d7e8c08`). The wave is complete.**
 > The advisory core built in 2a now sits behind every coach-side training write, and the
 > two writes that reach it can no longer race each other. **Both** `publish_client_week`
@@ -1185,6 +1252,132 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
+
+- **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
+  UTC on Vercel cron.** Design: `docs/superpowers/specs/2026-07-31-error-tracking-design.md`;
+  plan: `docs/superpowers/plans/2026-07-31-guardrail-health-cron.md`. Two independent layers
+  were scoped — Layer 1 (Sentry, crash/exception reporting) and Layer 2 (this cron,
+  silent-failure detection) — because the progression guardrail **never throws by
+  contract**, so a broken guardrail is indistinguishable from a healthy one at the exception
+  layer; Layer 1 is blocked on an owner Sentry account that doesn't exist yet, so Layer 2
+  builds first. Architecture mirrors the existing `funnel.mjs` / `guardrail-gate.mjs` split:
+  a pure, fully-tested evaluation module (`src/lib/guardrail-health.mjs`, `51e0bbc05`) that
+  takes raw counts and returns verdicts + alerts, wrapped by a thin route (`8e61f4687`) that
+  does only I/O — authenticate (the `analytics-purge` cron's `x-cron-secret`/`Bearer`
+  pattern, copied verbatim), query, call the module, persist, log, ping the heartbeat. No
+  cron route in this repo had a test before this; this one does (`tests/guardrail-health.
+  test.mjs` plus a regression pass, `810110fdc`, hardening the `shouldNotify` transition
+  paths review had to hand-trace).
+
+- **Four checks: `session_rpe_dropped` count (24h, alerts on any drop > 0), malformed (7d,
+  alerts on any occurrence), red rate (7d, > 5%) and unknown rate (7d, > 10%).** Flapping
+  control persists each run's verdicts and alerts only on a transition into a bad state, plus
+  a weekly re-alert while it persists — `insufficient_sample` is never a transition in
+  either direction, so crossing the 20-evaluation floor for the first time does not itself
+  read as a new fault.
+
+- ⚠ **Four checks, not five — and the fifth's absence leaves a real failure mode
+  UNCOVERED.** The originally specified "`guardrail_evaluated` count = 0 over 24h" alert —
+  meant to catch the guardrail whitelist breaking or the gate not running at all — was
+  **not built**, because that event measures coach *activity*: a quiet 24 hours with no
+  coach work is an ordinary day, not a fault, and the check as specified would have fired on
+  most pre-launch days. This is not a hypothetical gap: `2026-07-29-guardrail-week-
+  publish.sql:246` records that `track_event` did **not** accept `guardrail_evaluated` when
+  that wave shipped — the event *"would have written NOTHING and reported NO ERROR."* It was
+  caught by a pre-flight probe, not by monitoring, and **nothing shipped here would catch
+  that class of failure happening again.** Registered as future work, enabled only once
+  launch plus sustained coach volume gives it a real denominator (publishes attempted vs.
+  evaluations recorded) — which itself needs a second whitelisted event and a migration.
+
+- ⚠ **Only two of the four checks can fire before launch.** `session_rpe_dropped` and
+  malformed are both count-based with no denominator, so they can alert today. Red rate and
+  unknown rate need **20 evaluations in a rolling 7-day window** before they report anything
+  but `insufficient_sample` — stored explicitly, never as null or zero, so "checked, and
+  fine" stays distinguishable from "could not check." Correct behaviour (a percentage over
+  three publishes is noise, and alerting on noise trains you to ignore the alarm), but the
+  coverage claim on this page has to stay honest: **until coach volume clears the floor,
+  this job watches two things, not four.**
+
+- ⚠ **Alerts currently reach Vercel logs and no further.** `reportAlerts()` inside the route
+  is the single seam — when Layer 1 lands, its body is the only thing that changes; nothing
+  else in the job needs to know how an alert is delivered. Until then, this job runs
+  correctly, evaluates correctly, and **notifies no one** — the checks are correct the
+  moment the code ships, the notifications are not.
+
+- ⚠ **A documented write rule is wrong, and this work's whole denominator depends on the
+  correction.** `2026-07-29-guardrail-week-publish.sql:266` states `guardrail_evaluated` is
+  *"Written SERVER-SIDE AT PUBLISH ONLY, one row per publish regardless of session count."*
+  **Both halves of that sentence are false.** There are **two** emission sites —
+  `src/lib/week-publish-server.ts:209` (publish) and `src/app/api/trainer/adjust/route.
+  ts:327` (Adjust) — and the Adjust one sits inside a per-evaluation `map`, so a single
+  Adjust request writes **several** rows. **Every rate in this design and this build is
+  therefore per EVALUATION, not per publish** — larger than a publish-only reading would
+  predict, and the 20-evaluation floor is reached sooner than that reading would suggest.
+  The field contract itself has **not** drifted — `bsTelemetryProps` still emits exactly the
+  thirteen documented fields under exactly those names — only this one cadence sentence is
+  wrong. Recommended follow-up (registered, not done here): a correction banner on that
+  comment, in the style already used on the three superseded search migrations.
+
+- ⚠ **Malformed is TWO reason values, not one, and not an event.** Check 2 reads
+  `guardrail_evaluated` where `props->>'unknownReason' IN ('malformed_history',
+  'malformed_week')` (`progressionGuardrail.mjs:2152`, `:2165`, `:2183`; the `unknown()`
+  producer they all route through is `:2131`). ⚠ **And the monitor no longer re-types those
+  two strings** — the core exports `BS_UNKNOWN_REASONS` (`:2464`) and its
+  `BS_MALFORMED_REASONS` subset (`:2481`), derived from `BS_UNKNOWN_DETAIL`, so a rename
+  breaks a test instead of making the malformed check read 0 forever. Matching only
+  `malformed_history` would silently miss every malformed proposed week — the exact
+  silent-failure shape this module exists to catch. (The other two `unknownReason` values,
+  `incomplete_week` and `unscoreable`, count toward the unknown-rate check but are **not**
+  malformed — don't conflate the four-value vocabulary with the two-value malformed subset,
+  and don't confuse either with `bsBaseline`'s separate reason set, which never reaches
+  telemetry at all.)
+
+- The migration **`supabase-migrations/2026-08-06-guardrail-health-runs.sql`**
+  (`2004209ef`) is **NOT yet applied** — owed to the owner, service-role-only, RLS on with
+  no policy, revoked from `public`/`anon`/`authenticated` per the #1851 bug class, with a
+  `DO`-block guard asserting the grants directly rather than trusting the revoke. The route
+  is written to degrade rather than crash without it: a missing/unreadable previous-run read
+  is treated as "no prior verdicts," so every check reads as a fresh transition on the first
+  real run — the safe direction, since it over-reports once instead of staying silent — but
+  until the migration lands there is no persisted run record and no real flapping control,
+  so a persisting fault would re-alert every day rather than weekly.
+
+- `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is inert and every run reports
+  `heartbeat: 'skipped'`. Deliberately a provider-agnostic plain HTTP GET rather than
+  `Sentry.captureCheckIn`, because Layer 2 ships before Sentry exists anywhere in this repo
+  — Sentry Cron Monitors, Healthchecks.io and Cronitor all accept the same plain ping, so
+  the heartbeat isn't blocked on which one gets picked, still less on Layer 1 existing at
+  all.
+
+- **Two findings that came out of building this, neither of them Layer 2:**
+  - ⚠ **The monitor keyed on string literals the guardrail core owns** (`3b51f7271`).
+    `r.state === 'red'` would have read **0% forever** after a rename — the silent-blindness
+    path inside the silent-failure detector. The core gained one additive export,
+    `BS_GUARDRAIL_STATES` (15 insertions, **0 deletions** — nothing existing touched).
+    Unrecognized states fold into the **existing** malformed check, not a fifth one, since
+    an unrecognized state is already the malformed definition: a shape no legitimate writer
+    can emit. ⚠ **And they are EXCLUDED from the rate denominators** — padding the
+    denominator without touching a numerator makes a drifted vocabulary read *better*,
+    which is the worst direction a monitor can fail in. `rateSample` drives both the floor
+    test and the divisor, so an exclusion can only move toward `insufficient_sample`.
+    The suite now pins the vocabulary, so **a rename breaks a test instead of reading 0%**.
+  - ⚠ **`tests/broadsheet-render.test.mjs:599` was a weekly time bomb** (`47729fe8b`),
+    from #1848 rather than from this work, but blocking it. It hardcoded 4 published weeks
+    against an uncontrolled wall clock — passing Sunday-Thursday, **failing every Friday and
+    Saturday**, forever, which would have blocked the merge gate every weekend. Proven by
+    running the real test under a frozen clock across all seven weekdays. **The product is
+    right and unchanged:** an empty week is dropped client-side (`bsAssignWeeks` groups into
+    a Map, so a zero-session week gets no entry) and rejected server-side, so a Mon/Wed/Fri
+    split starting Saturday honestly yields 3 weeks, not a phantom fourth. Fixed test-side
+    with a freeze scoped to the no-arg `Date` constructor and restored in a `finally`.
+
+- Suite **1394/1394, zero failures**; `npx tsc --noEmit` clean.
+
+- **Owner actions still outstanding:** apply the migration above; set `HEARTBEAT_PING_URL`
+  to a dead-man's-switch endpoint; create the Sentry org + three projects for Layer 1
+  (nothing here is blocked on it, but nothing here notifies a human until it exists).
 
 ### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
 

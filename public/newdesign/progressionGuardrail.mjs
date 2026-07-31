@@ -2095,6 +2095,49 @@ export function bsResolveState(axes, proposedSessions) {
  */
 
 /**
+ * The complete, closed vocabulary of `state` values this module ever emits.
+ * `bsWorstState` (§9) produces `'green'|'amber'|'red'`; `unknown()` (below) is
+ * the only place `'unknown'` is emitted, on the four `unknown(...)` call sites
+ * in this section.
+ *
+ * ⚠ A CONSUMER MUST NEVER HARDCODE THIS LIST A SECOND TIME. A monitor that
+ * matches `r.state === 'red'` literally, instead of importing this array, goes
+ * on reading 0% forever the day this vocabulary is renamed — the exact silent
+ * failure a health-monitoring consumer exists to catch. Import this constant
+ * and derive membership from it (`BS_GUARDRAIL_STATES.includes(r.state)`)
+ * rather than repeating the four strings.
+ *
+ * ⚠ FOR A SINGLE-VALUE COMPARISON (`r.state === 'red'`), THIS ARRAY IS THE
+ * WRONG TOOL — `.includes()` answers membership, not equality, and a `===`
+ * against one of its elements is exactly the re-typed literal this note
+ * warns about. Import the matching named constant instead —
+ * `BS_STATE_GREEN` / `BS_STATE_AMBER` / `BS_STATE_RED` / `BS_STATE_UNKNOWN`,
+ * exported immediately below — so a rename of the underlying string only
+ * ever needs to happen in ONE place.
+ */
+export const BS_GUARDRAIL_STATES = ['green', 'amber', 'red', 'unknown'];
+
+/**
+ * Named single-value companions to `BS_GUARDRAIL_STATES` above, for exactly
+ * the comparison that array cannot safely express (`r.state === BS_STATE_RED`
+ * rather than `r.state === 'red'`). Their VALUES are additive-only copies of
+ * the array's own four elements — kept as separate `export const`s, rather
+ * than folded back into the array literal above, specifically so that line
+ * stays byte-for-byte unchanged: this file carries a review discipline that
+ * requires `git diff --numstat` to show ZERO deletions here, and rewriting
+ * the array to read
+ * `[BS_STATE_GREEN, BS_STATE_AMBER, BS_STATE_RED, BS_STATE_UNKNOWN]` would
+ * touch that existing line and cost exactly the deletion this file is not
+ * allowed to carry. `tests/guardrail-health.test.mjs` pins that the array and
+ * these four names agree, so the two cannot silently drift apart even though
+ * nothing at runtime forces them to.
+ */
+export const BS_STATE_GREEN = 'green';
+export const BS_STATE_AMBER = 'amber';
+export const BS_STATE_RED = 'red';
+export const BS_STATE_UNKNOWN = 'unknown';
+
+/**
  * Evaluate a coach-authored week against a client's logged history.
  *
  * @param {*} history `{ todayISO, sessions }` — `todayISO` is the only "now"
@@ -2424,6 +2467,48 @@ const BS_UNKNOWN_DETAIL = {
     + 'not a problem with the week.',
   unscoreable: 'The comparison could not be completed.',
 };
+
+/**
+ * The complete, closed vocabulary of `unknown` reasons this module ever emits —
+ * the `reason` field of an `unknown()` result, which `bsTelemetryProps` ships as
+ * `unknownReason`.
+ *
+ * DERIVED from `BS_UNKNOWN_DETAIL` rather than re-typed, because that object is
+ * already the one place every reason must appear (an unknown reason with no
+ * detail entry falls back to `unscoreable`'s wording, so the map cannot go stale
+ * without the copy going wrong first). Adding a reason there adds it here.
+ *
+ * ⚠ SAME RULE AS `BS_GUARDRAIL_STATES` (§10): A CONSUMER MUST NEVER HARDCODE
+ * THIS LIST A SECOND TIME. A monitor that matches `unknownReason ===
+ * 'malformed_week'` literally reads 0 forever the day this vocabulary is
+ * renamed — and a malformed check that silently counts nothing is the exact
+ * silent failure a health monitor exists to catch.
+ *
+ * ⚠ Do NOT confuse these with `bsBaseline`'s reasons (`no_qualifying_weeks`,
+ * `insufficient_weeks`, `baseline_below_floor`, `baseline_unreadable`, and its
+ * own `malformed_history`). Those sit on the baseline sub-result and never reach
+ * telemetry — only the top-level `result.reason` does.
+ */
+export const BS_UNKNOWN_REASONS = Object.freeze(Object.keys(BS_UNKNOWN_DETAIL));
+
+/**
+ * The MALFORMED subset of that vocabulary: the reasons that mean *our own code
+ * emitted a shape no legitimate writer can emit*, as opposed to a week a coach
+ * has simply not finished filling in.
+ *
+ * Derived by the `malformed_` prefix, which is the convention every member of
+ * the subset already follows, so a fifth malformed reason added above joins this
+ * list automatically instead of being silently missed. A rename that breaks the
+ * convention shortens this array — which `tests/guardrail-health.test.mjs` pins,
+ * so it fails a test rather than quietly reading zero.
+ *
+ * ⚠ The distinction is load-bearing: one malformed row turns the whole
+ * evaluation `unknown`, and `unknown` never blocks a publish — so mis-filing a
+ * reason here switches the guardrail OFF for that client.
+ */
+export const BS_MALFORMED_REASONS = Object.freeze(
+  BS_UNKNOWN_REASONS.filter((r) => r.startsWith('malformed_')),
+);
 
 /**
  * The words for a guardrail result — the only place guardrail wording lives.
