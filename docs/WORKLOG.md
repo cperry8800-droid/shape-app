@@ -222,7 +222,7 @@ changelog whenever something ships.
 > rather than crashing. `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
 > inert and every run reports `heartbeat: 'skipped'` — deliberately a provider-agnostic
 > HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry exists anywhere in
-> this repo. Suite **1378/1378, zero failures**; `tsc` clean.
+> this repo. Suite **1394/1394, zero failures**; `tsc` clean.
 >
 > ⚠ **The monitor no longer hardcodes the state vocabulary** (`3b51f7271`). It matched
 > `r.state === 'red'` literally, so a rename in the guardrail core would have made
@@ -1373,11 +1373,12 @@ changelog whenever something ships.
     split starting Saturday honestly yields 3 weeks, not a phantom fourth. Fixed test-side
     with a freeze scoped to the no-arg `Date` constructor and restored in a `finally`.
 
-- Suite **1378/1378, zero failures**; `npx tsc --noEmit` clean.
+- Suite **1394/1394, zero failures**; `npx tsc --noEmit` clean.
 
 - **Owner actions still outstanding:** apply the migration above; set `HEARTBEAT_PING_URL`
   to a dead-man's-switch endpoint; create the Sentry org + three projects for Layer 1
   (nothing here is blocked on it, but nothing here notifies a human until it exists).
+
 ### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
 
 - **The "Front Page" cream curtain (owner pick 2026-07-23) is replaced** on

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   bsEvaluateHealth,
+  bsReadState,
+  bsReadStateNote,
   BS_SAMPLE_FLOOR,
   BS_MALFORMED_REASONS,
 } from '../src/lib/guardrail-health.mjs';
@@ -23,6 +25,9 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HEALTH_SRC = readFileSync(join(ROOT, 'src/lib/guardrail-health.mjs'), 'utf8');
+const ROUTE_SRC = readFileSync(
+  join(ROOT, 'src/app/api/cron/guardrail-health/route.ts'), 'utf8',
+);
 
 const NOW = '2026-08-01T07:00:00.000Z';
 
@@ -390,8 +395,8 @@ test('a row with NEITHER state nor unknownReason counts as malformed and alerts'
   assert.equal(alerts.some((a) => a.check === 'malformed'), true);
   const malformedAlert = alerts.find((a) => a.check === 'malformed');
   assert.match(
-    malformedAlert.message, /no state and no unknown reason/,
-    'the stateless contributor is named distinctly from the other two',
+    malformedAlert.message, /no readable state/,
+    'the missing-state contributor is named distinctly from the other two',
   );
 });
 
@@ -575,6 +580,158 @@ test('an unrecognized state value is excluded from the rate denominators AND cou
   assert.equal(verdicts.unknown_rate.status, 'insufficient_sample');
   assert.equal(verdicts.unknown_rate.sample, 19);
   assert.equal(verdicts.malformed.value, 1, 'the unrecognized-state row is still counted');
+});
+
+test('a DROPPED state with a legitimate reason is malformed, not a free pass', () => {
+  // Codex's scenario, and the hole the old "both fields absent" predicate had:
+  // the telemetry mapper stops writing `state` but preserves a real reason, so
+  // every row reads `{state: null, unknownReason: 'incomplete_week'}`. That row
+  // satisfied NO malformed predicate — it was not stateless (it has a reason) and
+  // not an unrecognized state (it has none) — so 20 of them reported
+  // `malformed: ok/0` AND both rates `ok/0`, with the producer contract broken on
+  // every single row. A state is either recognised or unreadable; a reason on the
+  // same row says nothing about whether a state was computed.
+  const dropped = Array.from(
+    { length: 20 },
+    () => ({ state: null, unknownReason: 'incomplete_week' }),
+  );
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0, evaluations: dropped, previous: null, nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.value, 20, 'every row is malformed');
+  assert.equal(verdicts.malformed.status, 'alert');
+  assert.equal(alerts.filter((a) => a.check === 'malformed').length, 1);
+
+  // And out of the denominators: the rate checks must go quiet as
+  // insufficient_sample rather than report a confident ok/0 over rows they
+  // cannot read.
+  assert.equal(verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.red_rate.sample, 0, 'unreadable states are not a denominator');
+  assert.equal(verdicts.unknown_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.unknown_rate.sample, 0);
+
+  const msg = alerts.find((a) => a.check === 'malformed').message;
+  assert.match(msg, /no readable state/, 'the diagnosis says WHICH fault this is');
+  assert.doesNotMatch(
+    msg, /does not recognise/,
+    'a missing state is not an unrecognized one — the two have different fixes',
+  );
+});
+
+test('one dropped-state row still leaves the denominators honest', () => {
+  // The boundary version: 19 readable + 1 whose state was dropped but which
+  // carries a legitimate reason. The unreadable row must not pad the denominator
+  // to 20 and buy a rate the monitor cannot actually compute.
+  const { verdicts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [...evals(19, 'green'), { state: null, unknownReason: 'unscoreable' }],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.value, 1);
+  assert.equal(verdicts.red_rate.status, 'insufficient_sample');
+  assert.equal(verdicts.red_rate.sample, 19);
+  assert.equal(verdicts.unknown_rate.sample, 19);
+});
+
+test('a row that is BOTH state-unreadable and reason-malformed is counted once', () => {
+  // The overlap the widened predicate creates. The total is the union, and the
+  // message says so rather than leaving a reader to add three numbers that come
+  // to more than the total it just quoted.
+  const { verdicts, alerts } = bsEvaluateHealth({
+    rpeDropped: 0,
+    evaluations: [{ state: null, unknownReason: 'malformed_week' }],
+    previous: null,
+    nowISO: NOW,
+  });
+  assert.equal(verdicts.malformed.value, 1, 'one row, one count');
+  const msg = alerts.find((a) => a.check === 'malformed').message;
+  assert.match(msg, /malformed input/, 'the guardrail-reported fault is named');
+  assert.match(msg, /no readable state/, 'and so is the mapper fault');
+  assert.match(msg, /do not sum to the total/, 'the overlap is stated, not left to guesswork');
+});
+
+// ── the 7-day read: one conservative flag, four distinguishable facts ────────
+
+test('a ceiling-length read with the count agreeing is ceiling_exact, not truncation', () => {
+  // The misleading-history case. A window holding exactly 5000 evaluations spends
+  // the whole budget and the count agrees: nothing is KNOWN to be missing. The
+  // flag stays set (see the next test for why), but the record must not describe
+  // this as rows lost — a history where a quiet week and a demonstrable loss read
+  // identically is one nobody consults.
+  assert.equal(bsReadState({ rows: 5000, matched: 5000, ceiling: 5000 }), 'ceiling_exact');
+  const note = bsReadStateNote({ state: 'ceiling_exact', rows: 5000, matched: 5000, ceiling: 5000 });
+  assert.match(note, /Nothing is known to be missing/);
+  assert.doesNotMatch(note, /CUT SHORT/, 'a full budget is not evidence of loss');
+  assert.match(note, /not proof of absence/, 'but it still cannot certify the window');
+});
+
+test('⚠ ceiling_exact must NOT be used to clear the truncated flag', () => {
+  // The trap. `rows === matched` looks like proof of a complete read and is not:
+  // `matched` is page 0's count, and a row backfilled with an old `ts` into a
+  // region the cursor already paged past is neither fetched nor counted — the two
+  // numbers agree while a row is gone. The route's flag therefore stays
+  // conservative at the ceiling regardless of the count, and this pins the
+  // expression so a later "simplification" fails here instead of silently
+  // reopening the omission.
+  assert.match(
+    ROUTE_SRC,
+    /const truncated = rows\.length >= EVAL_MAX_ROWS\s*\n\s*\|\| \(matched !== null && rows\.length !== matched\);/,
+    'the ceiling clause must stay unconditional',
+  );
+  assert.doesNotMatch(
+    ROUTE_SRC, /rows\.length >= EVAL_MAX_ROWS && rows\.length !== matched/,
+    'equality must never be treated as proof of a complete read',
+  );
+});
+
+test('a ceiling-length read with a disagreeing count is a genuine truncation', () => {
+  assert.equal(bsReadState({ rows: 5000, matched: 6200, ceiling: 5000 }), 'ceiling_truncated');
+  assert.match(
+    bsReadStateNote({ state: 'ceiling_truncated', rows: 5000, matched: 6200, ceiling: 5000 }),
+    /CUT SHORT/,
+  );
+});
+
+test('a count disagreement without the ceiling says the set shifted, and which way', () => {
+  assert.equal(bsReadState({ rows: 4990, matched: 5000, ceiling: 99999 }), 'count_shifted');
+  assert.match(
+    bsReadStateNote({ state: 'count_shifted', rows: 4990, matched: 5000, ceiling: 99999 }),
+    /SHRANK/,
+  );
+  assert.equal(bsReadState({ rows: 5010, matched: 5000, ceiling: 99999 }), 'count_shifted');
+  assert.match(
+    bsReadStateNote({ state: 'count_shifted', rows: 5010, matched: 5000, ceiling: 99999 }),
+    /GREW/, 'a set that grew under the read is as interesting as one that shrank',
+  );
+});
+
+test('a missing count is its own state, ceiling or not', () => {
+  // "Could not check" is not "checked, and fine" — the same distinction the rate
+  // checks make with insufficient_sample.
+  assert.equal(bsReadState({ rows: 5000, matched: null, ceiling: 5000 }), 'ceiling_count_unknown');
+  assert.equal(bsReadState({ rows: 42, matched: null, ceiling: 5000 }), 'count_unknown');
+  assert.match(
+    bsReadStateNote({ state: 'count_unknown', rows: 42, matched: null, ceiling: 5000 }),
+    /no exact count/,
+  );
+});
+
+test('an ordinary short read with an agreeing count is complete', () => {
+  assert.equal(bsReadState({ rows: 42, matched: 42, ceiling: 5000 }), 'complete');
+});
+
+test('the read state reaches BOTH the log line and the persisted record', () => {
+  // A state nobody can read is not a fix. It has to ride the log (for the run in
+  // front of you) AND `_read` (for the history months later), and the benign case
+  // must not be logged at error level — an error line on a run with nothing known
+  // missing is exactly the noise that gets a check muted.
+  assert.match(ROUTE_SRC, /const read = \{ evaluations: rawEvals\.length, matched, truncated, state \}/);
+  assert.match(ROUTE_SRC, /message: bsReadStateNote\(\{/);
+  assert.match(
+    ROUTE_SRC, /state === 'ceiling_exact' \? 'info' : 'warning'/,
+    'the benign ceiling case is reported as info, not as a warning',
+  );
 });
 
 test('the malformed alert fires on a single unrecognized-state row', () => {

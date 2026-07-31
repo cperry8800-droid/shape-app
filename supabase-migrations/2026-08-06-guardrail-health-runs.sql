@@ -259,31 +259,56 @@ begin
   -- disqualifying: a rewritten verdict is a run record that says something the
   -- run did not say, which is worse than a missing one.
   --
+  -- ⚠ ALL FIVE NON-CRON VERBS, NOT THREE. This file's own header enumerates the
+  -- SEVEN privileges Supabase default-grants to service_role — DELETE, INSERT,
+  -- REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE — and `revoke all` removes all
+  -- seven, but the guard proved only five of them (two present, three absent).
+  -- TRIGGER and REFERENCES were asserted nowhere, so a table where either
+  -- survived passed this gate while the file claimed the opposite — the same
+  -- "asserted rather than delivered" gap the UPDATE check was added to close.
+  --
+  -- ⚠ TRIGGER IS THE ONE THAT MATTERS. It is the remaining verb that can subvert
+  -- an append-only trail without touching a row: a trigger on this table can
+  -- rewrite a verdict as it is inserted, or suppress the insert outright, and the
+  -- cron cannot tell — its insert reports success either way. That is a forged
+  -- audit trail rather than a damaged one. REFERENCES is far milder (it lets a
+  -- foreign key be pointed at this table, which can then block a future prune),
+  -- but it is a default grant this file claims to have removed, so it is proven
+  -- rather than assumed.
+  --
   -- ⚠ TWO FUNCTIONS, AND THE SPLIT IS NOT COSMETIC. Only SELECT, INSERT, UPDATE
-  -- and REFERENCES have a column-level form in PostgreSQL. TRUNCATE and DELETE
-  -- act on whole rows, so they exist only at table level and
+  -- and REFERENCES have a column-level form in PostgreSQL. TRUNCATE, DELETE and
+  -- TRIGGER act on the whole table, so they exist only at table level and
   -- `has_any_column_privilege(..., 'DELETE')` does not merely return false — it
   -- RAISES `22023 unrecognized privilege type` (verified against production),
   -- which inside this guard would abort the migration on a healthy database.
-  -- So: table-level function for the two row-level verbs, column-aware function
-  -- for UPDATE, which is the one of the three a column grant can smuggle in.
+  -- So: table-level function for the three table-wide verbs, column-aware
+  -- function for UPDATE and REFERENCES — the two a column grant can smuggle in
+  -- past `has_table_privilege` entirely.
   for r in
-    select unnest(array['TRUNCATE', 'DELETE']) as verb
+    select unnest(array['TRUNCATE', 'DELETE', 'TRIGGER']) as verb
   loop
     if has_table_privilege('service_role', 'public.guardrail_health_runs', r.verb) then
       raise exception
-        'service_role still holds % on guardrail_health_runs - the audit trail can be rewritten or erased',
+        'service_role still holds % on guardrail_health_runs - the audit trail can be rewritten, erased or forged',
         r.verb;
     end if;
   end loop;
 
-  -- The column-capable one. `grant update (verdicts) ...` is invisible to
+  -- The column-capable ones. `grant update (verdicts) ...` is invisible to
   -- `has_table_privilege`, and rewriting `verdicts` or `alerted` is precisely the
-  -- quiet corruption this assertion exists to rule out.
-  if has_any_column_privilege('service_role', 'public.guardrail_health_runs', 'UPDATE') then
-    raise exception
-      'service_role still holds UPDATE on guardrail_health_runs (table- or column-level) - the audit trail can be rewritten';
-  end if;
+  -- quiet corruption this assertion exists to rule out. `has_any_column_privilege`
+  -- is a strict superset of the table-level test for these two, so one call each
+  -- covers both grant shapes.
+  for r in
+    select unnest(array['UPDATE', 'REFERENCES']) as verb
+  loop
+    if has_any_column_privilege('service_role', 'public.guardrail_health_runs', r.verb) then
+      raise exception
+        'service_role still holds % on guardrail_health_runs (table- or column-level) - the audit trail can be rewritten or pinned',
+        r.verb;
+    end if;
+  end loop;
 end $guard$;
 
 commit;

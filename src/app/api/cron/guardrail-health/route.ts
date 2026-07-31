@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { bsEvaluateHealth } from '@/lib/guardrail-health.mjs';
+import { bsEvaluateHealth, bsReadState, bsReadStateNote } from '@/lib/guardrail-health.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,7 +52,7 @@ const orValue = (v: string) => `"${String(v).replace(/"/g, '')}"`;
  * The 7-day evaluation read: NEWEST FIRST, explicitly bounded, and honest about
  * whether it saw everything.
  *
- * ⚠ FOUR THINGS HERE ARE LOAD-BEARING, and the original read had none of them.
+ * ⚠ FIVE THINGS HERE ARE LOAD-BEARING, and the original read had none of them.
  *
  * 1. **ORDER.** With no `order()` PostgREST still applies its "Max rows" cap, and
  *    the scan over `analytics_events_event_ts_idx (event, ts)` comes back
@@ -86,9 +86,25 @@ const orValue = (v: string) => `"${String(v).replace(/"/g, '')}"`;
  *    indistinguishable from a complete one. When it happens, the rates are still
  *    a valid sample of the newest rows, but `malformed` — "any occurrence over
  *    7d" — can no longer prove absence, so the caller logs it and persists it.
- *    It is set when the ceiling cut the read short, AND when the final row count
+ *    It is set when the read reached the ceiling, AND when the final row count
  *    disagrees with `matched` in EITHER direction — a set that grew under the
  *    read is as interesting as one that shrank.
+ *
+ *    ⚠ **`rows.length === matched` IS NOT PROOF OF A COMPLETE READ, so reaching
+ *    the ceiling stays `truncated` even when the counts agree.** This looks like
+ *    a false positive and is not one. `matched` is the count from page 0's
+ *    snapshot; a row backfilled with an OLD `ts` into a region the cursor has
+ *    ALREADY paged past is never fetched (the cursor only ever moves older, and
+ *    the row was not there when that page was read) and was never counted in
+ *    `matched` either. The two numbers therefore agree while a row is missing —
+ *    the exact silent omission point 5 exists to prevent, arriving through a
+ *    different door. Treating equality as proof would reopen it. What the
+ *    counts DO justify is describing the run honestly rather than alarmingly:
+ *    ceiling-with-agreement is a different sentence in the log and a different
+ *    `_read.state` in the history than ceiling-with-disagreement (see
+ *    `bsReadState`), because a human reading that history months later needs to
+ *    tell "filled its budget, nothing known missing" from "demonstrably lost
+ *    rows". The flag stays conservative; only the words get precise.
  * 5. **`matched` IS A REPORTING VALUE, NOT A STOP CONDITION — DO NOT "SIMPLIFY"
  *    IT BACK INTO THE LOOP.** Stopping at `rows.length >= matched` reads like an
  *    obvious early exit and is a silent row-loss bug. `matched` is captured from
@@ -111,7 +127,7 @@ const orValue = (v: string) => `"${String(v).replace(/"/g, '')}"`;
 async function readEvaluations(
   admin: ReturnType<typeof createAdminClient>,
   since: string,
-): Promise<{ rows: EvalRow[]; matched: number | null; truncated: boolean }> {
+): Promise<{ rows: EvalRow[]; matched: number | null; truncated: boolean; state: string }> {
   const rows: EvalRow[] = [];
   let matched: number | null = null;
   let cursor: { ts: string; id: string } | null = null;
@@ -174,9 +190,14 @@ async function readEvaluations(
   // flagging, and equally a reason not to treat a `malformed: ok/0` from it as
   // proof of absence. Over-reporting here is the safe direction; the alternative
   // is a run that quietly certifies a read it cannot vouch for.
+  //
+  // ⚠ DO NOT ADD `&& rows.length !== matched` TO THE CEILING CLAUSE. Equality is
+  // not proof of completeness — see point 4. The precision belongs in `state`,
+  // which describes WHICH of these happened; the flag stays conservative.
   const truncated = rows.length >= EVAL_MAX_ROWS
     || (matched !== null && rows.length !== matched);
-  return { rows, matched, truncated };
+  const state = bsReadState({ rows: rows.length, matched, ceiling: EVAL_MAX_ROWS });
+  return { rows, matched, truncated, state };
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -254,22 +275,31 @@ export async function GET(request: Request) {
     if (rpeErr) throw new Error(`rpe_dropped query failed: ${rpeErr.message}`);
 
     // ── 2. The evaluations, last 7d — newest first, bounded, truncation-aware.
-    const { rows: rawEvals, matched, truncated } = await readEvaluations(admin, since7d);
-    const read = { evaluations: rawEvals.length, matched, truncated };
+    const { rows: rawEvals, matched, truncated, state } = await readEvaluations(admin, since7d);
+    const read = { evaluations: rawEvals.length, matched, truncated, state };
     if (truncated || matched === null) {
-      // Loud, because every 7-day verdict below was computed on a read that
-      // cannot prove it saw the whole window: the rates remain a valid sample of
-      // the newest rows, but `malformed` can no longer prove absence, and `ok/0`
-      // from it means "none in what we saw". Worded direction-neutrally on
-      // purpose — the count can disagree because the read was cut short OR
-      // because the set grew underneath it.
-      console.error('[shape-health]', JSON.stringify({
+      // ⚠ ONE FLAG, FOUR DIFFERENT FACTS — AND THE LOG MUST SAY WHICH. Every
+      // verdict below was computed on a read that cannot PROVE it saw the whole
+      // window (see point 4: `rows === matched` is not proof), so the flag stays
+      // set for all of them. But "filled its 5000-row budget with the count in
+      // agreement" and "demonstrably lost rows" are not the same event, and a
+      // history in which they read identically is a history nobody can use: the
+      // reader either treats every ceiling-length run as an incident or learns to
+      // skip the line entirely. `bsReadStateNote` supplies the sentence for the
+      // case that actually occurred; `state` carries the same distinction into the
+      // persisted record, where it outlives the log.
+      //
+      // Severity follows the same split. `warning` is for a read with evidence of
+      // loss; `info` is for one that merely spent its budget — an error-level line
+      // on a run with nothing known missing is the noise that gets a check muted.
+      const severity = state === 'ceiling_exact' ? 'info' : 'warning';
+      const log = severity === 'info' ? console.warn : console.error;
+      log('[shape-health]', JSON.stringify({
         alert: 'guardrail-health',
         check: 'evaluation_read',
-        severity: 'warning',
-        message: `The 7d evaluation read is not provably complete: ${rawEvals.length} rows read, `
-          + `count said ${matched === null ? 'nothing' : matched}. Verdicts below may cover only `
-          + 'part of the window, so a malformed "ok" is not proof of absence.',
+        severity,
+        state,
+        message: bsReadStateNote({ state, rows: rawEvals.length, matched, ceiling: EVAL_MAX_ROWS }),
       }));
     }
 
