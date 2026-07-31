@@ -179,9 +179,9 @@ changelog whenever something ships.
 ## Changelog
 
 > **Latest (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
-> OVER `analytics_events`, DAILY AT 09:00 UTC** (`6f8c85dcf` / `7a750ac87` / `d8fd4e199` /
-> `3f0705107` / `122a693d6` / `56344b542` / `e8549a152` on `claude/error-tracking-spec`, not
-> yet merged). A scheduled check for the
+> OVER `analytics_events`, DAILY AT 09:00 UTC** (`51e0bbc05` / `2004209ef` / `8e61f4687` /
+> `810110fdc` / `46dc67be0` / `47729fe8b` / `3b51f7271` / `943eafb43` / `af3b8f6ac` on
+> `claude/error-tracking-layer2`, not yet merged). A scheduled check for the
 > failure modes Sentry can never see, because the progression guardrail never throws by
 > contract — `/api/cron/guardrail-health`, mirroring the existing `funnel.mjs` /
 > `guardrail-gate.mjs` split: a pure, tested evaluation core (`src/lib/guardrail-health.mjs`)
@@ -222,9 +222,9 @@ changelog whenever something ships.
 > rather than crashing. `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
 > inert and every run reports `heartbeat: 'skipped'` — deliberately a provider-agnostic
 > HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry exists anywhere in
-> this repo. Suite **1371/1371, zero failures**; `tsc` clean.
+> this repo. Suite **1378/1378, zero failures**; `tsc` clean.
 >
-> ⚠ **The monitor no longer hardcodes the state vocabulary** (`e8549a152`). It matched
+> ⚠ **The monitor no longer hardcodes the state vocabulary** (`3b51f7271`). It matched
 > `r.state === 'red'` literally, so a rename in the guardrail core would have made
 > `red_rate` read **0% forever** — a permanent all-clear from the module whose whole job is
 > catching silent failure, and the same drift class this repo has now hit twice. The core
@@ -234,7 +234,7 @@ changelog whenever something ships.
 > contribute to no numerator, so a drifted vocabulary would make the rates read *lower*, a
 > monitor going quieter exactly as it goes blind. A rename now breaks a test.
 >
-> ⚠ **A weekly time-bomb test was found and fixed** (`56344b542`), unrelated to this work
+> ⚠ **A weekly time-bomb test was found and fixed** (`47729fe8b`), unrelated to this work
 > but blocking it. `tests/broadsheet-render.test.mjs:599` hardcoded 4 published weeks
 > against an uncontrolled wall clock: it passed Sunday-Thursday and **failed every Friday
 > and Saturday**, introduced by #1848 (merged a Thursday, failing by Friday). The product
@@ -1253,7 +1253,7 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`6f8c85dcf` · `7a750ac87` · `d8fd4e199` · `3f0705107` · `122a693d6` · `56344b542` · `e8549a152`, branch `claude/error-tracking-spec`, not yet merged)
+### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac`, branch `claude/error-tracking-layer2`, not yet merged)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
   UTC on Vercel cron.** Design: `docs/superpowers/specs/2026-07-31-error-tracking-design.md`;
@@ -1263,12 +1263,12 @@ changelog whenever something ships.
   contract**, so a broken guardrail is indistinguishable from a healthy one at the exception
   layer; Layer 1 is blocked on an owner Sentry account that doesn't exist yet, so Layer 2
   builds first. Architecture mirrors the existing `funnel.mjs` / `guardrail-gate.mjs` split:
-  a pure, fully-tested evaluation module (`src/lib/guardrail-health.mjs`, `6f8c85dcf`) that
-  takes raw counts and returns verdicts + alerts, wrapped by a thin route (`d8fd4e199`) that
+  a pure, fully-tested evaluation module (`src/lib/guardrail-health.mjs`, `51e0bbc05`) that
+  takes raw counts and returns verdicts + alerts, wrapped by a thin route (`8e61f4687`) that
   does only I/O — authenticate (the `analytics-purge` cron's `x-cron-secret`/`Bearer`
   pattern, copied verbatim), query, call the module, persist, log, ping the heartbeat. No
   cron route in this repo had a test before this; this one does (`tests/guardrail-health.
-  test.mjs` plus a regression pass, `3f0705107`, hardening the `shouldNotify` transition
+  test.mjs` plus a regression pass, `810110fdc`, hardening the `shouldNotify` transition
   paths review had to hand-trace).
 
 - **Four checks: `session_rpe_dropped` count (24h, alerts on any drop > 0), malformed (7d,
@@ -1335,7 +1335,7 @@ changelog whenever something ships.
   telemetry at all.)
 
 - The migration **`supabase-migrations/2026-08-06-guardrail-health-runs.sql`**
-  (`7a750ac87`) is **NOT yet applied** — owed to the owner, service-role-only, RLS on with
+  (`2004209ef`) is **NOT yet applied** — owed to the owner, service-role-only, RLS on with
   no policy, revoked from `public`/`anon`/`authenticated` per the #1851 bug class, with a
   `DO`-block guard asserting the grants directly rather than trusting the revoke. The route
   is written to degrade rather than crash without it: a missing/unreadable previous-run read
@@ -1352,7 +1352,7 @@ changelog whenever something ships.
   all.
 
 - **Two findings that came out of building this, neither of them Layer 2:**
-  - ⚠ **The monitor keyed on string literals the guardrail core owns** (`e8549a152`).
+  - ⚠ **The monitor keyed on string literals the guardrail core owns** (`3b51f7271`).
     `r.state === 'red'` would have read **0% forever** after a rename — the silent-blindness
     path inside the silent-failure detector. The core gained one additive export,
     `BS_GUARDRAIL_STATES` (15 insertions, **0 deletions** — nothing existing touched).
@@ -1363,7 +1363,7 @@ changelog whenever something ships.
     which is the worst direction a monitor can fail in. `rateSample` drives both the floor
     test and the divisor, so an exclusion can only move toward `insufficient_sample`.
     The suite now pins the vocabulary, so **a rename breaks a test instead of reading 0%**.
-  - ⚠ **`tests/broadsheet-render.test.mjs:599` was a weekly time bomb** (`56344b542`),
+  - ⚠ **`tests/broadsheet-render.test.mjs:599` was a weekly time bomb** (`47729fe8b`),
     from #1848 rather than from this work, but blocking it. It hardcoded 4 published weeks
     against an uncontrolled wall clock — passing Sunday-Thursday, **failing every Friday and
     Saturday**, forever, which would have blocked the merge gate every weekend. Proven by
@@ -1373,7 +1373,7 @@ changelog whenever something ships.
     split starting Saturday honestly yields 3 weeks, not a phantom fourth. Fixed test-side
     with a freeze scoped to the no-arg `Date` constructor and restored in a `finally`.
 
-- Suite **1371/1371, zero failures**; `npx tsc --noEmit` clean.
+- Suite **1378/1378, zero failures**; `npx tsc --noEmit` clean.
 
 - **Owner actions still outstanding:** apply the migration above; set `HEARTBEAT_PING_URL`
   to a dead-man's-switch endpoint; create the Sentry org + three projects for Layer 1
