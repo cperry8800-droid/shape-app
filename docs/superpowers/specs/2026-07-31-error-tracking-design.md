@@ -88,7 +88,7 @@ Authentication copies `analytics-purge` exactly: `x-cron-secret: <CRON_SECRET>` 
 
 | # | Check | Window | Fires when |
 |---|---|---|---|
-| 1 | `session_rpe_dropped` count | 24h | count > 0 |
+| 1 | `session_rpe_dropped` count | 25h | count > 0 |
 | 2 | malformed | 7d | **any occurrence** (count >= 1) |
 | 3 | red rate | 7d | > 5%, and only above the sample floor |
 | 4 | unknown rate | 7d | > 10%, and only above the sample floor |

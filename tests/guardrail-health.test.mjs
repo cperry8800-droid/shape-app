@@ -3,6 +3,9 @@
 // Run: node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import {
   bsEvaluateHealth,
   BS_SAMPLE_FLOOR,
@@ -12,7 +15,14 @@ import {
   BS_GUARDRAIL_STATES,
   BS_UNKNOWN_REASONS,
   BS_MALFORMED_REASONS as BS_CORE_MALFORMED_REASONS,
+  BS_STATE_GREEN,
+  BS_STATE_AMBER,
+  BS_STATE_RED,
+  BS_STATE_UNKNOWN,
 } from '../public/newdesign/progressionGuardrail.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const HEALTH_SRC = readFileSync(join(ROOT, 'src/lib/guardrail-health.mjs'), 'utf8');
 
 const NOW = '2026-08-01T07:00:00.000Z';
 
@@ -45,6 +55,54 @@ test('the monitor uses the core vocabulary, it does not keep its own copy', () =
   // Referential identity, not deep equality: a second literal that happens to
   // match today would pass a deepEqual and drift tomorrow.
   assert.equal(BS_MALFORMED_REASONS, BS_CORE_MALFORMED_REASONS);
+});
+
+test('BS_GUARDRAIL_STATES and the four named state constants agree', () => {
+  // The array and the names are two separate exports in the core (kept apart
+  // deliberately — see progressionGuardrail.mjs — because rebuilding the array
+  // literal from the constants would touch an existing line and cost a
+  // deletion that file is not allowed to carry). Nothing at runtime forces
+  // them to describe the same vocabulary; this is what does. If a state is
+  // ever added, removed or renamed in only one of the two places, this fails
+  // instead of the two silently drifting apart.
+  assert.deepEqual(
+    [BS_STATE_GREEN, BS_STATE_AMBER, BS_STATE_RED, BS_STATE_UNKNOWN],
+    BS_GUARDRAIL_STATES,
+  );
+});
+
+test('the rate matchers are wired to the named constants, not to re-typed literals', () => {
+  // A value-only pin (`BS_STATE_RED === 'red'`) does NOT catch this class of
+  // regression: if someone reverts
+  // `rate('red_rate', (r) => r.state === BS_STATE_RED, ...)` back to
+  // `r.state === 'red'`, the value comparison above still passes today —
+  // 'red' still equals 'red' — and the revert is invisible until the core
+  // vocabulary is later renamed, at which point red_rate reads 0% forever
+  // with nothing here to say why. So this asserts the WIRING itself, read
+  // out of the shipped source: the matcher must reference the constant by
+  // name, and must never hardcode the literal it stands in for. A reverted
+  // literal fails this immediately, independent of whatever value the
+  // constant currently holds.
+  assert.match(
+    HEALTH_SRC,
+    /rate\('red_rate',\s*\(r\)\s*=>\s*r\.state\s*===\s*BS_STATE_RED,/,
+    'red_rate must compare against the imported BS_STATE_RED constant',
+  );
+  assert.doesNotMatch(
+    HEALTH_SRC,
+    /rate\('red_rate',\s*\(r\)\s*=>\s*r\.state\s*===\s*'red'/,
+    'red_rate must not hardcode the literal it is supposed to import',
+  );
+  assert.match(
+    HEALTH_SRC,
+    /rate\('unknown_rate',\s*\(r\)\s*=>\s*r\.state\s*===\s*BS_STATE_UNKNOWN,/,
+    'unknown_rate must compare against the imported BS_STATE_UNKNOWN constant',
+  );
+  assert.doesNotMatch(
+    HEALTH_SRC,
+    /rate\('unknown_rate',\s*\(r\)\s*=>\s*r\.state\s*===\s*'unknown'/,
+    'unknown_rate must not hardcode the literal it is supposed to import',
+  );
 });
 
 test('rpe_dropped alerts on any count above zero', () => {

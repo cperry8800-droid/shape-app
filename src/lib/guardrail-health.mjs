@@ -12,6 +12,8 @@
 import {
   BS_GUARDRAIL_STATES,
   BS_MALFORMED_REASONS,
+  BS_STATE_RED,
+  BS_STATE_UNKNOWN,
 } from '../../public/newdesign/progressionGuardrail.mjs';
 
 /** Below this many evaluations a rate is noise, so it is not reported at all. */
@@ -120,7 +122,7 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
     if (notify) alerts.push({ check, severity, message });
   };
 
-  // ── 1. session_rpe_dropped, 24h. A count, not a rate: any drop is a real
+  // ── 1. session_rpe_dropped, 25h. A count, not a rate: any drop is a real
   //       rating a member gave that we failed to store.
   const dropped = finite(rpeDropped) ? rpeDropped : 0;
   record(
@@ -129,7 +131,7 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
     dropped,
     null,
     'error',
-    `${dropped} session RPE rating(s) were given but not stored in the last 24h. `
+    `${dropped} session RPE rating(s) were given but not stored in the last 25h. `
     + 'A member rated a session and the write was rejected.',
   );
 
@@ -222,8 +224,8 @@ export function bsEvaluateHealth({ rpeDropped, evaluations, previous, nowISO }) 
     );
   };
 
-  rate('red_rate', (r) => r.state === 'red', BS_RED_RATE_MAX, 'warning', 'Red');
-  rate('unknown_rate', (r) => r.state === 'unknown', BS_UNKNOWN_RATE_MAX, 'warning', 'Unknown');
+  rate('red_rate', (r) => r.state === BS_STATE_RED, BS_RED_RATE_MAX, 'warning', 'Red');
+  rate('unknown_rate', (r) => r.state === BS_STATE_UNKNOWN, BS_UNKNOWN_RATE_MAX, 'warning', 'Unknown');
 
   return { verdicts, alerts };
 }

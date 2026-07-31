@@ -2106,8 +2106,36 @@ export function bsResolveState(axes, proposedSessions) {
  * failure a health-monitoring consumer exists to catch. Import this constant
  * and derive membership from it (`BS_GUARDRAIL_STATES.includes(r.state)`)
  * rather than repeating the four strings.
+ *
+ * ⚠ FOR A SINGLE-VALUE COMPARISON (`r.state === 'red'`), THIS ARRAY IS THE
+ * WRONG TOOL — `.includes()` answers membership, not equality, and a `===`
+ * against one of its elements is exactly the re-typed literal this note
+ * warns about. Import the matching named constant instead —
+ * `BS_STATE_GREEN` / `BS_STATE_AMBER` / `BS_STATE_RED` / `BS_STATE_UNKNOWN`,
+ * exported immediately below — so a rename of the underlying string only
+ * ever needs to happen in ONE place.
  */
 export const BS_GUARDRAIL_STATES = ['green', 'amber', 'red', 'unknown'];
+
+/**
+ * Named single-value companions to `BS_GUARDRAIL_STATES` above, for exactly
+ * the comparison that array cannot safely express (`r.state === BS_STATE_RED`
+ * rather than `r.state === 'red'`). Their VALUES are additive-only copies of
+ * the array's own four elements — kept as separate `export const`s, rather
+ * than folded back into the array literal above, specifically so that line
+ * stays byte-for-byte unchanged: this file carries a review discipline that
+ * requires `git diff --numstat` to show ZERO deletions here, and rewriting
+ * the array to read
+ * `[BS_STATE_GREEN, BS_STATE_AMBER, BS_STATE_RED, BS_STATE_UNKNOWN]` would
+ * touch that existing line and cost exactly the deletion this file is not
+ * allowed to carry. `tests/guardrail-health.test.mjs` pins that the array and
+ * these four names agree, so the two cannot silently drift apart even though
+ * nothing at runtime forces them to.
+ */
+export const BS_STATE_GREEN = 'green';
+export const BS_STATE_AMBER = 'amber';
+export const BS_STATE_RED = 'red';
+export const BS_STATE_UNKNOWN = 'unknown';
 
 /**
  * Evaluate a coach-authored week against a client's logged history.
