@@ -532,9 +532,13 @@ grant all on public.guardrail_health_runs to service_role;
 -- No RLS policy is created deliberately: with RLS enabled and no policy, every
 -- non-service role is denied by default. service_role bypasses RLS entirely.
 
-commit;
-
 -- ── The gate ──────────────────────────────────────────────────────────────
+--
+-- ⚠ INSIDE the transaction, deliberately. A raised exception here must roll the
+-- DDL back — a migration that cannot prove it worked is not a gate. Committing
+-- first would leave the table durable after a failed assertion, and the re-run
+-- would then satisfy "was it created?" while the real defect survived.
+-- All five guard-bearing migrations in this repo commit AFTER the guard.
 do $guard$
 begin
   if not exists (
@@ -563,6 +567,8 @@ begin
     raise exception 'service_role cannot write guardrail_health_runs - the cron would fail';
   end if;
 end $guard$;
+
+commit;
 ```
 
 - [ ] **Step 2: Verify line endings and commit**
