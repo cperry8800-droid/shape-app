@@ -1186,6 +1186,38 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
+
+- **The "Front Page" cream curtain (owner pick 2026-07-23) is replaced** on
+  `public/newdesign/index.html`. The critique that triggered it (owner: "i dont love
+  it"): the splash's payoff was the exact hero headline rendered twice ("Different
+  goals. One Community." on the sheet AND the hero one second later, both visible
+  mid-lift), the light cream sheet cut hard onto the dark cosmos, and the print
+  animation finished at ~1.6s leaving ~1.7s of locked dead frame.
+- **The Census**: a dark overlay on the page's OWN night-sky gradient — seeded star
+  dust (sin-seeded like `.site-stars`, no Math.random), a headcount ticking up
+  (*"Tonight/Today, 2,104 train together."* — the word follows the visitor's clock),
+  six member-stars popping at the mark's vertices, constellation strokes drawing the
+  two triangles (the canonical #1750 PNG geometry: viewBox `8 8 79 98`), fills, then a
+  **shared-element handoff** — end() measures the hero mark's real position and glides
+  the splash mark into it (transform-origin at the mark's center) while the overlay
+  fades through to the matching sky. The splash never repeats the landing page's copy.
+- **Skip machinery byte-compatible**: once per browser session (`shape.introSeen`),
+  internal-referrer + `?home` skips, reduced-motion `display:none`, signed-in
+  `/api/me` early end (now a gentle dark fade instead of the old cream flash), any
+  input dismisses; dwell 3.3→3.4s. Hidden-hero-mark / measurement-failure paths
+  degrade to a plain fade.
+- ⚠ **The census figure is illustrative pre-launch** — deliberately the SAME figure as
+  the app's signed-out presence demo (the chat rail's 2104) so the two surfaces tell
+  one story; **wire to live presence at launch** (registered follow-up) and the line
+  becomes true data with no visual change. Concept board (owner picked C2 of 4):
+  claude.ai/code/artifact/f53e0831-731f-4675-8a74-34c6ca3c9165.
+- Verified: LF (CR=0) · NUL scan clean · all 9 inline classic scripts parse ·
+  `build-newdesign --check` exit 0 (74 pages; the splash script is a classic block —
+  the precompile is untouched). Built in a fresh worktree off `origin/main`
+  (`claude/splash-census`); the main checkout's in-flight error-tracking branch
+  untouched.
+
 ### 2026-07-30 — Search-term hardening: clamp, escape, pin `pg_temp` (#1853 → `ed6c52e45`)
 
 ✅ **MIGRATION APPLIED + VERIFIED LIVE 2026-07-31.** The shipped guard was re-run verbatim
