@@ -433,8 +433,13 @@ function isInteractiveTarget(target) {
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════
 
+// The tab bar's rendered border-box height. The composer slot and every page's
+// scroll reserve position against this — it has drifted from the real height
+// twice (72 → 64 in #1603 left three stale literals), so it lives here once.
+const BS_TABBAR_H = 64;
+
 // Page wrapper — sets paper background and provides scroll
-function BSPage({ children, tabBarHeight = 72, backdrop = null, mast = true, noSwipe = false }) {
+function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
   // Condensing masthead: once the page's own masthead scrolls away (~64px), a
@@ -1151,7 +1156,7 @@ function BSTabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: 64, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
+      height: BS_TABBAR_H, padding: '5px 20px calc(8px + env(safe-area-inset-bottom, 0px))',
       // Match the page's full background (PAPER_BG carries metallic/textured sheen
       // on papers like Steel) so the bar reads as part of the same paper, with a
       // faint theme-derived top fade for separation. Adapts to every paper.
@@ -1714,7 +1719,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });

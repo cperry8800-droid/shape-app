@@ -1379,6 +1379,22 @@ changelog whenever something ships.
   to a dead-man's-switch endpoint; create the Sentry org + three projects for Layer 1
   (nothing here is blocked on it, but nothing here notifies a human until it exists).
 
+### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
+
+- **Owner screenshot: a strip of page content showed between the message composer
+  and the bottom tab bar.** Root cause: the #1603 chrome pass trimmed the tab bar
+  72 → 64px but the composer slot's `bottom: 72` was never updated — in THREE
+  places (`iosAppBroadsheetClient.jsx` + twice in `iosAppBroadsheetPros.jsx`), the
+  third drift of that literal. One fix covers the community-feed composer, the
+  signed-out locked bar, the DM/channel thread composer, and both coach apps.
+- **Hardened, not just patched:** the height now lives ONCE as **`BS_TABBAR_H = 64`**
+  in the chrome (`iosAppBroadsheet.jsx`, window-exported) — `BSTabBar`'s height,
+  `BSPage`'s `tabBarHeight` scroll-reserve default (was also a stale 72), and all
+  three composer slots read it (`window.BS_TABBAR_H || 64` in the role modules).
+- Owner also asked whether the composer should float; recommended keeping it
+  docked flush (the house instrument-chrome language — the gap only READ as
+  floating because it was broken).
+
 ### 2026-07-31 — Website splash → "The Census" (concept C2, owner pick off the board)
 
 - **The "Front Page" cream curtain (owner pick 2026-07-23) is replaced** on
@@ -1400,10 +1416,12 @@ changelog whenever something ships.
   `/api/me` early end (now a gentle dark fade instead of the old cream flash), any
   input dismisses; dwell 3.3→3.4s. Hidden-hero-mark / measurement-failure paths
   degrade to a plain fade.
-- ⚠ **The census figure is illustrative pre-launch** — deliberately the SAME figure as
-  the app's signed-out presence demo (the chat rail's 2104) so the two surfaces tell
-  one story; **wire to live presence at launch** (registered follow-up) and the line
-  becomes true data with no visual change. Concept board (owner picked C2 of 4):
+- ⚠ **The census counter was REMOVED same-day** (owner call, after Codex P1 + CodeRabbit
+  Critical both flagged the illustrative 2,104 as a fabricated live claim): the line is
+  now **"Today/Tonight, we train."** — no number, no claim — and the dwell trimmed
+  3.4s→2.9s to match. Follow-up unchanged in spirit: **bring the census back wired to
+  live presence at launch** (and sweep the app's signed-out 2104 fallback with it).
+  Concept board (owner picked C2 of 4):
   claude.ai/code/artifact/f53e0831-731f-4675-8a74-34c6ca3c9165.
 - Verified: LF (CR=0) · NUL scan clean · all 9 inline classic scripts parse ·
   `build-newdesign --check` exit 0 (74 pages; the splash script is a classic block —

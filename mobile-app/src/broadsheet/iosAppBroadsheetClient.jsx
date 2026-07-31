@@ -835,7 +835,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
           in the desktop preview where the frame is narrower than the window. */}
       <div id="bs-composer-slot" style={{
         position: 'absolute', left: 0, right: 0,
-        bottom: 72,
+        bottom: (window.BS_TABBAR_H || 64),
         zIndex: 60, pointerEvents: 'none',
       }} />
       <BSTabBar
