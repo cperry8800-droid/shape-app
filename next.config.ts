@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // The legacy shape-website static files live in /public. Next.js serves
 // them automatically at their .html paths. Rewrites map the clean URLs
@@ -64,4 +65,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// ⚠ Without SENTRY_AUTH_TOKEN the plugin SKIPS the source-map upload and warns.
+// It must not fail the build — this ships before the Sentry account exists.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});
