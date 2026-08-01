@@ -37,9 +37,18 @@ export function bsInitSentry() {
       },
       SentryReact.init,
     );
-  } catch {
+  } catch (e) {
     // Swallowed on purpose — see the doc comment above. No error reporting
     // this session, but the app still mounts.
+    //
+    // ⚠ The warn is NOT decoration. Mobile is the one surface where a broken
+    // init and a correctly-inert build are byte-identical in observable
+    // behaviour — there is no DSN to miss and no second sink to notice the
+    // absence (the website loader warns at all three of its failure points for
+    // exactly this reason; callRpc and reportAlerts each have a console sink
+    // beside their Sentry call). Without this line, "the SDK threw" and "no DSN
+    // configured, working as intended" look the same in devtools.
+    console.warn('[shape] Sentry init threw — error tracking is inert for this session.', e);
   }
 }
 
@@ -47,7 +56,20 @@ export function bsInitSentry() {
  * Apply the user context from a profile object, through the shared, PII-free
  * derivation (id, roles, is_coach only — see src/lib/sentry-context.mjs).
  * Pass null/undefined on sign-out — a stale user mislabels every later event.
+ *
+ * ⚠ Never throws, same house pattern as `bsSentryUser`/`bsSentryRelease`. This is
+ * called from inside `getCurrentSession()` (shapeBackend.js), which every surface
+ * awaits before it can render a signed-in state — a throw here would break session
+ * resolution itself, i.e. the error-tracking layer taking the app down. `bsSentryUser`
+ * is already total, so the residual risk is `Sentry.setUser` on a Capacitor bridge
+ * that isn't linked; caught and swallowed the same way `bsInitSentry` swallows a
+ * failed init. No warn: unlike init, a failure here costs tags on future events, not
+ * the whole session's reporting, and this runs on every session resolve.
  */
 export function bsSetSentryUser(profile) {
-  Sentry.setUser(bsSentryUser(profile || null));
+  try {
+    Sentry.setUser(bsSentryUser(profile || null));
+  } catch {
+    // No user context on this session's events. Never a failed sign-in.
+  }
 }

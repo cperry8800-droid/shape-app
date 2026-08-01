@@ -4,11 +4,18 @@
 // NEXT_PUBLIC_ vars here are baked into the client bundle at build time, so they
 // must be readable with no env vars set (empty string, not a crash).
 import * as Sentry from '@sentry/nextjs';
-import { bsSentryRelease } from '@/lib/sentry-context.mjs';
 
+// ⚠ DO NOT ADD A `release` KEY HERE. `withSentryConfig` resolves the release at
+// build time (`getSentryRelease()` → Vercel's VERCEL_GIT_COMMIT_SHA, else
+// `git rev-parse HEAD`) and injects it as `process.env._sentryRelease`, which
+// `@sentry/nextjs`'s own `init()` reads as its default. That default is spread
+// FIRST and the user options spread LAST — so an own `release` key whose value
+// is `undefined` (e.g. from an env var nobody set) does not "fall through", it
+// CLOBBERS the injected SHA and the browser surface loses its release entirely.
+// Omitting the key is strictly better: the git SHA applies for free and the
+// browser correlates with server and mobile on the same deploy.
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || '',
-  release: bsSentryRelease({ SHAPE_RELEASE: process.env.NEXT_PUBLIC_SHAPE_RELEASE }),
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV || 'development',
   tracesSampleRate: 0,
   sendDefaultPii: false,

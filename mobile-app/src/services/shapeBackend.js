@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
@@ -460,6 +461,14 @@ async function getCurrentSession() {
   if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
   if (user) profile = await ensureDobPersisted(user, profile); // claim a signup DOB on first (confirmed) login → fires the over_18 trigger
   const cached = setCached({ user, session: data.session, profile });
+  // PII-free Sentry user context — id, roles, is_coach ONLY (src/lib/sentry-context.mjs
+  // owns that rule; the profile is passed through unreshaped so the module stays the one
+  // place the allow-list lives). Called unconditionally, not `if (user)`: a session that
+  // resolves to nobody (expired, revoked) must CLEAR the previous account's tags rather
+  // than leave them standing — this repo has a documented history of cross-account cache
+  // leaks (_followCache, 2026-06-29). Total by construction (bsSetSentryUser swallows),
+  // and a no-op with no DSN, so it can neither throw nor delay session resolution.
+  try { bsSetSentryUser(user ? profile : null); } catch (e) {}
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
@@ -487,6 +496,9 @@ async function signOut() {
   for (const k in _avatarCache) delete _avatarCache[k];
   _followingIdsCache = { uid: null, ids: null, at: 0 };
   _prepCache = null;   // PREPPED records are member data — never cross accounts
+  // Drop the Sentry user tags with the rest of the viewer-relative state, so a
+  // signed-out session can never inherit the previous account's id/roles.
+  try { bsSetSentryUser(null); } catch (e) {}
   return setCached({ user: null, session: null, profile: null });
 }
 

@@ -257,15 +257,26 @@ changelog whenever something ships.
 > dead-man's switch arms at the next 09:00 UTC run; this corrects the prior record below,
 > which said the switch was unset and inert.
 >
-> Two follow-ups registered, neither built here: `scripts/verify-staged.sh` still runs a
-> `public/m` sync diff that can now only ever fail (`public/m` has been gitignored and
-> deploy-built since #1470, so the check compares a fresh build against stale local
-> leftovers — remove the step or teach it the new reality). And the static website attaches
-> only a coarse, path-derived `shape_surface` tag rather than real user context, because that
-> surface has no bundler and can't reach the shared PII-free `sentry-context.mjs` module —
-> **most of those 69 `pageShell.jsx` pages are the signed-in dashboards**, not signed-out
-> marketing, so once a DSN exists, dashboard errors there will carry no role or tier beyond
-> the URL-path hint.
+> ⚠ **USER CONTEXT IS ATTACHED ON `/m/` ONLY.** The shared PII-free module
+> (`src/lib/sentry-context.mjs`) defines what may ever be sent — id, `roles`, `is_coach` —
+> but only the mobile app applies it (`bsSetSentryUser`, from `getCurrentSession()` on every
+> session resolve, cleared on sign-out). The **Next.js browser** surface attaches none, and
+> the **static website** attaches none either — only the coarse, path-derived
+> `shape_surface` tag. **Most of those 69 `pageShell.jsx` pages are the signed-in
+> dashboards**, so once a DSN exists, dashboard errors on both web surfaces arrive with no
+> id, no roles and no `is_coach`. Wiring those two is a registered follow-up, not done.
+>
+> Also registered, not built: `scripts/verify-staged.sh` still runs a `public/m` sync diff
+> that can now only ever fail (`public/m` has been gitignored and deploy-built since #1470,
+> so the check compares a fresh build against stale local leftovers — remove the step or
+> teach it the new reality).
+>
+> **Release, end to end:** server, edge, the Next browser bundle and mobile all stamp the
+> deploy's git SHA; the static website has no release (honestly absent). ⚠ The browser was
+> the one surface **destroying** its own — it passed `release:` derived from a
+> `NEXT_PUBLIC_SHAPE_RELEASE` set nowhere, and since `@sentry/nextjs` spreads user options
+> LAST, an own key holding `undefined` clobbered the SHA `withSentryConfig` had injected.
+> The key is deleted; the plugin's SHA now applies for free.
 >
 > See the full entry below.
 
@@ -1372,9 +1383,12 @@ changelog whenever something ships.
   then — the single most important framing constraint on this whole entry.
 
 - **Task 1 — the shared tagging module, `src/lib/sentry-context.mjs`** (`924520d3b`, hardened
-  `1f8257fa8`). One pure module both server and client init call so the same three fields
-  are the only user context Sentry ever sees anywhere: user id, `roles` (the array, not a
-  derived string), and `is_coach`. Review flagged `BS_SENTRY_DENIED_KEYS` as looking
+  `1f8257fa8`). One pure module defining the only three fields Sentry may ever see about a
+  person: user id, `roles` (the array, not a derived string), and `is_coach`.
+  ⚠ **It is APPLIED on the `/m/` mobile app only** — `bsSetSentryUser` is called from
+  `getCurrentSession()` on every session resolve and cleared on sign-out. The Next.js
+  browser surface and the static website attach **no user context at all** (see the
+  follow-ups at the end of this entry). Review flagged `BS_SENTRY_DENIED_KEYS` as looking
   decorative; adjudicated NOT a defect — the function hand-builds an object literal and
   never spreads from a `profile`, so it's an allow-list, and a real denylist would rot as
   new PII columns land. Fixed round 1: both tagging functions were hardened to be **total**
@@ -1403,6 +1417,28 @@ changelog whenever something ships.
   shipped with no `try/catch` around a bare `Sentry.init()` — since this runs before React
   mounts, a throw here would be a white screen on every device with nothing initialized to
   say why; fixed to be total.
+  **`bsSetSentryUser` is wired here and nowhere else** — called from
+  `getCurrentSession()` (`shapeBackend.js`) beside `startPresence()`/`registerPush()`, the
+  established "a session just became known" hook, and **unconditionally rather than
+  `if (user)`**: a session resolving to nobody must CLEAR the previous account's tags, not
+  leave them standing (the `_followCache` cross-account leak of 2026-06-29 is the precedent).
+  `signOut()` clears it alongside the other viewer-relative caches. Total by construction —
+  the setter swallows, and the call site is wrapped again — so it can neither throw nor
+  delay session resolution.
+  ⚠ **The init-ordering comment in `main.jsx` was WRONG and is corrected.** It claimed a
+  crash during mount is captured because init runs first. `@sentry/capacitor`'s `sdkInit()`
+  is `NATIVE.initNativeSdk(...).then(() => originalInit(browserOptions))` — the browser SDK
+  is created inside a **promise callback**, so `bsInitSentry()` returns before any client
+  exists and on native the bridge round-trip can lose the race against the dynamic import;
+  the surrounding `try/catch` cannot catch a native-bridge failure either, since that lives
+  in the SDK's own floating promise chain. What is true: init BEGINS before the mount and
+  the native SDK completes asynchronously, so the very earliest mount-time errors may not be
+  captured. Deliberately not restructured — forcing synchronous init risks the mount path
+  for a marginal gain.
+  ⚠ **Mobile is also the one surface where a broken init and a correctly-inert build are
+  byte-identical in observable behaviour**, so the catch now `console.warn`s (matching the
+  website loader, which warns at all three of its failure points for the same reason;
+  `callRpc` and `reportAlerts` each have a second sink, mobile had none).
 
 - **Task 4 — the static website** (`212df6df4`, review round `80863f847`).
   `public/newdesign/sentryInit.js` is a dependency-free classic script that no-ops when
@@ -1497,15 +1533,51 @@ changelog whenever something ships.
   which said the switch was unset and inert (that line is now struck through and pointed
   here).
 
-- **Two follow-ups registered, neither built here.** `scripts/verify-staged.sh` still runs a
+- **Follow-ups registered, none built here.** `scripts/verify-staged.sh` still runs a
   `public/m` sync diff that can now only ever fail — `public/m` has been gitignored and
   deploy-built since #1470, so the check compares a fresh build against stale local
-  leftovers; remove the step or teach it the new reality. And the static website attaches
-  only a coarse, path-derived `shape_surface` tag rather than real user context, because that
-  surface has no bundler and can't reach the shared PII-free `sentry-context.mjs` module —
-  **most of those 69 `pageShell.jsx` pages are the signed-in dashboards**, not signed-out
-  marketing, so once a DSN exists, dashboard errors there will carry no role or tier beyond
-  the URL-path hint.
+  leftovers; remove the step or teach it the new reality.
+  ⚠ **And USER CONTEXT ON THE OTHER TWO SURFACES.** Only `/m/` attaches it. The **Next.js
+  browser client** attaches none — init runs before hydration, so no session exists at that
+  point and no natural later hook was added (inventing one at the end of a wave was judged
+  the wrong risk). The **static website** attaches none either, only the coarse,
+  path-derived `shape_surface` tag, because that surface has no bundler and can't reach the
+  shared PII-free `sentry-context.mjs` module. **Most of those 69 `pageShell.jsx` pages are
+  the signed-in dashboards**, not signed-out marketing, so once a DSN exists, dashboard
+  errors on BOTH web surfaces arrive with no id, no roles and no `is_coach` — beyond the
+  URL-path hint on the static side. The owner runbook's own verification step ("carrying
+  the right release and **role tags**") can therefore only pass on `/m/` today.
+
+- **The release story, end to end** — three of four surfaces stamp a real git SHA on a
+  Vercel deploy; one is honestly absent. **Server + edge:** `bsSentryRelease(process.env)`
+  reads `VERCEL_GIT_COMMIT_SHA` ✓. **Next browser:** no explicit `release` key —
+  `withSentryConfig` resolves it at build time (`getSentryRelease()` →
+  `VERCEL_GIT_COMMIT_SHA`, else `git rev-parse HEAD`) and injects
+  `process.env._sentryRelease`, which `@sentry/nextjs`'s `init()` reads as its default ✓.
+  ⚠ **It used to pass `release: bsSentryRelease({ SHAPE_RELEASE: NEXT_PUBLIC_SHAPE_RELEASE })`
+  — a var set NOWHERE, so it evaluated to `undefined`; and because the SDK spreads user
+  options LAST over its own defaults, an own key holding `undefined` CLOBBERS the injected
+  SHA.** The browser surface was therefore the one surface actively destroying its own
+  release. Deleting the key was the fix (never add a new env var — omitting it lets the
+  plugin's SHA apply for free), and the file now carries a comment saying never to add it
+  back. **Mobile `/m/`:** `scripts/build-m.sh` exports `VITE_SHAPE_RELEASE` from
+  `VERCEL_GIT_COMMIT_SHA` ✓. **Static website:** nothing stamps `window.SHAPE_RELEASE`, so
+  it degrades to no release — honestly absent, never fabricated. So the design's claim that
+  one deploy's errors correlate across surfaces now **holds for server, edge, Next browser
+  and mobile, and does not yet cover the static website.**
+
+- ⚠ **Recorded, deliberately NOT changed — a partial-configuration source-map edge case.**
+  `next.config.ts:75` uses `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`. With a
+  token set but `SENTRY_ORG`/`SENTRY_PROJECT` absent, the plugin **enables** browser source
+  maps and then relies on its own post-upload auto-delete, which may not run if the upload
+  is skipped — leaving `.map` files served from `.next/static`. Unlike the mobile side,
+  which strips every `.map` from `public/m` unconditionally in `build-m.sh`, there is no
+  belt-and-braces delete here. **Today's build is clean** (0 `.map` files in `.next/static`
+  with every `SENTRY_*` var absent). Mitigation: the runbook already tells the owner to set
+  all six variables together, so the half-configured state is a transient nobody is asked to
+  stop in. Left as-is rather than "fixed", because each alternative (gating on org+project
+  too, or an unconditional strip) changes build behaviour for a state the runbook never
+  produces.
 
 - Verified per task: `npx tsc --noEmit` clean · full suite **1415/1415** (was 1407 at the
   branch base, +8 new, 0 dropped) · every touched file LF, zero NUL bytes · CI-equivalent
