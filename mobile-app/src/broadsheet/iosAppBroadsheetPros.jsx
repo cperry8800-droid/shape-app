@@ -1349,7 +1349,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         {screens[tab]}
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
-      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
@@ -6342,7 +6342,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         {screens[tab]}
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
-      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: 72, zIndex: 60, pointerEvents: 'none' }} />
+      <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
       <BSTabBar active={tab} onChange={setTab} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
