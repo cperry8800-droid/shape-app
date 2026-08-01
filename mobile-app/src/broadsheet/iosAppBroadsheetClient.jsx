@@ -266,18 +266,25 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // Top-right tools for sub-pages — search + the profile avatar (taps through to
 // Settings/profile via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
-// ⚠ `search={false}` is for surfaces that PORTAL above BSUniversalSearch (which
-// roots at zIndex 230). A ⌕ there is a dead control: the takeover opens beneath
-// the portal — invisible — while still pushing a nav entry, so the next back
-// silently eats the search instead of closing the page. Omitting it is the same
-// call already made for BSFollowListSheet. Check the surface's zIndex before
-// passing it; a page in normal flow must keep the search corner.
-function BSMeCorner({ size = BS_HEADER_AVATAR, search = true }) {
+// ⚠ Pass `close` on any surface that PORTALS above the app's overlays — search
+// roots at zIndex 230, the Settings overlay at 210. Such a surface floats over
+// BOTH, so firing the event alone leaves the corner half-dead: the ⌕ takeover
+// opens beneath the portal (invisible, while still pushing a nav entry the next
+// back silently eats) and the avatar opens Settings underneath, surfacing only
+// once something later closes the portal. One prop settles both, because it is
+// one fact about the surface: `close` drops the ⌕ — this surface has no way to
+// show it — and makes the avatar dismiss the portal FIRST, then hand off.
+// Dismiss and hand-off are split across a tick so the portal's own nav
+// bookkeeping settles before Settings pushes its entry (BSActivityDetail has
+// done it in that order since it shipped). A page in normal flow passes nothing
+// and keeps both controls.
+function BSMeCorner({ size = BS_HEADER_AVATAR, close = null }) {
   useBSIdentityTick();
+  const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      {search ? <BSSearchCorner size={size} /> : null}
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+      {close ? null : <BSSearchCorner size={size} />}
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
 }
@@ -9941,7 +9948,15 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
   );
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
+      {/* ⚠ The top inset is BS_MAST_TOP_CSS, not a hand-rolled calc(). This sheet
+          opens the masthead row as its first child, so it owes the same inset as
+          every other page — and the shared expression carries a 44px floor for
+          cutout-less Android AND the desktop mock's --bs-notch-floor, which a
+          bare `46px + env()` has neither of. On a notched device the two answers
+          diverge by the difference between 46 and 12 (an inset of 59px lands the
+          row at 105px instead of 71px), so the one masthead that visibly broke
+          the uniform inset was the one that computed it itself. */}
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: `${BS_MAST_TOP_CSS} 0 0`, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
         {/* Fixed header layer — the list scrolls in its OWN pane below, so rows
             can never ride up through the masthead/tabs/search (sticky inside the
             padded scroller let them bleed through on device). */}
@@ -9952,16 +9967,19 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               profile owner's face moved down to the title row, where it labels
               WHOSE followers/following these are.
 
-              ⚠ This is the ONE masthead in the app with no ⌕ circle, and the
+              ⚠ Neither corner control can fire the plain event here, and the
               reason is stacking, not taste. This sheet is portaled into
-              #bs-phone-surface at zIndex 100000 (see the overlay below);
-              BSUniversalSearch roots at zIndex 230, so a ⌕ here would open the
-              search takeover UNDERNEATH the sheet — invisible, while still
-              pushing a nav entry, so the next back would silently consume the
-              search instead of closing the sheet. The surface already carries
-              its own "Search people" field a few lines down, which is the
-              in-context search this page actually wants. Don't add ⌕ here
-              without first raising the search overlay above 100000. */}
+              #bs-phone-surface at zIndex 100000 (see the overlay below), ABOVE
+              both BSUniversalSearch (230) and the Settings overlay (210) — so a
+              ⌕ would open the search takeover UNDERNEATH the sheet (invisible,
+              while still pushing a nav entry the next back would silently eat),
+              and a bare avatar tap would open Settings underneath it, surfacing
+              only once something later closed the sheet. So: no ⌕ (the surface
+              already carries its own "Search people" field a few lines down,
+              which is the in-context search this page actually wants), and the
+              avatar closes the sheet BEFORE handing off. Same contract as
+              BSMeCorner's `close` — this row is hand-rolled only because it
+              needs the sheet's own BG/INK, not the page theme. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
@@ -9969,7 +9987,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSFacetAvatar size={BS_HEADER_AVATAR} c={bsMyTierColor()} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
-                onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
             </div>
           </div>
           {/* Title row — the owner's face sits beside the label, and × close sits
@@ -14389,10 +14407,11 @@ function BSNoraProfile({ onClose }) {
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
         {/* The masthead row opens EVERY page (same format, same size) — the back
             row + "Shape team" eyebrow sit directly beneath it.
-            ⚠ No ⌕: this page paints at zIndex 100000 (see the container above) and
-            BSUniversalSearch roots at 230, so a search circle here would be a dead
-            control — see BSMeCorner. */}
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner search={false} />} />}
+            ⚠ This page paints at zIndex 100000 (see the container above), ABOVE
+            both BSUniversalSearch (230) and the Settings overlay (210), so the
+            corner takes `close`: no ⌕, and the avatar closes this page before
+            handing off to Settings — see BSMeCorner. */}
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
@@ -15326,11 +15345,12 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
     <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
       {/* The masthead row opens EVERY page (same format, same size) — the back
           control + eyebrow move below it, flush left.
-          ⚠ No ⌕: this page paints at zIndex 99992 (see the container above) and
-          BSUniversalSearch roots at 230, so a search circle here would be a dead
-          control — see BSMeCorner. */}
+          ⚠ This page paints at zIndex 99992 (see the container above), ABOVE both
+          BSUniversalSearch (230) and the Settings overlay (210), so the corner
+          takes `close`: no ⌕, and the avatar closes this page before handing off
+          to Settings — see BSMeCorner. */}
       <div style={{ flexShrink: 0, padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner search={false} />} />}
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner close={onClose} />} />}
       </div>
       <div style={{ flexShrink: 0, padding: `12px ${t.padX}px 11px`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
@@ -26252,20 +26272,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
-  // The corner avatar fires shape:openProfile from every masthead — including the
-  // ones on these drill-in panes. The shell answers by opening Settings, which is
-  // already open, so without this the tap was a no-op that still burned a back.
-  // Closing the pane is what "take me to my profile" means from inside it; on the
-  // Settings root it is already a no-op, which is correct for a self-link.
-  React.useEffect(() => {
-    const toRoot = () => setDetail('');
-    window.addEventListener('shape:openProfile', toRoot);
-    window.addEventListener('shape:openProSettings', toRoot);
-    return () => {
-      window.removeEventListener('shape:openProfile', toRoot);
-      window.removeEventListener('shape:openProSettings', toRoot);
-    };
-  }, []);
   // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
   // the in-flight write so a double-tap can't fire two consent RPCs.
   const cycle = useBSCycleSettings();
@@ -26289,6 +26295,44 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => { on = false; };
   }, []);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  // The corner avatar fires shape:openProfile from every masthead — including the
+  // ones on Settings' own takeovers. The shell answers by opening Settings, which
+  // is already open, so without this the tap is a no-op that still burns a back.
+  // Routing to the Settings ROOT is what "take me to my profile" means from
+  // inside it (on the root it is already a no-op, correct for a self-link) — but
+  // the root is only what renders once EVERY selector above it is cleared. A
+  // drill-in pane is `detail`; a takeover is one of the flags below, each with
+  // its own early return further down, and clearing only `detail` left the flag
+  // standing and the avatar dead on Notifications, About, and 24 others.
+  // ⚠ THE INVARIANT: every flag with an early return below is reset here. This
+  // list and that switch are two halves of one thing — `tests/broadsheet-
+  // identifiers.test.mjs` parses the source and fails if they ever drift, which
+  // is the only reason to believe the next flag added won't quietly reopen this.
+  // Deliberately NOT reset: `editing` (the inline identity edit ON the root — it
+  // holds an unsaved draft, and discarding it is the very thing this PR exists to
+  // stop), and showAppearance/showLightFx/showCycleOptIn (inline sections, not
+  // takeovers — they render no early return, so they never hide the root).
+  // Declared here, below every flag, so the closure can never read a TDZ binding.
+  React.useEffect(() => {
+    const toRoot = () => {
+      setDetail('');
+      setShowContact(false); setShowTerms(false); setShowHelp(false);
+      setShowPrivacy(false); setShowDataCompliance(false); setShowCodeOfConduct(false);
+      setShowConsumerHealth(false); setShowSubprocessors(false); setShowAbout(false);
+      setShowPricing(false); setShowSessions(false); setShowNotifications(false);
+      setShowNotifyPrefs(false); setShowNoraMemory(false); setShowIntegrations(false);
+      setShowScore(false); setShowStore(false); setShowRadio(false);
+      setShowProgress(false); setShowGoals(false); setShowLibrary(false);
+      setShowHabits(false); setShowCheckin(false); setShowHealth(false);
+      setShowLeaderboard(false); setShowPublicProfile(false);
+    };
+    window.addEventListener('shape:openProfile', toRoot);
+    window.addEventListener('shape:openProSettings', toRoot);
+    return () => {
+      window.removeEventListener('shape:openProfile', toRoot);
+      window.removeEventListener('shape:openProSettings', toRoot);
+    };
+  }, []);
   // Settings is shared by clients AND coaches — pick the Shape Score profile by
   // the signed-in role so a coach sees the COACH tier ladder (Certified/Pro/…),
   // not the client one. Dietitians ride the nutritionist rails.
