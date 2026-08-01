@@ -1471,6 +1471,27 @@ changelog whenever something ships.
   third variant for one page. Same lesson as the inert `aria-label` and the false search
   doctrine, now three times in one PR: **a because-clause is a claim with a shelf life.**
 
+- ⚠ **ROUND FOUR — the sentence that carved out the exception was itself unchecked.** The
+  fix above exempted the two pre-app gates *"they carry no masthead, so there is no ⌕ to
+  press."* True of `BSIntentStep`. **False of `BSHealthIntake`**, which renders the row — so
+  the required PAR-Q gate shipped two inert controls that each still pushed a nav entry.
+  `BSHealthIntake` is dual-mode (the gate with no `onBack`, and Settings → Health profile with
+  one), so the corners now key off the discriminator the component already used for its own
+  eyebrow one line below. **Four rounds, four because-clauses that were wrong: the inert
+  `aria-label`, the search doctrine that cost a P1, the `BSStShell` note that went stale in an
+  hour, and this one. Writing the exception is where the error goes — the code gets reviewed,
+  the justification does not.**
+
+- **The class is now closed by construction rather than by enumeration**, which is the only
+  reason to believe round five is not coming. `searchOverlay` is resolved **above every early
+  return** in all three shells, so ⌕ cannot be dead on any takeover; the avatar can only be
+  dead on a page returned **above** `showSettings`, which is exactly two places — the client's
+  two gates (one has no corner, the other now omits it) and coach Soundtracks (already
+  corner-less). Both invariants are stated at the helper, so the next surface inherits them.
+  The separate round-2 case still stands on its own terms: three portalled surfaces sit above
+  `BSUniversalSearch`'s z-index 230, where search *renders* but paints underneath — a
+  stacking failure, not a routing one, and they keep `search={false}`.
+
 - Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
   · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
   1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in

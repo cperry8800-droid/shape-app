@@ -814,8 +814,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // section — deleting their ⌕ instead would defeat the contract this PR exists
   // to establish. One overlay, referenced by every return, keeps it working.
   const searchOverlay = showSearch ? <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} /> : null;
-  // The two pre-app gates deliberately do NOT get it: they carry no masthead, so
-  // there is no ⌕ to press, and they must not be escapable before they are done.
+  // The two pre-app gates deliberately do NOT get it — they must not be
+  // escapable before they are done. ⚠ An earlier version of this comment also
+  // claimed they "carry no masthead, so there is no ⌕ to press". That is true of
+  // BSIntentStep and FALSE of BSHealthIntake, which does render the row: the fix
+  // is at that component, which now omits its corners in the gate variant. The
+  // reason a required gate skips this overlay is that it is required, not that
+  // it has nothing to press.
   if (intentGate === 'needed') {
     return <BSIntentStep onDone={() => setIntentGate('ok')} />;
   }
@@ -21960,8 +21965,16 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   );
   return (
     <BSPage>
+      {/* ⚠ Corners only in the Settings variant. This component is BOTH the
+          required PAR-Q gate (no onBack) and Settings → Health profile (onBack),
+          and BSClientAppInner returns the gate BEFORE the showSettings branch
+          and before searchOverlay — so from there ⌕ and the avatar set shell
+          state that nothing can render, while each still pushes a nav entry the
+          next back eats. A required gate must not offer an exit, least of all a
+          dead one. `onBack` is already this component's gate-vs-settings
+          discriminator on the very next line; the mast row stays either way. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        {window.BSMastRow && <window.BSMastRow trailing={onBack ? <BSMeCorner /> : null} />}
       </div>
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
