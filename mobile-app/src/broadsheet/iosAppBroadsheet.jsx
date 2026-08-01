@@ -664,6 +664,13 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 // is that inset; page wrappers use it instead of a per-page literal (the old
 // 42/44/46/48/50/54/60/62/64 drift). Window-exported for the role modules.
 const BS_MAST_TOP = 44;
+// The same inset as a CSS value. `--bs-notch-floor` is set ONLY by the desktop
+// phone-frame mock (46px, BSDetailHeader's proven clearance under the drawn
+// notch); the native surface never sets it, so it falls back to 0 and max()
+// yields a flat BS_MAST_TOP on device. So one expression is uniform in both:
+// 44 everywhere natively, floored to 46 in preview so no masthead rides under
+// the drawn notch. Use this for padding; use the number for arithmetic.
+const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, var(--bs-notch-floor, 0px))`;
 
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
@@ -676,7 +683,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       transparent 1px, transparent 7px)`;
   return (
     <div style={{
-      padding: `${BS_MAST_TOP}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
+      padding: `${BS_MAST_TOP_CSS} ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
@@ -779,7 +786,7 @@ function BSMastRow({ trailing = null, size = 16, style = null }) {
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
   const t = useBS();
   return (
-    <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 14px` }}>
+    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
@@ -1726,7 +1733,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP, BS_MAST_TOP_CSS,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });

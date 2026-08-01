@@ -1111,7 +1111,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
@@ -1623,7 +1623,7 @@ function BSShapeSetsScreen({ onBack }) {
           {/* HEADER — masthead like other mobile pages: Vol·No row, then the
               universal back row (← RADIO, plain mono text-action flush left —
               the bordered pill died with the placement sweep), eyebrow, title. */}
-          <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 0` }}>
+          <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}

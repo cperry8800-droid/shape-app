@@ -901,7 +901,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     <BSPage>
       {/* Hero — standard masthead band (logo + Vol·No row at the 64px page
           buffer, tools on the right), matching BSPageHeader on every other page. */}
-      <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 0` }}>
+      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
@@ -1774,7 +1774,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
     <BSPage>
       {/* The standing masthead row — same format, same size, no deviation
           (owner ruling 2026-08-01). Back sits on its own row directly under it. */}
-      <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 0` }}>
+      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
         {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
@@ -2201,7 +2201,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           {/* The standing masthead row opens the page (owner ruling 2026-08-01 —
               same format, same size, no deviation); back keeps its own row
               directly beneath it, flush left. */}
-          <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 0` }}>
+          <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
             {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>

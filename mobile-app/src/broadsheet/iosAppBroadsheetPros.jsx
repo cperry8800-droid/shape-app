@@ -24,6 +24,9 @@ const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 // gap for every page, chrome-owned. Local fallbacks so a load-order slip can't
 // render "undefinedpx"; see iosAppBroadsheet.jsx's BS_MAST_TOP.
 const BS_MAST_TOP = (typeof window !== 'undefined' && window.BS_MAST_TOP) || 44;
+// Same inset as a CSS value — flat on device, floored to the preview's drawn
+// notch. See the chrome's declaration for why max() is uniform in both.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || `max(${BS_MAST_TOP}px, var(--bs-notch-floor, 0px))`;
 const BS_CORNER_GAP = 9;
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
@@ -285,10 +288,10 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
   return (
     <BSPage>
-      {/* ── Ledger header — mast row (46px inset, no corner cluster), then the
+      {/* ── Ledger header — mast row (the standard inset + corners), then the
           universal back row (← BACK left · THE QUEUE eyebrow right), serif
           "Workout review." (heat italic), status meta. ── */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <BSBackButton onClick={onBack} />
@@ -613,10 +616,10 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
 
   return (
     <BSPage>
-      {/* Standing masthead row (46px inset) — this is a DISPLAY page, so it
+      {/* Standing masthead row (the standard inset) — a DISPLAY page, so it
           carries the full trailing cluster (search + self avatar). The page's
           own ✕ Close / live-clock row moves directly beneath it. */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
@@ -2158,7 +2161,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           needs the standard 46px top / t.padX horizontal inset (BSPage provides
           no top padding) so it clears the notch + rounded corners — matches
           BSProActionHead / BSStShell; without it the masthead sat off-screen. */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
@@ -2823,15 +2826,19 @@ function bsProCorner() {
     </span>
   );
 }
-function bsProMastRow(withCorners = true) {
+// The one masthead row for every coach page. It takes no "without corners"
+// option on purpose: the contract is that the row is identical everywhere, and
+// the corners are part of it. (Search opens a SIBLING overlay — the page under
+// it stays mounted — so an editor's unsaved draft survives a search and back.)
+function bsProMastRow() {
   const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
   if (!MastRow) return null;
-  const trailing = withCorners ? (
+  const trailing = (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}
       <BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} />
     </span>
-  ) : null;
+  );
   return <MastRow trailing={trailing} />;
 }
 // Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
@@ -2853,7 +2860,7 @@ function useBSProClientHeat(t, role, clientUid) {
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
-    <div style={{ paddingTop: BS_MAST_TOP }}>
+    <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {bsProMastRow()}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4343,7 +4350,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </button>
   );
   const headerBlock = (
-    <div style={{ paddingTop: BS_MAST_TOP }}>
+    <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {bsProMastRow()}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
@@ -5268,12 +5275,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
     <BSPage>
-      {/* Standing masthead row (46px inset) — deliberately WITHOUT the trailing
-          corners: this page holds an unpublished draft in local state, and the
-          search corner opens a takeover that unmounts the editor, discarding
-          that draft. Don't "fix" this to bsProMastRow(). The page's own CANCEL
-          affordance below stays exactly where it is. */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{tr('coach:editor.editEyebrow', { defaultValue: 'EDIT · {type}', type: (typeName || '').toUpperCase() })}</div>
@@ -5715,7 +5717,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     };
     return (
       <BSPage>
-        <div style={{ padding: `60px ${t.padX}px 28px` }}>
+        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
+            sit BELOW it (every page opens on the same row). */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+        <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -5761,9 +5766,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
   return (
     <BSPage>
-      {/* §1.1 Header — mast row (46px inset, #1574 rule) + THE CATALOGUE eyebrow
+      {/* §1.1 Header — mast row (the standard inset, #1574 rule) + THE CATALOGUE eyebrow
           + serif "Your programs." (heat italic). */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -6605,7 +6610,10 @@ function BSNutriPlans() {
     };
     return (
       <BSPage>
-        <div style={{ padding: `60px ${t.padX}px 28px` }}>
+        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
+            sit BELOW it (every page opens on the same row). */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+        <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -6656,9 +6664,9 @@ function BSNutriPlans() {
 
   return (
     <BSPage>
-      {/* §1.1 Header — mast row (46px inset) + THE CATALOGUE eyebrow
+      {/* §1.1 Header — mast row (the standard inset) + THE CATALOGUE eyebrow
           + serif "Your plans." (heat italic). */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -6823,9 +6831,11 @@ function bsEqGlyph(color) {
 // Soundtracks page shell — a full BSPage normally, or an inline fragment when
 // embedded inside the Plans page's Soundtracks tab (module-level so it's a
 // stable component type and inputs don't remount/lose focus on re-render).
-function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
+// topPad is a CSS length STRING and defaults to the one masthead inset — every
+// soundtracks page opens on the same row, so no caller overrides it.
+function BSStShell({ embedded, t, children, footerL, footerR, topPad = BS_MAST_TOP_CSS }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
-  return <BSPage><div style={{ padding: `${topPad}px ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
+  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
 }
 // "Pick from your Spotify library" needs per-user OAuth, which is capped at 25
 // manually-allowlisted accounts until the Spotify app is approved for Extended
@@ -6969,7 +6979,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && picking) {
     const list = spotPlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</div>
             <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7000,7 +7010,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && pickingApple) {
     const list = applePlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</div>
             <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7035,7 +7045,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       </div>
     );
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7116,7 +7126,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     };
     const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.assignSoundtrack', { defaultValue: 'ASSIGN SOUNDTRACK' })}</div>
             <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7165,7 +7175,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     </div>
   );
   return (
-    <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })} topPad={46}>
+    <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })}>
         {!embedded && (<>
         {bsProMastRow()}
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7497,8 +7507,6 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const authProfile = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
   const displayName = (authProfile.full_name && String(authProfile.full_name).trim()) || name;
   // Custom avatar initials (edit-profile) win; else full (2-letter) initials.
-  const customInit = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) ? String(window.ShapeIdentity.initials).trim().toUpperCase().slice(0, 2) : '';
-  const init = customInit || (displayName || 'S').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'S';
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
   const [showOfferEditor, setShowOfferEditor] = useStateBSP(false);
@@ -7549,8 +7557,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
-        {/* Own avatar already anchors this header's name row — logo-only masthead. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+        {/* The standing masthead row — the corners carry the self avatar, so the
+            name row below no longer repeats it. */}
         <div style={{ marginBottom: 14 }}>{bsProMastRow()}</div>
         {onBack && (
           <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
@@ -7856,12 +7865,7 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
   );
   return (
     <BSPage>
-      {/* Standing masthead row (46px inset) — deliberately WITHOUT the trailing
-          corners: despite the name this is a full page holding an unpublished
-          draft in local state, and the search corner opens a takeover that
-          unmounts it, discarding that draft. Don't "fix" this to
-          bsProMastRow(). The page's own CANCEL affordance is unchanged. */}
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT PRACTICE GOAL</div>
@@ -8072,8 +8076,8 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
-        {/* Logo-only masthead, then the universal back row — ← BACK left,
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+        {/* The standing masthead row, then the universal back row — ← BACK left,
             Edit right (owner call 2026-07-14); the eyebrow gets its own line. */}
         <div style={{ marginBottom: 12 }}>{bsProMastRow()}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>

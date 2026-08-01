@@ -1261,6 +1261,100 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-01 — The masthead contract: one row, one inset, every page
+
+- **Owner ruling** (with a screenshot of the chat page's masthead): *"please make sure this
+  exact top masthead is on very single page on app. same format, same size, no deviation."*
+  The row is the SHAPE triangles + `VOL. 1 · NO. 1` on the left, the circled search + the
+  member's own avatar on the right. It was on most pages, at nine different top insets, with
+  two logo sizes and two avatar sizes.
+
+- **The contract now lives in ONE place.** `iosAppBroadsheet.jsx` (the chrome) gained
+  **`BS_MAST_TOP = 44`** plus **`BS_MAST_TOP_CSS`**, both window-exported so the role modules
+  read them instead of re-typing a literal. `BSMasthead`, `BSPageHeader` and `BSDetailHeader`
+  all consume it, so the pages on the shared headers moved together; the hand-rolled rows
+  follow via `window.BS_MAST_TOP_CSS`. The old per-page insets
+  (14/42/44/46/48/50/54/58/60/62/64) are gone.
+
+- ⚠ **44 is not an arbitrary pick — it is the reference page's own value.** The owner's
+  screenshot was the chat page, and `BSClientFeed` already sat at `44px`. The contract was set
+  to match the page the ruling pointed at; the pages that move are the ones that had drifted
+  off it.
+
+- ⚠ **The inset is an expression, not a number, and the reason is worth keeping.**
+  `BS_MAST_TOP_CSS = max(44px, var(--bs-notch-floor, 0px))`. `--bs-notch-floor` is set **only**
+  by the desktop phone-frame mock (46px); the native surface never sets it, so it falls back to
+  0 and `max()` yields a flat 44 on device. One expression is therefore uniform in both worlds
+  — 44 everywhere natively, floored to 46 in preview so no masthead rides under the *drawn*
+  notch. The first cut used a flat `44px` and review caught that it silently dropped the
+  safe-area guard two pages still carried, leaving **two pages one tap apart disagreeing by up
+  to 28px**.
+
+- **The row itself is normalized:** logo `size 16` everywhere (`BSMasthead` was 18), the corner
+  cluster gap is one constant (`BS_CORNER_GAP = 9`), and every self-avatar reads
+  `BS_HEADER_AVATAR` (34) — the calendar's was 32, Settings carried a duplicate 32 beside its
+  own row, and the follow-list sheet's was 30.
+
+- **Pages that had no row now have one** — sleep and strength history, the Settings hub *and
+  all ten of its drill-in panes*, Goals "The Contract", About, the profile customizer, the
+  marketplace **Listing** (the primary conversion page, which opened with no chrome), the coach
+  availability calendar, the coach live-watch console, The Splits, the Nora concierge profile,
+  the "Logged." confirmation, both coach AI-draft review pages, coach grocery lists, the widget
+  queue and coach notifications.
+
+- ⚠ **THE FINDING THAT MATTERED MOST — my own stated rationale was false, and the review
+  caught it.** Four stateful editors (the coach draft editor, the practice-goal editor, the
+  grocery builder, the PAR-Q intake) initially shipped the row **without** the trailing corners,
+  each with a long comment asserting that *"the search corner opens a takeover that unmounts
+  this page, discarding the unsaved draft"* — written as binding doctrine for future
+  maintainers. **It does not unmount.** `BSUniversalSearch` renders as a **sibling** of the tab
+  content (`{showSearch && <BSUniversalSearch/>}` — `iosAppBroadsheetClient.jsx:863`,
+  `iosAppBroadsheetPros.jsx:1373`), painting `position:absolute; inset:0` over a page that
+  stays mounted; local draft state survives. All four now carry the **full** row, the false
+  comments are deleted, and `bsProMastRow` **lost its `withCorners` parameter entirely** so the
+  corner-less variant cannot be reintroduced. The same review found the exception had already
+  been applied inconsistently — `BSWorkoutReviewPage` holds an unsaved coach note in a textarea
+  and had been given corners in the same PR. **A comment that states a mechanism is a claim,
+  and an unverified claim propagates further than the code it sits next to.**
+
+- ⚠ **`BS_DARK_GUTTER` was a second false premise, and it broke the density setting.** It was
+  introduced as "the fixed-dark surfaces never receive the theme, so they cannot read
+  `t.padX`" — but both profiles bind the theme, just under a different local name (`tTheme`).
+  Hardcoding 18 meant the profile masthead ignored Compact/Standard/Comfortable and sat 4px off
+  every other page on the default density, *and* off its own hero one line below it. Replaced
+  with a `bsGutter(theme)` helper reading the live value. The follow-list sheet genuinely had
+  no theme binding; it now takes one (it portals into the phone surface, and a portal keeps
+  React context).
+
+- ⚠ **One real behavioural change, called out rather than buried.** The Settings identity
+  avatar used to open the **edit-details form**; it is now the standard corner avatar and opens
+  the **profile page**, like every other page's. The `Edit` text button still opens the form,
+  so nothing is lost — but this PR is otherwise presentation-only and that one control changed
+  meaning.
+
+- ⚠ **The doing-surfaces keep `mast={false}`, and that is a prior ruling, not an oversight.**
+  The live session player, the meal logger, Cook Mode, the Prep board, the Prep session and the
+  video call are instruments — the chrome is deliberately absent while you are mid-set or
+  mid-cook (the Cockpit wave, #1719/#1720/#1721, and #1605). The pre-app gates (first-run
+  intent, language picker, the Shape Radio opt-in) and the launch/auth/application flow have
+  their own wire grammar. **These are the only surfaces in the app without the row.**
+
+- **Two render-crash bugs the gates caught before the first commit**, both mine, both from
+  reaching for `t.padX` inside a component that never receives the theme under that name: the
+  follow-list sheet and both Terrain-profile mastheads would have thrown `ReferenceError` on
+  render. Parse, `tsc`, the build and the suite were all green;
+  `tests/broadsheet-identifiers.test.mjs` named the three lines.
+
+- **A blind constant sweep coupled three unrelated layouts to the masthead.** `gap: 9` →
+  `gap: BS_CORNER_GAP` also caught the Train deck's program-meta row, the Score card's category
+  rows and the session's duration input — tuning the masthead corner gap would have moved all
+  three. Reverted to a literal; the six genuine corner clusters keep the constant.
+
+- Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · the identifier gate · the mount
+  harness (`tests/broadsheet-render.test.mjs`) · `npm test` 1394/1394 · PowerShell
+  `VITE_BASE=/m/` build clean. Open: the OWNER on-device pass — the row's inset under a real
+  notch, across papers, on both roles.
+
 ### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
