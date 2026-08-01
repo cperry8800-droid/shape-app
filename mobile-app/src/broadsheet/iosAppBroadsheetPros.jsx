@@ -617,10 +617,16 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
 
   return (
     <BSPage>
-      {/* Standing masthead row (the standard inset) — a DISPLAY page, so it
-          carries the full trailing cluster (search + self avatar). The page's
-          own ✕ Close / live-clock row moves directly beneath it. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      {/* ⚠ corners: false — this is the ONE page in the app that no navigation
+          can survive, by an earlier deliberate decision: `navLoc()` has no
+          liveWatch branch and `navResolve` calls setLiveWatch(null), because
+          replaying a live session that may have ended would fabricate it. So a
+          round trip through EITHER corner (search, or the avatar's Settings hop)
+          returns through navBack to a location without liveWatch and closes the
+          monitor, taking any typed cue with it. Not a stacking or routing bug
+          this time — the page is intentionally ephemeral, so the row carries no
+          way to leave it but ✕ Close. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
@@ -1251,7 +1257,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
-  const goSettings = () => { navPush(); setShowSettings(true); };
+  // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
+  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // local state, so an unconditional push recorded a duplicate location and ate
+  // the next back. BSSettings answers the same event by closing its pane.
+  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.
@@ -6302,7 +6312,11 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
-  const goSettings = () => { navPush(); setShowSettings(true); };
+  // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
+  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // local state, so an unconditional push recorded a duplicate location and ate
+  // the next back. BSSettings answers the same event by closing its pane.
+  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.

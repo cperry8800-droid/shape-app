@@ -507,7 +507,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
-  const goSettings = () => { navPush(); setSettingsStart(''); setShowSettings(true); };
+  // ⚠ No nav entry when Settings is ALREADY open. The corner avatar fires
+  // shape:openProfile from inside Settings too, and BSSettings keeps its own
+  // drill-in pane in local state — so an unconditional navPush() there recorded
+  // a duplicate location, changed nothing on screen, and had the next back
+  // silently consumed. BSSettings answers the same event by closing its pane,
+  // which is what "take me to my profile" means once you are already in it.
+  const goSettings = () => { if (!showSettings) navPush(); setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
   const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
@@ -26228,6 +26234,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // The corner avatar fires shape:openProfile from every masthead — including the
+  // ones on these drill-in panes. The shell answers by opening Settings, which is
+  // already open, so without this the tap was a no-op that still burned a back.
+  // Closing the pane is what "take me to my profile" means from inside it; on the
+  // Settings root it is already a no-op, which is correct for a self-link.
+  React.useEffect(() => {
+    const toRoot = () => setDetail('');
+    window.addEventListener('shape:openProfile', toRoot);
+    window.addEventListener('shape:openProSettings', toRoot);
+    return () => {
+      window.removeEventListener('shape:openProfile', toRoot);
+      window.removeEventListener('shape:openProSettings', toRoot);
+    };
+  }, []);
   // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
   // the in-flight write so a double-tap can't fire two consent RPCs.
   const cycle = useBSCycleSettings();
