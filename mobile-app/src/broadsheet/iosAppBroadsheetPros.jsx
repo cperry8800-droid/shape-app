@@ -1356,9 +1356,21 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
     ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
     : null;
-  const takeover = (el) => (<>{el}{searchOverlay}</>);
+  // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
+  // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
+  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
+  // masthead (60), below the customizer (220) and search (230), and its own
+  // stacking context so Settings' sheets stack inside it.
+  const settingsOverlay = showSettings ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
+      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+    </div>
+  ) : null;
+  // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
+  // leaves its flag set, so that branch returns before the main render.
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
-  if (showSettings) return takeover(<BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
   if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
@@ -1392,6 +1404,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
+      {settingsOverlay}
       {searchOverlay}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
@@ -6399,9 +6412,21 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
     ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
     : null;
-  const takeover = (el) => (<>{el}{searchOverlay}</>);
+  // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
+  // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
+  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
+  // masthead (60), below the customizer (220) and search (230), and its own
+  // stacking context so Settings' sheets stack inside it.
+  const settingsOverlay = showSettings ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
+      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+    </div>
+  ) : null;
+  // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
+  // leaves its flag set, so that branch returns before the main render.
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
-  if (showSettings) return takeover(<BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
   if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
@@ -6434,6 +6459,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
+      {settingsOverlay}
       {searchOverlay}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>

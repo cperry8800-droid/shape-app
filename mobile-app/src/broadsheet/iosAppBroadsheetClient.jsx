@@ -833,25 +833,41 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   if (healthGate === 'needed') {
     return <BSHealthIntake onDone={() => setHealthGate('ok')} />;
   }
-  if (showSettings) {
-    return (
-      <>
-        <BSSettings
-          initialPage={settingsStart}
-          onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
-          onLogout={onLogout}
-          tweaks={tweaks}
-          setTweak={setTweak}
-        />
-        {searchOverlay}
-      </>
-    );
-  }
+  // ⚠ Settings is an OVERLAY, not an early return, and that is load-bearing.
+  // Returning <BSSettings/> in its place unmounted the whole tab tree beneath it,
+  // and the nav descriptor only records {tab} — so the corner avatar (which fires
+  // shape:openProfile from every masthead this PR touched) destroyed whatever the
+  // page underneath was holding: an unpublished plan, a half-typed grocery list,
+  // the meal-log Undo, a drill-in that lives in local state. Seven review rounds
+  // patched seven instances of that and the eighth found two more, because the
+  // state being destroyed usually lives in a DESCENDANT of the component drawing
+  // the corner — so no per-component audit can enumerate it. Rendering Settings
+  // over a still-mounted tree ends the whole class at once.
+  //
+  // zIndex 210 sits above the tab bar (55) and the pinned masthead (60), and below
+  // the profile customizer (220) and BSUniversalSearch (230) — so search opened
+  // FROM Settings still paints over it. The wrapper is its own stacking context,
+  // so Settings' own sheets (200/240) stack inside it and are unaffected.
+  const settingsOverlay = showSettings ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
+      <BSSettings
+        initialPage={settingsStart}
+        onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
+        onLogout={onLogout}
+        tweaks={tweaks}
+        setTweak={setTweak}
+      />
+    </div>
+  ) : null;
+  // ⚠ The remaining early returns still have to render BOTH overlays themselves —
+  // opening Settings from the calendar leaves showCalendar true, so the calendar
+  // branch returns first and a main-return-only overlay would never paint.
   if (showCalendar) {
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
+        {settingsOverlay}
         {searchOverlay}
       </div>
     );
@@ -861,6 +877,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
+        {settingsOverlay}
         {searchOverlay}
       </div>
     );
@@ -906,6 +923,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         ]}
       />
       <BSRadioPrompt />
+      {settingsOverlay}
       {searchOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
