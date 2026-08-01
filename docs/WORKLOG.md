@@ -217,9 +217,17 @@ changelog whenever something ships.
 > one, and not an event; matching only the first would silently miss every malformed
 > proposed week.
 >
-> The migration `2026-08-06-guardrail-health-runs.sql` is **NOT yet applied** (owed to the
-> owner); the route degrades to treating every check as a fresh transition without it
-> rather than crashing. `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
+> The migration `2026-08-06-guardrail-health-runs.sql` is **APPLIED + VERIFIED LIVE
+> 2026-08-01**, and **the cron has run**: first record `2026-08-01 09:00:29 UTC`, on
+> schedule, `alerted: false`, `_read.state: "complete"`. Both rate checks correctly stored
+> `insufficient_sample` with `value: null` rather than `0` — the distinction between
+> "could not check" and "checked and fine" survives into the persisted record, which is
+> why it is stored that way. Verified against production: RLS on with **0** policies,
+> `anon`/`authenticated` denied (checked with `has_any_column_privilege`, so a column-level
+> grant could not hide), `service_role` holding **only** SELECT + INSERT with TRUNCATE,
+> DELETE, UPDATE, TRIGGER and REFERENCES all denied, **0** stray column grants, PK on
+> exactly `(id)`, and every column default present.
+> `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
 > inert and every run reports `heartbeat: 'skipped'` — deliberately a provider-agnostic
 > HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry exists anywhere in
 > this repo. Suite **1394/1394, zero failures**; `tsc` clean.
@@ -1335,14 +1343,24 @@ changelog whenever something ships.
   telemetry at all.)
 
 - The migration **`supabase-migrations/2026-08-06-guardrail-health-runs.sql`**
-  (`2004209ef`) is **NOT yet applied** — owed to the owner, service-role-only, RLS on with
+  (`2004209ef`) is **APPLIED + VERIFIED LIVE 2026-08-01** — service-role-only, RLS on with
   no policy, revoked from `public`/`anon`/`authenticated` per the #1851 bug class, with a
   `DO`-block guard asserting the grants directly rather than trusting the revoke. The route
   is written to degrade rather than crash without it: a missing/unreadable previous-run read
   is treated as "no prior verdicts," so every check reads as a fresh transition on the first
   real run — the safe direction, since it over-reports once instead of staying silent — but
-  until the migration lands there is no persisted run record and no real flapping control,
-  so a persisting fault would re-alert every day rather than weekly.
+  that degrade path is now historical — the table is live and the flapping control is real.
+  ⚠ **First live run `2026-08-01 09:00:29 UTC`**, on schedule, `alerted: false`,
+  `_read.state: "complete"`, both rate checks `insufficient_sample` with `value: null`
+  (never `0` — "could not check" must not read as "checked and fine"), all stamps `null`
+  so the next run has a clean transition baseline. Live privilege verification: RLS on with
+  **0** policies · `anon`/`authenticated` denied via `has_any_column_privilege` so a
+  column-level grant could not hide · `service_role` holding **only** SELECT + INSERT, with
+  TRUNCATE, DELETE, UPDATE, TRIGGER and REFERENCES all denied · **0** stray column grants ·
+  PK on exactly `(id)` · every column default present.
+  ⚠ **With `analytics_events` holding 0 `guardrail_evaluated` rows, that all-clear is
+  indistinguishable from the guardrail emitting nothing at all** — the deliberately
+  unbuilt fifth check. The `sample: 0` field is what preserves the distinction for a human.
 
 - `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is inert and every run reports
   `heartbeat: 'skipped'`. Deliberately a provider-agnostic plain HTTP GET rather than
