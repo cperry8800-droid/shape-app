@@ -1,27 +1,36 @@
 // public/newdesign/sentryInit.js
 //
-// Error-tracking loader for the static website (public/newdesign/*.html —
+// Error-tracking initializer for the static website (public/newdesign/*.html —
 // mostly signed-in dashboard SPAs — ClientApp/TrainerApp/NutritionistApp and
 // their sub-pages — plus the marketing pages, all served as plain files and
 // compiled in-browser by Babel, no bundler). This is Task 4 of the
 // error-tracking plan; Tasks 2 and 3 wired @sentry/nextjs and
 // @sentry/capacitor+@sentry/react into the Next.js app and the mobile
 // bundle respectively — this surface has neither npm nor a build step that
-// could install an SDK, so it loads Sentry's browser CDN bundle instead
+// could install an SDK, so it uses Sentry's browser CDN bundle instead
 // (https://docs.sentry.io/platforms/javascript/install/cdn/).
 //
-// Loaded by scripts/build-newdesign.mjs, the deploy precompile, which injects
-// `window.SHAPE_SENTRY_DSN = "<SHAPE_SITE_SENTRY_DSN>"` plus a deferred tag for
-// this file into every page it rewrites. That is the only place the DSN is set
-// — deliberately, because this surface has no bundler and therefore no
-// `process.env` a runtime file like this one could read. This file re-checks
-// the DSN itself regardless, so it stays a genuine no-op if it is ever loaded
-// some other way.
+// ⚠ THIS FILE DOES NOT LOAD THE SDK — it only initializes one that is already
+// there. scripts/build-newdesign.mjs (the deploy precompile) injects THREE
+// things into every page it rewrites, in this order:
+//   1. an inline <script> setting window.SHAPE_SENTRY_DSN (+ SHAPE_RELEASE),
+//   2. <script defer> for the pinned Sentry CDN bundle (URL + SRI live there),
+//   3. <script defer> for this file.
+// Deferred scripts execute in DOCUMENT ORDER, and every compiled `nd/*.js` on
+// these pages sits after </head>, so the bundle is guaranteed to be parsed and
+// this init is guaranteed to have run BEFORE any application code executes.
+//
+// ⚠ It used to append the CDN <script> itself, and that was a real defect:
+// a dynamically-inserted script is ASYNC, so it raced the page's own deferred
+// scripts. The app could mount and throw while the bundle was still in flight,
+// which meant page-startup crashes — the most valuable error this surface can
+// report — were silently lost on every cold load. Do not re-introduce a
+// runtime `document.head.appendChild` here.
 //
 // ⚠ NO DSN EXISTS YET, and with none configured the precompile injects NOTHING
-// — neither the assignment nor the tag below it — so this file is not even
-// fetched. If it somehow is, the guard below is the LAST thing it does: no
-// <script> element is created, nothing is fetched, nothing talks to Sentry.
+// — not the assignment, not the CDN tag, not this file — so it is not even
+// fetched. If it somehow is, the guard below is the LAST thing it does: nothing
+// is fetched and nothing talks to Sentry.
 // (window.SHAPE_SENTRY_DSN mirrors the window.SHAPE_TURNSTILE_SITEKEY
 // precedent in public/supabase.js — a window global gating behavior on its
 // presence — but carries no fallback value: a placeholder would make an
@@ -32,7 +41,15 @@
   var dsn = window.SHAPE_SENTRY_DSN;
   if (!dsn) return; // inert — no DSN, no network request of any kind
 
-  if (document.querySelector('script[data-shape-sentry-cdn]')) return; // already loading/loaded
+  // The bundle is a separate <script> now, so it can genuinely be absent:
+  // a network blip, an SRI mismatch after a future version bump, an ad
+  // blocker, or the CDN itself being down. Never break the page over it, but
+  // say so — silence here reads identically to "no DSN configured," which
+  // would hide a real outage from anyone debugging in devtools.
+  if (!window.Sentry || typeof window.Sentry.init !== "function") {
+    console.warn("[shape] Sentry CDN bundle missing or blocked (network, SRI, or extension) — error tracking is inert on this page.");
+    return;
+  }
 
   // Coarse, PII-free surface/role hint — derived ONLY from the page's own
   // window.location.pathname, never from any user/session/auth object. Lets
@@ -54,73 +71,51 @@
     }
   }
 
-  // Errors-only CDN bundle (no tracing/replay/feedback — Layer 1 is capture
-  // only, and this static surface stays simple per the plan). Pinned to the
-  // exact version + SRI hash Sentry publishes for that bundle, matching the
-  // @sentry/nextjs major version already pinned in package.json (Task 2).
-  var SENTRY_CDN_URL = "https://browser.sentry-cdn.com/10.69.0/bundle.min.js";
-  var SENTRY_CDN_SRI = "sha384-3CEt/dsT99DjKC3MgiUAiordZm0hoZjYMn6ioBvRKm+9A98CLWAUsQsk5XaPpjfU";
-
-  var s = document.createElement("script");
-  s.src = SENTRY_CDN_URL;
-  s.crossOrigin = "anonymous";
-  s.integrity = SENTRY_CDN_SRI;
-  s.setAttribute("data-shape-sentry-cdn", "1");
-  s.onload = function () {
-    try {
-      if (!window.Sentry || typeof window.Sentry.init !== "function") {
-        // The bundle loaded (200 OK, SRI matched) but didn't attach the
-        // expected global — a CDN response shape change, a future version
-        // bump that renames the export, etc. Silent here would be
-        // indistinguishable from "no DSN configured, working as intended."
-        console.warn("[shape] Sentry CDN bundle loaded but window.Sentry.init is missing — error tracking stays inert on this page.");
-        return;
+  try {
+    // release: only ever a real, non-empty string, never the literal word
+    // "undefined" — a fabricated or missing release silently merges every
+    // unversioned deploy into one bucket in the Sentry UI. The precompile
+    // stamps window.SHAPE_RELEASE from VERCEL_GIT_COMMIT_SHA, matching the
+    // Next.js app and the mobile bundle; absent, this degrades to "no
+    // release" rather than inventing one.
+    var release = window.SHAPE_RELEASE;
+    window.Sentry.init({
+      dsn: dsn,
+      release: (typeof release === "string" && release) ? release : undefined,
+      // Layer 1 is capture-only: no tracing, no replay, no feedback.
+      tracesSampleRate: 0,
+      // ⚠ LOAD-BEARING. Left at its default this SDK can attach the visitor's
+      // IP address and other request-derived identifiers. Only id, roles and
+      // is_coach may ever reach Sentry from this platform, and this surface
+      // sends none of the three (see below) — so the only PII it could
+      // possibly leak is what the SDK adds on its own. Explicit false, on
+      // every init, matches sentry.server.config.ts, instrumentation-client.ts
+      // and mobile-app/src/sentry.mjs. Never flip this to true.
+      sendDefaultPii: false,
+      initialScope: {
+        tags: { shape_surface: shapeSurfaceTag() }
       }
+    });
 
-      // release: only ever a real, non-empty string, never the literal word
-      // "undefined" — a fabricated or missing release silently merges every
-      // unversioned deploy into one bucket in the Sentry UI. Nothing on this
-      // static surface currently stamps a commit SHA into
-      // window.SHAPE_RELEASE (unlike the Next.js app and the mobile bundle,
-      // which both bake in VERCEL_GIT_COMMIT_SHA at build time), so this
-      // degrades to "no release" today. Wiring one in later — a build-time
-      // stamp read here — needs no change to this file.
-      var release = window.SHAPE_RELEASE;
-      window.Sentry.init({
-        dsn: dsn,
-        release: (typeof release === "string" && release) ? release : undefined,
-        initialScope: {
-          tags: { shape_surface: shapeSurfaceTag() }
-        }
-      });
-
-      // No user context is attached on this surface, deliberately. The
-      // shared, PII-free derivation the rest of this repo uses for that
-      // (src/lib/sentry-context.mjs — id/roles/is_coach only, never
-      // email/name/phone/stripe_customer_id) is a Node ESM module meant to
-      // be imported by a bundler (Next.js, Vite); this no-bundler,
-      // in-browser-Babel surface has no way to reach it at runtime without
-      // either copying its rules into a third file or wiring a runtime
-      // module import — both out of scope for the two-file limit on this
-      // task. The shape_surface tag above is NOT a substitute for that — it
-      // is derived purely from the URL, carries no identity, and is safe to
-      // set unconditionally. Skipping real user context here is the
-      // documented fallback, not an oversight.
-    } catch (e) {
-      // A Sentry init failure must never surface as a page-breaking error —
-      // that would make the error-tracking layer itself a source of errors.
-      // Still worth a console line: silent here reads identically to "no
-      // DSN configured," which would hide a real init-time bug (a bad
-      // option shape, a future SDK breaking change) from anyone debugging
-      // in devtools.
-      console.warn("[shape] Sentry init threw — error tracking is inert on this page.", e);
-    }
-  };
-  s.onerror = function () {
-    // Bundle failed to load: network blip, SRI mismatch after a future
-    // version bump, or the CDN itself down. Never breaks the page, but a
-    // human in devtools should be able to tell this apart from "no DSN."
-    console.warn("[shape] Failed to load the Sentry CDN bundle (network, CDN, or SRI-integrity issue) — error tracking is inert on this page.");
-  };
-  document.head.appendChild(s);
+    // No user context is attached on this surface, deliberately. The
+    // shared, PII-free derivation the rest of this repo uses for that
+    // (src/lib/sentry-context.mjs — id/roles/is_coach only, never
+    // email/name/phone/stripe_customer_id) is a Node ESM module meant to
+    // be imported by a bundler (Next.js, Vite); this no-bundler,
+    // in-browser-Babel surface has no way to reach it at runtime without
+    // either copying its rules into a third file or wiring a runtime
+    // module import — both out of scope for the two-file limit on this
+    // task. The shape_surface tag above is NOT a substitute for that — it
+    // is derived purely from the URL, carries no identity, and is safe to
+    // set unconditionally. Skipping real user context here is the
+    // documented fallback, not an oversight.
+  } catch (e) {
+    // A Sentry init failure must never surface as a page-breaking error —
+    // that would make the error-tracking layer itself a source of errors.
+    // Still worth a console line: silent here reads identically to "no
+    // DSN configured," which would hide a real init-time bug (a bad
+    // option shape, a future SDK breaking change) from anyone debugging
+    // in devtools.
+    console.warn("[shape] Sentry init threw — error tracking is inert on this page.", e);
+  }
 })();

@@ -55,8 +55,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ⚠ Sentry rides in HERE or not at all. Vite inlines `import.meta.env.*` at
+      # BUILD time, so an APK built without these bakes in an empty DSN and can
+      # never be switched on later — no redeploy reaches a shipped binary. GitHub
+      # secrets are NOT exposed to a step implicitly, and Vercel env vars do not
+      # exist in this runner at all: scripts/build-m.sh only covers the hosted
+      # /m/ bundle. Every var is optional — unset, the SDK stays inert (dsn '')
+      # and the upload plugin is simply absent, so this build is unchanged.
       - name: Build web assets
         run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SHAPE_RELEASE: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -122,9 +135,17 @@ jobs:
         if: steps.secrets.outputs.present == 'true'
         run: npm ci
 
+      # Same reasoning as the debug job above — this is the SIGNED build that
+      # actually ships, so it is the one that must not bake in an empty DSN.
       - name: Build web assets
         if: steps.secrets.outputs.present == 'true'
         run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SHAPE_RELEASE: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
 
       - name: Set up JDK 21
         if: steps.secrets.outputs.present == 'true'
