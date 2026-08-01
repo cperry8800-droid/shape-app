@@ -1,10 +1,56 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import path from 'path';
+
+// Sourcemap upload to Sentry. Without this the maps below are generated and then
+// deleted by build-m.sh, so every mobile stack trace arrives MINIFIED and the
+// runbook's own symbolication check ("confirm it arrives symbolicated, not a
+// minified blob") could never pass — the maps existed but nothing ever shipped
+// them anywhere they could be used.
+//
+// ⚠ ALL THREE vars required, and SENTRY_PROJECT_MOBILE is deliberately its own:
+// SENTRY_PROJECT names the Next.js project (next.config.ts uses it), and the
+// mobile app is a SEPARATE Sentry project with its own release stream. Pointing
+// both at one slug would file mobile maps against web releases, where they match
+// nothing. Any var missing => the plugin is not added at all, so a build with no
+// Sentry configured behaves exactly as it does today (no upload, no warning, no
+// failure) — which is the state of every build until the owner creates the org.
+const sentryUpload =
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT_MOBILE
+    ? [
+        sentryVitePlugin({
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT_MOBILE,
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          // Match the release string build-m.sh bakes into the bundle via
+          // VITE_SHAPE_RELEASE, or uploaded maps associate with a release no
+          // event ever reports and symbolication silently does nothing.
+          release: { name: process.env.VITE_SHAPE_RELEASE || undefined },
+          // build-m.sh deletes every .map from public/m as its final step; the
+          // plugin must NOT also delete them from dist/ before that copy, or the
+          // two cleanup paths race over the same files.
+          sourcemaps: { filesToDeleteAfterUpload: [] },
+          // Off by default in this repo: the plugin otherwise reports its own
+          // issues/performance to Sentry from the build machine, which is an
+          // outbound data flow nobody opted into by setting a DSN.
+          telemetry: false,
+          // ⚠ LOAD-BEARING, verified not assumed: with no errorHandler the
+          // plugin THROWS and stops the bundle (its own docs say so), so a
+          // Sentry outage or a stale token would break the deploy. Proven
+          // locally with deliberately invalid credentials — the upload failed,
+          // this warning printed, and the build still exited 0.
+          errorHandler: (err) => {
+            console.warn('[shape] Sentry sourcemap upload failed — mobile traces will be minified.', err?.message || err);
+          },
+        }),
+      ]
+    : [];
 
 export default defineConfig({
   plugins: [
     react(),
+    ...sentryUpload,
     // Force LF in the emitted index.html. The source template has mixed CRLF/LF,
     // and the build preserves the OS's line endings — so a Windows-built index.html
     // (CRLF) never byte-matches CI's Linux build (LF), failing the public/m sync

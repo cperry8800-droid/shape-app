@@ -69,7 +69,7 @@ const BABEL_TAG = /<script\s+type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g;
 const STANDALONE_TAG = /[ \t]*<script[^>]*@babel\/standalone[^>]*><\/script>\r?\n?/g;
 
 const pages = fs.readdirSync(ND).filter((f) => f.endsWith('.html'));
-let pagesTouched = 0, inlineBlocks = 0, externalTags = 0;
+let pagesTouched = 0, inlineBlocks = 0, externalTags = 0, sentryPages = 0;
 
 // Pass 1: compile every externally-referenced .jsx up front, so the manifest
 // injected below is COMPLETE on every page (not just files seen so far).
@@ -89,6 +89,38 @@ for (const page of pages) {
 const ND_MANIFEST = `<script>window.__ndCompiled=${JSON.stringify(Object.fromEntries(
   [...compiledExternal].map(([jsx, e]) => [jsx, `/newdesign/${e.out}?v=${e.v}`])
 ))};</script>`;
+
+// ── Error-tracking bootstrap (Sentry, static website) ────────────────────────
+// This surface has no bundler, so there is no `process.env` to read at runtime
+// and no import graph an SDK could be installed into. The deploy IS the only
+// build step it has — so the DSN is injected here, at deploy time, exactly like
+// the compiled-script rewrite above.
+//
+// ⚠ THIS REPLACED A `window.SHAPE_SENTRY_DSN` ASSIGNMENT IN pageShell.jsx, and
+// the reason is worth keeping: nothing in the repo ever set that global, so the
+// static site would have stayed unmonitored FOREVER after the owner set every
+// documented env var and redeployed. The runbook promised activation-by-env-var
+// while the code required a source edit — the failure mode being fixed was the
+// records and the code disagreeing, not a missing feature.
+//
+// Injected into every page this script rewrites (see the `continue` guard
+// below) rather than into one shared file, which also fixes the second half of
+// that gap: pageShell.jsx is loaded by 69 of the 76 pages, so hooking it left
+// GetApp / consultation / ClientPlaylists — all live, linked flows — with no
+// error tracking at all. The two pure-redirect stubs (TrainerPublic /
+// NutritionistPublic, whose entire body is a `location.replace`) are the only
+// pages still excluded: they navigate away immediately, so fetching a ~90 KB
+// CDN bundle there would cost every visitor bandwidth for a page that is gone
+// before the SDK could install.
+//
+// Unset DSN => injects NOTHING, so the output is byte-identical to a build
+// without this block. That is the state every deploy is in until the owner
+// creates the project, and it keeps `--check` honest.
+const SITE_DSN = process.env.SHAPE_SITE_SENTRY_DSN || '';
+const SENTRY_TAG = SITE_DSN
+  ? `<script>window.SHAPE_SENTRY_DSN=${JSON.stringify(SITE_DSN)};</script>`
+    + `<script defer src="/newdesign/sentryInit.js"></script>`
+  : '';
 
 // Pass 2: rewrite the pages.
 for (const page of pages) {
@@ -124,6 +156,13 @@ for (const page of pages) {
   } else if (next.includes('globalChatButton.js')) {
     next = next.replace(/<\/head>/, `${ND_MANIFEST}</head>`);
   }
+  // Sentry: the inline tag runs during head parse (so the global is set before
+  // any deferred script executes), the loader is deferred like every compiled
+  // script above. Empty string when no DSN is configured — see SENTRY_TAG.
+  if (SENTRY_TAG && next.includes('</head>')) {
+    next = next.replace('</head>', `${SENTRY_TAG}</head>`);
+    sentryPages++;
+  }
   if (crlf) next = next.replace(/(?<!\r)\n/g, '\r\n'); // 17 pages are CRLF; keep them whole
   if (!CHECK) fs.writeFileSync(abs, next);
   pagesTouched++;
@@ -132,4 +171,13 @@ for (const page of pages) {
 console.log(
   `newdesign precompile${CHECK ? ' (check only)' : ''}: ${pagesTouched} pages, ` +
   `${compiledExternal.size} shared jsx, ${inlineBlocks} inline blocks, ${externalTags} external tags`
+);
+// Say out loud which pages error tracking reaches and which it does not. A
+// coverage number nobody prints reads as "everything is covered" the moment
+// someone adds a page that this script's `continue` guard skips.
+console.log(
+  SITE_DSN
+    ? `newdesign sentry: injected on ${sentryPages}/${pages.length} pages` +
+      `${sentryPages < pages.length ? ` (${pages.length - sentryPages} skipped — no script machinery, e.g. pure-redirect stubs)` : ''}`
+    : `newdesign sentry: SHAPE_SITE_SENTRY_DSN unset — no DSN injected, static-site error tracking inert on all ${pages.length} pages`
 );

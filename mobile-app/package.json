@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.8",
+    "@sentry/vite-plugin": "^5.4.0",
     "patch-package": "^8.0.1",
     "vite": "^8.1.5"
   },

@@ -10,18 +10,22 @@
 // could install an SDK, so it loads Sentry's browser CDN bundle instead
 // (https://docs.sentry.io/platforms/javascript/install/cdn/).
 //
-// Loaded once from public/newdesign/pageShell.jsx (the one shared file across
-// all 69 newdesign pages) — see the comment there for why, and for why
-// window.SHAPE_SENTRY_DSN can only ever be set from that one file. This file
-// also re-checks the DSN itself, so it stays a genuine no-op even if
-// something ever loads it directly instead of through that hook.
+// Loaded by scripts/build-newdesign.mjs, the deploy precompile, which injects
+// `window.SHAPE_SENTRY_DSN = "<SHAPE_SITE_SENTRY_DSN>"` plus a deferred tag for
+// this file into every page it rewrites. That is the only place the DSN is set
+// — deliberately, because this surface has no bundler and therefore no
+// `process.env` a runtime file like this one could read. This file re-checks
+// the DSN itself regardless, so it stays a genuine no-op if it is ever loaded
+// some other way.
 //
-// ⚠ NO DSN EXISTS YET. window.SHAPE_SENTRY_DSN mirrors the
-// window.SHAPE_TURNSTILE_SITEKEY precedent in public/supabase.js (a window
-// global gates behavior on its presence) but carries no fallback value — see
-// pageShell.jsx, the only place that assigns it. With no DSN configured, the
-// guard below is the LAST thing this file does: no <script> element is ever
-// created, nothing is ever fetched, and nothing here ever talks to Sentry.
+// ⚠ NO DSN EXISTS YET, and with none configured the precompile injects NOTHING
+// — neither the assignment nor the tag below it — so this file is not even
+// fetched. If it somehow is, the guard below is the LAST thing it does: no
+// <script> element is created, nothing is fetched, nothing talks to Sentry.
+// (window.SHAPE_SENTRY_DSN mirrors the window.SHAPE_TURNSTILE_SITEKEY
+// precedent in public/supabase.js — a window global gating behavior on its
+// presence — but carries no fallback value: a placeholder would make an
+// unconfigured site read as configured.)
 (function () {
   if (typeof window === "undefined") return;
 

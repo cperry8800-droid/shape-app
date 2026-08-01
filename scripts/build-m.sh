@@ -32,11 +32,18 @@ echo "→ Publishing mobile-app/dist → public/m…"
 rm -rf public/m
 cp -r mobile-app/dist public/m
 
-# --- Sentry sourcemap upload goes HERE, before the strip below, once ---
-# SENTRY_AUTH_TOKEN exists. It would read the .map files straight out of
-# public/m (same tree the deletion step removes them from) and associate them
-# with the VITE_SHAPE_RELEASE string exported above. Nothing uploads today —
-# no auth token exists yet — so this step is a no-op placeholder.
+# --- Sentry sourcemap upload: ALREADY DONE, one step up ---
+# This used to be a placeholder comment saying an upload "goes here" — it never
+# did, so maps were generated and then deleted without ever being sent anywhere
+# and every mobile stack trace would have arrived minified.
+#
+# The upload now runs inside the vite build above, via @sentry/vite-plugin (see
+# mobile-app/vite.config.ts), which reads the maps from mobile-app/dist BEFORE
+# the `cp -r` that put them in public/m. It is gated on SENTRY_AUTH_TOKEN +
+# SENTRY_ORG + SENTRY_PROJECT_MOBILE and is simply absent when they are unset,
+# so nothing uploads until the owner configures Sentry. The strip below is
+# therefore unconditional and independent: maps are generated -> uploaded (when
+# configured) -> always stripped before publish.
 
 # vite.config.ts sets `sourcemap: 'hidden'`: maps are generated (for a future
 # Sentry upload / local symbolication) but the bundle carries no

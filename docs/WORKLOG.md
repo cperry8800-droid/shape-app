@@ -194,10 +194,13 @@ changelog whenever something ships.
 > then — the single most important thing to get right when describing this wave.
 >
 > **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
-> organisation and **three projects** — one per runtime; Next.js/Capacitor/browser are three
-> different SDKs with three different release streams. (2) Supply `SENTRY_DSN`,
-> `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
-> `SENTRY_AUTH_TOKEN`. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+> organisation and **four projects** — Next.js / Capacitor / static-website browser are
+> different SDKs with different release streams (the static site is its own, see Task 4).
+> (2) Supply **eight** env vars: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`,
+> `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`,
+> `SENTRY_AUTH_TOKEN`. ⚠ The last two are NOT optional extras: without
+> `SHAPE_SITE_SENTRY_DSN` the whole static website stays inert, and without
+> `SENTRY_PROJECT_MOBILE` every mobile stack trace arrives **minified**. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
 > not request time — an already-running deployment never picks the new values up no matter
 > how long it stays live.
 >
@@ -229,6 +232,12 @@ changelog whenever something ships.
 > `//# sourceMappingURL=` comment from the bundle; the `.map` files are still written to
 > `dist/` and would still ship at the public `/m/` URL untouched. The strip step in
 > `build-m.sh` is what actually makes this safe, not the Vite flag by itself.
+>
+> ⚠ **AND THE MAPS WERE NEVER UPLOADED ANYWHERE** — corrected after Codex flagged it as a
+> P1. `build-m.sh` said an upload "goes here" and nothing did, so every mobile stack trace
+> would have arrived **minified** and the runbook's symbolication check could never have
+> passed. The upload now runs inside the Vite build via `@sentry/vite-plugin`, gated on
+> `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT_MOBILE`. See the full entry below.
 >
 > ⚠ **THE SCOPE GAP the owner most needs to see.** The original request was to wrap "the
 > publish route and **all** Supabase RPC callers." What shipped wraps **one call site** —
@@ -1440,13 +1449,34 @@ changelog whenever something ships.
   website loader, which warns at all three of its failure points for the same reason;
   `callRpc` and `reportAlerts` each have a second sink, mobile had none).
 
-- **Task 4 — the static website** (`212df6df4`, review round `80863f847`).
-  `public/newdesign/sentryInit.js` is a dependency-free classic script that no-ops when
-  `window.SHAPE_SENTRY_DSN` is unset; `pageShell.jsx` is the **only** place that global can
-  be assigned (babel-standalone runs every page's own script AFTER `pageShell.jsx` at
-  `DOMContentLoaded`, so a per-page assignment elsewhere would silently no-op with zero
-  console output — documented in-file so nobody "fixes" it into a bug). The review round
-  caught a real framing error in the original brief: it called these 69 pages "the
+- **Task 4 — the static website** (`212df6df4`, review rounds `80863f847` + the Codex round
+  below). `public/newdesign/sentryInit.js` is a dependency-free classic script that no-ops
+  when `window.SHAPE_SENTRY_DSN` is unset.
+  ⚠ **The DSN is injected by `scripts/build-newdesign.mjs` (the deploy precompile), NOT by
+  `pageShell.jsx` — and the correction matters more than the mechanism.** As first shipped,
+  `pageShell.jsx` carried `window.SHAPE_SENTRY_DSN = window.SHAPE_SENTRY_DSN || ""` and a
+  long comment calling itself "the ONLY place that global can be assigned." That was true
+  and useless: **nothing in the repo ever assigned it**, and this surface has no bundler, so
+  there was no `process.env` any runtime file could read. The static site would have stayed
+  **permanently unmonitored** after the owner set every documented env var and redeployed —
+  the runbook promising activation-by-env-var while the code silently required a source
+  edit. Caught by Codex as a P1 on the PR. The precompile runs at deploy, where the env DOES
+  exist, so it now injects the DSN plus a deferred `sentryInit.js` tag; unset =>
+  **nothing is injected at all**, so an unconfigured build is byte-identical to one without
+  the feature. ⚠ **It needs its own `SHAPE_SITE_SENTRY_DSN`** — this surface is a fourth
+  release stream, and quietly reusing `NEXT_PUBLIC_SENTRY_DSN` would file static-site errors
+  into the Next.js project without anyone choosing that.
+  ⚠ **And "every page" was 69 of 76.** Hooking `pageShell.jsx` missed **GetApp.html**
+  (linked from the landing page), **consultation.html** (the `/consultation` redirect
+  target) and **ClientPlaylists.html** (linked from `dashClient.jsx`) — all live, linked
+  flows, all with no error tracking whatsoever. Injecting at the precompile covers **74 of
+  76**; the two still excluded are `TrainerPublic.html` / `NutritionistPublic.html`, whose
+  entire body is a `location.replace` — fetching a ~90 KB CDN bundle on a page that
+  navigates away immediately would cost every visitor bandwidth for nothing. The build
+  **logs its own coverage** (`injected on N/76 pages`), because a coverage number nobody
+  prints reads as "everything is covered" the moment someone adds a page the script skips.
+  The earlier review round caught a real framing error in the original brief: it called
+  these pages "the
   signed-out marketing surface," but most of `pageShell.jsx`'s consumers are actually
   **signed-in dashboard SPAs** (`ClientApp`/`TrainerApp`/`NutritionistApp` and their
   sub-pages) — so once a DSN exists, dashboard errors would arrive with zero identity/role
@@ -1492,10 +1522,12 @@ changelog whenever something ships.
   to catch it.
 
 - **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
-  organisation and **three projects** — one per runtime; Next.js/Capacitor/browser are three
-  different SDKs with three different release streams. (2) Supply `SENTRY_DSN`,
-  `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
-  `SENTRY_AUTH_TOKEN`. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+  organisation and **four projects** — Next.js / Capacitor / static-website browser are
+  different SDKs with different release streams. (2) Supply **eight** env vars: `SENTRY_DSN`,
+  `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`,
+  `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`, `SENTRY_AUTH_TOKEN`. ⚠ Without
+  `SHAPE_SITE_SENTRY_DSN` the static website stays inert; without `SENTRY_PROJECT_MOBILE`
+  every mobile stack trace arrives **minified**. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
   not request time — an already-running deployment never picks the new values up no matter
   how long it stays live.
 
@@ -1526,6 +1558,17 @@ changelog whenever something ships.
   `//# sourceMappingURL=` comment from the bundle; the `.map` files are still written to
   `dist/` and would still ship at the public `/m/` URL untouched. The strip step in
   `build-m.sh` is what actually makes this safe, not the Vite flag by itself.
+  ⚠ **AND THE MAPS WERE NEVER UPLOADED ANYWHERE** — corrected after Codex flagged it as a
+  P1. `build-m.sh` carried a comment saying an upload "goes here", and nothing did: maps
+  were generated, copied, and deleted, so every mobile stack trace would have arrived
+  **minified** and the runbook's own symbolication check could never have passed. The
+  upload now runs inside the Vite build via **`@sentry/vite-plugin`**
+  (`mobile-app/vite.config.ts`), reading `dist/` **before** the copy into `public/m`, gated
+  on `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT_MOBILE` and simply absent when any
+  is unset. ⚠ **An `errorHandler` is load-bearing, not defensive dressing:** by its own
+  documentation the plugin THROWS and stops the bundle on an upload failure, so a Sentry
+  outage or a stale token would have broken the deploy. Verified locally with deliberately
+  invalid credentials — the upload failed, a warning printed, and the build still exited 0.
 
 - **Layer 2's heartbeat is now live** — `HEARTBEAT_PING_URL` is **set**, and the redeploy
   carrying it is verified **READY in production** (2026-08-01). The guardrail-health cron's
