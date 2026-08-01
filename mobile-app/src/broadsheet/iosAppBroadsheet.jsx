@@ -438,10 +438,60 @@ function isInteractiveTarget(target) {
 // twice (72 → 64 in #1603 left three stale literals), so it lives here once.
 const BS_TABBAR_H = 64;
 
+// A page tells its BSPage that its masthead row carries NO corner cluster.
+//
+// ⚠ WHY THIS IS A CONTEXT AND NOT A PROP. A page that omits its corners does so
+// because the corner is HARMFUL there — the avatar destroys unsaved local state,
+// or navigates somewhere that page cannot render, while still burning a back.
+// But the pinned condensed strip below is rendered by BSPage, the PARENT, which
+// cannot see what its child put in `trailing`. Shipping this as a prop means the
+// fact is stated in two places, and the whole reason this exists is that the two
+// drifted: eleven surfaces suppressed their in-page corners and every one of them
+// got the corner back after 64px of scrolling. A prop would have re-created that
+// the first time someone added a page and remembered only one half.
+// So the page states the fact ONCE, where it already states it — by rendering a
+// mast row with no trailing — and the pinned strip honours it. A conditional
+// (`trailing={onBack ? <corner/> : null}`, which BSHealthIntake uses to be a gate
+// in one mode and a Settings pane in the other) is therefore correct in BOTH
+// modes with no extra thought, which is the property a prop cannot have.
+const BSMastBareCtx = React.createContext(null);
+
+// Called by every masthead-row component that owns a `trailing` slot. `bare` is
+// simply "I rendered no trailing element" — the fact the page already states by
+// what it passes, so there is nothing extra to remember and nothing to keep in
+// sync. It must be called by ALL of them: the twelfth instance of this defect
+// (the coach Grocery Lists create form) suppressed its corners on BSMasthead,
+// not BSMastRow, so covering only one row component would have left it open.
+// The pinned strip's own row sits OUTSIDE the provider, so it never self-reports.
+// ⚠ Reference-counted, not a boolean. A boolean is order-dependent the moment a
+// page renders two rows — whichever effect ran last would win, so a bare row
+// could be silently overruled by a corner-bearing sibling. Counting makes it
+// ANY-bare-wins regardless of order, which is also the safe direction: when the
+// page's own rows disagree, the control we suppress is the harmful one.
+function useBSReportBareMast(bare) {
+  const report = React.useContext(BSMastBareCtx);
+  useEffectBS(() => {
+    if (!report || !bare) return undefined;
+    report(1);
+    // Release on unmount so a corner-less takeover cannot leave the next page
+    // sharing this BSPage instance silently corner-less.
+    return () => report(-1);
+  }, [report, bare]);
+}
+
 // Page wrapper — sets paper background and provides scroll
 function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
+  // Set by the page's own masthead row(s) when they render without a trailing
+  // corner. The ref holds the live count so concurrent reports can't clobber
+  // each other through stale state; the boolean is what renders.
+  const bareCountRef = useRefBS(0);
+  const [bareMast, setBareMast] = useStateBS(false);
+  const reportBareMast = React.useCallback((delta) => {
+    bareCountRef.current = Math.max(0, bareCountRef.current + delta);
+    setBareMast(bareCountRef.current > 0);
+  }, []);
   // Condensing masthead: once the page's own masthead scrolls away (~64px), a
   // pinned strip (logo + Vol·No + the standard corner) slides in over the
   // scroller — ONE implementation, so the cushion is identical on every page.
@@ -527,7 +577,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
-      {children}
+      <BSMastBareCtx.Provider value={reportBareMast}>{children}</BSMastBareCtx.Provider>
     </div>
   );
 
@@ -554,7 +604,14 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       pointerEvents: mastCondensed ? 'auto' : 'none',
       transition: mastReduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
     }}>
-      <BSMastRow trailing={MastCorner ? <MastCorner /> : null} />
+      {/* ⚠ `!bareMast` is the whole fix for a class that cost six review rounds.
+          A page that removed its own corners — because the avatar there destroys
+          an unsaved draft, or navigates somewhere the page cannot render, while
+          still burning a back — used to get them straight back once the reader
+          scrolled 64px. Twelve surfaces were live examples, including a REQUIRED
+          health-intake gate that necessarily scrolls. The page reports the fact
+          by rendering a trailing-less row; this honours it. */}
+      <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
     </div>
   ) : null;
 
@@ -730,6 +787,7 @@ const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px
 
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
   // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.
@@ -827,6 +885,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 // copy, so reach for this on screens with fully custom headers.
 function BSMastRow({ trailing = null, size = 16, style = null }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -841,6 +900,7 @@ function BSMastRow({ trailing = null, size = 16, style = null }) {
 // Compact page header (non-masthead, for inner tabs)
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   return (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
