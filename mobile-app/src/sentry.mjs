@@ -11,18 +11,36 @@ import * as SentryReact from '@sentry/react';
 
 import { bsSentryUser } from '../../src/lib/sentry-context.mjs';
 
+/**
+ * ⚠ Never throws. This runs BEFORE the app mounts (see main.jsx) — a throw here
+ * is a white screen on every device, with no Sentry initialized to report it.
+ * `@sentry/capacitor` does native-bridge work at init time; a bridge call in a
+ * context where the native plugin isn't linked (this repo's build is also the
+ * pure-browser `/m/` web app, with no Capacitor native runtime at all) is a
+ * plausible throw, not a hypothetical one. Sentry SDKs are documented not to
+ * throw on `init({dsn:''})`, which is why this isn't the primary defense — but
+ * resting a white-screen risk on that guarantee holding, with no code-level
+ * net, is exactly the fragility this catch exists to close. A caught failure
+ * here means "no error reporting for this session," never "the app doesn't
+ * mount" — deliberately swallowed, not re-raised.
+ */
 export function bsInitSentry() {
-  const dsn = import.meta.env.VITE_SENTRY_DSN || '';
-  Sentry.init(
-    {
-      dsn,
-      release: import.meta.env.VITE_SHAPE_RELEASE || undefined,
-      environment: import.meta.env.MODE || 'development',
-      tracesSampleRate: 0,
-      sendDefaultPii: false,
-    },
-    SentryReact.init,
-  );
+  try {
+    const dsn = import.meta.env.VITE_SENTRY_DSN || '';
+    Sentry.init(
+      {
+        dsn,
+        release: import.meta.env.VITE_SHAPE_RELEASE || undefined,
+        environment: import.meta.env.MODE || 'development',
+        tracesSampleRate: 0,
+        sendDefaultPii: false,
+      },
+      SentryReact.init,
+    );
+  } catch {
+    // Swallowed on purpose — see the doc comment above. No error reporting
+    // this session, but the app still mounts.
+  }
 }
 
 /**

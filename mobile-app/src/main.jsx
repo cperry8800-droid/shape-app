@@ -12,7 +12,9 @@ import './services/shapeLocale.js'; // window.ShapeLocale — UI locale preferen
 // dynamic import below (which mounts React), so a crash during mount is
 // captured. Static imports above have already evaluated by this point (ES
 // module semantics), so this can't gate THEIR side effects — only what
-// follows. Inert with no VITE_SENTRY_DSN (see sentry.mjs).
+// follows. Inert with no VITE_SENTRY_DSN, and bsInitSentry() itself is total
+// (wrapped in try/catch — see sentry.mjs) so a bridge/init failure can never
+// stop this line from returning and the app from mounting.
 bsInitSentry();
 
 try { window.ShapeAnalytics?.track?.('app_opened', { surface: 'mobile' }); } catch (e) {}
