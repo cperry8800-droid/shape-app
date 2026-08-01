@@ -20,6 +20,12 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 
+// The masthead contract (owner ruling 2026-08-01) — one top inset + one corner
+// gap for every page, chrome-owned. Local fallbacks so a load-order slip can't
+// render "undefinedpx"; see iosAppBroadsheet.jsx's BS_MAST_TOP.
+const BS_MAST_TOP = (typeof window !== 'undefined' && window.BS_MAST_TOP) || 44;
+const BS_CORNER_GAP = 9;
+
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
 // doesn't depend on another file's copy or its load order.
@@ -282,7 +288,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
       {/* ── Ledger header — mast row (46px inset, no corner cluster), then the
           universal back row (← BACK left · THE QUEUE eyebrow right), serif
           "Workout review." (heat italic), status meta. ── */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <BSBackButton onClick={onBack} />
@@ -607,7 +613,11 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      {/* Standing masthead row (46px inset) — this is a DISPLAY page, so it
+          carries the full trailing cluster (search + self avatar). The page's
+          own ✕ Close / live-clock row moves directly beneath it. */}
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: elapsed != null ? fmt(elapsed) : '—:—' })}
@@ -810,7 +820,8 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
-      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} />
+      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} trailing={bsProCorner()}
+      />
 
       {/* Verdict lead — the whole queue on one line, heat = role */}
       <div style={{ padding: `8px ${t.padX}px 0` }}>
@@ -944,7 +955,8 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         leftKicker={cfg.kicker}
         rightKicker={cfg.meta}
         onBack={onBack}
-      />
+      trailing={bsProCorner()}
+    />
       <BSSection title={cfg.title} meta={tr('coach:prq.actionQueue', { defaultValue: 'Action queue' })} />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
         {cfg.rows.map(([name, title, detail], i) => (
@@ -1618,7 +1630,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         noTopRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -2146,7 +2158,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           needs the standard 46px top / t.padX horizontal inset (BSPage provides
           no top padding) so it clears the notch + rounded corners — matches
           BSProActionHead / BSStShell; without it the masthead sat off-screen. */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
@@ -2800,11 +2812,22 @@ function bsProEnrolledRow(t, flash, e, i) {
 }
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
+// The canonical corner cluster for pages whose header is BSMasthead/BSPageHeader
+// (those embed their own logo + Vol·No row and take the corner as ).
+function bsProCorner() {
+  const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+      {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size }) : null}
+      <BSProAvatarButton size={size} />
+    </span>
+  );
+}
 function bsProMastRow(withCorners = true) {
   const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
   if (!MastRow) return null;
   const trailing = withCorners ? (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}
       <BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} />
     </span>
@@ -2830,7 +2853,7 @@ function useBSProClientHeat(t, role, clientUid) {
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
-    <div style={{ paddingTop: 46 }}>
+    <div style={{ paddingTop: BS_MAST_TOP }}>
       {bsProMastRow()}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4320,7 +4343,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </button>
   );
   const headerBlock = (
-    <div style={{ paddingTop: 46 }}>
+    <div style={{ paddingTop: BS_MAST_TOP }}>
       {bsProMastRow()}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
@@ -5245,7 +5268,13 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 28px` }}>
+      {/* Standing masthead row (46px inset) — deliberately WITHOUT the trailing
+          corners: this page holds an unpublished draft in local state, and the
+          search corner opens a takeover that unmounts the editor, discarding
+          that draft. Don't "fix" this to bsProMastRow(). The page's own CANCEL
+          affordance below stays exactly where it is. */}
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{tr('coach:editor.editEyebrow', { defaultValue: 'EDIT · {type}', type: (typeName || '').toUpperCase() })}</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -5734,7 +5763,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     <BSPage>
       {/* §1.1 Header — mast row (46px inset, #1574 rule) + THE CATALOGUE eyebrow
           + serif "Your programs." (heat italic). */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -6629,7 +6658,7 @@ function BSNutriPlans() {
     <BSPage>
       {/* §1.1 Header — mast row (46px inset) + THE CATALOGUE eyebrow
           + serif "Your plans." (heat italic). */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -7520,9 +7549,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
         {/* Own avatar already anchors this header's name row — logo-only masthead. */}
-        <div style={{ marginBottom: 14 }}>{bsProMastRow(false)}</div>
+        <div style={{ marginBottom: 14 }}>{bsProMastRow()}</div>
         {onBack && (
           <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
         )}
@@ -7532,9 +7561,6 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
               <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
-          </div>
-          <div style={{ flexShrink: 0 }}>
-            <BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
           </div>
         </div>
       </div>
@@ -7751,6 +7777,7 @@ function BSProNotificationsPage({ onBack }) {
         kicker="Settings"
         title={<>Notifications.</>}
         onBack={onBack}
+        trailing={bsProCorner()}
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -7829,7 +7856,13 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
   );
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 28px` }}>
+      {/* Standing masthead row (46px inset) — deliberately WITHOUT the trailing
+          corners: despite the name this is a full page holding an unpublished
+          draft in local state, and the search corner opens a takeover that
+          unmounts it, discarding that draft. Don't "fix" this to
+          bsProMastRow(). The page's own CANCEL affordance is unchanged. */}
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT PRACTICE GOAL</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -8039,10 +8072,10 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
         {/* Logo-only masthead, then the universal back row — ← BACK left,
             Edit right (owner call 2026-07-14); the eyebrow gets its own line. */}
-        <div style={{ marginBottom: 12 }}>{bsProMastRow(false)}</div>
+        <div style={{ marginBottom: 12 }}>{bsProMastRow()}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <BSBackButton onClick={onBack} />
           <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', flexShrink: 0 }}>Edit</button>

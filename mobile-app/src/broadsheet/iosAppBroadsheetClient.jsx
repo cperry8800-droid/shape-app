@@ -49,6 +49,16 @@ const {
   RadioEffects,
 } = window;
 
+// The masthead's top inset + corner gap — the chrome owns the values (BS_MAST_TOP
+// is window-exported); the local fallbacks keep a load-order slip from rendering
+// "undefinedpx" instead of crashing loudly, since no static gate catches that.
+const BS_MAST_TOP = window.BS_MAST_TOP || 44;
+const BS_CORNER_GAP = 9;
+// The fixed-dark surfaces (the profiles, the follow sheet) own their own BG/INK
+// and never receive the theme `t`, so they cannot read `t.padX`. They carry the
+// mast row too, so its gutter lives here rather than as a per-site literal.
+const BS_DARK_GUTTER = 18;
+
 // The signed-in member's display name + initials, from the same source as the
 // Me page (profiles.full_name, which the edit-profile flow writes + mirrors to
 // the auth cache). Falls back to the demo identity when signed out, so the
@@ -233,7 +243,7 @@ function useBSIdentityTick() {
 function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       <BSSearchCorner size={size} />
       <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
     </span>
@@ -246,7 +256,7 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 function BSMeCorner({ size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       <BSSearchCorner size={size} />
       <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
     </span>
@@ -370,7 +380,7 @@ function BSScoreIntro({ onClose, onOpenScore }) {
   const tierPerk = (name) => tr('score:tierPerk.' + String(name).toLowerCase(), { defaultValue: (SHAPE_SCORE_TIERS.find((x) => x.name === name) || {}).perk || '' });
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${BS_MAST_TOP}px ${t.padX}px 6px` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
@@ -1809,7 +1819,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   const footBtn = { flex: 1, padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
       </div>
       <div style={{ padding: `12px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -4973,7 +4983,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             // session is editable in place; a program day is edited by re-drafting.
             <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${t.ACCENT}`, padding: '2px 0 2px 10px' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>{cur.program && cur.program.name ? cur.program.name : 'Programmed by you'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>{cur.program && cur.program.week ? `Your program · Week ${cur.program.week}` : 'Your workout'}</span>
                 {cur.repeatDow && cur.workoutId && (
                   <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Edit · Yours</button>
@@ -9860,7 +9870,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
         {/* Fixed header layer — the list scrolls in its OWN pane below, so rows
             can never ride up through the masthead/tabs/search (sticky inside the
             padded scroller let them bleed through on device). */}
-        <div style={{ flexShrink: 0, background: BG, padding: '0 18px 12px' }}>
+        <div style={{ flexShrink: 0, background: BG, padding: `0 ${BS_DARK_GUTTER}px 12px` }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
               left, the profile owner's avatar on the right (no top hairline). */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -9868,7 +9878,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
-            <BSFacetAvatar size={30} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? (bsMyPhoto() || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
+            <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? (bsMyPhoto() || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
           </div>
           {/* Title row — × close sits on this line, right-aligned */}
           <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -12700,13 +12710,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         /* Me masthead — same structure as the other pages: logo + Vol·No line,
            then eyebrow + serif title. Settings gear + edit pencil top-right; no
            back button (it's a root tab). */
-        <div style={{ padding: '46px 8px 0' }}>
+        <div style={{ padding: `${BS_MAST_TOP}px ${BS_DARK_GUTTER}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
               <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
@@ -12720,14 +12730,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       ) : (
         /* Others' public profile (pushed): the standard masthead (logo + Vol·No
            + search/avatar corners — same chrome as every page), then a back row. */
-        <div style={{ padding: '44px 8px 0' }}>
+        <div style={{ padding: `${BS_MAST_TOP}px ${BS_DARK_GUTTER}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             {isSelf
-              ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
@@ -13545,7 +13555,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 {BSLogo && <BSLogo size={16} color={INK} />}
                 <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                 <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
@@ -13566,7 +13576,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             {isSelf
-              ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
@@ -14125,7 +14135,7 @@ function BSUniversalSearch({ onClose }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: '0 0 auto', padding: `46px ${t.padX}px 0` }}>
+      <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
@@ -14254,8 +14264,11 @@ function BSNoraProfile({ onClose }) {
   ];
   const sheet = (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: t.PAPER_BG, color: t.INK, overflowY: 'auto' }}>
-      <div style={{ padding: `46px ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
+        {/* The masthead row opens EVERY page (same format, same size) — the back
+            row + "Shape team" eyebrow sit directly beneath it. */}
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
         </div>
@@ -14949,7 +14962,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
       {/* masthead — same chrome as every other page (logo/Vol·No + search/avatar),
           then a back + context row. No top hairline (clean edge). */}
-      <div style={{ flexShrink: 0, position: 'relative', padding: 'max(calc(env(safe-area-inset-top,0px) + 13px), var(--bs-notch-floor, 0px)) 16px 11px' }}>
+      <div style={{ flexShrink: 0, position: 'relative', padding: `max(calc(env(safe-area-inset-top,0px) + 13px), var(--bs-notch-floor, 0px)) ${t.padX}px 11px` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
@@ -15186,7 +15199,12 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
   const gridCols = `minmax(52px,1fr) auto${anyHr ? ' auto' : ''}${anyCad ? ' auto' : ''}${anyElev ? ' auto' : ''}`;
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flexShrink: 0, padding: 'max(calc(env(safe-area-inset-top,0px) + 13px), var(--bs-notch-floor, 0px)) 16px 11px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* The masthead row opens EVERY page (same format, same size) — the back
+          control + eyebrow move below it, flush left. */}
+      <div style={{ flexShrink: 0, padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+      </div>
+      <div style={{ flexShrink: 0, padding: `12px ${t.padX}px 11px`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('session:splits.title', { defaultValue: 'The splits' })}</span>
         {paceData.source === 'trace' && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{tr('session:splits.estimatedFromTrace', { defaultValue: 'Estimated · from trace' })}</span>}
@@ -20267,7 +20285,7 @@ function BSStepsHistory({ onClose }) {
           .bs-bar-fill { animation: none !important; }
         }
       `}</style>
-      <div style={{ flex: '0 0 auto', padding: '48px 24px 0' }}>
+      <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
@@ -20407,11 +20425,11 @@ function BSSleepHistory({ onClose }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
-        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
-        <BSMeCorner />
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 10px` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
       </div>
-      <div style={{ padding: '0 18px 90px' }}>
+      <div style={{ padding: `0 ${t.padX}px 90px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: blue, marginBottom: 6 }}>RECOVERY · SLEEP</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: blue }}>sleep.</span></div>
 
@@ -21118,11 +21136,11 @@ function BSStrengthHistory({ onClose, focusKey = null }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
-        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
-        <BSMeCorner />
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 10px` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: 0 }}>← BACK</button>
       </div>
-      <div style={{ padding: '0 18px 90px' }}>
+      <div style={{ padding: `0 ${t.padX}px 90px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>STRENGTH · ESTIMATED 1RM</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>strength.</span></div>
         {ordered.length === 0 && (
@@ -21348,7 +21366,8 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   return (
     <BSPage>
       {/* Header — eyebrow + EDIT, serif goal title (tier-heat last word) */}
-      <div style={{ padding: `62px ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: heat, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`Your goal${byLabel ? ` · By ${byLabel}` : ''}`}</span>
@@ -21356,7 +21375,6 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
-            <BSMeCorner />
           </div>
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: heat }}>{hLast}.</span></h1>
@@ -21494,7 +21512,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
       </div>
       <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {cats.map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
             <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
             <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v == null ? 0 : v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
             <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v == null ? '—' : v}</div>
@@ -21843,7 +21861,15 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `62px ${t.padX}px 0` }}>
+      {/* The masthead row opens EVERY page — but this one carries NO trailing
+          corner ON PURPOSE. The search corner opens a takeover that unmounts
+          this gate, and every PAR-Q answer lives in local state until Save, so
+          it would silently destroy the unsaved intake. The existing ← Back
+          (settings entry only) stays the way out. Don't add <BSMeCorner />. */}
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow />}
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{onBack ? 'Settings · Health profile' : 'One-time setup · Required'}</span>
           {onBack && <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>}
@@ -24055,7 +24081,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   // the strip that opens every page), then the back + eyebrow row. Top padding
   // dropped 64 → 46 so the sticky header stays about the same height.
   return (
-    <div style={{ padding: '46px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: `${window.BS_MAST_TOP || 44}px ${t.padX}px 14px`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <BSBackButton onClick={onBack} />
@@ -24889,7 +24915,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           {askDuration && (
             <div style={{ marginTop: 26 }}>
               <div style={{ ...sectionHead, marginBottom: 9 }}>{timerImplausible ? 'How long, really?' : 'How long?'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -25279,7 +25305,15 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   const line = { width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 2px', fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 28px` }}>
+      {/* The masthead row opens EVERY page — but this one carries NO trailing
+          corner ON PURPOSE. The search corner opens a takeover that unmounts
+          this page, and the list name + typed items live in local state until
+          Create, so it would silently destroy unsaved input. Cancel (below)
+          stays the way out. Don't "fix" this by adding <BSMeCorner />. */}
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow />}
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← CANCEL</button>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: rust }}>{items.length} ITEMS</span>
@@ -27132,11 +27166,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* ── SETTINGS PAGE ── */}
       {!detail && (<>
-      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 2px` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('settings:action.edit', { defaultValue: 'Edit' })}</button>
-          <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={startEdit} />
+        </div>
         </div>
       </div>
       {/* Page heading */}
@@ -28825,11 +28861,11 @@ function BSAboutPage({ onBack }) {
   return (
     <BSPage>
       {/* minimal back row (the hero is the title, mirroring the website) */}
-      <div style={{ padding: `54px ${px}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+      <div style={{ padding: `${BS_MAST_TOP}px ${px}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>About · Shape</span>
-          <BSMeCorner />
         </div>
       </div>
 

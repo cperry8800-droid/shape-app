@@ -1111,7 +1111,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `50px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
@@ -1119,11 +1119,32 @@ function BSRadioScreen({ onBack }) {
               {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
             </div>
           </div>
-          <button onClick={onBack} style={{
-            padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-          }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
+          {/* Canonical trailing corners (owner ruling 2026-08-01). This page is
+              fixed-dark on the venue portrait, so the search circle takes the
+              `ink` variant in CREAM rather than the theme ink. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            {(typeof window !== 'undefined' && window.BSSearchCorner)
+              ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, ink: CREAM })
+              : null}
+            {(typeof window !== 'undefined' && window.BSFacetAvatar)
+              ? React.createElement(window.BSFacetAvatar, {
+                size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34,
+                c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
+                initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
+                name: (window.bsMyName && window.bsMyName()) || undefined,
+                photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
+                live: !!(window.bsAmLive && window.bsAmLive()),
+                showRank: false,
+                onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
+              })
+              : null}
+          </div>
         </div>
+        {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
+        <button onClick={onBack} style={{
+          marginTop: 12, display: 'inline-flex', padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+        }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
           {tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}
         </div>
@@ -1602,10 +1623,31 @@ function BSShapeSetsScreen({ onBack }) {
           {/* HEADER — masthead like other mobile pages: Vol·No row, then the
               universal back row (← RADIO, plain mono text-action flush left —
               the bordered pill died with the placement sweep), eyebrow, title. */}
-          <div style={{ padding: `50px ${t.padX}px 0` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
+          <div style={{ padding: `${(window.BS_MAST_TOP || 44)}px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
+              </div>
+              {/* Canonical trailing corners — CREAM `ink` variant, this page is
+                  fixed-dark on the venue ground (owner ruling 2026-08-01). */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                {(typeof window !== 'undefined' && window.BSSearchCorner)
+                  ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, ink: CREAM })
+                  : null}
+                {(typeof window !== 'undefined' && window.BSFacetAvatar)
+                  ? React.createElement(window.BSFacetAvatar, {
+                    size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34,
+                    c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
+                    initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
+                    name: (window.bsMyName && window.bsMyName()) || undefined,
+                    photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
+                    live: !!(window.bsAmLive && window.bsAmLive()),
+                    showRank: false,
+                    onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
+                  })
+                  : null}
+              </div>
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>

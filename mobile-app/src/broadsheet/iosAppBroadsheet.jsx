@@ -658,6 +658,13 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
+// THE MASTHEAD CONTRACT (owner ruling 2026-08-01): every page opens with the SAME
+// row — BSLogo size 16 + "Vol. 1 · No. 1" (mono 9 / 0.12em / INK70) left, the
+// search circle (34) + self avatar (34) right — at the SAME top inset. BS_MAST_TOP
+// is that inset; page wrappers use it instead of a per-page literal (the old
+// 42/44/46/48/50/54/60/62/64 drift). Window-exported for the role modules.
+const BS_MAST_TOP = 44;
+
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
@@ -669,7 +676,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       transparent 1px, transparent 7px)`;
   return (
     <div style={{
-      padding: `${compact ? 42 : 64}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
+      padding: `${BS_MAST_TOP}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
@@ -700,7 +707,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
           }} />
           {/* Top hairline — single thin rule (suppressed when noRule/noTopRule, e.g. the feed + home) */}
           {!noRule && !noTopRule && <div aria-hidden style={{
-            position: 'absolute', left: 0, right: 0, top: compact ? 23 : 44, height: 1,
+            position: 'absolute', left: 0, right: 0, top: 23, height: 1,
             background: `rgba(${inkRgb},0.5)`,
           }} />}
           {/* Bottom double-rule strip */}
@@ -712,9 +719,9 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: title ? (compact ? 4 : 10) : 6 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: title ? (compact ? 4 : 10) : 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <BSLogo size={18} color={t.INK} />
+          <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
             {vol} · {no}
           </div>
@@ -772,8 +779,8 @@ function BSMastRow({ trailing = null, size = 16, style = null }) {
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
   const t = useBS();
   return (
-    <div style={{ padding: `64px ${t.padX}px 14px` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ padding: `${BS_MAST_TOP}px ${t.padX}px 14px` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
@@ -1719,7 +1726,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });
