@@ -15,6 +15,7 @@ import type { PublishWeek } from '@/lib/week-publish.mjs';
 import { bsMergeWeekSessions } from '@/lib/week-merge.mjs';
 import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/guardrail-gate.mjs';
 import { bsProgressionGuardrail, bsGuardrailCopy } from '../../public/newdesign/progressionGuardrail.mjs';
+import { callRpc } from '@/lib/supabase/call-rpc.mjs';
 
 // Structural shape of the bits of a Supabase client used here. `rpc()` returns
 // a PostgrestFilterBuilder, which is thenable but NOT a Promise — typing it as
@@ -199,13 +200,15 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
   // denominators (§10.2).
   //
   // ⚠ A DENIED OR MISSING `track_event` RESOLVES, IT DOES NOT REJECT. PostgREST
-  // errors arrive as `{ error }` on a resolved promise, so the catch below never
+  // errors arrive as `{ error }` on a resolved promise, so a bare try/catch never
   // fires for the most likely failure (grant revoked, function absent, event not
   // whitelisted) and the row would disappear without even the intended log —
   // silently corrupting the flag-rate data §10.2 needs to retune and enable
-  // enforcement. The resolved error is therefore inspected explicitly.
+  // enforcement. `callRpc` inspects the resolved error explicitly (and reports it
+  // to Sentry, tagged with the RPC name) instead of trusting a catch block that
+  // this exact failure never reaches.
   try {
-    const { error: trackErr } = await supabase.rpc('track_event', {
+    const { error: trackErr } = await callRpc(supabase, 'track_event', {
       p_event: 'guardrail_evaluated',
       p_props: bsTelemetryProps({
         result,
