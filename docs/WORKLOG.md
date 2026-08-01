@@ -1522,11 +1522,78 @@ changelog whenever something ships.
   the member to a fresh directory) therefore pass `trailing: null` **literally rather than
   behind a flag**: on this row, a flag has already shipped ignored once.
 
-- Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
-  · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
-  1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in
-  the emitted bundle. Open: the OWNER on-device pass — the row's inset under a real notch,
-  across papers, on both roles.
+- ⚠ **SETTINGS IS AN OVERLAY, NOT AN EARLY RETURN — the fix that closed the class rather than
+  its instances.** Nine rounds of "the avatar discarded my work" all came from ONE line: the
+  shell answered `shape:openProfile` with `if (showSettings) return <BSSettings/>`, which
+  unmounts the entire tab tree; `useStateBSC`/`useStateBSP` are plain `React.useState` with no
+  persistence, and the nav descriptor records only `{tab}`, so nothing could restore what the
+  unmount destroyed. Settings now renders **over** a still-mounted tree at `zIndex 210` in all
+  three shells (above the tab bar 55 and pinned masthead 60, below the profile customizer 220
+  and `BSUniversalSearch` 230, so search opened *from* Settings still paints over it; the
+  wrapper is its own stacking context, so Settings' own sheets stack inside it unchanged).
+  The calendar and cycle takeovers render it too — they return before the main return, so a
+  main-return-only overlay would never paint. **This is why the per-component audits kept
+  missing instances: the destroyed state usually lives in a DESCENDANT of the component
+  drawing the corner, so an audit keyed on that component cannot see it.**
+
+- ⚠ **A CORNER THAT FIRES CORRECTLY AND LANDS NOWHERE IS STILL A DEAD CONTROL** — three of
+  these, all found after the overlay shipped. (1) Three portalled surfaces (follow-list sheet
+  and Nora's profile at z 100000, The Splits at 99992) float above BOTH overlays, so the
+  avatar opened Settings *underneath* them — a regression from the overlay change, since the
+  early return used to unmount the portal's owner. `search={false}` already encoded that fact
+  for the ⌕ half; it became **`close`**, one prop for one fact: drop the ⌕ AND dismiss the
+  portal before handing off. (2) The follow-list masthead computed `calc(46px + env())` instead
+  of `BS_MAST_TOP_CSS`, carrying neither the 44px floor nor `--bs-notch-floor` — on a 59px
+  inset it sat at 105px against everyone else's 71px, so the one masthead visibly breaking the
+  uniform inset was the one that did not read the constant. (3) The Settings avatar was dead on
+  **25 of 26 panes**: routing to the root means clearing every selector above it, and the reset
+  cleared `detail` while all 26 flags stood. The identifier gate now parses the source and fails
+  if a pane early-returns without being reset (mutation-checked). `editing` is deliberately NOT
+  reset — it holds the unsaved identity draft ON the root, the exact thing this work exists to
+  protect.
+
+- ⚠ **THE SIXTH ROUND OF ONE CLASS, AND THE REASON ENUMERATION BEAT PATCHING.** `BSPage`'s
+  pinned condensed masthead injects `window.BSMastCorner` once the scroller passes 64px — so
+  every page that removed its corners got them **back** the moment the reader scrolled. Codex
+  named two; the class was **twelve**, including a *required* PAR-Q health gate that
+  necessarily scrolls. A mechanical sweep proved itself untrustworthy twice (it missed
+  `BSHealthIntake`, a ternary rather than a literal `null`, and then `BSProGroceryLists` —
+  another ternary, and on `BSMasthead` rather than `BSMastRow`), so the list came from 13
+  independent adversarial verifiers plus a completeness critic; two candidates were correctly
+  refuted as unreachable dead code and one as portalling outside any `BSPage`.
+  **The fix is a CONTEXT, not a prop, and that distinction is the whole lesson:** a prop states
+  the fact twice — once by omitting the corner, again by remembering to tell `BSPage` — and
+  those two drifting is what produced twelve defects. The page now states it **once**, by
+  rendering a trailing-less row, and the pinned strip honours it. All three row components
+  report (the twelfth instance lived on the one that would otherwise have been missed), a
+  conditional is correct in BOTH its modes for free, and **zero per-surface edits were needed**.
+  Reference-counted rather than boolean, since a boolean is order-dependent the moment a page
+  renders two rows. Deliberately NOT `mast={false}`: besides deleting the pinned strip it stamps
+  `data-bs-noswipe` and would have silently killed nav swipe.
+
+- **Two guards added so none of this can silently return**, both mutation-checked:
+  `tests/broadsheet-identifiers.test.mjs` fails if a Settings pane is gated but not reset, and
+  the new **`tests/broadsheet-pinned-corner.test.mjs`** drives the REAL `BSPage` — the repo has
+  neither jsdom nor react-test-renderer, and the existing broadsheet shim no-ops `useEffect`,
+  which is the mechanism under test, so it carries a small purpose-built driver that flushes
+  effects.
+
+- ⚠ **Two of my own verification methods were wrong, not the code** — recorded because both
+  read as findings at first. `grep -c "zIndex:210"` returned 1 on a bundle that is one line
+  (`grep -c` counts LINES); and a regression check that reported five live pages losing their
+  pinned corner — including client Home — was a broken span parser truncating at the `/>` inside
+  a `title` prop. The real answer was two, both dead components. **Check the check before
+  believing the finding.**
+
+- Verified on the final head: JSX parse · LF (CR=0) · NUL scan clean · one declaration per
+  constant per module · the identifier gate · the mount harness
+  (`tests/broadsheet-render.test.mjs`) + a BSSettings mount across its root and three takeover
+  branches · `npm test` **1400/1400** · PowerShell `VITE_BASE=/m/` build clean, with the `env()`
+  term confirmed present in the emitted bundle and the hand-rolled inset confirmed absent.
+  **Squash-merged `3fe6e386e` (#1865)** — CI green (Web · Mobile · gitleaks), Codex clean on
+  `43323868d`; branch kept. Open: the OWNER on-device pass — the row's inset under a real notch,
+  across papers, on both roles, plus a scroll past 64px on a corner-less page (the live monitor
+  or the health gate) to confirm the pinned corner stays away.
 
 ### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
 
