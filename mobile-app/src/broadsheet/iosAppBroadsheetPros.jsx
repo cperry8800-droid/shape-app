@@ -2871,7 +2871,7 @@ function bsProMastRow({ corners = true } = {}) {
   // onClick={onProfile} rather than BSProAvatarButton's shape:openProSettings
   // dispatch, and resolves tier/initials from different sources. Unifying it is
   // a handler change, not a duplication cleanup, so it needs its own decision.
-  return <MastRow trailing={bsProCorner()} />;
+  return <MastRow trailing={corners ? bsProCorner() : null} />;
 }
 // Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
 // Case File uses (getUserPoints → bsTierForPoints → bsTierColor); role heat

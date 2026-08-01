@@ -1782,7 +1782,14 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
       {/* The standing masthead row — same format, same size, no deviation
           (owner ruling 2026-08-01). Back sits on its own row directly under it. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
+        {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
+                this component's local state, while the nav descriptor stores only
+                marketRole and navResolve clears marketCoach; the self avatar
+                early-returns the shell into Settings and unmounts this page, so
+                back would land on a fresh directory rather than the listing the
+                member left. Passed literally, not behind a flag — a flag on this
+                row shipped ignored once already (see bsProMastRow). */}
+            {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null, style: { marginBottom: 12 } }) : null}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
@@ -2209,7 +2216,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
               same format, same size, no deviation); back keeps its own row
               directly beneath it, flush left. */}
           <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-            {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
+            {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
+                this component's local state, while the nav descriptor stores only
+                marketRole and navResolve clears marketCoach; the self avatar
+                early-returns the shell into Settings and unmounts this page, so
+                back would land on a fresh directory rather than the listing the
+                member left. Passed literally, not behind a flag — a flag on this
+                row shipped ignored once already (see bsProMastRow). */}
+            {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null, style: { marginBottom: 12 } }) : null}
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
               {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}

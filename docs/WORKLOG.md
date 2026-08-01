@@ -1492,6 +1492,36 @@ changelog whenever something ships.
   `BSUniversalSearch`'s z-index 230, where search *renders* but paints underneath — a
   stacking failure, not a routing one, and they keep `search={false}`.
 
+- ⚠ **THE WORST ONE: `corners` SHIPPED IGNORED, AND I REPORTED IT FIXED TWICE.**
+  `bsProMastRow({ corners = true } = {})` destructured the flag and its body returned
+  `<MastRow trailing={bsProCorner()} />` **unconditionally**. So the entire corner-less sweep —
+  seven surfaces, including the coach draft editors whose *whole reason* for asking is that the
+  self avatar unmounts them and discards an unsaved plan — **did nothing**, through two rounds
+  of review, a table in the PR body, and a WORKLOG entry describing it as done. I had "read the
+  diff back" as the rule says, and read the **call sites**: seven `{ corners: false }`, all
+  present, all correct. I never read the function they call. **Verifying a fix means verifying
+  the mechanism, not the invocation — a flag is two halves and the half you wrote last is not
+  the half that fails.**
+
+- **Nothing could have caught it, which is the second half of the lesson.** `BSMastRow` is a
+  window global the mount harness never stubbed, so `bsProMastRow` hit its
+  `if (!MastRow) return null` guard in *every* existing test and the trailing cluster was never
+  in the markup to assert on. A green suite was evidence about the harness, not the code.
+  `tests/broadsheet-render.test.mjs` now asserts both directions on the returned **element**
+  (`props.trailing` null vs not) — chosen over rendered markup because it is the invariant
+  itself and does not depend on `BSProAvatarButton`'s hooks resolving in-harness. **Mutation-
+  checked: reintroducing `trailing={bsProCorner()}` fails it, restoring the fix passes.** Suite
+  **1395**.
+
+- **Audited the class the bug belongs to — "flag accepted, never read" — across the whole PR.**
+  Every other conditional this work relies on genuinely consumes its flag: `BSMeCorner`'s
+  `search`, `BSDetailHeader`'s `noCorner` *and* its `trailing`, and `bsRadioCorner`'s `bg`.
+  `corners` was the only one. The two marketplace drill-ins fixed in the same commit
+  (`BSCoachDetailPublic`, `BSCoachAvailabilityCalendar` — the selected coach and calendar are
+  local state, the nav descriptor keeps only `marketRole`, so the avatar's Settings hop returns
+  the member to a fresh directory) therefore pass `trailing: null` **literally rather than
+  behind a flag**: on this row, a flag has already shipped ignored once.
+
 - Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
   · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
   1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in
