@@ -200,7 +200,12 @@ changelog whenever something ships.
 > `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`,
 > `SENTRY_AUTH_TOKEN`. ⚠ The last two are NOT optional extras: without
 > `SHAPE_SITE_SENTRY_DSN` the whole static website stays inert, and without
-> `SENTRY_PROJECT_MOBILE` every mobile stack trace arrives **minified**. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+> `SENTRY_PROJECT_MOBILE` every mobile stack trace arrives **minified**.
+> ⚠ **(2b) The same values must ALSO be added as GitHub repo secrets** (`VITE_SENTRY_DSN`,
+> `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_MOBILE`) — the Android APK is built by
+> GitHub Actions, which cannot see Vercel env vars, and **a shipped binary can never be
+> fixed by redeploying**. Skipping this ships an APK that reports nothing, forever.
+> (3) **Redeploy.** Vercel injects environment variables at BUILD time,
 > not request time — an already-running deployment never picks the new values up no matter
 > how long it stays live.
 >
@@ -280,8 +285,10 @@ changelog whenever something ships.
 > so the check compares a fresh build against stale local leftovers — remove the step or
 > teach it the new reality).
 >
-> **Release, end to end:** server, edge, the Next browser bundle and mobile all stamp the
-> deploy's git SHA; the static website has no release (honestly absent). ⚠ The browser was
+> **Release, end to end:** ⚠ **CORRECTED 2026-08-01 — this line said the static website has
+> no release, which is no longer true.** All four surfaces now stamp the deploy's git SHA:
+> the precompile injects `window.SHAPE_RELEASE` from `VERCEL_GIT_COMMIT_SHA`, closing the
+> last gap. ⚠ The browser was
 > the one surface **destroying** its own — it passed `release:` derived from a
 > `NEXT_PUBLIC_SHAPE_RELEASE` set nowhere, and since `@sentry/nextjs` spreads user options
 > LAST, an own key holding `undefined` clobbered the SHA `withSentryConfig` had injected.
@@ -1527,7 +1534,13 @@ changelog whenever something ships.
   `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`,
   `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`, `SENTRY_AUTH_TOKEN`. ⚠ Without
   `SHAPE_SITE_SENTRY_DSN` the static website stays inert; without `SENTRY_PROJECT_MOBILE`
-  every mobile stack trace arrives **minified**. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+  every mobile stack trace arrives **minified**.
+  ⚠ **(2b) Add four of them as GitHub repo secrets too** — `VITE_SENTRY_DSN`,
+  `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_MOBILE`. The Android APK is built by
+  GitHub Actions (`android-build.yml`), which cannot read Vercel env vars, and **a shipped
+  binary can never be fixed by redeploying** — skip this and the distributed app reports
+  nothing, permanently, no matter what the hosted surfaces do.
+  (3) **Redeploy.** Vercel injects environment variables at BUILD time,
   not request time — an already-running deployment never picks the new values up no matter
   how long it stays live.
 
@@ -1570,6 +1583,49 @@ changelog whenever something ships.
   outage or a stale token would have broken the deploy. Verified locally with deliberately
   invalid credentials — the upload failed, a warning printed, and the build still exited 0.
 
+- ⚠ **AND THAT ONLY EVER COVERED THE HOSTED `/m/` BUNDLE — the DISTRIBUTED ANDROID APK had
+  no Sentry at all.** Corrected after Codex flagged it as a P1. Both APK jobs in
+  `.github/workflows/android-build.yml` ran a bare `npm run build` with **no `env:` block**:
+  Vite inlines `import.meta.env.*` at BUILD time, GitHub secrets are not exposed to a step
+  implicitly, and Vercel env vars do not exist in that runner at all (`scripts/build-m.sh`
+  is a Vercel-only path). So the signed APK baked in `dsn: ''` and skipped the sourcemap
+  upload **even after the owner completed every documented setup step** — and unlike the
+  hosted surfaces, **a shipped binary can never be fixed by redeploying**. Both jobs now
+  pass `VITE_SENTRY_DSN`, `VITE_SHAPE_RELEASE` (`github.sha`, matching `build-m.sh`'s
+  full-SHA format) and the three upload vars; every one is optional, so with the secrets
+  unset the build is byte-unchanged. ⚠ **This means the Android secrets are a SEPARATE
+  owner step from the Vercel env vars** — see the owner steps above.
+
+- ⚠ **STATIC-SITE STACK TRACES COULD NEVER BE SYMBOLICATED EITHER** (Codex P1, same round).
+  `scripts/build-newdesign.mjs` emits every compiled file with `compact: true` — one line,
+  nothing mangled — with no source map and no release, so a frame read
+  `nd/pageShell.js:1:45231`: function names survived, the location was useless, and the
+  runbook's "arrives symbolicated, not minified" check could not have passed on this
+  surface. Maps are now emitted (v3, `sourcesContent` inlined, `sourceMappingURL` appended
+  before hashing so the `?v=` cache key stays correct), gated on the DSN so an unconfigured
+  build stays byte-identical and `--check` stays honest. ⚠ **Hosted, not uploaded — and the
+  reason is specific to this surface:** it already serves its **75 `.jsx` sources as plain
+  public files** under `/newdesign/`, so `sourcesContent` exposes nothing that isn't one
+  fetch away. That is exactly why the same choice would be **wrong** on `/m/`, where
+  `build-m.sh` strips every `.map`. An authenticated upload for the static project stays
+  available if artifact-based resolution is ever preferred — a deliberate call, not an
+  oversight.
+
+- ⚠ **PAGE-STARTUP CRASHES WERE LOST ON EVERY COLD LOAD** (Codex P2, same round).
+  `sentryInit.js` built the CDN `<script>` and `appendChild`'d it — and a dynamically
+  inserted script is **async by default**, so it raced the page's own deferred `nd/*.js`,
+  which are what mount the app. The most valuable error this surface can report was the one
+  it was least likely to catch. The pinned CDN tag is now injected by the precompile as a
+  real `<script defer crossorigin integrity>` **ahead of** the initializer, and
+  `sentryInit.js` no longer loads anything — it guards on `window.Sentry` and inits.
+  Deferred scripts execute in document order; verified structurally (all 76 pages use a
+  plain `<head>`, every `text/babel` block sits after `</head>`, and a fake-DSN build puts
+  the Sentry tags at **line 11** with the first `nd/` script at **line 55**).
+  ⚠ **Found while rewriting that file, not by review:** it was the **only one of the four
+  inits missing `sendDefaultPii: false`** (and `tracesSampleRate: 0`). The SDK defaults that
+  flag to false so nothing leaked, but this repo treats it as load-bearing on every init and
+  the other three carry it explicitly — now added, with a comment saying never to flip it.
+
 - **Layer 2's heartbeat is now live** — `HEARTBEAT_PING_URL` is **set**, and the redeploy
   carrying it is verified **READY in production** (2026-08-01). The guardrail-health cron's
   dead-man's switch arms at the next 09:00 UTC run; this corrects the 2026-07-31 entry below,
@@ -1604,10 +1660,10 @@ changelog whenever something ships.
   release. Deleting the key was the fix (never add a new env var — omitting it lets the
   plugin's SHA apply for free), and the file now carries a comment saying never to add it
   back. **Mobile `/m/`:** `scripts/build-m.sh` exports `VITE_SHAPE_RELEASE` from
-  `VERCEL_GIT_COMMIT_SHA` ✓. **Static website:** nothing stamps `window.SHAPE_RELEASE`, so
-  it degrades to no release — honestly absent, never fabricated. So the design's claim that
-  one deploy's errors correlate across surfaces now **holds for server, edge, Next browser
-  and mobile, and does not yet cover the static website.**
+  `VERCEL_GIT_COMMIT_SHA` ✓. **Static website:** ⚠ **CORRECTED 2026-08-01 — this said nothing
+  stamps `window.SHAPE_RELEASE`, and that is no longer true.** `scripts/build-newdesign.mjs`
+  now injects it from `VERCEL_GIT_COMMIT_SHA` beside the DSN ✓. So the design's claim that
+  one deploy's errors correlate across surfaces now **holds for all four surfaces.**
 
 - ⚠ **FIXED after CodeRabbit review — a partial-configuration source-map edge case that had
   been recorded as "deliberately not changed."** The reasoning below was that the
