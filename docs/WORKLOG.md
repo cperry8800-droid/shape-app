@@ -1685,6 +1685,27 @@ changelog whenever something ships.
   entries in those maps are tracked files in it. Nothing was exposed that isn't already on
   github.com. It blocks a merge on weight in a shipping binary, not on secrecy.
 
+- ⚠ **SIGNING IN MID-SESSION LEFT EVERY ERROR ANONYMOUS — the user-context feature was
+  broken on its most common path.** `bsSetSentryUser` was called from `getCurrentSession()`
+  alone, and that runs at **mount**. So: open the app (anonymous → context set to null),
+  sign in → `signIn`/`signUp`/`verifyPhoneOtp` update the cache and the UI, fire
+  `shape:identity` so the avatars refresh, and **never touch Sentry** — leaving the whole
+  rest of that session reporting with no id, no roles, no `is_coach`. `updateProfileRoles`
+  had the same hole for role changes. That is exactly what `src/lib/sentry-context.mjs`
+  exists to deliver, so the feature would have looked wired and delivered nothing.
+  **Fixed structurally, at the chokepoint** — `setCached()` is the one function every
+  identity transition already passes through (verified: `signIn`, `signUp`,
+  `verifyPhoneOtp`, `getCurrentSession`, `signOut`, `updateProfileRoles`, `updateProfileName`
+  and `claimUsername` all land there), so syncing once inside it covers every path *by
+  construction*; adding a call per auth path would be a list the next auth path silently
+  fails to join. ⚠ **Unconditional, NOT gated on the identity changing** — a partial update
+  like `setCached({ profile })` keeps the same uid while changing roles, so an
+  identity-change guard would miss precisely what `updateProfileRoles` produces.
+  `bsSetSentryUser` now has exactly ONE call site. Pinned by
+  `tests/sentry-user-context.test.mjs`, which was **mutation-tested**: it passes on the fix
+  and fails both on the original (`getCurrentSession`-only) shape and on the subtly-wrong
+  gated-on-uid-change variant.
+
 - ⚠ **THE ORDERING GUARANTEE IN TWO FILES WAS OVERSTATED — corrected.**
   `scripts/build-newdesign.mjs` and `public/newdesign/sentryInit.js` both claimed that
   because every compiled script sits after `</head>`, injecting the pair there "guarantees:
