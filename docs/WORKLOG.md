@@ -178,7 +178,98 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
+> **Latest (2026-08-01): ERROR TRACKING LAYER 1 — SENTRY WIRED INTO ALL THREE RUNTIMES,
+> COMPLETELY INERT** (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` ·
+> `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab` on
+> `claude/error-tracking-layer-1-sentry`, not yet merged). Next.js pages + all 156 API routes
+> (`@sentry/nextjs`), the `/m/` mobile app (`@sentry/capacitor` + `@sentry/react`), and the
+> static website (a dependency-free `sentryInit.js` classic script — no bundler there) each
+> now carry a Sentry SDK.
+>
+> ⚠ **Do not read this as "error tracking is live." It is not — nothing is being captured
+> anywhere yet.** There is no Sentry organisation and no DSN, so all three SDKs sit in the
+> supported pre-account state (`Sentry.init({dsn:''})` and its Capacitor/classic-script
+> equivalents construct no transport at all; every `capture*` call is a documented no-op).
+> This is scaffolding, wired to switch on the moment a DSN exists and switched off until
+> then — the single most important thing to get right when describing this wave.
+>
+> **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
+> organisation and **three projects** — one per runtime; Next.js/Capacitor/browser are three
+> different SDKs with three different release streams. (2) Supply `SENTRY_DSN`,
+> `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
+> `SENTRY_AUTH_TOKEN`. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+> not request time — an already-running deployment never picks the new values up no matter
+> how long it stays live.
+>
+> ⚠ **The alert rules are a SEPARATE owner step, and skipping them means this notifies
+> nobody.** `captureMessage`/`captureException` file an issue in the Sentry UI; neither pages,
+> emails, or Slacks a human. Two rules are needed: an **issue rule** filtered on the tag
+> `alert` = `guardrail-health` (the Layer 2 cron's findings, once its seam has a real DSN
+> behind it), and a **cron-monitor rule** on a missed check-in. **The issue rule does not
+> cover the second case** — a cron that stops firing entirely never sends a message for an
+> issue rule to match, so a silently-dead job and an honestly-quiet one look identical
+> without the separate monitor.
+>
+> ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
+> test event on EACH of the three surfaces and confirm it arrives **symbolicated** (a readable
+> stack, not a minified blob), carrying the right release and role tags — then **separately**
+> confirm a notification actually reaches a human inbox. An issue showing up in the Sentry
+> dashboard is not evidence anyone was told; that only happens once the alert rules above
+> exist and have been proven to fire.
+>
+> **The `/m/` mobile build now emits hidden source maps** (`mobile-app/vite.config.ts`,
+> `sourcemap: 'hidden'`), reversing the earlier `sourcemap: false` decision — safe now for a
+> reason that didn't hold before. The original comment gave two reasons to disable maps:
+> byte-matching a **committed** `public/m` (obsolete — `public/m` has been gitignored and
+> built fresh on Vercel's Linux host since #1470, so there's no cross-platform byte-diff left
+> to protect), and not shipping ~5 MB of source to a public URL (**still true**, and now
+> handled structurally — `scripts/build-m.sh` deletes every `.map` file from `public/m` as
+> its last build step, after the wholesale `cp -r mobile-app/dist public/m`).
+> ⚠ **`sourcemap: 'hidden'` ALONE would NOT have been safe** — it only omits the
+> `//# sourceMappingURL=` comment from the bundle; the `.map` files are still written to
+> `dist/` and would still ship at the public `/m/` URL untouched. The strip step in
+> `build-m.sh` is what actually makes this safe, not the Vite flag by itself.
+>
+> ⚠ **THE SCOPE GAP the owner most needs to see.** The original request was to wrap "the
+> publish route and **all** Supabase RPC callers." What shipped wraps **one call site** —
+> `src/lib/week-publish-server.ts`'s `track_event` write, via the new
+> `src/lib/supabase/call-rpc.mjs`. There are **~210 other `.rpc(` call sites** left across the
+> repo: 96 server-side across 57 files (`src/lib` + `src/app/api`), 70 in mobile
+> `shapeBackend.js`, 44 across 19 website files under `public/newdesign`. This was never a
+> simple sweep — the three surfaces run three different Sentry SDKs, so one wrapper can't
+> just be imported everywhere unchanged. **State plainly as an open follow-up, not done** —
+> do not read the one wrapped call site as coverage of the original ask.
+>
+> ⚠ **A landmine worth recording because nothing catches it.** `import * as Sentry from
+> '@sentry/nextjs'` returns `captureException`/`captureMessage` as **`undefined`** under
+> Node's native ESM loader — the SDK ships as CJS, and `cjs-module-lexer` resolves only a
+> subset of its exports as named bindings (verified empirically on Node v24.14.1).
+> `src/lib/supabase/call-rpc.mjs` therefore uses a **default** import
+> (`import Sentry from '@sentry/nextjs'`), while the cron route
+> (`src/app/api/cron/guardrail-health/route.ts`) legitimately keeps the namespace form,
+> because it only ever runs through Next's bundler, never `node --test`. "Harmonizing" the
+> two to look consistent would silently break `call-rpc.mjs`'s reporting — the capture call
+> would throw inside its own swallowing `try/catch`, so the RPC wrapper would keep returning
+> correct results while reporting nothing at all, with no error and no failing test to catch it.
+>
+> **Layer 2's heartbeat is now live** — `HEARTBEAT_PING_URL` is **set**, and the redeploy
+> carrying it is verified **READY in production** (2026-08-01). The guardrail-health cron's
+> dead-man's switch arms at the next 09:00 UTC run; this corrects the prior record below,
+> which said the switch was unset and inert.
+>
+> Two follow-ups registered, neither built here: `scripts/verify-staged.sh` still runs a
+> `public/m` sync diff that can now only ever fail (`public/m` has been gitignored and
+> deploy-built since #1470, so the check compares a fresh build against stale local
+> leftovers — remove the step or teach it the new reality). And the static website attaches
+> only a coarse, path-derived `shape_surface` tag rather than real user context, because that
+> surface has no bundler and can't reach the shared PII-free `sentry-context.mjs` module —
+> **most of those 69 `pageShell.jsx` pages are the signed-in dashboards**, not signed-out
+> marketing, so once a DSN exists, dashboard errors there will carry no role or tier beyond
+> the URL-path hint.
+>
+> See the full entry below.
+
+> **Prior (2026-07-31): ERROR TRACKING LAYER 2 — THE GUARDRAIL-HEALTH CRON, FOUR CHECKS
 > OVER `analytics_events`, DAILY AT 09:00 UTC** (`51e0bbc05` / `2004209ef` / `8e61f4687` /
 > `810110fdc` / `46dc67be0` / `47729fe8b` / `3b51f7271` / `943eafb43` / `af3b8f6ac` on
 > `claude/error-tracking-layer2`, not yet merged). A scheduled check for the
@@ -227,10 +318,11 @@ changelog whenever something ships.
 > grant could not hide), `service_role` holding **only** SELECT + INSERT with TRUNCATE,
 > DELETE, UPDATE, TRIGGER and REFERENCES all denied, **0** stray column grants, PK on
 > exactly `(id)`, and every column default present.
-> `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is
-> inert and every run reports `heartbeat: 'skipped'` — deliberately a provider-agnostic
-> HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry exists anywhere in
-> this repo. Suite **1394/1394, zero failures**; `tsc` clean.
+> `HEARTBEAT_PING_URL` — **⚠ CORRECTED 2026-08-01: this line said "unset", which is now
+> false.** It is **set**, and the deployment carrying it is verified READY in production
+> (2026-08-01) — the dead-man's switch arms at the next 09:00 UTC run — deliberately a
+> provider-agnostic HTTP ping rather than Sentry-native, since Layer 2 ships before Sentry
+> exists anywhere in this repo. Suite **1394/1394, zero failures**; `tsc` clean.
 >
 > ⚠ **The monitor no longer hardcodes the state vocabulary** (`3b51f7271`). It matched
 > `r.state === 'red'` literally, so a rename in the guardrail core would have made
@@ -1261,6 +1353,164 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry`, not yet merged)
+
+- **Six tasks, plan at `docs/superpowers/plans/2026-08-01-error-tracking-layer-1-sentry.md`.**
+  Governing constraint: no Sentry DSN exists anywhere, so every surface must build and run
+  correctly with the env vars absent — this ships to production before the Sentry account
+  is created. The plan itself recorded two corrections against the original request before
+  a line of code was written: the mobile app is **Capacitor**, not React Native (so a
+  `reactNative` setup wizard matches nothing here — this repo is `@sentry/capacitor` +
+  `@sentry/react`), and `roles` is an **array** with `dietitian` as an alias for
+  `nutritionist` — a boolean `is_coach` alone would erase real dual-role accounts.
+
+- ⚠ **Do not read this as "error tracking is live." It is not — nothing is being captured
+  anywhere yet.** There is no Sentry organisation and no DSN, so all three SDKs sit in the
+  supported pre-account state (`Sentry.init({dsn:''})` and its Capacitor/classic-script
+  equivalents construct no transport at all; every `capture*` call is a documented no-op).
+  This is scaffolding, wired to switch on the moment a DSN exists and switched off until
+  then — the single most important framing constraint on this whole entry.
+
+- **Task 1 — the shared tagging module, `src/lib/sentry-context.mjs`** (`924520d3b`, hardened
+  `1f8257fa8`). One pure module both server and client init call so the same three fields
+  are the only user context Sentry ever sees anywhere: user id, `roles` (the array, not a
+  derived string), and `is_coach`. Review flagged `BS_SENTRY_DENIED_KEYS` as looking
+  decorative; adjudicated NOT a defect — the function hand-builds an object literal and
+  never spreads from a `profile`, so it's an allow-list, and a real denylist would rot as
+  new PII columns land. Fixed round 1: both tagging functions were hardened to be **total**
+  — a throwing getter on hostile input used to propagate an uncaught exception out of the
+  very function meant to make error reporting safer.
+
+- **Task 2 — Next.js: pages + all 156 API routes, one install** (`c9b53e039`). Server, edge,
+  and client init (`sentry.server.config.ts`, `sentry.edge.config.ts`,
+  `src/instrumentation.ts`, `src/instrumentation-client.ts`), `withSentryConfig` wrapping
+  `next.config.ts` without touching any existing redirect/rewrite, and
+  `sourcemaps.disable` following the presence of `SENTRY_AUTH_TOKEN` so the upload step
+  never blocks a build before the Sentry org exists. Verified with every `SENTRY_*`/
+  `VERCEL_*` var unset: `tsc --noEmit` clean, `next build` succeeds under this repo's
+  Turbopack bundler, with Sentry's `runAfterProductionCompile` hook confirmed running and
+  skipping the release/sourcemap upload with a warning, not a failure.
+
+- **Task 3 — the `/m/` mobile app** (`df750998b`, hardened `175ef5b1a`).
+  `mobile-app/src/sentry.mjs` (`bsInitSentry`/`bsSetSentryUser`) pairs `@sentry/capacitor`
+  with `@sentry/react`'s init as its second argument — the documented Capacitor pattern, not
+  React Native — called as the first statement in `mobile-app/src/main.jsx`, before the
+  dynamic import that mounts React. Two build-time corrections against the plan: (1)
+  `@sentry/capacitor@4.2.0` pins `@sentry/react` to **exactly** `10.60.0`, not a range — a
+  plain `npm i @sentry/react` would have resolved `10.69.0` and reintroduced the peer
+  conflict; installed clean, 0 vulnerabilities, and the root web app's own `@sentry/react`
+  install stays on `10.69.0` untouched (separate dependency tree). (2) `bsInitSentry()`
+  shipped with no `try/catch` around a bare `Sentry.init()` — since this runs before React
+  mounts, a throw here would be a white screen on every device with nothing initialized to
+  say why; fixed to be total.
+
+- **Task 4 — the static website** (`212df6df4`, review round `80863f847`).
+  `public/newdesign/sentryInit.js` is a dependency-free classic script that no-ops when
+  `window.SHAPE_SENTRY_DSN` is unset; `pageShell.jsx` is the **only** place that global can
+  be assigned (babel-standalone runs every page's own script AFTER `pageShell.jsx` at
+  `DOMContentLoaded`, so a per-page assignment elsewhere would silently no-op with zero
+  console output — documented in-file so nobody "fixes" it into a bug). The review round
+  caught a real framing error in the original brief: it called these 69 pages "the
+  signed-out marketing surface," but most of `pageShell.jsx`'s consumers are actually
+  **signed-in dashboard SPAs** (`ClientApp`/`TrainerApp`/`NutritionistApp` and their
+  sub-pages) — so once a DSN exists, dashboard errors would arrive with zero identity/role
+  context. Full user context isn't reachable here (no bundler), but a coarse, strictly
+  path-derived `shape_surface` tag is — set via `Sentry.init`'s `initialScope`, read only
+  from `window.location.pathname`, never from any user/session object. Also added:
+  `console.warn` at the three points that previously failed silently.
+
+- **Task 5 — the RPC error wrapper + the Layer 2 alert seam** (`7415764ce`, doc round
+  `78fbdbaab`). `callRpc` (`src/lib/supabase/call-rpc.mjs` + hand-written `call-rpc.d.ts`)
+  inspects the **resolved** `{ error }` from `client.rpc(name, args)` explicitly instead of
+  trusting a `try/catch` — which never fires for the failure that matters, since a revoked
+  grant, an absent function, or an unwhitelisted event all *resolve*, they don't reject
+  (documented at `week-publish-server.ts:201-206`). Wired at the one call site that comment
+  describes — `src/lib/week-publish-server.ts`'s `track_event` write. `reportAlerts` in the
+  guardrail-health cron route now fires both sinks: `console.error` unconditionally first,
+  then a tagged `Sentry.captureMessage` inside its own `try/catch`, so Sentry stays inert
+  with no DSN (a disabled SDK's `captureMessage` is a documented no-op) without ever costing
+  an alert its log line. Build-time correction against the plan: the brief specified
+  `call-rpc.ts`, but `node --test` cannot import TypeScript and no existing test in this
+  repo does — shipped as `.mjs` + `.d.ts` instead (the `console-triage.mjs` pattern).
+
+- ⚠ **THE SCOPE GAP the owner most needs to see.** The original request was to wrap "the
+  publish route and **all** Supabase RPC callers." What shipped wraps **one call site**. There
+  are **~210 other `.rpc(` call sites** across the repo: 96 server-side across 57 files
+  (`src/lib` + `src/app/api`), 70 in mobile `shapeBackend.js`, 44 across 19 website files
+  under `public/newdesign`. This was never a simple sweep — the three surfaces run three
+  different Sentry SDKs, so a shared wrapper can't be imported unchanged everywhere. **Stated
+  plainly as an open follow-up, not done** — do not read the one wrapped call site as
+  coverage of the original ask.
+
+- ⚠ **A landmine worth recording because it is invisible.** `import * as Sentry from
+  '@sentry/nextjs'` returns `captureException`/`captureMessage` as **`undefined`** under
+  Node's native ESM loader — the SDK ships as CJS, and `cjs-module-lexer` resolves only a
+  subset of its exports as named bindings (verified empirically on Node v24.14.1).
+  `src/lib/supabase/call-rpc.mjs` therefore uses a **default** import
+  (`import Sentry from '@sentry/nextjs'`), while the cron route
+  (`src/app/api/cron/guardrail-health/route.ts`) legitimately keeps the namespace form,
+  because it only ever runs through Next's bundler, never `node --test`. "Harmonizing" the
+  two forms to look consistent would silently break `call-rpc.mjs`'s reporting: the capture
+  call would throw inside its own swallowing `try/catch`, so the wrapper would keep
+  returning correct results while reporting nothing at all — no error, and no failing test
+  to catch it.
+
+- **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
+  organisation and **three projects** — one per runtime; Next.js/Capacitor/browser are three
+  different SDKs with three different release streams. (2) Supply `SENTRY_DSN`,
+  `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
+  `SENTRY_AUTH_TOKEN`. (3) **Redeploy.** Vercel injects environment variables at BUILD time,
+  not request time — an already-running deployment never picks the new values up no matter
+  how long it stays live.
+
+- ⚠ **The alert rules are a SEPARATE owner step, and skipping them means this notifies
+  nobody.** `captureMessage`/`captureException` file an issue in the Sentry UI; neither
+  pages, emails, nor Slacks a human. Two rules are needed: an **issue rule** filtered on the
+  tag `alert` = `guardrail-health`, and a **cron-monitor rule** on a missed check-in. **The
+  issue rule does not cover the second case** — a cron that stops firing entirely never sends
+  a message for an issue rule to match, so a silently-dead job and an honestly-quiet one look
+  identical without the separate monitor.
+
+- ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
+  test event on EACH of the three surfaces and confirm it arrives **symbolicated** (a readable
+  stack, not a minified blob), carrying the right release and role tags — then **separately**
+  confirm a notification actually reaches a human inbox. An issue showing up in the Sentry
+  dashboard is not evidence anyone was told; that only happens once the alert rules above
+  exist and have been proven to fire.
+
+- **The `/m/` mobile build now emits hidden source maps** (`mobile-app/vite.config.ts`,
+  `sourcemap: 'hidden'`), reversing the earlier `sourcemap: false` decision — safe now for a
+  reason that didn't hold before. The original comment gave two reasons to disable maps:
+  byte-matching a **committed** `public/m` (obsolete — `public/m` has been gitignored and
+  built fresh on Vercel's Linux host since #1470, so there's no cross-platform byte-diff left
+  to protect), and not shipping ~5 MB of source to a public URL (**still true**, and now
+  handled structurally — `scripts/build-m.sh` deletes every `.map` file from `public/m` as
+  its last build step, after the wholesale `cp -r mobile-app/dist public/m`).
+  ⚠ **`sourcemap: 'hidden'` ALONE would NOT have been safe** — it only omits the
+  `//# sourceMappingURL=` comment from the bundle; the `.map` files are still written to
+  `dist/` and would still ship at the public `/m/` URL untouched. The strip step in
+  `build-m.sh` is what actually makes this safe, not the Vite flag by itself.
+
+- **Layer 2's heartbeat is now live** — `HEARTBEAT_PING_URL` is **set**, and the redeploy
+  carrying it is verified **READY in production** (2026-08-01). The guardrail-health cron's
+  dead-man's switch arms at the next 09:00 UTC run; this corrects the 2026-07-31 entry below,
+  which said the switch was unset and inert (that line is now struck through and pointed
+  here).
+
+- **Two follow-ups registered, neither built here.** `scripts/verify-staged.sh` still runs a
+  `public/m` sync diff that can now only ever fail — `public/m` has been gitignored and
+  deploy-built since #1470, so the check compares a fresh build against stale local
+  leftovers; remove the step or teach it the new reality. And the static website attaches
+  only a coarse, path-derived `shape_surface` tag rather than real user context, because that
+  surface has no bundler and can't reach the shared PII-free `sentry-context.mjs` module —
+  **most of those 69 `pageShell.jsx` pages are the signed-in dashboards**, not signed-out
+  marketing, so once a DSN exists, dashboard errors there will carry no role or tier beyond
+  the URL-path hint.
+
+- Verified per task: `npx tsc --noEmit` clean · full suite **1415/1415** (was 1407 at the
+  branch base, +8 new, 0 dropped) · every touched file LF, zero NUL bytes · CI-equivalent
+  builds green (`next build`, the mobile Vite build) with every Sentry env var absent.
+
 ### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00
@@ -1362,12 +1612,13 @@ changelog whenever something ships.
   indistinguishable from the guardrail emitting nothing at all** — the deliberately
   unbuilt fifth check. The `sample: 0` field is what preserves the distinction for a human.
 
-- `HEARTBEAT_PING_URL` is **unset**, so the dead-man's switch is inert and every run reports
-  `heartbeat: 'skipped'`. Deliberately a provider-agnostic plain HTTP GET rather than
-  `Sentry.captureCheckIn`, because Layer 2 ships before Sentry exists anywhere in this repo
-  — Sentry Cron Monitors, Healthchecks.io and Cronitor all accept the same plain ping, so
-  the heartbeat isn't blocked on which one gets picked, still less on Layer 1 existing at
-  all.
+- `HEARTBEAT_PING_URL` — **⚠ CORRECTED 2026-08-01: this said "unset", which is now false.**
+  It is **set**, and the redeploy carrying it is verified READY in production (2026-08-01) —
+  the dead-man's switch arms at the next 09:00 UTC run. Deliberately a provider-agnostic
+  plain HTTP GET rather than `Sentry.captureCheckIn`, because Layer 2 shipped before Sentry
+  existed anywhere in this repo — Sentry Cron Monitors, Healthchecks.io and Cronitor all
+  accept the same plain ping, so the heartbeat was never blocked on which one gets picked,
+  still less on Layer 1 existing at all.
 
 - **Two findings that came out of building this, neither of them Layer 2:**
   - ⚠ **The monitor keyed on string literals the guardrail core owns** (`3b51f7271`).
@@ -1393,9 +1644,11 @@ changelog whenever something ships.
 
 - Suite **1394/1394, zero failures**; `npx tsc --noEmit` clean.
 
-- **Owner actions still outstanding:** apply the migration above; set `HEARTBEAT_PING_URL`
-  to a dead-man's-switch endpoint; create the Sentry org + three projects for Layer 1
-  (nothing here is blocked on it, but nothing here notifies a human until it exists).
+- **Owner actions still outstanding:** apply the migration above. ~~set `HEARTBEAT_PING_URL`
+  to a dead-man's-switch endpoint~~ — **done, see the 2026-08-01 entry.** Creating the Sentry
+  org + three projects for Layer 1 is also done (see 2026-08-01) — Layer 1's code exists now
+  but is inert with no DSN, so nothing notifies a human until the owner supplies one and
+  writes the alert rules.
 
 ### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
 
