@@ -216,7 +216,12 @@ changelog whenever something ships.
 > ⚠ **(2c) AND THE SAME AGAIN FOR iOS — "Layer 1 mobile" means ANDROID ONLY until this is
 > done.** `codemagic.yaml` builds the **iOS TestFlight IPA on every push to `main`**
 > (`npm ci` → `npm run build` → `npx cap sync ios` → signed `.ipa` → TestFlight) and passes
-> **zero** Sentry env vars — `grep -n "SENTRY\|VITE_" codemagic.yaml` returns nothing. So
+> **no Sentry DSN or upload vars** — the check is
+> `grep -nE "VITE_SENTRY_DSN|SENTRY_AUTH_TOKEN|SENTRY_ORG|SENTRY_PROJECT_MOBILE" codemagic.yaml`,
+> which returns **nothing** while the group is still unwired. ⚠ **Do not use the older
+> `grep -n "SENTRY\|VITE_"` form** — it now matches by design, because this PR added
+> `VITE_SHAPE_RELEASE` and its explanatory comments to that file, so the broad grep no
+> longer demonstrates anything. So
 > every shipped iOS build bakes in `dsn:''` and can never be switched on, which is exactly
 > the trap step (2b) was written to close for Android. **iOS is the surface that actually
 > ships to users today**, so this is the more urgent of the two. Owner step: create a
@@ -246,7 +251,7 @@ changelog whenever something ships.
 >
 > ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
 > test event on **EACH OF THE FOUR independently-wired event paths** — Next server/edge, the
-> Next browser bundle, `/m/` mobile (and separately the shipped APK), and the static website
+> Next browser bundle, `/m/` mobile (and separately BOTH shipped binaries — the Android APK **and** the iOS TestFlight IPA, which is built independently with its own variable group and its own upload, so a pass on `/m/` or Android proves nothing about it), and the static website
 > — and confirm each arrives **symbolicated** (a readable stack, not a minified blob) carrying
 > the right **release**. Then **separately** confirm a notification actually reaches a human
 > inbox. An issue showing up in the Sentry dashboard is not evidence anyone was told; that
@@ -1603,7 +1608,7 @@ changelog whenever something ships.
 
 - ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
   test event on **EACH OF THE FOUR independently-wired event paths** — Next server/edge, the
-  Next browser bundle, `/m/` mobile (and separately the shipped APK), and the static website —
+  Next browser bundle, `/m/` mobile (and separately BOTH shipped binaries — the Android APK **and** the iOS TestFlight IPA, which is built independently with its own variable group and its own upload, so a pass on `/m/` or Android proves nothing about it), and the static website —
   and confirm each arrives **symbolicated** (a readable stack, not a minified blob) carrying
   the right **release**; then **separately** confirm a notification actually reaches a human
   inbox. An issue showing up in the Sentry dashboard is not evidence anyone was told; that
