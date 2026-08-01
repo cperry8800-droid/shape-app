@@ -80,7 +80,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: shape-debug-apk
           path: mobile-app/android/app/build/outputs/apk/debug/*.apk
@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload release APK
         if: steps.secrets.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: shape-release-apk
           path: mobile-app/android/app/build/outputs/apk/release/*.apk
