@@ -1706,6 +1706,27 @@ changelog whenever something ships.
   and fails both on the original (`getCurrentSession`-only) shape and on the subtly-wrong
   gated-on-uid-change variant.
 
+- ⚠ **AND THAT FIX STILL LOST THE ID IN THE ONE STATE WHERE IT MATTERS MOST** — the
+  signed-in member with **no profile row**. `getCurrentSession()` deliberately swallows a
+  failed `upsertProfile()` (`if (user && !profile) { try { … } catch (e) {} }`) and carries
+  on with `profile === null`, so this is a real state, not a hypothetical: a broken account.
+  Deriving the id from the profile alone therefore reported **every error in that degraded
+  state as anonymous** — and a broken-account state is precisely when knowing who hit it
+  matters. Fixed by giving the pure module an optional id fallback,
+  `bsSentryUser(profile, fallbackId)`, with `setCached()` passing the `uid` it already
+  computes: **the id comes from the AUTHENTICATED user, the roles from the profile only** —
+  so roles stay honestly absent rather than guessed until the row resolves. ⚠ The fallback
+  lives in `src/lib/sentry-context.mjs` rather than at the call site **because that module is
+  already the one place the derivation rules live, and putting it there makes the rule
+  behaviourally testable** instead of asserted by grepping source text. Sign-out passes null
+  for both arguments, so the previous account's tags are still cleared. Three new vectors in
+  `tests/sentry-context.test.mjs`, **mutation-tested**: removing the fallback fails
+  *the-authenticated-id-is-the-fallback*, and dropping its string guard fails
+  *an-unusable-fallback-yields-no-context* — each mutation killed by exactly one test.
+  **The general rule: derive identity from the authoritative source, not from data derived
+  off it.** `state.user` is the authenticated identity; `state.profile` is a DB row that may
+  not exist yet — the same shape as the bug above it.
+
 - ⚠ **THE ORDERING GUARANTEE IN TWO FILES WAS OVERSTATED — corrected.**
   `scripts/build-newdesign.mjs` and `public/newdesign/sentryInit.js` both claimed that
   because every compiled script sits after `</head>`, injecting the pair there "guarantees:
@@ -1811,9 +1832,11 @@ changelog whenever something ships.
   too, or an unconditional strip) changes build behaviour for a state the runbook never
   produces.
 
-- Verified per task: `npx tsc --noEmit` clean · full suite **1415/1415** (was 1407 at the
-  branch base, +8 new, 0 dropped) · every touched file LF, zero NUL bytes · CI-equivalent
-  builds green (`next build`, the mobile Vite build) with every Sentry env var absent.
+- Verified per task: `npx tsc --noEmit` clean · full suite **1427/1427** (was 1407 at the
+  branch base, +20 new, 0 dropped) · every touched file LF, zero NUL bytes · CI-equivalent
+  builds green (`next build`, the mobile Vite build) with every Sentry env var absent ·
+  the mobile build's source-map strip verified end to end (26 stripped, **0** left in
+  `dist/`, **0** in `public/m`).
 
 ### 2026-08-01 — The masthead contract: one row, one inset, every page
 

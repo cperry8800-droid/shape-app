@@ -59,11 +59,13 @@ test('the sync is unconditional inside setCached — not gated on the identity c
   assert.ok(call, 'bsSetSentryUser call not found in the first 40 lines of setCached()');
   assert.equal(
     call[1],
-    'state.user ? state.profile : null',
+    'state.user ? state.profile : null, uid',
     'Must read the freshly-merged state and pass null when signed out (clearing the ' +
       'previous account tags). A partial update like setCached({ profile }) keeps the ' +
       'same uid while changing roles, so gating this on uid/name change would miss ' +
-      'exactly what updateProfileRoles produces.',
+      'exactly what updateProfileRoles produces. The trailing `uid` is the id FALLBACK ' +
+      'for the signed-in-with-no-profile state getCurrentSession() can produce — drop ' +
+      'it and every error in that degraded state reports anonymously again.',
   );
   // It must not sit inside the `if (uid !== prevUid || name !== prevName)` branch
   // that exists in this function for the avatar refresh event.

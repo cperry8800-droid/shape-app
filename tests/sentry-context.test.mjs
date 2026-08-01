@@ -52,6 +52,32 @@ test('no id means no user context at all, rather than a partial one', () => {
   assert.equal(bsSentryUser('nope'), null);
 });
 
+// ⚠ Coverage added after Codex flagged the degraded signed-in state (P2, confirmed
+// against the code): `getCurrentSession()` swallows a failed profile creation and
+// carries on with `profile === null`, so a signed-in member with no profile row is a
+// real state. Reading the id off the profile alone reported every error in it as
+// anonymous — and a broken-account state is exactly when knowing who hit it matters.
+
+test('the authenticated id is the fallback when the profile is missing entirely', () => {
+  const u = bsSentryUser(null, 'auth-uid');
+  assert.equal(u.id, 'auth-uid');
+  assert.equal(u.roles, '', 'roles come from the profile only — absent, never guessed');
+  assert.equal(u.is_coach, false);
+});
+
+test('the profile id wins over the fallback, and roles still resolve', () => {
+  const u = bsSentryUser({ id: 'profile-id', roles: ['trainer'] }, 'auth-uid');
+  assert.equal(u.id, 'profile-id');
+  assert.equal(u.is_coach, true);
+});
+
+test('an unusable fallback yields no context — never a partial one', () => {
+  assert.equal(bsSentryUser(null, ''), null);
+  assert.equal(bsSentryUser(null, null), null);
+  assert.equal(bsSentryUser(null, 42), null, 'a non-string id would group unrelated people');
+  assert.equal(bsSentryUser({ roles: ['client'] }, undefined), null);
+});
+
 test('junk roles never throw and never fabricate a coach', () => {
   assert.equal(bsSentryUser({ id: 'u7', roles: [null, 42, {}] }).is_coach, false);
   assert.equal(bsSentryUser({ id: 'u8', roles: 'not-an-array' }).is_coach, false);

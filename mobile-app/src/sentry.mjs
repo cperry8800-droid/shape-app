@@ -68,6 +68,10 @@ export function bsInitSentry() {
  * derivation (id, roles, is_coach only — see src/lib/sentry-context.mjs).
  * Pass null/undefined on sign-out — a stale user mislabels every later event.
  *
+ * `fallbackId` is the authenticated user's id, for the signed-in-but-no-profile
+ * state (see `bsSentryUser`). Pass null alongside a null profile on sign-out:
+ * an id on its own would keep tagging events with the account that just left.
+ *
  * ⚠ Never throws, same house pattern as `bsSentryUser`/`bsSentryRelease`. This is
  * called from inside `getCurrentSession()` (shapeBackend.js), which every surface
  * awaits before it can render a signed-in state — a throw here would break session
@@ -77,9 +81,9 @@ export function bsInitSentry() {
  * failed init. No warn: unlike init, a failure here costs tags on future events, not
  * the whole session's reporting, and this runs on every session resolve.
  */
-export function bsSetSentryUser(profile) {
+export function bsSetSentryUser(profile, fallbackId) {
   try {
-    Sentry.setUser(bsSentryUser(profile || null));
+    Sentry.setUser(bsSentryUser(profile || null, fallbackId || null));
   } catch {
     // No user context on this session's events. Never a failed sign-in.
   }

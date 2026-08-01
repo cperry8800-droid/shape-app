@@ -32,6 +32,15 @@ function rolesOf(profile) {
 /**
  * The user context for an event, or null.
  *
+ * `fallbackId` is the AUTHENTICATED user's id, used when the profile has none.
+ * A signed-in session with no profile row is a real state, not a hypothetical:
+ * `getCurrentSession()` (mobile-app/src/services/shapeBackend.js) deliberately
+ * swallows a failed profile creation and carries on with `profile === null`.
+ * Without this, every error in that degraded state reports anonymously — and a
+ * broken-account state is precisely when knowing who hit it matters most. Roles
+ * come from the profile only, so they are honestly absent until it resolves,
+ * rather than guessed.
+ *
  * ⚠ Returns null rather than a partial object when there is no id: a user context
  * without an identifier groups unrelated people together, which is worse than none.
  *
@@ -45,13 +54,17 @@ function rolesOf(profile) {
  * get-trapping Proxy), so a real bug in the derivation itself still shows up in CI —
  * this catch does not make the module untestable, it makes it total.
  */
-export function bsSentryUser(profile) {
+export function bsSentryUser(profile, fallbackId) {
   try {
-    if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return null;
-    const id = typeof profile.id === 'string' && profile.id ? profile.id : null;
+    const p = profile && typeof profile === 'object' && !Array.isArray(profile) ? profile : null;
+    // The profile's own id wins when present — it is the same value (the row is
+    // fetched/upserted by `.eq('id', user.id)`), and preferring it keeps the
+    // no-fallback callers byte-identical in behaviour.
+    const id = (p && typeof p.id === 'string' && p.id ? p.id : null)
+      || (typeof fallbackId === 'string' && fallbackId ? fallbackId : null);
     if (!id) return null;
 
-    const roles = rolesOf(profile);
+    const roles = p ? rolesOf(p) : [];
     // Built in one expression: if deriving `is_coach` throws after `roles` already
     // resolved, the throw propagates out of this `return` and is caught below — there
     // is no code path that returns a partial object with a defaulted `is_coach`.

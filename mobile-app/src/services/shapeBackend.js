@@ -132,7 +132,15 @@ function setCached(next = {}) {
   // — this repo has a documented history of cross-account cache leaks (_followCache,
   // 2026-06-29). Total by construction (bsSetSentryUser swallows) and a no-op with no DSN,
   // so it can neither throw nor delay a sign-in; it is a local scope write, no network.
-  try { bsSetSentryUser(state.user ? state.profile : null); } catch (e) {}
+  //
+  // ⚠ `uid` rides along as the id FALLBACK because signed-in-with-no-profile is a REAL
+  // state, not a hypothetical: getCurrentSession() below deliberately swallows a failed
+  // upsertProfile() and carries on with profile === null. Taking the id from the profile
+  // alone would report every error in that degraded state as anonymous — and a broken
+  // account is exactly when knowing WHO hit it matters most. Roles stay profile-only, so
+  // they are honestly absent rather than guessed until it resolves. On sign-out both
+  // arguments are null, so the previous account's tags are still cleared.
+  try { bsSetSentryUser(state.user ? state.profile : null, uid); } catch (e) {}
   // Notify the UI when identity actually changes (sign-in / sign-out / profile
   // resolve). Avatars read bsMyName()/bsMyPhoto() straight from this cache, and
   // they typically render once BEFORE getCurrentSession resolves (user.id still
