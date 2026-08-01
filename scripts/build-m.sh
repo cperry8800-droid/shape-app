@@ -19,10 +19,34 @@ echo "→ Installing mobile-app dependencies…"
 ( cd mobile-app && npm ci --include=dev )
 
 echo "→ Building the /m/ bundle (VITE_BASE=/m/)…"
+# VERCEL_GIT_COMMIT_SHA is set automatically by Vercel's build environment.
+# Exporting it as VITE_SHAPE_RELEASE bakes it into the bundle (Vite inlines
+# import.meta.env.* at build time) as this deploy's Sentry release string —
+# identical to the web side's release (see sentry-context.mjs), so one
+# deploy's mobile + server errors correlate. Empty/unset outside Vercel
+# (local build, CI) — sentry.mjs treats that as "no release", not a crash.
+export VITE_SHAPE_RELEASE="${VERCEL_GIT_COMMIT_SHA:-}"
 ( cd mobile-app && VITE_BASE=/m/ npm run build )
 
 echo "→ Publishing mobile-app/dist → public/m…"
 rm -rf public/m
 cp -r mobile-app/dist public/m
+
+# --- Sentry sourcemap upload goes HERE, before the strip below, once ---
+# SENTRY_AUTH_TOKEN exists. It would read the .map files straight out of
+# public/m (same tree the deletion step removes them from) and associate them
+# with the VITE_SHAPE_RELEASE string exported above. Nothing uploads today —
+# no auth token exists yet — so this step is a no-op placeholder.
+
+# vite.config.ts sets `sourcemap: 'hidden'`: maps are generated (for a future
+# Sentry upload / local symbolication) but the bundle carries no
+# `//# sourceMappingURL=` comment pointing at them. That alone does NOT stop
+# them being served — they're still real files in dist/, and the `cp -r` above
+# just copied them into public/m, which is served publicly at
+# theshapecommunity.com/m/…. Delete them here so nothing is ever reachable:
+# maps are generated, (eventually) uploaded, then stripped before publish.
+map_count=$(find public/m -name '*.map' -type f | wc -l)
+find public/m -name '*.map' -type f -delete
+echo "→ Removed ${map_count} sourcemap file(s) from public/m (generated for symbolication, never served)"
 
 echo "→ public/m built: $(find public/m -type f | wc -l) files"

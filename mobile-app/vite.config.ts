@@ -49,14 +49,22 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // No sourcemaps in the published /m/ bundle. They embed absolute build paths
-    // (Windows `C:\Users\…` vs CI's Linux `/home/runner/…`) into the .map files,
-    // so a locally-built public/m never byte-matches CI's Linux build and the
-    // "Mobile (build + public/m sync)" check fails. Only this branch is affected —
-    // it's the one that bundles `three`/three-vrm (the Nora avatar) via the
-    // absolute-path resolve.alias above. Dropping prod maps also stops shipping
-    // ~5 MB of source to a public URL. (Dev server keeps its own sourcemaps.)
-    sourcemap: false,
+    // Hidden sourcemaps: generated (for eventual Sentry upload / local symbolication)
+    // but NO `//# sourceMappingURL=` comment is emitted in the bundle, so a browser
+    // never fetches them. That is NOT the same as "not served" — the .map files are
+    // still written to dist/, and scripts/build-m.sh does a wholesale
+    // `cp -r mobile-app/dist public/m`, so anything left in dist/ ships to the public
+    // `/m/` URL. build-m.sh therefore deletes every .map from public/m as its final
+    // step (after any future Sentry upload), so maps exist for symbolication but are
+    // never reachable. Without hidden maps every mobile stack trace is unreadable;
+    // with them alone (no deletion) this would publish ~5 MB of source at a public
+    // URL — see build-m.sh for the other half of this contract.
+    //
+    // (The old build-path-divergence rationale for `sourcemap: false` no longer
+    // applies: public/m is built fresh on Vercel's Linux host by build-m.sh, never
+    // committed from a local Windows checkout, so there is no cross-platform byte-diff
+    // to protect against.)
+    sourcemap: 'hidden',
     target: 'esnext',
   },
 });
