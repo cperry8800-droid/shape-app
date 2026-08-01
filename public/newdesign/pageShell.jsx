@@ -590,6 +590,31 @@ function ShapeMobileStyles() {
 
 Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
 
+// ── Error tracking bootstrap (Sentry, static website) ─────────────────────────
+// Loads public/newdesign/sentryInit.js once — pageShell.jsx is the one file
+// every newdesign page shares (69 of them), so this is the single hook that
+// reaches all of them without editing any page directly.
+//
+// window.SHAPE_SENTRY_DSN mirrors the window.SHAPE_TURNSTILE_SITEKEY shape in
+// public/supabase.js (`window.X = window.X || <value>`) — but, unlike that
+// precedent, carries NO fallback value below: there is no DSN yet, and
+// inventing a placeholder here would make an unconfigured site read as
+// configured.
+//
+// ⚠ With no DSN set this whole block is a genuine no-op: sentryInit.js is
+// never fetched, so nothing here ever reaches Sentry — not even a script
+// request — until a real DSN string is assigned on the line below.
+(function () {
+  if (typeof window === "undefined") return;
+  window.SHAPE_SENTRY_DSN = window.SHAPE_SENTRY_DSN || "";
+  if (!window.SHAPE_SENTRY_DSN) return;
+  if (document.querySelector('script[data-shape-sentry-init]')) return;
+  var s = document.createElement("script");
+  s.src = "/newdesign/sentryInit.js";
+  s.setAttribute("data-shape-sentry-init", "1");
+  document.head.appendChild(s);
+})();
+
 // ── ShapeConfirm — shared destructive-action confirm modal (web) ─────────────
 // Imperative + promise-based: window.ShapeConfirm.open({ title, name, message,
 // confirmLabel, danger=true, requireType, cancelLabel }) -> Promise<boolean>.
