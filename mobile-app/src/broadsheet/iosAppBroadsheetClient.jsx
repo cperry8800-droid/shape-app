@@ -266,11 +266,17 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // Top-right tools for sub-pages — search + the profile avatar (taps through to
 // Settings/profile via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
-function BSMeCorner({ size = BS_HEADER_AVATAR }) {
+// ⚠ `search={false}` is for surfaces that PORTAL above BSUniversalSearch (which
+// roots at zIndex 230). A ⌕ there is a dead control: the takeover opens beneath
+// the portal — invisible — while still pushing a nav entry, so the next back
+// silently eats the search instead of closing the page. Omitting it is the same
+// call already made for BSFollowListSheet. Check the surface's zIndex before
+// passing it; a page in normal flow must keep the search corner.
+function BSMeCorner({ size = BS_HEADER_AVATAR, search = true }) {
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      <BSSearchCorner size={size} />
+      {search ? <BSSearchCorner size={size} /> : null}
       <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
     </span>
   );
@@ -14337,8 +14343,11 @@ function BSNoraProfile({ onClose }) {
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: t.PAPER_BG, color: t.INK, overflowY: 'auto' }}>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
         {/* The masthead row opens EVERY page (same format, same size) — the back
-            row + "Shape team" eyebrow sit directly beneath it. */}
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+            row + "Shape team" eyebrow sit directly beneath it.
+            ⚠ No ⌕: this page paints at zIndex 100000 (see the container above) and
+            BSUniversalSearch roots at 230, so a search circle here would be a dead
+            control — see BSMeCorner. */}
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner search={false} />} />}
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: t.INK, padding: '8px 2px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
@@ -15271,9 +15280,12 @@ function BSSplitsPage({ d, paceData, heat, t, onClose }) {
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99992, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
       {/* The masthead row opens EVERY page (same format, same size) — the back
-          control + eyebrow move below it, flush left. */}
+          control + eyebrow move below it, flush left.
+          ⚠ No ⌕: this page paints at zIndex 99992 (see the container above) and
+          BSUniversalSearch roots at 230, so a search circle here would be a dead
+          control — see BSMeCorner. */}
       <div style={{ flexShrink: 0, padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner search={false} />} />}
       </div>
       <div style={{ flexShrink: 0, padding: `12px ${t.padX}px 11px`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onClose} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>

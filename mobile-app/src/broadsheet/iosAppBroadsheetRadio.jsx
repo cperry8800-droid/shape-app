@@ -996,7 +996,13 @@ function bsRadioTimeAgo(iso, tr) {
 // the chrome owns the values and the `|| 34` / `|| 9` fallbacks only cover load
 // order. `ink` is the search circle's colour — both radio pages are fixed-dark on
 // their portrait ground, so they pass CREAM rather than the theme ink.
-function bsRadioCorner(ink) {
+// `bg` is the SURFACE the corner sits on, and it is only passed by a screen whose
+// ground is fixed regardless of the paper theme. BSFacetAvatar falls back to
+// `t.PAPER`, which is right on a theme-adaptive screen (BSRadioScreen derives its
+// whole palette from `t.isLight`) and WRONG on a fixed-dark one: the presence-dot
+// surround and the rank shadow would paint light paper onto an unchanging dark
+// venue. Pass it only where the ground is a literal, never as a blanket constant.
+function bsRadioCorner(ink, bg) {
   const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
   const gap = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
   return (
@@ -1013,6 +1019,7 @@ function bsRadioCorner(ink) {
           photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
           live: !!(window.bsAmLive && window.bsAmLive()),
           showRank: false,
+          ...(bg ? { BG: bg, INK: ink } : null),
           onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
         })
         : null}
@@ -1652,8 +1659,14 @@ function BSShapeSetsScreen({ onBack }) {
               </div>
               {/* Canonical trailing corners — CREAM `ink` variant, this page is
                   fixed-dark on the venue ground (owner ruling 2026-08-01). Same
-                  module-scope cluster the radio screen uses. */}
-              {bsRadioCorner(CREAM)}
+                  module-scope cluster the radio screen uses.
+                  ⚠ The venue ground is passed EXPLICITLY because this screen's
+                  palette is a set of literals, not derived from `t.isLight` —
+                  without it the live presence dot's surround would render in
+                  light paper on the unchanging dark venue. The radio screen
+                  deliberately passes nothing: it IS theme-adaptive, so there the
+                  avatar's `t.PAPER` fallback is the correct surface. */}
+              {bsRadioCorner(CREAM, '#0a0d0c')}
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>

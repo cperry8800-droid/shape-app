@@ -1382,10 +1382,21 @@ changelog whenever something ships.
   follow-list sheet the standard ⌕ corner produced a **dead control**: that sheet is portaled at
   `zIndex 100000` while `BSUniversalSearch` roots at `230`, so the search takeover would have
   opened **underneath it** — invisible, while still pushing a nav entry, so the next back would
-  silently eat the search instead of closing the sheet. It is now the one masthead in the app
-  with no ⌕ (it already carries its own "Search people" field), documented in place with the
+  silently eat the search instead of closing the sheet. It is documented in place with the
   z-index reason so nobody "restores" it. **A contract applied without checking the stacking
   context is a contract applied to a button that does nothing.**
+
+- ⚠ **That exception was applied to ONE of THREE qualifying surfaces, and review caught the
+  other two.** The same stacking trap holds for **`BSNoraProfile`** (zIndex 100000) and
+  **`BSSplitsPage`** (99992) — both got a search-bearing row in this sweep. Rather than patch
+  only the two that were named, the whole class was enumerated: of the **18** mast rows this PR
+  adds, exactly **three** sit above `BSUniversalSearch`'s 230 (the profile customizer, at 220,
+  is safely below it, and every other row renders in normal page flow). All three now omit the
+  ⌕: the two that render the shared corner take a new `search={false}` flag on `BSMeCorner`
+  (whose declaration carries the reason), and the follow-list sheet — which hand-rolls its own
+  row — keeps the omission it already had.
+  **Finding a defect twice in one PR means the fix was a patch, not a sweep — enumerate the
+  class the second time.**
 
 - ⚠ **A later round found the OTHER half of that same fix was inert.** Giving the follow-list
   title an `aria-label` naming the profile owner was reported as shipped — but the label sat on a
