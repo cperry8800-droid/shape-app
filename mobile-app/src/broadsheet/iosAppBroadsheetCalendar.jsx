@@ -336,7 +336,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   // Back moved OUT of the trailing corner into BSPageHeader's universal back
   // slot (own row, flush left, under the mast — owner call 2026-07-14).
   const trailing = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9 }}>
       {(typeof window !== 'undefined' && window.BSSearchCorner)
         ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 })
         : null}

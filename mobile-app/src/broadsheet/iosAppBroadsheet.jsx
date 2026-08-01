@@ -664,13 +664,69 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 // is that inset; page wrappers use it instead of a per-page literal (the old
 // 42/44/46/48/50/54/60/62/64 drift). Window-exported for the role modules.
 const BS_MAST_TOP = 44;
-// The same inset as a CSS value. `--bs-notch-floor` is set ONLY by the desktop
-// phone-frame mock (46px, BSDetailHeader's proven clearance under the drawn
-// notch); the native surface never sets it, so it falls back to 0 and max()
-// yields a flat BS_MAST_TOP on device. So one expression is uniform in both:
-// 44 everywhere natively, floored to 46 in preview so no masthead rides under
-// the drawn notch. Use this for padding; use the number for arithmetic.
-const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, var(--bs-notch-floor, 0px))`;
+// The corner gap — the space between the search circle and the self avatar in
+// the masthead's trailing cluster. Part of the same contract as BS_MAST_TOP and
+// BS_MAST_TOP_CSS: the chrome owns it, the role modules read it off `window`.
+// The chrome is the only module guaranteed to evaluate before every consumer
+// (broadsheet/index.jsx imports it first; Radio, Calendar, Marketplace and the
+// role modules all load after), so it is the only safe owner for a value the
+// downstream corner clusters share.
+const BS_CORNER_GAP = 9;
+// The same inset as a CSS value, and the NATIVE CONTRACT it encodes:
+//
+//   The WebView is NOT host-inset on either platform — it spans the whole
+//   window, under the notch/Dynamic Island. On iOS, @capacitor/ios makes the
+//   WKWebView the view controller's root view (`view = webView`), and
+//   `ios.contentInset: 'automatic'` in capacitor.config.ts only sets the SCROLL
+//   VIEW's contentInsetAdjustmentBehavior — it never moves the WebView frame
+//   (and with `html,body,#root { height:100%; overflow:hidden }` the web view's
+//   own scroll view isn't vertically scrollable, so `.automatic` degenerates to
+//   `.scrollableAxes` and applies no vertical inset either). On Android,
+//   `android.adjustMarginsForEdgeToEdge` defaults to "disable" while
+//   targetSdkVersion 35 forces edge-to-edge, so no margins are applied there
+//   either.
+//
+//   Therefore the layout MUST inset itself, and env() is the only thing that
+//   knows the real device inset. It is live here because mobile-app/index.html
+//   ships `viewport-fit=cover` — the decisive precondition. Without it env()
+//   would resolve to a hard 0 and a flat 44px would be correct; with it, env()
+//   reports the true inset (44-47pt on notch devices, 59-62pt on Dynamic Island
+//   devices) even under `contentInset`, because viewport-fit=cover stops WebKit
+//   treating the safe area as an obscured inset.
+//
+//   A flat 44px would start this row's 34px circles at y=44 — inside the
+//   Dynamic Island region (its pill runs roughly y=11..48) on iPhone 14 Pro /
+//   15 / 16, and flush with zero clearance on 12/13/14.
+//
+//   N = 12 is not arbitrary: the PINNED condensing masthead below (BSPage's
+//   scroll-pinned strip) renders the SAME row — logo + Vol·No + corners — in the
+//   same visual slot and already uses `calc(12px + env(safe-area-inset-top))`.
+//   Matching N means the two rows clear the hardware by the same margin, so the
+//   row does not shift horizontally-adjacent to the notch as the strip slides in.
+//   ⚠ They are NOT identical in total, and that is deliberate: the pinned strip
+//   carries no 44px floor (it is the deliberately-trimmed scrolled state), so on
+//   cutout-less hardware where env() is 0 the static row sits at 44 and the strip
+//   at 12. They converge only once env() ≥ 32px. Don't "fix" that by adding the
+//   floor to the strip — the trim is the point of the condensed state.
+//
+//   The three terms, and why each is needed:
+//     - `44px`            — the floor. Android reports the DISPLAY CUTOUT, which
+//                           is 0 on cutout-less phones, so without this the row
+//                           would sit flush to the screen edge there.
+//     - `env(...) + 12px` — the device truth on iOS notch/Island hardware, and
+//                           the value that matches the pinned strip.
+//     - `--bs-notch-floor`— set ONLY by the desktop phone-frame preview (46px,
+//                           BSDetailHeader's proven clearance under the DRAWN
+//                           notch). Native never sets it, so it falls back to 0.
+//
+//   One expression is therefore correct everywhere: on device it resolves to the
+//   real safe area (never less than 44), and in the desktop preview — where env()
+//   is 0 because there is no physical inset — it floors to 46 so no masthead
+//   rides under the drawn notch.
+//
+//   Use this for padding; use BS_MAST_TOP (the number) only for arithmetic, and
+//   never as a bare `${BS_MAST_TOP}px` inset on a live surface.
+const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
 
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
@@ -1733,7 +1789,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP, BS_MAST_TOP_CSS,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });

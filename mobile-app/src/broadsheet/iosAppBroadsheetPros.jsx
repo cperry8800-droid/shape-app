@@ -26,8 +26,8 @@ const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 const BS_MAST_TOP = (typeof window !== 'undefined' && window.BS_MAST_TOP) || 44;
 // Same inset as a CSS value — flat on device, floored to the preview's drawn
 // notch. See the chrome's declaration for why max() is uniform in both.
-const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || `max(${BS_MAST_TOP}px, var(--bs-notch-floor, 0px))`;
-const BS_CORNER_GAP = 9;
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
+const BS_CORNER_GAP = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -2833,13 +2833,13 @@ function bsProCorner() {
 function bsProMastRow() {
   const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
   if (!MastRow) return null;
-  const trailing = (
-    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}
-      <BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} />
-    </span>
-  );
-  return <MastRow trailing={trailing} />;
+  // The corner cluster is bsProCorner()'s, so every page that goes through this
+  // helper shares one definition. ⚠ Not the whole file: BSProToday's masthead
+  // keeps its own inline cluster because it is genuinely different — it binds
+  // onClick={onProfile} rather than BSProAvatarButton's shape:openProSettings
+  // dispatch, and resolves tier/initials from different sources. Unifying it is
+  // a handler change, not a duplication cleanup, so it needs its own decision.
+  return <MastRow trailing={bsProCorner()} />;
 }
 // Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
 // Case File uses (getUserPoints → bsTierForPoints → bsTierColor); role heat

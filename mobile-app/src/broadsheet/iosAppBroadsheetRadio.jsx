@@ -18,6 +18,11 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 
 const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, useCallback: useCallbackBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
+// The masthead's top inset — the chrome owns it (window-exported). The local
+// fallback mirrors the chrome's expression exactly so a load-order slip degrades
+// to the same geometry instead of silently reverting to a notch-blind flat 44.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
+
 
 // The neutral song-social shape — every read/write path returns this or a filled
 // version of it, so a signed-out or pre-migration reader never sees undefined.
@@ -984,6 +989,37 @@ function bsRadioTimeAgo(iso, tr) {
   } catch (e) { return new Date(ms).toLocaleDateString(); }
 }
 
+// THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — one row, one inset,
+// every page). The search circle + the member's own facet avatar, both sized by
+// BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the radio screen
+// and the Shape Sets page cannot drift. Both constants are READ, never re-typed:
+// the chrome owns the values and the `|| 34` / `|| 9` fallbacks only cover load
+// order. `ink` is the search circle's colour — both radio pages are fixed-dark on
+// their portrait ground, so they pass CREAM rather than the theme ink.
+function bsRadioCorner(ink) {
+  const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
+  const gap = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap }}>
+      {(typeof window !== 'undefined' && window.BSSearchCorner)
+        ? React.createElement(window.BSSearchCorner, { size, ink })
+        : null}
+      {(typeof window !== 'undefined' && window.BSFacetAvatar)
+        ? React.createElement(window.BSFacetAvatar, {
+          size,
+          c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
+          initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
+          name: (window.bsMyName && window.bsMyName()) || undefined,
+          photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
+          live: !!(window.bsAmLive && window.bsAmLive()),
+          showRank: false,
+          onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
+        })
+        : null}
+    </div>
+  );
+}
+
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
@@ -1111,7 +1147,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
@@ -1119,26 +1155,11 @@ function BSRadioScreen({ onBack }) {
               {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
             </div>
           </div>
-          {/* Canonical trailing corners (owner ruling 2026-08-01). This page is
-              fixed-dark on the venue portrait, so the search circle takes the
-              `ink` variant in CREAM rather than the theme ink. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            {(typeof window !== 'undefined' && window.BSSearchCorner)
-              ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, ink: CREAM })
-              : null}
-            {(typeof window !== 'undefined' && window.BSFacetAvatar)
-              ? React.createElement(window.BSFacetAvatar, {
-                size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34,
-                c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
-                initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
-                name: (window.bsMyName && window.bsMyName()) || undefined,
-                photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
-                live: !!(window.bsAmLive && window.bsAmLive()),
-                showRank: false,
-                onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
-              })
-              : null}
-          </div>
+          {/* Canonical trailing corners (owner ruling 2026-08-01), from the one
+              module-scope cluster. This page is fixed-dark on the venue portrait,
+              so the search circle takes the `ink` variant in CREAM rather than
+              the theme ink. */}
+          {bsRadioCorner(CREAM)}
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
         <button onClick={onBack} style={{
@@ -1623,31 +1644,16 @@ function BSShapeSetsScreen({ onBack }) {
           {/* HEADER — masthead like other mobile pages: Vol·No row, then the
               universal back row (← RADIO, plain mono text-action flush left —
               the bordered pill died with the placement sweep), eyebrow, title. */}
-          <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
+          <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
               </div>
               {/* Canonical trailing corners — CREAM `ink` variant, this page is
-                  fixed-dark on the venue ground (owner ruling 2026-08-01). */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                {(typeof window !== 'undefined' && window.BSSearchCorner)
-                  ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, ink: CREAM })
-                  : null}
-                {(typeof window !== 'undefined' && window.BSFacetAvatar)
-                  ? React.createElement(window.BSFacetAvatar, {
-                    size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34,
-                    c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
-                    initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
-                    name: (window.bsMyName && window.bsMyName()) || undefined,
-                    photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
-                    live: !!(window.bsAmLive && window.bsAmLive()),
-                    showRank: false,
-                    onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
-                  })
-                  : null}
-              </div>
+                  fixed-dark on the venue ground (owner ruling 2026-08-01). Same
+                  module-scope cluster the radio screen uses. */}
+              {bsRadioCorner(CREAM)}
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>

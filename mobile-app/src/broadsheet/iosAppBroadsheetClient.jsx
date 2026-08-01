@@ -55,8 +55,8 @@ const {
 const BS_MAST_TOP = window.BS_MAST_TOP || 44;
 // Same inset as a CSS value — flat on device, floored to the preview's drawn
 // notch. See the chrome's declaration for why max() is uniform in both.
-const BS_MAST_TOP_CSS = window.BS_MAST_TOP_CSS || `max(${BS_MAST_TOP}px, var(--bs-notch-floor, 0px))`;
-const BS_CORNER_GAP = 9;
+const BS_MAST_TOP_CSS = window.BS_MAST_TOP_CSS || `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
+const BS_CORNER_GAP = window.BS_CORNER_GAP || 9;
 // A handful of surfaces destructure the theme under a different local name
 // (the profiles use `tTheme`) or receive only BG/INK, so `t.padX` is not
 // reachable at the mast row's own site. They read the live gutter through this
@@ -9887,17 +9887,42 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             padded scroller let them bleed through on device). */}
         <div style={{ flexShrink: 0, background: BG, padding: `0 ${gutter}px 12px` }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
-              left, the profile owner's avatar on the right (no top hairline). */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              left, MY signed-in avatar on the right (no top hairline). The
+              corner is always ME, never the person whose list this is — the
+              profile owner's face moved down to the title row, where it labels
+              WHOSE followers/following these are.
+
+              ⚠ This is the ONE masthead in the app with no ⌕ circle, and the
+              reason is stacking, not taste. This sheet is portaled into
+              #bs-phone-surface at zIndex 100000 (see the overlay below);
+              BSUniversalSearch roots at zIndex 230, so a ⌕ here would open the
+              search takeover UNDERNEATH the sheet — invisible, while still
+              pushing a nav entry, so the next back would silently consume the
+              search instead of closing the sheet. The surface already carries
+              its own "Search people" field a few lines down, which is the
+              in-context search this page actually wants. Don't add ⌕ here
+              without first raising the search overlay above 100000. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
-            <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? (bsMyPhoto() || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+              <BSFacetAvatar size={BS_HEADER_AVATAR} c={bsMyTierColor()} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
+                onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+            </div>
           </div>
-          {/* Title row — × close sits on this line, right-aligned */}
-          <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
+          {/* Title row — the owner's face sits beside the label, and × close sits
+              on this line, right-aligned. On my OWN list the face is redundant
+              with the corner, so it's dropped. ⚠ The visible label is just
+              "Followers"/"Following"; the face is what says WHOSE. That works
+              visually but is silent to a screen reader (the avatar's img is
+              alt=""), so the label carries an aria-label naming the person. */}
+          <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              {!self && <BSFacetAvatar size={22} c={c} initial={bsInitials(name) || '?'} name={name} photo={ownerPhoto || undefined} showRank={false} BG={BG} INK={INK} />}
+              <span aria-label={self || !name ? undefined : `${name} — ${kind === 'following' ? 'Following' : 'Followers'}`} style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
+            </div>
             <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           </div>
           {kind !== 'requests' && (
@@ -11401,6 +11426,11 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, ownerUid = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
+  // Ink/paper arrive as props (this editor is painted over the profile's own
+  // ground), but the GUTTER is a density setting, so it reads the live theme —
+  // a frozen 18px would drift from the profile headers behind it. It portals
+  // into the phone surface, and a portal keeps React context, so useBS() resolves.
+  const gutter = bsGutter(useBS());
   const init = initial || {};
   const PROMPT_OPTS = coach ? BS_COACH_PROMPTS : BS_PROFILE_PROMPTS;
   const [bio, setBio] = useStateBSC(init.bio || '');
@@ -11603,7 +11633,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   return createPortal(
     // Full-page takeover (was a bottom sheet) — the customizer owns the screen.
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: 'auto' }}>
-      <div style={{ padding: `0 18px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
+      <div style={{ padding: `0 ${gutter}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
         {/* Masthead row at the standard inset — the editor title + close sit
             BELOW it (every page opens on the same row). */}
         <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
@@ -11812,7 +11842,11 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           </span>
           <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
         </button>
-        <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
+        {/* The bar bleeds to the page edge, so its negative margin and its own
+            padding must both track the SAME density gutter the container uses —
+            a hardcoded 18 only looked right because the app currently boots at
+            the dense density, where padX happens to be 18. */}
+        <div style={{ position: 'sticky', bottom: 0, marginLeft: -gutter, marginRight: -gutter, padding: `10px ${gutter}px calc(6px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           <button onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
         </div>
       </div>
@@ -24096,7 +24130,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   // the strip that opens every page), then the back + eyebrow row. Top padding
   // dropped 64 → 46 so the sticky header stays about the same height.
   return (
-    <div style={{ padding: `${window.BS_MAST_TOP || 44}px ${t.padX}px 14px`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <BSBackButton onClick={onBack} />

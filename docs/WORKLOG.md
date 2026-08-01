@@ -1281,14 +1281,32 @@ changelog whenever something ships.
   to match the page the ruling pointed at; the pages that move are the ones that had drifted
   off it.
 
-- ⚠ **The inset is an expression, not a number, and the reason is worth keeping.**
-  `BS_MAST_TOP_CSS = max(44px, var(--bs-notch-floor, 0px))`. `--bs-notch-floor` is set **only**
-  by the desktop phone-frame mock (46px); the native surface never sets it, so it falls back to
-  0 and `max()` yields a flat 44 on device. One expression is therefore uniform in both worlds
-  — 44 everywhere natively, floored to 46 in preview so no masthead rides under the *drawn*
-  notch. The first cut used a flat `44px` and review caught that it silently dropped the
-  safe-area guard two pages still carried, leaving **two pages one tap apart disagreeing by up
-  to 28px**.
+- ⚠ **THE INSET IS AN EXPRESSION, AND MY FIRST TWO ANSWERS ABOUT IT WERE BOTH WRONG.**
+  Shipped value:
+  `BS_MAST_TOP_CSS = max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`.
+  - **Wrong once:** the first cut was a flat `44px`. It silently deleted two
+    `env(safe-area-inset-top) + 13px` declarations the PR's own diff removed from
+    `BSActivityDetail`, leaving two pages one tap apart disagreeing by up to 28px.
+  - **Wrong twice:** challenged on that, I claimed Capacitor's `ios: { contentInset: 'automatic' }`
+    insets the WebView so `env()` reads 0 and a flat 44 is correct. **It does not.**
+    `CAPBridgeViewController` does `view = webView` — the WebView **is** the root view, spanning
+    edge-to-edge under the notch — and `contentInset` only sets
+    `scrollView.contentInsetAdjustmentBehavior`, which under this app's `overflow:hidden` shell
+    degenerates to `.scrollableAxes` and applies no vertical inset at all. `index.html` ships
+    **`viewport-fit=cover`**, which is the decisive precondition: `env()` is live. Six broadsheet
+    files already depend on `env(safe-area-inset-top)`, including the pinned condensing masthead
+    on every page. A flat 44 starts the row's 34px circles at y=44 — **inside the Dynamic Island
+    pill (≈y 11–48)** on iPhone 14 Pro/15/16.
+  - **`N = 12` is borrowed, not invented:** the pinned condensing strip renders the same row in
+    the same slot at `12px + env(...)`, so matching N makes both clear the hardware by the same
+    margin. ⚠ They are *not* equal in total — the strip carries no 44px floor by design — and the
+    comment now says so, because the first draft of that comment claimed they "land identically",
+    which is only true once `env() ≥ 32px`.
+  - **The three terms:** `44px` is the floor for cutout-less Android (where `env()` reports the
+    display cutout, i.e. 0); the `env()` arm is device truth; `--bs-notch-floor` is set **only**
+    by the desktop phone-frame mock (46px) and native never sets it.
+  **Both reviewers flagged this independently, and both were right.** Two confident wrong answers
+  in a row on the same question is the durable lesson here, not the CSS.
 
 - **The row itself is normalized:** logo `size 16` everywhere (`BSMasthead` was 18), the corner
   cluster gap is one constant (`BS_CORNER_GAP = 9`), and every self-avatar reads
@@ -1350,10 +1368,30 @@ changelog whenever something ships.
   rows and the session's duration input — tuning the masthead corner gap would have moved all
   three. Reverted to a literal; the six genuine corner clusters keep the constant.
 
-- Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · the identifier gate · the mount
-  harness (`tests/broadsheet-render.test.mjs`) · `npm test` 1394/1394 · PowerShell
-  `VITE_BASE=/m/` build clean. Open: the OWNER on-device pass — the row's inset under a real
-  notch, across papers, on both roles.
+- **Review round (4 CodeRabbit + 2 Codex = 5 distinct findings, all real, all fixed).** Beyond
+  the safe-area correction above: **`BSDetailHeader`** — the shared sticky header behind ~31
+  pages — was still on a *numeric* inset, so the single biggest cohort in the app bypassed the
+  notch-aware contract entirely (flagged by **both** reviewers, and the one I most regret
+  missing); the **follow-list sheet** rendered the *profile owner's* avatar instead of yours;
+  the **profile customizer** inherited a frozen 18px gutter; and a **Major** on the corner gap
+  and corner-cluster markup being re-typed at six sites across four files — *the exact drift
+  class this PR exists to kill*, so the chrome now owns `BS_CORNER_GAP` and every module reads
+  it.
+
+- ⚠ **The fix for one finding introduced a worse bug, caught before it shipped.** Giving the
+  follow-list sheet the standard ⌕ corner produced a **dead control**: that sheet is portaled at
+  `zIndex 100000` while `BSUniversalSearch` roots at `230`, so the search takeover would have
+  opened **underneath it** — invisible, while still pushing a nav entry, so the next back would
+  silently eat the search instead of closing the sheet. It is now the one masthead in the app
+  with no ⌕ (it already carries its own "Search people" field), documented in place with the
+  z-index reason so nobody "restores" it. **A contract applied without checking the stacking
+  context is a contract applied to a button that does nothing.**
+
+- Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
+  · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
+  1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in
+  the emitted bundle. Open: the OWNER on-device pass — the row's inset under a real notch,
+  across papers, on both roles.
 
 ### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
 

@@ -10,6 +10,11 @@ import { createPortal } from 'react-dom';
 
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
+// The masthead's top inset — the chrome owns it (window-exported). The local
+// fallback mirrors the chrome's expression exactly so a load-order slip degrades
+// to the same geometry instead of silently reverting to a notch-blind flat 44.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
+
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
 import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
@@ -312,17 +317,19 @@ function mktShortLoc(loc) {
 }
 
 // THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — "same format, same
-// size, no deviation"). The search circle (34) + the member's own facet avatar
-// (34) at gap 9, in ONE place so the three marketplace pages — the directory,
-// THE LISTING, and the availability calendar — cannot drift. Every window global
-// is guarded the way the rest of this file guards them.
+// size, no deviation"). The search circle + the member's own facet avatar, both
+// sized by BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the
+// three marketplace pages — the directory, THE LISTING, and the availability
+// calendar — cannot drift. Both constants are READ, never re-typed: the chrome
+// owns the values and the `|| 34` / `|| 9` fallbacks only cover load order.
+// Every window global is guarded the way the rest of this file guards them.
 function bsMktCorner() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: (window.BS_CORNER_GAP || 9) }}>
       {window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (window.BS_HEADER_AVATAR || 34) }) : null}
       {window.BSFacetAvatar ? (
         <window.BSFacetAvatar
-          size={34}
+          size={(window.BS_HEADER_AVATAR || 34)}
           c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
           initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
           name={(window.bsMyName && window.bsMyName()) || undefined}
@@ -901,7 +908,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     <BSPage>
       {/* Hero — standard masthead band (logo + Vol·No row at the 64px page
           buffer, tools on the right), matching BSPageHeader on every other page. */}
-      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
@@ -1774,7 +1781,7 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
     <BSPage>
       {/* The standing masthead row — same format, same size, no deviation
           (owner ruling 2026-08-01). Back sits on its own row directly under it. */}
-      <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
@@ -2201,7 +2208,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
           {/* The standing masthead row opens the page (owner ruling 2026-08-01 —
               same format, same size, no deviation); back keeps its own row
               directly beneath it, flush left. */}
-          <div style={{ padding: `${(window.BS_MAST_TOP_CSS || `max(44px, var(--bs-notch-floor, 0px))`)} ${t.padX}px 0` }}>
+          <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: bsMktCorner(), style: { marginBottom: 12 } }) : null}
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
