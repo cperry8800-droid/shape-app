@@ -1,5 +1,23 @@
 # Error Tracking Layer 1 (Sentry) Implementation Plan
 
+> ⚠ **SUPERSEDED IN PART — read this before following any step below.** This is the
+> as-written build contract, kept as the historical record. Review rounds on the PR
+> corrected three things it gets wrong, and following the plan verbatim would
+> reintroduce two of them:
+>
+> 1. **Four projects and eight env vars, not three and six.** The static website is its
+>    own release stream (`SHAPE_SITE_SENTRY_DSN`), and the mobile source-map upload needs
+>    `SENTRY_PROJECT_MOBILE`. The env block in Task 2 Step 7 is incomplete.
+> 2. **The static-site DSN is injected by `scripts/build-newdesign.mjs` at deploy, NOT
+>    assigned in `pageShell.jsx`.** The plan's approach could never have been activated:
+>    that surface has no bundler, so nothing there can read an env var, and no file ever
+>    assigned the global. It also reached only 69 of 76 pages.
+> 3. **Mobile source maps must actually be uploaded.** The plan generated them and had
+>    `build-m.sh` strip them with nothing in between, so every mobile stack trace would
+>    have arrived minified. `@sentry/vite-plugin` now uploads during the Vite build.
+>
+> `docs/WORKLOG.md` (2026-08-01) carries the authoritative account.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Crash and exception reporting across all three runtimes, wired so it activates the
@@ -236,6 +254,7 @@ git commit -m "feat(sentry): the pure tagging rules — id, roles, is_coach, and
 ```bash
 npm install --save @sentry/nextjs
 ```
+
 ⚠ **Do NOT run `npx @sentry/wizard`.** It rewrites config files and assumes a DSN exists.
 
 - [ ] **Step 2: Server config**
@@ -320,7 +339,7 @@ export default withSentryConfig(nextConfig, {
 
 Append to `.env.example`:
 
-```
+```dotenv
 # Error tracking (Layer 1). ALL OPTIONAL — absent means the SDK is disabled, which is
 # the supported state until the Sentry org exists. Nothing fails without them.
 SENTRY_DSN=
@@ -354,6 +373,7 @@ Run: `npm run build` → must succeed with every `SENTRY_*` unset.
 ```bash
 cd mobile-app && npm install --save @sentry/capacitor @sentry/react
 ```
+
 ⚠ Capacitor pairs the native layer with the **browser** SDK — this is the documented setup,
 not a workaround.
 

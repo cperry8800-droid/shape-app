@@ -1609,7 +1609,16 @@ changelog whenever something ships.
   one deploy's errors correlate across surfaces now **holds for server, edge, Next browser
   and mobile, and does not yet cover the static website.**
 
-- ⚠ **Recorded, deliberately NOT changed — a partial-configuration source-map edge case.**
+- ⚠ **FIXED after CodeRabbit review — a partial-configuration source-map edge case that had
+  been recorded as "deliberately not changed."** The reasoning below was that the
+  half-configured state is one the runbook never asks anyone to stop in. CodeRabbit pushed
+  back and was right: gating on the full triple costs nothing in the fully-configured state,
+  removes a public-URL source exposure in the half-configured one, and — decisively — the
+  MOBILE side wired in this same PR already requires all three
+  (`SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT_MOBILE`), so leaving the web side on
+  the token alone made the two surfaces disagree about what "configured" means.
+  `next.config.ts` now gates `sourcemaps.disable` on all three. Original note, kept for the
+  reasoning trail:
   `next.config.ts:75` uses `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`. With a
   token set but `SENTRY_ORG`/`SENTRY_PROJECT` absent, the plugin **enables** browser source
   maps and then relies on its own post-upload auto-delete, which may not run if the upload
@@ -1760,10 +1769,15 @@ changelog whenever something ships.
 - Suite **1394/1394, zero failures**; `npx tsc --noEmit` clean.
 
 - **Owner actions still outstanding:** apply the migration above. ~~set `HEARTBEAT_PING_URL`
-  to a dead-man's-switch endpoint~~ — **done, see the 2026-08-01 entry.** Creating the Sentry
-  org + three projects for Layer 1 is also done (see 2026-08-01) — Layer 1's code exists now
-  but is inert with no DSN, so nothing notifies a human until the owner supplies one and
-  writes the alert rules.
+  to a dead-man's-switch endpoint~~ — **done, see the 2026-08-01 entry.**
+  ⚠ **CORRECTED 2026-08-01 — this line used to read "Creating the Sentry org + three projects
+  for Layer 1 is also done", and that was FALSE.** No Sentry organisation exists, no projects
+  exist, and no DSN exists anywhere. What shipped on 2026-08-01 is Layer 1's **code**, inert
+  by design. The sentence conflated "the code exists" with "the account was created" — and it
+  sat in the OWNER-ACTIONS-OUTSTANDING list, the one place someone reads to learn what is
+  left, so it would have talked the owner out of the single step every other step depends on.
+  **Creating the org + the four projects is STILL OWNER WORK and has not started.** Until it
+  is done, plus the eight env vars, a redeploy and both alert rules, nothing notifies a human.
 
 ### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
 

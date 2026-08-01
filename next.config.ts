@@ -67,10 +67,25 @@ const nextConfig: NextConfig = {
 
 // ⚠ Without SENTRY_AUTH_TOKEN the plugin SKIPS the source-map upload and warns.
 // It must not fail the build — this ships before the Sentry account exists.
+//
+// ⚠ SOURCE MAPS ARE GATED ON ALL THREE UPLOAD VARS, not just the token. With a
+// token but no org/project the plugin has a credential and nowhere to send the
+// maps: it ENABLES source-map generation and then relies on its own post-upload
+// auto-delete, which does not necessarily run when the upload is skipped —
+// leaving .map files sitting in .next/static, i.e. this app's source served at a
+// public URL. Requiring the full triple makes the half-configured state produce
+// no maps at all, which is the safe direction and matches the mobile side, where
+// @sentry/vite-plugin is gated on exactly the same three (see
+// mobile-app/vite.config.ts). It also matches the runbook, which tells the owner
+// to supply the Sentry variables together.
+const sentryUploadConfigured = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
+);
+
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: true,
-  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  sourcemaps: { disable: !sentryUploadConfigured },
 });
