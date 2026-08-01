@@ -5,9 +5,18 @@
 > corrected three things it gets wrong, and following the plan verbatim would
 > reintroduce two of them:
 >
-> 1. **Four projects and eight env vars, not three and six.** The static website is its
->    own release stream (`SHAPE_SITE_SENTRY_DSN`), and the mobile source-map upload needs
->    `SENTRY_PROJECT_MOBILE`. The env block in Task 2 Step 7 is incomplete.
+> 1. **EIGHT env vars, not six — but the project count in this plan (three) was RIGHT.**
+>    ⚠ This banner previously read *"Four projects and eight env vars, not three and six"*,
+>    and the project half of that was **my error**: it contradicted the approved design
+>    (`docs/superpowers/specs/2026-07-31-error-tracking-design.md`), which says *"One
+>    organization, three projects … Three, not four."* There are four DSN **values** but
+>    three projects — `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are the **same** project's
+>    DSN, set twice because Next needs it server-side and exposed to the browser. Do NOT
+>    split them: `next.config.ts` uploads every Next artifact to the single `SENTRY_PROJECT`,
+>    so a second project would receive events with no source maps and its traces would
+>    arrive minified. What IS missing from the plan: the static website is its own release
+>    stream (`SHAPE_SITE_SENTRY_DSN`), and the mobile source-map upload needs
+>    `SENTRY_PROJECT_MOBILE` — so the env block in Task 2 Step 7 is incomplete at six.
 > 2. **The static-site DSN is injected by `scripts/build-newdesign.mjs` at deploy, NOT
 >    assigned in `pageShell.jsx`.** The plan's approach could never have been activated:
 >    that surface has no bundler, so nothing there can read an env var, and no file ever

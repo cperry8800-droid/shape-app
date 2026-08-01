@@ -238,11 +238,20 @@ changelog whenever something ships.
 > without the separate monitor.
 >
 > ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
-> test event on EACH of the three surfaces and confirm it arrives **symbolicated** (a readable
-> stack, not a minified blob), carrying the right release and role tags — then **separately**
-> confirm a notification actually reaches a human inbox. An issue showing up in the Sentry
-> dashboard is not evidence anyone was told; that only happens once the alert rules above
-> exist and have been proven to fire.
+> test event on **EACH OF THE FOUR independently-wired event paths** — Next server/edge, the
+> Next browser bundle, `/m/` mobile (and separately the shipped APK), and the static website
+> — and confirm each arrives **symbolicated** (a readable stack, not a minified blob) carrying
+> the right **release**. Then **separately** confirm a notification actually reaches a human
+> inbox. An issue showing up in the Sentry dashboard is not evidence anyone was told; that
+> only happens once the alert rules above exist and have been proven to fire.
+> ⚠ **CORRECTED 2026-08-01 — this said "the three surfaces … carrying the right release and
+> role tags", and as written it could not be followed.** There are four separate inits, so
+> "three" lets a whole Next runtime go untested. And **role tags exist on `/m/` ONLY** — the
+> Next server/edge, Next browser and static-site paths attach no user context at all (the
+> static site carries only the coarse, path-derived `shape_surface` tag), so demanding role
+> tags on all of them made the check impossible to pass. Expect: release on all four, role
+> tags on mobile only. Wiring user context into the two web surfaces is a registered
+> follow-up — see the note further down this entry.
 >
 > **The `/m/` mobile build now emits hidden source maps** (`mobile-app/vite.config.ts`,
 > `sourcemap: 'hidden'`), reversing the earlier `sourcemap: false` decision — safe now for a
@@ -1548,8 +1557,12 @@ changelog whenever something ships.
   to catch it.
 
 - **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
-  organisation and **four projects** — Next.js / Capacitor / static-website browser are
-  different SDKs with different release streams. (2) Supply **eight** env vars: `SENTRY_DSN`,
+  organisation and **THREE projects** — `shape-web` (Next.js), `shape-mobile` (Capacitor),
+  `shape-site` (static website). ⚠ **CORRECTED 2026-08-01 — this said "four projects", my
+  error.** Four DSN *values*, three projects: `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are
+  the **same** project's DSN. Splitting them leaves one Next runtime unsymbolicated, because
+  `next.config.ts` uploads every Next artifact to the single `SENTRY_PROJECT`. See the
+  2026-08-01 entry. (2) Supply **eight** env vars: `SENTRY_DSN`,
   `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`, `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`,
   `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`, `SENTRY_AUTH_TOKEN`. ⚠ Without
   `SHAPE_SITE_SENTRY_DSN` the static website stays inert; without `SENTRY_PROJECT_MOBILE`
@@ -1572,11 +1585,15 @@ changelog whenever something ships.
   identical without the separate monitor.
 
 - ⚠ **Verification is required, not optional, before anyone calls this working.** Fire a real
-  test event on EACH of the three surfaces and confirm it arrives **symbolicated** (a readable
-  stack, not a minified blob), carrying the right release and role tags — then **separately**
-  confirm a notification actually reaches a human inbox. An issue showing up in the Sentry
-  dashboard is not evidence anyone was told; that only happens once the alert rules above
-  exist and have been proven to fire.
+  test event on **EACH OF THE FOUR independently-wired event paths** — Next server/edge, the
+  Next browser bundle, `/m/` mobile (and separately the shipped APK), and the static website —
+  and confirm each arrives **symbolicated** (a readable stack, not a minified blob) carrying
+  the right **release**; then **separately** confirm a notification actually reaches a human
+  inbox. An issue showing up in the Sentry dashboard is not evidence anyone was told; that
+  only happens once the alert rules above exist and have been proven to fire.
+  ⚠ **CORRECTED 2026-08-01 — this said "three surfaces … release and role tags" and was
+  unfollowable:** four separate inits exist, and **role tags are on `/m/` ONLY** (the two web
+  paths and the static site attach no user context). Release on all four; role tags on mobile.
 
 - **The `/m/` mobile build now emits hidden source maps** (`mobile-app/vite.config.ts`,
   `sourcemap: 'hidden'`), reversing the earlier `sourcemap: false` decision — safe now for a
@@ -1898,8 +1915,9 @@ changelog whenever something ships.
   by design. The sentence conflated "the code exists" with "the account was created" — and it
   sat in the OWNER-ACTIONS-OUTSTANDING list, the one place someone reads to learn what is
   left, so it would have talked the owner out of the single step every other step depends on.
-  **Creating the org + the four projects is STILL OWNER WORK and has not started.** Until it
+  **Creating the org + the THREE projects is STILL OWNER WORK and has not started.** Until it
   is done, plus the eight env vars, a redeploy and both alert rules, nothing notifies a human.
+  (⚠ This said "four projects" — corrected 2026-08-01; four DSN values, three projects.)
 
 ### 2026-07-31 — Chat composer sits flush on the tab bar (stale 8px offset ×3)
 
