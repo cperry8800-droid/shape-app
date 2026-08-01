@@ -58,7 +58,7 @@ async function loadModule(reactImpl = React) {
   // `import.meta.env` is Vite's, injected at build; substitute it the same way
   // the bundler does so asset URLs resolve instead of being a syntax error in a
   // CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram, bsProMastRow };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -929,4 +929,33 @@ test('adjust: the override needs a reason, and sends it as the acknowledgment', 
     reasonCode: 'coach_override',
     reasonText: 'Planned overreach before a deload.',
   });
+});
+
+// ── The masthead corner suppression flag ─────────────────────────────────────
+// This exists because the flag shipped IGNORED. `bsProMastRow` destructured
+// `corners` and its body passed `bsProCorner()` unconditionally, so seven
+// surfaces that asked for no corners — including the coach draft editors, whose
+// whole reason for asking is that the self avatar unmounts them and discards an
+// unsaved plan — kept rendering the avatar. Nothing caught it: `BSMastRow` is a
+// window global this harness never stubbed, so `bsProMastRow` hit its
+// `if (!MastRow) return null` guard in every existing test and the trailing
+// cluster was never in the markup to check.
+//
+// Asserting on the ELEMENT rather than rendered markup is deliberate — it is the
+// invariant itself (what gets handed to the row), and it does not depend on
+// BSProAvatarButton's hooks resolving inside this harness.
+test('bsProMastRow honors corners:false — the flag is not decorative', () => {
+  const prev = globalThis.BSMastRow;
+  globalThis.BSMastRow = ({ trailing }) => React.createElement('div', null, trailing);
+  try {
+    const withCorners = MOD.bsProMastRow();
+    assert.ok(withCorners, 'renders a row when the chrome global is present');
+    assert.ok(withCorners.props.trailing, 'the default row carries the corner cluster');
+
+    const without = MOD.bsProMastRow({ corners: false });
+    assert.ok(without, 'still renders the row itself — only the corners are dropped');
+    assert.equal(without.props.trailing, null, 'corners:false must pass NO trailing cluster');
+  } finally {
+    globalThis.BSMastRow = prev;
+  }
 });

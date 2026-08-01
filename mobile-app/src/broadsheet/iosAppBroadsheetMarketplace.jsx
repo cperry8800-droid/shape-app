@@ -10,6 +10,11 @@ import { createPortal } from 'react-dom';
 
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
 const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSFooter, BSHalftone, useBS } = window;
+// The masthead's top inset — the chrome owns it (window-exported). The local
+// fallback mirrors the chrome's expression exactly so a load-order slip degrades
+// to the same geometry instead of silently reverting to a notch-blind flat 44.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
+
 import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
 import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
@@ -309,6 +314,34 @@ function mktRoleColor(c) {
 function mktShortLoc(loc) {
   const s = String(loc || '').trim();
   return s ? s.split(',')[0] : '';
+}
+
+// THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — "same format, same
+// size, no deviation"). The search circle + the member's own facet avatar, both
+// sized by BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the
+// three marketplace pages — the directory, THE LISTING, and the availability
+// calendar — cannot drift. Both constants are READ, never re-typed: the chrome
+// owns the values and the `|| 34` / `|| 9` fallbacks only cover load order.
+// Every window global is guarded the way the rest of this file guards them.
+function bsMktCorner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: (window.BS_CORNER_GAP || 9) }}>
+      {window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (window.BS_HEADER_AVATAR || 34) }) : null}
+      {window.BSFacetAvatar ? (
+        <window.BSFacetAvatar
+          size={(window.BS_HEADER_AVATAR || 34)}
+          c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
+          initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
+          name={(window.bsMyName && window.bsMyName()) || undefined}
+          photo={(window.bsMyPhoto && window.bsMyPhoto()) || undefined}
+          live={!!(window.bsAmLive && window.bsAmLive())}
+          activity={window.bsMyActivity && window.bsMyActivity()}
+          showRank={false}
+          onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 
@@ -875,27 +908,13 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     <BSPage>
       {/* Hero — standard masthead band (logo + Vol·No row at the 64px page
           buffer, tools on the right), matching BSPageHeader on every other page. */}
-      <div style={{ padding: `64px ${t.padX}px 0` }}>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{tr('marketplace:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {window.BSFacetAvatar ? (
-            <window.BSFacetAvatar
-              size={34}
-              c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
-              initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
-              name={(window.bsMyName && window.bsMyName()) || undefined}
-              photo={(window.bsMyPhoto && window.bsMyPhoto()) || undefined}
-              live={!!(window.bsAmLive && window.bsAmLive())}
-              activity={window.bsMyActivity && window.bsMyActivity()}
-              showRank={false}
-              onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
-            />
-          ) : null}
-          </div>
+          {bsMktCorner()}
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
         <div style={{ marginTop: 12 }}>
@@ -1760,7 +1779,17 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, onPick, onB
   const first = (coach.name || '').split(' ')[0];
   return (
     <BSPage>
-      <div style={{ padding: `max(14px, var(--bs-notch-floor, 0px)) ${t.padX}px 0` }}>
+      {/* The standing masthead row — same format, same size, no deviation
+          (owner ruling 2026-08-01). Back sits on its own row directly under it. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+        {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
+                this component's local state, while the nav descriptor stores only
+                marketRole and navResolve clears marketCoach; the self avatar
+                early-returns the shell into Settings and unmounts this page, so
+                back would land on a fresh directory rather than the listing the
+                member left. Passed literally, not behind a flag — a flag on this
+                row shipped ignored once already (see bsProMastRow). */}
+            {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null, style: { marginBottom: 12 } }) : null}
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theListing', { defaultValue: 'The listing' })}</button>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:cal.eyebrow', { defaultValue: 'The calendar' })} · {first}{demo ? ` · ${tr('marketplace:cal.preview', { defaultValue: 'Preview' })}` : ''}</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK }}>{tr('marketplace:cal.title1', { defaultValue: 'Open to' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('marketplace:cal.title2', { defaultValue: 'book.' })}</span></h1>
@@ -2183,8 +2212,18 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // set a cover, it renders scrimmed BEHIND the whole block; absent, the
         // block renders exactly as before (byte-identical — no wrapper).
         const header = (<>
-          {/* Back — floor the top so it clears the desktop-preview notch. */}
-          <div style={{ padding: `max(14px, var(--bs-notch-floor, 0px)) ${t.padX}px 0` }}>
+          {/* The standing masthead row opens the page (owner ruling 2026-08-01 —
+              same format, same size, no deviation); back keeps its own row
+              directly beneath it, flush left. */}
+          <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            {/* trailing: null — a DRILL-IN. The selected coach and the calendar live in
+                this component's local state, while the nav descriptor stores only
+                marketRole and navResolve clears marketCoach; the self avatar
+                early-returns the shell into Settings and unmounts this page, so
+                back would land on a fresh directory rather than the listing the
+                member left. Passed literally, not behind a flag — a flag on this
+                row shipped ignored once already (see bsProMastRow). */}
+            {window.BSMastRow ? React.createElement(window.BSMastRow, { trailing: null, style: { marginBottom: 12 } }) : null}
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0, minHeight: 24 }}>← {tr('marketplace:nav.theClassifieds', { defaultValue: 'The Classifieds' })}</button>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: roleColor }}>
               {no != null ? `${tr('marketplace:listing.listingNo', { defaultValue: 'Listing Nº {no}', no: String(no).padStart(2, '0') })} · ` : ''}{bsmRoleWord(tr, isNutriDetail)}{coach.verified ? ` · ${tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' })}` : ''}

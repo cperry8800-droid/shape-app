@@ -20,6 +20,15 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 
+// The masthead contract (owner ruling 2026-08-01) — one top inset + one corner
+// gap for every page, chrome-owned. Local fallbacks so a load-order slip can't
+// render "undefinedpx"; see iosAppBroadsheet.jsx's BS_MAST_TOP.
+const BS_MAST_TOP = (typeof window !== 'undefined' && window.BS_MAST_TOP) || 44;
+// Same inset as a CSS value — flat on device, floored to the preview's drawn
+// notch. See the chrome's declaration for why max() is uniform in both.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
+const BS_CORNER_GAP = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
+
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
 // doesn't depend on another file's copy or its load order.
@@ -279,10 +288,11 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
   return (
     <BSPage>
-      {/* ── Ledger header — mast row (46px inset, no corner cluster), then the
-          universal back row (← BACK left · THE QUEUE eyebrow right), serif
-          "Workout review." (heat italic), status meta. ── */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow(false)}</div>
+      {/* ── Ledger header — mast row (the standard inset), then the universal
+          back row (← BACK left · THE QUEUE eyebrow right), serif "Workout
+          review." (heat italic), status meta. corners: false — the review note
+          is a textarea that only lands on Save review note. ── */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <BSBackButton onClick={onBack} />
@@ -607,7 +617,17 @@ function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Up
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      {/* ⚠ corners: false — this is the ONE page in the app that no navigation
+          can survive, by an earlier deliberate decision: `navLoc()` has no
+          liveWatch branch and `navResolve` calls setLiveWatch(null), because
+          replaying a live session that may have ended would fabricate it. So a
+          round trip through EITHER corner (search, or the avatar's Settings hop)
+          returns through navBack to a location without liveWatch and closes the
+          monitor, taking any typed cue with it. Not a stacking or routing bug
+          this time — the page is intentionally ephemeral, so the row carries no
+          way to leave it but ✕ Close. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
+      <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: elapsed != null ? fmt(elapsed) : '—:—' })}
@@ -810,7 +830,8 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
-      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} />
+      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} trailing={creating ? null : bsProCorner()}
+      />
 
       {/* Verdict lead — the whole queue on one line, heat = role */}
       <div style={{ padding: `8px ${t.padX}px 0` }}>
@@ -944,7 +965,8 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         leftKicker={cfg.kicker}
         rightKicker={cfg.meta}
         onBack={onBack}
-      />
+      trailing={bsProCorner()}
+    />
       <BSSection title={cfg.title} meta={tr('coach:prq.actionQueue', { defaultValue: 'Action queue' })} />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
         {cfg.rows.map(([name, title, detail], i) => (
@@ -1235,7 +1257,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
-  const goSettings = () => { navPush(); setShowSettings(true); };
+  // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
+  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // local state, so an unconditional push recorded a duplicate location and ate
+  // the next back. BSSettings answers the same event by closing its pane.
+  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.
@@ -1323,13 +1349,33 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
-  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
-  if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
-  if (liveWatch) return <BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
+  // ⚠ Every early return has to carry the search takeover too — see the same
+  // note in the client shell. BSUniversalSearch is a SIBLING overlay driven by
+  // shell state, so a takeover that returns before the main render would set
+  // showSearch, paint nothing, and still push a nav entry the next back ate.
+  const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
+    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    : null;
+  // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
+  // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
+  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
+  // masthead (60), below the customizer (220) and search (230), and its own
+  // stacking context so Settings' sheets stack inside it.
+  const settingsOverlay = showSettings ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
+      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+    </div>
+  ) : null;
+  // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
+  // leaves its flag set, so that branch returns before the main render.
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
+  if (showSoundtracks) return takeover(<BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
+  if (showCalendar) return takeover(<BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
+  if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
+  if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
+  if (queueView) return takeover(<BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
+  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
@@ -1358,7 +1404,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
+      {settingsOverlay}
+      {searchOverlay}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -1618,7 +1665,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         noTopRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -2146,7 +2193,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           needs the standard 46px top / t.padX horizontal inset (BSPage provides
           no top padding) so it clears the notch + rounded corners — matches
           BSProActionHead / BSStShell; without it the masthead sat off-screen. */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
@@ -2800,16 +2847,44 @@ function bsProEnrolledRow(t, flash, e, i) {
 }
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + self avatar).
-function bsProMastRow(withCorners = true) {
+// The canonical corner cluster for pages whose header is BSMasthead/BSPageHeader
+// (those embed their own logo + Vol·No row and take the corner as ).
+function bsProCorner() {
+  const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+      {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size }) : null}
+      <BSProAvatarButton size={size} />
+    </span>
+  );
+}
+// The one masthead row for every coach page. The row itself is identical
+// everywhere; `corners` is the ONE documented exception, and it takes an options
+// object rather than a positional flag so a stray `.map()` index can never strip
+// the cluster by accident.
+//
+// ⚠ The two corner controls fail in DIFFERENT ways, so "search is safe" says
+// nothing about the avatar — an earlier revision of this comment claimed exactly
+// that and the draft editors shipped a data-loss path because of it:
+//   ⌕  opens a SIBLING overlay — the page under it stays mounted. (Every shell
+//      takeover renders that overlay too, so this holds on every page, not just
+//      the ones reached through the main return.)
+//   ◉  dispatches shape:openProSettings, and the shell answers by EARLY-RETURNING
+//      <BSSettings>. The whole tab tree unmounts, so any local React state is
+//      gone and back only restores {tab}.
+// Pass `corners: false` where the page holds unsaved input the avatar would
+// discard, or where an early return above `showSettings` makes both controls
+// unreachable (see BSStShell).
+function bsProMastRow({ corners = true } = {}) {
   const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
   if (!MastRow) return null;
-  const trailing = withCorners ? (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-      {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}
-      <BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} />
-    </span>
-  ) : null;
-  return <MastRow trailing={trailing} />;
+  // The corner cluster is bsProCorner()'s, so every page that goes through this
+  // helper shares one definition. ⚠ Not the whole file: BSProToday's masthead
+  // keeps its own inline cluster because it is genuinely different — it binds
+  // onClick={onProfile} rather than BSProAvatarButton's shape:openProSettings
+  // dispatch, and resolves tier/initials from different sources. Unifying it is
+  // a handler change, not a duplication cleanup, so it needs its own decision.
+  return <MastRow trailing={corners ? bsProCorner() : null} />;
 }
 // Action-page heat = the CLIENT's member tier (spec §2) — same resolution the
 // Case File uses (getUserPoints → bsTierForPoints → bsTierColor); role heat
@@ -2830,8 +2905,11 @@ function useBSProClientHeat(t, role, clientUid) {
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
-    <div style={{ paddingTop: 46 }}>
-      {bsProMastRow()}
+    <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
+      {/* corners: false — all three consumers (Adjust · Schedule · Assign) are
+          forms that commit on an explicit action, so the self avatar would
+          unmount an un-applied one. ← BACK is the way out. */}
+      {bsProMastRow({ corners: false })}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <BSBackButton onClick={onBack} />
@@ -4320,7 +4398,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </button>
   );
   const headerBlock = (
-    <div style={{ paddingTop: 46 }}>
+    <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
       {bsProMastRow()}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.INK50 }}>{headEyebrow}</div>
@@ -5245,7 +5323,11 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 28px` }}>
+      {/* corners: false — this editor holds the coach's unsaved draft in local
+          state, and the self avatar early-returns the shell into Settings, which
+          unmounts it. CANCEL is the way out of an editor. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{tr('coach:editor.editEyebrow', { defaultValue: 'EDIT · {type}', type: (typeName || '').toUpperCase() })}</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -5686,7 +5768,11 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     };
     return (
       <BSPage>
-        <div style={{ padding: `60px ${t.padX}px 28px` }}>
+        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
+            sit BELOW it (every page opens on the same row). corners: false —
+            this view holds an unsaved draft the self avatar would discard. */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
+        <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -5732,9 +5818,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
   return (
     <BSPage>
-      {/* §1.1 Header — mast row (46px inset, #1574 rule) + THE CATALOGUE eyebrow
+      {/* §1.1 Header — mast row (the standard inset, #1574 rule) + THE CATALOGUE eyebrow
           + serif "Your programs." (heat italic). */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -6239,7 +6325,11 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
   const navJumpRef = React.useRef({});
   const goRadio = () => { navPush(); setTab('radio'); };
-  const goSettings = () => { navPush(); setShowSettings(true); };
+  // ⚠ No nav entry when Settings is ALREADY open — see the client shell's note:
+  // the corner avatar fires this from inside Settings, whose drill-in pane is
+  // local state, so an unconditional push recorded a duplicate location and ate
+  // the next back. BSSettings answers the same event by closing its pane.
+  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.
@@ -6317,12 +6407,30 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
-  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
-  if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
+  // ⚠ Same rule as the trainer shell + the client shell: every early return
+  // carries the search takeover, or ⌕ is a dead control on that page.
+  const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
+    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    : null;
+  // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
+  // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
+  // corner avatar discarded unpublished plan drafts, the inline grocery form and
+  // pending notification toggles. zIndex 210: above the tab bar (55) and pinned
+  // masthead (60), below the customizer (220) and search (230), and its own
+  // stacking context so Settings' sheets stack inside it.
+  const settingsOverlay = showSettings ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
+      <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+    </div>
+  ) : null;
+  // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
+  // leaves its flag set, so that branch returns before the main render.
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
+  if (showSoundtracks) return takeover(<BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
+  if (showCalendar) return takeover(<BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
+  if (showReviews) return takeover(<BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
+  if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
+  if (queueView) return takeover(<BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} />,
@@ -6351,7 +6459,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
+      {settingsOverlay}
+      {searchOverlay}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -6576,7 +6685,11 @@ function BSNutriPlans() {
     };
     return (
       <BSPage>
-        <div style={{ padding: `60px ${t.padX}px 28px` }}>
+        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
+            sit BELOW it (every page opens on the same row). corners: false —
+            this view holds an unsaved draft the self avatar would discard. */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
+        <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
@@ -6627,9 +6740,9 @@ function BSNutriPlans() {
 
   return (
     <BSPage>
-      {/* §1.1 Header — mast row (46px inset) + THE CATALOGUE eyebrow
+      {/* §1.1 Header — mast row (the standard inset) + THE CATALOGUE eyebrow
           + serif "Your plans." (heat italic). */}
-      <div style={{ padding: `46px ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
           {tr('coach:plans.theCatalogue', { defaultValue: 'THE CATALOGUE' })} <span style={{ color: `${t.INK}80` }}>{catalogueStat}</span>
@@ -6794,9 +6907,23 @@ function bsEqGlyph(color) {
 // Soundtracks page shell — a full BSPage normally, or an inline fragment when
 // embedded inside the Plans page's Soundtracks tab (module-level so it's a
 // stable component type and inputs don't remount/lose focus on re-render).
-function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
+// topPad is a CSS length STRING and defaults to the one masthead inset — every
+// soundtracks page opens on the same row, so no caller overrides it.
+//
+// The shell RENDERS that row (rather than each branch doing it) because this
+// page has five of them — a library, two pickers, an import form and an assign
+// view — and only the library used to draw one, so the other four reserved the
+// masthead inset and then opened on a blank gap.
+//
+// ⚠ corners: false is structural here, not a preference. Both coach shells
+// early-return <BSProSoundtracks> ABOVE their `showSettings` return, so the
+// avatar's shape:openProSettings sets a flag that never renders — a dead
+// control that still pushes a nav entry the next back eats. (⌕ is fine now that
+// every takeover carries the search overlay; it is dropped with the rest of the
+// cluster rather than splitting the row into a third variant for one page.)
+function BSStShell({ embedded, t, children, footerL, footerR, topPad = BS_MAST_TOP_CSS }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
-  return <BSPage><div style={{ padding: `${topPad}px ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
+  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{bsProMastRow({ corners: false })}<div style={{ marginTop: 12 }}>{children}</div></div><BSFooter left={footerL} right={footerR} /></BSPage>;
 }
 // "Pick from your Spotify library" needs per-user OAuth, which is capped at 25
 // manually-allowlisted accounts until the Spotify app is approved for Extended
@@ -6940,7 +7067,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && picking) {
     const list = spotPlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourSpotifyFooter', { defaultValue: 'Your Spotify' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourSpotify', { defaultValue: 'FROM YOUR SPOTIFY' })}</div>
             <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -6971,7 +7098,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   if (importing && pickingApple) {
     const list = applePlaylists || [];
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.yourAppleFooter', { defaultValue: 'Your Apple Music' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.fromYourApple', { defaultValue: 'FROM YOUR APPLE MUSIC' })}</div>
             <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7006,7 +7133,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
       </div>
     );
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.newSoundtrackFooter', { defaultValue: 'New soundtrack' })} footerR={tr('coach:sound.libraryFooter', { defaultValue: 'Library' })}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7087,7 +7214,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     };
     const clients = BS_SOUNDTRACK_CLIENTS.filter(c => { const q = clientQuery.trim().toLowerCase(); return !q || c.name.toLowerCase().includes(q); });
     return (
-      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name} topPad={50}>
+      <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.assignFooter', { defaultValue: 'Assign' })} footerR={pl.name}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.assignSoundtrack', { defaultValue: 'ASSIGN SOUNDTRACK' })}</div>
             <button onClick={() => setAssignFor(null)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.backArrow', { defaultValue: '← BACK' })}</button>
@@ -7136,10 +7263,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     </div>
   );
   return (
-    <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })} topPad={46}>
+    <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })}>
         {!embedded && (<>
-        {bsProMastRow()}
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* The masthead row is BSStShell's — every branch of this page opens on
+            it, so drawing a second one here would double the row. */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>
         </div>
@@ -7468,8 +7596,6 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
   const authProfile = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().profile) || {};
   const displayName = (authProfile.full_name && String(authProfile.full_name).trim()) || name;
   // Custom avatar initials (edit-profile) win; else full (2-letter) initials.
-  const customInit = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.initials) ? String(window.ShapeIdentity.initials).trim().toUpperCase().slice(0, 2) : '';
-  const init = customInit || (displayName || 'S').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'S';
   const [showScore, setShowScore] = useStateBSP(false);
   const [showStore, setShowStore] = useStateBSP(false);
   const [showOfferEditor, setShowOfferEditor] = useStateBSP(false);
@@ -7520,9 +7646,10 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 0` }}>
-        {/* Own avatar already anchors this header's name row — logo-only masthead. */}
-        <div style={{ marginBottom: 14 }}>{bsProMastRow(false)}</div>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+        {/* The standing masthead row — the corners carry the self avatar, so the
+            name row below no longer repeats it. */}
+        <div style={{ marginBottom: 14 }}>{bsProMastRow()}</div>
         {onBack && (
           <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
         )}
@@ -7532,9 +7659,6 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
               <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
-          </div>
-          <div style={{ flexShrink: 0 }}>
-            <BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
           </div>
         </div>
       </div>
@@ -7751,6 +7875,7 @@ function BSProNotificationsPage({ onBack }) {
         kicker="Settings"
         title={<>Notifications.</>}
         onBack={onBack}
+        trailing={bsProCorner()}
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -7829,7 +7954,9 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
   );
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 28px` }}>
+      {/* corners: false — an edit sheet holding unsaved fields; CANCEL is the exit. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
+      <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT PRACTICE GOAL</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -8039,10 +8166,10 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 0` }}>
-        {/* Logo-only masthead, then the universal back row — ← BACK left,
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+        {/* The standing masthead row, then the universal back row — ← BACK left,
             Edit right (owner call 2026-07-14); the eyebrow gets its own line. */}
-        <div style={{ marginBottom: 12 }}>{bsProMastRow(false)}</div>
+        <div style={{ marginBottom: 12 }}>{bsProMastRow()}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <BSBackButton onClick={onBack} />
           <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', flexShrink: 0 }}>Edit</button>

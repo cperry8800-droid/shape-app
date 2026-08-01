@@ -1261,6 +1261,273 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-08-01 — The masthead contract: one row, one inset, every page
+
+- **Owner ruling** (with a screenshot of the chat page's masthead): *"please make sure this
+  exact top masthead is on very single page on app. same format, same size, no deviation."*
+  The row is the SHAPE triangles + `VOL. 1 · NO. 1` on the left, the circled search + the
+  member's own avatar on the right. It was on most pages, at nine different top insets, with
+  two logo sizes and two avatar sizes.
+
+- **The contract now lives in ONE place.** `iosAppBroadsheet.jsx` (the chrome) gained
+  **`BS_MAST_TOP = 44`** plus **`BS_MAST_TOP_CSS`**, both window-exported so the role modules
+  read them instead of re-typing a literal. `BSMasthead`, `BSPageHeader` and `BSDetailHeader`
+  all consume it, so the pages on the shared headers moved together; the hand-rolled rows
+  follow via `window.BS_MAST_TOP_CSS`. The old per-page insets
+  (14/42/44/46/48/50/54/58/60/62/64) are gone.
+
+- ⚠ **44 is not an arbitrary pick — it is the reference page's own value.** The owner's
+  screenshot was the chat page, and `BSClientFeed` already sat at `44px`. The contract was set
+  to match the page the ruling pointed at; the pages that move are the ones that had drifted
+  off it.
+
+- ⚠ **THE INSET IS AN EXPRESSION, AND MY FIRST TWO ANSWERS ABOUT IT WERE BOTH WRONG.**
+  Shipped value:
+  `BS_MAST_TOP_CSS = max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`.
+  - **Wrong once:** the first cut was a flat `44px`. It silently deleted two
+    `env(safe-area-inset-top) + 13px` declarations the PR's own diff removed from
+    `BSActivityDetail`, leaving two pages one tap apart disagreeing by up to 28px.
+  - **Wrong twice:** challenged on that, I claimed Capacitor's `ios: { contentInset: 'automatic' }`
+    insets the WebView so `env()` reads 0 and a flat 44 is correct. **It does not.**
+    `CAPBridgeViewController` does `view = webView` — the WebView **is** the root view, spanning
+    edge-to-edge under the notch — and `contentInset` only sets
+    `scrollView.contentInsetAdjustmentBehavior`, which under this app's `overflow:hidden` shell
+    degenerates to `.scrollableAxes` and applies no vertical inset at all. `index.html` ships
+    **`viewport-fit=cover`**, which is the decisive precondition: `env()` is live. Six broadsheet
+    files already depend on `env(safe-area-inset-top)`, including the pinned condensing masthead
+    on every page. A flat 44 starts the row's 34px circles at y=44 — **inside the Dynamic Island
+    pill (≈y 11–48)** on iPhone 14 Pro/15/16.
+  - **`N = 12` is borrowed, not invented:** the pinned condensing strip renders the same row in
+    the same slot at `12px + env(...)`, so matching N makes both clear the hardware by the same
+    margin. ⚠ They are *not* equal in total — the strip carries no 44px floor by design — and the
+    comment now says so, because the first draft of that comment claimed they "land identically",
+    which is only true once `env() ≥ 32px`.
+  - **The three terms:** `44px` is the floor for cutout-less Android (where `env()` reports the
+    display cutout, i.e. 0); the `env()` arm is device truth; `--bs-notch-floor` is set **only**
+    by the desktop phone-frame mock (46px) and native never sets it.
+  **Both reviewers flagged this independently, and both were right.** Two confident wrong answers
+  in a row on the same question is the durable lesson here, not the CSS.
+
+- **The row itself is normalized:** logo `size 16` everywhere (`BSMasthead` was 18), the corner
+  cluster gap is one constant (`BS_CORNER_GAP = 9`), and every self-avatar reads
+  `BS_HEADER_AVATAR` (34) — the calendar's was 32, Settings carried a duplicate 32 beside its
+  own row, and the follow-list sheet's was 30.
+
+- **Pages that had no row now have one** — sleep and strength history, the Settings hub *and
+  all ten of its drill-in panes*, Goals "The Contract", About, the profile customizer, the
+  marketplace **Listing** (the primary conversion page, which opened with no chrome), the coach
+  availability calendar, the coach live-watch console, The Splits, the Nora concierge profile,
+  the "Logged." confirmation, both coach AI-draft review pages, coach grocery lists, the widget
+  queue and coach notifications.
+
+- ⚠ **THE FINDING THAT MATTERED MOST — my own stated rationale was false, and the review
+  caught it.** Four stateful editors (the coach draft editor, the practice-goal editor, the
+  grocery builder, the PAR-Q intake) initially shipped the row **without** the trailing corners,
+  each with a long comment asserting that *"the search corner opens a takeover that unmounts
+  this page, discarding the unsaved draft"* — written as binding doctrine for future
+  maintainers. **It does not unmount.** `BSUniversalSearch` renders as a **sibling** of the tab
+  content (`{showSearch && <BSUniversalSearch/>}` — `iosAppBroadsheetClient.jsx:863`,
+  `iosAppBroadsheetPros.jsx:1373`), painting `position:absolute; inset:0` over a page that
+  stays mounted; local draft state survives. All four now carry the **full** row, the false
+  comments are deleted, and `bsProMastRow` **lost its `withCorners` parameter entirely** so the
+  corner-less variant cannot be reintroduced. The same review found the exception had already
+  been applied inconsistently — `BSWorkoutReviewPage` holds an unsaved coach note in a textarea
+  and had been given corners in the same PR. **A comment that states a mechanism is a claim,
+  and an unverified claim propagates further than the code it sits next to.**
+
+- ⚠ **`BS_DARK_GUTTER` was a second false premise, and it broke the density setting.** It was
+  introduced as "the fixed-dark surfaces never receive the theme, so they cannot read
+  `t.padX`" — but both profiles bind the theme, just under a different local name (`tTheme`).
+  Hardcoding 18 meant the profile masthead ignored Compact/Standard/Comfortable and sat 4px off
+  every other page on the default density, *and* off its own hero one line below it. Replaced
+  with a `bsGutter(theme)` helper reading the live value. The follow-list sheet genuinely had
+  no theme binding; it now takes one (it portals into the phone surface, and a portal keeps
+  React context).
+
+- ⚠ **One real behavioural change, called out rather than buried.** The Settings identity
+  avatar used to open the **edit-details form**; it is now the standard corner avatar and opens
+  the **profile page**, like every other page's. The `Edit` text button still opens the form,
+  so nothing is lost — but this PR is otherwise presentation-only and that one control changed
+  meaning.
+
+- ⚠ **The doing-surfaces keep `mast={false}`, and that is a prior ruling, not an oversight.**
+  The live session player, the meal logger, Cook Mode, the Prep board, the Prep session and the
+  video call are instruments — the chrome is deliberately absent while you are mid-set or
+  mid-cook (the Cockpit wave, #1719/#1720/#1721, and #1605). The pre-app gates (first-run
+  intent, language picker, the Shape Radio opt-in) and the launch/auth/application flow have
+  their own wire grammar. **These are the only surfaces in the app without the row.**
+
+- **Two render-crash bugs the gates caught before the first commit**, both mine, both from
+  reaching for `t.padX` inside a component that never receives the theme under that name: the
+  follow-list sheet and both Terrain-profile mastheads would have thrown `ReferenceError` on
+  render. Parse, `tsc`, the build and the suite were all green;
+  `tests/broadsheet-identifiers.test.mjs` named the three lines.
+
+- **A blind constant sweep coupled three unrelated layouts to the masthead.** `gap: 9` →
+  `gap: BS_CORNER_GAP` also caught the Train deck's program-meta row, the Score card's category
+  rows and the session's duration input — tuning the masthead corner gap would have moved all
+  three. Reverted to a literal; the six genuine corner clusters keep the constant.
+
+- **Review round (4 CodeRabbit + 2 Codex = 5 distinct findings, all real, all fixed).** Beyond
+  the safe-area correction above: **`BSDetailHeader`** — the shared sticky header behind ~31
+  pages — was still on a *numeric* inset, so the single biggest cohort in the app bypassed the
+  notch-aware contract entirely (flagged by **both** reviewers, and the one I most regret
+  missing); the **follow-list sheet** rendered the *profile owner's* avatar instead of yours;
+  the **profile customizer** inherited a frozen 18px gutter; and a **Major** on the corner gap
+  and corner-cluster markup being re-typed at six sites across four files — *the exact drift
+  class this PR exists to kill*, so the chrome now owns `BS_CORNER_GAP` and every module reads
+  it.
+
+- ⚠ **The fix for one finding introduced a worse bug, caught before it shipped.** Giving the
+  follow-list sheet the standard ⌕ corner produced a **dead control**: that sheet is portaled at
+  `zIndex 100000` while `BSUniversalSearch` roots at `230`, so the search takeover would have
+  opened **underneath it** — invisible, while still pushing a nav entry, so the next back would
+  silently eat the search instead of closing the sheet. It is documented in place with the
+  z-index reason so nobody "restores" it. **A contract applied without checking the stacking
+  context is a contract applied to a button that does nothing.**
+
+- ⚠ **That exception was applied to ONE of THREE qualifying surfaces, and review caught the
+  other two.** The same stacking trap holds for **`BSNoraProfile`** (zIndex 100000) and
+  **`BSSplitsPage`** (99992) — both got a search-bearing row in this sweep. Rather than patch
+  only the two that were named, the whole class was enumerated: of the **18** mast rows this PR
+  adds, exactly **three** sit above `BSUniversalSearch`'s 230 (the profile customizer, at 220,
+  is safely below it, and every other row renders in normal page flow). All three now omit the
+  ⌕: the two that render the shared corner take a new `search={false}` flag on `BSMeCorner`
+  (whose declaration carries the reason), and the follow-list sheet — which hand-rolls its own
+  row — keeps the omission it already had.
+  **Finding a defect twice in one PR means the fix was a patch, not a sweep — enumerate the
+  class the second time.**
+
+- ⚠ **A later round found the OTHER half of that same fix was inert.** Giving the follow-list
+  title an `aria-label` naming the profile owner was reported as shipped — but the label sat on a
+  plain `<span>`, whose implicit role is `generic`, and **a generic element is prohibited from
+  carrying an accessible name**, so the attribute is invalid and most assistive tech ignores it.
+  The accessibility fix did nothing. It also hard-coded "Followers", so on the **requests** sheet
+  it contradicted the visible "Follow requests". Replaced with screen-reader-only TEXT appended to
+  the real visible string, which fixes both at once — the label can no longer drift from what is
+  on screen, because it *is* what is on screen. **An ARIA attribute the platform is required to
+  ignore is not an accessibility fix; it is a comment that reads like one.**
+
+- ⚠ **THE COACH DRAFT EDITORS SHIPPED A SILENT DATA-LOSS PATH, AND THE CAUSE WAS A DOCTRINE
+  COMMENT I WROTE IN THIS PR.** After the dead-search round, `bsProMastRow` lost its
+  `withCorners` parameter behind a comment stating the corners are always safe *"(Search opens a
+  SIBLING overlay — the page under it stays mounted — so an editor's unsaved draft survives a
+  search and back.)"* Every clause of that is true, and the conclusion does not follow: it
+  reasons about **⌕** and then generalises to a cluster that also contains the **self avatar**,
+  which behaves in the opposite way. ⌕ paints a sibling; the avatar dispatches
+  `shape:openProSettings`, and the shell answers by **early-returning `<BSSettings>`** — the tab
+  tree unmounts, `useStateBSP` is plain `React.useState` with no persistence, and back only
+  restores `{tab: 'programs'}`. So the same sweep that gave three stateful editors a masthead
+  gave them a one-tap way to discard an unwritten plan, with nothing erroring. **A control
+  cluster is not one mechanism — clearing one control says nothing about the one beside it.**
+
+- **Enumerated the class instead of patching the three that were named.** `bsProMastRow` now
+  takes `{ corners }` — an options object, not a positional flag, so a stray `.map()` index can
+  never strip the cluster by accident — and **seven** surfaces omit it: the shared draft editor,
+  both AI-draft views, the shared `BSProActionHead` (which covers **Adjust · Schedule · Assign**
+  — three forms that commit on an explicit action), the workout-review page (its note lands only
+  on *Save review note*), the practice-goal edit sheet, and the soundtracks shell. Kept
+  everywhere else, including the roster (its only input is a search box) and the Case File (the
+  coach note there is read-only). The rule is now written at the helper: omit the corners where
+  the page holds input the avatar would discard, or where the controls cannot render at all.
+
+- ⚠ **On the soundtracks page BOTH corner controls were already dead, and that is structural.**
+  Each coach shell early-returns `<BSProSoundtracks>` **above** the `showSettings` return *and*
+  above the main return that hosts `{showSearch && <BSUniversalSearch/>}` — so from that page a
+  settings dispatch is always shadowed and search has nothing to paint into, while each tap still
+  pushes a nav entry the next back silently eats. The page also had **five** branches (library,
+  two pickers, an import form, an assign view) of which only the library drew a row, so the other
+  four reserved the masthead inset and opened on a blank gap. `BSStShell` now renders the row
+  once for every non-embedded branch, corner-less, with the precedence recorded in place.
+  **A row that reserves space for chrome it never draws is a layout bug; corners on a page that
+  cannot render their destinations are a dead control — this page had both.**
+
+- ⚠ **THIRD ROUND OF ONE CLASS — I enumerated it for the avatar and never for ⌕.** Having just
+  written that the two corner controls fail differently, I swept every page whose **avatar**
+  could eat unsaved work and did not sweep the pages whose **⌕** could not open. Review found
+  the calendar; the audit behind it found **~16**: `BSSettings` **and its ten drill-in panes**
+  (Contact · About · Pricing · Terms · Privacy · Data compliance · Code of conduct · Consumer
+  health · Subprocessors · Help), the shared calendar, the habits page, the coach action queue
+  and the live-watch console. Every one of them is reached through a shell **early return**,
+  and `{showSearch && <BSUniversalSearch/>}` lived only in the **main** return — so ⌕ set a
+  flag, painted nothing, and still pushed a nav entry the next back silently ate.
+  **A rule you have just written down is not a rule you have applied.**
+
+- **The fix makes the contract true instead of shrinking it.** Deleting ⌕ from sixteen
+  surfaces — effectively the entire Settings section — would have satisfied "no dead controls"
+  by defeating the ruling this PR exists to implement (*the same row on every page, no
+  deviation*). Instead each shell resolves **one** `searchOverlay` and every takeover renders
+  it (`takeover(el)` in the two coach shells; explicit in the client's three), so ⌕ now works
+  from all of them. The two **pre-app gates** deliberately do not get it — they carry no
+  masthead, so there is no ⌕ to press, and they must not be escapable before they are done.
+  **When a contract and an implementation disagree, check which one is wrong before deleting
+  from the contract.**
+
+- ⚠ **And it made one of this PR's own comments stale within the hour.** `BSStShell` justified
+  its corner-less row partly on ⌕ having nothing to paint into — true when written, false one
+  commit later. Corrected in place: the row stays corner-less because the coach shells
+  early-return Soundtracks **above** their `showSettings` return, so the **avatar** is still
+  dead there; ⌕ is dropped with the rest of the cluster rather than splitting the row into a
+  third variant for one page. Same lesson as the inert `aria-label` and the false search
+  doctrine, now three times in one PR: **a because-clause is a claim with a shelf life.**
+
+- ⚠ **ROUND FOUR — the sentence that carved out the exception was itself unchecked.** The
+  fix above exempted the two pre-app gates *"they carry no masthead, so there is no ⌕ to
+  press."* True of `BSIntentStep`. **False of `BSHealthIntake`**, which renders the row — so
+  the required PAR-Q gate shipped two inert controls that each still pushed a nav entry.
+  `BSHealthIntake` is dual-mode (the gate with no `onBack`, and Settings → Health profile with
+  one), so the corners now key off the discriminator the component already used for its own
+  eyebrow one line below. **Four rounds, four because-clauses that were wrong: the inert
+  `aria-label`, the search doctrine that cost a P1, the `BSStShell` note that went stale in an
+  hour, and this one. Writing the exception is where the error goes — the code gets reviewed,
+  the justification does not.**
+
+- **The class is now closed by construction rather than by enumeration**, which is the only
+  reason to believe round five is not coming. `searchOverlay` is resolved **above every early
+  return** in all three shells, so ⌕ cannot be dead on any takeover; the avatar can only be
+  dead on a page returned **above** `showSettings`, which is exactly two places — the client's
+  two gates (one has no corner, the other now omits it) and coach Soundtracks (already
+  corner-less). Both invariants are stated at the helper, so the next surface inherits them.
+  The separate round-2 case still stands on its own terms: three portalled surfaces sit above
+  `BSUniversalSearch`'s z-index 230, where search *renders* but paints underneath — a
+  stacking failure, not a routing one, and they keep `search={false}`.
+
+- ⚠ **THE WORST ONE: `corners` SHIPPED IGNORED, AND I REPORTED IT FIXED TWICE.**
+  `bsProMastRow({ corners = true } = {})` destructured the flag and its body returned
+  `<MastRow trailing={bsProCorner()} />` **unconditionally**. So the entire corner-less sweep —
+  seven surfaces, including the coach draft editors whose *whole reason* for asking is that the
+  self avatar unmounts them and discards an unsaved plan — **did nothing**, through two rounds
+  of review, a table in the PR body, and a WORKLOG entry describing it as done. I had "read the
+  diff back" as the rule says, and read the **call sites**: seven `{ corners: false }`, all
+  present, all correct. I never read the function they call. **Verifying a fix means verifying
+  the mechanism, not the invocation — a flag is two halves and the half you wrote last is not
+  the half that fails.**
+
+- **Nothing could have caught it, which is the second half of the lesson.** `BSMastRow` is a
+  window global the mount harness never stubbed, so `bsProMastRow` hit its
+  `if (!MastRow) return null` guard in *every* existing test and the trailing cluster was never
+  in the markup to assert on. A green suite was evidence about the harness, not the code.
+  `tests/broadsheet-render.test.mjs` now asserts both directions on the returned **element**
+  (`props.trailing` null vs not) — chosen over rendered markup because it is the invariant
+  itself and does not depend on `BSProAvatarButton`'s hooks resolving in-harness. **Mutation-
+  checked: reintroducing `trailing={bsProCorner()}` fails it, restoring the fix passes.** Suite
+  **1395**.
+
+- **Audited the class the bug belongs to — "flag accepted, never read" — across the whole PR.**
+  Every other conditional this work relies on genuinely consumes its flag: `BSMeCorner`'s
+  `search`, `BSDetailHeader`'s `noCorner` *and* its `trailing`, and `bsRadioCorner`'s `bg`.
+  `corners` was the only one. The two marketplace drill-ins fixed in the same commit
+  (`BSCoachDetailPublic`, `BSCoachAvailabilityCalendar` — the selected coach and calendar are
+  local state, the nav descriptor keeps only `marketRole`, so the avatar's Settings hop returns
+  the member to a fresh directory) therefore pass `trailing: null` **literally rather than
+  behind a flag**: on this row, a flag has already shipped ignored once.
+
+- Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
+  · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
+  1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in
+  the emitted bundle. Open: the OWNER on-device pass — the row's inset under a real notch,
+  across papers, on both roles.
+
 ### 2026-07-31 — Error tracking Layer 2: the guardrail-health cron (`51e0bbc05` · `2004209ef` · `8e61f4687` · `810110fdc` · `46dc67be0` · `47729fe8b` · `3b51f7271` · `943eafb43` · `af3b8f6ac` · `cd78f5fb3` · `a47ea3059`, branch `claude/error-tracking-layer2`, not yet merged)
 
 - **A daily scheduled check over `analytics_events`, at `/api/cron/guardrail-health`, 09:00

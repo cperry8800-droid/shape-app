@@ -164,3 +164,71 @@ test('broadsheet gate: the JSX resolver flags what it should, and only that', ()
   assert.deepEqual(scan('const A = ({ Cmp }) => <Cmp />;'), [], 'destructured prop component');
   assert.deepEqual(scan('const A = () => <svg:rect />;'), [], 'namespaced name is not a binding');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BSSettings: the corner avatar must reach the Settings ROOT from every takeover.
+//
+// WHY THIS EXISTS: the avatar routes to the Settings root by clearing whatever is
+// selected above it. `detail` is one selector; the ~26 `showX` flags are the
+// others, each with its own early return. The first fix cleared only `detail`, so
+// on Notifications, About, Score — 24 more — the avatar stayed a no-op that still
+// burned a back. Enumerating the flags fixes today; this fixes tomorrow, because
+// the reset list and the early-return switch are two halves of one contract and
+// nothing else notices when they drift. A new pane whose flag is not reset here
+// fails this test instead of shipping another dead corner.
+function bsSettingsFlagContract(ast) {
+  let fn = null;
+  traverse(ast, {
+    FunctionDeclaration(p) { if (p.node.id?.name === 'BSSettings') fn = p; },
+  });
+  if (!fn) return null;
+
+  // Flags that GATE the root: `if (showX) { return … }` at the function's top level.
+  const gating = new Set();
+  for (const stmt of fn.node.body.body) {
+    if (stmt.type !== 'IfStatement' || stmt.test.type !== 'Identifier') continue;
+    if (!/^show[A-Z]/.test(stmt.test.name)) continue;
+    const body = stmt.consequent;
+    const returns = body.type === 'ReturnStatement'
+      || (body.type === 'BlockStatement' && body.body.some((s) => s.type === 'ReturnStatement'));
+    if (returns) gating.add(stmt.test.name);
+  }
+
+  // Setters the shape:openProfile handler calls.
+  const reset = new Set();
+  fn.traverse({
+    CallExpression(p) {
+      const callee = p.node.callee;
+      if (callee.type !== 'Identifier' || !/^setShow[A-Z]/.test(callee.name)) return;
+      // Only count calls inside the listener registered for shape:openProfile.
+      const eff = p.findParent((x) => x.isCallExpression()
+        && x.node.callee.type === 'MemberExpression'
+        && x.node.callee.property?.name === 'useEffect');
+      if (!eff) return;
+      // Identify the effect by its own AST, not getSource() — these ASTs are
+      // parsed without the source attached, so getSource() returns ''.
+      let isProfileListener = false;
+      eff.traverse({ StringLiteral(s) { if (s.node.value === 'shape:openProfile') isProfileListener = true; } });
+      if (!isProfileListener) return;
+      reset.add(callee.name);
+    },
+  });
+
+  return { gating, reset };
+}
+
+test('BSSettings: every takeover flag that hides the root is cleared on shape:openProfile', () => {
+  const ast = asts.get('iosAppBroadsheetClient.jsx');
+  assert.ok(ast, 'client module parsed');
+  const contract = bsSettingsFlagContract(ast);
+  assert.ok(contract, 'BSSettings found');
+  assert.ok(contract.gating.size >= 20, `expected the full pane switch, saw ${contract.gating.size}`);
+
+  const missing = [...contract.gating]
+    .map((flag) => `set${flag[0].toUpperCase()}${flag.slice(1)}`)
+    .filter((setter) => !contract.reset.has(setter))
+    .sort();
+
+  assert.deepEqual(missing, [],
+    'a Settings pane early-returns above the root but its flag is never reset — the corner avatar is a dead control on that pane, and still burns a back');
+});
