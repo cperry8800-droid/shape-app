@@ -29,6 +29,23 @@
 // drop-in replacement at any call site: `client.rpc(name, args)` becomes
 // `callRpc(client, name, args)` and nothing else about the caller's code needs
 // to change.
+//
+// ⚠ DEFAULT IMPORT, NOT `import * as Sentry` — DO NOT "TIDY" THIS.
+// Under Node's native ESM loader, `import * as Sentry from '@sentry/nextjs'`
+// comes back with `captureException` and `captureMessage` UNDEFINED: the SDK is
+// CJS, and cjs-module-lexer only statically detects a subset of its exports
+// (`init` and `default` resolve; the capture functions do not). Verified
+// empirically on this repo's Node (v24.14.1). The default import carries the
+// full SDK under BOTH `node --test` and Next's bundler, so it is the only form
+// that works everywhere this module runs.
+//
+// This matters because the sibling file `src/app/api/cron/guardrail-health/
+// route.ts` legitimately uses `import * as Sentry` — that one only ever runs
+// through Next's bundler, where the namespace form is fine. Harmonizing the two
+// files on the namespace style would silently break reporting here, with no
+// error and no test failure: `Sentry.captureException` would just be undefined
+// inside a try/catch that swallows the resulting TypeError. The wrapper would
+// go on returning results perfectly while reporting nothing at all.
 import Sentry from '@sentry/nextjs';
 
 /**
