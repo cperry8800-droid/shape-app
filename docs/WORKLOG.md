@@ -1408,6 +1408,40 @@ changelog whenever something ships.
   on screen, because it *is* what is on screen. **An ARIA attribute the platform is required to
   ignore is not an accessibility fix; it is a comment that reads like one.**
 
+- ⚠ **THE COACH DRAFT EDITORS SHIPPED A SILENT DATA-LOSS PATH, AND THE CAUSE WAS A DOCTRINE
+  COMMENT I WROTE IN THIS PR.** After the dead-search round, `bsProMastRow` lost its
+  `withCorners` parameter behind a comment stating the corners are always safe *"(Search opens a
+  SIBLING overlay — the page under it stays mounted — so an editor's unsaved draft survives a
+  search and back.)"* Every clause of that is true, and the conclusion does not follow: it
+  reasons about **⌕** and then generalises to a cluster that also contains the **self avatar**,
+  which behaves in the opposite way. ⌕ paints a sibling; the avatar dispatches
+  `shape:openProSettings`, and the shell answers by **early-returning `<BSSettings>`** — the tab
+  tree unmounts, `useStateBSP` is plain `React.useState` with no persistence, and back only
+  restores `{tab: 'programs'}`. So the same sweep that gave three stateful editors a masthead
+  gave them a one-tap way to discard an unwritten plan, with nothing erroring. **A control
+  cluster is not one mechanism — clearing one control says nothing about the one beside it.**
+
+- **Enumerated the class instead of patching the three that were named.** `bsProMastRow` now
+  takes `{ corners }` — an options object, not a positional flag, so a stray `.map()` index can
+  never strip the cluster by accident — and **seven** surfaces omit it: the shared draft editor,
+  both AI-draft views, the shared `BSProActionHead` (which covers **Adjust · Schedule · Assign**
+  — three forms that commit on an explicit action), the workout-review page (its note lands only
+  on *Save review note*), the practice-goal edit sheet, and the soundtracks shell. Kept
+  everywhere else, including the roster (its only input is a search box) and the Case File (the
+  coach note there is read-only). The rule is now written at the helper: omit the corners where
+  the page holds input the avatar would discard, or where the controls cannot render at all.
+
+- ⚠ **On the soundtracks page BOTH corner controls were already dead, and that is structural.**
+  Each coach shell early-returns `<BSProSoundtracks>` **above** the `showSettings` return *and*
+  above the main return that hosts `{showSearch && <BSUniversalSearch/>}` — so from that page a
+  settings dispatch is always shadowed and search has nothing to paint into, while each tap still
+  pushes a nav entry the next back silently eats. The page also had **five** branches (library,
+  two pickers, an import form, an assign view) of which only the library drew a row, so the other
+  four reserved the masthead inset and opened on a blank gap. `BSStShell` now renders the row
+  once for every non-embedded branch, corner-less, with the precedence recorded in place.
+  **A row that reserves space for chrome it never draws is a layout bug; corners on a page that
+  cannot render their destinations are a dead control — this page had both.**
+
 - Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
   · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
   1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in

@@ -288,10 +288,11 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
   return (
     <BSPage>
-      {/* ── Ledger header — mast row (the standard inset + corners), then the
-          universal back row (← BACK left · THE QUEUE eyebrow right), serif
-          "Workout review." (heat italic), status meta. ── */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      {/* ── Ledger header — mast row (the standard inset), then the universal
+          back row (← BACK left · THE QUEUE eyebrow right), serif "Workout
+          review." (heat italic), status meta. corners: false — the review note
+          is a textarea that only lands on Save review note. ── */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <BSBackButton onClick={onBack} />
@@ -2826,11 +2827,23 @@ function bsProCorner() {
     </span>
   );
 }
-// The one masthead row for every coach page. It takes no "without corners"
-// option on purpose: the contract is that the row is identical everywhere, and
-// the corners are part of it. (Search opens a SIBLING overlay — the page under
-// it stays mounted — so an editor's unsaved draft survives a search and back.)
-function bsProMastRow() {
+// The one masthead row for every coach page. The row itself is identical
+// everywhere; `corners` is the ONE documented exception, and it takes an options
+// object rather than a positional flag so a stray `.map()` index can never strip
+// the cluster by accident.
+//
+// ⚠ The two corner controls fail in DIFFERENT ways, so "search is safe" says
+// nothing about the avatar — an earlier revision of this comment claimed exactly
+// that and the draft editors shipped a data-loss path because of it:
+//   ⌕  opens a SIBLING overlay (`{showSearch && <BSUniversalSearch/>}` in each
+//      shell's main return) — the page under it stays mounted.
+//   ◉  dispatches shape:openProSettings, and the shell answers by EARLY-RETURNING
+//      <BSSettings>. The whole tab tree unmounts, so any local React state is
+//      gone and back only restores {tab}.
+// Pass `corners: false` where the page holds unsaved input the avatar would
+// discard, or where an early return above `showSettings` makes both controls
+// unreachable (see BSStShell).
+function bsProMastRow({ corners = true } = {}) {
   const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
   if (!MastRow) return null;
   // The corner cluster is bsProCorner()'s, so every page that goes through this
@@ -2861,7 +2874,10 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
     <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
-      {bsProMastRow()}
+      {/* corners: false — all three consumers (Adjust · Schedule · Assign) are
+          forms that commit on an explicit action, so the self avatar would
+          unmount an un-applied one. ← BACK is the way out. */}
+      {bsProMastRow({ corners: false })}
       {/* Universal back row — ← BACK left, eyebrow right (owner call 2026-07-14). */}
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <BSBackButton onClick={onBack} />
@@ -5275,7 +5291,10 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      {/* corners: false — this editor holds the coach's unsaved draft in local
+          state, and the self avatar early-returns the shell into Settings, which
+          unmounts it. CANCEL is the way out of an editor. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{tr('coach:editor.editEyebrow', { defaultValue: 'EDIT · {type}', type: (typeName || '').toUpperCase() })}</div>
@@ -5718,8 +5737,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     return (
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
-            sit BELOW it (every page opens on the same row). */}
-        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+            sit BELOW it (every page opens on the same row). corners: false —
+            this view holds an unsaved draft the self avatar would discard. */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
@@ -6611,8 +6631,9 @@ function BSNutriPlans() {
     return (
       <BSPage>
         {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
-            sit BELOW it (every page opens on the same row). */}
-        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+            sit BELOW it (every page opens on the same row). corners: false —
+            this view holds an unsaved draft the self avatar would discard. */}
+        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
         <div style={{ padding: `12px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
@@ -6833,9 +6854,20 @@ function bsEqGlyph(color) {
 // stable component type and inputs don't remount/lose focus on re-render).
 // topPad is a CSS length STRING and defaults to the one masthead inset — every
 // soundtracks page opens on the same row, so no caller overrides it.
+//
+// The shell RENDERS that row (rather than each branch doing it) because this
+// page has five of them — a library, two pickers, an import form and an assign
+// view — and only the library used to draw one, so the other four reserved the
+// masthead inset and then opened on a blank gap.
+//
+// ⚠ corners: false is structural here, not a preference. Both coach shells
+// early-return <BSProSoundtracks> ABOVE the `showSettings` return AND above the
+// main return that hosts the search overlay, so from this page the avatar's
+// shape:openProSettings can never render and ⌕ has nothing to paint into —
+// both would be dead controls that still push a nav entry.
 function BSStShell({ embedded, t, children, footerL, footerR, topPad = BS_MAST_TOP_CSS }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
-  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{children}</div><BSFooter left={footerL} right={footerR} /></BSPage>;
+  return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{bsProMastRow({ corners: false })}<div style={{ marginTop: 12 }}>{children}</div></div><BSFooter left={footerL} right={footerR} /></BSPage>;
 }
 // "Pick from your Spotify library" needs per-user OAuth, which is capped at 25
 // manually-allowlisted accounts until the Spotify app is approved for Extended
@@ -7177,8 +7209,9 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   return (
     <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })}>
         {!embedded && (<>
-        {bsProMastRow()}
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* The masthead row is BSStShell's — every branch of this page opens on
+            it, so drawing a second one here would double the row. */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>
         </div>
@@ -7865,7 +7898,8 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
   );
   return (
     <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      {/* corners: false — an edit sheet holding unsaved fields; CANCEL is the exit. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT PRACTICE GOAL</div>
