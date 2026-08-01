@@ -1442,6 +1442,35 @@ changelog whenever something ships.
   **A row that reserves space for chrome it never draws is a layout bug; corners on a page that
   cannot render their destinations are a dead control — this page had both.**
 
+- ⚠ **THIRD ROUND OF ONE CLASS — I enumerated it for the avatar and never for ⌕.** Having just
+  written that the two corner controls fail differently, I swept every page whose **avatar**
+  could eat unsaved work and did not sweep the pages whose **⌕** could not open. Review found
+  the calendar; the audit behind it found **~16**: `BSSettings` **and its ten drill-in panes**
+  (Contact · About · Pricing · Terms · Privacy · Data compliance · Code of conduct · Consumer
+  health · Subprocessors · Help), the shared calendar, the habits page, the coach action queue
+  and the live-watch console. Every one of them is reached through a shell **early return**,
+  and `{showSearch && <BSUniversalSearch/>}` lived only in the **main** return — so ⌕ set a
+  flag, painted nothing, and still pushed a nav entry the next back silently ate.
+  **A rule you have just written down is not a rule you have applied.**
+
+- **The fix makes the contract true instead of shrinking it.** Deleting ⌕ from sixteen
+  surfaces — effectively the entire Settings section — would have satisfied "no dead controls"
+  by defeating the ruling this PR exists to implement (*the same row on every page, no
+  deviation*). Instead each shell resolves **one** `searchOverlay` and every takeover renders
+  it (`takeover(el)` in the two coach shells; explicit in the client's three), so ⌕ now works
+  from all of them. The two **pre-app gates** deliberately do not get it — they carry no
+  masthead, so there is no ⌕ to press, and they must not be escapable before they are done.
+  **When a contract and an implementation disagree, check which one is wrong before deleting
+  from the contract.**
+
+- ⚠ **And it made one of this PR's own comments stale within the hour.** `BSStShell` justified
+  its corner-less row partly on ⌕ having nothing to paint into — true when written, false one
+  commit later. Corrected in place: the row stays corner-less because the coach shells
+  early-return Soundtracks **above** their `showSettings` return, so the **avatar** is still
+  dead there; ⌕ is dropped with the rest of the cluster rather than splitting the row into a
+  third variant for one page. Same lesson as the inert `aria-label` and the false search
+  doctrine, now three times in one PR: **a because-clause is a claim with a shelf life.**
+
 - Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
   · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
   1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in

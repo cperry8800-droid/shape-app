@@ -805,6 +805,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => { on = false; clearTimeout(tid); };
   }, []);
 
+  // ⚠ The search takeover has to be rendered by EVERY branch that returns early,
+  // not just the main one. `showSearch` is shell state and BSUniversalSearch is a
+  // sibling overlay — so a page reached through one of the early returns below
+  // would set the flag, render nothing, and still push a nav entry the next back
+  // silently ate. That is ~16 surfaces (Settings + its ten drill-in panes, the
+  // calendar, habits, the coach queue and live-watch), i.e. the whole Settings
+  // section — deleting their ⌕ instead would defeat the contract this PR exists
+  // to establish. One overlay, referenced by every return, keeps it working.
+  const searchOverlay = showSearch ? <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} /> : null;
+  // The two pre-app gates deliberately do NOT get it: they carry no masthead, so
+  // there is no ⌕ to press, and they must not be escapable before they are done.
   if (intentGate === 'needed') {
     return <BSIntentStep onDone={() => setIntentGate('ok')} />;
   }
@@ -813,13 +824,16 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }
   if (showSettings) {
     return (
-      <BSSettings
-        initialPage={settingsStart}
-        onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
-        onLogout={onLogout}
-        tweaks={tweaks}
-        setTweak={setTweak}
-      />
+      <>
+        <BSSettings
+          initialPage={settingsStart}
+          onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
+          onLogout={onLogout}
+          tweaks={tweaks}
+          setTweak={setTweak}
+        />
+        {searchOverlay}
+      </>
     );
   }
   if (showCalendar) {
@@ -827,6 +841,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
+        {searchOverlay}
       </div>
     );
   }
@@ -835,6 +850,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div style={{ position: 'absolute', inset: 0 }}>
         <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
+        {searchOverlay}
       </div>
     );
   }
@@ -879,7 +895,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         ]}
       />
       <BSRadioPrompt />
-      {showSearch && <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} />}
+      {searchOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>

@@ -1339,13 +1339,21 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
-  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
-  if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
-  if (liveWatch) return <BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />;
+  // ⚠ Every early return has to carry the search takeover too — see the same
+  // note in the client shell. BSUniversalSearch is a SIBLING overlay driven by
+  // shell state, so a takeover that returns before the main render would set
+  // showSearch, paint nothing, and still push a nav entry the next back ate.
+  const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
+    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    : null;
+  const takeover = (el) => (<>{el}{searchOverlay}</>);
+  if (showSoundtracks) return takeover(<BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
+  if (showSettings) return takeover(<BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />);
+  if (showCalendar) return takeover(<BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
+  if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
+  if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
+  if (queueView) return takeover(<BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
+  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
@@ -1374,7 +1382,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
+      {searchOverlay}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -2835,8 +2843,9 @@ function bsProCorner() {
 // ⚠ The two corner controls fail in DIFFERENT ways, so "search is safe" says
 // nothing about the avatar — an earlier revision of this comment claimed exactly
 // that and the draft editors shipped a data-loss path because of it:
-//   ⌕  opens a SIBLING overlay (`{showSearch && <BSUniversalSearch/>}` in each
-//      shell's main return) — the page under it stays mounted.
+//   ⌕  opens a SIBLING overlay — the page under it stays mounted. (Every shell
+//      takeover renders that overlay too, so this holds on every page, not just
+//      the ones reached through the main return.)
 //   ◉  dispatches shape:openProSettings, and the shell answers by EARLY-RETURNING
 //      <BSSettings>. The whole tab tree unmounts, so any local React state is
 //      gone and back only restores {tab}.
@@ -6371,12 +6380,18 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proSoundtracks', onSound);
     return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />;
-  if (showSettings) return <BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />;
-  if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />;
-  if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
-  if (queueView) return <BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />;
+  // ⚠ Same rule as the trainer shell + the client shell: every early return
+  // carries the search takeover, or ⌕ is a dead control on that page.
+  const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
+    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    : null;
+  const takeover = (el) => (<>{el}{searchOverlay}</>);
+  if (showSoundtracks) return takeover(<BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
+  if (showSettings) return takeover(<BSSettings initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />);
+  if (showCalendar) return takeover(<BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
+  if (showReviews) return takeover(<BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
+  if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
+  if (queueView) return takeover(<BSProWidgetQueuePage role="nutritionist" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} />,
@@ -6405,7 +6420,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: tr('coach:nav.me', { defaultValue: 'Me' }) },
       ]} />
       <BSRadioPrompt />
-      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } }) : null}
+      {searchOverlay}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -6861,10 +6876,11 @@ function bsEqGlyph(color) {
 // masthead inset and then opened on a blank gap.
 //
 // ⚠ corners: false is structural here, not a preference. Both coach shells
-// early-return <BSProSoundtracks> ABOVE the `showSettings` return AND above the
-// main return that hosts the search overlay, so from this page the avatar's
-// shape:openProSettings can never render and ⌕ has nothing to paint into —
-// both would be dead controls that still push a nav entry.
+// early-return <BSProSoundtracks> ABOVE their `showSettings` return, so the
+// avatar's shape:openProSettings sets a flag that never renders — a dead
+// control that still pushes a nav entry the next back eats. (⌕ is fine now that
+// every takeover carries the search overlay; it is dropped with the rest of the
+// cluster rather than splitting the row into a third variant for one page.)
 function BSStShell({ embedded, t, children, footerL, footerR, topPad = BS_MAST_TOP_CSS }) {
   if (embedded) return <div style={{ padding: '4px 0 24px' }}>{children}</div>;
   return <BSPage><div style={{ padding: `${topPad} ${t.padX}px 28px` }}>{bsProMastRow({ corners: false })}<div style={{ marginTop: 12 }}>{children}</div></div><BSFooter left={footerL} right={footerR} /></BSPage>;
