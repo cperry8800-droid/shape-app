@@ -34,19 +34,36 @@ function rolesOf(profile) {
  *
  * ⚠ Returns null rather than a partial object when there is no id: a user context
  * without an identifier groups unrelated people together, which is worse than none.
+ *
+ * ⚠ Never throws. This runs while Sentry is building an error report for a DIFFERENT
+ * crash — a throw here would replace that original error with a stack trace pointing
+ * at this file, which is the exact failure this whole tracking layer exists to avoid.
+ * A throwing getter or a `get`-trapping Proxy anywhere on `profile` (id, roles, an
+ * array element read during the filter/sort/join) is caught and treated as "no usable
+ * context" — deliberately swallowed, not re-raised, and not a sign the caller is
+ * broken. Coverage for exactly this is in the test file (throwing getters + a
+ * get-trapping Proxy), so a real bug in the derivation itself still shows up in CI —
+ * this catch does not make the module untestable, it makes it total.
  */
 export function bsSentryUser(profile) {
-  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return null;
-  const id = typeof profile.id === 'string' && profile.id ? profile.id : null;
-  if (!id) return null;
+  try {
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return null;
+    const id = typeof profile.id === 'string' && profile.id ? profile.id : null;
+    if (!id) return null;
 
-  const roles = rolesOf(profile);
-  return {
-    id,
-    roles: roles.join(','),
-    // The common filter. `roles` keeps the detail; this keeps the query short.
-    is_coach: roles.some((r) => isCoachRole(r)),
-  };
+    const roles = rolesOf(profile);
+    // Built in one expression: if deriving `is_coach` throws after `roles` already
+    // resolved, the throw propagates out of this `return` and is caught below — there
+    // is no code path that returns a partial object with a defaulted `is_coach`.
+    return {
+      id,
+      roles: roles.join(','),
+      // The common filter. `roles` keeps the detail; this keeps the query short.
+      is_coach: roles.some((r) => isCoachRole(r)),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -55,9 +72,17 @@ export function bsSentryUser(profile) {
  *
  * ⚠ Returns undefined rather than a placeholder when unknown. A fabricated release
  * silently merges every unversioned deploy into one bucket.
+ *
+ * ⚠ Never throws, same reasoning as `bsSentryUser` above. A throwing getter on
+ * `SHAPE_RELEASE`/`VERCEL_GIT_COMMIT_SHA` is caught and reads as "no release" rather
+ * than crashing the caller mid error-report.
  */
 export function bsSentryRelease(env) {
-  const e = env && typeof env === 'object' ? env : {};
-  const v = e.SHAPE_RELEASE || e.VERCEL_GIT_COMMIT_SHA || '';
-  return typeof v === 'string' && v ? v : undefined;
+  try {
+    const e = env && typeof env === 'object' ? env : {};
+    const v = e.SHAPE_RELEASE || e.VERCEL_GIT_COMMIT_SHA || '';
+    return typeof v === 'string' && v ? v : undefined;
+  } catch {
+    return undefined;
+  }
 }

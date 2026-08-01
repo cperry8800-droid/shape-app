@@ -63,3 +63,47 @@ test('release prefers the explicit var, then the Vercel SHA, else undefined', ()
   assert.equal(bsSentryRelease({}), undefined, 'undefined, never a fake value');
   assert.equal(bsSentryRelease({ VERCEL_GIT_COMMIT_SHA: '' }), undefined);
 });
+
+// ⚠ Coverage added post-review (Important, confirmed by reproduction): these four
+// hostile shapes — a throwing getter on `id`, a throwing getter on `roles`, a
+// get-trapping Proxy standing in for `roles`, and a throwing getter on the release
+// env — all propagated an uncaught exception out of these functions before the fix.
+// That matters specifically because this module runs while Sentry is building an
+// error report for a DIFFERENT crash: a throw here replaces that original error with
+// a stack trace pointing at the tagging code, which is the exact failure this
+// tracking layer exists to prevent. Both functions must now be null/undefined on any
+// internal failure — never a partial result, and never a propagated throw.
+
+test('a throwing getter on id never propagates — the result is null, not a crash', () => {
+  const profile = {
+    get id() { throw new Error('id getter trap'); },
+    roles: ['trainer'],
+  };
+  assert.equal(bsSentryUser(profile), null);
+});
+
+test('a throwing getter on roles never propagates — the result is null, not a crash', () => {
+  const profile = {
+    id: 'u9',
+    get roles() { throw new Error('roles getter trap'); },
+  };
+  assert.equal(bsSentryUser(profile), null);
+});
+
+test('a roles Proxy that throws on get never propagates — the result is null, not a crash', () => {
+  // The target is a real array so Array.isArray(profile.roles) reads true without
+  // invoking any trap (per spec, IsArray recurses on [[ProxyTarget]]) — the throw
+  // instead comes from the very next read, `arr.length`, which the `get` trap catches.
+  const trapped = new Proxy(['trainer'], {
+    get() { throw new Error('proxy trap'); },
+  });
+  const profile = { id: 'u10', roles: trapped };
+  assert.equal(bsSentryUser(profile), null);
+});
+
+test('bsSentryRelease: a throwing getter on the env never propagates — undefined, not a crash', () => {
+  const env = {
+    get SHAPE_RELEASE() { throw new Error('release getter trap'); },
+  };
+  assert.equal(bsSentryRelease(env), undefined);
+});
