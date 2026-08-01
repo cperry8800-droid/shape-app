@@ -62,6 +62,15 @@ const BS_CORNER_GAP = window.BS_CORNER_GAP || 9;
 // reachable at the mast row's own site. They read the live gutter through this
 // helper rather than a frozen literal, so the density setting still applies.
 const bsGutter = (theme) => (theme && theme.padX) || 22;
+// Text that only a screen reader reads. `position:absolute` keeps it out of flow,
+// so it cannot disturb a nowrap/ellipsis parent; the 1px box + clip-path is the
+// standard recipe that survives `display` and `visibility` heuristics (both of
+// which would remove the node from the accessibility tree entirely).
+// ⚠ Use this rather than aria-label when the element carrying the name is a plain
+// span or div: their implicit role is `generic`, which is PROHIBITED from having
+// an accessible name, so an aria-label there is invalid and most assistive tech
+// simply ignores it — the label reads as fixed while doing nothing.
+const BS_SR_ONLY = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', border: 0 };
 
 // The signed-in member's display name + initials, from the same source as the
 // Me page (profiles.full_name, which the edit-profile flow writes + mirrors to
@@ -9916,12 +9925,20 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               on this line, right-aligned. On my OWN list the face is redundant
               with the corner, so it's dropped. ⚠ The visible label is just
               "Followers"/"Following"; the face is what says WHOSE. That works
-              visually but is silent to a screen reader (the avatar's img is
-              alt=""), so the label carries an aria-label naming the person. */}
+              visually but is silent to a screen reader — BSFacetAvatar takes
+              `name` only to derive initials, and its img is alt="" — so the
+              owner's name rides along as screen-reader-only text.
+              ⚠ It is TEXT, not an aria-label: this is a plain span, whose
+              implicit role is `generic`, and a generic element is prohibited
+              from carrying an accessible name (an aria-label here is invalid
+              and is ignored by most assistive tech). Appending to the visible
+              string also keeps the two in step by construction — the earlier
+              aria-label hard-coded "Followers", so it contradicted the visible
+              "Follow requests" on the requests sheet. */}
           <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               {!self && <BSFacetAvatar size={22} c={c} initial={bsInitials(name) || '?'} name={name} photo={ownerPhoto || undefined} showRank={false} BG={BG} INK={INK} />}
-              <span aria-label={self || !name ? undefined : `${name} — ${kind === 'following' ? 'Following' : 'Followers'}`} style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
+              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{!self && name ? <span style={BS_SR_ONLY}>{name} — </span> : null}{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
             </div>
             <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           </div>

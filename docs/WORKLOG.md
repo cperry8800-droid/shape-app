@@ -1387,6 +1387,16 @@ changelog whenever something ships.
   z-index reason so nobody "restores" it. **A contract applied without checking the stacking
   context is a contract applied to a button that does nothing.**
 
+- ⚠ **A later round found the OTHER half of that same fix was inert.** Giving the follow-list
+  title an `aria-label` naming the profile owner was reported as shipped — but the label sat on a
+  plain `<span>`, whose implicit role is `generic`, and **a generic element is prohibited from
+  carrying an accessible name**, so the attribute is invalid and most assistive tech ignores it.
+  The accessibility fix did nothing. It also hard-coded "Followers", so on the **requests** sheet
+  it contradicted the visible "Follow requests". Replaced with screen-reader-only TEXT appended to
+  the real visible string, which fixes both at once — the label can no longer drift from what is
+  on screen, because it *is* what is on screen. **An ARIA attribute the platform is required to
+  ignore is not an accessibility fix; it is a comment that reads like one.**
+
 - Verified: JSX parse ×14 · LF (CR=0) · NUL scan clean · one declaration per constant per module
   · the identifier gate · the mount harness (`tests/broadsheet-render.test.mjs`) · `npm test`
   1394/1394 · PowerShell `VITE_BASE=/m/` build clean, with the `env()` term confirmed present in
