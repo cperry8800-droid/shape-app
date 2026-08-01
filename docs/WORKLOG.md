@@ -221,9 +221,16 @@ changelog whenever something ships.
 > the trap step (2b) was written to close for Android. **iOS is the surface that actually
 > ships to users today**, so this is the more urgent of the two. Owner step: create a
 > Codemagic environment-variable group carrying `VITE_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` /
-> `SENTRY_ORG` / `SENTRY_PROJECT_MOBILE`, then reference it from `codemagic.yaml`. The
+> `SENTRY_ORG` / `SENTRY_PROJECT_MOBILE`, then reference it from `codemagic.yaml`. That
 > wiring is deliberately NOT in this PR — referencing a Codemagic variable group that does
 > not exist yet would break the iOS build on the next push to `main`.
+> ⚠ **`VITE_SHAPE_RELEASE` is NOT in that group and must not be** — it is a commit SHA, not
+> a secret. It is now **exported directly in `codemagic.yaml`** from `CM_COMMIT` (with a
+> `git rev-parse HEAD` fallback, so it is independent of Codemagic's variable naming and
+> always resolves). That half WAS safe to wire now precisely because it references no
+> variable group and therefore cannot break the build. Without it, iOS events would
+> initialise with `release: undefined` and the release check below could never pass on
+> the one surface that ships to users today.
 > (3) **Redeploy.** Vercel injects environment variables at BUILD time,
 > not request time — an already-running deployment never picks the new values up no matter
 > how long it stays live.
@@ -1572,6 +1579,16 @@ changelog whenever something ships.
   GitHub Actions (`android-build.yml`), which cannot read Vercel env vars, and **a shipped
   binary can never be fixed by redeploying** — skip this and the distributed app reports
   nothing, permanently, no matter what the hosted surfaces do.
+  ⚠ **(2c) AND THE SAME AGAIN FOR iOS — "Layer 1 mobile" means ANDROID ONLY until this is
+  done.** `codemagic.yaml` builds the **iOS TestFlight IPA on every push to `main`** and
+  passes no Sentry DSN, so every shipped iOS build bakes in `dsn:''` and can never be
+  switched on — the same trap (2b) closes for Android, on the surface that actually ships
+  to users today. Create a Codemagic environment-variable group carrying `VITE_SENTRY_DSN`
+  / `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT_MOBILE`, then reference it from
+  `codemagic.yaml`. Not wired in advance: referencing a group that does not exist yet would
+  break the iOS build. ⚠ `VITE_SHAPE_RELEASE` is **not** in that group and must not be — it
+  is a commit SHA, not a secret, and is already exported directly in `codemagic.yaml` from
+  `CM_COMMIT` (with a `git rev-parse HEAD` fallback).
   (3) **Redeploy.** Vercel injects environment variables at BUILD time,
   not request time — an already-running deployment never picks the new values up no matter
   how long it stays live.
