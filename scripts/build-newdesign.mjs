@@ -43,6 +43,14 @@ const SITE_DSN = process.env.SHAPE_SITE_SENTRY_DSN || '';
 // the Next.js app and the mobile bundle stamp. Absent => no release key is set
 // and sentryInit.js degrades to "no release" — honestly absent, never faked.
 const SITE_RELEASE = process.env.VERCEL_GIT_COMMIT_SHA || '';
+// production | preview | development. ⚠ Without this the browser SDK defaults
+// unlabelled events to production, and THIS REPO SHARES PRODUCTION ENV VARS WITH
+// PREVIEW DEPLOYS — so a PR preview of the static site would file its errors as
+// live ones, making staging failures indistinguishable from production and
+// defeating any production-only alert filter. Matches sentry.server.config.ts /
+// instrumentation-client.ts, which already read VERCEL_ENV. Absent => no
+// environment key is set, and the SDK's own default applies.
+const SITE_ENV = process.env.VERCEL_ENV || '';
 // Errors-only CDN bundle, pinned to the exact version + SRI hash Sentry
 // publishes. ⚠ These live HERE, not in sentryInit.js, because the tag has to be
 // part of the document's ordered defer chain — see SENTRY_TAG below.
@@ -190,13 +198,21 @@ const ND_MANIFEST = `<script>window.__ndCompiled=${JSON.stringify(Object.fromEnt
 // closing it needs an early-error queue, which is its own change. Uncaught
 // throws in that pre-init window are out of Sentry's reach today — a known,
 // pre-existing gap, deliberately not papered over here.
+// ⚠ sentryInit.js carries a content-hash `?v=` like every other script this file
+// emits (see the `?v=${e.v}` and `?v=${hash8(final)}` sites). It was injected as a
+// bare path, so an edit to it would have been served stale from cache until the
+// entry expired — on the one file whose job is to install error tracking.
+const SENTRY_INIT_V = SITE_DSN
+  ? hash8(fs.readFileSync(path.join(ND, 'sentryInit.js'), 'utf8'))
+  : '';
 const SENTRY_TAG = SITE_DSN
   ? `<script>window.SHAPE_SENTRY_DSN=${JSON.stringify(SITE_DSN)};`
     + (SITE_RELEASE ? `window.SHAPE_RELEASE=${JSON.stringify(SITE_RELEASE)};` : '')
+    + (SITE_ENV ? `window.SHAPE_ENV=${JSON.stringify(SITE_ENV)};` : '')
     + `</script>`
     + `<script defer src="${SENTRY_CDN_URL}" crossorigin="anonymous"`
     + ` integrity="${SENTRY_CDN_SRI}"></script>`
-    + `<script defer src="/newdesign/sentryInit.js"></script>`
+    + `<script defer src="/newdesign/sentryInit.js?v=${SENTRY_INIT_V}"></script>`
   : '';
 
 // Pass 2: rewrite the pages.

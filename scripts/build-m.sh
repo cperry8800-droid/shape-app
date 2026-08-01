@@ -26,6 +26,12 @@ echo "→ Building the /m/ bundle (VITE_BASE=/m/)…"
 # deploy's mobile + server errors correlate. Empty/unset outside Vercel
 # (local build, CI) — sentry.mjs treats that as "no release", not a crash.
 export VITE_SHAPE_RELEASE="${VERCEL_GIT_COMMIT_SHA:-}"
+# Same reasoning for the environment. Vite's own MODE is 'production' for EVERY
+# production build, so without this a Vercel PREVIEW deploy of /m/ would report
+# environment:'production' and its errors would be indistinguishable from live
+# ones. VERCEL_ENV is production|preview|development. Empty outside Vercel —
+# sentry.mjs then falls back to MODE.
+export VITE_SHAPE_ENV="${VERCEL_ENV:-}"
 ( cd mobile-app && VITE_BASE=/m/ npm run build )
 
 echo "→ Publishing mobile-app/dist → public/m…"

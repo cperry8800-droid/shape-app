@@ -194,8 +194,16 @@ changelog whenever something ships.
 > then — the single most important thing to get right when describing this wave.
 >
 > **The exact owner steps, in order, because the order matters.** (1) Create the Sentry
-> organisation and **four projects** — Next.js / Capacitor / static-website browser are
-> different SDKs with different release streams (the static site is its own, see Task 4).
+> organisation and **THREE projects** — `shape-web` (Next.js), `shape-mobile` (Capacitor),
+> `shape-site` (the static website), matching the approved design's *"One organization,
+> three projects"*. ⚠ **CORRECTED 2026-08-01 — this said "four projects", which was my
+> error and contradicted the spec.** There are four DSN *values* but three projects:
+> `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are **the same project's DSN**, set twice
+> because Next needs it server-side and exposed to the browser. Splitting them into two
+> projects would break two things at once — `withSentryConfig` uploads every Next
+> artifact to the single `SENTRY_PROJECT`, so the second project's events would arrive
+> **minified** (source-map artifacts are project-scoped), and the spec's own rationale
+> applies: *"splitting them would break stack traces that cross the boundary."*
 > (2) Supply **eight** env vars: `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `VITE_SENTRY_DSN`,
 > `SHAPE_SITE_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_MOBILE`,
 > `SENTRY_AUTH_TOKEN`. ⚠ The last two are NOT optional extras: without
@@ -1880,8 +1888,10 @@ changelog whenever something ships.
 
 - Suite **1394/1394, zero failures**; `npx tsc --noEmit` clean.
 
-- **Owner actions still outstanding:** apply the migration above. ~~set `HEARTBEAT_PING_URL`
-  to a dead-man's-switch endpoint~~ — **done, see the 2026-08-01 entry.**
+- **Owner actions still outstanding:** ~~apply the migration above~~ — **done, applied +
+  verified live 2026-08-01 (see the entry above, which records the first cron run).**
+  ~~set `HEARTBEAT_PING_URL` to a dead-man's-switch endpoint~~ — **done, see the
+  2026-08-01 entry.**
   ⚠ **CORRECTED 2026-08-01 — this line used to read "Creating the Sentry org + three projects
   for Layer 1 is also done", and that was FALSE.** No Sentry organisation exists, no projects
   exist, and no DSN exists anywhere. What shipped on 2026-08-01 is Layer 1's **code**, inert

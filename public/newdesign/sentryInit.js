@@ -90,9 +90,17 @@
     // Next.js app and the mobile bundle; absent, this degrades to "no
     // release" rather than inventing one.
     var release = window.SHAPE_RELEASE;
+    // production | preview | development, stamped by the precompile from
+    // VERCEL_ENV. ⚠ LOAD-BEARING on this surface: Vercel previews in this repo
+    // share the production environment variables, so SHAPE_SITE_SENTRY_DSN IS
+    // set on a preview deploy — without an explicit environment the SDK files
+    // those events as production, and a PR/staging failure becomes
+    // indistinguishable from a live one. Absent => key omitted, SDK default.
+    var env = window.SHAPE_ENV;
     window.Sentry.init({
       dsn: dsn,
       release: (typeof release === "string" && release) ? release : undefined,
+      environment: (typeof env === "string" && env) ? env : undefined,
       // Layer 1 is capture-only: no tracing, no replay, no feedback.
       tracesSampleRate: 0,
       // ⚠ LOAD-BEARING. Left at its default this SDK can attach the visitor's

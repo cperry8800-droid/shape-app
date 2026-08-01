@@ -31,7 +31,18 @@ export function bsInitSentry() {
       {
         dsn,
         release: import.meta.env.VITE_SHAPE_RELEASE || undefined,
-        environment: import.meta.env.MODE || 'development',
+        // ⚠ NOT import.meta.env.MODE. Vite sets MODE='production' for EVERY
+        // production build regardless of what the artifact is for, so the debug
+        // APK, a PR build and a hosted /m/ Vercel preview would all report
+        // environment:'production' and their errors would be indistinguishable
+        // from live ones — defeating production-only alert filtering. The build
+        // that knows what it is passes VITE_SHAPE_ENV: build-m.sh forwards
+        // VERCEL_ENV (production|preview|development), android-build.yml sets
+        // 'debug'/'production' per job. MODE stays as the last-resort fallback,
+        // which is what a local build and (until its vars are wired) the
+        // Codemagic iOS build get.
+        environment:
+          import.meta.env.VITE_SHAPE_ENV || import.meta.env.MODE || 'development',
         tracesSampleRate: 0,
         sendDefaultPii: false,
       },

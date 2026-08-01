@@ -73,6 +73,11 @@ jobs:
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # ⚠ Without this the debug APK reports environment:'production', because
+          # Vite's MODE is 'production' for any production build regardless of what
+          # the artifact is for — PR/debug errors would be indistinguishable from
+          # live ones and would defeat production-only alert filtering.
+          VITE_SHAPE_ENV: debug
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
@@ -162,6 +167,9 @@ jobs:
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # This is the signed build that actually ships, so it is genuinely
+          # production — unlike the debug job above.
+          VITE_SHAPE_ENV: production
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
