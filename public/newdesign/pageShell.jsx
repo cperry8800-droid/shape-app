@@ -604,6 +604,22 @@ Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, He
 // ⚠ With no DSN set this whole block is a genuine no-op: sentryInit.js is
 // never fetched, so nothing here ever reaches Sentry — not even a script
 // request — until a real DSN string is assigned on the line below.
+//
+// ⚠ THIS IS THE ONLY PLACE window.SHAPE_SENTRY_DSN CAN BE SET, and that is
+// load-bearing, not incidental. Babel-standalone compiles every
+// `type="text/babel"` tag on a page and runs them together at
+// DOMContentLoaded, IN DOCUMENT ORDER — and every one of the 69 pages loads
+// pageShell.jsx BEFORE its own page-specific script runs. So if a later
+// change ever tries to set the DSN from a page-specific script (to canary
+// one page, split staging vs prod, etc.), that assignment executes AFTER
+// this guard has already read the still-falsy global and returned —
+// sentryInit.js is never fetched, and there is NO console output and NO
+// network difference from the intended inert state. That is the exact
+// "looks healthy, isn't" failure this whole project exists to catch,
+// reproduced inside its own bootstrap. The corollary: because all 69 pages
+// share this ONE assignment, the day a real DSN lands here, Sentry turns on
+// EVERYWHERE AT ONCE — there is no way to canary a subset of pages from
+// this file alone.
 (function () {
   if (typeof window === "undefined") return;
   window.SHAPE_SENTRY_DSN = window.SHAPE_SENTRY_DSN || "";
