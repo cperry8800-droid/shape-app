@@ -1666,7 +1666,9 @@ function BSShapeSetsScreen({ onBack }) {
                   light paper on the unchanging dark venue. The radio screen
                   deliberately passes nothing: it IS theme-adaptive, so there the
                   avatar's `t.PAPER` fallback is the correct surface. */}
-              {bsRadioCorner(CREAM, '#0a0d0c')}
+              {/* No corner: Shape Sets is a drill-in held in BSRadioScreen's local
+                  showSets, while the nav descriptor records only tab:'radio' — the
+                  avatar unmounts the radio screen and back returns to the root. */}
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>

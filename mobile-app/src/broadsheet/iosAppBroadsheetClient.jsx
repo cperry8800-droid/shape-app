@@ -11687,7 +11687,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         {/* Masthead row at the standard inset — the editor title + close sit
             BELOW it (every page opens on the same row). */}
         <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
-          {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+          {window.BSMastRow && <window.BSMastRow trailing={null} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '12px 0 4px' }}>
           <div>
@@ -25419,7 +25419,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   return (
     <BSPage>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        {window.BSMastRow && <window.BSMastRow trailing={null} />}
       </div>
       <div style={{ padding: `12px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

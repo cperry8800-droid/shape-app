@@ -830,7 +830,7 @@ function BSProGroceryLists({ t, isNutri, onBack }) {
   const rust = t.RUST || '#c0533b';
   return (
     <BSPage>
-      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} trailing={bsProCorner()}
+      <BSMasthead title={tr('coach:grocery.title', { defaultValue: 'Grocery Lists' })} leftKicker={isNutri ? tr('coach:grocery.kickerNutri', { defaultValue: 'Nutrition delivery' }) : tr('coach:grocery.kickerTrainer', { defaultValue: 'Meal support' })} rightKicker={tr('coach:grocery.listsCount', { defaultValue: '{count, plural, one {# list} other {# lists}}', count: all.length })} onBack={onBack} trailing={creating ? null : bsProCorner()}
       />
 
       {/* Verdict lead — the whole queue on one line, heat = role */}
