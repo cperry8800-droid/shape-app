@@ -18,7 +18,18 @@
 //   3. <script defer> for this file.
 // Deferred scripts execute in DOCUMENT ORDER, and every compiled `nd/*.js` on
 // these pages sits after </head>, so the bundle is guaranteed to be parsed and
-// this init is guaranteed to have run BEFORE any application code executes.
+// this init is guaranteed to have run BEFORE any `nd/*.js` executes.
+//
+// ⚠ THAT IS THE WHOLE GUARANTEE — it is NOT "nothing runs before Sentry", which
+// this comment used to imply. A DEFERRED script cannot precede a SYNCHRONOUS
+// one regardless of tag position, so on these pages the following still run
+// first: synchronous external `<script src>` in <head> (26 pages — the React /
+// ReactDOM / Babel UMD tags, plus /vendor/supabase-js and /supabase.js on
+// index, ClientProfile, Login and the three Signup pages), and classic inline
+// `<script>` blocks (17 across 10 pages; index alone has 7). An uncaught throw
+// in that window is outside Sentry's reach — a pre-existing gap that needs an
+// early-error queue to close, not a change to this file. Do not restate the
+// stronger claim.
 //
 // ⚠ It used to append the CDN <script> itself, and that was a real defect:
 // a dynamically-inserted script is ASYNC, so it raced the page's own deferred

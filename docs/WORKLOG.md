@@ -205,6 +205,17 @@ changelog whenever something ships.
 > `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_MOBILE`) — the Android APK is built by
 > GitHub Actions, which cannot see Vercel env vars, and **a shipped binary can never be
 > fixed by redeploying**. Skipping this ships an APK that reports nothing, forever.
+> ⚠ **(2c) AND THE SAME AGAIN FOR iOS — "Layer 1 mobile" means ANDROID ONLY until this is
+> done.** `codemagic.yaml` builds the **iOS TestFlight IPA on every push to `main`**
+> (`npm ci` → `npm run build` → `npx cap sync ios` → signed `.ipa` → TestFlight) and passes
+> **zero** Sentry env vars — `grep -n "SENTRY\|VITE_" codemagic.yaml` returns nothing. So
+> every shipped iOS build bakes in `dsn:''` and can never be switched on, which is exactly
+> the trap step (2b) was written to close for Android. **iOS is the surface that actually
+> ships to users today**, so this is the more urgent of the two. Owner step: create a
+> Codemagic environment-variable group carrying `VITE_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` /
+> `SENTRY_ORG` / `SENTRY_PROJECT_MOBILE`, then reference it from `codemagic.yaml`. The
+> wiring is deliberately NOT in this PR — referencing a Codemagic variable group that does
+> not exist yet would break the iOS build on the next push to `main`.
 > (3) **Redeploy.** Vercel injects environment variables at BUILD time,
 > not request time — an already-running deployment never picks the new values up no matter
 > how long it stays live.
@@ -1593,8 +1604,53 @@ changelog whenever something ships.
   hosted surfaces, **a shipped binary can never be fixed by redeploying**. Both jobs now
   pass `VITE_SENTRY_DSN`, `VITE_SHAPE_RELEASE` (`github.sha`, matching `build-m.sh`'s
   full-SHA format) and the three upload vars; every one is optional, so with the secrets
-  unset the build is byte-unchanged. ⚠ **This means the Android secrets are a SEPARATE
-  owner step from the Vercel env vars** — see the owner steps above.
+  unset the SDK stays inert and nothing uploads. ⚠ **This means the Android secrets are a
+  SEPARATE owner step from the Vercel env vars** — see the owner steps above.
+  ⚠ **Corrected: "byte-unchanged" was wrong.** `VITE_SHAPE_RELEASE: ${{ github.sha }}` is a
+  context expression, not a secret — always set — and `sentry.mjs` reads it through
+  `import.meta.env.VITE_SHAPE_RELEASE`, which Vite inlines at build time. The bundle
+  therefore carries the commit SHA even with no Sentry configured. Functionally inert,
+  different bytes.
+
+- ⚠ **THE SAME FLAG THAT MADE MOBILE TRACES READABLE PUT 13.85 MB OF DEAD WEIGHT IN THE
+  SHIPPED APP — fixed here.** Flipping `sourcemap: false` → `'hidden'` left **26 `.map`
+  files / 13,850,410 bytes in a 33.5 MB `mobile-app/dist/`** (41% of it). `webDir: 'dist'`
+  means `npx cap sync android` copies that verbatim into
+  `android/app/src/main/assets/public`, and `npx cap sync ios` into `ios/App/App/public` —
+  which Xcode carries into the `.app` as a **folder reference**
+  (`lastKnownFileType = folder`), recursively and unfiltered. Nothing downstream filters
+  maps out: Android's `aaptOptions.ignoreAssetsPattern` lists only dotfiles/VCS junk and has
+  no `*.map` entry. ⚠ **And the record's own rule was applied to only half the paths** — this
+  file already said *"`sourcemap: 'hidden'` ALONE would NOT have been safe … the strip step
+  in `build-m.sh` is what actually makes this safe"*, but `build-m.sh` is the **Vercel
+  buildCommand only**: it never runs in the Android CI job, never in Codemagic's iOS build,
+  never in a local Xcode/Android Studio build. Fixed at `dist/` — the one chokepoint all four
+  consumers copy from — via a `stripSourcemaps` vite plugin in `closeBundle`, plus a CI
+  assertion in **both** Android jobs that fails the build if any `.map` reaches the native
+  assets. `KEEP_SOURCEMAPS=1` retains them locally.
+  ⚠ **Ordering is safe by construction, not by luck:** `@sentry/vite-plugin` uploads inside
+  `writeBundle` (`@sentry/bundler-plugins build/cjs/rollup/index.js:186`) and Rollup fires
+  `closeBundle` only after every `writeBundle` resolves — so the upload always reads the maps
+  before the strip deletes them. If that ever inverted, the upload would send nothing and
+  every mobile stack trace would arrive minified, **with no error and exit code 0**.
+  ⚠ **This is a SIZE regression, not a disclosure** — two review passes called it source-code
+  leakage and that framing is wrong: the repo is public, and all 84 first-party `sources`
+  entries in those maps are tracked files in it. Nothing was exposed that isn't already on
+  github.com. It blocks a merge on weight in a shipping binary, not on secrecy.
+
+- ⚠ **THE ORDERING GUARANTEE IN TWO FILES WAS OVERSTATED — corrected.**
+  `scripts/build-newdesign.mjs` and `public/newdesign/sentryInit.js` both claimed that
+  because every compiled script sits after `</head>`, injecting the pair there "guarantees:
+  CDN bundle → init → application code". The guarantee holds **for `nd/*.js` only**. A
+  DEFERRED script cannot precede a SYNCHRONOUS one regardless of tag position, so these still
+  run first: synchronous external `<script src>` in `<head>` on **26** pages (React/ReactDOM/
+  Babel UMD everywhere, plus `/vendor/supabase-js` + `/supabase.js` on index, ClientProfile,
+  Login and the three Signup pages), and **17 classic inline `<script>` blocks across 10
+  pages** (index alone has 7). Moving the injection earlier in `<head>` would NOT close it —
+  still deferred. Closing it needs an early-error queue; that is registered, not built, and
+  deliberately not bundled into a comment correction. **This is the second time a
+  because-clause in a comment was asserted as doctrine and turned out false** — verify the
+  mechanism before writing the reason, and delete the claim rather than soften it.
 
 - ⚠ **STATIC-SITE STACK TRACES COULD NEVER BE SYMBOLICATED EITHER** (Codex P1, same round).
   `scripts/build-newdesign.mjs` emits every compiled file with `compact: true` — one line,

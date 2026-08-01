@@ -52,8 +52,17 @@ cp -r mobile-app/dist public/m
 # just copied them into public/m, which is served publicly at
 # theshapecommunity.com/m/…. Delete them here so nothing is ever reachable:
 # maps are generated, (eventually) uploaded, then stripped before publish.
+#
+# ⚠ EXPECT THIS TO REPORT 0 — that is success, not breakage. The strip now
+# happens upstream in mobile-app/vite.config.ts (`stripSourcemaps`, in
+# closeBundle), because dist/ is the chokepoint that ALSO feeds the native
+# Android and iOS builds — and this script never runs in either of those (it is
+# the Vercel buildCommand only, see vercel.json). By the time the `cp -r` above
+# runs, dist/ already has no maps. This delete is kept as a redundant backstop
+# so /m/ stays covered even if the vite plugin is ever removed; a NON-zero count
+# here means the upstream strip stopped working.
 map_count=$(find public/m -name '*.map' -type f | wc -l)
 find public/m -name '*.map' -type f -delete
-echo "→ Removed ${map_count} sourcemap file(s) from public/m (generated for symbolication, never served)"
+echo "→ Removed ${map_count} sourcemap file(s) from public/m (expected 0 — stripped upstream in vite.config.ts)"
 
 echo "→ public/m built: $(find public/m -type f | wc -l) files"

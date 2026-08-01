@@ -154,9 +154,14 @@ const ND_MANIFEST = `<script>window.__ndCompiled=${JSON.stringify(Object.fromEnt
 // GetApp / consultation / ClientPlaylists — all live, linked flows — with no
 // error tracking at all. The two pure-redirect stubs (TrainerPublic /
 // NutritionistPublic, whose entire body is a `location.replace`) are the only
-// pages still excluded: they navigate away immediately, so fetching a ~90 KB
-// CDN bundle there would cost every visitor bandwidth for a page that is gone
-// before the SDK could install.
+// pages still excluded — but the REASON is the `continue` guard below, not a
+// bandwidth judgement: they carry no `text/babel`, no `@babel/standalone` and
+// no `globalChatButton.js`, so the precompile has nothing to do on them and
+// skips them entirely. ⚠ Do not read the exclusion list as principled: 36 OTHER
+// pages also `location.replace` out of a synchronous `<head>` script (every
+// Client*/Trainer*/Nutritionist* alias stub) and they all DO receive the tag,
+// because they happen to carry a babel block. Bandwidth-wise they are the same
+// case; the guard just cannot see it.
 //
 // Unset DSN => injects NOTHING, so the output is byte-identical to a build
 // without this block. That is the state every deploy is in until the owner
@@ -169,14 +174,28 @@ const ND_MANIFEST = `<script>window.__ndCompiled=${JSON.stringify(Object.fromEnt
 // could throw before `Sentry.init` had installed its global handlers, and a
 // page-startup crash — the single most valuable error this surface can report —
 // was lost every cold load. Deferred scripts execute in DOCUMENT ORDER, and
-// every compiled script on these pages sits after `</head>`, so injecting the
-// pair here guarantees: CDN bundle -> init -> application code.
+// every compiled `nd/*.js` on these pages sits after `</head>`, so injecting
+// the pair here guarantees: CDN bundle -> init -> APPLICATION CODE.
+//
+// ⚠ THAT GUARANTEE IS ABOUT `nd/*.js` ONLY — it is NOT "nothing runs first".
+// An earlier version of this comment said "every compiled script ... sits after
+// `</head>`, so injecting the pair here guarantees" the order outright, which
+// overstated it. A DEFERRED script cannot precede a SYNCHRONOUS one no matter
+// where its tag sits, so these still execute before Sentry installs:
+//   • synchronous external `<script src>` in `<head>` — 26 pages (the React /
+//     ReactDOM / Babel UMD tags on all of them, plus `/vendor/supabase-js` and
+//     `/supabase.js` on index, ClientProfile, Login and the three Signup pages);
+//   • classic inline `<script>` blocks — 17 across 10 pages (index alone has 7).
+// Moving this injection earlier in `<head>` would NOT fix that (still deferred);
+// closing it needs an early-error queue, which is its own change. Uncaught
+// throws in that pre-init window are out of Sentry's reach today — a known,
+// pre-existing gap, deliberately not papered over here.
 const SENTRY_TAG = SITE_DSN
   ? `<script>window.SHAPE_SENTRY_DSN=${JSON.stringify(SITE_DSN)};`
     + (SITE_RELEASE ? `window.SHAPE_RELEASE=${JSON.stringify(SITE_RELEASE)};` : '')
     + `</script>`
     + `<script defer src="${SENTRY_CDN_URL}" crossorigin="anonymous"`
-    + ` integrity="${SENTRY_CDN_SRI}" data-shape-sentry-cdn="1"></script>`
+    + ` integrity="${SENTRY_CDN_SRI}"></script>`
     + `<script defer src="/newdesign/sentryInit.js"></script>`
   : '';
 
