@@ -438,10 +438,60 @@ function isInteractiveTarget(target) {
 // twice (72 → 64 in #1603 left three stale literals), so it lives here once.
 const BS_TABBAR_H = 64;
 
+// A page tells its BSPage that its masthead row carries NO corner cluster.
+//
+// ⚠ WHY THIS IS A CONTEXT AND NOT A PROP. A page that omits its corners does so
+// because the corner is HARMFUL there — the avatar destroys unsaved local state,
+// or navigates somewhere that page cannot render, while still burning a back.
+// But the pinned condensed strip below is rendered by BSPage, the PARENT, which
+// cannot see what its child put in `trailing`. Shipping this as a prop means the
+// fact is stated in two places, and the whole reason this exists is that the two
+// drifted: eleven surfaces suppressed their in-page corners and every one of them
+// got the corner back after 64px of scrolling. A prop would have re-created that
+// the first time someone added a page and remembered only one half.
+// So the page states the fact ONCE, where it already states it — by rendering a
+// mast row with no trailing — and the pinned strip honours it. A conditional
+// (`trailing={onBack ? <corner/> : null}`, which BSHealthIntake uses to be a gate
+// in one mode and a Settings pane in the other) is therefore correct in BOTH
+// modes with no extra thought, which is the property a prop cannot have.
+const BSMastBareCtx = React.createContext(null);
+
+// Called by every masthead-row component that owns a `trailing` slot. `bare` is
+// simply "I rendered no trailing element" — the fact the page already states by
+// what it passes, so there is nothing extra to remember and nothing to keep in
+// sync. It must be called by ALL of them: the twelfth instance of this defect
+// (the coach Grocery Lists create form) suppressed its corners on BSMasthead,
+// not BSMastRow, so covering only one row component would have left it open.
+// The pinned strip's own row sits OUTSIDE the provider, so it never self-reports.
+// ⚠ Reference-counted, not a boolean. A boolean is order-dependent the moment a
+// page renders two rows — whichever effect ran last would win, so a bare row
+// could be silently overruled by a corner-bearing sibling. Counting makes it
+// ANY-bare-wins regardless of order, which is also the safe direction: when the
+// page's own rows disagree, the control we suppress is the harmful one.
+function useBSReportBareMast(bare) {
+  const report = React.useContext(BSMastBareCtx);
+  useEffectBS(() => {
+    if (!report || !bare) return undefined;
+    report(1);
+    // Release on unmount so a corner-less takeover cannot leave the next page
+    // sharing this BSPage instance silently corner-less.
+    return () => report(-1);
+  }, [report, bare]);
+}
+
 // Page wrapper — sets paper background and provides scroll
 function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = true, noSwipe = false }) {
   const t = useBS();
   const scrollerRef = useRefBS(null);
+  // Set by the page's own masthead row(s) when they render without a trailing
+  // corner. The ref holds the live count so concurrent reports can't clobber
+  // each other through stale state; the boolean is what renders.
+  const bareCountRef = useRefBS(0);
+  const [bareMast, setBareMast] = useStateBS(false);
+  const reportBareMast = React.useCallback((delta) => {
+    bareCountRef.current = Math.max(0, bareCountRef.current + delta);
+    setBareMast(bareCountRef.current > 0);
+  }, []);
   // Condensing masthead: once the page's own masthead scrolls away (~64px), a
   // pinned strip (logo + Vol·No + the standard corner) slides in over the
   // scroller — ONE implementation, so the cushion is identical on every page.
@@ -527,7 +577,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       fontFamily: t.BODY,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
     }}>
-      {children}
+      <BSMastBareCtx.Provider value={reportBareMast}>{children}</BSMastBareCtx.Provider>
     </div>
   );
 
@@ -554,7 +604,14 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       pointerEvents: mastCondensed ? 'auto' : 'none',
       transition: mastReduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
     }}>
-      <BSMastRow trailing={MastCorner ? <MastCorner /> : null} />
+      {/* ⚠ `!bareMast` is the whole fix for a class that cost six review rounds.
+          A page that removed its own corners — because the avatar there destroys
+          an unsaved draft, or navigates somewhere the page cannot render, while
+          still burning a back — used to get them straight back once the reader
+          scrolled 64px. Twelve surfaces were live examples, including a REQUIRED
+          health-intake gate that necessarily scrolls. The page reports the fact
+          by rendering a trailing-less row; this honours it. */}
+      <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
     </div>
   ) : null;
 
@@ -658,8 +715,79 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
+// THE MASTHEAD CONTRACT (owner ruling 2026-08-01): every page opens with the SAME
+// row — BSLogo size 16 + "Vol. 1 · No. 1" (mono 9 / 0.12em / INK70) left, the
+// search circle (34) + self avatar (34) right — at the SAME top inset. BS_MAST_TOP
+// is that inset; page wrappers use it instead of a per-page literal (the old
+// 42/44/46/48/50/54/60/62/64 drift). Window-exported for the role modules.
+const BS_MAST_TOP = 44;
+// The corner gap — the space between the search circle and the self avatar in
+// the masthead's trailing cluster. Part of the same contract as BS_MAST_TOP and
+// BS_MAST_TOP_CSS: the chrome owns it, the role modules read it off `window`.
+// The chrome is the only module guaranteed to evaluate before every consumer
+// (broadsheet/index.jsx imports it first; Radio, Calendar, Marketplace and the
+// role modules all load after), so it is the only safe owner for a value the
+// downstream corner clusters share.
+const BS_CORNER_GAP = 9;
+// The same inset as a CSS value, and the NATIVE CONTRACT it encodes:
+//
+//   The WebView is NOT host-inset on either platform — it spans the whole
+//   window, under the notch/Dynamic Island. On iOS, @capacitor/ios makes the
+//   WKWebView the view controller's root view (`view = webView`), and
+//   `ios.contentInset: 'automatic'` in capacitor.config.ts only sets the SCROLL
+//   VIEW's contentInsetAdjustmentBehavior — it never moves the WebView frame
+//   (and with `html,body,#root { height:100%; overflow:hidden }` the web view's
+//   own scroll view isn't vertically scrollable, so `.automatic` degenerates to
+//   `.scrollableAxes` and applies no vertical inset either). On Android,
+//   `android.adjustMarginsForEdgeToEdge` defaults to "disable" while
+//   targetSdkVersion 35 forces edge-to-edge, so no margins are applied there
+//   either.
+//
+//   Therefore the layout MUST inset itself, and env() is the only thing that
+//   knows the real device inset. It is live here because mobile-app/index.html
+//   ships `viewport-fit=cover` — the decisive precondition. Without it env()
+//   would resolve to a hard 0 and a flat 44px would be correct; with it, env()
+//   reports the true inset (44-47pt on notch devices, 59-62pt on Dynamic Island
+//   devices) even under `contentInset`, because viewport-fit=cover stops WebKit
+//   treating the safe area as an obscured inset.
+//
+//   A flat 44px would start this row's 34px circles at y=44 — inside the
+//   Dynamic Island region (its pill runs roughly y=11..48) on iPhone 14 Pro /
+//   15 / 16, and flush with zero clearance on 12/13/14.
+//
+//   N = 12 is not arbitrary: the PINNED condensing masthead below (BSPage's
+//   scroll-pinned strip) renders the SAME row — logo + Vol·No + corners — in the
+//   same visual slot and already uses `calc(12px + env(safe-area-inset-top))`.
+//   Matching N means the two rows clear the hardware by the same margin, so the
+//   row does not shift horizontally-adjacent to the notch as the strip slides in.
+//   ⚠ They are NOT identical in total, and that is deliberate: the pinned strip
+//   carries no 44px floor (it is the deliberately-trimmed scrolled state), so on
+//   cutout-less hardware where env() is 0 the static row sits at 44 and the strip
+//   at 12. They converge only once env() ≥ 32px. Don't "fix" that by adding the
+//   floor to the strip — the trim is the point of the condensed state.
+//
+//   The three terms, and why each is needed:
+//     - `44px`            — the floor. Android reports the DISPLAY CUTOUT, which
+//                           is 0 on cutout-less phones, so without this the row
+//                           would sit flush to the screen edge there.
+//     - `env(...) + 12px` — the device truth on iOS notch/Island hardware, and
+//                           the value that matches the pinned strip.
+//     - `--bs-notch-floor`— set ONLY by the desktop phone-frame preview (46px,
+//                           BSDetailHeader's proven clearance under the DRAWN
+//                           notch). Native never sets it, so it falls back to 0.
+//
+//   One expression is therefore correct everywhere: on device it resolves to the
+//   real safe area (never less than 44), and in the desktop preview — where env()
+//   is 0 because there is no physical inset — it floors to 46 so no masthead
+//   rides under the drawn notch.
+//
+//   Use this for padding; use BS_MAST_TOP (the number) only for arithmetic, and
+//   never as a bare `${BS_MAST_TOP}px` inset on a live surface.
+const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
+
 function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
   // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.
@@ -669,7 +797,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       transparent 1px, transparent 7px)`;
   return (
     <div style={{
-      padding: `${compact ? 42 : 64}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
+      padding: `${BS_MAST_TOP_CSS} ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
@@ -700,7 +828,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
           }} />
           {/* Top hairline — single thin rule (suppressed when noRule/noTopRule, e.g. the feed + home) */}
           {!noRule && !noTopRule && <div aria-hidden style={{
-            position: 'absolute', left: 0, right: 0, top: compact ? 23 : 44, height: 1,
+            position: 'absolute', left: 0, right: 0, top: 23, height: 1,
             background: `rgba(${inkRgb},0.5)`,
           }} />}
           {/* Bottom double-rule strip */}
@@ -712,9 +840,9 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: title ? (compact ? 4 : 10) : 6 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: title ? (compact ? 4 : 10) : 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <BSLogo size={18} color={t.INK} />
+          <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
             {vol} · {no}
           </div>
@@ -757,6 +885,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 // copy, so reach for this on screens with fully custom headers.
 function BSMastRow({ trailing = null, size = 16, style = null }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -771,9 +900,10 @@ function BSMastRow({ trailing = null, size = 16, style = null }) {
 // Compact page header (non-masthead, for inner tabs)
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
   const t = useBS();
+  useBSReportBareMast(trailing == null);
   return (
-    <div style={{ padding: `64px ${t.padX}px 14px` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
@@ -1719,7 +1849,7 @@ Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSNavGestures,
   BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
-  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H,
+  DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
 });

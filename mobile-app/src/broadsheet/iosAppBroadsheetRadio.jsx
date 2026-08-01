@@ -18,6 +18,11 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 
 const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, useCallback: useCallbackBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
+// The masthead's top inset — the chrome owns it (window-exported). The local
+// fallback mirrors the chrome's expression exactly so a load-order slip degrades
+// to the same geometry instead of silently reverting to a notch-blind flat 44.
+const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
+
 
 // The neutral song-social shape — every read/write path returns this or a filled
 // version of it, so a signed-out or pre-migration reader never sees undefined.
@@ -984,6 +989,44 @@ function bsRadioTimeAgo(iso, tr) {
   } catch (e) { return new Date(ms).toLocaleDateString(); }
 }
 
+// THE MASTHEAD TRAILING CLUSTER (owner ruling 2026-08-01 — one row, one inset,
+// every page). The search circle + the member's own facet avatar, both sized by
+// BS_HEADER_AVATAR and spaced by BS_CORNER_GAP, in ONE place so the radio screen
+// and the Shape Sets page cannot drift. Both constants are READ, never re-typed:
+// the chrome owns the values and the `|| 34` / `|| 9` fallbacks only cover load
+// order. `ink` is the search circle's colour — both radio pages are fixed-dark on
+// their portrait ground, so they pass CREAM rather than the theme ink.
+// `bg` is the SURFACE the corner sits on, and it is only passed by a screen whose
+// ground is fixed regardless of the paper theme. BSFacetAvatar falls back to
+// `t.PAPER`, which is right on a theme-adaptive screen (BSRadioScreen derives its
+// whole palette from `t.isLight`) and WRONG on a fixed-dark one: the presence-dot
+// surround and the rank shadow would paint light paper onto an unchanging dark
+// venue. Pass it only where the ground is a literal, never as a blanket constant.
+function bsRadioCorner(ink, bg) {
+  const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
+  const gap = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap }}>
+      {(typeof window !== 'undefined' && window.BSSearchCorner)
+        ? React.createElement(window.BSSearchCorner, { size, ink })
+        : null}
+      {(typeof window !== 'undefined' && window.BSFacetAvatar)
+        ? React.createElement(window.BSFacetAvatar, {
+          size,
+          c: (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98',
+          initial: (window.bsMyInitials && window.bsMyInitials()) || 'A',
+          name: (window.bsMyName && window.bsMyName()) || undefined,
+          photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
+          live: !!(window.bsAmLive && window.bsAmLive()),
+          showRank: false,
+          ...(bg ? { BG: bg, INK: ink } : null),
+          onClick: () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} },
+        })
+        : null}
+    </div>
+  );
+}
+
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
@@ -1111,7 +1154,7 @@ function BSRadioScreen({ onBack }) {
       }} />
 
       {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `50px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
@@ -1119,11 +1162,17 @@ function BSRadioScreen({ onBack }) {
               {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
             </div>
           </div>
-          <button onClick={onBack} style={{
-            padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
-          }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
+          {/* Canonical trailing corners (owner ruling 2026-08-01), from the one
+              module-scope cluster. This page is fixed-dark on the venue portrait,
+              so the search circle takes the `ink` variant in CREAM rather than
+              the theme ink. */}
+          {bsRadioCorner(CREAM)}
         </div>
+        {/* Universal back row — own row, flush left, under the mast (2026-07-14). */}
+        <button onClick={onBack} style={{
+          marginTop: 12, display: 'inline-flex', padding: '8px 2px', background: 'transparent', color: CREAM, border: 0, cursor: 'pointer',
+          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+        }}>{tr('radio:screen.back', { defaultValue: '← Back' })}</button>
         <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
           {tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}
         </div>
@@ -1602,10 +1651,24 @@ function BSShapeSetsScreen({ onBack }) {
           {/* HEADER — masthead like other mobile pages: Vol·No row, then the
               universal back row (← RADIO, plain mono text-action flush left —
               the bordered pill died with the placement sweep), eyebrow, title. */}
-          <div style={{ padding: `50px ${t.padX}px 0` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
+          <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
+              </div>
+              {/* Canonical trailing corners — CREAM `ink` variant, this page is
+                  fixed-dark on the venue ground (owner ruling 2026-08-01). Same
+                  module-scope cluster the radio screen uses.
+                  ⚠ The venue ground is passed EXPLICITLY because this screen's
+                  palette is a set of literals, not derived from `t.isLight` —
+                  without it the live presence dot's surround would render in
+                  light paper on the unchanging dark venue. The radio screen
+                  deliberately passes nothing: it IS theme-adaptive, so there the
+                  avatar's `t.PAPER` fallback is the correct surface. */}
+              {/* No corner: Shape Sets is a drill-in held in BSRadioScreen's local
+                  showSets, while the nav descriptor records only tab:'radio' — the
+                  avatar unmounts the radio screen and back returns to the root. */}
             </div>
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={onBack} aria-label="Radio" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '8px 2px', cursor: 'pointer', color: CREAM, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1 }}>

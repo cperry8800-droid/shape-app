@@ -336,7 +336,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   // Back moved OUT of the trailing corner into BSPageHeader's universal back
   // slot (own row, flush left, under the mast — owner call 2026-07-14).
   const trailing = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9 }}>
+      {(typeof window !== 'undefined' && window.BSSearchCorner)
+        ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 })
+        : null}
       {(() => {
         // The real self avatar — initials · photo · tier color · live dot —
         // rendered exactly like every other page header. The self helpers already
@@ -351,8 +354,8 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         const photo = (W.bsMyPhoto && W.bsMyPhoto()) || undefined;
         const live = !!(W.bsAmLive && W.bsAmLive());
         const FA = W.BSFacetAvatar;
-        if (FA) return React.createElement(FA, { size: 32, c: color, initial: init, photo, live, showRank: false, onClick: onProfile });
-        return <BSAvatarCal init={init} size={32} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
+        if (FA) return React.createElement(FA, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, c: color, initial: init, photo, live, showRank: false, onClick: onProfile });
+        return <BSAvatarCal init={init} size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
       })()}
     </div>
   );
