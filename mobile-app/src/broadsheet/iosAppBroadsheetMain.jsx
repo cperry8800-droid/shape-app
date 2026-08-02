@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
+import { bsCaptureBoundaryError } from '../sentry.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -2261,7 +2262,7 @@ bsInstallMemHud();
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
-  componentDidCatch(err, info) { this.setState({ info }); bsRecordError(err, info); }
+  componentDidCatch(err, info) { this.setState({ info }); bsRecordError(err, info); bsCaptureBoundaryError(err, info); }
   render() {
     if (!this.state.err) return this.props.children;
     const err = this.state.err;
