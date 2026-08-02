@@ -562,7 +562,6 @@ const sharedRegistry = () => new Map([
 ]);
 const errorMod = await loadRealModule(join(ROOT, 'src', 'app', 'error.tsx'), { typescript: true, registry: sharedRegistry() });
 const globalErrorMod = await loadRealModule(join(ROOT, 'src', 'app', 'global-error.tsx'), { typescript: true, registry: sharedRegistry() });
-const crashPageMod = await loadRealModule(join(ROOT, 'src', 'app', 'dashboard', 'crash-test', 'page.tsx'), { typescript: true, registry: new Map([['react', React]]) });
 
 function mount(el) {
   const host = document.createElement('div');
@@ -608,31 +607,9 @@ test('global-error.tsx: captures with the tag and renders the card standalone', 
   assert.equal(capturedWeb[before].ctx?.tags?.crash_type, 'boundary');
 });
 
-test('crash-test page: SSR-safe (renders the arming line), throws only after hydration', () => {
-  // SSR pass must NOT throw — a render-time throw would be captured as a
-  // SERVER error and never exercise the browser boundary path.
-  const html = ReactDOMServer.renderToStaticMarkup(React.createElement(crashPageMod.default));
-  assert.match(html, /Arming crash test/);
-  // Client mount: the effect arms it, the re-render throws, a local boundary
-  // proves the throw happens post-hydration with the distinctive message.
-  class Net extends React.Component {
-    constructor(p) { super(p); this.state = { err: null }; }
-    static getDerivedStateFromError(err) { return { err }; }
-    render() { return this.state.err ? React.createElement('p', null, `caught:${this.state.err.message}`) : this.props.children; }
-  }
-  const realError = console.error;
-  const stray = [];
-  console.error = (...a) => { const line = a.join(' '); if (!/Deliberate crash test|Net|CrashTest/.test(line)) stray.push(line); };
-  let host;
-  try {
-    ({ host } = mount(React.createElement(Net, null, React.createElement(crashPageMod.default))));
-  } finally { console.error = realError; }
-  assert.equal(stray.length, 0, stray.join('\n'));
-  assert.match(host.textContent, /caught:Deliberate crash test \(web boundary\)/);
-});
 ```
 
-Note: the third test needs Task 5's page — within this task, comment out the `crashPageMod` lines and the third test, and re-enable them in Task 5 (its Step 1).
+(The crash-test page's tests are added by Task 5, which creates that page — this task's file ends after the two tests above.)
 
 - [ ] **Step 2: Run — expect FAIL** (files don't exist): `node --test tests/web-error-boundary.test.mjs`
 
@@ -741,7 +718,40 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: dashboard layout's server-side gate (redirects anonymous visitors to `/login` — no quota noise from crawlers).
 
-- [ ] **Step 1: Re-enable the commented `crashPageMod` loader lines and the third test** in `tests/web-error-boundary.test.mjs`. Run — expect FAIL (page missing): `node --test tests/web-error-boundary.test.mjs`
+- [ ] **Step 1: Write the failing test.** Append to `tests/web-error-boundary.test.mjs` — a loader line after the `globalErrorMod` line:
+
+```js
+const crashPageMod = await loadRealModule(join(ROOT, 'src', 'app', 'dashboard', 'crash-test', 'page.tsx'), { typescript: true, registry: new Map([['react', React]]) });
+```
+
+and this test at the end of the file:
+
+```js
+test('crash-test page: SSR-safe (renders the arming line), throws only after hydration', () => {
+  // SSR pass must NOT throw — a render-time throw would be captured as a
+  // SERVER error and never exercise the browser boundary path.
+  const html = ReactDOMServer.renderToStaticMarkup(React.createElement(crashPageMod.default));
+  assert.match(html, /Arming crash test/);
+  // Client mount: the effect arms it, the re-render throws, a local boundary
+  // proves the throw happens post-hydration with the distinctive message.
+  class Net extends React.Component {
+    constructor(p) { super(p); this.state = { err: null }; }
+    static getDerivedStateFromError(err) { return { err }; }
+    render() { return this.state.err ? React.createElement('p', null, `caught:${this.state.err.message}`) : this.props.children; }
+  }
+  const realError = console.error;
+  const stray = [];
+  console.error = (...a) => { const line = a.join(' '); if (!/Deliberate crash test|Net|CrashTest/.test(line)) stray.push(line); };
+  let host;
+  try {
+    ({ host } = mount(React.createElement(Net, null, React.createElement(crashPageMod.default))));
+  } finally { console.error = realError; }
+  assert.equal(stray.length, 0, stray.join('\n'));
+  assert.match(host.textContent, /caught:Deliberate crash test \(web boundary\)/);
+});
+```
+
+Run — expect FAIL (page missing): `node --test tests/web-error-boundary.test.mjs`
 
 - [ ] **Step 2: Implement the page**
 
