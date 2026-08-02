@@ -2193,6 +2193,7 @@ function BSApp() {
     <I18nextProvider i18n={bsI18n}>
       <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
         <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
+          {bsCrashTestRequested() && <BSCrashProbe />}
           <BSAppShell tweaks={tweaks} setTweak={setTweak} />
           {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
         </div>
@@ -2258,6 +2259,21 @@ function bsInstallMemHud() {
   }, 1000);
 }
 bsInstallMemHud();
+
+// ── Deliberate crash trigger (?crash=1) ─────────────────────────────
+// The post-DSN e2e Sentry gate (spec 2026-08-02) needs a real, boundary-caught
+// render crash on demand — same URL-param pattern as the ?mem=1 HUD above.
+// One-shot by design: nothing persists, so a reload without the param
+// recovers. The probe renders INSIDE BSErrorBoundary (via BSApp), so the
+// crash exercises the exact componentDidCatch → Sentry path a real fault takes.
+function bsCrashTestRequested(search) {
+  try {
+    return new URLSearchParams(search != null ? search : window.location.search).get('crash') === '1';
+  } catch (e) { return false; }
+}
+function BSCrashProbe() {
+  throw new Error('Deliberate crash test (mobile boundary)');
+}
 
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }

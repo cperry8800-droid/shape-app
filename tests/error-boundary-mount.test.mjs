@@ -73,7 +73,7 @@ const MOD = await loadRealModule(MAIN_SRC, {
     ['./BSLanguagePicker.jsx', { default: () => null }],
     ['react-i18next', { I18nextProvider: ({ children }) => children }],
   ]),
-  appendExports: 'export { BSErrorBoundary };',
+  appendExports: 'export { BSErrorBoundary, bsCrashTestRequested, BSCrashProbe };',
 });
 
 // React logs boundary-caught errors via console.error by design; only the
@@ -106,4 +106,31 @@ test('a render crash is caught: fallback card shows, seam gets error + component
   assert.equal(captured[0].err.message, 'mount-test bomb');
   assert.match(String(captured[0].info?.componentStack || ''), /Bomb/);
   React.act(() => root.unmount());
+});
+
+test('bsCrashTestRequested: pure, total, exact-match on ?crash=1', () => {
+  assert.equal(MOD.bsCrashTestRequested('?crash=1'), true);
+  assert.equal(MOD.bsCrashTestRequested('?crash=1&mem=1'), true);
+  assert.equal(MOD.bsCrashTestRequested('?crash=2'), false);
+  assert.equal(MOD.bsCrashTestRequested(''), false);
+  // No argument → reads window.location.search (jsdom URL has no params here).
+  assert.equal(MOD.bsCrashTestRequested(), false);
+});
+
+test('the crash probe is boundary-caught and reported, like any real crash', () => {
+  const before = captured.length;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const { stray } = withTrappedConsole([/Deliberate crash test/, /BSErrorBoundary/, /BSCrashProbe/], () => {
+    React.act(() => {
+      root.render(React.createElement(MOD.BSErrorBoundary, null, React.createElement(MOD.BSCrashProbe)));
+    });
+  });
+  assert.equal(stray.length, 0, stray.join('\n'));
+  assert.match(host.textContent, /Something went wrong/);
+  assert.equal(captured.length, before + 1);
+  assert.equal(captured[before].err.message, 'Deliberate crash test (mobile boundary)');
+  React.act(() => root.unmount());
+  host.remove();
 });
