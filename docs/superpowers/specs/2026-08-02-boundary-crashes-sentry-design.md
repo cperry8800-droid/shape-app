@@ -36,7 +36,7 @@ One new **total** function in `mobile-app/src/sentry.mjs` (the only module
 allowed to touch the SDK on mobile — house pattern, every call individually
 `try/catch`-wrapped so error tracking can never take the app down):
 
-```
+```js
 bsCaptureBoundaryError(err, info)   // never throws
 ```
 
@@ -45,6 +45,15 @@ bsCaptureBoundaryError(err, info)   // never throws
   ESM loader 2026-08-02). It attaches the React component stack as the event's
   `react` context, so the event names the component that crashed. `handled:
   true` because the boundary shows a recovery card — the session continues.
+- Every boundary capture carries the tag **`crash_type: 'boundary'`** (scoped
+  capture — the tag must not leak onto unrelated events). ⚠ **Documented
+  tradeoff, owner call 2026-08-02:** `handled: true` means these events do
+  NOT count against Sentry's crash-free session rate, so a recurring render
+  crash that white-cards a feature would stay invisible in release health.
+  The tag is the compensating control — it keeps boundary crashes filterable
+  and alertable (an issue alert on `crash_type = boundary` is an owner-side
+  option once the org exists). Do not "fix" this later by flipping to
+  `handled: false` without revisiting that decision — it was made explicitly.
 - Called from `componentDidCatch` (`iosAppBroadsheetMain.jsx:2264`), alongside
   the existing `bsRecordError`. The fallback card (Copy / Reload / Restart) is
   unchanged.
@@ -61,7 +70,9 @@ Two new client components, Sentry's documented App Router pattern:
 - `src/app/error.tsx` — root error boundary. Renders a small branded
   "Something went wrong" card **inside** the root layout, with a "Try again"
   button wired to Next's `reset()`. Captures via
-  `Sentry.captureException(error)` in a `useEffect` keyed on the error.
+  `Sentry.captureException(error, { tags: { crash_type: 'boundary' } })` in a
+  `useEffect` keyed on the error — same tag and same release-health tradeoff
+  as the mobile seam (see above).
 - `src/app/global-error.tsx` — last resort, mounts only when the root layout
   itself crashes. Must render its own `<html><body>`; dependency-free inline
   styles (no theme, no layout — nothing above it survived). Same capture.
@@ -96,16 +107,44 @@ React 19's `act`.
 2. **Web error components mount:** compile `error.tsx` / `global-error.tsx`
    (babel preset-typescript + preset-react), map `@sentry/nextjs` to a
    recording stub, mount with a thrown error prop. Assert: fallback UI
-   rendered, `captureException` called with that error, `reset` fires on
-   click.
+   rendered, `captureException` called with that error and the
+   `crash_type: 'boundary'` tag, `reset` fires on click.
 3. **Envelope unit test:** call the real `bsCaptureBoundaryError` with
    `@sentry/react` initialized against a mock transport (no network, no DSN
-   leak). Assert the outgoing event carries the component stack and
-   `mechanism.handled: true` — proving the seam produces a real event, not
-   just that it was called.
+   leak). Assert the outgoing event carries the component stack, the
+   `crash_type: 'boundary'` tag and `mechanism.handled: true` — proving the
+   seam produces a real event, not just that it was called.
+4. **Dedupe verification (owner requirement 2026-08-02 — verify, don't
+   assume):** in the same mock-transport test, fire the identical capture
+   twice consecutively and assert exactly **one** envelope leaves — proving
+   `dedupeIntegration` is active through the Capacitor init path and a render
+   loop can't burn the monthly quota in minutes. If this test comes back red,
+   `bsCaptureBoundaryError` gains a local guard (suppress a repeat of the
+   same message + stack) and the test then asserts the guard instead. Two
+   honest limits, recorded so they aren't rediscovered: Sentry's dedupe only
+   suppresses **consecutive identical** events (A-B-A alternation passes
+   through), and this verifies the shared core integration on the mobile SDK
+   — the web SDK uses the same core dedupe but is not separately unit-tested
+   here (it cannot initialize under `node --test`; see the CJS landmine).
 
 Runner: the existing `npm test` glob (`node --test "tests/**/*.test.mjs"`)
 picks the file up with no config change.
+
+### Deliberate crash triggers (shipped in this PR so the end-to-end gate is runnable)
+
+The end-to-end gate below needs a way to throw a real render crash on demand.
+Both triggers ship here, inert unless explicitly invoked:
+
+- **Mobile:** `?crash=1` on the `/m/` URL — the same pattern as the existing
+  `?mem=1` memory HUD. When present, a probe component that throws a
+  distinctive error (`"Deliberate crash test (mobile boundary)"`) renders
+  inside the boundary. One-shot: no localStorage persistence, so a reload
+  without the param recovers. The param check lives in a tiny pure helper so
+  the trigger logic is unit-testable without a mount.
+- **Web:** `src/app/dashboard/crash-test/page.tsx` — a client component that
+  throws `"Deliberate crash test (web boundary)"` on render. Deliberately
+  **inside the gated `/dashboard` area** so anonymous visitors and crawlers
+  can't hit it and generate Sentry noise once a DSN exists.
 
 ### Explicitly out of scope
 
@@ -116,6 +155,23 @@ picks the file up with no config change.
 
 ## Verification gates
 
-`npx tsc --noEmit` clean · `npm test` green (including the three tests above)
+`npx tsc --noEmit` clean · `npm test` green (including the four tests above)
 · mobile parse-check on the edited `.jsx` · `next build` clean · CI green on
 the PR · Codex review present per the merge gate.
+
+**End-to-end gate (owner requirement 2026-08-02 — the delivery check, not the
+seam check).** Every gate above passes with a broken DSN, a wrong project
+slug, or an org that doesn't exist — a mocked transport proves the seam, not
+the delivery (the same rule set for Layer 2's alert routing). Therefore,
+**once a real DSN exists** (owner step — the org does not exist yet, so this
+gate is deferred, not skipped): fire both deliberate crash triggers — `?crash=1`
+on `/m/` and `/dashboard/crash-test` — and confirm each event arrives in the
+**correct project** (`shape-mobile` and `shape-web` respectively) with a
+**symbolicated, readable exception stack** and the React component-stack
+context attached. Honest limit: the `react.componentStack` context is a
+client-generated string, so component names in it may be minified in
+production bundles — the symbolicated exception stack is the readability
+guarantee; the distinctive crash-test messages are the arrival guarantee.
+This work is not DONE until this gate has run, even if the PR merges first
+(it ships inert by design). Track it beside the layer-1 runbook's
+four-path verification.
