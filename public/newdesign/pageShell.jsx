@@ -590,6 +590,24 @@ function ShapeMobileStyles() {
 
 Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
 
+// ── Error tracking (Sentry, static website) — DELIBERATELY NOT HERE ──────────
+// This file used to set window.SHAPE_SENTRY_DSN and load sentryInit.js, on the
+// reasoning that pageShell.jsx is the one file every newdesign page shares. Two
+// things were wrong with that, and both are why the bootstrap now lives in
+// scripts/build-newdesign.mjs (the deploy precompile) instead:
+//
+//   1. NOTHING COULD EVER SET THE DSN. This surface has no bundler, so there is
+//      no `process.env` to read here; the assignment was `window.X = window.X ||
+//      ""`, and no other file in the repo assigned it. The site would have
+//      stayed unmonitored forever after the owner set every documented env var
+//      and redeployed. The precompile runs at deploy, where the env DOES exist.
+//   2. "EVERY PAGE" WAS 69 OF 76. GetApp.html, consultation.html and
+//      ClientPlaylists.html are live, linked flows that never load pageShell —
+//      so hooking this file left them with no error tracking at all.
+//
+// Do not re-add it here: you would double-load sentryInit.js on the 69 pages
+// that do load pageShell, and still miss the ones that don't.
+
 // ── ShapeConfirm — shared destructive-action confirm modal (web) ─────────────
 // Imperative + promise-based: window.ShapeConfirm.open({ title, name, message,
 // confirmLabel, danger=true, requireType, cancelLabel }) -> Promise<boolean>.

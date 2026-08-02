@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { bsSetSentryUser } from '../sentry.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
@@ -111,6 +112,35 @@ function setCached(next = {}) {
   Object.assign(state, next);
   const uid = (state.user && state.user.id) || null;
   const name = (state.profile && state.profile.full_name) || null;
+  // PII-free Sentry user context — id, roles, is_coach ONLY (src/lib/sentry-context.mjs
+  // owns that rule; the profile is passed through unreshaped so the module stays the one
+  // place the allow-list lives).
+  //
+  // ⚠ SYNCED HERE, NOT AT THE AUTH CALL SITES, because this is the ONE chokepoint every
+  // identity transition already passes through — signIn, signUp, verifyPhoneOtp,
+  // getCurrentSession, updateProfileRoles/Name/Username and signOut all land in this
+  // function. It used to live in getCurrentSession() alone, which runs at MOUNT, so
+  // signing in without reloading left the context at whatever the anonymous boot had set:
+  // every error for the rest of that session arrived with no id, no roles, no is_coach —
+  // on the single most common path there is (open app, sign in). Role changes had the
+  // same problem: updateProfileRoles only ever touched the cache.
+  //
+  // Called UNCONDITIONALLY, not `if (uid !== prevUid)`: a partial update such as
+  // setCached({ profile }) keeps the same uid while changing roles, so gating on identity
+  // change would miss exactly the case updateProfileRoles produces. And passing null when
+  // there is no user CLEARS the previous account's tags rather than leaving them standing
+  // — this repo has a documented history of cross-account cache leaks (_followCache,
+  // 2026-06-29). Total by construction (bsSetSentryUser swallows) and a no-op with no DSN,
+  // so it can neither throw nor delay a sign-in; it is a local scope write, no network.
+  //
+  // ⚠ `uid` rides along as the id FALLBACK because signed-in-with-no-profile is a REAL
+  // state, not a hypothetical: getCurrentSession() below deliberately swallows a failed
+  // upsertProfile() and carries on with profile === null. Taking the id from the profile
+  // alone would report every error in that degraded state as anonymous — and a broken
+  // account is exactly when knowing WHO hit it matters most. Roles stay profile-only, so
+  // they are honestly absent rather than guessed until it resolves. On sign-out both
+  // arguments are null, so the previous account's tags are still cleared.
+  try { bsSetSentryUser(state.user ? state.profile : null, uid); } catch (e) {}
   // Notify the UI when identity actually changes (sign-in / sign-out / profile
   // resolve). Avatars read bsMyName()/bsMyPhoto() straight from this cache, and
   // they typically render once BEFORE getCurrentSession resolves (user.id still
@@ -459,6 +489,10 @@ async function getCurrentSession() {
   if (user && !profile) { try { profile = await upsertProfile(user); } catch (e) {} }
   if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
   if (user) profile = await ensureDobPersisted(user, profile); // claim a signup DOB on first (confirmed) login → fires the over_18 trigger
+  // Sentry user context is set by setCached() above — the one chokepoint every identity
+  // transition passes through. Do NOT re-add a bsSetSentryUser call here: this path only
+  // runs at mount, and having it here alone is exactly what left a mid-session sign-in
+  // reporting anonymous errors.
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
@@ -487,6 +521,9 @@ async function signOut() {
   for (const k in _avatarCache) delete _avatarCache[k];
   _followingIdsCache = { uid: null, ids: null, at: 0 };
   _prepCache = null;   // PREPPED records are member data — never cross accounts
+  // The Sentry user tags drop with the rest of the viewer-relative state: setCached below
+  // sees a null user and clears them, so a signed-out session can never inherit the
+  // previous account's id/roles. Handled at that one chokepoint, not repeated here.
   return setCached({ user: null, session: null, profile: null });
 }
 

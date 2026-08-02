@@ -19,10 +19,56 @@ echo "→ Installing mobile-app dependencies…"
 ( cd mobile-app && npm ci --include=dev )
 
 echo "→ Building the /m/ bundle (VITE_BASE=/m/)…"
+# VERCEL_GIT_COMMIT_SHA is set automatically by Vercel's build environment.
+# Exporting it as VITE_SHAPE_RELEASE bakes it into the bundle (Vite inlines
+# import.meta.env.* at build time) as this deploy's Sentry release string —
+# identical to the web side's release (see sentry-context.mjs), so one
+# deploy's mobile + server errors correlate. Empty/unset outside Vercel
+# (local build, CI) — sentry.mjs treats that as "no release", not a crash.
+export VITE_SHAPE_RELEASE="${VERCEL_GIT_COMMIT_SHA:-}"
+# Same reasoning for the environment. Vite's own MODE is 'production' for EVERY
+# production build, so without this a Vercel PREVIEW deploy of /m/ would report
+# environment:'production' and its errors would be indistinguishable from live
+# ones. VERCEL_ENV is production|preview|development. Empty outside Vercel —
+# sentry.mjs then falls back to MODE.
+export VITE_SHAPE_ENV="${VERCEL_ENV:-}"
 ( cd mobile-app && VITE_BASE=/m/ npm run build )
 
 echo "→ Publishing mobile-app/dist → public/m…"
 rm -rf public/m
 cp -r mobile-app/dist public/m
+
+# --- Sentry sourcemap upload: ALREADY DONE, one step up ---
+# This used to be a placeholder comment saying an upload "goes here" — it never
+# did, so maps were generated and then deleted without ever being sent anywhere
+# and every mobile stack trace would have arrived minified.
+#
+# The upload now runs inside the vite build above, via @sentry/vite-plugin (see
+# mobile-app/vite.config.ts), which reads the maps from mobile-app/dist BEFORE
+# the `cp -r` that put them in public/m. It is gated on SENTRY_AUTH_TOKEN +
+# SENTRY_ORG + SENTRY_PROJECT_MOBILE and is simply absent when they are unset,
+# so nothing uploads until the owner configures Sentry. The strip below is
+# therefore unconditional and independent: maps are generated -> uploaded (when
+# configured) -> always stripped before publish.
+
+# vite.config.ts sets `sourcemap: 'hidden'`: maps are generated (for a future
+# Sentry upload / local symbolication) but the bundle carries no
+# `//# sourceMappingURL=` comment pointing at them. That alone does NOT stop
+# them being served — they're still real files in dist/, and the `cp -r` above
+# just copied them into public/m, which is served publicly at
+# theshapecommunity.com/m/…. Delete them here so nothing is ever reachable:
+# maps are generated, (eventually) uploaded, then stripped before publish.
+#
+# ⚠ EXPECT THIS TO REPORT 0 — that is success, not breakage. The strip now
+# happens upstream in mobile-app/vite.config.ts (`stripSourcemaps`, in
+# closeBundle), because dist/ is the chokepoint that ALSO feeds the native
+# Android and iOS builds — and this script never runs in either of those (it is
+# the Vercel buildCommand only, see vercel.json). By the time the `cp -r` above
+# runs, dist/ already has no maps. This delete is kept as a redundant backstop
+# so /m/ stays covered even if the vite plugin is ever removed; a NON-zero count
+# here means the upstream strip stopped working.
+map_count=$(find public/m -name '*.map' -type f | wc -l)
+find public/m -name '*.map' -type f -delete
+echo "→ Removed ${map_count} sourcemap file(s) from public/m (expected 0 — stripped upstream in vite.config.ts)"
 
 echo "→ public/m built: $(find public/m -type f | wc -l) files"

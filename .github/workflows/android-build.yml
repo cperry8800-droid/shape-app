@@ -55,8 +55,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ⚠ Sentry rides in HERE or not at all. Vite inlines `import.meta.env.*` at
+      # BUILD time, so an APK built without these bakes in an empty DSN and can
+      # never be switched on later — no redeploy reaches a shipped binary. GitHub
+      # secrets are NOT exposed to a step implicitly, and Vercel env vars do not
+      # exist in this runner at all: scripts/build-m.sh only covers the hosted
+      # /m/ bundle. Every SECRET here is optional — unset, the SDK stays inert
+      # (dsn '') and the upload plugin is simply absent, so Sentry does nothing.
+      # ⚠ That is NOT the same as "byte-identical", which this comment used to
+      # claim. VITE_SHAPE_RELEASE is `${{ github.sha }}` — a context expression,
+      # always set, never a secret — and sentry.mjs reads it via
+      # `import.meta.env.VITE_SHAPE_RELEASE`, which Vite inlines at build time.
+      # So the bundle carries the commit SHA even with no Sentry configured.
+      # Functionally inert, different bytes.
       - name: Build web assets
         run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # ⚠ Without this the debug APK reports environment:'production', because
+          # Vite's MODE is 'production' for any production build regardless of what
+          # the artifact is for — PR/debug errors would be indistinguishable from
+          # live ones and would defeat production-only alert filtering.
+          VITE_SHAPE_ENV: debug
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -72,6 +96,19 @@ jobs:
 
       - name: Sync Capacitor Android
         run: npx cap sync android
+
+      # A silent strip that regresses looks identical to one that works, so
+      # assert it rather than trust it. The strip itself lives in
+      # mobile-app/vite.config.ts (`stripSourcemaps`), because dist/ is the one
+      # chokepoint every consumer copies from. ⚠ There is NO equivalent gate on
+      # the iOS side — codemagic.yaml builds the TestFlight IPA on a Codemagic
+      # Mac mini, outside this workflow — so the vite-level strip is the SOLE
+      # guard on the App Store path. Do not move it into a CI step here.
+      - name: Fail if source maps reached the native bundle
+        run: |
+          n=$(find android/app/src/main/assets/public -name '*.map' -type f | wc -l)
+          echo "sourcemaps in native assets: $n"
+          [ "$n" -eq 0 ] || { echo "::error::$n .map file(s) would ship in the APK"; exit 1; }
 
       - name: Assemble debug APK
         working-directory: mobile-app/android
@@ -122,9 +159,20 @@ jobs:
         if: steps.secrets.outputs.present == 'true'
         run: npm ci
 
+      # Same reasoning as the debug job above — this is the SIGNED build that
+      # actually ships, so it is the one that must not bake in an empty DSN.
       - name: Build web assets
         if: steps.secrets.outputs.present == 'true'
         run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SHAPE_RELEASE: ${{ github.sha }}
+          # This is the signed build that actually ships, so it is genuinely
+          # production — unlike the debug job above.
+          VITE_SHAPE_ENV: production
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
 
       - name: Set up JDK 21
         if: steps.secrets.outputs.present == 'true'
@@ -144,6 +192,15 @@ jobs:
       - name: Sync Capacitor Android
         if: steps.secrets.outputs.present == 'true'
         run: npx cap sync android
+
+      # Same assertion as the debug job — and this is the SIGNED build that
+      # actually ships, so it is the one that matters most.
+      - name: Fail if source maps reached the native bundle
+        if: steps.secrets.outputs.present == 'true'
+        run: |
+          n=$(find android/app/src/main/assets/public -name '*.map' -type f | wc -l)
+          echo "sourcemaps in native assets: $n"
+          [ "$n" -eq 0 ] || { echo "::error::$n .map file(s) would ship in the APK"; exit 1; }
 
       - name: Decode keystore
         if: steps.secrets.outputs.present == 'true'

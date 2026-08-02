@@ -7,6 +7,7 @@
 // Auth: x-cron-secret: <CRON_SECRET> OR Authorization: Bearer <CRON_SECRET>.
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { bsEvaluateHealth, bsReadState, bsReadStateNote } from '@/lib/guardrail-health.mjs';
 
@@ -214,14 +215,37 @@ function authorized(req: Request): boolean {
 /**
  * Where an alert goes.
  *
- * ⚠ Sentry does not exist in this repo yet, so this logs. When Layer 1 lands,
- * THIS FUNCTION BODY is the single place that changes — nothing else in the job
- * knows how an alert is delivered. Until then the findings reach Vercel logs and
- * the run record, and no further.
+ * Layer 1 (Sentry) has landed — this now fires BOTH sinks for every alert: the
+ * existing `console.error` (Vercel logs, and the run record persists
+ * independently of this function entirely) AND a `Sentry.captureMessage`
+ * tagged with the alert + the specific check.
+ *
+ * ⚠ SENTRY IS INERT UNTIL A DSN EXISTS. With no `SENTRY_DSN` configured,
+ * `Sentry.captureMessage` runs against a disabled SDK and is a documented
+ * no-op — so today this still behaves exactly as it did before Layer 1: only
+ * the log fires. `console.error` is KEPT for exactly that reason — dropping
+ * it in favour of Sentry would mean a finding reaches nobody at all until a
+ * DSN is configured, which is precisely the silent-alerting failure Layer 2
+ * exists to catch, one level up.
  */
 function reportAlerts(alerts: Array<{ check: string; severity: string; message: string }>): void {
   for (const a of alerts) {
     console.error('[shape-health]', JSON.stringify({ alert: 'guardrail-health', ...a }));
+    // ⚠ A throw here — from the SDK itself, or from a future change to it —
+    // must never cost an alert its console.error line above, which is the
+    // ONLY sink that exists before a DSN is configured. Caught and swallowed,
+    // not re-raised: the same "total function" discipline as `bsSentryUser`
+    // in sentry-context.mjs:38-46 — a failure while reporting one finding
+    // must never become a second, worse one (a job that dies mid-loop and
+    // reports the rest of the alerts to nobody, not even the log).
+    try {
+      Sentry.captureMessage(a.message, {
+        level: a.severity === 'warning' ? 'warning' : 'error',
+        tags: { alert: 'guardrail-health', check: a.check },
+      });
+    } catch {
+      // deliberately empty — see the comment above.
+    }
   }
 }
 

@@ -49,6 +49,29 @@ workflows:
         script: |
           cd mobile-app
           npm ci
+          # Sentry release for the TestFlight IPA. Vite inlines import.meta.env.*
+          # at BUILD time, so it has to be exported HERE — a shipped binary can
+          # never be fixed by redeploying. Without it, mobile-app/src/sentry.mjs
+          # initialises with `release: undefined` and the runbook's release
+          # verification can never pass on iOS.
+          #
+          # CM_COMMIT is Codemagic's own commit variable; the `git rev-parse`
+          # fallback makes this independent of Codemagic's variable naming (older
+          # runners used FCI_COMMIT) and always resolves, since the repo is
+          # already checked out by the time this runs.
+          #
+          # ⚠ SAFE TO WIRE NOW, unlike the DSN. This references no Codemagic
+          # variable GROUP, so it cannot break the build when nothing is
+          # configured — unset simply yields the git SHA. The Sentry DSN + upload
+          # vars are deliberately STILL an owner step (docs/WORKLOG.md step 2c),
+          # because referencing a group that does not exist yet WOULD break the
+          # iOS build on the next push to main.
+          #
+          # VITE_SHAPE_ENV is deliberately not set: unset, sentry.mjs falls back
+          # to Vite's MODE, which is 'production' — correct for the artifact this
+          # pipeline ships. Set it explicitly only if TestFlight betas should be
+          # a separate Sentry environment from App Store releases.
+          export VITE_SHAPE_RELEASE="${CM_COMMIT:-$(git rev-parse HEAD)}"
           npm run build
       - name: Capacitor sync iOS
         script: |
