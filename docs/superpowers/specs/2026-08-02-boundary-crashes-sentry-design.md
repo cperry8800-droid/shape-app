@@ -141,6 +141,23 @@ Both triggers ship here, inert unless explicitly invoked:
   inside the boundary. One-shot: no localStorage persistence, so a reload
   without the param recovers. The param check lives in a tiny pure helper so
   the trigger logic is unit-testable without a mount.
+  ⚠ **Signed-in only** (Codex, PR #1868): the probe is gated on a resolved
+  session, so an anonymous visitor to `/m/?crash=1` gets nothing. Without the
+  gate anyone could load that URL repeatedly and inject deliberate exceptions
+  once a DSN exists, burning the Sentry quota — the web trigger sits behind
+  `/dashboard`, this one had no equivalent barrier.
+  ⚠ **The gate lives in `BSAppShell`, not `BSApp`, and that is load-bearing.**
+  Auth hydrates asynchronously: `window.ShapeAuth.getCachedState()` is empty on
+  the first render and fills in when `getCurrentSession()` resolves. `BSApp`
+  does not re-render on auth changes, so a gate there would evaluate false at
+  mount and never re-fire — a permanently dead trigger that reads as correct.
+  `BSAppShell` holds `authState` and re-renders when the session lands, and it
+  is still inside `BSErrorBoundary` (the boundary wraps the whole app at the
+  module root), so a triggered crash takes the exact `componentDidCatch` →
+  Sentry path a real fault takes. `bsCrashTestRequested` stays pure and total;
+  the auth read lives at the call site, never inside the helper.
+  `tests/broadsheet-identifiers.test.mjs` pins both facts against the AST —
+  that the probe is armed, and that it is still session-gated.
 - **Web:** `src/app/dashboard/crash-test/page.tsx` — a client component that
   throws `"Deliberate crash test (web boundary)"` on render. Deliberately
   **inside the gated `/dashboard` area** so anonymous visitors and crawlers
@@ -182,11 +199,20 @@ seam check).** Every gate above passes with a broken DSN, a wrong project
 slug, or an org that doesn't exist — a mocked transport proves the seam, not
 the delivery (the same rule set for Layer 2's alert routing). Therefore,
 **once a real DSN exists** (owner step — the org does not exist yet, so this
-gate is deferred, not skipped): fire both deliberate crash triggers — `?crash=1`
-on `/m/`, and `/dashboard/crash-test` **signed in as an admin, coach, or active
-member** (see the gate note above — a signed-in non-member gets the paywall and
-the test silently produces nothing, which reads as a Sentry failure but isn't)
-— and confirm each event arrives in the
+gate is deferred, not skipped): fire both deliberate crash triggers, **signed in
+on both**.
+
+- `?crash=1` on `/m/` — **requires a signed-in user**; the probe renders nothing
+  for an anonymous visitor (see "Deliberate crash triggers" above for why).
+- `/dashboard/crash-test` — sign in as an **admin, trainer, nutritionist, or
+  active subscriber**. Those four principals are the only ones that pass; anyone
+  else is shown the members-only paywall *instead of* the page, so the trigger
+  never mounts and the test silently produces nothing, which reads as a Sentry
+  failure but isn't. ⚠ **Do not shorten that list to "coach"** — a dietitian is
+  canonically a coach role but does not pass this gate; the full explanation is
+  under "Deliberate crash triggers" above.
+
+Then confirm each event arrives in the
 **correct project** (`shape-mobile` and `shape-web` respectively) with a
 **symbolicated, readable exception stack** and the React component-stack
 context attached. Honest limit: the `react.componentStack` context is a

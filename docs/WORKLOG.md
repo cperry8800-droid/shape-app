@@ -194,7 +194,8 @@ changelog whenever something ships.
 > ⚠ **The end-to-end gate is DEFERRED and this is NOT DONE until it runs.** Every gate this
 > passes — 1439/1439 tests, `tsc`, `next build`, mobile build, CI — passes identically against
 > a broken DSN or an org that doesn't exist. Owner steps once the org exists: pull the two
-> deliberate triggers (`/m/?crash=1`, and `/dashboard/crash-test` signed in **as an admin,
+> deliberate triggers — **sign in for BOTH** (`/m/?crash=1` renders nothing for an anonymous
+> visitor since the round-4 quota fix), and `/dashboard/crash-test` signed in **as an admin,
 > trainer, nutritionist, or active subscriber — the only four that pass**; anyone else gets
 > the paywall instead of the page and the test silently produces nothing. ⚠ NOT "coach":
 > a **dietitian** is canonically a coach role but `dashboard/layout.tsx` doesn't honor it —
@@ -1529,6 +1530,22 @@ changelog whenever something ships.
   and "Restart app" reloads the same URL query-string included — so both re-fire the crash
   instantly and anyone who opened the link is stranded until they hand-edit the address bar.
   The strip persists nothing (history entry only) and touches no card code.
+  ⚠ **`?crash=1` is SIGNED-IN ONLY too** (Codex round 4). It shipped reachable by any
+  anonymous visitor, so once a DSN exists someone could load `/m/?crash=1` on a loop and
+  inject deliberate exceptions until the monthly quota was gone — the web trigger had
+  `/dashboard` in front of it, this one had nothing. ⚠ **And the gate had to move to
+  `BSAppShell`, which is the non-obvious half:** auth hydrates asynchronously
+  (`getCachedState()` is empty on the first render and fills in when `getCurrentSession()`
+  resolves), and `BSApp` — where the probe used to render — never re-renders on auth. A
+  signed-in check there would have read false at mount and never re-fired: a permanently
+  dead trigger that looks correct in review and only fails during the owner's live gate.
+  `BSAppShell` holds `authState` and re-renders when the session lands, and it is still
+  inside `BSErrorBoundary` (which wraps the whole app at the module root), so a triggered
+  crash still takes the exact `componentDidCatch` → Sentry path a real fault takes.
+  `bsCrashTestRequested` stays pure and total — the auth read is at the call site, never in
+  the helper. `tests/broadsheet-identifiers.test.mjs` pins BOTH facts against the AST (armed,
+  and still session-gated), because nothing executes that line: the mount test stubs
+  `react-dom/client`, so neither component ever renders.
 
 - **Mount-tested for real, which is the whole point.** `componentDidCatch` never runs under
   `renderToString`, so the existing server-render harness could not have caught any of this:
