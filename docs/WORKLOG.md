@@ -194,7 +194,9 @@ changelog whenever something ships.
 > ⚠ **The end-to-end gate is DEFERRED and this is NOT DONE until it runs.** Every gate this
 > passes — 1439/1439 tests, `tsc`, `next build`, mobile build, CI — passes identically against
 > a broken DSN or an org that doesn't exist. Owner steps once the org exists: pull the two
-> deliberate triggers (`/m/?crash=1`, and signed-in `/dashboard/crash-test`), confirm one event
+> deliberate triggers (`/m/?crash=1`, and `/dashboard/crash-test` signed in **as an admin,
+> coach, or active member** — a signed-in non-member gets the paywall instead of the page and
+> the test silently produces nothing), confirm one event
 > each lands in `shape-mobile` / `shape-web`, symbolicated, carrying the distinctive
 > `Deliberate crash test (…)` messages.
 >
@@ -1551,7 +1553,11 @@ changelog whenever something ships.
   build clean, CI green — would pass **identically against a broken DSN, a wrong project slug,
   or an org that does not exist**. A mock transport proves the seam, not the delivery (the
   same rule set for Layer 2's alert routing). **Owner steps once the Sentry org exists:** open
-  `/m/?crash=1` and, signed in, `/dashboard/crash-test`; confirm **one** event each arrives in
+  `/m/?crash=1` and `/dashboard/crash-test`. ⚠ **Sign in as an admin, coach, or ACTIVE
+  member for the web one** — `src/app/dashboard/layout.tsx` renders the members-only paywall
+  *instead of* `children` for a signed-in non-member, so a plain test account never mounts the
+  page, throws nothing, and the gate fails silently while looking like a Sentry problem.
+  Confirm **one** event each arrives in
   `shape-mobile` and `shape-web` respectively, with a **symbolicated, readable stack** and the
   distinctive messages `Deliberate crash test (mobile boundary)` / `Deliberate crash test (web
   boundary)`. Honest limit: the React component-stack context is a client-generated string, so

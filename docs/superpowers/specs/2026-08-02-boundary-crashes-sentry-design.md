@@ -145,6 +145,14 @@ Both triggers ship here, inert unless explicitly invoked:
   throws `"Deliberate crash test (web boundary)"` on render. Deliberately
   **inside the gated `/dashboard` area** so anonymous visitors and crawlers
   can't hit it and generate Sentry noise once a DSN exists.
+  ⚠ **That gate is stricter than "signed in", and the runbook must say so**
+  (Codex, PR #1868): `src/app/dashboard/layout.tsx` renders the members-only
+  paywall *instead of* `children` for a signed-in **non-member**, so a plain
+  test account never mounts the page and throws nothing. The trigger is
+  deliberately NOT exempted from that check — an auth-only exemption would
+  widen the gate on a page whose whole purpose is to crash, for the sake of a
+  test convenience. The runbook carries the requirement instead: sign in as an
+  **admin, coach, or active member**.
 
 ### Explicitly out of scope
 
@@ -165,7 +173,10 @@ slug, or an org that doesn't exist — a mocked transport proves the seam, not
 the delivery (the same rule set for Layer 2's alert routing). Therefore,
 **once a real DSN exists** (owner step — the org does not exist yet, so this
 gate is deferred, not skipped): fire both deliberate crash triggers — `?crash=1`
-on `/m/` and `/dashboard/crash-test` — and confirm each event arrives in the
+on `/m/`, and `/dashboard/crash-test` **signed in as an admin, coach, or active
+member** (see the gate note above — a signed-in non-member gets the paywall and
+the test silently produces nothing, which reads as a Sentry failure but isn't)
+— and confirm each event arrives in the
 **correct project** (`shape-mobile` and `shape-web` respectively) with a
 **symbolicated, readable exception stack** and the React component-stack
 context attached. Honest limit: the `react.componentStack` context is a
