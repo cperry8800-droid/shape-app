@@ -137,4 +137,23 @@ test('the hook classifies what a commit DELETES, not only what it adds', () => {
     /\[ "\$\{#STAGED\[@\]\}" -eq 0 \]\s*&&\s*\[ "\$\{#DELETED\[@\]\}" -eq 0 \]\s*&&\s*exit 0/,
     'the early exit must require BOTH the added/modified AND the deleted list to be empty',
   );
+
+  // ⚠ The deletion arm must NOT inherit the parse arm's exclusion list. That
+  // list skips public/vendor, *.min.js and chat-design-v2 for ONE reason — a
+  // parser-plugin mismatch on generated code would block a commit nobody can
+  // fix. That is a statement about READING a file, not about whether removing
+  // it breaks the app: public/vendor/supabase-js and public/vendor/gridstack
+  // are loaded by 67 pages, so excluding them here meant a deletion-only commit
+  // removing one ran the suite zero times and exited 0.
+  const delLoop = hook.slice(
+    hook.indexOf('for f in "${DELETED[@]}"; do'),
+    hook.indexOf('# --- Parse-check candidates'),
+  );
+  assert.ok(delLoop.length > 0, 'could not locate the deletion classification loop');
+  assert.ok(
+    !/public\/vendor|\*\.min\.js|chat-design-v2/.test(delLoop),
+    'the deletion loop must not skip vendored/minified/scratch paths — those are ' +
+      'excluded from PARSING, and deleting a live vendored script is exactly the ' +
+      'change that most needs the suite to run',
+  );
 });

@@ -93,10 +93,22 @@ done
 # and only 2 deleted code outside mobile-app/ — so this runs on roughly 0.7% of
 # commits, versus a graph walk that would have to reconstruct the pre-deletion
 # tree to answer the question correctly.
+#
+# ⚠ THIS ARM CARRIES NO EXCLUSION LIST, DELIBERATELY — and the first version of
+# it did, which was a bug. It copied the parse arm's
+# `public/vendor/*|*.min.js|chat-design-v2/*` skip, but that list exists for ONE
+# reason: a parser-plugin mismatch on generated code would block a commit nobody
+# can fix. That rationale is about READING a file. It says nothing about whether
+# removing the file can break the app — and `public/vendor/supabase-js` and
+# `public/vendor/gridstack` are loaded by 67 pages, so a deletion-only commit
+# removing one of them would have run the suite ZERO times and exited 0.
+#
+# An exclusion list here would also have to be re-audited every time something
+# under it becomes live. Not having one cannot go stale: the only cost is that
+# deleting genuinely-dead scratch runs one extra build, which is a once-ever
+# event and the safe direction.
 for f in "${DELETED[@]}"; do
   case "$f" in
-    public/vendor/*|*.min.js|chat-design-v2/*)
-      ;;
     mobile-app/*)
       # The mobile arm above already decided whether this one matters.
       case "$f" in *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx) code_changed=1 ;; esac ;;
