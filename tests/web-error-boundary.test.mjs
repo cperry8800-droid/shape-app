@@ -68,6 +68,12 @@ test('error.tsx: renders the card, captures with the boundary tag, reset fires',
   let resets = 0;
   const { host, unmount } = mount(React.createElement(errorMod.default, { error: boom, reset: () => { resets += 1; } }));
   assert.match(host.textContent, /Something went wrong/);
+  // The card must never claim the crash was captured. No Sentry org, no DSN, and
+  // no local recorder on web — so a "we've recorded it" line is false, and it is
+  // false in the direction that suppresses the report the user would otherwise
+  // send. Assert the absence, because copy drifts back and nothing else notices.
+  assert.doesNotMatch(host.textContent, /record|report|logg|\bsent\b|notified|we'?ll look/i,
+    'ErrorCard claims the error was captured — untrue while delivery is unconfigured, and it talks the user out of telling us');
   assert.equal(capturedWeb.length, 1);
   assert.equal(capturedWeb[0].err, boom);
   assert.equal(capturedWeb[0].ctx?.tags?.crash_type, 'boundary');
