@@ -89,6 +89,60 @@ for f in "${STAGED[@]}"; do
   esac
 done
 
+# --- Shared bundle inputs -----------------------------------------------------
+#
+# The arms above match PATH PREFIXES. Vite's input set is the IMPORT GRAPH, and
+# the two disagree: mobile-app/src reaches outside its own tree 18 times, e.g.
+# iosAppBroadsheetRadio.jsx imports ../../../public/newdesign/noraStage.mjs and
+# sentry.mjs imports ../../../src/lib/sentry-context.mjs. Staging only one of
+# those set code_changed (parser + suite ran) but never mobile_changed, so the
+# one check that catches a renamed export or a deleted module was skipped and
+# the hook still printed "all checks passed".
+#
+# Derived rather than listed: public/newdesign holds 306 tracked files and is one
+# of the busiest trees in the repo, but only 15 are reachable from mobile. A
+# directory arm would put a full mobile build on nearly every commit, and a hook
+# slow enough to resent is a hook that gets --no-verify'd.
+if [ "$mobile_changed" -eq 0 ]; then
+  # Only pay for the graph walk when something outside mobile-app/ could plausibly
+  # be in it. A docs-only or SQL-only commit skips this entirely.
+  maybe_shared=0
+  for f in "${STAGED[@]}"; do
+    case "$f" in
+      mobile-app/*) ;;
+      *.mjs|*.cjs|*.js|*.jsx|*.ts|*.tsx|*.json) maybe_shared=1 ;;
+    esac
+  done
+  if [ "$maybe_shared" -eq 1 ]; then
+    if ! shared_inputs="$(node "$ROOT/scripts/mobile-bundle-inputs.mjs" 2>&1)"; then
+      # ⚠ MUST NOT DEGRADE TO "no shared inputs found". A deriver that errors and
+      # is treated as an empty result silently turns this check OFF, which is
+      # indistinguishable from a clean run — the exact failure this hook exists
+      # to stop. Unknown is not the same as none.
+      echo "verify: FAIL — could not derive the mobile bundle's shared inputs."
+      echo "        scripts/mobile-bundle-inputs.mjs exited non-zero:"
+      printf '%s\n' "$shared_inputs" | sed 's/^/        /'
+      echo "        Fix it, or bypass deliberately with SKIP_VERIFY=1."
+      exit 1
+    fi
+    if [ -z "$shared_inputs" ]; then
+      # Same reasoning: mobile has imported out of its tree since the Broadsheet
+      # split, so an empty graph means the walker broke, not that the coupling
+      # went away. tests/mobile-bundle-inputs.test.mjs pins this too.
+      echo "verify: FAIL — the mobile bundle's shared-input set came back EMPTY."
+      echo "        That means scripts/mobile-bundle-inputs.mjs stopped resolving,"
+      echo "        not that mobile stopped importing out of its tree."
+      exit 1
+    fi
+    for f in "${STAGED[@]}"; do
+      if printf '%s\n' "$shared_inputs" | grep -qxF -- "$f"; then
+        echo "verify: '$f' is a shared mobile bundle input — enabling the mobile build"
+        mobile_changed=1; code_changed=1
+      fi
+    done
+  fi
+fi
+
 if [ "$code_changed" -eq 0 ]; then
   echo "verify: no code staged (docs/config only) — OK"
   exit 0
