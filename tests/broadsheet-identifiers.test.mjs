@@ -232,3 +232,120 @@ test('BSSettings: every takeover flag that hides the root is cleared on shape:op
   assert.deepEqual(missing, [],
     'a Settings pane early-returns above the root but its flag is never reset — the corner avatar is a dead control on that pane, and still burns a back');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BSAppShell: the ?crash=1 trigger must stay armed, AND stay gated on a session.
+//
+// WHY THIS EXISTS: one line arms the whole deliberate-crash feature —
+// `{bsCrashTestRequested() && signedIn && <BSCrashProbe />}` inside BSAppShell's
+// tree, which the module's top-level render wraps in <BSErrorBoundary>. No test
+// EXECUTES that line: tests/error-boundary-mount.test.mjs stubs
+// `react-dom/client`, so neither BSApp nor BSAppShell ever renders, and both
+// probe tests mount BSCrashProbe directly inside the boundary. So moving it
+// above the boundary, dropping it in a merge, or wrapping it in another
+// condition makes `/m/?crash=1` silently render nothing while parse, tsc, both
+// builds and every test stay green — surfacing only during the owner's post-DSN
+// end-to-end gate, live, with no local repro.
+//
+// It asserts TWO facts, because each fails in the opposite direction:
+//   armed     — drop it and the e2e gate has nothing to pull.
+//   authGated — drop the session check and ANY anonymous visitor to
+//               /m/?crash=1 can inject deliberate exceptions on demand,
+//               burning the Sentry quota once a DSN exists.
+// It also pins the HOST: the gate must live in BSAppShell, the only component
+// holding the asynchronously-resolved session (`authState`) and re-rendering
+// when it lands. The same line in BSApp — which never re-renders on auth —
+// reads false at mount and never re-fires, i.e. a permanently dead trigger that
+// looks correct in review.
+//
+// Shaped against the AST, not the source text: reformatting, line wrapping and
+// added props can't break it, and a rename of either identifier can't sneak past.
+const AUTH_SIGNALS = new Set(['signedIn', 'authUserId']);
+
+// Collect what a `&&` guard chain actually proves. Left-nested or right-nested,
+// any depth — `a && b && <X/>` parses as `((a && b) && <X/>)`.
+function crashGuardFacts(node) {
+  const facts = { crashParam: false, auth: false };
+  const visit = (n) => {
+    if (!n) return;
+    if (n.type === 'LogicalExpression' && n.operator === '&&') { visit(n.left); visit(n.right); return; }
+    if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && n.callee.name === 'bsCrashTestRequested') { facts.crashParam = true; return; }
+    if (n.type === 'Identifier') { if (AUTH_SIGNALS.has(n.name)) facts.auth = true; return; }
+    // `authState?.user?.id` / `authState.user.id` — the session read itself.
+    let root = n;
+    while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') root = root.object;
+    if (root.type === 'Identifier' && root.name === 'authState') facts.auth = true;
+  };
+  visit(node);
+  return facts;
+}
+
+function bsAppShellArmsCrashProbe(ast) {
+  let fn = null;
+  traverse(ast, {
+    FunctionDeclaration(p) { if (p.node.id?.name === 'BSAppShell') fn = p; },
+  });
+  if (!fn) return { found: false, armed: false, authGated: false };
+
+  let armed = false;
+  let authGated = false;
+  fn.traverse({
+    LogicalExpression(p) {
+      if (p.node.operator !== '&&') return;
+      const { left, right } = p.node;
+      if (right.type !== 'JSXElement') return;
+      const name = right.openingElement.name;
+      if (!(name.type === 'JSXIdentifier' && name.name === 'BSCrashProbe')) return;
+      const facts = crashGuardFacts(left);
+      if (facts.crashParam) armed = true;
+      if (facts.crashParam && facts.auth) authGated = true;
+    },
+  });
+  return { found: true, armed, authGated };
+}
+
+test('BSAppShell: the ?crash=1 probe is still wired into the rendered tree', () => {
+  const ast = asts.get('iosAppBroadsheetMain.jsx');
+  assert.ok(ast, 'main module parsed');
+  const { found, armed } = bsAppShellArmsCrashProbe(ast);
+  assert.ok(found, 'BSAppShell found');
+  assert.ok(armed,
+    'BSAppShell no longer renders `bsCrashTestRequested() && … && <BSCrashProbe/>` — /m/?crash=1 is a no-op and the post-DSN e2e gate has nothing to pull');
+});
+
+test('BSAppShell: the ?crash=1 probe stays gated on a signed-in session', () => {
+  const ast = asts.get('iosAppBroadsheetMain.jsx');
+  const { authGated } = bsAppShellArmsCrashProbe(ast);
+  assert.ok(authGated,
+    'the crash probe is reachable without a session — any anonymous visitor to /m/?crash=1 can inject deliberate exceptions and burn the Sentry quota');
+});
+
+test('BSAppShell crash-probe gate: the detector flags what it should, and only that', () => {
+  const scan = (src) => bsAppShellArmsCrashProbe(parse(src, { sourceType: 'module', plugins: ['jsx'] }));
+  const ok = { found: true, armed: true, authGated: true };
+
+  // Armed + gated, in every formatting the source could legitimately take.
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && signedIn && <BSCrashProbe />}</div>; }'), ok);
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{\n  bsCrashTestRequested()\n  && signedIn\n  && <BSCrashProbe key="x" />\n}</div>; }'), ok, 'formatting-tolerant');
+  assert.deepEqual(scan('function BSAppShell(){ return <A><B>{bsCrashTestRequested() && signedIn && <BSCrashProbe />}</B></A>; }'), ok, 'nesting-tolerant');
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{signedIn && bsCrashTestRequested() && <BSCrashProbe />}</div>; }'), ok, 'guard order does not matter');
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && authUserId && <BSCrashProbe />}</div>; }'), ok, 'authUserId is the same fact');
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && authState?.user?.id && <BSCrashProbe />}</div>; }'), ok, 'the raw session read counts');
+
+  // Disarmed — each of the ways this line has plausibly rotted.
+  assert.deepEqual(scan('function BSAppShell(){ return <div><BSPhone /></div>; }'), { found: true, armed: false, authGated: false }, 'dropped in a merge');
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && signedIn && <BSMemHud />}</div>; }'), { found: true, armed: false, authGated: false }, 'guard kept, probe swapped');
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{devMode && <BSCrashProbe />}</div>; }'), { found: true, armed: false, authGated: false }, 'probe kept, guard swapped');
+  // Moved OUT of BSAppShell — including into BSApp, where auth never re-renders
+  // it, which is exactly the "looks wired, is permanently dead" regression.
+  assert.deepEqual(scan('function BSAppShell(){ return <div />; }\nfunction BSApp(){ return <div>{bsCrashTestRequested() && signedIn && <BSCrashProbe />}</div>; }'), { found: true, armed: false, authGated: false }, 'moved into BSApp');
+  assert.deepEqual(scan('function BSAppShell(){ return <div />; }\nconst R = <div>{bsCrashTestRequested() && <BSCrashProbe />}</div>;'), { found: true, armed: false, authGated: false }, 'moved to module scope');
+  assert.deepEqual(scan('const x = 1;'), { found: false, armed: false, authGated: false }, 'BSAppShell itself renamed/removed');
+
+  // Armed but UNGATED — the regression this whole gate exists to catch. Must
+  // report armed:true so the failure names the real fault (open to anonymous
+  // visitors), not a missing trigger.
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && <BSCrashProbe />}</div>; }'), { found: true, armed: true, authGated: false }, 'session check dropped');
+  // A truthy-looking but non-auth second condition must NOT satisfy the gate.
+  assert.deepEqual(scan('function BSAppShell(){ return <div>{bsCrashTestRequested() && devMode && <BSCrashProbe />}</div>; }'), { found: true, armed: true, authGated: false }, 'unrelated flag is not a session');
+});

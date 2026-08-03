@@ -178,7 +178,44 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest (2026-08-01): ERROR TRACKING LAYER 1 — SENTRY WIRED INTO ALL THREE RUNTIMES,
+> **Latest (2026-08-02): BOUNDARY-CAUGHT REACT CRASHES NOW REACH SENTRY, ON BOTH APP
+> SURFACES** (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` ·
+> `d2a99def8` on `claude/sentry-boundary-crashes`, based on the unmerged
+> `claude/error-tracking-layer-1-sentry`, not yet merged). An error boundary that catches a
+> crash **prevents it from ever reaching `window.onerror`** — so Layer 1's global handlers
+> were structurally blind to exactly the crash class this repo has shipped (TDZ / hook-order,
+> #1781). Mobile `/m/` now captures from `componentDidCatch` through one total seam; the Next
+> app gained the `error.tsx` + `global-error.tsx` it never had (before this, a `/dashboard` or
+> `/console` render crash showed Next's unbranded page and reported **nothing**).
+>
+> ⚠ **Still inert — no org, no DSN, nothing captured anywhere yet.** Same pre-account posture
+> as Layer 1.
+>
+> ⚠ **The end-to-end gate is DEFERRED and this is NOT DONE until it runs.** Every gate this
+> passes — 1439/1439 tests, `tsc`, `next build`, mobile build, CI — passes identically against
+> a broken DSN or an org that doesn't exist. Owner steps once the org exists: pull the two
+> deliberate triggers — **sign in for BOTH** (`/m/?crash=1` renders nothing for an anonymous
+> visitor since the round-4 quota fix), and `/dashboard/crash-test` signed in **as an admin,
+> trainer, nutritionist, or active subscriber — the only four that pass**; anyone else gets
+> the paywall instead of the page and the test silently produces nothing. ⚠ NOT "coach":
+> a **dietitian** is canonically a coach role but `dashboard/layout.tsx` doesn't honor it —
+> a live pre-existing access bug, see the full entry), confirm one event
+> each lands in `shape-mobile` / `shape-web`, symbolicated, carrying the distinctive
+> `Deliberate crash test (…)` messages.
+>
+> ⚠ **`crash_type: 'boundary'` + `handled: true` is an owner call with a real cost:** handled
+> events do NOT count against Sentry's crash-free session rate, so a recurring render crash
+> stays invisible in release health. The tag is the compensating control — don't "fix" it by
+> flipping `handled`.
+>
+> ⚠ **Surfaced by this work, bigger than it: `.github/workflows/ci.yml` NEVER RUNS `npm test`.**
+> The whole 1439-test suite — every mount test included — is enforced only by the bypassable
+> local pre-commit hook. Not fixed here; owner's call, since a new required check affects every
+> future PR.
+>
+> See the full entry below.
+
+> **Prior (2026-08-01): ERROR TRACKING LAYER 1 — SENTRY WIRED INTO ALL THREE RUNTIMES,
 > COMPLETELY INERT** (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` ·
 > `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab` on
 > `claude/error-tracking-layer-1-sentry`, not yet merged). Next.js pages + all 156 API routes
@@ -1419,6 +1456,148 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-08-02 — Boundary-caught React crashes now reach Sentry, on BOTH app surfaces (`d3e014e58` · `8d34612b2` · `f757fe07b` · `76817a46a` · `9d59de1ca` · `d2a99def8`, branch `claude/sentry-boundary-crashes`, based on the unmerged `claude/error-tracking-layer-1-sentry`, not yet merged)
+
+- **Five build tasks, spec at `docs/superpowers/specs/2026-08-02-boundary-crashes-sentry-design.md`,
+  plan at `docs/superpowers/plans/2026-08-02-boundary-crashes-sentry.md`.** Layer 1 wired the
+  SDKs into all three runtimes; this closes the hole Layer 1 could not: **an error boundary
+  that catches a crash prevents that crash from ever reaching `window.onerror`**, so Sentry's
+  global handlers are structurally blind to it. Boundary-caught render crashes — the TDZ /
+  hook-order class this repo has actually shipped (#1781) — were going to `localStorage` and
+  nowhere else.
+
+- ⚠ **Still nothing is being captured anywhere.** No Sentry organisation, no DSN; every
+  surface stays in the documented inert state. This is the same pre-account scaffolding
+  posture as Layer 1, and the same caveat applies verbatim: do not read "wired" as "live."
+
+- **Mobile (`/m/`): one new seam, one line of wiring.** `bsCaptureBoundaryError(err, info)` in
+  `mobile-app/src/sentry.mjs` — the only mobile module allowed to touch the SDK, every export
+  wrapped in its own `try/catch` so reporting can never take the app down. Called from
+  `BSErrorBoundary.componentDidCatch` (`iosAppBroadsheetMain.jsx`) and **nowhere else**.
+  ⚠ **The capture deliberately does NOT live in `bsRecordError`**, even though that is the
+  shared recorder and would have looked tidier: the `window` `error`/`unhandledrejection`
+  listeners call `bsRecordError` too, and the SDK's own global handlers already capture those
+  — so wiring it there would double-report **every** uncaught error the moment a DSN exists.
+  The fallback card (Copy / Reload / Restart) is untouched.
+
+- **Web (Next App Router): the two error components that did not exist at all.** Before this,
+  `src/app` had **no `error.tsx` and no `global-error.tsx`** — a client render crash on
+  `/dashboard` or `/console` showed Next's unbranded default page and reported nothing,
+  permanently. Both now exist, sharing `src/components/ErrorCard.tsx`.
+  ⚠ **`ErrorCard` uses inline styles, not Tailwind, and that is load-bearing, not a style
+  lapse** — `global-error.tsx` mounts only when the **root layout itself** crashed, i.e. with
+  no stylesheet loaded, so a Tailwind class there is dead markup. It also uses a plain
+  `<a href="/">` rather than `next/link`, which would want router context that may not exist
+  at that point.
+
+- **`crash_type: 'boundary'` on every capture, and the tradeoff behind it (owner call).**
+  `mechanism.handled` stays `true` because the boundary shows a recovery card and the session
+  continues. ⚠ **The consequence, recorded so it is not rediscovered later: handled events do
+  NOT count against Sentry's crash-free session rate**, so a recurring render crash that
+  white-cards a feature would stay invisible in release health. The tag is the compensating
+  control — it keeps boundary crashes filterable and alertable (an issue alert on
+  `crash_type = boundary` is an owner-side option once the org exists). **Do not "fix" this by
+  flipping to `handled: false`** without revisiting the decision. The tag is set in an
+  isolated scope; a test asserts it does not leak onto unrelated events.
+
+- **Sentry's dedupe was VERIFIED, not assumed** (owner requirement — a render loop on the free
+  tier burns the monthly quota in minutes). A test fires the identical capture twice and
+  asserts exactly **one** envelope leaves. It does, so **no local guard was added**. ⚠ That
+  test initializes `@sentry/react` directly against a mock transport and never touches
+  `@sentry/capacitor`, so it evidences the shared **core** dedupe — not the Capacitor init
+  path the app actually boots through. Two honest limits: Sentry's dedupe only suppresses
+  **consecutive identical** events (an A-B-A alternation passes through), and the premise the
+  app's own path rests on — that `bsInitSentry()` never disables the SDK's default
+  integrations — is still **not test-guarded**, but it is now **VERIFIED AT SOURCE**
+  (2026-08-02): `@sentry/capacitor`'s `getDefaultIntegrations`
+  (`dist/esm/integrations/default.js`) explicitly pushes `dedupeIntegration()`, `sdk.js`
+  applies those defaults whenever `passedOptions.defaultIntegrations === undefined`, and
+  `bsInitSentry` passes neither a `defaultIntegrations` nor an `integrations` key. A test
+  pinning it: registered, not built.
+
+- **Two deliberate crash triggers ship with this, because the end-to-end gate needs something
+  to pull.** `/m/?crash=1` (same URL-param pattern as the `?mem=1` HUD) and
+  `/dashboard/crash-test`.
+  ⚠ **The web one is inside the gated `/dashboard` segment on purpose** — the layout redirects
+  anonymous visitors to `/login` server-side, so crawlers cannot reach it and manufacture
+  Sentry noise once a DSN exists. Its throw is armed **after hydration** (a state flip in an
+  effect), never during render: a render-time throw would fire during SSR and be captured as a
+  **server** error, which is not the path being tested.
+  ⚠ **`?crash=1` strips itself from the URL (`history.replaceState`) before throwing, and that
+  is not cosmetic.** Review caught that without it the crash card's own buttons cannot escape
+  it: "Reload" is a soft `setState` reset that re-reads the same unchanged `location.search`,
+  and "Restart app" reloads the same URL query-string included — so both re-fire the crash
+  instantly and anyone who opened the link is stranded until they hand-edit the address bar.
+  The strip persists nothing (history entry only) and touches no card code.
+  ⚠ **`?crash=1` is SIGNED-IN ONLY too** (Codex round 4). It shipped reachable by any
+  anonymous visitor, so once a DSN exists someone could load `/m/?crash=1` on a loop and
+  inject deliberate exceptions until the monthly quota was gone — the web trigger had
+  `/dashboard` in front of it, this one had nothing. ⚠ **And the gate had to move to
+  `BSAppShell`, which is the non-obvious half:** auth hydrates asynchronously
+  (`getCachedState()` is empty on the first render and fills in when `getCurrentSession()`
+  resolves), and `BSApp` — where the probe used to render — never re-renders on auth. A
+  signed-in check there would have read false at mount and never re-fired: a permanently
+  dead trigger that looks correct in review and only fails during the owner's live gate.
+  `BSAppShell` holds `authState` and re-renders when the session lands, and it is still
+  inside `BSErrorBoundary` (which wraps the whole app at the module root), so a triggered
+  crash still takes the exact `componentDidCatch` → Sentry path a real fault takes.
+  `bsCrashTestRequested` stays pure and total — the auth read is at the call site, never in
+  the helper. `tests/broadsheet-identifiers.test.mjs` pins BOTH facts against the AST (armed,
+  and still session-gated), because nothing executes that line: the mount test stubs
+  `react-dom/client`, so neither component ever renders.
+
+- **Mount-tested for real, which is the whole point.** `componentDidCatch` never runs under
+  `renderToString`, so the existing server-render harness could not have caught any of this:
+  the new tests use `jsdom` + `react-dom/client` + `React.act` to actually mount. New files:
+  `tests/helpers/load-real-module.mjs` (compiles the REAL shipping module in memory, JSX/TSX →
+  CJS, imports resolved from a registry — generalizes the `broadsheet-render.test.mjs`
+  pattern without touching it), `tests/error-boundary-mount.test.mjs`,
+  `tests/web-error-boundary.test.mjs`, `tests/sentry-boundary-seam.test.mjs`.
+  ⚠ **`jsdom` had to be added as an explicit root devDependency** — it was present only
+  transitively, so these tests would have passed locally and failed on any fresh checkout.
+
+- ⚠ **A finding worth more than this PR: `.github/workflows/ci.yml` NEVER RUNS `npm test`.**
+  No workflow in the repo contains `npm test`, `npm run test`, or `node --test` (verified
+  directly). The web job runs `npm ci` → `tsc --noEmit` → the newdesign precompile check →
+  `next build`; mobile runs its Vite build; plus gitleaks. So the entire **1439-test** suite,
+  including every mount test above, is enforced **only** by the local pre-commit hook — which
+  is bypassable (`SKIP_VERIFY=1`) and only armed on a machine that ran the SessionStart hook.
+  A mount test CI never executes is not a gate. **Not fixed here** (adding a required check
+  changes every future PR — owner's call), but it is the single most load-bearing gap this
+  work surfaced.
+
+- **The end-to-end gate is DEFERRED, not skipped, and this work is not DONE until it runs.**
+  Every gate this PR passes — 1439/1439 tests, `tsc` clean, `next build` clean, mobile Vite
+  build clean, CI green — would pass **identically against a broken DSN, a wrong project slug,
+  or an org that does not exist**. A mock transport proves the seam, not the delivery (the
+  same rule set for Layer 2's alert routing). **Owner steps once the Sentry org exists:** open
+  `/m/?crash=1` and `/dashboard/crash-test`. ⚠ **For the web one, sign in as an ADMIN, a
+  TRAINER, a NUTRITIONIST, or an ACTIVE subscriber — those are the only four that pass** —
+  because `src/app/dashboard/layout.tsx` renders the members-only paywall *instead of*
+  `children` for anyone else, so the page never mounts, throws nothing, and the gate fails
+  silently while looking like a Sentry problem.
+  ⚠ **"Coach" is NOT a safe shorthand here, and the reason is a real pre-existing bug**
+  (found by Codex on #1868, NOT introduced by it and deliberately NOT fixed in it):
+  `src/lib/roles.mjs:13` defines the canonical `COACH_ROLES` as trainer + nutritionist +
+  **dietitian**, and `src/lib/membership-core.ts:56` mirrors all three by explicit comment —
+  but `dashboard/layout.tsx:28` grants coach access to `trainer` and `nutritionist` only. So
+  **an approved dietitian with no active subscription is shown the paywall on `/dashboard`**,
+  contradicting both the canonical role model and membership-core's own stated rule. That is a
+  live access bug for real dietitian coaches, far wider than this crash-test page; it needs its
+  own PR, because changing a `/dashboard` auth gate is not a drive-by edit in a Sentry PR.
+  Confirm **one** event each arrives in
+  `shape-mobile` and `shape-web` respectively, with a **symbolicated, readable stack** and the
+  distinctive messages `Deliberate crash test (mobile boundary)` / `Deliberate crash test (web
+  boundary)`. Honest limit: the React component-stack context is a client-generated string, so
+  component names within it may be minified in production bundles — the symbolicated exception
+  stack is the readability guarantee, the distinctive message is the arrival guarantee.
+
+- **Out of scope by design** (spec, owner-approved): per-surface boundaries inside the `/m/`
+  role apps (a product/UX change — a crash in one tab still white-cards the whole app);
+  static-website boundaries (it has none, so its crashes rethrow to `window.onerror`, which the
+  shipped `sentryInit.js` global handlers already cover); user context on the two web surfaces
+  (already a registered Layer 1 follow-up).
 
 ### 2026-08-01 — Error tracking Layer 1: Sentry wired into all three runtimes, completely inert (`924520d3b` · `1f8257fa8` · `c9b53e039` · `df750998b` · `175ef5b1a` · `212df6df4` · `80863f847` · `7415764ce` · `78fbdbaab`, branch `claude/error-tracking-layer-1-sentry`, not yet merged)
 

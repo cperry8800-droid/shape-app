@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines } from '../services/dailyWire.mjs';
+import { bsCaptureBoundaryError } from '../sentry.mjs';
 // iosAppBroadsheetMain.jsx — App entry: splash, login, role-dispatched app, Tweaks panel.
 
 initI18n(); // idempotent — sets the initial locale + text direction from the stored
@@ -1832,6 +1833,22 @@ function BSAppShell({ tweaks, setTweak }) {
   // auto-prompt, causing a brief Home flash before the overlay covers it.
   return (
     <BSRadioProvider>
+      {/* ── Deliberate crash trigger (?crash=1), armed here on purpose ────────
+          Signed-in only: without the gate, ANY anonymous visitor to
+          /m/?crash=1 could inject deliberate exceptions on demand and burn the
+          Sentry quota once a DSN exists (the web trigger is behind /dashboard;
+          this one was not). The gate lives in BSAppShell rather than BSApp
+          because auth hydrates ASYNCHRONOUSLY — getCachedState() is empty on
+          the first render and fills in when getCurrentSession() resolves. Only
+          BSAppShell holds that resolved session (`authState`) and re-renders
+          when it lands, so a gate in BSApp would evaluate false at mount and
+          never re-fire, leaving the trigger permanently dead.
+          Still INSIDE BSErrorBoundary: the boundary wraps <BSApp/> at the
+          module root, so anything BSAppShell renders takes the exact
+          componentDidCatch → Sentry path a real render fault takes.
+          `bsCrashTestRequested` stays pure and total — the auth read is HERE,
+          never inside it. */}
+      {bsCrashTestRequested() && signedIn && <BSCrashProbe />}
       <BSPhone>
         {stage === 'beat' && <BSSplash style="wire-beat" onDone={() => {}} />}
         {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('gate')} />}
@@ -2192,6 +2209,8 @@ function BSApp() {
     <I18nextProvider i18n={bsI18n}>
       <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
         <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
+          {/* The ?crash=1 probe is armed inside BSAppShell, not here — it is
+              gated on a signed-in user, and BSApp never re-renders on auth. */}
           <BSAppShell tweaks={tweaks} setTweak={setTweak} />
           {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
         </div>
@@ -2258,10 +2277,37 @@ function bsInstallMemHud() {
 }
 bsInstallMemHud();
 
+// ── Deliberate crash trigger (?crash=1) ─────────────────────────────
+// The post-DSN e2e Sentry gate (spec 2026-08-02) needs a real, boundary-caught
+// render crash on demand — same URL-param pattern as the ?mem=1 HUD above.
+// One-shot by design: nothing persists, so a reload without the param
+// recovers. The probe renders INSIDE BSErrorBoundary (via BSAppShell), so the
+// crash exercises the exact componentDidCatch → Sentry path a real fault takes.
+// ⚠ Armed ONLY for a signed-in user — see the gate + rationale in BSAppShell's
+// render. This helper stays pure and total: no auth read belongs in here.
+function bsCrashTestRequested(search) {
+  try {
+    return new URLSearchParams(search != null ? search : window.location.search).get('crash') === '1';
+  } catch (e) { return false; }
+}
+function BSCrashProbe() {
+  // Disarm before throwing: strip the param from the URL so the crash card's
+  // own Reload / Restart buttons actually recover. Without this, both buttons
+  // re-read the same ?crash=1 and re-fire the crash — stranding anyone who
+  // opens the link. Persists nothing (history entry only), and touches no
+  // fallback-card code.
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('crash');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  } catch (e) { /* History API unavailable — the crash below is still the point */ }
+  throw new Error('Deliberate crash test (mobile boundary)');
+}
+
 class BSErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
-  componentDidCatch(err, info) { this.setState({ info }); bsRecordError(err, info); }
+  componentDidCatch(err, info) { this.setState({ info }); bsRecordError(err, info); bsCaptureBoundaryError(err, info); }
   render() {
     if (!this.state.err) return this.props.children;
     const err = this.state.err;

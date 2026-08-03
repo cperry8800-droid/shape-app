@@ -88,3 +88,32 @@ export function bsSetSentryUser(profile, fallbackId) {
     // No user context on this session's events. Never a failed sign-in.
   }
 }
+
+/**
+ * Report a BOUNDARY-CAUGHT render crash. Called from BSErrorBoundary's
+ * componentDidCatch and nowhere else — the window error/unhandledrejection
+ * paths are already covered by the SDK's global handlers, so wiring this into
+ * bsRecordError would double-report every uncaught error once a DSN exists.
+ *
+ * `handled: true` — deliberate owner call (2026-08-02): the boundary shows a
+ * recovery card, so the session continues. That keeps these OUT of the
+ * crash-free session rate; the `crash_type: 'boundary'` tag is the
+ * compensating control that keeps them filterable and alertable. The tag is
+ * set in an isolated scope so it never leaks onto unrelated events.
+ *
+ * ⚠ Never throws, same contract as everything else in this module.
+ */
+export function bsCaptureBoundaryError(err, info) {
+  try {
+    SentryReact.withScope((scope) => {
+      scope.setTag('crash_type', 'boundary');
+      SentryReact.captureReactException(
+        err,
+        { componentStack: (info && typeof info.componentStack === 'string' && info.componentStack) || '' },
+        { mechanism: { handled: true } }
+      );
+    });
+  } catch (e) {
+    // Swallowed — no report for this crash, but the recovery card still shows.
+  }
+}
