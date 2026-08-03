@@ -87,6 +87,10 @@ test('global-error.tsx: captures with the tag and renders the card standalone', 
   const html = ReactDOMServer.renderToStaticMarkup(React.createElement(globalErrorMod.default, { error: boom, reset: () => {} }));
   assert.match(html, /^<html/);
   assert.match(html, /Something went wrong/);
+  // This page replaces the document, so it owns its own <head>. Without a
+  // viewport meta a phone renders it at ~980px CSS width and zooms out — the
+  // last-resort card unreadable on the device where it matters most.
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1"\/?>/);
   const realError = console.error;
   const stray = [];
   console.error = (...a) => { const line = a.join(' '); if (!/cannot be a child of|validateDOMNesting|<html>/.test(line)) stray.push(line); };
@@ -96,6 +100,70 @@ test('global-error.tsx: captures with the tag and renders the card standalone', 
   } finally { console.error = realError; }
   assert.equal(stray.length, 0, stray.join('\n'));
   assert.equal(capturedWeb.length, before + 1);
+  assert.equal(capturedWeb[before].ctx?.tags?.crash_type, 'boundary');
+});
+
+// A server-render crash reaches Sentry TWICE unless this gate holds: once
+// server-side through `onRequestError` (src/instrumentation.ts exports
+// `captureRequestError` from @sentry/nextjs) with the real stack, and again
+// from these components' useEffect. The duplicate is worse than noise — in
+// production Next redacts the client-visible error to a generic message plus a
+// `digest`, so EVERY distinct server error yields an identical client event and
+// they all group into ONE Sentry issue carrying `crash_type: 'boundary'`. That
+// tag is the spec's compensating control for the `handled: true` release-health
+// tradeoff (boundary crashes stay out of the crash-free session rate, so the tag
+// is the only thing keeping them filterable and alertable) — one meaningless
+// aggregate dominating it defeats the purpose. `digest` is the seam: Next sets
+// it only on server-originated errors. Both halves are asserted, on both files.
+test('digest gate: a server-originated error is not re-captured; a browser-only one still is', () => {
+  const allowNesting = (fn) => {
+    // global-error.tsx renders its own <html>; a client mount into a div logs a
+    // DOM-nesting warning by design (same allowance as the test above).
+    const realError = console.error;
+    const stray = [];
+    console.error = (...a) => { const line = a.join(' '); if (!/cannot be a child of|validateDOMNesting|<html>/.test(line)) stray.push(line); };
+    try { fn(); } finally { console.error = realError; }
+    assert.equal(stray.length, 0, stray.join('\n'));
+  };
+
+  // ── half 1: WITH a digest → no capture (already reported upstream) ──
+  const serverErr = Object.assign(
+    new Error('An error occurred in the Server Components render.'),
+    { digest: '3751028461' },
+  );
+
+  let before = capturedWeb.length;
+  const a = mount(React.createElement(errorMod.default, { error: serverErr, reset: () => {} }));
+  assert.match(a.host.textContent, /Something went wrong/, 'the card still renders — only the capture is suppressed');
+  assert.equal(capturedWeb.length, before, 'error.tsx must not re-capture a digest-bearing error');
+  a.unmount();
+
+  before = capturedWeb.length;
+  allowNesting(() => {
+    const b = mount(React.createElement(globalErrorMod.default, { error: serverErr, reset: () => {} }));
+    b.unmount();
+  });
+  assert.equal(capturedWeb.length, before, 'global-error.tsx must not re-capture a digest-bearing error');
+
+  // ── half 2: WITHOUT a digest → still captured, still tagged ──
+  // A browser-only crash reaches Sentry through nothing else, so suppressing
+  // it would silently delete the whole feature.
+  const clientErr = new Error('browser-only boom');
+
+  before = capturedWeb.length;
+  const c = mount(React.createElement(errorMod.default, { error: clientErr, reset: () => {} }));
+  assert.equal(capturedWeb.length, before + 1, 'error.tsx must still capture a digest-less error');
+  assert.equal(capturedWeb[before].err, clientErr);
+  assert.equal(capturedWeb[before].ctx?.tags?.crash_type, 'boundary');
+  c.unmount();
+
+  before = capturedWeb.length;
+  allowNesting(() => {
+    const d = mount(React.createElement(globalErrorMod.default, { error: clientErr, reset: () => {} }));
+    d.unmount();
+  });
+  assert.equal(capturedWeb.length, before + 1, 'global-error.tsx must still capture a digest-less error');
+  assert.equal(capturedWeb[before].err, clientErr);
   assert.equal(capturedWeb[before].ctx?.tags?.crash_type, 'boundary');
 });
 

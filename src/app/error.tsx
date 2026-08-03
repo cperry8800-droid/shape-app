@@ -11,6 +11,16 @@ import ErrorCard from '@/components/ErrorCard';
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    // Server-originated errors already reached Sentry through
+    // `onRequestError` (src/instrumentation.ts) WITH their real stack. Next
+    // redacts what it hands the browser to a generic message + `digest`, so
+    // capturing again here would file one indistinguishable duplicate per
+    // server error — and they would all group into a single issue carrying
+    // `crash_type: 'boundary'`, swamping the very filter that tag exists to
+    // provide. `digest` is present only on server-originated errors, so this
+    // is the seam between "already reported upstream" and "browser-only
+    // crash nothing else can see."
+    if (error.digest) return;
     // handled boundary crash — tagged so it stays filterable/alertable
     // despite not counting against the crash-free session rate (spec
     // 2026-08-02, explicit owner call).
