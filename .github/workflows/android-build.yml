@@ -78,9 +78,26 @@ jobs:
           # the artifact is for — PR/debug errors would be indistinguishable from
           # live ones and would defeat production-only alert filtering.
           VITE_SHAPE_ENV: debug
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT_MOBILE: ${{ secrets.SENTRY_PROJECT_MOBILE }}
+          # ⚠ UPLOAD CREDENTIALS ARE WITHHELD ON pull_request, DELIBERATELY.
+          #
+          # These three are what switch the Sentry Vite plugin from "absent" to
+          # "create a release and upload source maps". This job runs on EVERY PR
+          # touching mobile-app/**, and the artifact it produces is a debug APK
+          # that is never distributed — so with the secrets present, every such
+          # PR would mint a Sentry release named after its head SHA and upload
+          # maps for a binary nobody installs. That burns the upload quota and
+          # fills the release list with junk that has to be cleaned up by hand.
+          #
+          # This cannot misfire today (no secrets exist), which is exactly why it
+          # has to land BEFORE they are created — after is a cleanup job.
+          # The release-apk job below is already push/dispatch-only, so it needs
+          # no equivalent guard.
+          #
+          # Withholding the token alone would disable the upload, but org and
+          # project are withheld too so the intent reads at a glance.
+          SENTRY_AUTH_TOKEN: ${{ github.event_name != 'pull_request' && secrets.SENTRY_AUTH_TOKEN || '' }}
+          SENTRY_ORG: ${{ github.event_name != 'pull_request' && secrets.SENTRY_ORG || '' }}
+          SENTRY_PROJECT_MOBILE: ${{ github.event_name != 'pull_request' && secrets.SENTRY_PROJECT_MOBILE || '' }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5

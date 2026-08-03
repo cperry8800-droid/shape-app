@@ -5,10 +5,15 @@
 # committing" loop, but only runs the checks the staged change can actually
 # break, so docs/copy commits stay instant.
 #
-#   - mobile/website JSX staged  -> babel parse-check
+#   - any .js/.jsx/.mjs/.cjs     -> babel parse-check (by extension, not by dir)
 #   - src/** or TS config staged -> tsc --noEmit  (needs root node_modules)
-#   - mobile-app/src/** staged   -> mobile build + public/m sync diff
+#   - mobile-app/src/** staged   -> mobile build
 #   - any code staged            -> npm test
+#
+# ⚠ THIS HOOK IS NOT THE GATE. It can be skipped with --no-verify or
+# SKIP_VERIFY=1, so treat it as a fast local mirror of CI, never as the thing
+# that keeps a bug out of main. The hard gate is .github/workflows/ci.yml plus
+# the branch-protection required-checks list.
 #
 # Bypass once (e.g. a known-safe WIP commit):  SKIP_VERIFY=1 git commit ...
 set -o pipefail
@@ -31,6 +36,7 @@ code_changed=0
 # bash 3.2 (macOS) — a declared-but-unassigned array reads as unbound there.
 parse_mod=()
 parse_script=()
+parse_auto=()
 
 for f in "${STAGED[@]}"; do
   case "$f" in
@@ -42,13 +48,36 @@ for f in "${STAGED[@]}"; do
     mobile-app/src/*|mobile-app/vite.config.*|mobile-app/*.html)
       mobile_changed=1; code_changed=1 ;;
   esac
+  # ⚠ THIS MATCHES BY EXTENSION, NOT BY DIRECTORY, DELIBERATELY.
+  #
+  # The old arms listed directories, so anything outside them set code_changed=0
+  # and the script printed "no code staged (docs/config only) — OK" and exited 0.
+  # That is not a gap in coverage, it is a gate reporting success on an unverified
+  # change. It covered public/supabase.js — 1045 lines, loaded by 56 pages,
+  # defining window.shapeDb, ShapeTurnstile, ShapeAnalytics and shapeSignOut —
+  # plus 20 other public/**/*.js and every scripts/*.mjs. An allowlist also means
+  # each new directory has to remember to add itself, and forgetting is silent.
+  #
+  # sourceType: the EXTENSION is authoritative only for .mjs/.cjs. For .js/.jsx it
+  # carries no information here — 28 tracked .js/.jsx files are ESM and 161 are
+  # classic scripts. public/newdesign/spotlightTour.js is a module (it imports
+  # ./spotlightGeom.mjs) while its 10 directory-siblings are scripts, so ANY fixed
+  # per-directory guess hard-blocks a commit of a valid file. 'unambiguous' lets
+  # the parser decide, which keeps this a SYNTAX check — the only thing it can
+  # honestly be — instead of an accidental module-system assertion.
   case "$f" in
-    mobile-app/src/*.jsx|mobile-app/src/*.js|mobile-app/src/*.mjs)
+    # Third-party/generated: never hand-edited, and a parser-plugin mismatch here
+    # would block a commit nobody can fix. chat-design-v2/ is design scratch (no
+    # build or deploy config references it) and holds ios-frame.jsx, which is an
+    # HTML document saved under a .jsx name — a real defect, but someone else's.
+    public/vendor/*|*.min.js|chat-design-v2/*)
+      ;;
+    *.mjs)
       parse_mod+=("$f"); code_changed=1 ;;
-    public/*.jsx)
+    *.cjs)
       parse_script+=("$f"); code_changed=1 ;;
-    tests/*.mjs|tests/*.js)
-      code_changed=1 ;;
+    *.js|*.jsx)
+      parse_auto+=("$f"); code_changed=1 ;;
   esac
 done
 
@@ -67,10 +96,11 @@ parse_one() { # <abs-file> <sourceType>
       p.parse(fs.readFileSync(process.argv[1],"utf8"),{sourceType:process.argv[2],plugins:["jsx"]});
     ' "$1" "$2" )
 }
-if [ "${#parse_mod[@]}" -gt 0 ] || [ "${#parse_script[@]}" -gt 0 ]; then
+if [ "${#parse_mod[@]}" -gt 0 ] || [ "${#parse_script[@]}" -gt 0 ] || [ "${#parse_auto[@]}" -gt 0 ]; then
   step "parse-check staged JSX/JS"
-  for f in "${parse_mod[@]:-}";    do [ -n "$f" ] && { parse_one "$ROOT/$f" module && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
-  for f in "${parse_script[@]:-}"; do [ -n "$f" ] && { parse_one "$ROOT/$f" script && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_mod[@]:-}";    do [ -n "$f" ] && { parse_one "$ROOT/$f" module      && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_script[@]:-}"; do [ -n "$f" ] && { parse_one "$ROOT/$f" script      && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
+  for f in "${parse_auto[@]:-}";   do [ -n "$f" ] && { parse_one "$ROOT/$f" unambiguous && echo "  ok  $f" || { echo "  FAIL $f"; fail=1; }; }; done
 fi
 
 # --- 2. TypeScript ---
@@ -79,24 +109,31 @@ if [ "$ts_changed" -eq 1 ]; then
     step "tsc --noEmit"
     npx tsc --noEmit || fail=1
   else
-    echo "verify: WARNING — root node_modules missing, skipping tsc (run 'npm install')"
+    # ⚠ WAS A WARNING THAT LET THE COMMIT THROUGH. "I could not check this"
+    # printed in the same run that ends "all checks passed" is a false pass —
+    # the developer reads the green line, not the yellow one. Blocking is the
+    # honest outcome; the message says exactly how to proceed either way.
+    echo "verify: FAIL — root node_modules missing, so tsc could NOT run."
+    echo "        Run 'npm install', or bypass deliberately with SKIP_VERIFY=1."
+    fail=1
   fi
 fi
 
-# --- 3. Mobile build + public/m sync (the classic 'forgot to republish' catch) ---
+# --- 3. Mobile build ---
+#
+# ⚠ The public/m SYNC DIFF THAT USED TO LIVE HERE IS GONE, DELIBERATELY.
+# public/m stopped being committed in #1470 — .gitignore:26 ignores it and
+# `git ls-files public/m` returns nothing; it is built at DEPLOY time by
+# scripts/build-m.sh. The old step diffed a fresh build against whatever stale
+# copy happened to be lying around locally, so it could only ever fail, and the
+# remedy it printed ("republish from repo root") told the developer to
+# re-create a directory the pipeline deliberately stopped tracking. A check
+# that fails for a reason the developer cannot fix teaches exactly one habit:
+# --no-verify — which also disables the mount tests in step 4. Removing it is
+# the point, not a regression.
 if [ "$mobile_changed" -eq 1 ]; then
-  step "mobile build + public/m sync"
+  step "mobile build"
   ( cd "$ROOT/mobile-app" && VITE_BASE=/m/ npm run build ) || fail=1
-  if [ "$fail" -eq 0 ]; then
-    if diff -qr "$ROOT/mobile-app/dist" "$ROOT/public/m" >/tmp/verify-m-diff.txt 2>&1; then
-      echo "  public/m is in sync"
-    else
-      echo "  FAIL public/m is OUT OF SYNC — republish from repo root:"
-      echo "    rm -rf public/m && cp -r mobile-app/dist public/m"
-      cat /tmp/verify-m-diff.txt
-      fail=1
-    fi
-  fi
 fi
 
 # --- 4. Tests ---
@@ -104,7 +141,11 @@ if [ -d node_modules ]; then
   step "npm test"
   npm test || fail=1
 else
-  echo "verify: WARNING — root node_modules missing, skipping npm test"
+  # Same reasoning as the tsc branch above — an unrun suite must not read as a
+  # passing one. This is the branch that hid the MOUNT tests specifically.
+  echo "verify: FAIL — root node_modules missing, so the test suite could NOT run."
+  echo "        Run 'npm install', or bypass deliberately with SKIP_VERIFY=1."
+  fail=1
 fi
 
 if [ "$fail" -ne 0 ]; then

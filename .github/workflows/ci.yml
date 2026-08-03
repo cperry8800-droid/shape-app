@@ -9,7 +9,9 @@
 #
 # Runs on every PR into main + pushes to main/staging. To make it a hard
 # gate, add a branch protection rule on main requiring the "Web (typecheck
-# + build)" and "Mobile (build + public/m sync)" checks.
+# + build)", "Mobile (build + public/m sync)" and "Tests (unit + mount)"
+# checks. ⚠ A job in this file is ADVISORY until it is in that required list —
+# adding the job is half the change.
 
 name: CI
 
@@ -59,6 +61,50 @@ jobs:
         run: npx next build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+
+  # ⚠ THE ONLY CI JOB THAT EXECUTES A REACT COMPONENT.
+  #
+  # tsc, next build and the Vite mobile build all pass a module with a TDZ
+  # reference, a conditionally-called hook, or a throw in a render body —
+  # nothing in them RUNS the component. One shipped exactly that way (#1781).
+  # Until this job existed, the mount tests written to catch that class ran
+  # ONLY from the pre-commit hook, which is bypassable four ways
+  # (--no-verify, SKIP_VERIFY=1, missing node_modules, and silently for any
+  # path its patterns miss). A gate a developer can skip is not a gate.
+  #
+  # Both dependency trees are installed on purpose: tests/helpers/load-real-module.mjs
+  # resolves a source file's bare imports with createRequire from the SOURCE's
+  # location, so a mobile module under test pulls @sentry/capacitor and friends
+  # from mobile-app/node_modules — root-only would fail at import, not at assert.
+  tests:
+    name: Tests (unit + mount)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          # BOTH lockfiles — this job is the only one that installs both trees,
+          # so keying on the root lock alone would serve a stale cache after a
+          # mobile-only dependency change.
+          cache-dependency-path: |
+            package-lock.json
+            mobile-app/package-lock.json
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Install dependencies (mobile-app)
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Run the suite
+        run: npm test
 
   mobile:
     name: Mobile (build + public/m sync)
